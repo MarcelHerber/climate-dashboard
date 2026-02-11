@@ -18,7 +18,7 @@ fetch('data.json')
   .then(data => {
 
     const labels = data.map(d => d.date);
-    const values = data.map(d => d.temperature);
+    const values = data.map(d => d.rain);
 
     new Chart(document.getElementById("chart"), {
       type: "line",
