@@ -9,7 +9,7 @@
 
   <!-- Zoom Plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
-  
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -18,32 +18,21 @@
       background-color: #f4f6f8;
     }
 
-    h1 {
-      margin-bottom: 5px;
-    }
-
-    h2 {
-      margin-top: 0;
-      color: #555;
-    }
-
     canvas {
-  width: 100% !important;
-  height: 600px !important;
-  max-width: 1400px;
-  margin: auto;
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
+      width: 100% !important;
+      height: 600px !important;
+      max-width: 1400px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
 
-
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
+    select, button {
+      padding: 8px 12px;
+      margin: 10px;
       font-size: 14px;
-      cursor: pointer;
     }
   </style>
 </head>
@@ -52,84 +41,109 @@
 <h1>Climate Dashboard</h1>
 <h2>Niederschlag Deutschland (seit 1881)</h2>
 
-<canvas id="chart"></canvas>
+<label for="monthSelect">Monat auswählen:</label>
+<select id="monthSelect">
+  <option value="all">Alle Monate</option>
+  <option value="01">Januar</option>
+  <option value="02">Februar</option>
+  <option value="03">März</option>
+  <option value="04">April</option>
+  <option value="05">Mai</option>
+  <option value="06">Juni</option>
+  <option value="07">Juli</option>
+  <option value="08">August</option>
+  <option value="09">September</option>
+  <option value="10">Oktober</option>
+  <option value="11">November</option>
+  <option value="12">Dezember</option>
+</select>
 
+<br>
+
+<canvas id="chart"></canvas>
 <br>
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
 
 <script>
 let chartInstance;
+let originalData = [];
 
 fetch('data.json')
   .then(response => response.json())
   .then(data => {
+    originalData = data;
+    createChart(data);
+  });
 
-    const labels = data.map(entry => entry.date);
-    const rain = data.map(entry => entry.rain);
+function createChart(filteredData) {
 
-    const ctx = document.getElementById('chart').getContext('2d');
+  const labels = filteredData.map(entry => entry.date);
+  const rain = filteredData.map(entry => entry.rain);
 
-    chartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Niederschlag (mm)',
-          data: rain,
-          borderWidth: 1,
-          tension: 0.1
-        }]
+  const ctx = document.getElementById('chart').getContext('2d');
+
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Niederschlag (mm)',
+        data: rain,
+        borderWidth: 1,
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
       },
-      options: {
-        maintainAspectRatio: false,
-        responsive: true,
-        interaction: {
-          mode: 'index',
-          intersect: false
-        },
-        plugins: {
-          legend: {
-            display: true
+      plugins: {
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x'
           },
           zoom: {
-            pan: {
-              enabled: true,
-              mode: 'x'
+            wheel: {
+              enabled: true
             },
-            zoom: {
-              wheel: {
-                enabled: true
-              },
-              pinch: {
-                enabled: true
-              },
-              mode: 'x'
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: {
-              maxTicksLimit: 20
-            }
-          },
-          y: {
-            beginAtZero: false
+            pinch: {
+              enabled: true
+            },
+            mode: 'x'
           }
         }
       }
-    });
-
-  })
-  .catch(error => {
-    console.error("Fehler beim Laden der Daten:", error);
+    }
   });
+}
+
+document.getElementById("monthSelect").addEventListener("change", function() {
+  const selectedMonth = this.value;
+
+  if (selectedMonth === "all") {
+    createChart(originalData);
+  } else {
+    const filtered = originalData.filter(entry =>
+      entry.date.endsWith("-" + selectedMonth)
+    );
+    createChart(filtered);
+  }
+});
 
 function resetZoom() {
-  chartInstance.resetZoom();
+  if (chartInstance) {
+    chartInstance.resetZoom();
+  }
 }
 </script>
 
 </body>
 </html>
-
