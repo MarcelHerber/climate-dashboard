@@ -4,8 +4,15 @@
 <meta charset="UTF-8">
 <title>Climate Dashboard – Niederschlag Deutschland</title>
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- Zoom Plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+<!-- PDF Tools -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 body {
@@ -34,6 +41,7 @@ select, button {
 }
 </style>
 </head>
+
 <body>
 
 <h1>Climate Dashboard</h1>
@@ -55,117 +63,195 @@ select, button {
   <option value="12">Dezember</option>
 </select>
 
-<canvas id="mainChart"></canvas>
+<br>
+
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
+<button onclick="downloadPDF()">Als PDF herunterladen</button>
+
+<div id="pdfContent">
+
+<canvas id="mainChart"></canvas>
+<canvas id="percentChart"></canvas>
+
+</div>
 
 <script>
-let chartInstance;
+
+let mainChart;
+let percentChart;
 let originalData = [];
 
 fetch('data.json')
-.then(response => response.json())
+.then(res => res.json())
 .then(data => {
   originalData = data;
-  updateChart("01");
+  updateCharts("01");
 });
 
-function updateChart(month) {
+function updateCharts(month) {
 
-  const filtered = originalData.filter(entry =>
-    entry.date.endsWith("-" + month)
+  const filtered = originalData.filter(e =>
+    e.date.endsWith("-" + month)
   );
 
-  const labels = filtered.map(entry => entry.date.substring(0,4));
-  const rain = filtered.map(entry => entry.rain);
+  const labels = filtered.map(e => e.date.substring(0,4));
+  const rain = filtered.map(e => e.rain);
 
-  const climatePeriod = filtered.filter(entry => {
-    const year = parseInt(entry.date.substring(0,4));
-    return year >= 1991 && year <= 2020;
+  const climatePeriod = filtered.filter(e => {
+    const y = parseInt(e.date.substring(0,4));
+    return y >= 1991 && y <= 2020;
   });
 
   const climateMean =
-    climatePeriod.reduce((sum, e) => sum + e.rain, 0)
-    / climatePeriod.length;
+    climatePeriod.reduce((s,e)=>s+e.rain,0) / climatePeriod.length;
 
-  const ctx = document.getElementById('mainChart').getContext('2d');
+  // ===== HAUPTDIAGRAMM =====
 
-  if (chartInstance) chartInstance.destroy();
+  if (mainChart) mainChart.destroy();
 
-  chartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Niederschlag (mm)',
-          data: rain,
-          backgroundColor: 'green'
-        },
-        {
-          label: 'Mittelwert 1991–2020',
-          data: new Array(rain.length).fill(climateMean),
-          type: 'line',
-          borderColor: 'black',
-          borderWidth: 3,
-          borderDash: [10,6],
-          pointRadius: 0
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
+  mainChart = new Chart(
+    document.getElementById('mainChart'),
+    {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Niederschlag (mm)',
+            data: rain,
+            backgroundColor: 'green'
+          },
+          {
+            label: 'Mittelwert 1991–2020',
+            data: new Array(rain.length).fill(climateMean),
+            type: 'line',
+            borderColor: 'black',
+            borderWidth: 3,
+            borderDash: [10,6],
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
 
-      scales: {
-        x: {
-          ticks: {
-            autoSkip: false,
-            font: { size: 14 },
-            callback: function(value, index) {
-              if (index % 20 === 0) {
-                return labels[index];
+        scales: {
+          x: {
+            ticks: {
+              autoSkip: false,
+              callback: function(value, index) {
+                if (index % 20 === 0) return labels[index];
+                return '';
               }
-              return '';
             }
           }
         },
-        y: {
-          ticks: {
-            font: { size: 14 }
-          }
-        }
-      },
 
-      plugins: {
-        tooltip: {
-          backgroundColor: '#333',
-          titleFont: { size: 18 },
-          bodyFont: { size: 18 },
-          padding: 16,
-          displayColors: false
-        },
-        zoom: {
-          pan: { enabled: true, mode: 'x' },
+        plugins: {
+          tooltip: {
+            backgroundColor: '#333',
+            titleFont: { size: 18 },
+            bodyFont: { size: 18 },
+            padding: 16,
+            displayColors: false
+          },
           zoom: {
-            wheel: { enabled: true },
-            pinch: { enabled: true },
-            drag: { enabled: true },
-            mode: 'x'
+            pan: { enabled: true, mode: 'x' },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              drag: { enabled: true },
+              mode: 'x'
+            }
           }
         }
       }
     }
-  });
+  );
+
+  // ===== PROZENT-ABWEICHUNG =====
+
+  const percentValues = rain.map(v =>
+    ((v - climateMean) / climateMean) * 100
+  );
+
+  const colors = percentValues.map(v =>
+    v >= 0 ? 'green' : 'brown'
+  );
+
+  if (percentChart) percentChart.destroy();
+
+  percentChart = new Chart(
+    document.getElementById('percentChart'),
+    {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Abweichung vom Mittel (%)',
+          data: percentValues,
+          backgroundColor: colors
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              autoSkip: false,
+              callback: function(value, index) {
+                if (index % 20 === 0) return labels[index];
+                return '';
+              }
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: '% Abweichung'
+            }
+          }
+        },
+        plugins: {
+          tooltip: {
+            titleFont: { size: 18 },
+            bodyFont: { size: 18 },
+            padding: 16
+          }
+        }
+      }
+    }
+  );
 }
 
 document.getElementById("monthSelect")
 .addEventListener("change", function() {
-  updateChart(this.value);
+  updateCharts(this.value);
 });
 
 function resetZoom() {
-  if (chartInstance) chartInstance.resetZoom();
+  if (mainChart) mainChart.resetZoom();
 }
+
+async function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const element = document.getElementById("pdfContent");
+
+  const canvas = await html2canvas(element, { scale: 2 });
+
+  const imgData = canvas.toDataURL("image/png");
+
+  const pdf = new jsPDF("landscape", "mm", "a4");
+
+  const imgWidth = 280;
+  const imgHeight = canvas.height * imgWidth / canvas.width;
+
+  pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
+  pdf.save("Climate_Dashboard.pdf");
+}
+
 </script>
 
 </body>
