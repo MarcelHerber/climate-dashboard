@@ -6,7 +6,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -21,7 +20,7 @@ body {
 .chart-container {
   width: 100%;
   max-width: 1500px;
-  height: 650px;
+  height: 600px;
   margin: 40px auto;
   background: white;
   padding: 20px;
@@ -32,6 +31,17 @@ body {
 canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.stats {
+  max-width: 900px;
+  margin: 40px auto;
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  text-align: left;
+  font-size: 18px;
 }
 
 select, button {
@@ -79,6 +89,17 @@ select, button {
   <canvas id="percentChart"></canvas>
 </div>
 
+<div class="stats">
+  <h3>Statistik</h3>
+  <p><strong>Mittelwert 1991–2020:</strong> <span id="climateMean"></span> mm</p>
+
+  <h4>Top 3 höchste Werte</h4>
+  <ul id="topHigh"></ul>
+
+  <h4>Top 3 niedrigste Werte</h4>
+  <ul id="topLow"></ul>
+</div>
+
 </div>
 
 <script>
@@ -115,9 +136,34 @@ function updateCharts(month) {
   const climateMean =
     climatePeriod.reduce((s,e)=>s+e.rain,0) / climatePeriod.length;
 
-  // ========================
-  // HAUPTDIAGRAMM
-  // ========================
+  document.getElementById("climateMean").innerText =
+    climateMean.toFixed(2);
+
+  // Top 3 höchste
+  const sortedHigh = [...filtered]
+    .sort((a,b)=>b.rain-a.rain)
+    .slice(0,3);
+
+  const highList = document.getElementById("topHigh");
+  highList.innerHTML = "";
+  sortedHigh.forEach(e=>{
+    highList.innerHTML +=
+      `<li>${e.date.substring(0,4)}: ${e.rain} mm</li>`;
+  });
+
+  // Top 3 niedrigste
+  const sortedLow = [...filtered]
+    .sort((a,b)=>a.rain-b.rain)
+    .slice(0,3);
+
+  const lowList = document.getElementById("topLow");
+  lowList.innerHTML = "";
+  sortedLow.forEach(e=>{
+    lowList.innerHTML +=
+      `<li>${e.date.substring(0,4)}: ${e.rain} mm</li>`;
+  });
+
+  // ===== HAUPTDIAGRAMM =====
 
   if (mainChart) mainChart.destroy();
 
@@ -151,28 +197,21 @@ function updateCharts(month) {
           x: {
             ticks: {
               autoSkip: false,
-              callback: function(value, index) {
-                if (index % 20 === 0) return labels[index];
+              callback: function(value,index){
+                if(index % 20 === 0) return labels[index];
                 return '';
               }
             }
           }
         },
         plugins: {
-          tooltip: {
-            backgroundColor: '#333',
-            titleFont: { size: 18 },
-            bodyFont: { size: 18 },
-            padding: 16,
-            displayColors: false
-          },
           zoom: {
-            pan: { enabled: true, mode: 'x' },
-            zoom: {
-              wheel: { enabled: true },
-              pinch: { enabled: true },
-              drag: { enabled: true },
-              mode: 'x'
+            pan:{enabled:true,mode:'x'},
+            zoom:{
+              wheel:{enabled:true},
+              pinch:{enabled:true},
+              drag:{enabled:true},
+              mode:'x'
             }
           }
         }
@@ -180,16 +219,14 @@ function updateCharts(month) {
     }
   );
 
-  // ========================
-  // PROZENT-DIAGRAMM
-  // ========================
+  // ===== PROZENT-ABWEICHUNG =====
 
   const percentValues = rain.map(v =>
-    (v / climateMean) * 100
+    ((v / climateMean) * 100) - 100
   );
 
   const colors = percentValues.map(v =>
-    v >= 100 ? 'green' : 'brown'
+    v >= 0 ? 'green' : 'brown'
   );
 
   if (percentChart) percentChart.destroy();
@@ -202,13 +239,13 @@ function updateCharts(month) {
         labels: labels,
         datasets: [
           {
-            label: 'Prozent vom Klimamittel',
+            label: '% Abweichung vom Klimamittel',
             data: percentValues,
             backgroundColor: colors
           },
           {
-            label: '100 % Linie',
-            data: new Array(percentValues.length).fill(100),
+            label: '0 % Linie',
+            data: new Array(percentValues.length).fill(0),
             type: 'line',
             borderColor: 'black',
             borderWidth: 2,
@@ -218,32 +255,23 @@ function updateCharts(month) {
         ]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            ticks: {
-              autoSkip: false,
-              callback: function(value, index) {
-                if (index % 20 === 0) return labels[index];
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{
+          x:{
+            ticks:{
+              autoSkip:false,
+              callback:function(value,index){
+                if(index%20===0) return labels[index];
                 return '';
               }
             }
           },
-          y: {
-            title: {
-              display: true,
-              text: '% vom Klimamittel'
-            },
-            suggestedMin: 50,
-            suggestedMax: 150
-          }
-        },
-        plugins: {
-          tooltip: {
-            titleFont: { size: 18 },
-            bodyFont: { size: 18 },
-            padding: 16
+          y:{
+            title:{
+              display:true,
+              text:'% Abweichung'
+            }
           }
         }
       }
@@ -252,28 +280,23 @@ function updateCharts(month) {
 }
 
 document.getElementById("monthSelect")
-.addEventListener("change", function() {
+.addEventListener("change",function(){
   updateCharts(this.value);
 });
 
-function resetZoom() {
-  if (mainChart) mainChart.resetZoom();
+function resetZoom(){
+  if(mainChart) mainChart.resetZoom();
 }
 
-async function downloadPDF() {
-  const { jsPDF } = window.jspdf;
-  const element = document.getElementById("pdfContent");
-
-  const canvas = await html2canvas(element, { scale: 2 });
-
-  const imgData = canvas.toDataURL("image/png");
-
-  const pdf = new jsPDF("landscape", "mm", "a4");
-
-  const imgWidth = 280;
-  const imgHeight = canvas.height * imgWidth / canvas.width;
-
-  pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
+async function downloadPDF(){
+  const {jsPDF}=window.jspdf;
+  const element=document.getElementById("pdfContent");
+  const canvas=await html2canvas(element,{scale:2});
+  const imgData=canvas.toDataURL("image/png");
+  const pdf=new jsPDF("landscape","mm","a4");
+  const imgWidth=280;
+  const imgHeight=canvas.height*imgWidth/canvas.width;
+  pdf.addImage(imgData,"PNG",10,10,imgWidth,imgHeight);
   pdf.save("Climate_Dashboard.pdf");
 }
 
