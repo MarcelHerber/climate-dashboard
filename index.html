@@ -116,6 +116,8 @@ function updateCharts(){
   const month=document.getElementById("monthSelect").value;
 
   const filtered=originalData.filter(e=>e.date.endsWith("-"+month));
+  if(!filtered.length) return;
+
   const labels=filtered.map(e=>e.date.substring(0,4));
   const values=filtered.map(e=>e[param]);
 
@@ -123,6 +125,8 @@ function updateCharts(){
     const y=parseInt(e.date.substring(0,4));
     return y>=1991 && y<=2020;
   });
+
+  if(!climatePeriod.length) return;
 
   const climateMean=
     climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
@@ -152,7 +156,7 @@ function updateCharts(){
       `<li>${e.date.substring(0,4)}: ${e[param]} ${unit}</li>`;
   });
 
-  // 30-Jahre gleitendes Mittel
+  // 30-jähriges gleitendes Mittel
   const movingAverage = values.map((_,i)=>{
     if(i<29) return null;
     const slice=values.slice(i-29,i+1);
@@ -208,17 +212,34 @@ function updateCharts(){
     }
   });
 
-  // Prozentabweichung
-  const percentValues=values.map(v=>
-    ((v/climateMean)*100)-100
-  );
+  // ===== ABWEICHUNG =====
 
+  let deviationValues;
   let colors;
+  let deviationLabel;
 
   if(param==="temp"){
-    colors=percentValues.map(v=>v>=0?"red":"blue");
+    deviationValues = values.map(v =>
+      parseFloat((v - climateMean).toFixed(1))
+    );
+
+    colors = deviationValues.map(v =>
+      v >= 0 ? "red" : "blue"
+    );
+
+    deviationLabel = "Abweichung (°C)";
+
   } else {
-    colors=percentValues.map(v=>v>=0?"green":"brown");
+
+    deviationValues = values.map(v =>
+      ((v/climateMean)*100)-100
+    );
+
+    colors = deviationValues.map(v =>
+      v >= 0 ? "green" : "brown"
+    );
+
+    deviationLabel = "% Abweichung";
   }
 
   if(percentChart) percentChart.destroy();
@@ -229,13 +250,13 @@ function updateCharts(){
       labels:labels,
       datasets:[
         {
-          label:"% Abweichung",
-          data:percentValues,
+          label:deviationLabel,
+          data:deviationValues,
           backgroundColor:colors
         },
         {
-          label:"0 % Linie",
-          data:new Array(percentValues.length).fill(0),
+          label:"0 Linie",
+          data:new Array(deviationValues.length).fill(0),
           type:"line",
           borderColor:"black",
           borderDash:[6,6],
@@ -253,6 +274,19 @@ function updateCharts(){
             callback:function(value,index){
               if(index%20===0) return labels[index];
               return '';
+            }
+          }
+        }
+      },
+      plugins:{
+        tooltip:{
+          callbacks:{
+            label:function(context){
+              if(param==="temp"){
+                return context.raw.toFixed(1)+" °C";
+              } else {
+                return context.raw.toFixed(1)+" %";
+              }
             }
           }
         }
