@@ -18,15 +18,20 @@ body {
   background-color: #f4f6f8;
 }
 
-canvas {
-  width: 100% !important;
-  height: 650px !important;
+.chart-container {
+  width: 100%;
   max-width: 1500px;
+  height: 650px;
   margin: 40px auto;
   background: white;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 select, button {
@@ -66,8 +71,13 @@ select, button {
 
 <div id="pdfContent">
 
-<canvas id="mainChart"></canvas>
-<canvas id="percentChart"></canvas>
+<div class="chart-container">
+  <canvas id="mainChart"></canvas>
+</div>
+
+<div class="chart-container">
+  <canvas id="percentChart"></canvas>
+</div>
 
 </div>
 
@@ -90,6 +100,8 @@ function updateCharts(month) {
     e.date.endsWith("-" + month)
   );
 
+  if (!filtered.length) return;
+
   const labels = filtered.map(e => e.date.substring(0,4));
   const rain = filtered.map(e => e.rain);
 
@@ -98,10 +110,14 @@ function updateCharts(month) {
     return y >= 1991 && y <= 2020;
   });
 
+  if (!climatePeriod.length) return;
+
   const climateMean =
     climatePeriod.reduce((s,e)=>s+e.rain,0) / climatePeriod.length;
 
-  // ===== HAUPTDIAGRAMM =====
+  // ========================
+  // HAUPTDIAGRAMM
+  // ========================
 
   if (mainChart) mainChart.destroy();
 
@@ -164,7 +180,9 @@ function updateCharts(month) {
     }
   );
 
-  // ===== PROZENT VOM KLIMAMITTEL =====
+  // ========================
+  // PROZENT-DIAGRAMM
+  // ========================
 
   const percentValues = rain.map(v =>
     (v / climateMean) * 100
