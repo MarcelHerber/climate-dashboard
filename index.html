@@ -5,7 +5,7 @@
 <title>Climate Dashboard – Niederschlag Deutschland</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
 <style>
 body {
@@ -17,31 +17,33 @@ body {
 
 canvas {
   width: 100% !important;
-  height: 600px !important;
-  max-width: 1400px;
+  height: 650px !important;
+  max-width: 1500px;
   margin: auto;
   background: white;
   padding: 20px;
   border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 select, button {
-  padding: 8px 12px;
-  margin: 10px;
-  font-size: 14px;
+  padding: 10px 16px;
+  margin: 12px;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .stats {
-  margin-top: 30px;
+  margin-top: 40px;
   text-align: left;
-  max-width: 800px;
+  max-width: 900px;
   margin-left: auto;
   margin-right: auto;
   background: white;
-  padding: 20px;
+  padding: 25px;
   border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  font-size: 18px;
 }
 </style>
 </head>
@@ -103,7 +105,6 @@ function updateChart(month) {
   const labels = filtered.map(entry => entry.date.substring(0,4));
   const rain = filtered.map(entry => entry.rain);
 
-  // Klimaperiode 1991–2020
   const climatePeriod = filtered.filter(entry => {
     const year = parseInt(entry.date.substring(0,4));
     return year >= 1991 && year <= 2020;
@@ -116,29 +117,36 @@ function updateChart(month) {
       / climatePeriod.length;
   }
 
-  document.getElementById("climateMean").innerText = climateMean.toFixed(2);
+  document.getElementById("climateMean").innerText =
+    climateMean.toFixed(2);
 
-  // Top 3 höchste
-  const sortedHigh = [...filtered].sort((a,b) => b.rain - a.rain).slice(0,3);
+  // Top 3 hoch
+  const sortedHigh = [...filtered]
+    .sort((a,b) => b.rain - a.rain)
+    .slice(0,3);
+
   const topHighList = document.getElementById("topHigh");
   topHighList.innerHTML = "";
   sortedHigh.forEach(entry => {
-    topHighList.innerHTML += `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
+    topHighList.innerHTML +=
+      `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
   });
 
-  // Top 3 niedrigste
-  const sortedLow = [...filtered].sort((a,b) => a.rain - b.rain).slice(0,3);
+  // Top 3 niedrig
+  const sortedLow = [...filtered]
+    .sort((a,b) => a.rain - b.rain)
+    .slice(0,3);
+
   const topLowList = document.getElementById("topLow");
   topLowList.innerHTML = "";
   sortedLow.forEach(entry => {
-    topLowList.innerHTML += `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
+    topLowList.innerHTML +=
+      `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
   });
 
   const ctx = document.getElementById('chart').getContext('2d');
 
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
+  if (chartInstance) chartInstance.destroy();
 
   chartInstance = new Chart(ctx, {
     type: 'bar',
@@ -155,8 +163,8 @@ function updateChart(month) {
           data: new Array(rain.length).fill(climateMean),
           type: 'line',
           borderColor: 'black',
-          borderWidth: 2,
-          borderDash: [8,6],
+          borderWidth: 3,
+          borderDash: [10,6],
           pointRadius: 0
         }
       ]
@@ -164,7 +172,34 @@ function updateChart(month) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: false,
+            font: { size: 14 },
+            callback: function(value) {
+              const year = parseInt(this.getLabelForValue(value));
+              if ((year - 1881) % 20 === 0) {
+                return year;
+              }
+              return '';
+            }
+          }
+        },
+        y: {
+          ticks: {
+            font: { size: 14 }
+          }
+        }
+      },
+
       plugins: {
+        tooltip: {
+          titleFont: { size: 18 },
+          bodyFont: { size: 18 },
+          padding: 14
+        },
         zoom: {
           pan: {
             enabled: true,
@@ -173,6 +208,7 @@ function updateChart(month) {
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
+            drag: { enabled: true },
             mode: 'x'
           }
         }
@@ -187,9 +223,7 @@ document.getElementById("monthSelect")
 });
 
 function resetZoom() {
-  if (chartInstance) {
-    chartInstance.resetZoom();
-  }
+  if (chartInstance) chartInstance.resetZoom();
 }
 </script>
 
