@@ -4,13 +4,9 @@
 <meta charset="UTF-8">
 <title>Climate Dashboard – Niederschlag Deutschland</title>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<!-- Zoom Plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
-<!-- PDF Tools -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -135,7 +131,6 @@ function updateCharts(month) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-
         scales: {
           x: {
             ticks: {
@@ -147,7 +142,6 @@ function updateCharts(month) {
             }
           }
         },
-
         plugins: {
           tooltip: {
             backgroundColor: '#333',
@@ -170,14 +164,14 @@ function updateCharts(month) {
     }
   );
 
-  // ===== PROZENT-ABWEICHUNG =====
+  // ===== PROZENT VOM KLIMAMITTEL =====
 
   const percentValues = rain.map(v =>
-    ((v - climateMean) / climateMean) * 100
+    (v / climateMean) * 100
   );
 
   const colors = percentValues.map(v =>
-    v >= 0 ? 'green' : 'brown'
+    v >= 100 ? 'green' : 'brown'
   );
 
   if (percentChart) percentChart.destroy();
@@ -188,11 +182,22 @@ function updateCharts(month) {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{
-          label: 'Abweichung vom Mittel (%)',
-          data: percentValues,
-          backgroundColor: colors
-        }]
+        datasets: [
+          {
+            label: 'Prozent vom Klimamittel',
+            data: percentValues,
+            backgroundColor: colors
+          },
+          {
+            label: '100 % Linie',
+            data: new Array(percentValues.length).fill(100),
+            type: 'line',
+            borderColor: 'black',
+            borderWidth: 2,
+            borderDash: [6,6],
+            pointRadius: 0
+          }
+        ]
       },
       options: {
         responsive: true,
@@ -210,8 +215,10 @@ function updateCharts(month) {
           y: {
             title: {
               display: true,
-              text: '% Abweichung'
-            }
+              text: '% vom Klimamittel'
+            },
+            suggestedMin: 50,
+            suggestedMax: 150
           }
         },
         plugins: {
