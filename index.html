@@ -43,7 +43,6 @@
 
 <label for="monthSelect">Monat auswählen:</label>
 <select id="monthSelect">
-  <option value="all">Alle Monate</option>
   <option value="01">Januar</option>
   <option value="02">Februar</option>
   <option value="03">März</option>
@@ -72,78 +71,18 @@ fetch('data.json')
   .then(response => response.json())
   .then(data => {
     originalData = data;
-    createChart(data);
+    updateChart("01"); // Start mit Januar
   });
 
-function createChart(filteredData) {
+function updateChart(selectedMonth) {
 
-  const labels = filteredData.map(entry => entry.date);
-  const rain = filteredData.map(entry => entry.rain);
+  const filtered = originalData.filter(entry =>
+    entry.date.endsWith("-" + selectedMonth)
+  );
 
-  const ctx = document.getElementById('chart').getContext('2d');
+  const labels = filtered.map(entry => entry.date.substring(0,4));
+  const rain = filtered.map(entry => entry.rain);
 
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Niederschlag (mm)',
-        data: rain,
-        borderWidth: 1,
-        tension: 0.1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        zoom: {
-          pan: {
-            enabled: true,
-            mode: 'x'
-          },
-          zoom: {
-            wheel: {
-              enabled: true
-            },
-            pinch: {
-              enabled: true
-            },
-            mode: 'x'
-          }
-        }
-      }
-    }
-  });
-}
-
-document.getElementById("monthSelect").addEventListener("change", function() {
-  const selectedMonth = this.value;
-
-  if (selectedMonth === "all") {
-    createChart(originalData);
-  } else {
-    const filtered = originalData.filter(entry =>
-      entry.date.endsWith("-" + selectedMonth)
-    );
-    createChart(filtered);
-  }
-});
-
-function resetZoom() {
-  if (chartInstance) {
-    chartInstance.resetZoom();
-  }
-}
-</script>
-
-</body>
-</html>
+  // --- Klimamittel 1991-2020 berechnen ---
+  const climatePeriod = filtered.filter(entry => {
+    const year = parseI
