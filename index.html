@@ -4,10 +4,7 @@
 <meta charset="UTF-8">
 <title>Climate Dashboard – Niederschlag Deutschland</title>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-<!-- Zoom Plugin -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
 
 <style>
@@ -34,6 +31,18 @@ select, button {
   margin: 10px;
   font-size: 14px;
 }
+
+.stats {
+  margin-top: 30px;
+  text-align: left;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
 </style>
 </head>
 <body>
@@ -57,11 +66,20 @@ select, button {
   <option value="12">Dezember</option>
 </select>
 
-<br>
-
 <canvas id="chart"></canvas>
 <br>
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
+
+<div class="stats">
+  <h3>Statistik</h3>
+  <p><strong>Mittelwert 1991–2020:</strong> <span id="climateMean"></span> mm</p>
+
+  <h4>Top 3 höchste Regenmengen</h4>
+  <ul id="topHigh"></ul>
+
+  <h4>Top 3 niedrigste Regenmengen</h4>
+  <ul id="topLow"></ul>
+</div>
 
 <script>
 let chartInstance;
@@ -72,22 +90,15 @@ fetch('data.json')
 .then(data => {
   originalData = data;
   updateChart("01");
-})
-.catch(error => {
-  console.error("Fehler beim Laden der JSON:", error);
 });
 
 function updateChart(month) {
 
-  // Monat filtern
   const filtered = originalData.filter(entry =>
     entry.date.endsWith("-" + month)
   );
 
-  if (filtered.length === 0) {
-    console.error("Keine Daten gefunden für Monat:", month);
-    return;
-  }
+  if (filtered.length === 0) return;
 
   const labels = filtered.map(entry => entry.date.substring(0,4));
   const rain = filtered.map(entry => entry.rain);
@@ -99,12 +110,29 @@ function updateChart(month) {
   });
 
   let climateMean = 0;
-
   if (climatePeriod.length > 0) {
     climateMean =
       climatePeriod.reduce((sum, entry) => sum + entry.rain, 0)
       / climatePeriod.length;
   }
+
+  document.getElementById("climateMean").innerText = climateMean.toFixed(2);
+
+  // Top 3 höchste
+  const sortedHigh = [...filtered].sort((a,b) => b.rain - a.rain).slice(0,3);
+  const topHighList = document.getElementById("topHigh");
+  topHighList.innerHTML = "";
+  sortedHigh.forEach(entry => {
+    topHighList.innerHTML += `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
+  });
+
+  // Top 3 niedrigste
+  const sortedLow = [...filtered].sort((a,b) => a.rain - b.rain).slice(0,3);
+  const topLowList = document.getElementById("topLow");
+  topLowList.innerHTML = "";
+  sortedLow.forEach(entry => {
+    topLowList.innerHTML += `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
+  });
 
   const ctx = document.getElementById('chart').getContext('2d');
 
@@ -119,7 +147,8 @@ function updateChart(month) {
       datasets: [
         {
           label: 'Niederschlag (mm)',
-          data: rain
+          data: rain,
+          backgroundColor: 'green'
         },
         {
           label: 'Mittelwert 1991–2020',
