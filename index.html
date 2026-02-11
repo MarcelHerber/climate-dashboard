@@ -1,47 +1,47 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Climate Dashboard – Niederschlag Deutschland</title>
+<meta charset="UTF-8">
+<title>Climate Dashboard – Niederschlag Deutschland</title>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <!-- Zoom Plugin -->
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
+<!-- Zoom Plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 40px;
-      background-color: #f4f6f8;
-    }
+<style>
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 40px;
+  background-color: #f4f6f8;
+}
 
-    canvas {
-      width: 100% !important;
-      height: 600px !important;
-      max-width: 1400px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    }
+canvas {
+  width: 100% !important;
+  height: 600px !important;
+  max-width: 1400px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
 
-    select, button {
-      padding: 8px 12px;
-      margin: 10px;
-      font-size: 14px;
-    }
-  </style>
+select, button {
+  padding: 8px 12px;
+  margin: 10px;
+  font-size: 14px;
+}
+</style>
 </head>
 <body>
 
 <h1>Climate Dashboard</h1>
 <h2>Niederschlag Deutschland (seit 1881)</h2>
 
-<label for="monthSelect">Monat auswählen:</label>
+<label>Monat auswählen:</label>
 <select id="monthSelect">
   <option value="01">Januar</option>
   <option value="02">Februar</option>
@@ -68,21 +68,101 @@ let chartInstance;
 let originalData = [];
 
 fetch('data.json')
-  .then(response => response.json())
-  .then(data => {
-    originalData = data;
-    updateChart("01"); // Start mit Januar
-  });
+.then(response => response.json())
+.then(data => {
+  originalData = data;
+  updateChart("01");
+})
+.catch(error => {
+  console.error("Fehler beim Laden der JSON:", error);
+});
 
-function updateChart(selectedMonth) {
+function updateChart(month) {
 
+  // Monat filtern
   const filtered = originalData.filter(entry =>
-    entry.date.endsWith("-" + selectedMonth)
+    entry.date.endsWith("-" + month)
   );
+
+  if (filtered.length === 0) {
+    console.error("Keine Daten gefunden für Monat:", month);
+    return;
+  }
 
   const labels = filtered.map(entry => entry.date.substring(0,4));
   const rain = filtered.map(entry => entry.rain);
 
-  // --- Klimamittel 1991-2020 berechnen ---
+  // Klimaperiode 1991–2020
   const climatePeriod = filtered.filter(entry => {
-    const year = parseI
+    const year = parseInt(entry.date.substring(0,4));
+    return year >= 1991 && year <= 2020;
+  });
+
+  let climateMean = 0;
+
+  if (climatePeriod.length > 0) {
+    climateMean =
+      climatePeriod.reduce((sum, entry) => sum + entry.rain, 0)
+      / climatePeriod.length;
+  }
+
+  const ctx = document.getElementById('chart').getContext('2d');
+
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Niederschlag (mm)',
+          data: rain
+        },
+        {
+          label: 'Mittelwert 1991–2020',
+          data: new Array(rain.length).fill(climateMean),
+          type: 'line',
+          borderColor: 'black',
+          borderWidth: 2,
+          borderDash: [8,6],
+          pointRadius: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x'
+          },
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'x'
+          }
+        }
+      }
+    }
+  });
+}
+
+document.getElementById("monthSelect")
+.addEventListener("change", function() {
+  updateChart(this.value);
+});
+
+function resetZoom() {
+  if (chartInstance) {
+    chartInstance.resetZoom();
+  }
+}
+</script>
+
+</body>
+</html>
