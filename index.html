@@ -17,7 +17,7 @@ body {
 
 canvas {
   width: 100% !important;
-  height: 600px !important;
+  height: 650px !important;
   max-width: 1500px;
   margin: 40px auto;
   background: white;
@@ -58,21 +58,18 @@ select, button {
 <canvas id="mainChart"></canvas>
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
 
-<canvas id="percentChart"></canvas>
-
 <script>
-let mainChartInstance;
-let percentChartInstance;
+let chartInstance;
 let originalData = [];
 
 fetch('data.json')
 .then(response => response.json())
 .then(data => {
   originalData = data;
-  updateCharts("01");
+  updateChart("01");
 });
 
-function updateCharts(month) {
+function updateChart(month) {
 
   const filtered = originalData.filter(entry =>
     entry.date.endsWith("-" + month)
@@ -81,7 +78,6 @@ function updateCharts(month) {
   const labels = filtered.map(entry => entry.date.substring(0,4));
   const rain = filtered.map(entry => entry.rain);
 
-  // Klimamittel 1991–2020
   const climatePeriod = filtered.filter(entry => {
     const year = parseInt(entry.date.substring(0,4));
     return year >= 1991 && year <= 2020;
@@ -91,11 +87,11 @@ function updateCharts(month) {
     climatePeriod.reduce((sum, e) => sum + e.rain, 0)
     / climatePeriod.length;
 
-  // ===== HAUPTDIAGRAMM =====
-  const ctx1 = document.getElementById('mainChart').getContext('2d');
-  if (mainChartInstance) mainChartInstance.destroy();
+  const ctx = document.getElementById('mainChart').getContext('2d');
 
-  mainChartInstance = new Chart(ctx1, {
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: labels,
@@ -119,19 +115,35 @@ function updateCharts(month) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+
       scales: {
         x: {
           ticks: {
             autoSkip: false,
-            callback: function(value) {
-              const year = parseInt(this.getLabelForValue(value));
-              if ((year - 1881) % 20 === 0) return year;
+            font: { size: 14 },
+            callback: function(value, index) {
+              if (index % 20 === 0) {
+                return labels[index];
+              }
               return '';
             }
           }
+        },
+        y: {
+          ticks: {
+            font: { size: 14 }
+          }
         }
       },
+
       plugins: {
+        tooltip: {
+          backgroundColor: '#333',
+          titleFont: { size: 18 },
+          bodyFont: { size: 18 },
+          padding: 16,
+          displayColors: false
+        },
         zoom: {
           pan: { enabled: true, mode: 'x' },
           zoom: {
@@ -144,61 +156,15 @@ function updateCharts(month) {
       }
     }
   });
-
-  // ===== PROZENT-ABWEICHUNG =====
-  const percentValues = rain.map(value =>
-    ((value - climateMean) / climateMean) * 100
-  );
-
-  const colors = percentValues.map(v =>
-    v >= 0 ? 'green' : 'brown'
-  );
-
-  const ctx2 = document.getElementById('percentChart').getContext('2d');
-  if (percentChartInstance) percentChartInstance.destroy();
-
-  percentChartInstance = new Chart(ctx2, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Abweichung vom Mittel (%)',
-        data: percentValues,
-        backgroundColor: colors
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          ticks: {
-            autoSkip: false,
-            callback: function(value) {
-              const year = parseInt(this.getLabelForValue(value));
-              if ((year - 1881) % 20 === 0) return year;
-              return '';
-            }
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: '% Abweichung'
-          }
-        }
-      }
-    }
-  });
 }
 
 document.getElementById("monthSelect")
 .addEventListener("change", function() {
-  updateCharts(this.value);
+  updateChart(this.value);
 });
 
 function resetZoom() {
-  if (mainChartInstance) mainChartInstance.resetZoom();
+  if (chartInstance) chartInstance.resetZoom();
 }
 </script>
 
