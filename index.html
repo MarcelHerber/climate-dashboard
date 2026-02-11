@@ -59,8 +59,41 @@ fetch('data.json')
           tension: 0.1
         }]
       },
-      options: {
-        responsive: true,
+     options: {
+  responsive: true,
+  interaction: {
+    mode: 'index',
+    intersect: false
+  },
+  plugins: {
+    zoom: {
+      pan: {
+        enabled: true,
+        mode: 'x'
+      },
+      zoom: {
+        wheel: {
+          enabled: true
+        },
+        pinch: {
+          enabled: true
+        },
+        mode: 'x'
+      }
+    }
+  },
+  scales: {
+    x: {
+      ticks: {
+        maxTicksLimit: 20
+      }
+    },
+    y: {
+      beginAtZero: false
+    }
+  }
+}
+
         plugins: {
           legend: {
             display: true
