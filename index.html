@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <title>Climate Dashboard – Niederschlag Deutschland</title>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Zoom Plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       padding: 40px;
-      background-color: #f5f5f5;
+      background-color: #f4f6f8;
     }
 
     h1 {
@@ -23,11 +28,19 @@
     }
 
     canvas {
-      max-width: 1100px;
+      max-width: 1200px;
       margin: auto;
       background: white;
       padding: 20px;
       border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -38,7 +51,12 @@
 
 <canvas id="chart"></canvas>
 
+<br>
+<button onclick="resetZoom()">Zoom zurücksetzen</button>
+
 <script>
+let chartInstance;
+
 fetch('data.json')
   .then(response => response.json())
   .then(data => {
@@ -48,7 +66,7 @@ fetch('data.json')
 
     const ctx = document.getElementById('chart').getContext('2d');
 
-    new Chart(ctx, {
+    chartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
@@ -59,44 +77,30 @@ fetch('data.json')
           tension: 0.1
         }]
       },
-     options: {
-  responsive: true,
-  interaction: {
-    mode: 'index',
-    intersect: false
-  },
-  plugins: {
-    zoom: {
-      pan: {
-        enabled: true,
-        mode: 'x'
-      },
-      zoom: {
-        wheel: {
-          enabled: true
+      options: {
+        responsive: true,
+        interaction: {
+          mode: 'index',
+          intersect: false
         },
-        pinch: {
-          enabled: true
-        },
-        mode: 'x'
-      }
-    }
-  },
-  scales: {
-    x: {
-      ticks: {
-        maxTicksLimit: 20
-      }
-    },
-    y: {
-      beginAtZero: false
-    }
-  }
-}
-
         plugins: {
           legend: {
             display: true
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x'
+            },
+            zoom: {
+              wheel: {
+                enabled: true
+              },
+              pinch: {
+                enabled: true
+              },
+              mode: 'x'
+            }
           }
         },
         scales: {
@@ -116,7 +120,12 @@ fetch('data.json')
   .catch(error => {
     console.error("Fehler beim Laden der Daten:", error);
   });
+
+function resetZoom() {
+  chartInstance.resetZoom();
+}
 </script>
 
 </body>
 </html>
+
