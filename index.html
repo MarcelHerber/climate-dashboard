@@ -17,9 +17,9 @@ body {
 
 canvas {
   width: 100% !important;
-  height: 650px !important;
+  height: 600px !important;
   max-width: 1500px;
-  margin: auto;
+  margin: 40px auto;
   background: white;
   padding: 20px;
   border-radius: 8px;
@@ -31,19 +31,6 @@ select, button {
   margin: 12px;
   font-size: 16px;
   cursor: pointer;
-}
-
-.stats {
-  margin-top: 40px;
-  text-align: left;
-  max-width: 900px;
-  margin-left: auto;
-  margin-right: auto;
-  background: white;
-  padding: 25px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  font-size: 18px;
 }
 </style>
 </head>
@@ -68,87 +55,47 @@ select, button {
   <option value="12">Dezember</option>
 </select>
 
-<canvas id="chart"></canvas>
-<br>
+<canvas id="mainChart"></canvas>
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
 
-<div class="stats">
-  <h3>Statistik</h3>
-  <p><strong>Mittelwert 1991–2020:</strong> <span id="climateMean"></span> mm</p>
-
-  <h4>Top 3 höchste Regenmengen</h4>
-  <ul id="topHigh"></ul>
-
-  <h4>Top 3 niedrigste Regenmengen</h4>
-  <ul id="topLow"></ul>
-</div>
+<canvas id="percentChart"></canvas>
 
 <script>
-let chartInstance;
+let mainChartInstance;
+let percentChartInstance;
 let originalData = [];
 
 fetch('data.json')
 .then(response => response.json())
 .then(data => {
   originalData = data;
-  updateChart("01");
+  updateCharts("01");
 });
 
-function updateChart(month) {
+function updateCharts(month) {
 
   const filtered = originalData.filter(entry =>
     entry.date.endsWith("-" + month)
   );
 
-  if (filtered.length === 0) return;
-
   const labels = filtered.map(entry => entry.date.substring(0,4));
   const rain = filtered.map(entry => entry.rain);
 
+  // Klimamittel 1991–2020
   const climatePeriod = filtered.filter(entry => {
     const year = parseInt(entry.date.substring(0,4));
     return year >= 1991 && year <= 2020;
   });
 
-  let climateMean = 0;
-  if (climatePeriod.length > 0) {
-    climateMean =
-      climatePeriod.reduce((sum, entry) => sum + entry.rain, 0)
-      / climatePeriod.length;
-  }
+  const climateMean =
+    climatePeriod.reduce((sum, e) => sum + e.rain, 0)
+    / climatePeriod.length;
 
-  document.getElementById("climateMean").innerText =
-    climateMean.toFixed(2);
+  // ===== HAUPTDIAGRAMM =====
+  const ctx1 = document.getElementById('mainChart').getContext('2d');
+  if (mainChartInstance) mainChartInstance.destroy();
 
-  // Top 3 hoch
-  const sortedHigh = [...filtered]
-    .sort((a,b) => b.rain - a.rain)
-    .slice(0,3);
-
-  const topHighList = document.getElementById("topHigh");
-  topHighList.innerHTML = "";
-  sortedHigh.forEach(entry => {
-    topHighList.innerHTML +=
-      `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
-  });
-
-  // Top 3 niedrig
-  const sortedLow = [...filtered]
-    .sort((a,b) => a.rain - b.rain)
-    .slice(0,3);
-
-  const topLowList = document.getElementById("topLow");
-  topLowList.innerHTML = "";
-  sortedLow.forEach(entry => {
-    topLowList.innerHTML +=
-      `<li>${entry.date.substring(0,4)}: ${entry.rain} mm</li>`;
-  });
-
-  const ctx = document.getElementById('chart').getContext('2d');
-
-  if (chartInstance) chartInstance.destroy();
-
-  chartInstance = new Chart(ctx, {
+  mainChartInstance = new Chart(ctx1, {
     type: 'bar',
     data: {
       labels: labels,
@@ -172,39 +119,21 @@ function updateChart(month) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-
       scales: {
         x: {
           ticks: {
             autoSkip: false,
-            font: { size: 14 },
             callback: function(value) {
               const year = parseInt(this.getLabelForValue(value));
-              if ((year - 1881) % 20 === 0) {
-                return year;
-              }
+              if ((year - 1881) % 20 === 0) return year;
               return '';
             }
           }
-        },
-        y: {
-          ticks: {
-            font: { size: 14 }
-          }
         }
       },
-
       plugins: {
-        tooltip: {
-          titleFont: { size: 18 },
-          bodyFont: { size: 18 },
-          padding: 14
-        },
         zoom: {
-          pan: {
-            enabled: true,
-            mode: 'x'
-          },
+          pan: { enabled: true, mode: 'x' },
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
@@ -215,15 +144,61 @@ function updateChart(month) {
       }
     }
   });
+
+  // ===== PROZENT-ABWEICHUNG =====
+  const percentValues = rain.map(value =>
+    ((value - climateMean) / climateMean) * 100
+  );
+
+  const colors = percentValues.map(v =>
+    v >= 0 ? 'green' : 'brown'
+  );
+
+  const ctx2 = document.getElementById('percentChart').getContext('2d');
+  if (percentChartInstance) percentChartInstance.destroy();
+
+  percentChartInstance = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Abweichung vom Mittel (%)',
+        data: percentValues,
+        backgroundColor: colors
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          ticks: {
+            autoSkip: false,
+            callback: function(value) {
+              const year = parseInt(this.getLabelForValue(value));
+              if ((year - 1881) % 20 === 0) return year;
+              return '';
+            }
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: '% Abweichung'
+          }
+        }
+      }
+    }
+  });
 }
 
 document.getElementById("monthSelect")
 .addEventListener("change", function() {
-  updateChart(this.value);
+  updateCharts(this.value);
 });
 
 function resetZoom() {
-  if (chartInstance) chartInstance.resetZoom();
+  if (mainChartInstance) mainChartInstance.resetZoom();
 }
 </script>
 
