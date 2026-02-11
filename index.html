@@ -31,6 +31,16 @@ canvas {
   height: 100% !important;
 }
 
+.stats {
+  max-width: 900px;
+  margin: 40px auto;
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  text-align: left;
+}
+
 select, button {
   padding: 10px 16px;
   margin: 12px;
@@ -66,139 +76,196 @@ select, button {
   <option value="12">Dezember</option>
 </select>
 
-<br>
-
 <button onclick="resetZoom()">Zoom zurücksetzen</button>
 
 <div class="chart-container">
   <canvas id="mainChart"></canvas>
 </div>
 
+<div class="chart-container">
+  <canvas id="percentChart"></canvas>
+</div>
+
+<div class="stats">
+  <h3>Statistik (1991–2020)</h3>
+  <p><strong>Mittelwert:</strong> <span id="climateMean"></span></p>
+
+  <h4>Top 3 höchste</h4>
+  <ul id="topHigh"></ul>
+
+  <h4>Top 3 niedrigste</h4>
+  <ul id="topLow"></ul>
+</div>
+
 <script>
 
 let mainChart;
+let percentChart;
 let originalData = [];
 
 fetch('data.json')
-.then(res => res.json())
-.then(data => {
-  originalData = data;
-  updateChart();
+.then(res=>res.json())
+.then(data=>{
+  originalData=data;
+  updateCharts();
 });
 
-function updateChart(){
+function updateCharts(){
 
-  const param = document.getElementById("paramSelect").value;
-  const month = document.getElementById("monthSelect").value;
+  const param=document.getElementById("paramSelect").value;
+  const month=document.getElementById("monthSelect").value;
 
-  const filtered = originalData.filter(e =>
-    e.date.endsWith("-" + month)
-  );
+  const filtered=originalData.filter(e=>e.date.endsWith("-"+month));
+  const labels=filtered.map(e=>e.date.substring(0,4));
+  const values=filtered.map(e=>e[param]);
 
-  const labels = filtered.map(e => e.date.substring(0,4));
-  const values = filtered.map(e => e[param]);
-
-  const climatePeriod = filtered.filter(e => {
-    const y = parseInt(e.date.substring(0,4));
-    return y >= 1991 && y <= 2020;
+  const climatePeriod=filtered.filter(e=>{
+    const y=parseInt(e.date.substring(0,4));
+    return y>=1991 && y<=2020;
   });
 
-  const climateMean =
-    climatePeriod.reduce((s,e)=>s+e[param],0) / climatePeriod.length;
+  const climateMean=
+    climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
 
-  // Farben + Einheiten
-  let color;
-  let unit;
+  // Einheit
+  let unit="";
+  if(param==="rain") unit="mm";
+  if(param==="temp") unit="°C";
+  if(param==="sun") unit="Stunden";
 
-  if(param === "rain"){
-    color = "blue";
-    unit = "mm";
-  }
-  if(param === "temp"){
-    color = "red";
-    unit = "°C";
-  }
-  if(param === "sun"){
-    color = "orange";
-    unit = "Stunden";
-  }
+  document.getElementById("climateMean").innerText=
+    climateMean.toFixed(2)+" "+unit;
+
+  // Top 3
+  const sortedHigh=[...filtered].sort((a,b)=>b[param]-a[param]).slice(0,3);
+  const sortedLow=[...filtered].sort((a,b)=>a[param]-b[param]).slice(0,3);
+
+  document.getElementById("topHigh").innerHTML="";
+  sortedHigh.forEach(e=>{
+    document.getElementById("topHigh").innerHTML+=
+      `<li>${e.date.substring(0,4)}: ${e[param]} ${unit}</li>`;
+  });
+
+  document.getElementById("topLow").innerHTML="";
+  sortedLow.forEach(e=>{
+    document.getElementById("topLow").innerHTML+=
+      `<li>${e.date.substring(0,4)}: ${e[param]} ${unit}</li>`;
+  });
+
+  // 30-Jahre gleitendes Mittel
+  const movingAverage = values.map((_,i)=>{
+    if(i<29) return null;
+    const slice=values.slice(i-29,i+1);
+    return slice.reduce((a,b)=>a+b,0)/30;
+  });
 
   if(mainChart) mainChart.destroy();
 
-  mainChart = new Chart(
-    document.getElementById('mainChart'),
-    {
-      type:'bar',
-      data:{
-        labels:labels,
-        datasets:[
-          {
-            label: param + " (" + unit + ")",
-            data:values,
-            backgroundColor:color
-          },
-          {
-            label:'Mittelwert 1991–2020 ('+unit+')',
-            data:new Array(values.length).fill(climateMean),
-            type:'line',
-            borderColor:'black',
-            borderWidth:3,
-            borderDash:[10,6],
-            pointRadius:0
-          }
-        ]
-      },
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-
-        scales:{
-          x:{
-            ticks:{
-              autoSkip:false,
-              callback:function(value,index){
-                if(index%20===0) return labels[index];
-                return '';
-              }
-            }
-          },
-          y:{
-            title:{
-              display:true,
-              text: unit
-            },
-            beginAtZero: param === "rain"
-          }
+  mainChart=new Chart(document.getElementById("mainChart"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:param+" ("+unit+")",
+          data:values,
+          backgroundColor:"gray"
         },
-
-        plugins:{
-          tooltip:{
-            callbacks:{
-              label:function(context){
-                return context.dataset.label + ": " +
-                       context.raw.toFixed(2) + " " + unit;
-              }
+        {
+          label:"30-jähriges Mittel",
+          data:movingAverage,
+          type:"line",
+          borderColor:"black",
+          borderWidth:3,
+          pointRadius:0
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{
+          ticks:{
+            autoSkip:false,
+            callback:function(value,index){
+              if(index%20===0) return labels[index];
+              return '';
             }
-          },
+          }
+        }
+      },
+      plugins:{
+        zoom:{
+          pan:{enabled:true,mode:"x"},
           zoom:{
-            pan:{enabled:true,mode:'x'},
-            zoom:{
-              wheel:{enabled:true},
-              drag:{enabled:true},
-              mode:'x'
+            wheel:{enabled:true},
+            drag:{enabled:true},
+            mode:"x"
+          }
+        }
+      }
+    }
+  });
+
+  // Prozentabweichung
+  const percentValues=values.map(v=>
+    ((v/climateMean)*100)-100
+  );
+
+  let colors;
+
+  if(param==="temp"){
+    colors=percentValues.map(v=>v>=0?"red":"blue");
+  } else {
+    colors=percentValues.map(v=>v>=0?"green":"brown");
+  }
+
+  if(percentChart) percentChart.destroy();
+
+  percentChart=new Chart(document.getElementById("percentChart"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:"% Abweichung",
+          data:percentValues,
+          backgroundColor:colors
+        },
+        {
+          label:"0 % Linie",
+          data:new Array(percentValues.length).fill(0),
+          type:"line",
+          borderColor:"black",
+          borderDash:[6,6],
+          pointRadius:0
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{
+          ticks:{
+            autoSkip:false,
+            callback:function(value,index){
+              if(index%20===0) return labels[index];
+              return '';
             }
           }
         }
       }
     }
-  );
+  });
 }
 
 document.getElementById("paramSelect")
-.addEventListener("change",updateChart);
+.addEventListener("change",updateCharts);
 
 document.getElementById("monthSelect")
-.addEventListener("change",updateChart);
+.addEventListener("change",updateCharts);
 
 function resetZoom(){
   if(mainChart) mainChart.resetZoom();
