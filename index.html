@@ -2,36 +2,86 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Climate Dashboard</title>
+  <title>Climate Dashboard – Niederschlag Deutschland</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      margin-bottom: 5px;
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #555;
+    }
+
+    canvas {
+      max-width: 1100px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
 
 <h1>Climate Dashboard</h1>
-<h2>Temperatur Deutschland</h2>
+<h2>Niederschlag Deutschland (seit 1881)</h2>
 
 <canvas id="chart"></canvas>
 
 <script>
 fetch('data.json')
-  .then(res => res.json())
+  .then(response => response.json())
   .then(data => {
 
-    const labels = data.map(d => d.date);
-    const values = data.map(d => d.rain);
+    const labels = data.map(entry => entry.date);
+    const rain = data.map(entry => entry.rain);
 
-    new Chart(document.getElementById("chart"), {
-      type: "line",
+    const ctx = document.getElementById('chart').getContext('2d');
+
+    new Chart(ctx, {
+      type: 'line',
       data: {
         labels: labels,
         datasets: [{
-          label: "Temperatur (°C)",
-          data: values,
-          borderWidth: 2
+          label: 'Niederschlag (mm)',
+          data: rain,
+          borderWidth: 1,
+          tension: 0.1
         }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: true
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              maxTicksLimit: 20
+            }
+          },
+          y: {
+            beginAtZero: false
+          }
+        }
       }
     });
-});
+
+  })
+  .catch(error => {
+    console.error("Fehler beim Laden der Daten:", error);
+  });
 </script>
 
 </body>
