@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Climate Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h1>Climate Dashboard</h1>
+<h2>Temperatur Deutschland</h2>
+
+<canvas id="chart"></canvas>
+
+<script>
+fetch('data.json')
+  .then(res => res.json())
+  .then(data => {
+
+    const labels = data.map(d => d.date);
+    const values = data.map(d => d.temperature);
+
+    new Chart(document.getElementById("chart"), {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Temperatur (°C)",
+          data: values,
+          borderWidth: 2
+        }]
+      }
+    });
+});
+</script>
+
+</body>
+</html>
