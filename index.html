@@ -273,7 +273,15 @@ sortedLow.forEach(e=>{
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  const dev=values.map(v=>v-mean);
+  let dev;
+
+if(param === "rain"){
+  // Prozentabweichung
+  dev = values.map(v => (v / mean) * 100);
+} else {
+  // absolute Abweichung (wie bisher)
+  dev = values.map(v => v - mean);
+}
 
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
 
@@ -281,9 +289,23 @@ sortedLow.forEach(e=>{
     type:"bar",
     data:{
       labels:labels,
-      datasets:[{ label:"Abweichung", data:dev, backgroundColor:dev.map(v=>v>=0?"red":"blue")}]
-    },
+      datasets:[{ label:"Abweichung", data:dev, backgroundColor: dev.map(v => {
+
+  if(param === "rain"){
+    return v >= 100 ? "green" : "saddlebrown";
+  }
+
     options:{responsive:true,maintainAspectRatio:false}
+scales: {
+  y: {
+    title: {
+      display: true,
+      text: param === "rain" ? "Niederschlag (%)" : "Abweichung"
+    },
+    beginAtZero: false
+  }
+}
+
   });
 }
 
