@@ -165,16 +165,10 @@ th,td{
 
 <div class="chart-container">
   <canvas id="yearlyExtremeChart"></canvas>
- <div class="chart-container">
+</div>
+
+<div class="chart-container">
   <canvas id="heatmapChart"></canvas>
-</div>
-
-<div class="chart-container">
-  <canvas id="monthlyExtremeChart"></canvas>
-</div>
-
-<div class="chart-container">
-  <canvas id="seasonExtremeChart"></canvas>
 </div>
 
 <h3>Top 30 heißeste Tage seit 1881</h3>
@@ -190,6 +184,7 @@ th,td{
 </table>
 
 </div>
+
 
 <script>
 
@@ -414,129 +409,71 @@ fetch("daily_tmax_1881_2026.json")
 
   const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
 
-  let yearlySummer={}, yearlyHot={}, yearlyVeryHot={};
+  let summer={}, hot={}, veryHot={};
   years.forEach(y=>{
-    yearlySummer[y]=0;
-    yearlyHot[y]=0;
-    yearlyVeryHot[y]=0;
+    summer[y]=0;
+    hot[y]=0;
+    veryHot[y]=0;
   });
 
-  // ===== Zählungen =====
+  // ===== Jahreszählung =====
 
   data.forEach(d=>{
     const y=d.date.substring(0,4);
-
-    if(d.tmax>=25) yearlySummer[y]++;
-    if(d.tmax>=30) yearlyHot[y]++;
-    if(d.tmax>=35) yearlyVeryHot[y]++;
+    if(d.tmax>=25) summer[y]++;
+    if(d.tmax>=30) hot[y]++;
+    if(d.tmax>=35) veryHot[y]++;
   });
-
-  // ===== Extra Diagramm: Alle Kenntage =====
 
   new Chart(document.getElementById("yearlyExtremeChart"),{
     type:"bar",
     data:{
       labels:years,
       datasets:[
+        {label:"≥25°C", data:years.map(y=>summer[y]), backgroundColor:"orange"},
+        {label:"≥30°C", data:years.map(y=>hot[y]), backgroundColor:"red"},
+        {label:"≥35°C", data:years.map(y=>veryHot[y]), backgroundColor:"darkred"}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false
+    }
+  });
+
+  // ===== Heatmap Ersatz (Monats-Balken je Jahr) =====
+
+  const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+
+  let monthlyHotCounts=Array(12).fill(0);
+
+  data.forEach(d=>{
+    const m=parseInt(d.date.substring(5,7))-1;
+    if(d.tmax>=30) monthlyHotCounts[m]++;
+  });
+
+  new Chart(document.getElementById("heatmapChart"),{
+    type:"bar",
+    data:{
+      labels:monthNames,
+      datasets:[
         {
-          label:"Sommertage ≥25°C",
-          data:years.map(y=>yearlySummer[y]),
-          backgroundColor:"orange",
-          stack:"stack1"
-        },
-        {
-          label:"Hitzetage ≥30°C",
-          data:years.map(y=>yearlyHot[y]),
-          backgroundColor:"red",
-          stack:"stack1"
-        },
-        {
-          label:"Sehr heiße Tage ≥35°C",
-          data:years.map(y=>yearlyVeryHot[y]),
-          backgroundColor:"darkred",
-          stack:"stack1"
+          label:"Gesamt Hitzetage ≥30°C (alle Jahre)",
+          data:monthlyHotCounts,
+          backgroundColor:monthlyHotCounts.map(v=>{
+            const alpha=Math.min(v/500,1);
+            return `rgba(255,0,0,${alpha})`;
+          })
         }
       ]
     },
     options:{
       responsive:true,
-      maintainAspectRatio:false,
-      scales:{ x:{ stacked:true }, y:{ stacked:true } }
+      maintainAspectRatio:false
     }
   });
 
-  // ===== Heatmap (≥30°C Hitzetage) =====
-
-  const months=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-
-  let heatData=[];
-
-  years.forEach((year,yIndex)=>{
-    for(let m=1;m<=12;m++){
-
-      const count=data.filter(d=>{
-        const y=d.date.substring(0,4);
-        const month=parseInt(d.date.substring(5,7));
-        return y===year && month===m && d.tmax>=30;
-      }).length;
-
-      heatData.push({
-        x:yIndex,
-        y:m-1,
-        v:count
-      });
-    }
-  });
-
-  new Chart(document.getElementById("heatmapChart"),{
-    type:"matrix",
-    data:{
-      datasets:[{
-        label:"Hitzetage ≥30°C",
-        data:heatData,
-        width: ctx => ctx.chart.chartArea.width / years.length,
-        height: ctx => ctx.chart.chartArea.height / 12,
-        backgroundColor: ctx=>{
-          const value=ctx.dataset.data[ctx.dataIndex].v;
-          const alpha=Math.min(value/20,1);
-          return `rgba(255,0,0,${alpha})`;
-        }
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{
-        x:{
-          type:"linear",
-          position:"bottom",
-          ticks:{
-            callback:value=>years[value]
-          }
-        },
-        y:{
-          type:"linear",
-          reverse:true,
-          ticks:{
-            callback:value=>months[value]
-          }
-        }
-      },
-      plugins:{
-        tooltip:{
-          callbacks:{
-            title:ctx=>{
-              const d=ctx[0].raw;
-              return years[d.x]+" - "+months[d.y];
-            },
-            label:ctx=>"Hitzetage: "+ctx.raw.v
-          }
-        }
-      }
-    }
-  });
-
-  // ===== Top 30 heißeste Tage =====
+  // ===== Top 30 =====
 
   const top30=[...data]
     .sort((a,b)=>b.tmax-a.tmax)
@@ -556,7 +493,6 @@ fetch("daily_tmax_1881_2026.json")
   });
 
 });
-
 
 </script>
 </body>
