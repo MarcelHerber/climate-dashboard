@@ -60,6 +60,10 @@ canvas{
   width:100% !important;
   height:100% !important;
 }
+button{
+  padding:8px 16px;
+  margin-top:10px;
+}
 </style>
 </head>
 <body>
@@ -97,6 +101,8 @@ canvas{
   <option value="11">November</option>
   <option value="12">Dezember</option>
 </select>
+
+<button onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
 
 <div class="chart-container">
   <canvas id="monthlyChart"></canvas>
@@ -151,6 +157,7 @@ canvas{
 
 <div class="chart-container">
   <canvas id="dailyAllYearsChart"></canvas>
+  <button onclick="resetAllYearsZoom()">Zoom zurücksetzen</button>
 </div>
 
 </div>
@@ -200,13 +207,17 @@ function updateMonthly(){
 
   monthlyChart=new Chart(document.getElementById("monthlyChart"),{
     type:"bar",
-    data:{
-      labels:labels,
-      datasets:[
-        { label:param, data:values, backgroundColor:"gray" }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{ labels:labels, datasets:[{ label:param, data:values, backgroundColor:"gray" }] },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        zoom:{
+          pan:{enabled:true,mode:"x"},
+          zoom:{wheel:{enabled:true},mode:"x"}
+        }
+      }
+    }
   });
 
   const deviation=values.map(v=>v-climateMean);
@@ -227,6 +238,10 @@ function updateMonthly(){
     },
     options:{responsive:true,maintainAspectRatio:false}
   });
+}
+
+function resetMonthlyZoom(){
+  if(monthlyChart) monthlyChart.resetZoom();
 }
 
 document.getElementById("paramSelect").addEventListener("change",updateMonthly);
@@ -281,7 +296,6 @@ function updateDaily(){
   const climate=filtered.map(d=>d.climate_mean);
   const deviation=filtered.map(d=>d.tmax-d.climate_mean);
 
-  // Tageskurve
   if(dailyChart) dailyChart.destroy();
   dailyChart=new Chart(document.getElementById("dailyChart"),{
     type:"line",
@@ -295,7 +309,6 @@ function updateDaily(){
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  // Abweichung
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
     type:"line",
@@ -325,7 +338,6 @@ function updateDaily(){
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  // Alle Jahre Vergleich
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
@@ -364,10 +376,22 @@ function updateDaily(){
       options:{
         responsive:true,
         maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } }
+        plugins:{
+          legend:{ display:false },
+          zoom:{
+            pan:{ enabled:true, mode:"x" },
+            zoom:{ wheel:{enabled:true}, drag:{enabled:true}, mode:"x" }
+          }
+        }
       }
     }
   );
+}
+
+function resetAllYearsZoom(){
+  if(dailyAllYearsChart){
+    dailyAllYearsChart.resetZoom();
+  }
 }
 
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
