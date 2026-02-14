@@ -138,6 +138,18 @@ canvas{
   <option value="spring">Frühling</option>
   <option value="summer">Sommer</option>
   <option value="autumn">Herbst</option>
+  <option value="01">Januar</option>
+  <option value="02">Februar</option>
+  <option value="03">März</option>
+  <option value="04">April</option>
+  <option value="05">Mai</option>
+  <option value="06">Juni</option>
+  <option value="07">Juli</option>
+  <option value="08">August</option>
+  <option value="09">September</option>
+  <option value="10">Oktober</option>
+  <option value="11">November</option>
+  <option value="12">Dezember</option>
 </select>
 
 <div class="chart-container">
@@ -152,7 +164,8 @@ canvas{
 
 <script>
 
-// TAB SWITCH
+// ================= TAB SWITCH =================
+
 function switchTab(tab){
   document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -198,7 +211,6 @@ function updateMonthly(){
   document.getElementById("climateMean").innerText=
     climateMean.toFixed(2)+" "+unit;
 
-  // Gleitendes Mittel
   const movingAverage=values.map((_,i)=>{
     if(i<29) return null;
     const slice=values.slice(i-29,i+1);
@@ -212,45 +224,12 @@ function updateMonthly(){
     data:{
       labels:labels,
       datasets:[
-        {
-          label:param+" ("+unit+")",
-          data:values,
-          backgroundColor:"gray"
-        },
-        {
-          label:"30-jähriges Mittel",
-          data:movingAverage,
-          type:"line",
-          borderColor:"black",
-          borderWidth:2,
-          pointRadius:0
-        }
+        { label:param+" ("+unit+")", data:values, backgroundColor:"gray" },
+        { label:"30-jähriges Mittel", data:movingAverage, type:"line", borderColor:"black", pointRadius:0 }
       ]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{
-        x:{
-          ticks:{
-            autoSkip:false,
-            callback:function(value,index){
-              if(index%20===0) return labels[index];
-              return '';
-            }
-          }
-        }
-      },
-      plugins:{
-        zoom:{
-          pan:{enabled:true,mode:"x"},
-          zoom:{wheel:{enabled:true},mode:"x"}
-        }
-      }
-    }
+    options:{responsive:true,maintainAspectRatio:false}
   });
-
-  // ABWEICHUNG
 
   let deviation;
   let colors;
@@ -273,27 +252,12 @@ function updateMonthly(){
     data:{
       labels:labels,
       datasets:[
-        {
-          label:label,
-          data:deviation,
-          backgroundColor:colors
-        },
-        {
-          label:"0 Linie",
-          data:new Array(deviation.length).fill(0),
-          type:"line",
-          borderColor:"black",
-          borderDash:[6,6],
-          pointRadius:0
-        }
+        { label:label, data:deviation, backgroundColor:colors },
+        { label:"0 Linie", data:new Array(deviation.length).fill(0), type:"line", borderColor:"black", borderDash:[6,6], pointRadius:0 }
       ]
     },
     options:{responsive:true,maintainAspectRatio:false}
   });
-}
-
-function resetMonthlyZoom(){
-  if(monthlyChart) monthlyChart.resetZoom();
 }
 
 document.getElementById("paramSelect").addEventListener("change",updateMonthly);
@@ -331,14 +295,19 @@ function updateDaily(){
 
   let filtered=dailyData.filter(d=>d.date.startsWith(year));
 
+  const seasonMap={
+    winter:["12","01","02"],
+    spring:["03","04","05"],
+    summer:["06","07","08"],
+    autumn:["09","10","11"]
+  };
+
   if(range!=="year"){
-    const map={
-      winter:["12","01","02"],
-      spring:["03","04","05"],
-      summer:["06","07","08"],
-      autumn:["09","10","11"]
-    };
-    filtered=filtered.filter(d=>map[range].includes(d.date.substring(5,7)));
+    if(seasonMap[range]){
+      filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
+    } else {
+      filtered=filtered.filter(d=>d.date.substring(5,7)===range);
+    }
   }
 
   const labels=filtered.map(d=>d.date);
@@ -353,28 +322,31 @@ function updateDaily(){
     data:{
       labels:labels,
       datasets:[
-        {
-          label:"Tageshöchstwert (°C)",
-          data:values,
-          borderColor:"red",
-          pointRadius:0
-        },
-        {
-          label:"1991-2020 Mittel (°C)",
-          data:climate,
-          borderColor:"black",
-          borderDash:[6,6],
-          pointRadius:0
-        }
+        { label:"Tageshöchstwert (°C)", data:values, borderColor:"red", pointRadius:0 },
+        { label:"1991-2020 Mittel (°C)", data:climate, borderColor:"black", borderDash:[6,6], pointRadius:0 }
       ]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      plugins:{
-        zoom:{
-          pan:{enabled:true,mode:"x"},
-          zoom:{wheel:{enabled:true},mode:"x"}
+      scales:{
+        x:{
+          ticks:{
+            callback:function(value,index){
+              const date=labels[index];
+              const month=date.substring(5,7);
+              const day=date.substring(8,10);
+
+              if(range==="year" || seasonMap[range]){
+                if(day==="01"){
+                  return new Date(date).toLocaleString("de-DE",{month:"short"});
+                }
+                return "";
+              }
+
+              return day;
+            }
+          }
         }
       }
     }
@@ -394,10 +366,16 @@ function updateDaily(){
           pointRadius:0,
           fill:"origin",
           segment:{
-            borderColor:ctx=>ctx.p0.parsed.y>=0?"red":"blue",
-            backgroundColor:ctx=>ctx.p0.parsed.y>=0
-              ?"rgba(255,0,0,0.25)"
-              :"rgba(0,150,255,0.25)"
+            borderColor:ctx=>{
+              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
+              return avg>=0?"red":"blue";
+            },
+            backgroundColor:ctx=>{
+              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
+              return avg>=0
+                ?"rgba(255,0,0,0.25)"
+                :"rgba(0,150,255,0.25)";
+            }
           }
         },
         {
