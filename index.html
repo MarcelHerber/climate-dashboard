@@ -166,6 +166,11 @@ th,td{
 <div class="chart-container">
   <canvas id="yearlyExtremeChart"></canvas>
 </div>
+  
+<div class="chart-container">
+  <canvas id="yearlyMaxChart"></canvas>
+  <button onclick="resetYearlyMaxZoom()">Zoom zurücksetzen</button>
+</div>
 
 <div class="chart-container">
   <canvas id="heatmapChart"></canvas>
@@ -415,6 +420,54 @@ fetch("daily_tmax_1881_2026.json")
     hot[y]=0;
     veryHot[y]=0;
   });
+// ===== Jahreshöchstwert pro Jahr =====
+
+let yearlyMax = {};
+years.forEach(y => yearlyMax[y] = -999);
+
+data.forEach(d => {
+  const y = d.date.substring(0,4);
+  if(d.tmax > yearlyMax[y]){
+    yearlyMax[y] = d.tmax;
+  }
+});
+
+const maxValues = years.map(y => yearlyMax[y]);
+
+// globaler Rekord finden
+const absoluteMax = Math.max(...maxValues);
+
+new Chart(document.getElementById("yearlyMaxChart"),{
+  type:"bar",
+  data:{
+    labels:years,
+    datasets:[{
+      label:"Jahreshöchstwert (°C)",
+      data:maxValues,
+      backgroundColor:maxValues.map(v =>
+        v === absoluteMax ? "darkred" : "rgba(255,0,0,0.6)"
+      )
+    }]
+  },
+  options:{
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{
+      zoom:{
+        pan:{enabled:true,mode:"x"},
+        zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}
+      }
+    },
+    scales:{
+      y:{
+        title:{
+          display:true,
+          text:"°C"
+        }
+      }
+    }
+  }
+});
 
   // ===== Jahreszählung =====
 
@@ -494,6 +547,13 @@ fetch("daily_tmax_1881_2026.json")
 
 });
 
+
+function resetYearlyMaxZoom(){
+  const chart = Chart.getChart("yearlyMaxChart");
+  if(chart){
+    chart.resetZoom();
+  }
+}
 </script>
 </body>
 </html>
