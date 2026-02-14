@@ -109,6 +109,17 @@ th,td{
 <div class="chart-container">
   <canvas id="monthlyChart"></canvas>
 </div>
+  
+<div class="chart-container" style="height:auto;">
+  <h3>Statistik</h3>
+  <p><strong>Mittel 1991–2020:</strong> <span id="climateMean"></span></p>
+
+  <h4>Top 3 höchste Werte</h4>
+  <ul id="top3High"></ul>
+
+  <h4>Top 3 niedrigste Werte</h4>
+  <ul id="top3Low"></ul>
+</div>
 
 <div class="chart-container">
   <canvas id="monthlyDeviationChart"></canvas>
@@ -226,6 +237,33 @@ function updateMonthly(){
   });
 
   const mean=climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
+document.getElementById("climateMean").innerText = mean.toFixed(2);
+
+// ===== Extremwerte berechnen =====
+
+const sortedHigh = [...filtered]
+  .sort((a,b)=>b[param]-a[param])
+  .slice(0,3);
+
+const sortedLow = [...filtered]
+  .sort((a,b)=>a[param]-b[param])
+  .slice(0,3);
+
+const topHighList = document.getElementById("top3High");
+const topLowList = document.getElementById("top3Low");
+
+topHighList.innerHTML="";
+topLowList.innerHTML="";
+
+sortedHigh.forEach(e=>{
+  topHighList.innerHTML +=
+    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
+});
+
+sortedLow.forEach(e=>{
+  topLowList.innerHTML +=
+    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
+});
 
   if(monthlyChart) monthlyChart.destroy();
 
