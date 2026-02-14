@@ -1,12 +1,46 @@
 <script>
-/* ===============================
-   CHART.JS REGISTRIERUNG
-================================ */
 
-Chart.register(
-  Chart.Zoom,
-  Chart.registry.getPlugin('zoom')
-);
+let monthlyData = [];
+let monthlyChart;
+
+fetch("data.json")
+.then(r => r.json())
+.then(data => {
+  monthlyData = data;
+  updateMonthly();
+})
+.catch(err => console.error("Fehler:", err));
+
+function updateMonthly(){
+
+  const filtered = monthlyData.slice(0,20);
+
+  const labels = filtered.map(e => e.date);
+  const values = filtered.map(e => e.temp);
+
+  if(monthlyChart) monthlyChart.destroy();
+
+  monthlyChart = new Chart(
+    document.getElementById("monthlyChart"),
+    {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: "gray"
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    }
+  );
+}
+
+</script>
+
 
 /* ===============================
    TAB SWITCH
