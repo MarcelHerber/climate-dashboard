@@ -159,85 +159,56 @@ function updateDaily(){
     parseFloat((d.tmax-d.climate_mean).toFixed(1))
   );
 
-  if(dailyChart) dailyChart.destroy();
+dailyDeviationChart = new Chart(
+  document.getElementById("dailyDeviationChart"),
+  {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Abweichung (°C)",
+          data: deviation,
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: "origin",
 
-  dailyChart=new Chart(document.getElementById("dailyChart"),{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {
-          label:"Tageshöchstwert (°C)",
-          data:values,
-          borderColor:"red",
-          pointRadius:0
+          // Linienfarbe je Segment
+          segment: {
+            borderColor: ctx =>
+              ctx.p0.parsed.y >= 0 ? "red" : "blue",
+            backgroundColor: ctx =>
+              ctx.p0.parsed.y >= 0
+                ? "rgba(255,0,0,0.25)"
+                : "rgba(0,150,255,0.25)"
+          }
         },
+
         {
-          label:"1991–2020 Mittel (°C)",
-          data:climate,
-          borderColor:"black",
-          borderDash:[6,6],
-          pointRadius:0
+          label: "0 Linie",
+          data: new Array(deviation.length).fill(0),
+          borderColor: "black",
+          borderDash: [6,6],
+          pointRadius: 0,
+          fill: false
         }
       ]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{
-        zoom:{
-          pan:{enabled:true,mode:"x"},
-          zoom:{wheel:{enabled:true},mode:"x"}
-        }
-      }
-    }
-  });
-
-  if(dailyDeviationChart) dailyDeviationChart.destroy();
-
-  dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {
-          label:"Positive Abweichung",
-          data:deviation.map(v=>v>0?v:null),
-          borderColor:"red",
-          backgroundColor:"rgba(255,0,0,0.25)",
-          fill:"origin",
-          pointRadius:0
-        },
-        {
-          label:"Negative Abweichung",
-          data:deviation.map(v=>v<0?v:null),
-          borderColor:"blue",
-          backgroundColor:"rgba(0,150,255,0.25)",
-          fill:"origin",
-          pointRadius:0
-        },
-        {
-          label:"0 Linie",
-          data:new Array(deviation.length).fill(0),
-          borderColor:"black",
-          borderDash:[6,6],
-          pointRadius:0
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{
-        y:{
-          title:{
-            display:true,
-            text:"Abweichung (°C)"
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          title: {
+            display: true,
+            text: "Abweichung (°C)"
           }
         }
       }
     }
-  });
+  }
+);
+
 }
 
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
