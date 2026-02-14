@@ -283,13 +283,45 @@ function updateDaily(){
 
   let filtered=dailyData.filter(d=>d.date.startsWith(year));
 
-  if(range!=="year"){
-    if(seasonMap[range]){
-      filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-    } else {
-      filtered=filtered.filter(d=>d.date.substring(5,7)===range);
-    }
+  if(range !== "year"){
+
+  if(range === "winter"){
+
+    const prevYear = (parseInt(year) - 1).toString();
+
+    filtered = dailyData.filter(d => {
+
+      const y = d.date.substring(0,4);
+      const m = d.date.substring(5,7);
+
+      // Dez vom Vorjahr
+      if(y === prevYear && m === "12") return true;
+
+      // Jan + Feb vom aktuellen Jahr
+      if(y === year && (m === "01" || m === "02")) return true;
+
+      return false;
+    });
+
   }
+
+  else if(seasonMap[range]){
+
+    filtered = filtered.filter(d =>
+      seasonMap[range].includes(d.date.substring(5,7))
+    );
+
+  }
+
+  else {
+
+    filtered = filtered.filter(d =>
+      d.date.substring(5,7) === range
+    );
+
+  }
+}
+
 
   const labels=filtered.map(d=>d.date);
   const values=filtered.map(d=>d.tmax);
