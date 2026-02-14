@@ -285,29 +285,44 @@ if(param === "rain"){
 
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
 
-  monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
-    type:"bar",
-    data:{
-      labels:labels,
-      datasets:[{ label:"Abweichung", data:dev, backgroundColor: dev.map(v => {
+monthlyDeviationChart = new Chart(
+  document.getElementById("monthlyDeviationChart"),
+  {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: param === "rain" ? "Niederschlag (%)" : "Abweichung",
+        data: dev,
+        backgroundColor: dev.map(v => {
 
-  if(param === "rain"){
-    return v >= 100 ? "green" : "saddlebrown";
-  }
+          if(param === "rain"){
+            return v >= 100 ? "green" : "saddlebrown";
+          }
 
-    options:{responsive:true,maintainAspectRatio:false}
-scales: {
-  y: {
-    title: {
-      display: true,
-      text: param === "rain" ? "Niederschlag (%)" : "Abweichung"
+          return v >= 0 ? "red" : "blue";
+
+        })
+      }]
     },
-    beginAtZero: false
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          title: {
+            display: true,
+            text: param === "rain"
+              ? "Niederschlag in % (1991–2020 = 100%)"
+              : "Abweichung"
+          },
+          beginAtZero: false
+        }
+      }
+    }
   }
-}
+);
 
-  });
-}
 
 function resetMonthlyZoom(){
   if(monthlyChart) monthlyChart.resetZoom();
