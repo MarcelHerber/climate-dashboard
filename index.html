@@ -52,6 +52,15 @@ body{
   box-shadow:0 4px 12px rgba(0,0,0,0.08);
 }
 
+.stats{
+  max-width:900px;
+  margin:40px auto;
+  background:white;
+  padding:20px;
+  border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
 canvas{
   width:100% !important;
   height:100% !important;
@@ -67,15 +76,55 @@ canvas{
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
 </div>
 
-<!-- ================= MONATSDASHBOARD ================= -->
+<!-- ================= MONATS DASHBOARD ================= -->
 
 <div id="monthly" class="tab-content active">
 
-<p>Monatsdashboard bleibt hier wie zuvor integriert.</p>
+<label>Parameter:</label>
+<select id="paramSelect">
+  <option value="rain">Niederschlag</option>
+  <option value="temp">Temperatur</option>
+  <option value="sun">Sonnenscheindauer</option>
+</select>
+
+<label>Monat:</label>
+<select id="monthSelect">
+  <option value="01">Januar</option>
+  <option value="02">Februar</option>
+  <option value="03">März</option>
+  <option value="04">April</option>
+  <option value="05">Mai</option>
+  <option value="06">Juni</option>
+  <option value="07">Juli</option>
+  <option value="08">August</option>
+  <option value="09">September</option>
+  <option value="10">Oktober</option>
+  <option value="11">November</option>
+  <option value="12">Dezember</option>
+</select>
+
+<button onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
+
+<div class="chart-container">
+  <canvas id="monthlyChart"></canvas>
+</div>
+
+<div class="chart-container">
+  <canvas id="monthlyDeviationChart"></canvas>
+</div>
+
+<div class="stats">
+  <h3>Statistik (1991-2020)</h3>
+  <p><strong>Mittelwert:</strong> <span id="climateMean"></span></p>
+  <h4>Top 3 höchste</h4>
+  <ul id="topHigh"></ul>
+  <h4>Top 3 niedrigste</h4>
+  <ul id="topLow"></ul>
+</div>
 
 </div>
 
-<!-- ================= TAGESDASHBOARD ================= -->
+<!-- ================= TAGES DASHBOARD ================= -->
 
 <div id="daily" class="tab-content">
 
@@ -103,12 +152,154 @@ canvas{
 
 <script>
 
+// TAB SWITCH
 function switchTab(tab){
   document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
   document.getElementById(tab).classList.add("active");
 }
+
+// ================= MONATSDATEN =================
+
+let monthlyData=[];
+let monthlyChart;
+let monthlyDeviationChart;
+
+fetch("data.json")
+.then(res=>res.json())
+.then(data=>{
+  monthlyData=data;
+  updateMonthly();
+});
+
+function updateMonthly(){
+
+  const param=document.getElementById("paramSelect").value;
+  const month=document.getElementById("monthSelect").value;
+
+  const filtered=monthlyData.filter(e=>e.date.endsWith("-"+month));
+  const labels=filtered.map(e=>e.date.substring(0,4));
+  const values=filtered.map(e=>e[param]);
+
+  const climatePeriod=filtered.filter(e=>{
+    const y=parseInt(e.date.substring(0,4));
+    return y>=1991 && y<=2020;
+  });
+
+  const climateMean=
+    climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
+
+  let unit="";
+  if(param==="rain") unit="mm";
+  if(param==="temp") unit="°C";
+  if(param==="sun") unit="Stunden";
+
+  document.getElementById("climateMean").innerText=
+    climateMean.toFixed(2)+" "+unit;
+
+  // Gleitendes Mittel
+  const movingAverage=values.map((_,i)=>{
+    if(i<29) return null;
+    const slice=values.slice(i-29,i+1);
+    return slice.reduce((a,b)=>a+b,0)/30;
+  });
+
+  if(monthlyChart) monthlyChart.destroy();
+
+  monthlyChart=new Chart(document.getElementById("monthlyChart"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:param+" ("+unit+")",
+          data:values,
+          backgroundColor:"gray"
+        },
+        {
+          label:"30-jähriges Mittel",
+          data:movingAverage,
+          type:"line",
+          borderColor:"black",
+          borderWidth:2,
+          pointRadius:0
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{
+          ticks:{
+            autoSkip:false,
+            callback:function(value,index){
+              if(index%20===0) return labels[index];
+              return '';
+            }
+          }
+        }
+      },
+      plugins:{
+        zoom:{
+          pan:{enabled:true,mode:"x"},
+          zoom:{wheel:{enabled:true},mode:"x"}
+        }
+      }
+    }
+  });
+
+  // ABWEICHUNG
+
+  let deviation;
+  let colors;
+  let label;
+
+  if(param==="temp"){
+    deviation=values.map(v=>parseFloat((v-climateMean).toFixed(1)));
+    colors=deviation.map(v=>v>=0?"red":"blue");
+    label="Abweichung (°C)";
+  } else {
+    deviation=values.map(v=>((v/climateMean)*100)-100);
+    colors=deviation.map(v=>v>=0?"green":"brown");
+    label="% Abweichung";
+  }
+
+  if(monthlyDeviationChart) monthlyDeviationChart.destroy();
+
+  monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:label,
+          data:deviation,
+          backgroundColor:colors
+        },
+        {
+          label:"0 Linie",
+          data:new Array(deviation.length).fill(0),
+          type:"line",
+          borderColor:"black",
+          borderDash:[6,6],
+          pointRadius:0
+        }
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
+
+function resetMonthlyZoom(){
+  if(monthlyChart) monthlyChart.resetZoom();
+}
+
+document.getElementById("paramSelect").addEventListener("change",updateMonthly);
+document.getElementById("monthSelect").addEventListener("change",updateMonthly);
+
+// ================= TAGESDATEN =================
 
 let dailyData=[];
 let dailyChart;
@@ -120,16 +311,16 @@ fetch("daily_tmax_1881_2026.json")
   dailyData=data;
 
   const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
+  const select=document.getElementById("yearSelect");
 
-  const yearSelect=document.getElementById("yearSelect");
   years.forEach(y=>{
     const opt=document.createElement("option");
     opt.value=y;
     opt.text=y;
-    yearSelect.appendChild(opt);
+    select.appendChild(opt);
   });
 
-  yearSelect.value=years[years.length-1];
+  select.value=years[years.length-1];
   updateDaily();
 });
 
@@ -141,80 +332,91 @@ function updateDaily(){
   let filtered=dailyData.filter(d=>d.date.startsWith(year));
 
   if(range!=="year"){
-    if(range==="winter")
-      filtered=filtered.filter(d=>["12","01","02"].includes(d.date.substring(5,7)));
-    if(range==="spring")
-      filtered=filtered.filter(d=>["03","04","05"].includes(d.date.substring(5,7)));
-    if(range==="summer")
-      filtered=filtered.filter(d=>["06","07","08"].includes(d.date.substring(5,7)));
-    if(range==="autumn")
-      filtered=filtered.filter(d=>["09","10","11"].includes(d.date.substring(5,7)));
+    const map={
+      winter:["12","01","02"],
+      spring:["03","04","05"],
+      summer:["06","07","08"],
+      autumn:["09","10","11"]
+    };
+    filtered=filtered.filter(d=>map[range].includes(d.date.substring(5,7)));
   }
 
   const labels=filtered.map(d=>d.date);
   const values=filtered.map(d=>d.tmax);
   const climate=filtered.map(d=>d.climate_mean);
+  const deviation=filtered.map(d=>d.tmax-d.climate_mean);
 
-  const deviation=filtered.map(d=>
-    parseFloat((d.tmax-d.climate_mean).toFixed(1))
-  );
+  if(dailyChart) dailyChart.destroy();
 
-dailyDeviationChart = new Chart(
-  document.getElementById("dailyDeviationChart"),
-  {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [
+  dailyChart=new Chart(document.getElementById("dailyChart"),{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[
         {
-          label: "Abweichung (°C)",
-          data: deviation,
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: "origin",
-
-          // Linienfarbe je Segment
-          segment: {
-            borderColor: ctx =>
-              ctx.p0.parsed.y >= 0 ? "red" : "blue",
-            backgroundColor: ctx =>
-              ctx.p0.parsed.y >= 0
-                ? "rgba(255,0,0,0.25)"
-                : "rgba(0,150,255,0.25)"
-          }
+          label:"Tageshöchstwert (°C)",
+          data:values,
+          borderColor:"red",
+          pointRadius:0
         },
-
         {
-          label: "0 Linie",
-          data: new Array(deviation.length).fill(0),
-          borderColor: "black",
-          borderDash: [6,6],
-          pointRadius: 0,
-          fill: false
+          label:"1991-2020 Mittel (°C)",
+          data:climate,
+          borderColor:"black",
+          borderDash:[6,6],
+          pointRadius:0
         }
       ]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: {
-          title: {
-            display: true,
-            text: "Abweichung (°C)"
-          }
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        zoom:{
+          pan:{enabled:true,mode:"x"},
+          zoom:{wheel:{enabled:true},mode:"x"}
         }
       }
     }
-  }
-);
+  });
 
+  if(dailyDeviationChart) dailyDeviationChart.destroy();
+
+  dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:"Abweichung (°C)",
+          data:deviation,
+          borderWidth:2,
+          pointRadius:0,
+          fill:"origin",
+          segment:{
+            borderColor:ctx=>ctx.p0.parsed.y>=0?"red":"blue",
+            backgroundColor:ctx=>ctx.p0.parsed.y>=0
+              ?"rgba(255,0,0,0.25)"
+              :"rgba(0,150,255,0.25)"
+          }
+        },
+        {
+          label:"0 Linie",
+          data:new Array(deviation.length).fill(0),
+          borderColor:"black",
+          borderDash:[6,6],
+          pointRadius:0,
+          fill:false
+        }
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
 }
 
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
 document.getElementById("rangeSelect").addEventListener("change",updateDaily);
 
 </script>
-
 </body>
 </html>
