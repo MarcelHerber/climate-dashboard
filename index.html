@@ -294,11 +294,32 @@ function updateMonthly(){
     values.push(value);
   });
 
-  /* ===== Klimamittel 1991-2020 ===== */
+  /* ===== TOP 3 ===== */
 
-  const climateValues = labels
-    .map((y,i)=>({year:parseInt(y),value:values[i]}))
-    .filter(e=>e.year>=1991 && e.year<=2020);
+const combined = labels.map((y,i)=>({
+  year: y,
+  value: values[i]
+}));
+
+const sortedHigh = [...combined]
+  .sort((a,b)=>b.value-a.value)
+  .slice(0,3);
+
+const sortedLow = [...combined]
+  .sort((a,b)=>a.value-b.value)
+  .slice(0,3);
+
+document.getElementById("top3High").innerHTML =
+  sortedHigh.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
+
+document.getElementById("top3Low").innerHTML =
+  sortedLow.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
+
+/* ===== Klimamittel 1991-2020 ===== */
+
+const climateValues = labels
+  .map((y,i)=>({year:parseInt(y),value:values[i]}))
+  .filter(e=>e.year>=1991 && e.year<=2020);
 
   let mean = null;
 
