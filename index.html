@@ -306,6 +306,8 @@ function updateDaily(){
     autumn:["09","10","11"]
   };
 
+  /* ================= FILTER AKTUELLES JAHR ================= */
+
   let filtered=dailyData.filter(d=>d.date.startsWith(year));
 
   if(range==="winter"){
@@ -315,7 +317,8 @@ function updateDaily(){
       const m=d.date.substring(5,7);
       return (y===prev&&m==="12")||(y===year&&(m==="01"||m==="02"));
     });
-  }else if(range!=="year"){
+  }
+  else if(range!=="year"){
     if(seasonMap[range]){
       filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
     }else{
@@ -324,6 +327,8 @@ function updateDaily(){
   }
 
   const labels=filtered.map(d=>d.date);
+
+  /* ================= 1. GRAFIK ================= */
 
   if(dailyChart) dailyChart.destroy();
   dailyChart=new Chart(document.getElementById("dailyChart"),{
@@ -334,6 +339,8 @@ function updateDaily(){
     ]},
     options:{responsive:true}
   });
+
+  /* ================= 2. GRAFIK ================= */
 
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
@@ -352,30 +359,31 @@ function updateDaily(){
     options:{responsive:true}
   });
 
-  /* ================= OVERLAY ================= */
+  /* ================= 3. GRAFIK (OVERLAY) ================= */
 
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
+  let datasets=[];
   let labelsOverlay;
 
-if(range==="winter"){
-  const start=new Date(parseInt(year)-1,11,1);
-  const end=new Date(parseInt(year),2,0);
-  labelsOverlay=[];
-  let d=new Date(start);
-  while(d<=end){
-    labelsOverlay.push(d.toISOString().split("T")[0]);
-    d.setDate(d.getDate()+1);
+  // 🔹 Labels für Overlay festlegen
+  if(range==="winter"){
+    const start=new Date(parseInt(year)-1,11,1);
+    const end=new Date(parseInt(year),2,0);
+    labelsOverlay=[];
+    let d=new Date(start);
+    while(d<=end){
+      labelsOverlay.push(d.toISOString().split("T")[0]);
+      d.setDate(d.getDate()+1);
+    }
+  }else{
+    labelsOverlay=labels;
   }
-}else{
-  labelsOverlay=labels;
-}
-  let datasets=[];
 
   allYears.forEach(y=>{
 
-    let yd;
+    let yd=dailyData.filter(d=>d.date.startsWith(y));
 
     if(range==="winter"){
       const prev=(parseInt(y)-1).toString();
@@ -384,17 +392,14 @@ if(range==="winter"){
         const m=d.date.substring(5,7);
         return (yy===prev&&m==="12")||(yy===y&&(m==="01"||m==="02"));
       });
-    }else{
-  yd=dailyData.filter(d=>d.date.startsWith(y));
-
-  if(range!=="year"){
-    if(seasonMap[range]){
-      yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-    }else{
-      yd=yd.filter(d=>d.date.substring(5,7)===range);
     }
-  }
-}
+    else if(range!=="year"){
+      if(seasonMap[range]){
+        yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
+      }else{
+        yd=yd.filter(d=>d.date.substring(5,7)===range);
+      }
+    }
 
     const dataForChart=labelsOverlay.map(date=>{
       const entry=yd.find(d=>d.date===date);
@@ -403,7 +408,7 @@ if(range==="winter"){
 
     datasets.push({
       data:dataForChart,
-      borderColor:y===year?"red":"rgba(0,0,255,0.05)",
+      borderColor:y===year?"red":"rgba(0,0,255,0.08)",
       borderWidth:y===year?2:1,
       pointRadius:0,
       spanGaps:false
@@ -427,7 +432,6 @@ if(range==="winter"){
     }
   );
 }
-
 function resetAllYearsZoom(){
   if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
 }
