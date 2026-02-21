@@ -90,18 +90,31 @@ th,td{
 
 <label>Monat:</label>
 <select id="monthSelect">
-  <option value="01">Januar</option>
-  <option value="02">Februar</option>
-  <option value="03">März</option>
-  <option value="04">April</option>
-  <option value="05">Mai</option>
-  <option value="06">Juni</option>
-  <option value="07">Juli</option>
-  <option value="08">August</option>
-  <option value="09">September</option>
-  <option value="10">Oktober</option>
-  <option value="11">November</option>
-  <option value="12">Dezember</option>
+  <optgroup label="Monate">
+    <option value="01">Januar</option>
+    <option value="02">Februar</option>
+    <option value="03">März</option>
+    <option value="04">April</option>
+    <option value="05">Mai</option>
+    <option value="06">Juni</option>
+    <option value="07">Juli</option>
+    <option value="08">August</option>
+    <option value="09">September</option>
+    <option value="10">Oktober</option>
+    <option value="11">November</option>
+    <option value="12">Dezember</option>
+  </optgroup>
+
+  <optgroup label="Jahreszeiten">
+    <option value="spring">Frühling (MAM)</option>
+    <option value="summer">Sommer (JJA)</option>
+    <option value="autumn">Herbst (SON)</option>
+    <option value="winter">Winter (DJF)</option>
+  </optgroup>
+
+  <optgroup label="Gesamt">
+    <option value="year">Ganzes Jahr</option>
+  </optgroup>
 </select>
 
 <button onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
