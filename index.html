@@ -385,8 +385,16 @@ if(range==="winter"){
         return (yy===prev&&m==="12")||(yy===y&&(m==="01"||m==="02"));
       });
     }else{
-      yd=dailyData.filter(d=>d.date.startsWith(y));
+  yd=dailyData.filter(d=>d.date.startsWith(y));
+
+  if(range!=="year"){
+    if(seasonMap[range]){
+      yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
+    }else{
+      yd=yd.filter(d=>d.date.substring(5,7)===range);
     }
+  }
+}
 
     const dataForChart=labelsOverlay.map(date=>{
       const entry=yd.find(d=>d.date===date);
