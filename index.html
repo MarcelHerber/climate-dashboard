@@ -5,66 +5,19 @@
 <title>Climate Dashboard Deutschland</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
 
 <style>
-body{
-  font-family:Arial,sans-serif;
-  padding:30px;
-  background:#f4f6f8;
-}
-
-.tabs{
-  display:flex;
-  gap:20px;
-  margin-bottom:30px;
-}
-
-.tab-button{
-  padding:10px 20px;
-  cursor:pointer;
-  background:#ddd;
-  border:none;
-  border-radius:6px;
-  font-weight:bold;
-}
-
-.tab-button.active{
-  background:#444;
-  color:white;
-}
-
-.tab-content{ display:none; }
-.tab-content.active{ display:block; }
-
-.chart-container{
-  max-width:1400px;
-  height:450px;
-  margin:30px auto;
-  background:white;
-  padding:20px;
-  border-radius:8px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
-}
-
-button{
-  padding:8px 14px;
-  margin-top:10px;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:20px;
-  background:white;
-}
-
-th,td{
-  padding:8px;
-  border:1px solid #ccc;
-  text-align:center;
-}
+body{font-family:Arial,sans-serif;padding:30px;background:#f4f6f8;}
+.tabs{display:flex;gap:20px;margin-bottom:30px;}
+.tab-button{padding:10px 20px;cursor:pointer;background:#ddd;border:none;border-radius:6px;font-weight:bold;}
+.tab-button.active{background:#444;color:white;}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.chart-container{max-width:1400px;height:450px;margin:30px auto;background:white;padding:20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+table{width:100%;border-collapse:collapse;margin-top:20px;background:white;}
+th,td{padding:8px;border:1px solid #ccc;text-align:center;}
 </style>
 </head>
 <body>
@@ -77,7 +30,7 @@ th,td{
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
 </div>
 
-<!-- ================= MONATSDASHBOARD ================= -->
+<!-- ================= MONATE ================= -->
 
 <div id="monthly" class="tab-content active">
 
@@ -109,14 +62,12 @@ th,td{
 <div class="chart-container">
   <canvas id="monthlyChart"></canvas>
 </div>
-  
+
 <div class="chart-container" style="height:auto;">
   <h3>Statistik</h3>
   <p><strong>Mittel 1991–2020:</strong> <span id="climateMean"></span></p>
-
   <h4>Top 3 höchste Werte</h4>
   <ul id="top3High"></ul>
-
   <h4>Top 3 niedrigste Werte</h4>
   <ul id="top3Low"></ul>
 </div>
@@ -127,7 +78,7 @@ th,td{
 
 </div>
 
-<!-- ================= TAGESDASHBOARD ================= -->
+<!-- ================= DAILY ================= -->
 
 <div id="daily" class="tab-content">
 
@@ -141,18 +92,6 @@ th,td{
   <option value="spring">Frühling</option>
   <option value="summer">Sommer</option>
   <option value="autumn">Herbst</option>
-  <option value="01">Januar</option>
-  <option value="02">Februar</option>
-  <option value="03">März</option>
-  <option value="04">April</option>
-  <option value="05">Mai</option>
-  <option value="06">Juni</option>
-  <option value="07">Juli</option>
-  <option value="08">August</option>
-  <option value="09">September</option>
-  <option value="10">Oktober</option>
-  <option value="11">November</option>
-  <option value="12">Dezember</option>
 </select>
 
 <div class="chart-container">
@@ -170,14 +109,14 @@ th,td{
 
 </div>
 
-<!-- ================= KENNTAGE ================= -->
+<!-- ================= EXTREMES ================= -->
 
 <div id="extremes" class="tab-content">
 
 <div class="chart-container">
   <canvas id="yearlyExtremeChart"></canvas>
 </div>
-  
+
 <div class="chart-container">
   <canvas id="yearlyMaxChart"></canvas>
   <button onclick="resetYearlyMaxZoom()">Zoom zurücksetzen</button>
@@ -189,22 +128,16 @@ th,td{
 
 <h3>Top 30 heißeste Tage seit 1881</h3>
 <table id="topHotDaysTable">
-<thead>
-<tr>
-<th>Rang</th>
-<th>Datum</th>
-<th>°C</th>
-</tr>
-</thead>
+<thead><tr><th>Rang</th><th>Datum</th><th>°C</th></tr></thead>
 <tbody></tbody>
 </table>
 
 </div>
 
-
 <script>
 
-// TAB SWITCH
+/* ================= TAB ================= */
+
 function switchTab(tab){
   document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
@@ -212,9 +145,31 @@ function switchTab(tab){
   document.getElementById(tab).classList.add("active");
 }
 
-// ================= MONATSDATEN =================
+/* ================= GEMEINSAME HILFSFUNKTIONEN ================= */
 
-let monthlyData=[], monthlyChart, monthlyDeviationChart;
+function getWinterLabels(year){
+  const start=new Date(year-1,11,1);
+  const end=new Date(year,2,0);
+  const arr=[];
+  let d=new Date(start);
+  while(d<=end){
+    arr.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate()+1);
+  }
+  return arr;
+}
+
+function resetAllYearsZoom(){
+  if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
+}
+function resetYearlyMaxZoom(){
+  const chart=Chart.getChart("yearlyMaxChart");
+  if(chart) chart.resetZoom();
+}
+
+/* ================= MONATE ================= */
+
+let monthlyData=[],monthlyChart,monthlyDeviationChart;
 
 fetch("data.json")
 .then(r=>r.json())
@@ -233,57 +188,30 @@ function updateMonthly(){
 
   const climatePeriod=filtered.filter(e=>{
     const y=parseInt(e.date.substring(0,4));
-    return y>=1991 && y<=2020;
+    return y>=1991&&y<=2020;
   });
 
   const mean=climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
-document.getElementById("climateMean").innerText = mean.toFixed(2);
+  document.getElementById("climateMean").innerText=mean.toFixed(2);
 
-// ===== Extremwerte berechnen =====
+  const sortedHigh=[...filtered].sort((a,b)=>b[param]-a[param]).slice(0,3);
+  const sortedLow=[...filtered].sort((a,b)=>a[param]-b[param]).slice(0,3);
 
-const sortedHigh = [...filtered]
-  .sort((a,b)=>b[param]-a[param])
-  .slice(0,3);
-
-const sortedLow = [...filtered]
-  .sort((a,b)=>a[param]-b[param])
-  .slice(0,3);
-
-const topHighList = document.getElementById("top3High");
-const topLowList = document.getElementById("top3Low");
-
-topHighList.innerHTML="";
-topLowList.innerHTML="";
-
-sortedHigh.forEach(e=>{
-  topHighList.innerHTML +=
-    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
-});
-
-sortedLow.forEach(e=>{
-  topLowList.innerHTML +=
-    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
-});
+  document.getElementById("top3High").innerHTML=sortedHigh.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
+  document.getElementById("top3Low").innerHTML=sortedLow.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
 
   if(monthlyChart) monthlyChart.destroy();
-
-  monthlyChart=new Chart(document.getElementById("monthlyChart"),{
+  monthlyChart=new Chart(monthlyChart=document.getElementById("monthlyChart"),{
     type:"bar",
-    data:{ labels:labels, datasets:[{ label:param, data:values, backgroundColor:"gray" }]},
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{labels,datasets:[{data:values,backgroundColor:"gray"}]},
+    options:{responsive:true}
   });
 
-  const dev=values.map(v=>v-mean);
-
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
-
   monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
     type:"bar",
-    data:{
-      labels:labels,
-      datasets:[{ label:"Abweichung", data:dev, backgroundColor:dev.map(v=>v>=0?"red":"blue")}]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{labels,datasets:[{data:values.map(v=>v-mean),backgroundColor:values.map(v=>v>=mean?"red":"blue")}]},
+    options:{responsive:true}
   });
 }
 
@@ -294,24 +222,31 @@ function resetMonthlyZoom(){
 document.getElementById("paramSelect").addEventListener("change",updateMonthly);
 document.getElementById("monthSelect").addEventListener("change",updateMonthly);
 
-// ================= TAGESDATEN =================
+/* ================= DAILY + EXTREMES (einmaliger Fetch) ================= */
 
-let dailyData=[], dailyChart, dailyDeviationChart, dailyAllYearsChart;
+let dailyData=[],dailyChart,dailyDeviationChart,dailyAllYearsChart;
 
 fetch("daily_tmax_1881_2026.json")
 .then(r=>r.json())
 .then(data=>{
   dailyData=data;
-  const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
+  initDaily();
+  initExtremes();
+});
+
+/* ================= DAILY ================= */
+
+function initDaily(){
+  const years=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
   const sel=document.getElementById("yearSelect");
   years.forEach(y=>{
     const o=document.createElement("option");
-    o.value=y; o.text=y;
+    o.value=y;o.text=y;
     sel.appendChild(o);
   });
   sel.value=years[years.length-1];
   updateDaily();
-});
+}
 
 function updateDaily(){
 
@@ -319,7 +254,6 @@ function updateDaily(){
   const range=document.getElementById("rangeSelect").value;
 
   const seasonMap={
-    winter:["12","01","02"],
     spring:["03","04","05"],
     summer:["06","07","08"],
     autumn:["09","10","11"]
@@ -332,275 +266,136 @@ function updateDaily(){
     filtered=dailyData.filter(d=>{
       const y=d.date.substring(0,4);
       const m=d.date.substring(5,7);
-      return (y===prev && m==="12") || (y===year && (m==="01"||m==="02"));
+      return (y===prev&&m==="12")||(y===year&&(m==="01"||m==="02"));
     });
-  }
-  else if(range!=="year"){
+  } else if(range!=="year"){
     if(seasonMap[range]){
       filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-    } else {
-      filtered=filtered.filter(d=>d.date.substring(5,7)===range);
     }
   }
 
-  const labels=filtered.map(d=>d.date);
-  const values=filtered.map(d=>d.tmax);
-  const climate=filtered.map(d=>d.climate_mean);
-  const deviation=filtered.map(d=>d.tmax-d.climate_mean);
+  const labelsSingle=filtered.map(d=>d.date);
 
   if(dailyChart) dailyChart.destroy();
   dailyChart=new Chart(document.getElementById("dailyChart"),{
     type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        { label:"Tageswert", data:values, borderColor:"red", pointRadius:0 },
-        { label:"Klimamittel", data:climate, borderColor:"black", borderDash:[6,6], pointRadius:0 }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{labels:labelsSingle,datasets:[
+      {label:"Tageswert",data:filtered.map(d=>d.tmax),borderColor:"red",pointRadius:0},
+      {label:"Klimamittel",data:filtered.map(d=>d.climate_mean),borderColor:"black",borderDash:[6,6],pointRadius:0}
+    ]},
+    options:{responsive:true}
   });
 
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
     type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {
-          label:"Abweichung (°C)",
-          data:deviation,
-          fill:"origin",
-          pointRadius:0,
-          segment:{
-            borderColor:ctx=>{
-              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
-              return avg>=0?"red":"blue";
-            },
-            backgroundColor:ctx=>{
-              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
-              return avg>=0?"rgba(255,0,0,0.25)":"rgba(0,150,255,0.25)";
-            }
-          }
-        }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
+    data:{labels:labelsSingle,datasets:[
+      {label:"Abweichung",data:filtered.map(d=>d.tmax-d.climate_mean),borderColor:"blue",pointRadius:0}
+    ]},
+    options:{responsive:true}
   });
 
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
+  let labels=(range==="winter")?getWinterLabels(parseInt(year)):labelsSingle;
   let datasets=[];
 
   allYears.forEach(y=>{
-
-  let yd;
-
-  if(range==="winter"){
-    const prev=(parseInt(y)-1).toString();
-    yd=dailyData.filter(d=>{
-      const yy=d.date.substring(0,4);
-      const m=d.date.substring(5,7);
-      return (yy===prev && m==="12") ||
-             (yy===y && (m==="01"||m==="02"));
-    });
-  } else {
-    yd=dailyData.filter(d=>d.date.startsWith(y));
-
-    if(range!=="year"){
-      if(seasonMap[range]){
-        yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-      } else {
-        yd=yd.filter(d=>d.date.substring(5,7)===range);
-      }
+    let yd;
+    if(range==="winter"){
+      const prev=(parseInt(y)-1).toString();
+      yd=dailyData.filter(d=>{
+        const yy=d.date.substring(0,4);
+        const m=d.date.substring(5,7);
+        return (yy===prev&&m==="12")||(yy===y&&(m==="01"||m==="02"));
+      });
+    } else {
+      yd=dailyData.filter(d=>d.date.startsWith(y));
     }
-  }
 
-  datasets.push({
-    data:yd.map(d=>d.tmax),
-    borderColor:y===year?"red":"rgba(0,0,255,0.05)",
-    borderWidth:y===year?2:1,
-    pointRadius:0
+    const dataForChart=labels.map(date=>{
+      const entry=yd.find(d=>d.date===date);
+      return entry?entry.tmax:null;
+    });
+
+    datasets.push({
+      data:dataForChart,
+      borderColor:y===year?"red":"rgba(0,0,255,0.05)",
+      borderWidth:y===year?2:1,
+      pointRadius:0,
+      spanGaps:false
+    });
   });
-
-});
 
   dailyAllYearsChart=new Chart(
     document.getElementById("dailyAllYearsChart"),
-    {
-      type:"line",
-      data:{labels:labels,datasets:datasets},
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{display:false},
-          zoom:{
-            pan:{enabled:true,mode:"x"},
-            zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}
-          }
-        }
-      }
+    {type:"line",data:{labels,datasets},
+     options:{plugins:{legend:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},mode:"x"}}}}
     }
   );
-}
-
-function resetAllYearsZoom(){
-  if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
 }
 
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
 document.getElementById("rangeSelect").addEventListener("change",updateDaily);
 
-// ================= KENNTAGE =================
+/* ================= EXTREMES ================= */
 
-fetch("daily_tmax_1881_2026.json")
-.then(r=>r.json())
-.then(data=>{
+function initExtremes(){
 
-  const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
-
-  let summer={}, hot={}, veryHot={};
+  const years=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
+  let summer={},hot={},veryHot={},yearlyMax={};
   years.forEach(y=>{
-    summer[y]=0;
-    hot[y]=0;
-    veryHot[y]=0;
+    summer[y]=0;hot[y]=0;veryHot[y]=0;yearlyMax[y]=-999;
   });
-// ===== Jahreshöchstwert pro Jahr =====
 
-let yearlyMax = {};
-years.forEach(y => yearlyMax[y] = -999);
-
-data.forEach(d => {
-  const y = d.date.substring(0,4);
-  if(d.tmax > yearlyMax[y]){
-    yearlyMax[y] = d.tmax;
-  }
-});
-
-const maxValues = years.map(y => yearlyMax[y]);
-
-// globaler Rekord finden
-const absoluteMax = Math.max(...maxValues);
-
-new Chart(document.getElementById("yearlyMaxChart"),{
-  type:"bar",
-  data:{
-    labels:years,
-    datasets:[{
-      label:"Jahreshöchstwert (°C)",
-      data:maxValues,
-      backgroundColor:maxValues.map(v =>
-        v === absoluteMax ? "darkred" : "rgba(255,0,0,0.6)"
-      )
-    }]
-  },
-  options:{
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{
-      zoom:{
-        pan:{enabled:true,mode:"x"},
-        zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}
-      }
-    },
-    scales:{
-      y:{
-        title:{
-          display:true,
-          text:"°C"
-        }
-      }
-    }
-  }
-});
-
-  // ===== Jahreszählung =====
-
-  data.forEach(d=>{
+  dailyData.forEach(d=>{
     const y=d.date.substring(0,4);
     if(d.tmax>=25) summer[y]++;
     if(d.tmax>=30) hot[y]++;
     if(d.tmax>=35) veryHot[y]++;
+    if(d.tmax>yearlyMax[y]) yearlyMax[y]=d.tmax;
   });
 
   new Chart(document.getElementById("yearlyExtremeChart"),{
     type:"bar",
-    data:{
-      labels:years,
-      datasets:[
-        {label:"≥25°C", data:years.map(y=>summer[y]), backgroundColor:"orange"},
-        {label:"≥30°C", data:years.map(y=>hot[y]), backgroundColor:"red"},
-        {label:"≥35°C", data:years.map(y=>veryHot[y]), backgroundColor:"darkred"}
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false
-    }
+    data:{labels:years,datasets:[
+      {label:"≥25°C",data:years.map(y=>summer[y]),backgroundColor:"orange"},
+      {label:"≥30°C",data:years.map(y=>hot[y]),backgroundColor:"red"},
+      {label:"≥35°C",data:years.map(y=>veryHot[y]),backgroundColor:"darkred"}
+    ]}
   });
 
-  // ===== Heatmap Ersatz (Monats-Balken je Jahr) =====
+  new Chart(document.getElementById("yearlyMaxChart"),{
+    type:"bar",
+    data:{labels:years,datasets:[
+      {label:"Jahreshöchstwert",data:years.map(y=>yearlyMax[y]),backgroundColor:"red"}
+    ]},
+    options:{plugins:{zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},mode:"x"}}}}
+  });
 
-  const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-
-  let monthlyHotCounts=Array(12).fill(0);
-
-  data.forEach(d=>{
-    const m=parseInt(d.date.substring(5,7))-1;
-    if(d.tmax>=30) monthlyHotCounts[m]++;
+  const monthCounts=Array(12).fill(0);
+  dailyData.forEach(d=>{
+    if(d.tmax>=30){
+      const m=parseInt(d.date.substring(5,7))-1;
+      monthCounts[m]++;
+    }
   });
 
   new Chart(document.getElementById("heatmapChart"),{
     type:"bar",
-    data:{
-      labels:monthNames,
-      datasets:[
-        {
-          label:"Gesamt Hitzetage ≥30°C (alle Jahre)",
-          data:monthlyHotCounts,
-          backgroundColor:monthlyHotCounts.map(v=>{
-            const alpha=Math.min(v/500,1);
-            return `rgba(255,0,0,${alpha})`;
-          })
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false
-    }
+    data:{labels:["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"],
+      datasets:[{data:monthCounts,backgroundColor:"red"}]}
   });
 
-  // ===== Top 30 =====
-
-  const top30=[...data]
-    .sort((a,b)=>b.tmax-a.tmax)
-    .slice(0,30);
-
+  const top30=[...dailyData].sort((a,b)=>b.tmax-a.tmax).slice(0,30);
   const tbody=document.querySelector("#topHotDaysTable tbody");
   tbody.innerHTML="";
-
   top30.forEach((d,i)=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.date}</td>
-        <td>${d.tmax.toFixed(1)}</td>
-      </tr>
-    `;
+    tbody.innerHTML+=`<tr><td>${i+1}</td><td>${d.date}</td><td>${d.tmax.toFixed(1)}</td></tr>`;
   });
-
-});
-
-
-function resetYearlyMaxZoom(){
-  const chart = Chart.getChart("yearlyMaxChart");
-  if(chart){
-    chart.resetZoom();
-  }
 }
+
 </script>
 </body>
 </html>
