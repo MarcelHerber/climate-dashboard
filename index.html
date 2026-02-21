@@ -295,7 +295,9 @@ function initDaily(){
 }
 
 function updateDaily(){
-
+console.log("Anzahl Datensätze:", dailyData.length);
+console.log("Erstes Datum:", dailyData[0]?.date);
+console.log("Letztes Datum:", dailyData[dailyData.length-1]?.date);
   const year=document.getElementById("yearSelect").value;
   const range=document.getElementById("rangeSelect").value;
 
