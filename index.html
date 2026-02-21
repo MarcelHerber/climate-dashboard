@@ -1,7 +1,3 @@
-<script>
-
-let monthlyData = [];
-let monthlyChart;
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -19,20 +15,12 @@ body{
   background:#f4f6f8;
 }
 
-fetch("data.json")
-.then(r => r.json())
-.then(data => {
-  monthlyData = data;
-  updateMonthly();
-})
-.catch(err => console.error("Fehler:", err));
 .tabs{
   display:flex;
   gap:20px;
   margin-bottom:30px;
 }
 
-function updateMonthly(){
 .tab-button{
   padding:10px 20px;
   cursor:pointer;
@@ -42,14 +30,11 @@ function updateMonthly(){
   font-weight:bold;
 }
 
-  const filtered = monthlyData.slice(0,20);
 .tab-button.active{
   background:#444;
   color:white;
 }
 
-  const labels = filtered.map(e => e.date);
-  const values = filtered.map(e => e.temp);
 .tab-content{ display:none; }
 .tab-content.active{ display:block; }
 
@@ -63,29 +48,11 @@ function updateMonthly(){
   box-shadow:0 4px 12px rgba(0,0,0,0.08);
 }
 
-  if(monthlyChart) monthlyChart.destroy();
 button{
   padding:8px 14px;
   margin-top:10px;
 }
 
-  monthlyChart = new Chart(
-    document.getElementById("monthlyChart"),
-    {
-      type: "bar",
-      data: {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: "gray"
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false
-      }
-    }
-  );
 table{
   width:100%;
   border-collapse:collapse;
@@ -93,7 +60,6 @@ table{
   background:white;
 }
 
-</script>
 th,td{
   padding:8px;
   border:1px solid #ccc;
@@ -236,9 +202,6 @@ th,td{
 </div>
 
 
-/* ===============================
-   TAB SWITCH
-================================ */
 <script>
 
 // TAB SWITCH
@@ -249,64 +212,31 @@ function switchTab(tab){
   document.getElementById(tab).classList.add("active");
 }
 
-/* ===============================
-   GLOBALE VARIABLEN
-================================ */
-
-let monthlyData = [];
-let dailyData = [];
-
-let monthlyChart, monthlyDeviationChart;
-let dailyChart, dailyDeviationChart, dailyAllYearsChart;
-let yearlyMaxChart;
-
-/* ===============================
-   DATEN LADEN (EINMAL!)
-================================ */
-
-Promise.all([
-  fetch("data.json").then(r=>r.json()),
-  fetch("daily_tmax_1881_2026.json").then(r=>r.json())
-])
-.then(([monthly, daily]) => {
-  monthlyData = monthly;
-  dailyData = daily;
-
-  initMonthly();
-  initDaily();
-  initExtremes();
-})
-.catch(err=>{
-  console.error("Fehler beim Laden der Daten:", err);
-});
 // ================= MONATSDATEN =================
 
-/* ===============================
-   MONATS-DASHBOARD
-================================ */
 let monthlyData=[], monthlyChart, monthlyDeviationChart;
 
-function initMonthly(){
 fetch("data.json")
 .then(r=>r.json())
 .then(data=>{
   monthlyData=data;
   updateMonthly();
-  document.getElementById("paramSelect").addEventListener("change",updateMonthly);
-  document.getElementById("monthSelect").addEventListener("change",updateMonthly);
-}
 });
 
 function updateMonthly(){
-
   const param=document.getElementById("paramSelect").value;
   const month=document.getElementById("monthSelect").value;
 
-@@ -109,127 +237,361 @@
+  const filtered=monthlyData.filter(e=>e.date.endsWith("-"+month));
+  const labels=filtered.map(e=>e.date.substring(0,4));
+  const values=filtered.map(e=>e[param]);
+
+  const climatePeriod=filtered.filter(e=>{
+    const y=parseInt(e.date.substring(0,4));
+    return y>=1991 && y<=2020;
   });
 
   const mean=climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
-  document.getElementById("climateMean").innerText = mean.toFixed(2);
 document.getElementById("climateMean").innerText = mean.toFixed(2);
 
 // ===== Extremwerte berechnen =====
@@ -339,35 +269,14 @@ sortedLow.forEach(e=>{
 
   monthlyChart=new Chart(document.getElementById("monthlyChart"),{
     type:"bar",
-    data:{ labels, datasets:[{ label:param, data:values, backgroundColor:"gray" }]},
     data:{ labels:labels, datasets:[{ label:param, data:values, backgroundColor:"gray" }]},
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  let dev = param==="rain"
-    ? values.map(v => (v/mean)*100)
-    : values.map(v => v-mean);
   const dev=values.map(v=>v-mean);
 
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
 
-  monthlyDeviationChart=new Chart(
-    document.getElementById("monthlyDeviationChart"),
-    {
-      type:"bar",
-      data:{
-        labels,
-        datasets:[{
-          data:dev,
-          backgroundColor:dev.map(v=>{
-            if(param==="rain") return v>=100?"green":"saddlebrown";
-            return v>=0?"red":"blue";
-          })
-        }]
-      },
-      options:{responsive:true,maintainAspectRatio:false}
-    }
-  );
   monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
     type:"bar",
     data:{
@@ -382,17 +291,11 @@ function resetMonthlyZoom(){
   if(monthlyChart) monthlyChart.resetZoom();
 }
 
-/* ===============================
-   TAGES-DASHBOARD
-================================ */
 document.getElementById("paramSelect").addEventListener("change",updateMonthly);
 document.getElementById("monthSelect").addEventListener("change",updateMonthly);
 
-function initDaily(){
 // ================= TAGESDATEN =================
 
-  const years=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
-  const sel=document.getElementById("yearSelect");
 let dailyData=[], dailyChart, dailyDeviationChart, dailyAllYearsChart;
 
 fetch("daily_tmax_1881_2026.json")
@@ -406,20 +309,13 @@ fetch("daily_tmax_1881_2026.json")
     o.value=y; o.text=y;
     sel.appendChild(o);
   });
-
   sel.value=years[years.length-1];
-
-  document.getElementById("yearSelect").addEventListener("change",updateDaily);
-  document.getElementById("rangeSelect").addEventListener("change",updateDaily);
-
   updateDaily();
-}
 });
 
 function updateDaily(){
 
   const year=document.getElementById("yearSelect").value;
-  const filtered=dailyData.filter(d=>d.date.startsWith(year));
   const range=document.getElementById("rangeSelect").value;
 
   const seasonMap={
@@ -453,27 +349,18 @@ function updateDaily(){
   const deviation=filtered.map(d=>d.tmax-d.climate_mean);
 
   if(dailyChart) dailyChart.destroy();
-
   dailyChart=new Chart(document.getElementById("dailyChart"),{
     type:"line",
     data:{
-      labels,
       labels:labels,
       datasets:[
-        {data:values, borderColor:"red", pointRadius:0}
         { label:"Tageswert", data:values, borderColor:"red", pointRadius:0 },
         { label:"Klimamittel", data:climate, borderColor:"black", borderDash:[6,6], pointRadius:0 }
       ]
     },
     options:{responsive:true,maintainAspectRatio:false}
   });
-}
 
-/* ===============================
-   EXTREME
-================================ */
-
-function initExtremes(){
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
     type:"line",
@@ -501,17 +388,11 @@ function initExtremes(){
     options:{responsive:true,maintainAspectRatio:false}
   });
 
-  const years=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
-  let yearlyMax={};
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
-  years.forEach(y=>yearlyMax[y]=-999);
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
   let datasets=[];
 
-  dailyData.forEach(d=>{
-    const y=d.date.substring(0,4);
-    if(d.tmax>yearlyMax[y]) yearlyMax[y]=d.tmax;
   allYears.forEach(y=>{
     let yd=dailyData.filter(d=>d.date.startsWith(y));
     if(range!=="year"){
@@ -529,8 +410,6 @@ function initExtremes(){
     });
   });
 
-  const values=years.map(y=>yearlyMax[y]);
-  const absoluteMax=Math.max(...values);
   datasets.push({
     data:filtered.map(d=>d.climate_mean),
     borderColor:"black",
@@ -538,20 +417,9 @@ function initExtremes(){
     pointRadius:0
   });
 
-  yearlyMaxChart=new Chart(
-    document.getElementById("yearlyMaxChart"),
   dailyAllYearsChart=new Chart(
     document.getElementById("dailyAllYearsChart"),
     {
-      type:"bar",
-      data:{
-        labels:years,
-        datasets:[{
-          data:values,
-          backgroundColor:values.map(v=>v===absoluteMax?"darkred":"rgba(255,0,0,0.6)")
-        }]
-      },
-      options:{responsive:true,maintainAspectRatio:false}
       type:"line",
       data:{labels:labels,datasets:datasets},
       options:{
@@ -569,8 +437,6 @@ function initExtremes(){
   );
 }
 
-function resetYearlyMaxZoom(){
-  if(yearlyMaxChart) yearlyMaxChart.resetZoom();
 function resetAllYearsZoom(){
   if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
 }
