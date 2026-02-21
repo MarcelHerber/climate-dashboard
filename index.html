@@ -233,15 +233,21 @@ function updateMonthly(){
     .filter(e => Number.isFinite(e[param]));  // ← HIER ist der wichtige Fix
 
   const labels = filtered.map(e => e.date.substring(0,4));
-  const values = filtered.map(e => e[param]);
+  const values = filtered.map(e => e[param] ?? null);
 
   const climatePeriod = filtered.filter(e=>{
-    const y = parseInt(e.date.substring(0,4));
-    return y>=1991 && y<=2020;
-  });
+  const y = parseInt(e.date.substring(0,4));
+  return y>=1991 && y<=2020 && e[param] !== null;
+});
 
-  const mean = climatePeriod.length > 0
-    ? climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length
+let mean = null;
+
+if(climatePeriod.length > 0){
+  mean = climatePeriod.reduce((s,e)=>s+e[param],0) / climatePeriod.length;
+  document.getElementById("climateMean").innerText = mean.toFixed(2);
+} else {
+  document.getElementById("climateMean").innerText = "–";
+}
     : null;
 
   document.getElementById("climateMean").innerText =
