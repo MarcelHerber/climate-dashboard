@@ -30,7 +30,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
 </div>
 
-<!-- ================= MONATE ================= -->
+<!-- ================= MONATSWERTE ================= -->
 
 <div id="monthly" class="tab-content active">
 
@@ -66,8 +66,10 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
 <div class="chart-container" style="height:auto;">
   <h3>Statistik</h3>
   <p><strong>Mittel 1991–2020:</strong> <span id="climateMean"></span></p>
+
   <h4>Top 3 höchste Werte</h4>
   <ul id="top3High"></ul>
+
   <h4>Top 3 niedrigste Werte</h4>
   <ul id="top3Low"></ul>
 </div>
@@ -78,7 +80,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
 
 </div>
 
-<!-- ================= DAILY ================= -->
+<!-- ================= TAGESWERTE ================= -->
 
 <div id="daily" class="tab-content">
 
@@ -92,6 +94,18 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
   <option value="spring">Frühling</option>
   <option value="summer">Sommer</option>
   <option value="autumn">Herbst</option>
+  <option value="01">Januar</option>
+  <option value="02">Februar</option>
+  <option value="03">März</option>
+  <option value="04">April</option>
+  <option value="05">Mai</option>
+  <option value="06">Juni</option>
+  <option value="07">Juli</option>
+  <option value="08">August</option>
+  <option value="09">September</option>
+  <option value="10">Oktober</option>
+  <option value="11">November</option>
+  <option value="12">Dezember</option>
 </select>
 
 <div class="chart-container">
@@ -109,7 +123,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
 
 </div>
 
-<!-- ================= EXTREMES ================= -->
+<!-- ================= KENNTAGE ================= -->
 
 <div id="extremes" class="tab-content">
 
@@ -128,7 +142,9 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
 
 <h3>Top 30 heißeste Tage seit 1881</h3>
 <table id="topHotDaysTable">
-<thead><tr><th>Rang</th><th>Datum</th><th>°C</th></tr></thead>
+<thead>
+<tr><th>Rang</th><th>Datum</th><th>°C</th></tr>
+</thead>
 <tbody></tbody>
 </table>
 
@@ -145,29 +161,7 @@ function switchTab(tab){
   document.getElementById(tab).classList.add("active");
 }
 
-/* ================= GEMEINSAME HILFSFUNKTIONEN ================= */
-
-function getWinterLabels(year){
-  const start=new Date(year-1,11,1);
-  const end=new Date(year,2,0);
-  const arr=[];
-  let d=new Date(start);
-  while(d<=end){
-    arr.push(d.toISOString().split("T")[0]);
-    d.setDate(d.getDate()+1);
-  }
-  return arr;
-}
-
-function resetAllYearsZoom(){
-  if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
-}
-function resetYearlyMaxZoom(){
-  const chart=Chart.getChart("yearlyMaxChart");
-  if(chart) chart.resetZoom();
-}
-
-/* ================= MONATE ================= */
+/* ================= MONATSWERTE ================= */
 
 let monthlyData=[],monthlyChart,monthlyDeviationChart;
 
@@ -179,6 +173,7 @@ fetch("data.json")
 });
 
 function updateMonthly(){
+
   const param=document.getElementById("paramSelect").value;
   const month=document.getElementById("monthSelect").value;
 
@@ -197,11 +192,14 @@ function updateMonthly(){
   const sortedHigh=[...filtered].sort((a,b)=>b[param]-a[param]).slice(0,3);
   const sortedLow=[...filtered].sort((a,b)=>a[param]-b[param]).slice(0,3);
 
-  document.getElementById("top3High").innerHTML=sortedHigh.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
-  document.getElementById("top3Low").innerHTML=sortedLow.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
+  document.getElementById("top3High").innerHTML=
+    sortedHigh.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
+
+  document.getElementById("top3Low").innerHTML=
+    sortedLow.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
 
   if(monthlyChart) monthlyChart.destroy();
-  monthlyChart=new Chart(monthlyChart=document.getElementById("monthlyChart"),{
+  monthlyChart=new Chart(document.getElementById("monthlyChart"),{
     type:"bar",
     data:{labels,datasets:[{data:values,backgroundColor:"gray"}]},
     options:{responsive:true}
@@ -210,7 +208,10 @@ function updateMonthly(){
   if(monthlyDeviationChart) monthlyDeviationChart.destroy();
   monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
     type:"bar",
-    data:{labels,datasets:[{data:values.map(v=>v-mean),backgroundColor:values.map(v=>v>=mean?"red":"blue")}]},
+    data:{labels,datasets:[{
+      data:values.map(v=>v-mean),
+      backgroundColor:values.map(v=>v>=mean?"red":"blue")
+    }]},
     options:{responsive:true}
   });
 }
@@ -222,9 +223,21 @@ function resetMonthlyZoom(){
 document.getElementById("paramSelect").addEventListener("change",updateMonthly);
 document.getElementById("monthSelect").addEventListener("change",updateMonthly);
 
-/* ================= DAILY + EXTREMES (einmaliger Fetch) ================= */
+/* ================= TAGESWERTE + EXTREMES ================= */
 
 let dailyData=[],dailyChart,dailyDeviationChart,dailyAllYearsChart;
+
+function getWinterLabels(year){
+  const start=new Date(year-1,11,1);
+  const end=new Date(year,2,0);
+  const arr=[];
+  let d=new Date(start);
+  while(d<=end){
+    arr.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate()+1);
+  }
+  return arr;
+}
 
 fetch("daily_tmax_1881_2026.json")
 .then(r=>r.json())
@@ -254,6 +267,7 @@ function updateDaily(){
   const range=document.getElementById("rangeSelect").value;
 
   const seasonMap={
+    winter:["12","01","02"],
     spring:["03","04","05"],
     summer:["06","07","08"],
     autumn:["09","10","11"]
@@ -268,18 +282,20 @@ function updateDaily(){
       const m=d.date.substring(5,7);
       return (y===prev&&m==="12")||(y===year&&(m==="01"||m==="02"));
     });
-  } else if(range!=="year"){
+  }else if(range!=="year"){
     if(seasonMap[range]){
       filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
+    }else{
+      filtered=filtered.filter(d=>d.date.substring(5,7)===range);
     }
   }
 
-  const labelsSingle=filtered.map(d=>d.date);
+  const labels=filtered.map(d=>d.date);
 
   if(dailyChart) dailyChart.destroy();
   dailyChart=new Chart(document.getElementById("dailyChart"),{
     type:"line",
-    data:{labels:labelsSingle,datasets:[
+    data:{labels,datasets:[
       {label:"Tageswert",data:filtered.map(d=>d.tmax),borderColor:"red",pointRadius:0},
       {label:"Klimamittel",data:filtered.map(d=>d.climate_mean),borderColor:"black",borderDash:[6,6],pointRadius:0}
     ]},
@@ -289,20 +305,32 @@ function updateDaily(){
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
     type:"line",
-    data:{labels:labelsSingle,datasets:[
-      {label:"Abweichung",data:filtered.map(d=>d.tmax-d.climate_mean),borderColor:"blue",pointRadius:0}
-    ]},
+    data:{labels,datasets:[{
+      label:"Abweichung (°C)",
+      data:filtered.map(d=>d.tmax-d.climate_mean),
+      fill:"origin",
+      pointRadius:0,
+      segment:{
+        borderColor:ctx=>((ctx.p0.parsed.y+ctx.p1.parsed.y)/2)>=0?"red":"blue",
+        backgroundColor:ctx=>((ctx.p0.parsed.y+ctx.p1.parsed.y)/2)>=0?
+          "rgba(255,0,0,0.25)":"rgba(0,150,255,0.25)"
+      }
+    }]},
     options:{responsive:true}
   });
+
+  /* ================= OVERLAY ================= */
 
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
-  let labels=(range==="winter")?getWinterLabels(parseInt(year)):labelsSingle;
+  let labelsOverlay=(range==="winter")?getWinterLabels(parseInt(year)):labels;
   let datasets=[];
 
   allYears.forEach(y=>{
+
     let yd;
+
     if(range==="winter"){
       const prev=(parseInt(y)-1).toString();
       yd=dailyData.filter(d=>{
@@ -310,11 +338,11 @@ function updateDaily(){
         const m=d.date.substring(5,7);
         return (yy===prev&&m==="12")||(yy===y&&(m==="01"||m==="02"));
       });
-    } else {
+    }else{
       yd=dailyData.filter(d=>d.date.startsWith(y));
     }
 
-    const dataForChart=labels.map(date=>{
+    const dataForChart=labelsOverlay.map(date=>{
       const entry=yd.find(d=>d.date===date);
       return entry?entry.tmax:null;
     });
@@ -330,20 +358,32 @@ function updateDaily(){
 
   dailyAllYearsChart=new Chart(
     document.getElementById("dailyAllYearsChart"),
-    {type:"line",data:{labels,datasets},
-     options:{plugins:{legend:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},mode:"x"}}}}
+    {
+      type:"line",
+      data:{labels:labelsOverlay,datasets},
+      options:{
+        plugins:{
+          legend:{display:false},
+          zoom:{
+            pan:{enabled:true,mode:"x"},
+            zoom:{wheel:{enabled:true},mode:"x"}
+          }
+        }
+      }
     }
   );
 }
 
-document.getElementById("yearSelect").addEventListener("change",updateDaily);
-document.getElementById("rangeSelect").addEventListener("change",updateDaily);
+function resetAllYearsZoom(){
+  if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
+}
 
 /* ================= EXTREMES ================= */
 
 function initExtremes(){
 
   const years=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
+
   let summer={},hot={},veryHot={},yearlyMax={};
   years.forEach(y=>{
     summer[y]=0;hot[y]=0;veryHot[y]=0;yearlyMax[y]=-999;
