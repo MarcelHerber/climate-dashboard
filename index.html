@@ -55,6 +55,10 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center;}
   <option value="10">Oktober</option>
   <option value="11">November</option>
   <option value="12">Dezember</option>
+  <option value="winter">Winter (DJF)</option>
+  <option value="spring">Frühling (MAM)</option>
+  <option value="summer">Sommer (JJA)</option>
+  <option value="autumn">Herbst (SON)</option>
 </select>
 
 <button onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
@@ -175,28 +179,57 @@ fetch("data.json")
 function updateMonthly(){
 
   const param=document.getElementById("paramSelect").value;
-  const month=document.getElementById("monthSelect").value;
+  const selection=document.getElementById("monthSelect").value;
 
-  const filtered=monthlyData.filter(e=>e.date.endsWith("-"+month));
-  const labels=filtered.map(e=>e.date.substring(0,4));
-  const values=filtered.map(e=>e[param]);
+  const seasonMap={
+    winter:["12","01","02"],
+    spring:["03","04","05"],
+    summer:["06","07","08"],
+    autumn:["09","10","11"]
+  };
 
-  const climatePeriod=filtered.filter(e=>{
-    const y=parseInt(e.date.substring(0,4));
-    return y>=1991&&y<=2020;
+  let filtered;
+
+  if(seasonMap[selection]){
+    filtered=monthlyData.filter(e=>{
+      const m=e.date.substring(5,7);
+      return seasonMap[selection].includes(m);
+    });
+  }else{
+    filtered=monthlyData.filter(e=>e.date.endsWith("-"+selection));
+  }
+
+  const labels=[...new Set(filtered.map(e=>e.date.substring(0,4)))];
+
+  const values=labels.map(y=>{
+    const entries=filtered.filter(e=>e.date.startsWith(y));
+    if(seasonMap[selection]){
+      return entries.reduce((s,e)=>s+e[param],0)/entries.length;
+    }
+    return entries[0] ? entries[0][param] : null;
   });
 
-  const mean=climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
+  const climatePeriod=labels.filter(y=>y>=1991&&y<=2020);
+  const climateValues=climatePeriod.map(y=>{
+    const entries=filtered.filter(e=>e.date.startsWith(y));
+    if(seasonMap[selection]){
+      return entries.reduce((s,e)=>s+e[param],0)/entries.length;
+    }
+    return entries[0] ? entries[0][param] : null;
+  });
+
+  const mean=climateValues.reduce((s,v)=>s+v,0)/climateValues.length;
   document.getElementById("climateMean").innerText=mean.toFixed(2);
 
-  const sortedHigh=[...filtered].sort((a,b)=>b[param]-a[param]).slice(0,3);
-  const sortedLow=[...filtered].sort((a,b)=>a[param]-b[param]).slice(0,3);
+  const combined=labels.map((y,i)=>({year:y,value:values[i]}));
+  const sortedHigh=[...combined].sort((a,b)=>b.value-a.value).slice(0,3);
+  const sortedLow=[...combined].sort((a,b)=>a.value-b.value).slice(0,3);
 
   document.getElementById("top3High").innerHTML=
-    sortedHigh.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
+    sortedHigh.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
 
   document.getElementById("top3Low").innerHTML=
-    sortedLow.map(e=>`<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`).join("");
+    sortedLow.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
 
   if(monthlyChart) monthlyChart.destroy();
   monthlyChart=new Chart(document.getElementById("monthlyChart"),{
@@ -324,7 +357,20 @@ function updateDaily(){
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
   const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
-  let labelsOverlay=(range==="winter")?getWinterLabels(parseInt(year)):labels;
+  let labelsOverlay;
+
+if(range==="winter"){
+  const start=new Date(parseInt(year)-1,11,1);
+  const end=new Date(parseInt(year),2,0);
+  labelsOverlay=[];
+  let d=new Date(start);
+  while(d<=end){
+    labelsOverlay.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate()+1);
+  }
+}else{
+  labelsOverlay=labels;
+}
   let datasets=[];
 
   allYears.forEach(y=>{
