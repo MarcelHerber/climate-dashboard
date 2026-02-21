@@ -234,13 +234,16 @@ const filtered = monthlyData
 const labels = filtered.map(e => e.date.substring(0,4));
 const values = filtered.map(e => e[param]);
 
-  const climatePeriod=filtered.filter(e=>{
-    const y=parseInt(e.date.substring(0,4));
-    return y>=1991 && y<=2020;
-  });
+  const climatePeriod = filtered.filter(e=>{
+  const y=parseInt(e.date.substring(0,4));
+  return y>=1991 && y<=2020 && typeof e[param] === "number";
+});
 
-  const mean=climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length;
-document.getElementById("climateMean").innerText = mean.toFixed(2);
+const mean = climatePeriod.length > 0
+  ? climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length
+  : null;
+document.getElementById("climateMean").innerText =
+  mean !== null ? mean.toFixed(2) : "–";
 
 // ===== Extremwerte berechnen =====
 
