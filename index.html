@@ -224,26 +224,28 @@ fetch("data.json")
 });
 
 function updateMonthly(){
-  const param=document.getElementById("paramSelect").value;
-  const month=document.getElementById("monthSelect").value;
 
-const filtered = monthlyData
-  .filter(e => e.date.endsWith("-"+month))
-  .filter(e => typeof e[param] === "number");
+  const param = document.getElementById("paramSelect").value;
+  const month = document.getElementById("monthSelect").value;
 
-const labels = filtered.map(e => e.date.substring(0,4));
-const values = filtered.map(e => e[param]);
+  const filtered = monthlyData
+    .filter(e => e.date.endsWith("-"+month))
+    .filter(e => Number.isFinite(e[param]));  // ← HIER ist der wichtige Fix
+
+  const labels = filtered.map(e => e.date.substring(0,4));
+  const values = filtered.map(e => e[param]);
 
   const climatePeriod = filtered.filter(e=>{
-  const y=parseInt(e.date.substring(0,4));
-  return y>=1991 && y<=2020 && typeof e[param] === "number";
-});
+    const y = parseInt(e.date.substring(0,4));
+    return y>=1991 && y<=2020;
+  });
 
-const mean = climatePeriod.length > 0
-  ? climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length
-  : null;
-document.getElementById("climateMean").innerText =
-  mean !== null ? mean.toFixed(2) : "–";
+  const mean = climatePeriod.length > 0
+    ? climatePeriod.reduce((s,e)=>s+e[param],0)/climatePeriod.length
+    : null;
+
+  document.getElementById("climateMean").innerText =
+    Number.isFinite(mean) ? mean.toFixed(2) : "–";
 
 // ===== Extremwerte berechnen =====
 
