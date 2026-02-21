@@ -394,7 +394,20 @@ function updateDaily(){
   let datasets=[];
 
   allYears.forEach(y=>{
-    let yd=dailyData.filter(d=>d.date.startsWith(y));
+
+  let yd;
+
+  if(range==="winter"){
+    const prev=(parseInt(y)-1).toString();
+    yd=dailyData.filter(d=>{
+      const yy=d.date.substring(0,4);
+      const m=d.date.substring(5,7);
+      return (yy===prev && m==="12") ||
+             (yy===y && (m==="01"||m==="02"));
+    });
+  } else {
+    yd=dailyData.filter(d=>d.date.startsWith(y));
+
     if(range!=="year"){
       if(seasonMap[range]){
         yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
@@ -402,20 +415,16 @@ function updateDaily(){
         yd=yd.filter(d=>d.date.substring(5,7)===range);
       }
     }
-    datasets.push({
-      data:yd.map(d=>d.tmax),
-      borderColor:y===year?"red":"rgba(0,0,255,0.05)",
-      borderWidth:y===year?2:1,
-      pointRadius:0
-    });
-  });
+  }
 
   datasets.push({
-    data:filtered.map(d=>d.climate_mean),
-    borderColor:"black",
-    borderWidth:3,
+    data:yd.map(d=>d.tmax),
+    borderColor:y===year?"red":"rgba(0,0,255,0.05)",
+    borderWidth:y===year?2:1,
     pointRadius:0
   });
+
+});
 
   dailyAllYearsChart=new Chart(
     document.getElementById("dailyAllYearsChart"),
