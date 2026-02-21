@@ -239,79 +239,106 @@ fetch("data.json")
 function updateMonthly(){
 
   const param = document.getElementById("paramSelect").value;
-  const month = document.getElementById("monthSelect").value;
+  const selection = document.getElementById("monthSelect").value;
 
-  const filtered = monthlyData
-    .filter(e => e.date.endsWith("-"+month))
-    .filter(e => Number.isFinite(e[param]));  // ← HIER ist der wichtige Fix
+  const seasonMap = {
+    spring:["03","04","05"],
+    summer:["06","07","08"],
+    autumn:["09","10","11"],
+    winter:["12","01","02"]
+  };
 
-  const labels = filtered.map(e => e.date.substring(0,4));
-  const values = filtered.map(e => e[param] ?? null);
+  const years = [...new Set(monthlyData.map(e=>e.date.substring(0,4)))];
 
-  const climatePeriod = filtered.filter(e=>{
-  const y = parseInt(e.date.substring(0,4));
-  return y>=1991 && y<=2020 && e[param] !== null;
-});
+  let labels = [];
+  let values = [];
 
-let mean = null;
+  years.forEach(y=>{
 
-if(climatePeriod.length > 0){
-  mean = climatePeriod.reduce((s,e)=>s+e[param],0) / climatePeriod.length;
-  document.getElementById("climateMean").innerText = mean.toFixed(2);
-} else {
-  document.getElementById("climateMean").innerText = "–";
-}
-    : null;
+    let entries = monthlyData.filter(e=>e.date.startsWith(y));
 
-  document.getElementById("climateMean").innerText =
-    Number.isFinite(mean) ? mean.toFixed(2) : "–";
+    if(selection==="year"){
+      entries = entries;
 
-// ===== Extremwerte berechnen =====
+    } else if(seasonMap[selection]){
 
-const sortedHigh = [...filtered]
-  .sort((a,b)=>b[param]-a[param])
-  .slice(0,3);
+      if(selection==="winter"){
+        const prev = (parseInt(y)-1).toString();
+        entries = monthlyData.filter(e=>{
+          const yy=e.date.substring(0,4);
+          const m=e.date.substring(5,7);
+          return (yy===prev && m==="12") ||
+                 (yy===y && (m==="01"||m==="02"));
+        });
+      } else {
+        entries = entries.filter(e=>seasonMap[selection].includes(e.date.substring(5,7)));
+      }
 
-const sortedLow = [...filtered]
-  .sort((a,b)=>a[param]-b[param])
-  .slice(0,3);
+    } else {
+      entries = entries.filter(e=>e.date.substring(5,7)===selection);
+    }
 
-const topHighList = document.getElementById("top3High");
-const topLowList = document.getElementById("top3Low");
+    entries = entries.filter(e=>e[param]!==null);
 
-topHighList.innerHTML="";
-topLowList.innerHTML="";
+    if(entries.length===0) return;
 
-sortedHigh.forEach(e=>{
-  topHighList.innerHTML +=
-    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
-});
+    let value;
 
-sortedLow.forEach(e=>{
-  topLowList.innerHTML +=
-    `<li>${e.date.substring(0,4)}: ${e[param].toFixed(2)}</li>`;
-});
+    if(param==="temp"){
+      value = entries.reduce((s,e)=>s+e[param],0)/entries.length;
+    } else {
+      value = entries.reduce((s,e)=>s+e[param],0);
+    }
+
+    labels.push(y);
+    values.push(value);
+  });
+
+  /* ===== Klimamittel 1991-2020 ===== */
+
+  const climateValues = labels
+    .map((y,i)=>({year:parseInt(y),value:values[i]}))
+    .filter(e=>e.year>=1991 && e.year<=2020);
+
+  let mean = null;
+
+  if(climateValues.length>0){
+    mean = climateValues.reduce((s,e)=>s+e.value,0)/climateValues.length;
+    document.getElementById("climateMean").innerText = mean.toFixed(2);
+  } else {
+    document.getElementById("climateMean").innerText = "–";
+  }
+
+  /* ===== Diagramm ===== */
 
   if(monthlyChart) monthlyChart.destroy();
-
-  monthlyChart=new Chart(document.getElementById("monthlyChart"),{
-    type:"bar",
-    data:{ labels:labels, datasets:[{ label:param, data:values, backgroundColor:"gray" }]},
-    options:{responsive:true,maintainAspectRatio:false}
-  });
-
-  const dev=values.map(v=>v-mean);
-
-  if(monthlyDeviationChart) monthlyDeviationChart.destroy();
-
-  monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
+  monthlyChart = new Chart(document.getElementById("monthlyChart"),{
     type:"bar",
     data:{
-      labels:labels,
-      datasets:[{ label:"Abweichung", data:dev, backgroundColor:dev.map(v=>v>=0?"red":"blue")}]
+      labels,
+      datasets:[{
+        data:values,
+        backgroundColor:"gray"
+      }]
     },
-    options:{responsive:true,maintainAspectRatio:false}
+    options:{responsive:true}
   });
+
+  /* ===== Abweichung ===== */
+
+  if(monthlyDeviationChart) monthlyDeviationChart.destroy();
+  monthlyDeviationChart = new Chart(document.getElementById("monthlyDeviationChart"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[{
+        data:values.map(v=>mean!==null ? v-mean : null),
+        backgroundColor:values.map(v=>mean!==null && v>=mean ? "red":"blue")
+      }]
+    },
+    options:{responsive:true}
+  });
+
 }
 
 function resetMonthlyZoom(){
