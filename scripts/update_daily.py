@@ -24,6 +24,10 @@ FILE_PATTERN = re.compile(r'href=["\'](tageswerte_KL_\d+_akt\.zip)["\']')
 _thread_local = threading.local()
 
 
+class NoUsableProductFileError(ValueError):
+    """The archive is valid, but contains no usable daily climate product."""
+
+
 def thread_session() -> requests.Session:
     session = getattr(_thread_local, "session", None)
     if session is None:
@@ -69,8 +73,30 @@ def parse_station_zip(
             for name in archive.namelist()
             if name.lower().endswith(".txt") and "produkt_klima_tag" in name.lower()
         ]
+
+        # Some DWD archives can temporarily contain only metadata or use an
+        # unexpected file name. In that case, look for any TXT file whose
+        # header contains the required daily-climate columns.
         if not product_files:
-            raise ValueError("ZIP-Datei enthält keine Produktdatei 'produkt_klima_tag'.")
+            required_columns = {"STATIONS_ID", "MESS_DATUM", "TXK"}
+            for name in archive.namelist():
+                if not name.lower().endswith(".txt"):
+                    continue
+                try:
+                    with archive.open(name) as candidate:
+                        first_line = candidate.readline().decode(
+                            "latin-1", errors="replace"
+                        )
+                    columns = {part.strip() for part in first_line.split(";")}
+                    if required_columns.issubset(columns):
+                        product_files.append(name)
+                except (KeyError, OSError):
+                    continue
+
+        if not product_files:
+            raise NoUsableProductFileError(
+                "ZIP-Datei enthält keine auswertbare Tagesklima-Produktdatei."
+            )
 
         with archive.open(product_files[0]) as raw:
             text = io.TextIOWrapper(raw, encoding="latin-1", newline="")
@@ -151,6 +177,7 @@ def update_daily(root: Path, max_workers: int = 8) -> dict:
     maxima: Dict[date, Tuple[float, str]] = {}
     counts: Dict[date, int] = defaultdict(int)
     failures: list[str] = []
+    skipped_without_product: list[str] = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -171,10 +198,31 @@ def update_daily(root: Path, max_workers: int = 8) -> dict:
                         value == previous[0] and station_id < previous[1]
                     ):
                         maxima[measurement_date] = (value, station_id)
-            except Exception as exc:  # noqa: BLE001 - every failed station matters here
+            except NoUsableProductFileError as exc:
+                # A valid ZIP without a daily product contributes no TXK values.
+                # Skipping it is safe because completeness is checked again below
+                # using the number of reporting stations per day.
+                skipped_without_product.append(f"{filename}: {exc}")
+            except Exception as exc:  # noqa: BLE001 - unexpected failures remain fatal
                 failures.append(f"{filename}: {exc}")
             if number % 50 == 0 or number == len(station_files):
                 print(f"  verarbeitet: {number}/{len(station_files)}")
+
+    if skipped_without_product:
+        print(
+            f"Warnung: {len(skipped_without_product)} Stationsdatei(en) ohne "
+            "auswertbare Produktdatei wurden übersprungen:"
+        )
+        for message in skipped_without_product[:10]:
+            print(f"  - {message}")
+
+    successful_station_files = (
+        len(station_files) - len(failures) - len(skipped_without_product)
+    )
+    if successful_station_files < 300:
+        raise RuntimeError(
+            f"Nur {successful_station_files} Stationsdateien konnten ausgewertet werden."
+        )
 
     if failures:
         preview = "\n".join(failures[:10])
@@ -286,6 +334,8 @@ def update_daily(root: Path, max_workers: int = 8) -> dict:
         "minimum_station_count": minimum_station_count,
         "reference_station_count": reference_count,
         "downloaded_station_files": len(station_files),
+        "processed_station_files": successful_station_files,
+        "skipped_station_files_without_product": len(skipped_without_product),
         "added_days": added,
         "corrected_days": changed_overlap,
         "newest_raw_dwd_date": newest_raw_date.isoformat(),
