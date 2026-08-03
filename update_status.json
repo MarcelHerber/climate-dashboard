@@ -1,30 +1,39 @@
 {
-  "updated_at": null,
+  "updated_at": "2026-08-03T18:42:35+00:00",
   "source": "Deutscher Wetterdienst (DWD), Climate Data Center",
   "monthly": {
     "records": 1752,
-    "latest_complete_month": "2026-01",
+    "latest_complete_month": "2026-07",
     "latest_by_parameter": {
-      "rain": "2026-01",
-      "temp": "2026-01",
-      "sun": "2026-01"
+      "temp": "2026-07",
+      "rain": "2026-07",
+      "sun": "2026-07"
     },
     "non_null": {
-      "rain": 1741,
-      "temp": 1741,
-      "sun": 901
+      "temp": 1747,
+      "rain": 1747,
+      "sun": 907
     }
   },
   "daily": {
-    "records": 53011,
-    "latest_date": "2026-02-20",
-    "latest_tmax": 8.8,
-    "note": "Initialer Datenstand aus den hochgeladenen Dateien; wird beim ersten Workflow-Lauf ersetzt."
+    "records": 53174,
+    "latest_date": "2026-08-02",
+    "latest_tmax": 35.4,
+    "latest_max_station_id": "01602",
+    "latest_station_count": 458,
+    "minimum_station_count": 301,
+    "reference_station_count": 464,
+    "downloaded_station_files": 576,
+    "processed_station_files": 576,
+    "skipped_station_files_without_product": 0,
+    "added_days": 163,
+    "corrected_days": 13,
+    "newest_raw_dwd_date": "2026-08-02"
   },
   "validation": {
     "monthly_records": 1752,
-    "daily_records": 53011,
+    "daily_records": 53174,
     "monthly_last_record": "2026-12",
-    "daily_latest_date": "2026-02-20"
+    "daily_latest_date": "2026-08-02"
   }
 }
