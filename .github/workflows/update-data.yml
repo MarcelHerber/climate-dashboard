@@ -1,0 +1,78 @@
+name: DWD-Daten aktualisieren und GitHub Pages veröffentlichen
+
+on:
+  schedule:
+    - cron: "17 10 * * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: climate-dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Python-Pakete installieren
+        run: python -m pip install -r requirements.txt
+
+      - name: DWD-Daten aktualisieren
+        run: python scripts/update_dashboard.py --workers 8
+
+      - name: Änderungen versionieren
+        shell: bash
+        run: |
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json daily_tmax_1881_2026.json update_status.json
+
+          if git diff --cached --quiet; then
+            echo "Keine neuen oder korrigierten DWD-Daten vorhanden."
+          else
+            git commit -m "DWD-Daten automatisch aktualisiert"
+            git push
+          fi
+
+      - name: Veröffentlichungsordner erstellen
+        shell: bash
+        run: |
+          rm -rf _site
+          mkdir _site
+          cp index.html data.json daily_tmax_1881_2026.json update_status.json .nojekyll _site/
+
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+
+      - name: Website-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+
+      - name: GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
