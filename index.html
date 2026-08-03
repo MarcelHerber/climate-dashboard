@@ -65,11 +65,24 @@ th,td{
   border:1px solid #ccc;
   text-align:center;
 }
+.data-status{
+  display:inline-block;
+  margin:0 0 22px 0;
+  padding:10px 14px;
+  background:white;
+  border-radius:8px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+  color:#444;
+  font-size:14px;
+}
+
 </style>
 </head>
 <body>
 
 <h1>Climate Dashboard Deutschland</h1>
+<div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
+
 
 <div class="tabs">
   <button class="tab-button active" onclick="switchTab('monthly')">Monatswerte</button>
@@ -216,6 +229,40 @@ th,td{
 
 
 <script>
+
+// ================= DATENSTAND =================
+
+fetch("update_status.json", {cache:"no-store"})
+.then(r=>{
+  if(!r.ok) throw new Error("Statusdatei nicht verfügbar");
+  return r.json();
+})
+.then(status=>{
+  const parts=[];
+  if(status.daily && status.daily.latest_date){
+    const d=new Date(status.daily.latest_date+"T12:00:00");
+    parts.push(`Tagesdaten bis ${d.toLocaleDateString("de-DE")}`);
+  }
+  if(status.monthly && status.monthly.latest_complete_month){
+    const [y,m]=status.monthly.latest_complete_month.split("-");
+    parts.push(`Monatsdaten bis ${m}/${y}`);
+  }
+  if(status.updated_at){
+    const updated=new Date(status.updated_at);
+    parts.push(`zuletzt geprüft ${updated.toLocaleString("de-DE", {
+      timeZone:"Europe/Berlin",
+      dateStyle:"short",
+      timeStyle:"short"
+    })}`);
+  }
+  document.getElementById("dataStatus").textContent = parts.length
+    ? parts.join(" · ")
+    : "Datenstand nicht verfügbar";
+})
+.catch(()=>{
+  document.getElementById("dataStatus").textContent = "Datenstand nicht verfügbar";
+});
+
 
 // TAB SWITCH
 function switchTab(tab){
