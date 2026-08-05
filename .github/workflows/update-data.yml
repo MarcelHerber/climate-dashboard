@@ -1,4 +1,4 @@
-name: DWD-Daten aktualisieren und GitHub Pages veröffentlichen
+name: Klima-Daten aktualisieren und GitHub Pages veröffentlichen
 
 on:
   schedule:
@@ -18,6 +18,11 @@ on:
         default: false
       station_climate_days_full:
         description: "Stations-Kenntage vollständig neu aufbauen"
+        required: false
+        type: boolean
+        default: false
+      med_sst_full:
+        description: "Mittelmeer-SST-Klimatologie vollständig neu aufbauen"
         required: false
         type: boolean
         default: false
@@ -60,7 +65,7 @@ jobs:
       - name: Python-Pakete installieren
         run: python -m pip install -r requirements.txt
 
-      - name: DWD-Daten aktualisieren
+      - name: DWD- und NOAA-Daten aktualisieren
         shell: bash
         run: |
           EXTRA_ARGS=""
@@ -72,6 +77,9 @@ jobs:
           fi
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_climate_days_full }}" == "true" ]]; then
             EXTRA_ARGS="$EXTRA_ARGS --station-climate-days-full"
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.med_sst_full }}" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --med-sst-full"
           fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
@@ -97,14 +105,16 @@ jobs:
             station_climate_days_state.json \
             station_climate_days_profiles \
             station_climate_days_current \
+            med_sst.json \
+            med_sst_state.json \
             update_status.json
 
           if git diff --cached --quiet; then
-            echo "Keine neuen oder korrigierten DWD-Daten vorhanden."
+            echo "Keine neuen oder korrigierten Klima-Daten vorhanden."
             exit 0
           fi
 
-          git commit -m "DWD-Daten automatisch aktualisiert"
+          git commit -m "Klima-Daten automatisch aktualisiert"
 
           # Während des langen DWD-Laufs kann auf GitHub ein neuer manueller
           # Commit eintreffen. Der Daten-Commit wird deshalb vor dem Push auf
@@ -152,6 +162,7 @@ jobs:
             station_records.json \
             station_precip_index.json \
             station_climate_days_index.json \
+            med_sst.json \
             update_status.json \
             .nojekyll \
             _site/
