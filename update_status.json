@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-08-05T07:19:45+00:00",
+  "updated_at": "2026-08-05T08:07:11+00:00",
   "source": "Deutscher Wetterdienst (DWD), Climate Data Center",
   "monthly": {
     "records": 29784,
@@ -58,7 +58,7 @@
     "parameters": 4,
     "available_years": 214,
     "new_station_records": 466,
-    "historical_rebuilt": true,
+    "historical_rebuilt": false,
     "historical_files": 1285,
     "historical_observations": 17386520,
     "recent_files": 576,
@@ -67,6 +67,17 @@
     "latest_station_count": 487,
     "minimum_station_count": 318,
     "reference_station_count": 490
+  },
+  "station_precip": {
+    "rebuilt_historical": true,
+    "station_count": 477,
+    "data_through": "2026-08-03",
+    "current_files": 8,
+    "recent_files": 477,
+    "recent_errors": [],
+    "latest_station_count": 453,
+    "minimum_station_count": 296,
+    "reference_period": "1991-2020"
   },
   "validation": {
     "monthly_records": 29784,
@@ -95,6 +106,9 @@
     "daily_latest_date": "2026-08-03",
     "station_records_data_through": "2026-08-03",
     "station_records_areas": 17,
-    "station_records_years": 214
+    "station_records_years": 214,
+    "station_precip_data_through": "2026-08-03",
+    "station_precip_stations": 477,
+    "station_precip_current_files": 8
   }
 }
