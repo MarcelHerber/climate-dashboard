@@ -10,6 +10,7 @@ from pathlib import Path
 from dwd_common import atomic_write_json, read_json
 from update_daily import update_daily
 from update_monthly import update_monthly
+from update_station_records import update_station_records
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,16 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def validate_files(root: Path) -> dict:
     monthly = read_json(root / "data.json")
     daily = read_json(root / "daily_tmax_1881_2026.json")
+    station_records = read_json(root / "station_records.json")
 
     if not isinstance(monthly, list) or len(monthly) < 1700:
         raise RuntimeError("data.json enthält unerwartet wenige Datensätze.")
     if not isinstance(daily, list) or len(daily) < 53000:
         raise RuntimeError("daily_tmax_1881_2026.json enthält unerwartet wenige Datensätze.")
 
-    monthly_keys = [
-        (item.get("area", "Deutschland"), item["date"])
-        for item in monthly
-    ]
+    monthly_keys = [(item.get("area", "Deutschland"), item["date"]) for item in monthly]
     if len(monthly_keys) != len(set(monthly_keys)):
         raise RuntimeError("data.json enthält doppelte Kombinationen aus Gebiet und Monat.")
 
@@ -41,6 +40,15 @@ def validate_files(root: Path) -> dict:
     if daily_dates != sorted(daily_dates) or len(daily_dates) != len(set(daily_dates)):
         raise RuntimeError("Tagesdatei ist nicht eindeutig chronologisch sortiert.")
 
+    if not isinstance(station_records, dict) or not station_records.get("ready"):
+        raise RuntimeError("station_records.json wurde noch nicht vollständig aufgebaut.")
+    if not station_records.get("top_lists") or not station_records.get("stations"):
+        raise RuntimeError("station_records.json enthält keine Rekordlisten oder Stationsmetadaten.")
+    current_year = station_records.get("current_year")
+    year_file = root / "station_records_years" / f"{current_year}.json"
+    if not year_file.exists():
+        raise RuntimeError(f"Jahresdatei für Stationsrekorde fehlt: {year_file.name}")
+
     return {
         "monthly_records": len(monthly),
         "monthly_area_count": len(monthly_by_area),
@@ -48,6 +56,9 @@ def validate_files(root: Path) -> dict:
         "monthly_last_record": max(date_value for _, date_value in monthly_keys),
         "daily_records": len(daily),
         "daily_latest_date": daily_dates[-1],
+        "station_records_data_through": station_records.get("data_through"),
+        "station_records_areas": len(station_records.get("areas", [])),
+        "station_records_years": len(station_records.get("available_years", [])),
     }
 
 
@@ -56,6 +67,8 @@ def main() -> int:
     parser.add_argument("--monthly-only", action="store_true")
     parser.add_argument("--daily-only", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--skip-station-records", action="store_true")
+    parser.add_argument("--station-records-full", action="store_true")
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 
@@ -79,12 +92,19 @@ def main() -> int:
         "source": "Deutscher Wetterdienst (DWD), Climate Data Center",
         "monthly": previous_status.get("monthly"),
         "daily": previous_status.get("daily"),
+        "station_records": previous_status.get("station_records"),
     }
 
     if not args.daily_only:
         status["monthly"] = update_monthly(ROOT)
     if not args.monthly_only:
         status["daily"] = update_daily(ROOT, max_workers=args.workers)
+    if not args.skip_station_records and not args.monthly_only:
+        status["station_records"] = update_station_records(
+            ROOT,
+            max_workers=args.workers,
+            force_full=args.station_records_full,
+        )
 
     status["validation"] = validate_files(ROOT)
     atomic_write_json(status_path, status)
