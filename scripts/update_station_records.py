@@ -230,47 +230,90 @@ def parse_optional_float(value: str) -> Optional[float]:
 
 
 def parse_metadata(content: bytes) -> MetadataIndex:
+    """Liest die DWD-Stationsmetadaten robust aus dem Textformat.
+
+    Der DWD richtet die Datenzeilen nicht immer exakt an den Zeichenpositionen
+    der Kopfzeile aus. Deshalb werden zuerst die sechs numerischen Felder
+    gelesen; Stationsname und Bundesland werden anschließend aus dem Rest der
+    Zeile bestimmt. Ein optionales Feld wie ``Abgabe`` am Zeilenende wird
+    ignoriert.
+    """
     text = content.decode("latin-1", errors="replace")
     lines = text.splitlines()
+
     header_index = next(
         (
             index
             for index, line in enumerate(lines)
-            if "Stations_id" in line and "von_datum" in line and "Stationsname" in line and "Bundesland" in line
+            if "Stations_id" in line
+            and "von_datum" in line
+            and "Stationsname" in line
+            and "Bundesland" in line
         ),
         None,
     )
     if header_index is None:
         raise ValueError("DWD-Stationsmetadaten enthalten keine erkennbare Kopfzeile.")
 
-    header = lines[header_index]
-    names = [
-        "Stations_id", "von_datum", "bis_datum", "Stationshoehe",
-        "geoBreite", "geoLaenge", "Stationsname", "Bundesland",
-    ]
-    starts = {name: header.index(name) for name in names}
-    ordered = sorted(names, key=lambda name: starts[name])
-    bounds: dict[str, tuple[int, Optional[int]]] = {}
-    for index, name in enumerate(ordered):
-        end = starts[ordered[index + 1]] if index + 1 < len(ordered) else None
-        bounds[name] = (starts[name], end)
+    # Die ersten sechs Felder sind numerisch und lassen sich unabhängig von
+    # wechselnden Spaltenbreiten zuverlässig erkennen.
+    prefix_pattern = re.compile(
+        r"^\s*(\d{1,5})\s+"          # Stations-ID
+        r"(\d{8})\s+"                 # von_datum
+        r"(\d{8})\s+"                 # bis_datum
+        r"(-?\d+(?:[.,]\d+)?)\s+"    # Stationshöhe
+        r"(-?\d+(?:[.,]\d+)?)\s+"    # Breite
+        r"(-?\d+(?:[.,]\d+)?)\s+"    # Länge
+        r"(.+?)\s*$"                    # Stationsname, Bundesland, ggf. Abgabe
+    )
 
-    def field(line: str, name: str) -> str:
-        start, end = bounds[name]
-        return line[start:end].strip() if end is not None else line[start:].strip()
+    state_candidates = sorted(
+        set(STATE_ORDER) | set(STATE_ALIASES.keys()),
+        key=len,
+        reverse=True,
+    )
+    state_patterns = [
+        (state, re.compile(rf"(?<!\S){re.escape(state)}(?=\s|$)"))
+        for state in state_candidates
+    ]
 
     segments: list[MetadataSegment] = []
+    skipped_examples: list[str] = []
+
     for line in lines[header_index + 1 :]:
-        station_text = field(line, "Stations_id")
-        if not station_text.isdigit():
+        match = prefix_pattern.match(line)
+        if not match:
+            # Trennzeilen, wiederholte Kopfzeilen und Leerzeilen sind normal.
+            if line.strip() and not set(line.strip()) <= {"-", " "}:
+                if len(skipped_examples) < 3:
+                    skipped_examples.append(line[:180])
             continue
-        start_text = field(line, "von_datum")
-        end_text = field(line, "bis_datum")
+
+        station_text, start_text, end_text, height_text, lat_text, lon_text, tail = match.groups()
         try:
             start = datetime.strptime(start_text, "%Y%m%d").date()
             end = datetime.strptime(end_text, "%Y%m%d").date()
         except ValueError:
             continue
+
+        # Das Bundesland steht nach dem Stationsnamen. Seit 2025 kann dahinter
+        # noch eine zusätzliche Spalte (z. B. "Abgabe") folgen. Wir suchen
+        # deshalb das am weitesten rechts stehende bekannte Bundesland.
+        best_state: Optional[str] = None
+        best_start = -1
+        for raw_state, pattern in state_patterns:
+            for state_match in pattern.finditer(tail):
+                if state_match.start() > best_start:
+                    best_start = state_match.start()
+                    best_state = raw_state
+
+        if best_state is None:
+            station_name = tail.strip()
+            state = INTERNAL_UNKNOWN
+        else:
+            station_name = tail[:best_start].strip()
+            state = normalize_state(best_state)
+
         station_id = station_text.zfill(5)
         key = f"{station_id}:{start_text}"
         segments.append(
@@ -279,15 +322,29 @@ def parse_metadata(content: bytes) -> MetadataIndex:
                 station_id=station_id,
                 start=start,
                 end=end,
-                height=parse_optional_int(field(line, "Stationshoehe")),
-                latitude=parse_optional_float(field(line, "geoBreite")),
-                longitude=parse_optional_float(field(line, "geoLaenge")),
-                name=field(line, "Stationsname") or f"Station {station_id}",
-                state=normalize_state(field(line, "Bundesland")),
+                height=parse_optional_int(height_text),
+                latitude=parse_optional_float(lat_text),
+                longitude=parse_optional_float(lon_text),
+                name=station_name or f"Station {station_id}",
+                state=state,
             )
         )
+
     if len(segments) < 300:
-        raise RuntimeError(f"Unerwartet wenige Stationsmetadaten gelesen: {len(segments)}.")
+        detail = ""
+        if skipped_examples:
+            detail = " Beispiele nicht gelesener Zeilen: " + " | ".join(skipped_examples)
+        raise RuntimeError(
+            f"Unerwartet wenige Stationsmetadaten gelesen: {len(segments)}.{detail}"
+        )
+
+    known_states = sum(segment.state != INTERNAL_UNKNOWN for segment in segments)
+    if known_states < max(100, int(len(segments) * 0.5)):
+        raise RuntimeError(
+            "Zu wenige Stationsmetadaten konnten einem Bundesland zugeordnet werden: "
+            f"{known_states} von {len(segments)}."
+        )
+
     return MetadataIndex(segments)
 
 
