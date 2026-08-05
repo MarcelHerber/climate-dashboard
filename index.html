@@ -1,233 +1,1196 @@
-from __future__ import annotations
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Climate Dashboard Deutschland</title>
 
-import csv
-import io
-from collections import defaultdict
-from datetime import date
-from pathlib import Path
-from typing import Dict, Optional
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
-from dwd_common import atomic_write_json, download, read_json
+<style>
+:root{
+  color-scheme:light;
+  --page:#f4f6f8;
+  --card:#fff;
+  --text:#171717;
+  --muted:#666;
+  --border:#d7dce1;
+  --shadow:0 4px 14px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  padding:28px;
+  background:var(--page);
+  color:var(--text);
+}
+h1{margin:0 0 12px;font-size:clamp(28px,4vw,44px)}
+h2{margin-top:0}
+.data-status{
+  display:inline-block;
+  margin:0 0 22px;
+  padding:10px 14px;
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  color:#444;
+  font-size:14px;
+}
+.tabs{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:24px;
+}
+.tab-button{
+  padding:10px 16px;
+  cursor:pointer;
+  background:#ddd;
+  border:0;
+  border-radius:7px;
+  font-weight:bold;
+}
+.tab-button.active{background:#333;color:#fff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:14px;
+  padding:16px;
+  margin-bottom:18px;
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+}
+.control-group{display:flex;flex-direction:column;gap:5px;min-width:170px}
+.control-group label{font-size:13px;font-weight:bold;color:#444}
+select,input[type="checkbox"]{font:inherit}
+select{
+  padding:9px 10px;
+  border:1px solid #bbb;
+  border-radius:6px;
+  background:white;
+}
+.inline-check{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+  min-width:auto;
+  padding-bottom:8px;
+}
+button.action{
+  padding:9px 14px;
+  border:0;
+  border-radius:6px;
+  cursor:pointer;
+  background:#4a4a4a;
+  color:#fff;
+  font-weight:bold;
+}
+.chart-container{
+  position:relative;
+  width:100%;
+  min-height:470px;
+  margin:22px auto;
+  background:var(--card);
+  padding:20px;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+}
+.chart-container.tall{min-height:690px}
+.chart-container.auto{min-height:0;height:auto}
+.chart-container canvas{width:100%!important;height:430px!important}
+.chart-container.tall canvas{height:650px!important}
+.stat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:14px;
+}
+.stat-card{
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:14px;
+  background:#fafafa;
+}
+.stat-card h4{margin:0 0 8px}
+.stat-card ul{margin:0;padding-left:20px}
+.summary-box{
+  margin:0 0 18px;
+  padding:14px 16px;
+  border-left:5px solid #555;
+  border-radius:7px;
+  background:white;
+  box-shadow:var(--shadow);
+  line-height:1.55;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:20px;
+  background:white;
+}
+th,td{padding:8px;border:1px solid #ccc;text-align:center}
+.note{color:var(--muted);font-size:13px;line-height:1.45}
+.error-box{
+  display:none;
+  padding:12px 14px;
+  margin-bottom:18px;
+  color:#7a1010;
+  background:#ffe8e8;
+  border:1px solid #e1a0a0;
+  border-radius:7px;
+}
+@media(max-width:700px){
+  body{padding:14px}
+  .control-group{min-width:100%}
+  .chart-container{padding:10px;min-height:420px}
+  .chart-container canvas{height:390px!important}
+  .chart-container.tall{min-height:570px}
+  .chart-container.tall canvas{height:540px!important}
+}
+</style>
+</head>
+<body>
 
-BASE_URL = "https://opendata.dwd.de/climate_environment/CDC/regional_averages_DE/monthly"
-PARAMETERS = {
-    "temp": ("air_temperature_mean", "tm"),
-    "rain": ("precipitation", "rr"),
-    "sun": ("sunshine_duration", "sd"),
+<h1>Climate Dashboard Deutschland</h1>
+<div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
+<div id="loadError" class="error-box"></div>
+
+<div class="tabs">
+  <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
+  <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
+  <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
+  <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
+</div>
+
+<!-- ================= GEBIETSMITTEL ================= -->
+<div id="monthly" class="tab-content active">
+  <div class="controls">
+    <div class="control-group">
+      <label for="monthlyAreaSelect">Gebiet</label>
+      <select id="monthlyAreaSelect"></select>
+    </div>
+    <div class="control-group">
+      <label for="paramSelect">Parameter</label>
+      <select id="paramSelect">
+        <option value="rain">Niederschlag</option>
+        <option value="temp">Temperatur</option>
+        <option value="sun">Sonnenscheindauer</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="monthSelect">Zeitraum</label>
+      <select id="monthSelect" class="period-select"></select>
+    </div>
+    <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="monthlyChart"></canvas>
+  </div>
+
+  <div class="chart-container auto">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <h4>Mittel 1991–2020</h4>
+        <div id="climateMean">–</div>
+      </div>
+      <div class="stat-card">
+        <h4>Top 3 höchste Werte</h4>
+        <ul id="top3High"></ul>
+      </div>
+      <div class="stat-card">
+        <h4>Top 3 niedrigste Werte</h4>
+        <ul id="top3Low"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="monthlyDeviationChart"></canvas>
+  </div>
+</div>
+
+<!-- ================= KLIMA-INDEX ================= -->
+<div id="index" class="tab-content">
+  <div class="controls">
+    <div class="control-group">
+      <label for="indexAreaSelect">Gebiet</label>
+      <select id="indexAreaSelect"></select>
+    </div>
+    <div class="control-group">
+      <label for="indexPeriodSelect">Zeitraum</label>
+      <select id="indexPeriodSelect" class="period-select"></select>
+    </div>
+    <div class="control-group inline-check">
+      <input id="indexLabelsToggle" type="checkbox" checked>
+      <label for="indexLabelsToggle">Jahreszahlen anzeigen</label>
+    </div>
+  </div>
+
+  <div id="indexSummary" class="summary-box">Index wird berechnet …</div>
+  <div class="chart-container tall">
+    <canvas id="climateIndexChart"></canvas>
+  </div>
+  <p class="note">
+    Referenz 1991–2020. Die x-Achse zeigt die Temperaturabweichung in °C, die y-Achse die Niederschlagsabweichung in mm. Die Niederschlagsachse ist umgedreht, sodass trockene Jahre oben stehen. Farbe und Blasengröße beruhen auf standardisierten Abweichungen, damit Temperatur und Niederschlag trotz unterschiedlicher Einheiten vergleichbar sind.
+  </p>
+</div>
+
+<!-- ================= SEIT JAHRESBEGINN ================= -->
+<div id="accumulation" class="tab-content">
+  <div class="controls">
+    <div class="control-group">
+      <label for="accAreaSelect">Gebiet</label>
+      <select id="accAreaSelect"></select>
+    </div>
+    <div class="control-group">
+      <label for="accParamSelect">Parameter</label>
+      <select id="accParamSelect">
+        <option value="rain">Niederschlagssumme</option>
+        <option value="sun">Sonnenscheinsumme</option>
+        <option value="temp">Temperaturmittel</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="accYearSelect">Jahr</label>
+      <select id="accYearSelect"></select>
+    </div>
+  </div>
+
+  <div id="accSummary" class="summary-box">Jahresverlauf wird berechnet …</div>
+  <div class="chart-container">
+    <canvas id="accumulationChart"></canvas>
+  </div>
+  <p class="note">
+    Niederschlag und Sonnenschein werden ab Januar aufsummiert. Bei der Temperatur wird ein nach Kalendertagen gewichtetes Mittel seit Jahresbeginn berechnet; Temperaturen werden nicht einfach addiert.
+  </p>
+</div>
+
+<!-- ================= TAGESDASHBOARD ================= -->
+<div id="daily" class="tab-content">
+  <div class="controls">
+    <div class="control-group">
+      <label for="yearSelect">Jahr</label>
+      <select id="yearSelect"></select>
+    </div>
+    <div class="control-group">
+      <label for="rangeSelect">Zeitraum</label>
+      <select id="rangeSelect">
+        <option value="year">Ganzes Jahr</option>
+        <option value="winter">Winter</option>
+        <option value="spring">Frühling</option>
+        <option value="summer">Sommer</option>
+        <option value="autumn">Herbst</option>
+        <option value="01">Januar</option>
+        <option value="02">Februar</option>
+        <option value="03">März</option>
+        <option value="04">April</option>
+        <option value="05">Mai</option>
+        <option value="06">Juni</option>
+        <option value="07">Juli</option>
+        <option value="08">August</option>
+        <option value="09">September</option>
+        <option value="10">Oktober</option>
+        <option value="11">November</option>
+        <option value="12">Dezember</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+  <div class="chart-container"><canvas id="dailyDeviationChart"></canvas></div>
+  <div class="chart-container">
+    <canvas id="dailyAllYearsChart"></canvas>
+    <button class="action" onclick="resetAllYearsZoom()">Zoom zurücksetzen</button>
+  </div>
+</div>
+
+<!-- ================= KENNTAGE ================= -->
+<div id="extremes" class="tab-content">
+  <div class="chart-container"><canvas id="yearlyExtremeChart"></canvas></div>
+  <div class="chart-container">
+    <canvas id="yearlyMaxChart"></canvas>
+    <button class="action" onclick="resetYearlyMaxZoom()">Zoom zurücksetzen</button>
+  </div>
+  <div class="chart-container"><canvas id="heatmapChart"></canvas></div>
+
+  <h3>Top 30 heißeste Tage seit 1881</h3>
+  <table id="topHotDaysTable">
+    <thead><tr><th>Rang</th><th>Datum</th><th>°C</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+const MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const MONTH_SHORT = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+const PERIOD_OPTIONS = [
+  {group:"Monate", value:"01", label:"Januar"},
+  {group:"Monate", value:"02", label:"Februar"},
+  {group:"Monate", value:"03", label:"März"},
+  {group:"Monate", value:"04", label:"April"},
+  {group:"Monate", value:"05", label:"Mai"},
+  {group:"Monate", value:"06", label:"Juni"},
+  {group:"Monate", value:"07", label:"Juli"},
+  {group:"Monate", value:"08", label:"August"},
+  {group:"Monate", value:"09", label:"September"},
+  {group:"Monate", value:"10", label:"Oktober"},
+  {group:"Monate", value:"11", label:"November"},
+  {group:"Monate", value:"12", label:"Dezember"},
+  {group:"Jahreszeiten", value:"spring", label:"Frühling (MAM)"},
+  {group:"Jahreszeiten", value:"summer", label:"Sommer (JJA)"},
+  {group:"Jahreszeiten", value:"autumn", label:"Herbst (SON)"},
+  {group:"Jahreszeiten", value:"winter", label:"Winter (DJF)"},
+  {group:"Gesamt", value:"year", label:"Ganzes Jahr"}
+];
+const PARAM_META = {
+  temp:{label:"Temperatur", unit:"°C", decimals:2},
+  rain:{label:"Niederschlag", unit:"mm", decimals:1},
+  sun:{label:"Sonnenscheindauer", unit:"h", decimals:1}
+};
+const AREA_ORDER = [
+  "Deutschland","Baden-Württemberg","Bayern","Brandenburg","Brandenburg/Berlin",
+  "Hessen","Mecklenburg-Vorpommern","Niedersachsen","Niedersachsen/Hamburg/Bremen",
+  "Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt",
+  "Schleswig-Holstein","Thüringen","Thüringen/Sachsen-Anhalt"
+];
+
+let monthlyData=[];
+let dailyData=[];
+let monthlyChart=null;
+let monthlyDeviationChart=null;
+let climateIndexChart=null;
+let accumulationChart=null;
+let dailyChart=null;
+let dailyDeviationChart=null;
+let dailyAllYearsChart=null;
+let yearlyExtremeChart=null;
+let yearlyMaxChart=null;
+let heatmapChart=null;
+
+function showError(message){
+  const box=document.getElementById("loadError");
+  box.style.display="block";
+  box.textContent=message;
 }
 
-# Die Bezeichnungen links entsprechen exakt den DWD-Spaltennamen.
-# Rechts stehen die lesbaren Namen, die im Dashboard angezeigt werden.
-DWD_AREAS = {
-    "Deutschland": "Deutschland",
-    "Baden-Wuerttemberg": "Baden-Württemberg",
-    "Bayern": "Bayern",
-    "Brandenburg": "Brandenburg",
-    "Brandenburg/Berlin": "Brandenburg/Berlin",
-    "Hessen": "Hessen",
-    "Mecklenburg-Vorpommern": "Mecklenburg-Vorpommern",
-    "Niedersachsen": "Niedersachsen",
-    "Niedersachsen/Hamburg/Bremen": "Niedersachsen/Hamburg/Bremen",
-    "Nordrhein-Westfalen": "Nordrhein-Westfalen",
-    "Rheinland-Pfalz": "Rheinland-Pfalz",
-    "Saarland": "Saarland",
-    "Sachsen": "Sachsen",
-    "Sachsen-Anhalt": "Sachsen-Anhalt",
-    "Schleswig-Holstein": "Schleswig-Holstein",
-    "Thueringen": "Thüringen",
-    "Thueringen/Sachsen-Anhalt": "Thüringen/Sachsen-Anhalt",
+function switchTab(tab){
+  document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
+  document.getElementById(tab).classList.add("active");
+  window.setTimeout(()=>{
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+      .filter(Boolean).forEach(chart=>chart.resize());
+  },50);
 }
 
-AREA_ORDER = list(DWD_AREAS.values())
-AREA_RANK = {area: index for index, area in enumerate(AREA_ORDER)}
-
-
-def parse_float(value: str) -> Optional[float]:
-    value = value.strip().replace(",", ".")
-    if not value:
-        return None
-    number = float(value)
-    if number <= -999:
-        return None
-    return number
-
-
-def parse_dwd_month_file(content: bytes) -> Dict[str, Dict[str, float]]:
-    """Liest eine DWD-Monatsdatei für alle verfügbaren Gebietsspalten."""
-    text = content.decode("latin-1")
-    rows = list(csv.reader(io.StringIO(text), delimiter=";"))
-
-    header_index = next(
-        (index for index, row in enumerate(rows) if row and row[0].strip() == "Jahr"),
-        None,
-    )
-    if header_index is None:
-        raise ValueError("DWD-Monatsdatei enthält keine Kopfzeile 'Jahr'.")
-
-    header = [column.strip() for column in rows[header_index]]
-    try:
-        year_index = header.index("Jahr")
-        month_index = header.index("Monat")
-    except ValueError as exc:
-        raise ValueError("Jahr oder Monat fehlt in einer DWD-Monatsdatei.") from exc
-
-    area_indices: dict[str, int] = {}
-    for dwd_name, display_name in DWD_AREAS.items():
-        if dwd_name in header:
-            area_indices[display_name] = header.index(dwd_name)
-
-    if "Deutschland" not in area_indices:
-        raise ValueError("Spalte Deutschland fehlt in einer DWD-Monatsdatei.")
-
-    result: Dict[str, Dict[str, float]] = {
-        area: {} for area in area_indices
+function populatePeriodSelect(select, defaultValue){
+  select.innerHTML="";
+  const groups={};
+  PERIOD_OPTIONS.forEach(item=>{
+    if(!groups[item.group]){
+      groups[item.group]=document.createElement("optgroup");
+      groups[item.group].label=item.group;
+      select.appendChild(groups[item.group]);
     }
+    const option=document.createElement("option");
+    option.value=item.value;
+    option.textContent=item.label;
+    groups[item.group].appendChild(option);
+  });
+  select.value=defaultValue;
+}
 
-    for row in rows[header_index + 1 :]:
-        if len(row) <= max(year_index, month_index):
-            continue
+document.querySelectorAll(".period-select").forEach(select=>populatePeriodSelect(select,"07"));
 
-        year = row[year_index].strip()
-        month = row[month_index].strip().zfill(2)
-        if not (year.isdigit() and len(year) == 4 and month.isdigit()):
-            continue
+function normalizeMonthly(raw){
+  if(Array.isArray(raw)){
+    return raw.map(item=>({
+      area:item.area || "Deutschland",
+      date:item.date,
+      rain:item.rain ?? null,
+      temp:item.temp ?? null,
+      sun:item.sun ?? null
+    }));
+  }
+  throw new Error("data.json besitzt kein unterstütztes Format.");
+}
 
-        key = f"{year}-{month}"
-        for area, column_index in area_indices.items():
-            if len(row) <= column_index:
-                continue
-            value = parse_float(row[column_index])
-            if value is not None:
-                result[area][key] = value
+function availableAreas(){
+  const found=[...new Set(monthlyData.map(item=>item.area))];
+  return found.sort((a,b)=>{
+    const ai=AREA_ORDER.indexOf(a);
+    const bi=AREA_ORDER.indexOf(b);
+    if(ai===-1 && bi===-1) return a.localeCompare(b,"de");
+    if(ai===-1) return 1;
+    if(bi===-1) return -1;
+    return ai-bi;
+  });
+}
 
-    return result
+function fillAreaSelectors(){
+  const areas=availableAreas();
+  ["monthlyAreaSelect","indexAreaSelect","accAreaSelect"].forEach(id=>{
+    const select=document.getElementById(id);
+    const previous=select.value;
+    select.innerHTML="";
+    areas.forEach(area=>{
+      const option=document.createElement("option");
+      option.value=area;
+      option.textContent=area;
+      select.appendChild(option);
+    });
+    select.value=areas.includes(previous)?previous:(areas.includes("Deutschland")?"Deutschland":areas[0]);
+  });
+}
 
-
-def normalize_existing(records: list[dict]) -> list[dict]:
-    """Alte Deutschland-only-Dateien bleiben beim ersten Update kompatibel."""
-    normalized = []
-    for item in records:
-        normalized.append(
-            {
-                "area": item.get("area", "Deutschland"),
-                "date": item["date"],
-                "rain": item.get("rain"),
-                "temp": item.get("temp"),
-                "sun": item.get("sun"),
-            }
-        )
-    return normalized
-
-
-def update_monthly(root: Path) -> dict:
-    target = root / "data.json"
-    existing_raw = read_json(target)
-    if not isinstance(existing_raw, list) or not existing_raw:
-        raise ValueError("data.json ist leer oder kein JSON-Array.")
-
-    existing = normalize_existing(existing_raw)
-
-    old_non_null: dict[str, dict[str, int]] = defaultdict(dict)
-    existing_areas = sorted({item["area"] for item in existing})
-    for area in existing_areas:
-        area_records = [item for item in existing if item["area"] == area]
-        for parameter in PARAMETERS:
-            old_non_null[area][parameter] = sum(
-                item.get(parameter) is not None for item in area_records
-            )
-
-    # parameter -> Gebiet -> YYYY-MM -> Wert
-    source_data: dict[str, dict[str, dict[str, float]]] = {
-        parameter: defaultdict(dict) for parameter in PARAMETERS
+function synchronizeArea(sourceId){
+  const value=document.getElementById(sourceId).value;
+  ["monthlyAreaSelect","indexAreaSelect","accAreaSelect"].forEach(id=>{
+    if(id!==sourceId && [...document.getElementById(id).options].some(o=>o.value===value)){
+      document.getElementById(id).value=value;
     }
+  });
+}
 
-    for parameter, (directory, abbreviation) in PARAMETERS.items():
-        print(f"Monatsdaten: {parameter}")
-        for month in range(1, 13):
-            url = (
-                f"{BASE_URL}/{directory}/"
-                f"regional_averages_{abbreviation}_{month:02d}.txt"
-            )
-            parsed = parse_dwd_month_file(download(url))
-            for area, values in parsed.items():
-                source_data[parameter][area].update(values)
-            print(
-                f"  Monat {month:02d}: "
-                f"{len(parsed.get('Deutschland', {}))} Jahreswerte, "
-                f"{len(parsed)} Gebiete"
-            )
+function areaRows(area){
+  return monthlyData.filter(item=>item.area===area);
+}
 
-    areas = [
-        area
-        for area in AREA_ORDER
-        if all(area in source_data[parameter] for parameter in PARAMETERS)
-    ]
-    if "Deutschland" not in areas:
-        raise RuntimeError("Deutschland fehlt nach dem DWD-Abruf.")
-    if len(areas) < 10:
-        raise RuntimeError(
-            f"Unerwartet wenige DWD-Gebiete gefunden: {len(areas)}."
-        )
+function daysInMonth(year,month){
+  return new Date(year,month,0).getDate();
+}
 
-    current_year = date.today().year
-    first_year = min(int(item["date"][:4]) for item in existing)
+function periodKeys(year,selection){
+  const y=Number(year);
+  if(/^\d{2}$/.test(selection)) return [{year:y,month:Number(selection)}];
+  if(selection==="spring") return [3,4,5].map(month=>({year:y,month}));
+  if(selection==="summer") return [6,7,8].map(month=>({year:y,month}));
+  if(selection==="autumn") return [9,10,11].map(month=>({year:y,month}));
+  if(selection==="winter") return [{year:y-1,month:12},{year:y,month:1},{year:y,month:2}];
+  return Array.from({length:12},(_,index)=>({year:y,month:index+1}));
+}
 
-    updated: list[dict] = []
-    for area in areas:
-        for year in range(first_year, current_year + 1):
-            for month in range(1, 13):
-                key = f"{year:04d}-{month:02d}"
-                updated.append(
-                    {
-                        "area": area,
-                        "date": key,
-                        "rain": source_data["rain"][area].get(key),
-                        "temp": source_data["temp"][area].get(key),
-                        "sun": source_data["sun"][area].get(key),
-                    }
-                )
+function aggregatePeriod(rows,year,selection,param){
+  const byDate=new Map(rows.map(item=>[item.date,item]));
+  const keys=periodKeys(year,selection);
+  const entries=keys.map(key=>byDate.get(`${key.year}-${String(key.month).padStart(2,"0")}`));
+  if(entries.some(entry=>!entry || entry[param]===null || entry[param]===undefined)) return null;
 
-    updated.sort(key=lambda item: (AREA_RANK.get(item["area"], 999), item["date"]))
+  if(param==="temp"){
+    let weighted=0;
+    let totalDays=0;
+    entries.forEach((entry,index)=>{
+      const key=keys[index];
+      const days=daysInMonth(key.year,key.month);
+      weighted+=entry.temp*days;
+      totalDays+=days;
+    });
+    return weighted/totalDays;
+  }
+  return entries.reduce((sum,entry)=>sum+entry[param],0);
+}
 
-    # Bestehende Gebiete dürfen nicht plötzlich große Datenverluste haben.
-    for area in existing_areas:
-        if area not in areas:
-            raise RuntimeError(f"Vorhandenes Gebiet fehlt nach dem Update: {area}")
-        area_records = [item for item in updated if item["area"] == area]
-        for parameter in PARAMETERS:
-            new_count = sum(item[parameter] is not None for item in area_records)
-            old_count = old_non_null[area][parameter]
-            minimum = max(1, int(old_count * 0.98))
-            if new_count < minimum:
-                raise RuntimeError(
-                    f"Zu viele fehlende {parameter}-Werte für {area}: "
-                    f"alt={old_count}, neu={new_count}."
-                )
+function seriesFor(area,selection,param){
+  const rows=areaRows(area);
+  const years=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
+  return years.map(year=>({year,value:aggregatePeriod(rows,year,selection,param)}))
+    .filter(item=>item.value!==null && Number.isFinite(item.value));
+}
 
-    atomic_write_json(target, updated)
+function mean(values){
+  if(!values.length) return null;
+  return values.reduce((sum,value)=>sum+value,0)/values.length;
+}
 
-    germany = [item for item in updated if item["area"] == "Deutschland"]
-    latest_by_parameter = {}
-    for parameter in PARAMETERS:
-        dates = [item["date"] for item in germany if item[parameter] is not None]
-        latest_by_parameter[parameter] = max(dates) if dates else None
+function stdDev(values){
+  if(values.length<2) return null;
+  const avg=mean(values);
+  return Math.sqrt(values.reduce((sum,value)=>sum+(value-avg)**2,0)/(values.length-1));
+}
 
-    complete_dates = [
-        item["date"]
-        for item in germany
-        if all(item[parameter] is not None for parameter in PARAMETERS)
-    ]
+function percentile(values,p){
+  if(!values.length) return null;
+  const sorted=[...values].sort((a,b)=>a-b);
+  const position=(sorted.length-1)*p;
+  const lower=Math.floor(position);
+  const upper=Math.ceil(position);
+  if(lower===upper) return sorted[lower];
+  return sorted[lower]+(sorted[upper]-sorted[lower])*(position-lower);
+}
 
-    total_non_null = {
-        parameter: sum(item[parameter] is not None for item in updated)
-        for parameter in PARAMETERS
+function periodLabel(selection){
+  return PERIOD_OPTIONS.find(item=>item.value===selection)?.label || selection;
+}
+
+function formatValue(value,param,withUnit=true){
+  if(value===null || !Number.isFinite(value)) return "–";
+  const meta=PARAM_META[param];
+  const text=value.toLocaleString("de-DE",{minimumFractionDigits:meta.decimals,maximumFractionDigits:meta.decimals});
+  return withUnit?`${text} ${meta.unit}`:text;
+}
+
+function primaryBarColor(param,value,climate){
+  if(climate===null) return "rgba(100,100,100,.65)";
+  if(param==="temp") return value>=climate?"rgba(190,55,35,.72)":"rgba(44,104,160,.72)";
+  if(param==="rain") return value>=climate?"rgba(56,135,72,.72)":"rgba(145,91,40,.72)";
+  return value>=climate?"rgba(230,170,30,.75)":"rgba(105,115,130,.65)";
+}
+
+function deviationColor(param,value){
+  if(param==="temp") return value>=0?"rgba(200,45,32,.78)":"rgba(38,103,170,.78)";
+  if(param==="rain") return value>=0?"rgba(51,145,73,.78)":"rgba(156,92,38,.78)";
+  return value>=0?"rgba(226,165,25,.8)":"rgba(96,108,127,.72)";
+}
+
+// ================= DATENSTAND =================
+fetch("update_status.json",{cache:"no-store"})
+  .then(response=>{if(!response.ok) throw new Error(); return response.json();})
+  .then(status=>{
+    const parts=[];
+    if(status.daily?.latest_date){
+      const d=new Date(status.daily.latest_date+"T12:00:00");
+      parts.push(`Tagesdaten bis ${d.toLocaleDateString("de-DE")}`);
     }
+    if(status.monthly?.latest_complete_month){
+      const [y,m]=status.monthly.latest_complete_month.split("-");
+      parts.push(`Monatsdaten bis ${m}/${y}`);
+    }
+    if(status.monthly?.area_count) parts.push(`${status.monthly.area_count} Gebiete`);
+    if(status.updated_at){
+      const updated=new Date(status.updated_at);
+      parts.push(`zuletzt geprüft ${updated.toLocaleString("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"})}`);
+    }
+    document.getElementById("dataStatus").textContent=parts.length?parts.join(" · "):"Datenstand nicht verfügbar";
+  })
+  .catch(()=>document.getElementById("dataStatus").textContent="Datenstand nicht verfügbar");
 
+// ================= MONATSDATEN LADEN =================
+fetch("data.json",{cache:"no-store"})
+  .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+  .then(raw=>{
+    monthlyData=normalizeMonthly(raw);
+    fillAreaSelectors();
+    populateAccumulationYears();
+    updateMonthly();
+    updateClimateIndex();
+    updateAccumulation();
+  })
+  .catch(error=>showError(`Monatsdaten konnten nicht geladen werden: ${error.message}`));
+
+// ================= GEBIETSMITTEL =================
+function updateMonthly(){
+  if(!monthlyData.length) return;
+  const area=document.getElementById("monthlyAreaSelect").value;
+  const param=document.getElementById("paramSelect").value;
+  const selection=document.getElementById("monthSelect").value;
+  const values=seriesFor(area,selection,param);
+  const climateValues=values.filter(item=>item.year>=1991 && item.year<=2020).map(item=>item.value);
+  const climateMean=mean(climateValues);
+  const labels=values.map(item=>item.year);
+  const dataValues=values.map(item=>item.value);
+
+  const sortedHigh=[...values].sort((a,b)=>b.value-a.value).slice(0,3);
+  const sortedLow=[...values].sort((a,b)=>a.value-b.value).slice(0,3);
+  document.getElementById("top3High").innerHTML=sortedHigh.map(item=>`<li>${item.year}: ${formatValue(item.value,param)}</li>`).join("");
+  document.getElementById("top3Low").innerHTML=sortedLow.map(item=>`<li>${item.year}: ${formatValue(item.value,param)}</li>`).join("");
+  document.getElementById("climateMean").textContent=formatValue(climateMean,param);
+
+  if(monthlyChart) monthlyChart.destroy();
+  monthlyChart=new Chart(document.getElementById("monthlyChart"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {
+          type:"bar",
+          label:PARAM_META[param].label,
+          data:dataValues,
+          backgroundColor:dataValues.map(value=>primaryBarColor(param,value,climateMean)),
+          borderWidth:0
+        },
+        {
+          type:"line",
+          label:"Mittel 1991–2020",
+          data:dataValues.map(()=>climateMean),
+          borderColor:"#111",
+          borderDash:[7,5],
+          borderWidth:2,
+          pointRadius:0
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{display:true,text:`${area}: ${periodLabel(selection)} – ${PARAM_META[param].label}`},
+        datalabels:{display:false},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:18}},
+        y:{title:{display:true,text:PARAM_META[param].unit}}
+      }
+    }
+  });
+
+  const deviations=dataValues.map(value=>climateMean===null?null:value-climateMean);
+  if(monthlyDeviationChart) monthlyDeviationChart.destroy();
+  monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
+    type:"bar",
+    data:{labels,datasets:[{
+      label:`Abweichung vom Mittel 1991–2020 (${PARAM_META[param].unit})`,
+      data:deviations,
+      backgroundColor:deviations.map(value=>deviationColor(param,value))
+    }]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        title:{display:true,text:`${area}: Abweichungen – ${periodLabel(selection)}`},
+        datalabels:{display:false}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:18}},
+        y:{title:{display:true,text:PARAM_META[param].unit}}
+      }
+    }
+  });
+}
+
+function resetMonthlyZoom(){if(monthlyChart) monthlyChart.resetZoom();}
+
+// ================= KLIMA-INDEX =================
+function indexColor(value,alpha=.72){
+  const clipped=Math.max(-3,Math.min(3,value));
+  const strength=Math.abs(clipped)/3;
+  const neutral=[238,235,226];
+  const target=clipped>=0?[186,64,35]:[42,94,145];
+  const rgb=neutral.map((component,index)=>Math.round(component+(target[index]-component)*strength));
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+}
+
+const indexGuidesPlugin={
+  id:"indexGuides",
+  beforeDatasetsDraw(chart){
+    if(chart.canvas.id!=="climateIndexChart" || !chart.$indexStats) return;
+    const {ctx,chartArea:{left,right,top,bottom},scales:{x,y}}=chart;
+    const x0=x.getPixelForValue(0);
+    const y0=y.getPixelForValue(0);
+    ctx.save();
+    ctx.strokeStyle="rgba(70,70,70,.45)";
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x0,top);ctx.lineTo(x0,bottom);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(left,y0);ctx.lineTo(right,y0);ctx.stroke();
+
+    const rx=Math.abs(x.getPixelForValue(chart.$indexStats.tempSd)-x0);
+    const ry=Math.abs(y.getPixelForValue(chart.$indexStats.rainSd)-y0);
+    if(Number.isFinite(rx) && Number.isFinite(ry)){
+      ctx.setLineDash([6,6]);
+      ctx.strokeStyle="rgba(80,80,80,.48)";
+      ctx.beginPath();
+      ctx.ellipse(x0,y0,rx,ry,0,0,Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart){
+    if(chart.canvas.id!=="climateIndexChart") return;
+    const {ctx,chartArea:{left,right,top,bottom}}=chart;
+    const labels=[
+      {text:"KALT & TROCKEN",x:left+12,y:top+12,align:"left",color:"#806f35"},
+      {text:"WARM & TROCKEN",x:right-12,y:top+12,align:"right",color:"#b14c24"},
+      {text:"KALT & NASS",x:left+12,y:bottom-12,align:"left",color:"#2f6a9b"},
+      {text:"WARM & NASS",x:right-12,y:bottom-12,align:"right",color:"#43833b"}
+    ];
+    ctx.save();
+    ctx.font="bold 15px Arial";
+    ctx.textBaseline="middle";
+    labels.forEach(label=>{
+      const width=ctx.measureText(label.text).width;
+      const boxLeft=label.align==="left"?label.x-5:label.x-width-5;
+      ctx.fillStyle="rgba(255,255,255,.88)";
+      ctx.strokeStyle=label.color;
+      ctx.lineWidth=1;
+      ctx.fillRect(boxLeft,label.y-12,width+10,24);
+      ctx.strokeRect(boxLeft,label.y-12,width+10,24);
+      ctx.fillStyle=label.color;
+      ctx.textAlign=label.align;
+      ctx.fillText(label.text,label.x,label.y);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(indexGuidesPlugin);
+
+function updateClimateIndex(){
+  if(!monthlyData.length) return;
+  const area=document.getElementById("indexAreaSelect").value;
+  const selection=document.getElementById("indexPeriodSelect").value;
+  const tempSeries=seriesFor(area,selection,"temp");
+  const rainSeries=seriesFor(area,selection,"rain");
+  const tempByYear=new Map(tempSeries.map(item=>[item.year,item.value]));
+  const rainByYear=new Map(rainSeries.map(item=>[item.year,item.value]));
+  const years=[...tempByYear.keys()].filter(year=>rainByYear.has(year)).sort((a,b)=>a-b);
+
+  const refYears=years.filter(year=>year>=1991 && year<=2020);
+  const tempRef=refYears.map(year=>tempByYear.get(year));
+  const rainRef=refYears.map(year=>rainByYear.get(year));
+  const tempMean=mean(tempRef);
+  const rainMean=mean(rainRef);
+  const tempSd=stdDev(tempRef);
+  const rainSd=stdDev(rainRef);
+  if([tempMean,rainMean,tempSd,rainSd].some(value=>value===null || value===0)){
+    document.getElementById("indexSummary").textContent="Für diesen Zeitraum liegen nicht genügend Referenzwerte 1991–2020 vor.";
+    return;
+  }
+
+  const points=years.map(year=>{
+    const temp=tempByYear.get(year);
+    const rain=rainByYear.get(year);
+    const tempAnom=temp-tempMean;
+    const rainAnom=rain-rainMean;
+    const tempZ=tempAnom/tempSd;
+    const rainZ=rainAnom/rainSd;
+    const combined=Math.sqrt(tempZ**2+rainZ**2);
+    const warmDryIndex=tempZ-rainZ;
     return {
-        "records": len(updated),
-        "areas": areas,
-        "area_count": len(areas),
-        "latest_complete_month": max(complete_dates) if complete_dates else None,
-        "latest_by_parameter": latest_by_parameter,
-        "non_null": total_non_null,
+      x:tempAnom,
+      y:rainAnom,
+      r:Math.max(5,Math.min(18,5+combined*3.6)),
+      year,temp,rain,tempAnom,rainAnom,tempZ,rainZ,combined,warmDryIndex
+    };
+  });
+  const latestYear=Math.max(...points.map(point=>point.year));
+  const current=points.filter(point=>point.year===latestYear);
+  const history=points.filter(point=>point.year!==latestYear);
+  const latest=current[0];
+
+  const direction=`${latest.tempAnom>=0?"wärmer":"kälter"} und ${latest.rainAnom<0?"trockener":"nasser"}`;
+  document.getElementById("indexSummary").innerHTML=
+    `<strong>${area}, ${periodLabel(selection)} ${latest.year}:</strong> `+
+    `${latest.tempAnom>=0?"+":""}${latest.tempAnom.toFixed(2).replace(".",",")} °C und `+
+    `${latest.rainAnom>=0?"+":""}${latest.rainAnom.toFixed(1).replace(".",",")} mm gegenüber 1991–2020 – damit ${direction}.`;
+
+  if(climateIndexChart) climateIndexChart.destroy();
+  climateIndexChart=new Chart(document.getElementById("climateIndexChart"),{
+    type:"bubble",
+    data:{datasets:[
+      {
+        label:"Jahre",
+        data:history,
+        backgroundColor:history.map(point=>indexColor(point.warmDryIndex,.62)),
+        borderColor:history.map(point=>indexColor(point.warmDryIndex,.9)),
+        borderWidth:1
+      },
+      {
+        label:`Aktuell (${latestYear})`,
+        data:current,
+        backgroundColor:current.map(point=>indexColor(point.warmDryIndex,.95)),
+        borderColor:"#111",
+        borderWidth:3
+      }
+    ]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{padding:{top:10,right:10,bottom:5,left:5}},
+      plugins:{
+        title:{
+          display:true,
+          text:`${area}: ${periodLabel(selection)}-Index seit ${Math.min(...years)}`,
+          font:{size:24}
+        },
+        subtitle:{
+          display:true,
+          text:"Temperatur- und Niederschlagsabweichungen gegenüber 1991–2020",
+          font:{size:14}
+        },
+        legend:{display:false},
+        datalabels:{
+          display:context=>document.getElementById("indexLabelsToggle").checked || context.datasetIndex===1,
+          formatter:value=>value.year,
+          color:context=>context.datasetIndex===1?"#fff":"rgba(55,55,55,.70)",
+          font:context=>({size:context.datasetIndex===1?14:9,weight:context.datasetIndex===1?"bold":"normal"}),
+          anchor:"center",
+          align:"center",
+          clamp:true
+        },
+        tooltip:{callbacks:{
+          title:items=>String(items[0].raw.year),
+          label:context=>{
+            const point=context.raw;
+            return [
+              `Temperatur: ${formatValue(point.temp,"temp")}`,
+              `Abweichung: ${point.tempAnom>=0?"+":""}${point.tempAnom.toFixed(2)} °C`,
+              `Niederschlag: ${formatValue(point.rain,"rain")}`,
+              `Abweichung: ${point.rainAnom>=0?"+":""}${point.rainAnom.toFixed(1)} mm`,
+              `Warm-Trocken-Index: ${point.warmDryIndex.toFixed(2)}`
+            ];
+          }
+        }}
+      },
+      scales:{
+        x:{
+          title:{display:true,text:"Temperaturabweichung (°C)  ← kälter | wärmer →"},
+          grid:{color:"rgba(120,120,120,.14)"}
+        },
+        y:{
+          reverse:true,
+          title:{display:true,text:"Niederschlagsabweichung (mm)  ↑ trockener | nasser ↓"},
+          grid:{color:"rgba(120,120,120,.14)"}
+        }
+      }
     }
+  });
+  climateIndexChart.$indexStats={tempSd,rainSd};
+  climateIndexChart.update();
+}
+
+// ================= SEIT JAHRESBEGINN =================
+function populateAccumulationYears(){
+  const select=document.getElementById("accYearSelect");
+  const years=[...new Set(monthlyData.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
+  select.innerHTML="";
+  years.forEach(year=>{
+    const option=document.createElement("option");
+    option.value=year;
+    option.textContent=year;
+    select.appendChild(option);
+  });
+  select.value=Math.max(...years);
+}
+
+function runningYear(area,year,param){
+  const rows=areaRows(area);
+  const byDate=new Map(rows.map(item=>[item.date,item]));
+  const result=[];
+  let cumulative=0;
+  let weighted=0;
+  let totalDays=0;
+  let interrupted=false;
+
+  for(let month=1;month<=12;month++){
+    const entry=byDate.get(`${year}-${String(month).padStart(2,"0")}`);
+    if(interrupted || !entry || entry[param]===null || entry[param]===undefined){
+      result.push(null);
+      interrupted=true;
+      continue;
+    }
+    if(param==="temp"){
+      const days=daysInMonth(year,month);
+      weighted+=entry.temp*days;
+      totalDays+=days;
+      result.push(weighted/totalDays);
+    }else{
+      cumulative+=entry[param];
+      result.push(cumulative);
+    }
+  }
+  return result;
+}
+
+function updateAccumulation(){
+  if(!monthlyData.length) return;
+  const area=document.getElementById("accAreaSelect").value;
+  const param=document.getElementById("accParamSelect").value;
+  const year=Number(document.getElementById("accYearSelect").value);
+  const selected=runningYear(area,year,param);
+  const allYears=[...new Set(areaRows(area).map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
+  const baselineYears=allYears.filter(value=>value>=1991 && value<=2020);
+  const baselineSeries=baselineYears.map(value=>runningYear(area,value,param));
+  const historySeries=allYears.filter(value=>value!==year).map(value=>runningYear(area,value,param));
+
+  const climate=Array.from({length:12},(_,month)=>{
+    const values=baselineSeries.map(series=>series[month]).filter(Number.isFinite);
+    return mean(values);
+  });
+  const minimum=Array.from({length:12},(_,month)=>{
+    const values=historySeries.map(series=>series[month]).filter(Number.isFinite);
+    return values.length?Math.min(...values):null;
+  });
+  const maximum=Array.from({length:12},(_,month)=>{
+    const values=historySeries.map(series=>series[month]).filter(Number.isFinite);
+    return values.length?Math.max(...values):null;
+  });
+
+  let lastIndex=-1;
+  selected.forEach((value,index)=>{if(Number.isFinite(value)) lastIndex=index;});
+  if(lastIndex>=0){
+    const actual=selected[lastIndex];
+    const normal=climate[lastIndex];
+    const difference=actual-normal;
+    let comparison="";
+    if(param==="temp"){
+      comparison=`${difference>=0?"+":""}${difference.toFixed(2).replace(".",",")} °C`;
+    }else{
+      const percent=normal!==0?actual/normal*100:null;
+      comparison=`${difference>=0?"+":""}${difference.toFixed(1).replace(".",",")} ${PARAM_META[param].unit}`+
+        (percent!==null?` (${percent.toFixed(0)} % des Mittels)`:"");
+    }
+
+    const peerValues=historySeries.map(series=>series[lastIndex]).filter(Number.isFinite);
+    const rank=[...peerValues,actual].sort((a,b)=>b-a).indexOf(actual)+1;
+    const rankText=param==="temp"?`${rank}. wärmster Wert`:`${rank}. höchster Wert`;
+    document.getElementById("accSummary").innerHTML=
+      `<strong>${area}, Januar–${MONTH_NAMES[lastIndex]} ${year}:</strong> `+
+      `${formatValue(actual,param)}; Abweichung zu 1991–2020: ${comparison}. `+
+      `${rankText} von ${peerValues.length+1} Jahren bis zu diesem Monatsende.`;
+  }else{
+    document.getElementById("accSummary").textContent="Für das ausgewählte Jahr liegen noch keine Werte vor.";
+  }
+
+  if(accumulationChart) accumulationChart.destroy();
+  accumulationChart=new Chart(document.getElementById("accumulationChart"),{
+    type:"line",
+    data:{labels:MONTH_SHORT,datasets:[
+      {
+        label:"Historisches Minimum",
+        data:minimum,
+        borderColor:"rgba(90,110,135,.55)",
+        borderWidth:1,
+        pointRadius:0,
+        tension:.15
+      },
+      {
+        label:"Historischer Bereich",
+        data:maximum,
+        borderColor:"rgba(90,110,135,.55)",
+        backgroundColor:"rgba(120,140,165,.14)",
+        borderWidth:1,
+        pointRadius:0,
+        fill:"-1",
+        tension:.15
+      },
+      {
+        label:"Mittel 1991–2020",
+        data:climate,
+        borderColor:"#111",
+        borderDash:[7,5],
+        borderWidth:2.5,
+        pointRadius:0,
+        tension:.15
+      },
+      {
+        label:String(year),
+        data:selected,
+        borderColor:"#d12d25",
+        backgroundColor:"#d12d25",
+        borderWidth:3,
+        pointRadius:3,
+        spanGaps:false,
+        tension:.15
+      }
+    ]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{
+          display:true,
+          text:param==="temp"
+            ?`${area}: laufendes Temperaturmittel ${year}`
+            :`${area}: ${PARAM_META[param].label} seit Jahresbeginn ${year}`
+        },
+        datalabels:{display:false},
+        tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${formatValue(context.parsed.y,param)}`}}
+      },
+      scales:{y:{title:{display:true,text:PARAM_META[param].unit}}}
+    }
+  });
+}
+
+// ================= STEUERUNG GEBIETSMITTEL =================
+document.getElementById("monthlyAreaSelect").addEventListener("change",()=>{
+  synchronizeArea("monthlyAreaSelect"); updateMonthly(); updateClimateIndex(); updateAccumulation();
+});
+document.getElementById("indexAreaSelect").addEventListener("change",()=>{
+  synchronizeArea("indexAreaSelect"); updateMonthly(); updateClimateIndex(); updateAccumulation();
+});
+document.getElementById("accAreaSelect").addEventListener("change",()=>{
+  synchronizeArea("accAreaSelect"); updateMonthly(); updateClimateIndex(); updateAccumulation();
+});
+document.getElementById("paramSelect").addEventListener("change",updateMonthly);
+document.getElementById("monthSelect").addEventListener("change",updateMonthly);
+document.getElementById("indexPeriodSelect").addEventListener("change",updateClimateIndex);
+document.getElementById("indexLabelsToggle").addEventListener("change",updateClimateIndex);
+document.getElementById("accParamSelect").addEventListener("change",updateAccumulation);
+document.getElementById("accYearSelect").addEventListener("change",updateAccumulation);
+
+// ================= TAGESDATEN =================
+fetch("daily_tmax_1881_2026.json",{cache:"no-store"})
+  .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+  .then(data=>{
+    dailyData=data;
+    initializeDailyControls();
+    updateDaily();
+    buildExtremeCharts();
+  })
+  .catch(error=>showError(`Tagesdaten konnten nicht geladen werden: ${error.message}`));
+
+function initializeDailyControls(){
+  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
+  const select=document.getElementById("yearSelect");
+  select.innerHTML="";
+  years.forEach(year=>{
+    const option=document.createElement("option");
+    option.value=year;
+    option.textContent=year;
+    select.appendChild(option);
+  });
+  select.value=years[years.length-1];
+}
+
+function dailyPeriodFilter(year,range){
+  const seasonMap={winter:["12","01","02"],spring:["03","04","05"],summer:["06","07","08"],autumn:["09","10","11"]};
+  let filtered=dailyData.filter(item=>item.date.startsWith(year));
+  if(range==="winter"){
+    const previous=String(Number(year)-1);
+    filtered=dailyData.filter(item=>{
+      const itemYear=item.date.slice(0,4);
+      const month=item.date.slice(5,7);
+      return (itemYear===previous && month==="12") || (itemYear===year && ["01","02"].includes(month));
+    });
+  }else if(range!=="year"){
+    if(seasonMap[range]) filtered=filtered.filter(item=>seasonMap[range].includes(item.date.slice(5,7)));
+    else filtered=filtered.filter(item=>item.date.slice(5,7)===range);
+  }
+  return filtered;
+}
+
+function updateDaily(){
+  if(!dailyData.length) return;
+  const year=document.getElementById("yearSelect").value;
+  const range=document.getElementById("rangeSelect").value;
+  const filtered=dailyPeriodFilter(year,range);
+  const labels=filtered.map(item=>item.date);
+  const values=filtered.map(item=>item.tmax);
+  const climate=filtered.map(item=>item.climate_mean);
+  const deviation=filtered.map(item=>item.tmax-item.climate_mean);
+
+  if(dailyChart) dailyChart.destroy();
+  dailyChart=new Chart(document.getElementById("dailyChart"),{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"Tageswert",data:values,borderColor:"red",pointRadius:0},
+      {label:"Klimamittel",data:climate,borderColor:"black",borderDash:[6,6],pointRadius:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+  });
+
+  if(dailyDeviationChart) dailyDeviationChart.destroy();
+  dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
+    type:"line",
+    data:{labels,datasets:[{
+      label:"Abweichung (°C)",data:deviation,fill:"origin",pointRadius:0,
+      segment:{
+        borderColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"red":"blue",
+        backgroundColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"rgba(255,0,0,.25)":"rgba(0,150,255,.25)"
+      }
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+  });
+
+  const allYears=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
+  const datasets=allYears.map(itemYear=>{
+    const data=dailyPeriodFilter(itemYear,range);
+    return {
+      data:data.map(item=>item.tmax),
+      borderColor:itemYear===year?"red":"rgba(0,0,255,.05)",
+      borderWidth:itemYear===year?2:1,
+      pointRadius:0
+    };
+  });
+  datasets.push({data:climate,borderColor:"black",borderWidth:3,pointRadius:0});
+
+  if(dailyAllYearsChart) dailyAllYearsChart.destroy();
+  dailyAllYearsChart=new Chart(document.getElementById("dailyAllYearsChart"),{
+    type:"line",
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}}
+    }
+  });
+}
+
+function resetAllYearsZoom(){if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();}
+document.getElementById("yearSelect").addEventListener("change",updateDaily);
+document.getElementById("rangeSelect").addEventListener("change",updateDaily);
+
+// ================= KENNTAGE =================
+function buildExtremeCharts(){
+  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
+  const summer=Object.fromEntries(years.map(year=>[year,0]));
+  const hot=Object.fromEntries(years.map(year=>[year,0]));
+  const veryHot=Object.fromEntries(years.map(year=>[year,0]));
+  const yearlyMax=Object.fromEntries(years.map(year=>[year,-999]));
+
+  dailyData.forEach(item=>{
+    const year=item.date.slice(0,4);
+    yearlyMax[year]=Math.max(yearlyMax[year],item.tmax);
+    if(item.tmax>=25) summer[year]++;
+    if(item.tmax>=30) hot[year]++;
+    if(item.tmax>=35) veryHot[year]++;
+  });
+
+  const maxValues=years.map(year=>yearlyMax[year]);
+  const absoluteMax=Math.max(...maxValues);
+  if(yearlyMaxChart) yearlyMaxChart.destroy();
+  yearlyMaxChart=new Chart(document.getElementById("yearlyMaxChart"),{
+    type:"bar",
+    data:{labels:years,datasets:[{
+      label:"Jahreshöchstwert (°C)",data:maxValues,
+      backgroundColor:maxValues.map(value=>value===absoluteMax?"darkred":"rgba(255,0,0,.6)")
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{y:{title:{display:true,text:"°C"}}}}
+  });
+
+  if(yearlyExtremeChart) yearlyExtremeChart.destroy();
+  yearlyExtremeChart=new Chart(document.getElementById("yearlyExtremeChart"),{
+    type:"bar",
+    data:{labels:years,datasets:[
+      {label:"≥25°C",data:years.map(year=>summer[year]),backgroundColor:"orange"},
+      {label:"≥30°C",data:years.map(year=>hot[year]),backgroundColor:"red"},
+      {label:"≥35°C",data:years.map(year=>veryHot[year]),backgroundColor:"darkred"}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+  });
+
+  const monthlyHotCounts=Array(12).fill(0);
+  dailyData.forEach(item=>{if(item.tmax>=30) monthlyHotCounts[Number(item.date.slice(5,7))-1]++;});
+  if(heatmapChart) heatmapChart.destroy();
+  heatmapChart=new Chart(document.getElementById("heatmapChart"),{
+    type:"bar",
+    data:{labels:MONTH_SHORT,datasets:[{
+      label:"Gesamt Hitzetage ≥30°C (alle Jahre)",data:monthlyHotCounts,
+      backgroundColor:monthlyHotCounts.map(value=>`rgba(255,0,0,${Math.min(value/500,1)})`)
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+  });
+
+  const top30=[...dailyData].sort((a,b)=>b.tmax-a.tmax).slice(0,30);
+  document.querySelector("#topHotDaysTable tbody").innerHTML=top30.map((item,index)=>
+    `<tr><td>${index+1}</td><td>${item.date}</td><td>${item.tmax.toFixed(1)}</td></tr>`
+  ).join("");
+}
+
+function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
+</script>
+</body>
+</html>
