@@ -1158,47 +1158,7 @@ function buildExtremeCharts(){
       label:"Jahreshöchstwert (°C)",data:maxValues,
       backgroundColor:maxValues.map(value=>value===absoluteMax?"darkred":"rgba(255,0,0,.6)")
     }]},
-   options:{
-  responsive:true,
-  maintainAspectRatio:false,
-
-  scales:{
-    y:{
-      type:"linear",
-      beginAtZero:false,
-      min:28,
-      ticks:{
-        stepSize:2
-      },
-      title:{
-        display:true,
-        text:"°C"
-      }
-    }
-  },
-
-  plugins:{
-    datalabels:{
-      display:false
-    },
-
-    zoom:{
-      pan:{
-        enabled:true,
-        mode:"x"
-      },
-      zoom:{
-        wheel:{
-          enabled:true
-        },
-        pinch:{
-          enabled:true
-        },
-        mode:"x"
-      }
-    }
-  }
-}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{y:{type:"linear",beginAtZero:false,min:28,ticks:{stepSize:2},title:{display:true,text:"°C"}}}}
   });
 
   if(yearlyExtremeChart) yearlyExtremeChart.destroy();
