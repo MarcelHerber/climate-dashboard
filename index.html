@@ -293,6 +293,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
+  <button class="tab-button" onclick="switchTab('stationClimateDays')">Stations-Kenntage</button>
   <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
 </div>
 
@@ -473,6 +474,66 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 </div>
 
 
+<!-- ================= STATIONS-KENNTAGE ================= -->
+<div id="stationClimateDays" class="tab-content">
+  <div id="stationClimateDaysLoading" class="record-loading">Stations-Kenntage werden beim ersten Öffnen geladen …</div>
+  <div id="stationClimateDaysContent" hidden>
+    <div class="controls">
+      <div class="control-group">
+        <label for="stationClimateDaysStateSelect">Bundesland</label>
+        <select id="stationClimateDaysStateSelect"></select>
+      </div>
+      <div class="control-group" style="min-width:250px">
+        <label for="stationClimateDaysSearch">Station suchen</label>
+        <input id="stationClimateDaysSearch" type="search" placeholder="Ort oder Stations-ID" style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
+      </div>
+      <div class="control-group" style="min-width:290px">
+        <label for="stationClimateDaysStationSelect">DWD-Station</label>
+        <select id="stationClimateDaysStationSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="stationClimateDaySelect">Kenntag</label>
+        <select id="stationClimateDaySelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="stationClimateDaysPeriodSelect">Balkendiagramm</label>
+        <select id="stationClimateDaysPeriodSelect"></select>
+      </div>
+      <button class="action" onclick="resetStationClimateDaysZoom()">Zoom zurücksetzen</button>
+    </div>
+
+    <div id="stationClimateDaysSummary" class="summary-box">Kenntage werden ausgewertet …</div>
+
+    <div class="chart-container auto">
+      <div class="stat-grid">
+        <div class="stat-card"><h4>Aktuelles Jahr</h4><div id="stationClimateDaysCurrentStat">–</div></div>
+        <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="stationClimateDaysMeanStat">–</div></div>
+        <div class="stat-card"><h4>Rekord seit Messbeginn</h4><div id="stationClimateDaysRecordStat">–</div></div>
+        <div class="stat-card"><h4>Fehlende Tageswerte</h4><div id="stationClimateDaysMissingStat">–</div></div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="stationClimateDaysCumulativeChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="stationClimateDaysBarChart"></canvas>
+    </div>
+
+    <div class="chart-container auto">
+      <h2 id="stationClimateDaysTopTitle">Top 10 seit Messbeginn</h2>
+      <div class="table-wrap">
+        <table id="stationClimateDaysTopTable">
+          <thead><tr><th>Rang</th><th>Jahr / Saison</th><th>Anzahl</th><th>Vollständigkeit</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <p id="stationClimateDaysSourceNote" class="note"></p>
+  </div>
+</div>
+
 
 <!-- ================= STATIONSNIEDERSCHLAG ================= -->
 <div id="stationPrecip" class="tab-content">
@@ -639,6 +700,12 @@ let stationPrecipIndex=null;
 let stationPrecipLoading=null;
 let stationPrecipProfile=null;
 const stationPrecipMonthCache=new Map();
+let stationClimateDaysIndex=null;
+let stationClimateDaysLoading=null;
+let stationClimateDaysProfile=null;
+let stationClimateDaysCumulativeChart=null;
+let stationClimateDaysBarChart=null;
+const stationClimateDaysMonthCache=new Map();
 let stationRecordsData=null;
 let stationRecordsLoading=null;
 const stationYearCache=new Map();
@@ -655,9 +722,10 @@ function switchTab(tab){
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
   document.getElementById(tab).classList.add("active");
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
+  if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -1028,6 +1096,10 @@ fetch("update_status.json",{cache:"no-store"})
     if(status.station_precip?.data_through){
       const d=new Date(status.station_precip.data_through+"T12:00:00");
       parts.push(`Stationsniederschlag bis ${d.toLocaleDateString("de-DE")}`);
+    }
+    if(status.station_climate_days?.data_through){
+      const d=new Date(status.station_climate_days.data_through+"T12:00:00");
+      parts.push(`Stations-Kenntage bis ${d.toLocaleDateString("de-DE")}`);
     }
     if(status.updated_at){
       const updated=new Date(status.updated_at);
@@ -1654,6 +1726,402 @@ function buildExtremeCharts(){
 function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
 
 
+
+// ================= STATIONS-KENNTAGE =================
+function stationClimateDaysDateLabel(monthDay){
+  const [month,day]=monthDay.split("-");
+  return `${day}.${month}.`;
+}
+
+function stationClimateDaysMetric(){
+  const id=document.getElementById("stationClimateDaySelect").value;
+  return (stationClimateDaysIndex?.climate_days||[]).find(item=>item.id===id) || null;
+}
+
+function stationClimateDaysPeriod(){
+  const id=document.getElementById("stationClimateDaysPeriodSelect").value;
+  return (stationClimateDaysIndex?.periods||[]).find(item=>item.id===id) || {id:"year",label:"Gesamtjahr",expected_days:365};
+}
+
+function ensureStationClimateDaysLoaded(){
+  if(stationClimateDaysIndex){
+    updateStationClimateDays();
+    return Promise.resolve(stationClimateDaysIndex);
+  }
+  if(stationClimateDaysLoading) return stationClimateDaysLoading;
+  const loading=document.getElementById("stationClimateDaysLoading");
+  loading.textContent="Stations-Kenntage werden geladen …";
+  stationClimateDaysLoading=fetch("station_climate_days_index.json",{cache:"no-store"})
+    .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+    .then(data=>{
+      if(!data.ready) throw new Error(data.message || "Die Stations-Kenntage wurden noch nicht aufgebaut.");
+      stationClimateDaysIndex=data;
+      initializeStationClimateDaysControls();
+      loading.hidden=true;
+      document.getElementById("stationClimateDaysContent").hidden=false;
+      document.getElementById("stationClimateDaysSourceNote").textContent=[data.source_note,data.leap_day_rule].filter(Boolean).join(" ");
+      return updateStationClimateDays().then(()=>data);
+    })
+    .catch(error=>{
+      loading.textContent=`Stations-Kenntage konnten nicht geladen werden: ${error.message}`;
+      loading.style.color="#7a1010";
+      throw error;
+    });
+  return stationClimateDaysLoading;
+}
+
+function initializeStationClimateDaysControls(){
+  const stateSelect=document.getElementById("stationClimateDaysStateSelect");
+  stateSelect.innerHTML='<option value="Deutschland">Deutschland – alle Stationen</option>';
+  (stationClimateDaysIndex.states||[]).forEach(state=>{
+    const option=document.createElement("option");
+    option.value=state;
+    option.textContent=state;
+    stateSelect.appendChild(option);
+  });
+  stateSelect.value="Deutschland";
+
+  const metricSelect=document.getElementById("stationClimateDaySelect");
+  metricSelect.innerHTML="";
+  (stationClimateDaysIndex.climate_days||[]).forEach(metric=>{
+    const option=document.createElement("option");
+    option.value=metric.id;
+    option.textContent=`${metric.label} (${metric.definition})`;
+    metricSelect.appendChild(option);
+  });
+  if((stationClimateDaysIndex.climate_days||[]).some(item=>item.id==="summer")) metricSelect.value="summer";
+
+  const periodSelect=document.getElementById("stationClimateDaysPeriodSelect");
+  periodSelect.innerHTML="";
+  (stationClimateDaysIndex.periods||[]).forEach(period=>{
+    const option=document.createElement("option");
+    option.value=period.id;
+    option.textContent=period.label;
+    periodSelect.appendChild(option);
+  });
+  periodSelect.value="year";
+
+  stateSelect.addEventListener("change",()=>{
+    populateStationClimateDaysStations();
+    updateStationClimateDays();
+  });
+  document.getElementById("stationClimateDaysSearch").addEventListener("input",()=>{
+    populateStationClimateDaysStations();
+    updateStationClimateDays();
+  });
+  document.getElementById("stationClimateDaysStationSelect").addEventListener("change",updateStationClimateDays);
+  metricSelect.addEventListener("change",updateStationClimateDays);
+  periodSelect.addEventListener("change",updateStationClimateDays);
+  populateStationClimateDaysStations();
+}
+
+function filteredStationClimateDaysStations(){
+  const state=document.getElementById("stationClimateDaysStateSelect").value;
+  const search=document.getElementById("stationClimateDaysSearch").value.trim().toLocaleLowerCase("de-DE");
+  return (stationClimateDaysIndex.stations||[]).filter(station=>{
+    if(state!=="Deutschland" && station.state!==state) return false;
+    if(!search) return true;
+    return `${station.name} ${station.id}`.toLocaleLowerCase("de-DE").includes(search);
+  });
+}
+
+function populateStationClimateDaysStations(){
+  const select=document.getElementById("stationClimateDaysStationSelect");
+  const previous=select.value;
+  const stations=filteredStationClimateDaysStations();
+  select.innerHTML="";
+  stations.forEach(station=>{
+    const option=document.createElement("option");
+    option.value=station.id;
+    option.textContent=`${station.name} (${station.id})`;
+    select.appendChild(option);
+  });
+  if(stations.some(station=>station.id===previous)) select.value=previous;
+  else if(stations.length) select.value=stations[0].id;
+}
+
+async function loadStationClimateDaysCurrentMonths(){
+  const files=stationClimateDaysIndex.current_files||[];
+  await Promise.all(files.map(async file=>{
+    if(stationClimateDaysMonthCache.has(file)) return;
+    const response=await fetch(file,{cache:"no-store"});
+    if(!response.ok) throw new Error(`${file} konnte nicht geladen werden (HTTP ${response.status}).`);
+    stationClimateDaysMonthCache.set(file,await response.json());
+  }));
+}
+
+function stationClimateDaysMonthPayload(year,month){
+  for(const payload of stationClimateDaysMonthCache.values()){
+    if(Number(payload.year)===Number(year) && Number(payload.month)===Number(month)) return payload;
+  }
+  return null;
+}
+
+function stationClimateDaysPair(stationId,isoDate){
+  const [yearText,monthText,dayText]=isoDate.split("-");
+  const payload=stationClimateDaysMonthPayload(Number(yearText),Number(monthText));
+  const values=payload?.stations?.[stationId];
+  const day=Number(dayText);
+  return values && day<=values.length ? values[day-1] : null;
+}
+
+function stationClimateDaysUtcDates(startIso,endIso){
+  const result=[];
+  let cursor=new Date(`${startIso}T00:00:00Z`);
+  const end=new Date(`${endIso}T00:00:00Z`);
+  while(cursor<=end){
+    const iso=cursor.toISOString().slice(0,10);
+    if(iso.slice(5)!=="02-29") result.push(iso);
+    cursor.setUTCDate(cursor.getUTCDate()+1);
+  }
+  return result;
+}
+
+function stationClimateDaysPeriodDates(periodId,year){
+  if(periodId==="winter") return stationClimateDaysUtcDates(`${year-1}-12-01`,`${year}-02-28`);
+  if(periodId==="spring") return stationClimateDaysUtcDates(`${year}-03-01`,`${year}-05-31`);
+  if(periodId==="summer") return stationClimateDaysUtcDates(`${year}-06-01`,`${year}-08-31`);
+  if(periodId==="autumn") return stationClimateDaysUtcDates(`${year}-09-01`,`${year}-11-30`);
+  return stationClimateDaysUtcDates(`${year}-01-01`,`${year}-12-31`);
+}
+
+function stationClimateDaysCurrentPeriod(stationId,metric,periodId){
+  const year=Number(stationClimateDaysIndex.current_year);
+  const dataThrough=stationClimateDaysIndex.data_through;
+  const bit=1<<Number(metric.bit);
+  const dates=stationClimateDaysPeriodDates(periodId,year);
+  let count=0, validDays=0;
+  const missingDates=[];
+  const elapsedDates=[];
+  dates.forEach(iso=>{
+    if(iso>dataThrough) return;
+    elapsedDates.push(iso);
+    const pair=stationClimateDaysPair(stationId,iso);
+    if(!pair || !(Number(pair[1])&bit)){
+      missingDates.push(iso);
+      return;
+    }
+    validDays++;
+    if(Number(pair[0])&bit) count++;
+  });
+  const periodFinished=dates.length>0 && dataThrough>=dates[dates.length-1];
+  return {count,validDays,missingDates,elapsedDays:elapsedDates.length,periodFinished,dates};
+}
+
+function stationClimateDaysCurrentCumulative(stationId,metric){
+  const year=Number(stationClimateDaysIndex.current_year);
+  const dataThrough=stationClimateDaysIndex.data_through;
+  const bit=1<<Number(metric.bit);
+  let total=0;
+  const missingDates=[];
+  const result=(stationClimateDaysIndex.labels||[]).map(label=>{
+    const iso=`${year}-${label}`;
+    if(iso>dataThrough) return null;
+    const pair=stationClimateDaysPair(stationId,iso);
+    if(!pair || !(Number(pair[1])&bit)){
+      missingDates.push(iso);
+      return null;
+    }
+    if(Number(pair[0])&bit) total++;
+    return total;
+  });
+  result.missingDates=missingDates;
+  result.count=total;
+  return result;
+}
+
+function stationClimateDaysDailyClimate(profile,metricId){
+  const cumulative=profile?.climate_mean_cumulative?.[metricId]||[];
+  return cumulative.map((value,index)=>{
+    if(value===null || value===undefined) return null;
+    const previous=index>0?cumulative[index-1]:0;
+    if(previous===null || previous===undefined) return null;
+    return Number(value)-Number(previous);
+  });
+}
+
+function stationClimateDaysNonLeapIndex(monthDay){
+  return (stationClimateDaysIndex.labels||[]).indexOf(monthDay);
+}
+
+function stationClimateDaysClimateMeanToDate(profile,metricId,periodId,dataThrough){
+  const year=Number(stationClimateDaysIndex.current_year);
+  const daily=stationClimateDaysDailyClimate(profile,metricId);
+  let total=0;
+  stationClimateDaysPeriodDates(periodId,year).forEach(iso=>{
+    if(iso>dataThrough) return;
+    const index=stationClimateDaysNonLeapIndex(iso.slice(5));
+    const value=index>=0?daily[index]:null;
+    if(value!==null && value!==undefined && Number.isFinite(Number(value))) total+=Number(value);
+  });
+  return total;
+}
+
+function stationClimateDaysHistoricalEntries(profile,metricId,periodId){
+  return (profile?.counts?.[metricId]?.[periodId]||[]).map(item=>({
+    year:Number(item[0]),
+    count:Number(item[1]),
+    validDays:Number(item[2])
+  }));
+}
+
+function stationClimateDaysFormat(value,decimals=0){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  return Number(value).toLocaleString("de-DE",{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+}
+
+function stationClimateDaysHexToRgba(hex,alpha){
+  const value=String(hex||"#c43d2f").replace("#","");
+  const normalized=value.length===3?value.split("").map(char=>char+char).join(""):value;
+  const number=parseInt(normalized,16);
+  return `rgba(${(number>>16)&255},${(number>>8)&255},${number&255},${alpha})`;
+}
+
+async function updateStationClimateDays(){
+  if(!stationClimateDaysIndex) return;
+  const stationId=document.getElementById("stationClimateDaysStationSelect").value;
+  if(!stationId){
+    document.getElementById("stationClimateDaysSummary").textContent="Für diese Auswahl wurde keine Station gefunden.";
+    return;
+  }
+  const station=stationClimateDaysIndex.stations.find(item=>item.id===stationId);
+  const metric=stationClimateDaysMetric();
+  const period=stationClimateDaysPeriod();
+  if(!station || !metric) return;
+  document.getElementById("stationClimateDaysSummary").textContent=`${station.name}: Kenntage werden geladen …`;
+
+  try{
+    const [profileResponse]=await Promise.all([
+      fetch(station.file,{cache:"no-store"}),
+      loadStationClimateDaysCurrentMonths()
+    ]);
+    if(!profileResponse.ok) throw new Error(`Profildatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
+    stationClimateDaysProfile=await profileResponse.json();
+
+    const currentPeriod=stationClimateDaysCurrentPeriod(stationId,metric,period.id);
+    const currentCumulative=stationClimateDaysCurrentCumulative(stationId,metric);
+    const climateCumulative=stationClimateDaysProfile.climate_mean_cumulative?.[metric.id]||[];
+    const climateToDate=stationClimateDaysClimateMeanToDate(
+      stationClimateDaysProfile,metric.id,period.id,stationClimateDaysIndex.data_through
+    );
+    const historical=stationClimateDaysHistoricalEntries(stationClimateDaysProfile,metric.id,period.id);
+    const top10=[...historical].sort((a,b)=>b.count-a.count || a.year-b.year).slice(0,10);
+    const record=top10[0]||null;
+    const missing=currentPeriod.missingDates.length;
+    const currentLabel=currentPeriod.periodFinished?String(stationClimateDaysIndex.current_year):`${stationClimateDaysIndex.current_year} (bis Datenstand)`;
+
+    document.getElementById("stationClimateDaysCurrentStat").textContent=`${currentPeriod.count} ${currentPeriod.count===1?"Tag":"Tage"} · ${period.label}`;
+    document.getElementById("stationClimateDaysMeanStat").textContent=`${stationClimateDaysFormat(climateToDate,1)} Tage bis zum gleichen Stand`;
+    document.getElementById("stationClimateDaysRecordStat").textContent=record?`${record.count} Tage (${record.year})` : "–";
+    document.getElementById("stationClimateDaysMissingStat").textContent=missing===0?"Keine bis zum Datenstand":`${missing} ${missing===1?"Tag":"Tage"}`;
+
+    const dwdName=metric.dwd_name && metric.dwd_name!==metric.short_label?` · DWD: ${metric.dwd_name}`:"";
+    const missingText=missing>0
+      ? ` Bis zum Datenstand fehlen ${missing} auswertbare ${metric.field==="tx"?"Tmax":"Tmin"}-Tageswerte; fehlende Tage werden nicht als Kenntag gezählt.`
+      : " Bis zum Datenstand liegen alle benötigten Temperaturwerte vor.";
+    document.getElementById("stationClimateDaysSummary").textContent=[
+      `${station.name} (${station.id})`,
+      station.state||"Bundesland unbekannt",
+      station.height===null||station.height===undefined?null:`${station.height} m ü. NHN`,
+      `${metric.label}: ${metric.definition}${dwdName}`,
+      `historische Auswertung ${station.start_year}–${station.end_year}`
+    ].filter(Boolean).join(" · ")+`.${missingText}`;
+
+    if(stationClimateDaysCumulativeChart) stationClimateDaysCumulativeChart.destroy();
+    stationClimateDaysCumulativeChart=new Chart(document.getElementById("stationClimateDaysCumulativeChart"),{
+      type:"line",
+      data:{
+        labels:(stationClimateDaysIndex.labels||[]).map(stationClimateDaysDateLabel),
+        datasets:[
+          {
+            label:"Mittel 1991–2020",
+            data:climateCumulative,
+            borderColor:"#202020",
+            borderWidth:2,
+            borderDash:[8,5],
+            pointRadius:0,
+            fill:false,
+            tension:.1
+          },
+          {
+            label:String(stationClimateDaysIndex.current_year),
+            data:currentCumulative,
+            borderColor:metric.color||"#c43d2f",
+            backgroundColor:stationClimateDaysHexToRgba(metric.color,.12),
+            borderWidth:3,
+            pointRadius:0,
+            spanGaps:true,
+            fill:false,
+            tension:.1
+          }
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+        plugins:{
+          title:{display:true,text:`${metric.label} im Jahresverlauf – ${station.name}`},
+          datalabels:{display:false},
+          tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationClimateDaysFormat(context.parsed.y,context.datasetIndex===0?1:0)} Tage`}},
+          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+        },
+        scales:{
+          x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+          y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Akkumulierte Anzahl"}}
+        }
+      }
+    });
+
+    const barRows=historical.map(item=>({year:String(item.year),count:item.count,validDays:item.validDays,current:false}));
+    if(currentPeriod.elapsedDays>0){
+      barRows.push({year:currentLabel,count:currentPeriod.count,validDays:currentPeriod.validDays,current:true});
+    }
+    if(stationClimateDaysBarChart) stationClimateDaysBarChart.destroy();
+    stationClimateDaysBarChart=new Chart(document.getElementById("stationClimateDaysBarChart"),{
+      type:"bar",
+      data:{
+        labels:barRows.map(item=>item.year),
+        datasets:[{
+          label:metric.label,
+          data:barRows.map(item=>item.count),
+          backgroundColor:barRows.map(item=>item.current?(metric.color||"#c43d2f"):stationClimateDaysHexToRgba(metric.color,.58)),
+          borderColor:barRows.map(item=>item.current?"#111":stationClimateDaysHexToRgba(metric.color,.85)),
+          borderWidth:barRows.map(item=>item.current?2:0)
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          title:{display:true,text:`${metric.label} je ${period.label} – ${station.name}`},
+          datalabels:{display:false},
+          tooltip:{callbacks:{afterLabel:context=>{
+            const row=barRows[context.dataIndex];
+            return row.current?"Aktueller, gegebenenfalls noch unvollständiger Zeitraum":`${row.validDays} gültige Tageswerte`;
+          }}},
+          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+        },
+        scales:{
+          x:{ticks:{maxTicksLimit:20,maxRotation:60,minRotation:0}},
+          y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Anzahl der Kenntage"}}
+        }
+      }
+    });
+
+    document.getElementById("stationClimateDaysTopTitle").textContent=`Top 10 ${metric.label} – ${period.label}`;
+    const tbody=document.querySelector("#stationClimateDaysTopTable tbody");
+    tbody.innerHTML=top10.length?top10.map((item,index)=>{
+      const expected=Number(period.expected_days||365);
+      const coverage=expected>0?item.validDays/expected*100:100;
+      return `<tr><td>${index+1}</td><td>${item.year}</td><td><strong>${item.count}</strong></td><td>${stationClimateDaysFormat(coverage,1)} %</td></tr>`;
+    }).join(""):'<tr><td colspan="4">Keine ausreichend vollständigen historischen Zeiträume vorhanden.</td></tr>';
+  }catch(error){
+    document.getElementById("stationClimateDaysSummary").textContent=`Stations-Kenntage konnten nicht geladen werden: ${error.message}`;
+  }
+}
+
+function resetStationClimateDaysZoom(){
+  if(stationClimateDaysCumulativeChart) stationClimateDaysCumulativeChart.resetZoom();
+  if(stationClimateDaysBarChart) stationClimateDaysBarChart.resetZoom();
+}
 
 // ================= STATIONSNIEDERSCHLAG =================
 function stationPrecipFormat(value,decimals=1){
