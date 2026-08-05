@@ -11,6 +11,11 @@ on:
         required: false
         type: boolean
         default: false
+      station_precip_full:
+        description: "Stations-Niederschlagskurven vollständig neu aufbauen"
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -27,7 +32,7 @@ concurrency:
 jobs:
   update-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -52,7 +57,10 @@ jobs:
         run: |
           EXTRA_ARGS=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_records_full }}" == "true" ]]; then
-            EXTRA_ARGS="--station-records-full"
+            EXTRA_ARGS="$EXTRA_ARGS --station-records-full"
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_precip_full }}" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --station-precip-full"
           fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
@@ -67,6 +75,10 @@ jobs:
             station_records.json \
             station_record_state.json \
             station_records_years \
+            station_precip_index.json \
+            station_precip_state.json \
+            station_precip_climate \
+            station_precip_current \
             update_status.json
 
           if git diff --cached --quiet; then
@@ -80,9 +92,22 @@ jobs:
         shell: bash
         run: |
           rm -rf _site
-          mkdir -p _site/station_records_years
-          cp index.html data.json daily_tmax_1881_2026.json station_records.json update_status.json .nojekyll _site/
+          mkdir -p \
+            _site/station_records_years \
+            _site/station_precip_climate \
+            _site/station_precip_current
+          cp \
+            index.html \
+            data.json \
+            daily_tmax_1881_2026.json \
+            station_records.json \
+            station_precip_index.json \
+            update_status.json \
+            .nojekyll \
+            _site/
           cp station_records_years/*.json _site/station_records_years/
+          cp station_precip_climate/*.json _site/station_precip_climate/
+          cp station_precip_current/*.json _site/station_precip_current/
 
       - name: GitHub Pages konfigurieren
         uses: actions/configure-pages@v5
