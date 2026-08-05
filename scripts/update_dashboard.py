@@ -11,6 +11,7 @@ from dwd_common import atomic_write_json, read_json
 from update_daily import update_daily
 from update_monthly import update_monthly
 from update_station_precip import update_station_precip
+from update_station_climate_days import update_station_climate_days
 from update_station_records import update_station_records
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,7 @@ def validate_files(root: Path) -> dict:
     daily = read_json(root / "daily_tmax_1881_2026.json")
     station_records = read_json(root / "station_records.json")
     station_precip = read_json(root / "station_precip_index.json")
+    station_climate_days = read_json(root / "station_climate_days_index.json")
 
     if not isinstance(monthly, list) or len(monthly) < 1700:
         raise RuntimeError("data.json enthält unerwartet wenige Datensätze.")
@@ -74,6 +76,31 @@ def validate_files(root: Path) -> dict:
         if not (root / relative_path).exists():
             raise RuntimeError(f"Aktuelle Niederschlagsdatei fehlt: {relative_path}")
 
+    if not isinstance(station_climate_days, dict) or not station_climate_days.get("ready"):
+        raise RuntimeError("station_climate_days_index.json wurde noch nicht vollständig aufgebaut.")
+    climate_day_stations = station_climate_days.get("stations") or []
+    if len(climate_day_stations) < 100:
+        raise RuntimeError(
+            "station_climate_days_index.json enthält unerwartet wenige Stationen: "
+            f"{len(climate_day_stations)}."
+        )
+    climate_day_profile_dir = root / "station_climate_days_profiles"
+    missing_climate_day_profiles = [
+        item["id"] for item in climate_day_stations[:100]
+        if not (climate_day_profile_dir / f"{item['id']}.json").exists()
+    ]
+    if missing_climate_day_profiles:
+        raise RuntimeError(
+            "Kenntage-Profildateien fehlen, z. B.: "
+            + ", ".join(missing_climate_day_profiles[:5])
+        )
+    climate_day_current_files = station_climate_days.get("current_files") or []
+    if not climate_day_current_files:
+        raise RuntimeError("Keine aktuellen Monatsdateien für Stations-Kenntage vorhanden.")
+    for relative_path in climate_day_current_files:
+        if not (root / relative_path).exists():
+            raise RuntimeError(f"Aktuelle Kenntage-Datei fehlt: {relative_path}")
+
     return {
         "monthly_records": len(monthly),
         "monthly_area_count": len(monthly_by_area),
@@ -87,6 +114,9 @@ def validate_files(root: Path) -> dict:
         "station_precip_data_through": station_precip.get("data_through"),
         "station_precip_stations": len(precip_stations),
         "station_precip_current_files": len(current_files),
+        "station_climate_days_data_through": station_climate_days.get("data_through"),
+        "station_climate_days_stations": len(climate_day_stations),
+        "station_climate_days_current_files": len(climate_day_current_files),
     }
 
 
@@ -99,6 +129,8 @@ def main() -> int:
     parser.add_argument("--station-records-full", action="store_true")
     parser.add_argument("--skip-station-precip", action="store_true")
     parser.add_argument("--station-precip-full", action="store_true")
+    parser.add_argument("--skip-station-climate-days", action="store_true")
+    parser.add_argument("--station-climate-days-full", action="store_true")
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 
@@ -124,6 +156,7 @@ def main() -> int:
         "daily": previous_status.get("daily"),
         "station_records": previous_status.get("station_records"),
         "station_precip": previous_status.get("station_precip"),
+        "station_climate_days": previous_status.get("station_climate_days"),
     }
 
     if not args.daily_only:
@@ -141,6 +174,12 @@ def main() -> int:
             ROOT,
             max_workers=args.workers,
             force_full=args.station_precip_full,
+        )
+    if not args.skip_station_climate_days and not args.monthly_only:
+        status["station_climate_days"] = update_station_climate_days(
+            ROOT,
+            max_workers=args.workers,
+            force_full=args.station_climate_days_full,
         )
 
     status["validation"] = validate_files(ROOT)
