@@ -360,6 +360,23 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     </div>
     <p id="monthlyAnomalyTableNote" class="anomaly-table-note"></p>
   </div>
+
+  <div id="monthlyAbsoluteAnomalyCard" class="chart-container auto anomaly-table-card">
+    <div class="anomaly-table-heading">
+      <div>
+        <h2>Absolute Abweichung 1991–2020</h2>
+        <p id="monthlyAbsoluteAnomalyTableSubtitle">Tabelle wird berechnet …</p>
+      </div>
+      <div id="monthlyAbsoluteAnomalyLegend" class="anomaly-legend" aria-label="Farblegende"></div>
+    </div>
+    <div class="anomaly-table-wrap">
+      <table id="monthlyAbsoluteAnomalyTable" class="anomaly-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="monthlyAbsoluteAnomalyTableNote" class="anomaly-table-note"></p>
+  </div>
 </div>
 
 <!-- ================= KLIMA-INDEX ================= -->
@@ -1003,6 +1020,96 @@ function anomalyLegendLabel(value,param){
   return param==="temp"?`${sign}${value} °C`:`${sign}${value} %`;
 }
 
+function formatAbsoluteTableDeviation(value,param){
+  if(value===null || !Number.isFinite(value)) return "–";
+  const sign=value>0?"+":"";
+  const formatted=value.toLocaleString("de-DE",{minimumFractionDigits:0,maximumFractionDigits:1});
+  return param==="rain"?`${sign}${formatted} l/m²`:`${sign}${formatted} h`;
+}
+
+function updateMonthlyAbsoluteAnomalyTable(){
+  if(!monthlyData.length) return;
+  const card=document.getElementById("monthlyAbsoluteAnomalyCard");
+  const area=document.getElementById("monthlyAreaSelect").value;
+  const param=document.getElementById("paramSelect").value;
+
+  // Die Temperaturtabelle zeigt bereits absolute Abweichungen in °C.
+  if(param==="temp"){
+    card.hidden=true;
+    return;
+  }
+  card.hidden=false;
+
+  const rows=areaRows(area);
+  const byDate=new Map(rows.map(item=>[item.date,item]));
+  const allYears=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
+
+  const climateByPeriod=new Map();
+  ANOMALY_TABLE_PERIODS.forEach(period=>{
+    const values=[];
+    for(let year=1991;year<=2020;year++){
+      const value=aggregatePeriodFromMap(byDate,year,period.value,param);
+      if(Number.isFinite(value)) values.push(value);
+    }
+    climateByPeriod.set(period.value,mean(values));
+  });
+
+  const tableYears=allYears.filter(year=>
+    ANOMALY_TABLE_PERIODS.some(period=>Number.isFinite(aggregatePeriodFromMap(byDate,year,period.value,param)))
+  ).sort((a,b)=>b-a);
+
+  const table=document.getElementById("monthlyAbsoluteAnomalyTable");
+  const thead=table.querySelector("thead");
+  const tbody=table.querySelector("tbody");
+  thead.innerHTML=`<tr><th class="year-cell">Jahr</th>${ANOMALY_TABLE_PERIODS.map(period=>
+    `<th class="${period.separator?"period-separator":""}" title="${periodLabel(period.value)}">${period.label}</th>`
+  ).join("")}</tr>`;
+
+  const latestYear=Math.max(...tableYears);
+  tbody.innerHTML=tableYears.map(year=>{
+    const cells=ANOMALY_TABLE_PERIODS.map(period=>{
+      const absolute=aggregatePeriodFromMap(byDate,year,period.value,param);
+      const climate=climateByPeriod.get(period.value);
+      const relativeAnomaly=tableAnomaly(absolute,climate,param);
+      const absoluteAnomaly=(Number.isFinite(absolute) && Number.isFinite(climate))?absolute-climate:null;
+      const separator=period.separator?" period-separator":"";
+      if(absoluteAnomaly===null || relativeAnomaly===null){
+        return `<td class="no-value${separator}" title="Für ${periodLabel(period.value)} ${year} liegt kein vollständiger Wert vor.">–</td>`;
+      }
+      // Farbe weiterhin relativ zum jeweiligen Klimamittel, damit Monats-, Saison- und Jahresfelder vergleichbar bleiben.
+      const background=interpolateAnomalyColor(param,relativeAnomaly);
+      const foreground=readableTextColor(background);
+      const absoluteText=formatAbsoluteTableDeviation(absoluteAnomaly,param);
+      const relativeText=formatTableAnomaly(relativeAnomaly,param);
+      const tooltip=[
+        `${year} · ${periodLabel(period.value)}`,
+        `Wert: ${formatTableAbsolute(absolute,param)}`,
+        `Mittel 1991–2020: ${formatTableAbsolute(climate,param)}`,
+        `Absolute Abweichung: ${absoluteText}`,
+        `Relative Abweichung: ${relativeText}`
+      ].join("\n");
+      return `<td class="${separator.trim()}" style="background:${background};color:${foreground}" title="${tooltip}">${absoluteText}</td>`;
+    }).join("");
+    return `<tr class="${year===latestYear?"current-year":""}"><td class="year-cell">${year}</td>${cells}</tr>`;
+  }).join("");
+
+  const unit=param==="rain"?"l/m²":"Stunden";
+  document.getElementById("monthlyAbsoluteAnomalyTableSubtitle").textContent=
+    `${area} · ${PARAM_META[param].label} · absolute Differenz in ${unit}`;
+
+  const legend=document.getElementById("monthlyAbsoluteAnomalyLegend");
+  legend.innerHTML=ANOMALY_LEGEND_VALUES[param].map(value=>{
+    const background=interpolateAnomalyColor(param,value);
+    return `<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${background}"></span>${anomalyLegendLabel(value,param)}</span>`;
+  }).join("");
+
+  const colorDescription=param==="rain"
+    ?"Braun kennzeichnet trockene, Blau nasse Abweichungen."
+    :"Grau kennzeichnet sonnenarme, Orange bis Dunkelrot sonnenreiche Abweichungen.";
+  document.getElementById("monthlyAbsoluteAnomalyTableNote").textContent=
+    `${colorDescription} Die Zahlen zeigen die absolute Differenz zum Mittel 1991–2020 (${param==="rain"?"1 mm Niederschlag entspricht 1 l/m²":"Stunden"}). Die Farbintensität richtet sich weiterhin nach der prozentualen Abweichung, damit Monate, Jahreszeiten und Gesamtjahre untereinander vergleichbar bleiben. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
+}
+
 function updateMonthlyAnomalyTable(){
   if(!monthlyData.length) return;
   const area=document.getElementById("monthlyAreaSelect").value;
@@ -1073,6 +1180,8 @@ function updateMonthlyAnomalyTable(){
       :"Grau kennzeichnet sonnenarme, Orange bis Dunkelrot sonnenreiche Abweichungen.";
   document.getElementById("monthlyAnomalyTableNote").textContent=
     `${colorDescription} Temperatur wird als Differenz in °C dargestellt; Niederschlag und Sonnenscheindauer als prozentuale Abweichung vom jeweiligen Mittel 1991–2020. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
+
+  updateMonthlyAbsoluteAnomalyTable();
 }
 
 // ================= DATENSTAND =================
