@@ -192,6 +192,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
   <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
@@ -357,6 +358,49 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 </div>
 
 
+
+<!-- ================= STATIONSNIEDERSCHLAG ================= -->
+<div id="stationPrecip" class="tab-content">
+  <div id="stationPrecipLoading" class="record-loading">Stationsniederschlag wird beim ersten Öffnen geladen …</div>
+  <div id="stationPrecipContent" hidden>
+    <div class="controls">
+      <div class="control-group">
+        <label for="stationPrecipStateSelect">Bundesland</label>
+        <select id="stationPrecipStateSelect"></select>
+      </div>
+      <div class="control-group" style="min-width:260px">
+        <label for="stationPrecipSearch">Station suchen</label>
+        <input id="stationPrecipSearch" type="search" placeholder="Ort oder Stations-ID" style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
+      </div>
+      <div class="control-group" style="min-width:300px">
+        <label for="stationPrecipStationSelect">DWD-Station</label>
+        <select id="stationPrecipStationSelect"></select>
+      </div>
+      <button class="action" onclick="resetStationPrecipZoom()">Zoom zurücksetzen</button>
+    </div>
+
+    <div id="stationPrecipSummary" class="summary-box">Stationskurve wird aufgebaut …</div>
+
+    <div class="chart-container">
+      <canvas id="stationPrecipChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="stationPrecipDeviationChart"></canvas>
+    </div>
+
+    <div class="chart-container auto">
+      <div class="stat-grid">
+        <div class="stat-card"><h4>Aktuelles Jahr</h4><div id="stationPrecipCurrentStat">–</div></div>
+        <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="stationPrecipMeanStat">–</div></div>
+        <div class="stat-card"><h4>Abweichung</h4><div id="stationPrecipDeviationStat">–</div></div>
+        <div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>
+      </div>
+    </div>
+    <p id="stationPrecipSourceNote" class="note"></p>
+  </div>
+</div>
+
 <!-- ================= STATIONSREKORDE ================= -->
 <div id="records" class="tab-content">
   <div id="recordLoading" class="record-loading">Stationsrekorde werden beim ersten Öffnen geladen …</div>
@@ -473,6 +517,12 @@ let dailyAllYearsChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
 let heatmapChart=null;
+let stationPrecipChart=null;
+let stationPrecipDeviationChart=null;
+let stationPrecipIndex=null;
+let stationPrecipLoading=null;
+let stationPrecipProfile=null;
+const stationPrecipMonthCache=new Map();
 let stationRecordsData=null;
 let stationRecordsLoading=null;
 const stationYearCache=new Map();
@@ -488,9 +538,10 @@ function switchTab(tab){
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
   document.getElementById(tab).classList.add("active");
+  if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -671,6 +722,10 @@ fetch("update_status.json",{cache:"no-store"})
     if(status.station_records?.data_through){
       const d=new Date(status.station_records.data_through+"T12:00:00");
       parts.push(`Stationsrekorde bis ${d.toLocaleDateString("de-DE")}`);
+    }
+    if(status.station_precip?.data_through){
+      const d=new Date(status.station_precip.data_through+"T12:00:00");
+      parts.push(`Stationsniederschlag bis ${d.toLocaleDateString("de-DE")}`);
     }
     if(status.updated_at){
       const updated=new Date(status.updated_at);
@@ -1295,6 +1350,285 @@ function buildExtremeCharts(){
 
 function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
 
+
+
+// ================= STATIONSNIEDERSCHLAG =================
+function stationPrecipFormat(value,decimals=1){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  return Number(value).toLocaleString("de-DE",{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+}
+
+function stationPrecipDateLabel(monthDay){
+  const [month,day]=monthDay.split("-");
+  return `${day}.${month}.`;
+}
+
+function ensureStationPrecipLoaded(){
+  if(stationPrecipIndex){
+    updateStationPrecipitation();
+    return Promise.resolve(stationPrecipIndex);
+  }
+  if(stationPrecipLoading) return stationPrecipLoading;
+  const loading=document.getElementById("stationPrecipLoading");
+  loading.textContent="Stationsniederschlag wird geladen …";
+  stationPrecipLoading=fetch("station_precip_index.json",{cache:"no-store"})
+    .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+    .then(data=>{
+      if(!data.ready) throw new Error(data.message || "Die Stations-Niederschlagsdateien wurden noch nicht aufgebaut.");
+      stationPrecipIndex=data;
+      initializeStationPrecipControls();
+      loading.hidden=true;
+      document.getElementById("stationPrecipContent").hidden=false;
+      document.getElementById("stationPrecipSourceNote").textContent=data.source_note || "";
+      return updateStationPrecipitation().then(()=>data);
+    })
+    .catch(error=>{
+      loading.textContent=`Stationsniederschlag konnte nicht geladen werden: ${error.message}`;
+      loading.style.color="#7a1010";
+      throw error;
+    });
+  return stationPrecipLoading;
+}
+
+function initializeStationPrecipControls(){
+  const stateSelect=document.getElementById("stationPrecipStateSelect");
+  stateSelect.innerHTML='<option value="Deutschland">Deutschland – alle Stationen</option>';
+  (stationPrecipIndex.states||[]).forEach(state=>{
+    const option=document.createElement("option");
+    option.value=state;
+    option.textContent=state;
+    stateSelect.appendChild(option);
+  });
+  stateSelect.value="Deutschland";
+  stateSelect.addEventListener("change",()=>{
+    populateStationPrecipStations();
+    updateStationPrecipitation();
+  });
+  document.getElementById("stationPrecipSearch").addEventListener("input",()=>{
+    populateStationPrecipStations();
+    updateStationPrecipitation();
+  });
+  document.getElementById("stationPrecipStationSelect").addEventListener("change",updateStationPrecipitation);
+  populateStationPrecipStations();
+}
+
+function filteredStationPrecipStations(){
+  const state=document.getElementById("stationPrecipStateSelect").value;
+  const search=document.getElementById("stationPrecipSearch").value.trim().toLocaleLowerCase("de-DE");
+  return (stationPrecipIndex.stations||[]).filter(station=>{
+    if(state!=="Deutschland" && station.state!==state) return false;
+    if(!search) return true;
+    return `${station.name} ${station.id}`.toLocaleLowerCase("de-DE").includes(search);
+  });
+}
+
+function populateStationPrecipStations(){
+  const select=document.getElementById("stationPrecipStationSelect");
+  const previous=select.value;
+  const stations=filteredStationPrecipStations();
+  select.innerHTML="";
+  stations.forEach(station=>{
+    const option=document.createElement("option");
+    option.value=station.id;
+    option.textContent=`${station.name} (${station.id})`;
+    select.appendChild(option);
+  });
+  if(stations.some(station=>station.id===previous)) select.value=previous;
+  else if(stations.length) select.value=stations[0].id;
+}
+
+async function loadStationPrecipCurrentMonths(){
+  const files=stationPrecipIndex.current_files||[];
+  await Promise.all(files.map(async file=>{
+    if(stationPrecipMonthCache.has(file)) return;
+    const response=await fetch(file,{cache:"no-store"});
+    if(!response.ok) throw new Error(`${file} konnte nicht geladen werden (HTTP ${response.status}).`);
+    stationPrecipMonthCache.set(file,await response.json());
+  }));
+}
+
+function stationPrecipCurrentDaily(stationId){
+  const byMonth=new Map();
+  for(const payload of stationPrecipMonthCache.values()) byMonth.set(Number(payload.month),payload);
+  return (stationPrecipIndex.labels||[]).map(label=>{
+    const [monthText,dayText]=label.split("-");
+    const month=Number(monthText), day=Number(dayText);
+    const payload=byMonth.get(month);
+    const values=payload?.stations?.[stationId];
+    return values && day<=values.length ? values[day-1] : null;
+  });
+}
+
+function stationPrecipCumulativeUntilGap(values,labels,dataThrough){
+  let total=0;
+  let stopped=false;
+  let missingDate=null;
+  return values.map((value,index)=>{
+    const iso=`${stationPrecipIndex.current_year}-${labels[index]}`;
+    if(iso>dataThrough || stopped) return null;
+    if(value===null || value===undefined || !Number.isFinite(Number(value))){
+      stopped=true;
+      missingDate=iso;
+      return null;
+    }
+    total+=Number(value);
+    return Math.round(total*10)/10;
+  }).map((value,index,array)=>{
+    if(index===array.length-1) array.missingDate=missingDate;
+    return value;
+  });
+}
+
+async function updateStationPrecipitation(){
+  if(!stationPrecipIndex) return;
+  const stationId=document.getElementById("stationPrecipStationSelect").value;
+  if(!stationId){
+    document.getElementById("stationPrecipSummary").textContent="Für diese Auswahl wurde keine Station gefunden.";
+    return;
+  }
+  const station=stationPrecipIndex.stations.find(item=>item.id===stationId);
+  document.getElementById("stationPrecipSummary").textContent=`${station.name}: Daten werden geladen …`;
+  try{
+    const [profileResponse]=await Promise.all([
+      fetch(station.file,{cache:"no-store"}),
+      loadStationPrecipCurrentMonths()
+    ]);
+    if(!profileResponse.ok) throw new Error(`Klimadatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
+    stationPrecipProfile=await profileResponse.json();
+
+    const labels=stationPrecipIndex.labels||[];
+    const currentDaily=stationPrecipCurrentDaily(stationId);
+    const currentCumulative=stationPrecipCumulativeUntilGap(currentDaily,labels,stationPrecipIndex.data_through);
+    const climate=stationPrecipProfile.climate_mean_cumulative||[];
+    const historicalMin=stationPrecipProfile.historical_min_cumulative||[];
+    const historicalMax=stationPrecipProfile.historical_max_cumulative||[];
+    const lastIndex=currentCumulative.reduce((last,value,index)=>value!==null?index:last,-1);
+    const currentValue=lastIndex>=0?currentCumulative[lastIndex]:null;
+    const climateValue=lastIndex>=0?climate[lastIndex]:null;
+    const deviation=currentValue!==null&&climateValue!==null?currentValue-climateValue:null;
+    const percentage=deviation!==null&&climateValue>0?deviation/climateValue*100:null;
+    const minValue=lastIndex>=0?historicalMin[lastIndex]:null;
+    const maxValue=lastIndex>=0?historicalMax[lastIndex]:null;
+    const minYear=lastIndex>=0?stationPrecipProfile.historical_min_year[lastIndex]:null;
+    const maxYear=lastIndex>=0?stationPrecipProfile.historical_max_year[lastIndex]:null;
+    const lastLabel=lastIndex>=0?stationPrecipDateLabel(labels[lastIndex]):"–";
+
+    document.getElementById("stationPrecipCurrentStat").textContent=currentValue===null?"–":`${stationPrecipFormat(currentValue)} mm bis ${lastLabel}`;
+    document.getElementById("stationPrecipMeanStat").textContent=climateValue===null?"–":`${stationPrecipFormat(climateValue)} mm bis ${lastLabel}`;
+    document.getElementById("stationPrecipDeviationStat").textContent=deviation===null?"–":`${deviation>=0?"+":""}${stationPrecipFormat(deviation)} mm (${percentage>=0?"+":""}${stationPrecipFormat(percentage)} %)`;
+    document.getElementById("stationPrecipRangeStat").textContent=minValue===null?"–":`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`;
+
+    const metaParts=[
+      `${station.name} (${station.id})`,
+      station.state||"Bundesland unbekannt",
+      station.height===null||station.height===undefined?null:`${station.height} m ü. NHN`,
+      `${station.reference_years} vollständige Referenzjahre 1991–2020`,
+      `${station.history_years} vollständige Jahre im Spannbereich`
+    ].filter(Boolean);
+    let gapText="";
+    const expectedThrough=stationPrecipIndex.data_through;
+    if(lastIndex>=0 && `${stationPrecipIndex.current_year}-${labels[lastIndex]}`<expectedThrough){
+      gapText=" Die laufende Kurve endet früher, weil danach mindestens ein Tageswert fehlt.";
+    }
+    document.getElementById("stationPrecipSummary").textContent=metaParts.join(" · ")+`.${gapText}`;
+
+    if(stationPrecipChart) stationPrecipChart.destroy();
+    stationPrecipChart=new Chart(document.getElementById("stationPrecipChart"),{
+      type:"line",
+      data:{labels:labels.map(stationPrecipDateLabel),datasets:[
+        {
+          label:"Historisches Maximum",
+          data:historicalMax,
+          borderColor:"rgba(110,110,110,.65)",
+          backgroundColor:"rgba(150,150,150,.18)",
+          borderWidth:1,
+          pointRadius:0,
+          fill:{target:1,above:"rgba(150,150,150,.18)"},
+          tension:.12
+        },
+        {
+          label:"Historisches Minimum",
+          data:historicalMin,
+          borderColor:"rgba(110,110,110,.65)",
+          borderWidth:1,
+          pointRadius:0,
+          fill:false,
+          tension:.12
+        },
+        {
+          label:"Mittel 1991–2020",
+          data:climate,
+          borderColor:"#111",
+          borderWidth:2,
+          borderDash:[8,5],
+          pointRadius:0,
+          fill:false,
+          tension:.12
+        },
+        {
+          label:String(stationPrecipIndex.current_year),
+          data:currentCumulative,
+          borderColor:"#c53030",
+          backgroundColor:"rgba(197,48,48,.08)",
+          borderWidth:3,
+          pointRadius:0,
+          spanGaps:false,
+          fill:false,
+          tension:.12
+        }
+      ]},
+      options:{
+        responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+        plugins:{
+          title:{display:true,text:`Kumulierte Niederschlagssumme – ${station.name}`},
+          datalabels:{display:false},
+          tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationPrecipFormat(context.parsed.y)} mm`}},
+          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+        },
+        scales:{
+          x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+          y:{beginAtZero:true,title:{display:true,text:"Niederschlagssumme (mm)"}}
+        }
+      }
+    });
+
+    const deviationSeries=currentCumulative.map((value,index)=>value===null?null:Math.round((value-climate[index])*10)/10);
+    if(stationPrecipDeviationChart) stationPrecipDeviationChart.destroy();
+    stationPrecipDeviationChart=new Chart(document.getElementById("stationPrecipDeviationChart"),{
+      type:"line",
+      data:{labels:labels.map(stationPrecipDateLabel),datasets:[{
+        label:`Abweichung ${stationPrecipIndex.current_year} zu 1991–2020`,
+        data:deviationSeries,
+        borderColor:"rgba(80,80,80,.9)",
+        borderWidth:2,
+        pointRadius:0,
+        fill:{target:"origin",above:"rgba(50,145,75,.24)",below:"rgba(154,94,43,.24)"},
+        segment:{borderColor:context=>context.p1.parsed.y>=0?"rgba(44,130,66,.95)":"rgba(145,82,35,.95)"},
+        tension:.12
+      }]},
+      options:{
+        responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+        plugins:{
+          title:{display:true,text:"Kumulative Niederschlagsabweichung"},
+          datalabels:{display:false},
+          tooltip:{callbacks:{label:context=>`${context.parsed.y>=0?"+":""}${stationPrecipFormat(context.parsed.y)} mm`}},
+          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+        },
+        scales:{
+          x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+          y:{title:{display:true,text:"Abweichung (mm)"}}
+        }
+      }
+    });
+  }catch(error){
+    document.getElementById("stationPrecipSummary").textContent=`Stationskurve konnte nicht geladen werden: ${error.message}`;
+  }
+}
+
+function resetStationPrecipZoom(){
+  if(stationPrecipChart) stationPrecipChart.resetZoom();
+  if(stationPrecipDeviationChart) stationPrecipDeviationChart.resetZoom();
+}
 
 // ================= STATIONSREKORDE =================
 const RECORD_PARAMETER_META={
