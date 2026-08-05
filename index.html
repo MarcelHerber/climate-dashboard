@@ -395,6 +395,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="stationPrecipMeanStat">–</div></div>
         <div class="stat-card"><h4>Abweichung</h4><div id="stationPrecipDeviationStat">–</div></div>
         <div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>
+        <div class="stat-card"><h4>Datenlücken im aktuellen Jahr</h4><div id="stationPrecipMissingStat">–</div></div>
       </div>
     </div>
     <p id="stationPrecipSourceNote" class="note"></p>
@@ -1459,24 +1460,22 @@ function stationPrecipCurrentDaily(stationId){
   });
 }
 
-function stationPrecipCumulativeUntilGap(values,labels,dataThrough){
+function stationPrecipCumulativeWithGaps(values,labels,dataThrough){
   let total=0;
-  let stopped=false;
-  let missingDate=null;
-  return values.map((value,index)=>{
+  const missingDates=[];
+  const result=values.map((value,index)=>{
     const iso=`${stationPrecipIndex.current_year}-${labels[index]}`;
-    if(iso>dataThrough || stopped) return null;
+    if(iso>dataThrough) return null;
     if(value===null || value===undefined || !Number.isFinite(Number(value))){
-      stopped=true;
-      missingDate=iso;
+      missingDates.push(iso);
       return null;
     }
     total+=Number(value);
     return Math.round(total*10)/10;
-  }).map((value,index,array)=>{
-    if(index===array.length-1) array.missingDate=missingDate;
-    return value;
   });
+  result.missingDates=missingDates;
+  result.missingCount=missingDates.length;
+  return result;
 }
 
 async function updateStationPrecipitation(){
@@ -1498,7 +1497,7 @@ async function updateStationPrecipitation(){
 
     const labels=stationPrecipIndex.labels||[];
     const currentDaily=stationPrecipCurrentDaily(stationId);
-    const currentCumulative=stationPrecipCumulativeUntilGap(currentDaily,labels,stationPrecipIndex.data_through);
+    const currentCumulative=stationPrecipCumulativeWithGaps(currentDaily,labels,stationPrecipIndex.data_through);
     const climate=stationPrecipProfile.climate_mean_cumulative||[];
     const historicalMin=stationPrecipProfile.historical_min_cumulative||[];
     const historicalMax=stationPrecipProfile.historical_max_cumulative||[];
@@ -1513,10 +1512,15 @@ async function updateStationPrecipitation(){
     const maxYear=lastIndex>=0?stationPrecipProfile.historical_max_year[lastIndex]:null;
     const lastLabel=lastIndex>=0?stationPrecipDateLabel(labels[lastIndex]):"–";
 
+    const missingDates=currentCumulative.missingDates||[];
+    const missingCount=currentCumulative.missingCount||0;
     document.getElementById("stationPrecipCurrentStat").textContent=currentValue===null?"–":`${stationPrecipFormat(currentValue)} mm bis ${lastLabel}`;
     document.getElementById("stationPrecipMeanStat").textContent=climateValue===null?"–":`${stationPrecipFormat(climateValue)} mm bis ${lastLabel}`;
     document.getElementById("stationPrecipDeviationStat").textContent=deviation===null?"–":`${deviation>=0?"+":""}${stationPrecipFormat(deviation)} mm (${percentage>=0?"+":""}${stationPrecipFormat(percentage)} %)`;
     document.getElementById("stationPrecipRangeStat").textContent=minValue===null?"–":`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`;
+    document.getElementById("stationPrecipMissingStat").textContent=missingCount===0
+      ? "Keine fehlenden Tageswerte"
+      : `${missingCount} ${missingCount===1?"Tag":"Tage"} ohne Messwert`;
 
     const metaParts=[
       `${station.name} (${station.id})`,
@@ -1526,9 +1530,12 @@ async function updateStationPrecipitation(){
       `${station.history_years} vollständige Jahre im Spannbereich`
     ].filter(Boolean);
     let gapText="";
-    const expectedThrough=stationPrecipIndex.data_through;
-    if(lastIndex>=0 && `${stationPrecipIndex.current_year}-${labels[lastIndex]}`<expectedThrough){
-      gapText=" Die laufende Kurve endet früher, weil danach mindestens ein Tageswert fehlt.";
+    if(missingCount>0){
+      const shownDates=missingDates.slice(0,5).map(iso=>new Date(`${iso}T00:00:00`).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"}));
+      const moreDates=missingCount>shownDates.length?` und ${missingCount-shownDates.length} weitere`:"";
+      gapText=` Im aktuellen Jahr fehlen bis zum Datenstand ${missingCount} ${missingCount===1?"Tageswert":"Tageswerte"} (${shownDates.join(", ")}${moreDates}). Die rote Kurve wird mit den vorhandenen Messwerten fortgeführt; fehlende Tage werden nicht als 0 mm gewertet.`;
+    }else{
+      gapText=" Im aktuellen Jahr liegen bis zum Datenstand alle Tageswerte vor.";
     }
     document.getElementById("stationPrecipSummary").textContent=metaParts.join(" · ")+`.${gapText}`;
 
@@ -1572,7 +1579,7 @@ async function updateStationPrecipitation(){
           backgroundColor:"rgba(197,48,48,.08)",
           borderWidth:3,
           pointRadius:0,
-          spanGaps:false,
+          spanGaps:true,
           fill:false,
           tension:.12
         }
