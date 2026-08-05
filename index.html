@@ -270,6 +270,31 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   border:1px solid #e1a0a0;
   border-radius:7px;
 }
+
+/* Mittelmeer-SST */
+.sst-positive{color:#9b1c1c;font-weight:bold}
+.sst-negative{color:#174f86;font-weight:bold}
+.sst-ranking-table td:nth-child(2){text-align:left}
+.sst-heatmap-card{padding-bottom:18px}
+.sst-heatmap-wrap{
+  max-height:720px;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:7px;
+  background:white;
+}
+.sst-heatmap{
+  min-width:980px;
+  margin:0;
+  table-layout:fixed;
+  font-variant-numeric:tabular-nums;
+}
+.sst-heatmap th,.sst-heatmap td{min-width:64px;height:36px;padding:7px 5px;white-space:nowrap}
+.sst-heatmap thead th{position:sticky;top:0;z-index:3;background:#292f35;color:#fff;font-size:12px}
+.sst-heatmap .year-cell{position:sticky;left:0;z-index:2;background:#fff;font-weight:bold;box-shadow:2px 0 0 rgba(0,0,0,.12)}
+.sst-heatmap thead .year-cell{z-index:4;background:#20252a}
+.sst-heatmap tr.latest-year .year-cell{background:#fff0bf}
+
 @media(max-width:700px){
   body{padding:14px}
   .control-group{min-width:100%}
@@ -290,6 +315,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('medSst')">Mittelmeer-SST</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
@@ -433,6 +459,98 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p class="note">
     Niederschlag und Sonnenschein werden ab Januar aufsummiert. Bei der Temperatur wird ein nach Kalendertagen gewichtetes Mittel seit Jahresbeginn berechnet; Temperaturen werden nicht einfach addiert.
   </p>
+</div>
+
+
+<!-- ================= MITTELMEER-SST ================= -->
+<div id="medSst" class="tab-content">
+  <div id="medSstLoading" class="record-loading">Mittelmeer-SST wird beim ersten Öffnen geladen …</div>
+  <div id="medSstContent" hidden>
+    <div class="controls">
+      <div class="control-group">
+        <label for="medSstRegionSelect">Seegebiet</label>
+        <select id="medSstRegionSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="medSstModeSelect">Tageskurve</label>
+        <select id="medSstModeSelect">
+          <option value="anomaly">SST-Abweichung</option>
+          <option value="sst">Absolute SST</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="medSstRankingSelect">Top-10-Zeitraum</label>
+        <select id="medSstRankingSelect">
+          <optgroup label="Gesamt">
+            <option value="year">Gesamtjahr</option>
+          </optgroup>
+          <optgroup label="Jahreszeiten">
+            <option value="winter">Winter</option>
+            <option value="spring">Frühling</option>
+            <option value="summer">Sommer</option>
+            <option value="autumn">Herbst</option>
+          </optgroup>
+          <optgroup label="Monate">
+            <option value="01">Januar</option><option value="02">Februar</option>
+            <option value="03">März</option><option value="04">April</option>
+            <option value="05">Mai</option><option value="06">Juni</option>
+            <option value="07">Juli</option><option value="08">August</option>
+            <option value="09">September</option><option value="10">Oktober</option>
+            <option value="11">November</option><option value="12">Dezember</option>
+          </optgroup>
+        </select>
+      </div>
+      <button class="action" onclick="resetMedSstZoom()">Zoom zurücksetzen</button>
+    </div>
+
+    <div id="medSstSummary" class="summary-box">SST-Daten werden ausgewertet …</div>
+
+    <div class="chart-container auto">
+      <div class="stat-grid">
+        <div class="stat-card"><h4>Aktuelle SST</h4><div id="medSstLatestStat">–</div></div>
+        <div class="stat-card"><h4>Aktuelle Abweichung</h4><div id="medSstLatestAnomalyStat">–</div></div>
+        <div class="stat-card"><h4>Abweichung seit Jahresbeginn</h4><div id="medSstYtdStat">–</div></div>
+        <div class="stat-card"><h4>Wärmstes Gesamtjahr</h4><div id="medSstWarmestYearStat">–</div></div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="medSstDailyChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="medSstMonthlyChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="medSstAnnualChart"></canvas>
+    </div>
+
+    <div class="chart-container auto">
+      <h2 id="medSstTopTitle">Top 10 der wärmsten Zeiträume</h2>
+      <div class="table-wrap">
+        <table id="medSstTopTable" class="sst-ranking-table">
+          <thead><tr><th>Rang</th><th>Jahr / Zeitraum</th><th>SST</th><th>Abweichung</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart-container auto sst-heatmap-card">
+      <div class="anomaly-table-heading">
+        <div>
+          <h2>Monatliche SST-Abweichungen</h2>
+          <p id="medSstHeatmapSubtitle">Abweichungen gegenüber 1991–2020</p>
+        </div>
+        <div id="medSstLegend" class="anomaly-legend" aria-label="Farblegende"></div>
+      </div>
+      <div class="sst-heatmap-wrap">
+        <table id="medSstHeatmap" class="sst-heatmap"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <p id="medSstSourceNote" class="note"></p>
+  </div>
 </div>
 
 <!-- ================= TAGESDASHBOARD ================= -->
@@ -738,11 +856,12 @@ function switchTab(tab){
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
   document.getElementById(tab).classList.add("active");
+  if(tab==="medSst") ensureMedSstLoaded();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,medSstDailyChart,medSstMonthlyChart,medSstAnnualChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -1209,6 +1328,10 @@ fetch("update_status.json",{cache:"no-store"})
     if(status.station_climate_days?.data_through){
       const d=new Date(status.station_climate_days.data_through+"T12:00:00");
       parts.push(`Stations-Kenntage bis ${d.toLocaleDateString("de-DE")}`);
+    }
+    if(status.med_sst?.data_through){
+      const d=new Date(status.med_sst.data_through+"T12:00:00");
+      parts.push(`Mittelmeer-SST bis ${d.toLocaleDateString("de-DE")}${status.med_sst.stale?" (letzter verfügbarer Stand)":""}`);
     }
     if(status.updated_at){
       const updated=new Date(status.updated_at);
@@ -1834,6 +1957,243 @@ function buildExtremeCharts(){
 
 function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
 
+
+
+
+// ================= MITTELMEER-SST =================
+const MED_SST_MONTHS=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+let medSstData=null;
+let medSstLoading=null;
+let medSstDailyChart=null;
+let medSstMonthlyChart=null;
+let medSstAnnualChart=null;
+
+function formatSst(value,unit="°C",digits=2){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  return `${Number(value).toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})} ${unit}`;
+}
+
+function formatSignedSst(value,digits=2){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  const numeric=Number(value);
+  const sign=numeric>0?"+":"";
+  return `${sign}${numeric.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})} °C`;
+}
+
+function sstAnomalyColor(value,alpha=.82){
+  const numeric=Math.max(-3,Math.min(3,Number(value)||0));
+  if(numeric<0){
+    const strength=Math.abs(numeric)/3;
+    return `rgba(${Math.round(235-190*strength)},${Math.round(242-140*strength)},${Math.round(250-55*strength)},${alpha})`;
+  }
+  const strength=numeric/3;
+  return `rgba(${Math.round(250-95*strength)},${Math.round(242-205*strength)},${Math.round(235-210*strength)},${alpha})`;
+}
+
+function ensureMedSstLoaded(){
+  if(medSstData){updateMedSst();return Promise.resolve(medSstData);}
+  if(medSstLoading) return medSstLoading;
+  const loading=document.getElementById("medSstLoading");
+  loading.textContent="Mittelmeer-SST wird geladen …";
+  medSstLoading=fetch("med_sst.json",{cache:"no-store"})
+    .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`);return response.json();})
+    .then(data=>{
+      if(!data.ready) throw new Error(data.message || "Die Mittelmeer-SST-Daten wurden noch nicht aufgebaut.");
+      medSstData=data;
+      initializeMedSstControls();
+      loading.hidden=true;
+      document.getElementById("medSstContent").hidden=false;
+      updateMedSst();
+      return data;
+    })
+    .catch(error=>{
+      loading.textContent=`Mittelmeer-SST konnte nicht geladen werden: ${error.message}`;
+      loading.style.color="#7a1010";
+      throw error;
+    });
+  return medSstLoading;
+}
+
+function initializeMedSstControls(){
+  const select=document.getElementById("medSstRegionSelect");
+  select.innerHTML=(medSstData.regions||[]).map(region=>
+    `<option value="${region.id}">${region.label}</option>`
+  ).join("");
+  ["medSstRegionSelect","medSstModeSelect","medSstRankingSelect"].forEach(id=>
+    document.getElementById(id).addEventListener("change",updateMedSst)
+  );
+}
+
+function medSstRegion(){
+  const id=document.getElementById("medSstRegionSelect").value;
+  return medSstData.regions.find(region=>region.id===id) || medSstData.regions[0];
+}
+
+function medSstPeriodRows(regionId,selection){
+  const rows=medSstData.monthly?.[regionId] || [];
+  const byDate=new Map(rows.map(item=>[item.date,item]));
+  const years=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
+  const periodMonths={spring:[3,4,5],summer:[6,7,8],autumn:[9,10,11]};
+  const output=[];
+  years.forEach(year=>{
+    let keys=[];
+    let label=String(year);
+    if(/^\d{2}$/.test(selection)){
+      keys=[`${year}-${selection}`];
+    }else if(selection==="winter"){
+      keys=[`${year-1}-12`,`${year}-01`,`${year}-02`];
+      label=`Winter ${year}`;
+    }else if(selection==="year"){
+      keys=Array.from({length:12},(_,index)=>`${year}-${String(index+1).padStart(2,"0")}`);
+    }else{
+      keys=(periodMonths[selection]||[]).map(month=>`${year}-${String(month).padStart(2,"0")}`);
+    }
+    const items=keys.map(key=>byDate.get(key));
+    if(!items.length || items.some(item=>!item || !Number.isFinite(Number(item.sst)))) return;
+    const weights=keys.map(key=>new Date(Number(key.slice(0,4)),Number(key.slice(5,7)),0).getDate());
+    const weightSum=weights.reduce((a,b)=>a+b,0);
+    const weighted=(field)=>items.reduce((sum,item,index)=>sum+Number(item[field])*weights[index],0)/weightSum;
+    output.push({year,label,sst:weighted("sst"),anomaly:weighted("anomaly")});
+  });
+  return output;
+}
+
+function updateMedSst(){
+  if(!medSstData) return;
+  const region=medSstRegion();
+  const regionId=region.id;
+  const mode=document.getElementById("medSstModeSelect").value;
+  const keys=medSstData.daily_keys || [];
+  const climate=medSstData.daily_climatology?.[regionId];
+  const current=medSstData.current?.[regionId];
+  if(!climate || !current) return;
+  const currentByKey=new Map((current.daily||[]).map(item=>[item.date.slice(5),item]));
+  const labels=keys.map(key=>`${key.slice(3,5)}.${key.slice(0,2)}.`);
+  const meanValues=(climate.mean||[]).map(Number);
+  const transform=(series)=>series.map((value,index)=>{
+    if(value===null || value===undefined) return null;
+    return mode==="sst"?Number(value):Number(value)-meanValues[index];
+  });
+  const currentValues=keys.map((key,index)=>{
+    const item=currentByKey.get(key);
+    if(!item) return null;
+    return mode==="sst"?Number(item.sst):Number(item.anomaly);
+  });
+  const climateValues=mode==="sst"?meanValues:meanValues.map(()=>0);
+  const p05=transform(climate.p05||[]);
+  const p95=transform(climate.p95||[]);
+  const minValues=transform(climate.min||[]);
+  const maxValues=transform(climate.max||[]);
+  const yLabel=mode==="sst"?"SST (°C)":"SST-Abweichung (°C)";
+
+  if(medSstDailyChart) medSstDailyChart.destroy();
+  medSstDailyChart=new Chart(document.getElementById("medSstDailyChart"),{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"5. Perzentil 1991–2020",data:p05,borderColor:"rgba(90,110,130,.18)",pointRadius:0,borderWidth:0,fill:false},
+      {label:"5.–95. Perzentil",data:p95,borderColor:"rgba(90,110,130,.18)",backgroundColor:"rgba(110,130,150,.20)",pointRadius:0,borderWidth:0,fill:"-1"},
+      {label:"Historisches Minimum",data:minValues,borderColor:"rgba(60,95,150,.55)",pointRadius:0,borderWidth:1,borderDash:[4,4],fill:false},
+      {label:"Historisches Maximum",data:maxValues,borderColor:"rgba(175,65,45,.55)",pointRadius:0,borderWidth:1,borderDash:[4,4],fill:false},
+      {label:mode==="sst"?"Mittel 1991–2020":"Nulllinie",data:climateValues,borderColor:"#222",pointRadius:0,borderWidth:2,fill:false},
+      {label:String(medSstData.current_year),data:currentValues,borderColor:"#c62626",backgroundColor:"rgba(198,38,38,.10)",pointRadius:0,borderWidth:3,spanGaps:true,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{datalabels:{display:false},title:{display:true,text:`${region.label}: tägliche ${yLabel}`},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}},scales:{y:{title:{display:true,text:yLabel}},x:{ticks:{maxTicksLimit:16}}}}
+  });
+
+  updateMedSstMonthlyChart(regionId,region.label);
+  updateMedSstAnnualChart(regionId,region.label);
+  updateMedSstRanking(regionId,region.label);
+  updateMedSstHeatmap(regionId,region.label);
+
+  const annual=medSstData.annual?.[regionId] || [];
+  const warmest=[...annual].sort((a,b)=>Number(b.sst)-Number(a.sst))[0];
+  const latestClass=Number(current.latest_anomaly)>=0?"sst-positive":"sst-negative";
+  document.getElementById("medSstLatestStat").textContent=formatSst(current.latest_sst);
+  document.getElementById("medSstLatestAnomalyStat").innerHTML=`<span class="${latestClass}">${formatSignedSst(current.latest_anomaly)}</span>`;
+  document.getElementById("medSstYtdStat").innerHTML=`<span class="${Number(current.ytd_mean_anomaly)>=0?"sst-positive":"sst-negative"}">${formatSignedSst(current.ytd_mean_anomaly)}</span>`;
+  document.getElementById("medSstWarmestYearStat").textContent=warmest?`${warmest.year}: ${formatSst(warmest.sst)} (${formatSignedSst(warmest.anomaly)})`:"–";
+  const latestDate=new Date(`${medSstData.data_through}T12:00:00`);
+  document.getElementById("medSstSummary").textContent=
+    `${region.label} · Daten bis ${latestDate.toLocaleDateString("de-DE")} · `+
+    `flächengewichtetes Mittel aus ${Number(region.point_count||0).toLocaleString("de-DE")} OISST-Gitterpunkten · Referenz ${medSstData.reference_period}.`;
+  document.getElementById("medSstSourceNote").textContent=
+    `${medSstData.source?.product || "NOAA/NCEI OISST v2.1"}. ${medSstData.source?.reference || ""}. ${medSstData.source?.note || ""}`;
+}
+
+function updateMedSstMonthlyChart(regionId,regionLabel){
+  const year=medSstData.current_year;
+  const official=(medSstData.monthly?.[regionId]||[]).filter(item=>Number(item.date.slice(0,4))===year);
+  const byMonth=new Map(official.map(item=>[Number(item.date.slice(5,7)),item]));
+  const currentMonth=medSstData.current?.[regionId]?.current_month;
+  const values=Array.from({length:12},(_,index)=>{
+    const month=index+1;
+    const officialItem=byMonth.get(month);
+    if(officialItem) return Number(officialItem.anomaly);
+    if(currentMonth && Number(currentMonth.month)===month) return Number(currentMonth.anomaly);
+    return null;
+  });
+  const provisionalMonth=currentMonth?.month;
+  if(medSstMonthlyChart) medSstMonthlyChart.destroy();
+  medSstMonthlyChart=new Chart(document.getElementById("medSstMonthlyChart"),{
+    type:"bar",
+    data:{labels:MED_SST_MONTHS,datasets:[{label:"SST-Abweichung (°C)",data:values,backgroundColor:values.map(sstAnomalyColor),borderColor:values.map((_,index)=>index+1===Number(provisionalMonth)?"#111":"rgba(0,0,0,.15)"),borderWidth:values.map((_,index)=>index+1===Number(provisionalMonth)?2:1)}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},title:{display:true,text:`${regionLabel}: monatliche SST-Abweichungen ${year}${provisionalMonth?" (aktueller Monat vorläufig)":""}`}},scales:{y:{title:{display:true,text:"Abweichung (°C)"}}}}
+  });
+}
+
+function updateMedSstAnnualChart(regionId,regionLabel){
+  const rows=medSstData.annual?.[regionId] || [];
+  if(medSstAnnualChart) medSstAnnualChart.destroy();
+  medSstAnnualChart=new Chart(document.getElementById("medSstAnnualChart"),{
+    type:"bar",
+    data:{labels:rows.map(item=>item.year),datasets:[{label:"Jahresabweichung (°C)",data:rows.map(item=>item.anomaly),backgroundColor:rows.map(item=>sstAnomalyColor(item.anomaly))}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},title:{display:true,text:`${regionLabel}: SST-Abweichung der Gesamtjahre`},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}},scales:{y:{title:{display:true,text:"Abweichung (°C)"}},x:{ticks:{maxTicksLimit:24}}}}
+  });
+}
+
+function updateMedSstRanking(regionId,regionLabel){
+  const selection=document.getElementById("medSstRankingSelect").value;
+  const labels={year:"Gesamtjahre",winter:"Winter",spring:"Frühlinge",summer:"Sommer",autumn:"Herbste"};
+  const periodName=labels[selection] || MED_SST_MONTHS[Number(selection)-1];
+  const rows=medSstPeriodRows(regionId,selection).sort((a,b)=>b.sst-a.sst).slice(0,10);
+  document.getElementById("medSstTopTitle").textContent=`Top 10 der wärmsten ${periodName}`;
+  const tbody=document.querySelector("#medSstTopTable tbody");
+  tbody.innerHTML=rows.length?rows.map((item,index)=>`<tr><td>${index+1}</td><td>${item.label}</td><td class="record-value">${formatSst(item.sst)}</td><td class="record-value ${item.anomaly>=0?"sst-positive":"sst-negative"}">${formatSignedSst(item.anomaly)}</td></tr>`).join(""):'<tr><td colspan="4">Keine vollständigen Zeiträume vorhanden.</td></tr>';
+}
+
+function updateMedSstHeatmap(regionId,regionLabel){
+  const rows=medSstData.monthly?.[regionId] || [];
+  const grouped=new Map();
+  rows.forEach(item=>{
+    const year=Number(item.date.slice(0,4));
+    const month=Number(item.date.slice(5,7));
+    if(!grouped.has(year)) grouped.set(year,new Map());
+    grouped.get(year).set(month,item);
+  });
+  const years=[...grouped.keys()].sort((a,b)=>b-a);
+  const annualByYear=new Map((medSstData.annual?.[regionId]||[]).map(item=>[Number(item.year),item]));
+  const table=document.getElementById("medSstHeatmap");
+  table.querySelector("thead").innerHTML=`<tr><th class="year-cell">Jahr</th>${MED_SST_MONTHS.map(month=>`<th>${month}</th>`).join("")}<th>Jahr</th></tr>`;
+  table.querySelector("tbody").innerHTML=years.map((year,index)=>{
+    const monthMap=grouped.get(year);
+    const cells=Array.from({length:12},(_,monthIndex)=>{
+      const item=monthMap.get(monthIndex+1);
+      if(!item) return '<td class="no-value">–</td>';
+      const color=sstAnomalyColor(item.anomaly,.88);
+      const textColor=Math.abs(Number(item.anomaly))>1.35?"#fff":"#111";
+      return `<td style="background:${color};color:${textColor}" title="${MED_SST_MONTHS[monthIndex]} ${year}: ${formatSst(item.sst)}, ${formatSignedSst(item.anomaly)}">${Number(item.anomaly)>0?"+":""}${Number(item.anomaly).toFixed(1)}</td>`;
+    }).join("");
+    const annual=annualByYear.get(year);
+    const annualCell=annual?`<td style="background:${sstAnomalyColor(annual.anomaly,.9)};color:${Math.abs(Number(annual.anomaly))>1.35?"#fff":"#111"}" title="Gesamtjahr ${year}: ${formatSst(annual.sst)}, ${formatSignedSst(annual.anomaly)}">${Number(annual.anomaly)>0?"+":""}${Number(annual.anomaly).toFixed(1)}</td>`:'<td class="no-value">–</td>';
+    return `<tr class="${index===0?"latest-year":""}"><td class="year-cell">${year}</td>${cells}${annualCell}</tr>`;
+  }).join("");
+  document.getElementById("medSstHeatmapSubtitle").textContent=`${regionLabel} · Abweichungen in °C gegenüber ${medSstData.reference_period}`;
+  document.getElementById("medSstLegend").innerHTML=[-3,-1.5,0,1.5,3].map(value=>`<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${sstAnomalyColor(value,.9)}"></span>${value>0?"+":""}${value.toLocaleString("de-DE")} °C</span>`).join("");
+}
+
+function resetMedSstZoom(){
+  [medSstDailyChart,medSstAnnualChart].filter(Boolean).forEach(chart=>chart.resetZoom());
+}
 
 
 // ================= STATIONS-KENNTAGE =================
