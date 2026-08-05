@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      station_climate_days_full:
+        description: "Stations-Kenntage vollständig neu aufbauen"
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -65,6 +70,9 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_precip_full }}" == "true" ]]; then
             EXTRA_ARGS="$EXTRA_ARGS --station-precip-full"
           fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_climate_days_full }}" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --station-climate-days-full"
+          fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
       - name: Änderungen versionieren
@@ -85,6 +93,10 @@ jobs:
             station_precip_state.json \
             station_precip_climate \
             station_precip_current \
+            station_climate_days_index.json \
+            station_climate_days_state.json \
+            station_climate_days_profiles \
+            station_climate_days_current \
             update_status.json
 
           if git diff --cached --quiet; then
@@ -130,19 +142,24 @@ jobs:
           mkdir -p \
             _site/station_records_years \
             _site/station_precip_climate \
-            _site/station_precip_current
+            _site/station_precip_current \
+            _site/station_climate_days_profiles \
+            _site/station_climate_days_current
           cp \
             index.html \
             data.json \
             daily_tmax_1881_2026.json \
             station_records.json \
             station_precip_index.json \
+            station_climate_days_index.json \
             update_status.json \
             .nojekyll \
             _site/
           cp station_records_years/*.json _site/station_records_years/
           cp station_precip_climate/*.json _site/station_precip_climate/
           cp station_precip_current/*.json _site/station_precip_current/
+          cp station_climate_days_profiles/*.json _site/station_climate_days_profiles/
+          cp station_climate_days_current/*.json _site/station_climate_days_current/
 
       - name: GitHub Pages konfigurieren
         uses: actions/configure-pages@v5
