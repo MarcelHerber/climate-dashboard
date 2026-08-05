@@ -25,9 +25,11 @@ permissions:
   pages: write
   id-token: write
 
+# Ein neuerer Lauf ersetzt einen noch laufenden älteren Lauf. Dadurch kann ein
+# alter Datenstand nicht nach einem zwischenzeitlichen manuellen Commit pushen.
 concurrency:
   group: climate-dashboard-pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   update-and-deploy:
@@ -41,6 +43,7 @@ jobs:
       - name: Repository auschecken
         uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Python einrichten
@@ -67,8 +70,11 @@ jobs:
       - name: Änderungen versionieren
         shell: bash
         run: |
+          set -euo pipefail
+
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add \
             data.json \
             daily_tmax_1881_2026.json \
@@ -83,9 +89,38 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "Keine neuen oder korrigierten DWD-Daten vorhanden."
-          else
-            git commit -m "DWD-Daten automatisch aktualisiert"
-            git push
+            exit 0
+          fi
+
+          git commit -m "DWD-Daten automatisch aktualisiert"
+
+          # Während des langen DWD-Laufs kann auf GitHub ein neuer manueller
+          # Commit eintreffen. Der Daten-Commit wird deshalb vor dem Push auf
+          # den neuesten Stand von main gesetzt. Bei einem erneuten Rennen wird
+          # der Vorgang bis zu dreimal wiederholt.
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin main
+
+            if ! git rebase origin/main; then
+              echo "FEHLER: Die automatisch erzeugten Daten kollidieren mit einer neueren Änderung auf main."
+              git rebase --abort || true
+              exit 1
+            fi
+
+            if git push origin HEAD:main; then
+              PUSH_OK=true
+              break
+            fi
+
+            echo "Remote wurde während des Pushs erneut geändert; neuer Versuch folgt."
+            sleep $((ATTEMPT * 5))
+          done
+
+          if [[ "$PUSH_OK" != "true" ]]; then
+            echo "FEHLER: Push war nach drei Versuchen weiterhin nicht möglich."
+            exit 1
           fi
 
       - name: Veröffentlichungsordner erstellen
