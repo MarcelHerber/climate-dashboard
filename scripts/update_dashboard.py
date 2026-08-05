@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,17 +23,30 @@ def validate_files(root: Path) -> dict:
     if not isinstance(daily, list) or len(daily) < 53000:
         raise RuntimeError("daily_tmax_1881_2026.json enthält unerwartet wenige Datensätze.")
 
-    monthly_dates = [item["date"] for item in monthly]
+    monthly_keys = [
+        (item.get("area", "Deutschland"), item["date"])
+        for item in monthly
+    ]
+    if len(monthly_keys) != len(set(monthly_keys)):
+        raise RuntimeError("data.json enthält doppelte Kombinationen aus Gebiet und Monat.")
+
+    monthly_by_area: dict[str, list[str]] = defaultdict(list)
+    for area, date_value in monthly_keys:
+        monthly_by_area[area].append(date_value)
+    for area, dates in monthly_by_area.items():
+        if dates != sorted(dates):
+            raise RuntimeError(f"Monatsdaten für {area} sind nicht chronologisch sortiert.")
+
     daily_dates = [item["date"] for item in daily]
-    if monthly_dates != sorted(monthly_dates) or len(monthly_dates) != len(set(monthly_dates)):
-        raise RuntimeError("data.json ist nicht eindeutig chronologisch sortiert.")
     if daily_dates != sorted(daily_dates) or len(daily_dates) != len(set(daily_dates)):
         raise RuntimeError("Tagesdatei ist nicht eindeutig chronologisch sortiert.")
 
     return {
         "monthly_records": len(monthly),
+        "monthly_area_count": len(monthly_by_area),
+        "monthly_areas": sorted(monthly_by_area),
+        "monthly_last_record": max(date_value for _, date_value in monthly_keys),
         "daily_records": len(daily),
-        "monthly_last_record": monthly_dates[-1],
         "daily_latest_date": daily_dates[-1],
     }
 
