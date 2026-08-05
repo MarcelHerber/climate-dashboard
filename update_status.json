@@ -1,8 +1,28 @@
 {
-  "updated_at": "2026-08-05T06:16:58+00:00",
+  "updated_at": "2026-08-05T06:18:37+00:00",
   "source": "Deutscher Wetterdienst (DWD), Climate Data Center",
   "monthly": {
-    "records": 1752,
+    "records": 29784,
+    "areas": [
+      "Deutschland",
+      "Baden-Württemberg",
+      "Bayern",
+      "Brandenburg",
+      "Brandenburg/Berlin",
+      "Hessen",
+      "Mecklenburg-Vorpommern",
+      "Niedersachsen",
+      "Niedersachsen/Hamburg/Bremen",
+      "Nordrhein-Westfalen",
+      "Rheinland-Pfalz",
+      "Saarland",
+      "Sachsen",
+      "Sachsen-Anhalt",
+      "Schleswig-Holstein",
+      "Thüringen",
+      "Thüringen/Sachsen-Anhalt"
+    ],
+    "area_count": 17,
     "latest_complete_month": "2026-07",
     "latest_by_parameter": {
       "temp": "2026-07",
@@ -10,9 +30,9 @@
       "sun": "2026-07"
     },
     "non_null": {
-      "temp": 1747,
-      "rain": 1747,
-      "sun": 907
+      "temp": 29699,
+      "rain": 29699,
+      "sun": 15419
     }
   },
   "daily": {
@@ -31,9 +51,29 @@
     "newest_raw_dwd_date": "2026-08-03"
   },
   "validation": {
-    "monthly_records": 1752,
-    "daily_records": 53175,
+    "monthly_records": 29784,
+    "monthly_area_count": 17,
+    "monthly_areas": [
+      "Baden-Württemberg",
+      "Bayern",
+      "Brandenburg",
+      "Brandenburg/Berlin",
+      "Deutschland",
+      "Hessen",
+      "Mecklenburg-Vorpommern",
+      "Niedersachsen",
+      "Niedersachsen/Hamburg/Bremen",
+      "Nordrhein-Westfalen",
+      "Rheinland-Pfalz",
+      "Saarland",
+      "Sachsen",
+      "Sachsen-Anhalt",
+      "Schleswig-Holstein",
+      "Thüringen",
+      "Thüringen/Sachsen-Anhalt"
+    ],
     "monthly_last_record": "2026-12",
+    "daily_records": 53175,
     "daily_latest_date": "2026-08-03"
   }
 }
