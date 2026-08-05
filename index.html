@@ -138,6 +138,31 @@ table{
 }
 th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .note{color:var(--muted);font-size:13px;line-height:1.45}
+
+.table-wrap{
+  width:100%;
+  overflow-x:auto;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  background:var(--card);
+}
+.table-wrap table{margin-top:0;min-width:980px}
+.record-value{font-weight:bold;white-space:nowrap}
+.record-station{text-align:left;min-width:190px}
+.record-badge{
+  display:inline-block;
+  padding:3px 7px;
+  border-radius:999px;
+  font-size:12px;
+  white-space:nowrap;
+  background:#e9edf1;
+  color:#333;
+}
+.record-badge.preliminary{background:#fff1cf;color:#6a4a00}
+.record-badge.checked{background:#e4f2e7;color:#245b30}
+.record-year-control[hidden]{display:none}
+.record-loading{padding:18px;background:white;border-radius:8px;box-shadow:var(--shadow)}
+
 .error-box{
   display:none;
   padding:12px 14px;
@@ -169,6 +194,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
   <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
+  <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
 </div>
 
 <!-- ================= GEBIETSMITTEL ================= -->
@@ -330,6 +356,75 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </table>
 </div>
 
+
+<!-- ================= STATIONSREKORDE ================= -->
+<div id="records" class="tab-content">
+  <div id="recordLoading" class="record-loading">Stationsrekorde werden beim ersten Öffnen geladen …</div>
+  <div id="recordContent" hidden>
+    <div class="controls">
+      <div class="control-group">
+        <label for="recordParamSelect">Rekordliste</label>
+        <select id="recordParamSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="recordAreaSelect">Gebiet</label>
+        <select id="recordAreaSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="recordPeriodSelect">Zeitraum</label>
+        <select id="recordPeriodSelect"></select>
+      </div>
+      <div id="recordYearControl" class="control-group record-year-control" hidden>
+        <label for="recordYearSelect">Jahr</label>
+        <select id="recordYearSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="recordLimitSelect">Anzahl</label>
+        <select id="recordLimitSelect">
+          <option value="10">Top 10</option>
+          <option value="25">Top 25</option>
+          <option value="50" selected>Top 50</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="recordSummary" class="summary-box">Rekordliste wird aufgebaut …</div>
+    <div class="table-wrap">
+      <table id="stationRecordTable">
+        <thead>
+          <tr>
+            <th>Rang</th><th>Wert</th><th>Datum</th><th>Station</th><th>Stations-ID</th>
+            <th>Bundesland</th><th>Höhe</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2 id="newStationRecordsTitle" style="margin-top:34px">Neue Stationsrekorde</h2>
+    <div class="controls">
+      <div class="control-group">
+        <label for="newRecordParamSelect">Parameter</label>
+        <select id="newRecordParamSelect"></select>
+      </div>
+    </div>
+    <div id="newRecordSummary" class="summary-box">Stationsrekorde werden ausgewertet …</div>
+    <div class="table-wrap">
+      <table id="newStationRecordTable">
+        <thead>
+          <tr>
+            <th>Station</th><th>Bundesland</th><th>Neuer Rekord</th><th>Datum</th>
+            <th>Alter Rekord</th><th>Altes Datum</th><th>Verbesserung</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <p id="recordSourceNote" class="note" style="margin-top:18px"></p>
+  </div>
+</div>
+
 <script>
 Chart.register(ChartDataLabels);
 
@@ -378,6 +473,9 @@ let dailyAllYearsChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
 let heatmapChart=null;
+let stationRecordsData=null;
+let stationRecordsLoading=null;
+const stationYearCache=new Map();
 
 function showError(message){
   const box=document.getElementById("loadError");
@@ -390,6 +488,7 @@ function switchTab(tab){
   document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
   document.getElementById(tab).classList.add("active");
+  if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
     [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
@@ -569,6 +668,10 @@ fetch("update_status.json",{cache:"no-store"})
       parts.push(`Monatsdaten bis ${m}/${y}`);
     }
     if(status.monthly?.area_count) parts.push(`${status.monthly.area_count} Gebiete`);
+    if(status.station_records?.data_through){
+      const d=new Date(status.station_records.data_through+"T12:00:00");
+      parts.push(`Stationsrekorde bis ${d.toLocaleDateString("de-DE")}`);
+    }
     if(status.updated_at){
       const updated=new Date(status.updated_at);
       parts.push(`zuletzt geprüft ${updated.toLocaleString("de-DE",{timeZone:"Europe/Berlin",dateStyle:"short",timeStyle:"short"})}`);
@@ -1191,6 +1294,200 @@ function buildExtremeCharts(){
 }
 
 function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
+
+
+// ================= STATIONSREKORDE =================
+const RECORD_PARAMETER_META={
+  txk_high:{label:"Höchste Tagesmaxima",unit:"°C",direction:"desc"},
+  tnk_low:{label:"Tiefste Tagesminima",unit:"°C",direction:"asc"},
+  tnk_high:{label:"Höchste Tagestiefsttemperaturen",unit:"°C",direction:"desc"},
+  rsk_high:{label:"Höchste Tagesniederschläge",unit:"mm",direction:"desc"}
+};
+
+function recordDateText(value){
+  if(!value) return "–";
+  const d=new Date(value+"T12:00:00");
+  return d.toLocaleDateString("de-DE");
+}
+
+function recordNumber(value,unit){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  return `${Number(value).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} ${unit}`;
+}
+
+function stationMeta(entry){
+  return stationRecordsData?.stations?.[entry?.[2]] || {
+    id:String(entry?.[2]||"").split(":",1)[0] || "–",
+    name:"Unbekannte Station",state:null,height:null
+  };
+}
+
+function ensureStationRecordsLoaded(){
+  if(stationRecordsData){
+    updateStationRecordTables();
+    return Promise.resolve(stationRecordsData);
+  }
+  if(stationRecordsLoading) return stationRecordsLoading;
+  const loading=document.getElementById("recordLoading");
+  loading.textContent="Stationsrekorde werden geladen …";
+  stationRecordsLoading=fetch("station_records.json",{cache:"no-store"})
+    .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+    .then(data=>{
+      if(!data.ready) throw new Error(data.message || "Die Rekorddatei wurde noch nicht aufgebaut.");
+      stationRecordsData=data;
+      initializeStationRecordControls();
+      loading.hidden=true;
+      document.getElementById("recordContent").hidden=false;
+      updateStationRecordTables();
+      return data;
+    })
+    .catch(error=>{
+      loading.textContent=`Stationsrekorde konnten nicht geladen werden: ${error.message}`;
+      loading.style.color="#7a1010";
+      throw error;
+    });
+  return stationRecordsLoading;
+}
+
+function fillSelect(select,items,valueKey="id",labelKey="label"){
+  select.innerHTML="";
+  items.forEach(item=>{
+    const option=document.createElement("option");
+    option.value=typeof item==="string"?item:item[valueKey];
+    option.textContent=typeof item==="string"?item:item[labelKey];
+    select.appendChild(option);
+  });
+}
+
+function initializeStationRecordControls(){
+  const parameters=stationRecordsData.parameters?.length
+    ?stationRecordsData.parameters
+    :Object.entries(RECORD_PARAMETER_META).map(([id,item])=>({id,label:item.label}));
+  fillSelect(document.getElementById("recordParamSelect"),parameters);
+  fillSelect(document.getElementById("newRecordParamSelect"),parameters);
+  fillSelect(document.getElementById("recordAreaSelect"),stationRecordsData.areas || ["Deutschland"]);
+
+  const periodSelect=document.getElementById("recordPeriodSelect");
+  periodSelect.innerHTML="";
+  const groups={all:"Gesamt",year:"Jahr",season:"Jahreszeiten",month:"Monate"};
+  (stationRecordsData.periods||[]).forEach(period=>{
+    const groupName=groups[period.kind]||"Zeitraum";
+    let group=[...periodSelect.querySelectorAll("optgroup")].find(item=>item.label===groupName);
+    if(!group){
+      group=document.createElement("optgroup");
+      group.label=groupName;
+      periodSelect.appendChild(group);
+    }
+    const option=document.createElement("option");
+    option.value=period.id;
+    option.textContent=period.label;
+    group.appendChild(option);
+  });
+  periodSelect.value="all";
+
+  const years=[...(stationRecordsData.available_years||[])].sort((a,b)=>b-a);
+  fillSelect(document.getElementById("recordYearSelect"),years.map(year=>String(year)));
+  document.getElementById("newStationRecordsTitle").textContent=`Neue Stationsrekorde ${stationRecordsData.current_year}`;
+  document.getElementById("recordSourceNote").textContent=stationRecordsData.source_note || "";
+
+  ["recordParamSelect","recordAreaSelect","recordPeriodSelect","recordYearSelect","recordLimitSelect"]
+    .forEach(id=>document.getElementById(id).addEventListener("change",updateStationRecordTables));
+  document.getElementById("newRecordParamSelect").addEventListener("change",updateNewStationRecordTable);
+}
+
+async function selectedRecordEntries(){
+  const parameter=document.getElementById("recordParamSelect").value;
+  const area=document.getElementById("recordAreaSelect").value;
+  const period=document.getElementById("recordPeriodSelect").value;
+  const yearControl=document.getElementById("recordYearControl");
+  yearControl.hidden=period!=="year";
+
+  if(period==="year"){
+    const year=document.getElementById("recordYearSelect").value;
+    let yearData=stationYearCache.get(year);
+    if(!yearData){
+      const response=await fetch(`station_records_years/${year}.json`,{cache:"no-store"});
+      if(!response.ok) throw new Error(`Jahresdatei ${year} konnte nicht geladen werden (HTTP ${response.status}).`);
+      yearData=await response.json();
+      stationYearCache.set(year,yearData);
+    }
+    return {entries:yearData.top_lists?.[parameter]?.[area] || [],parameter,area,period,year};
+  }
+  return {
+    entries:stationRecordsData.top_lists?.[parameter]?.[area]?.[period] || [],
+    parameter,area,period,year:null
+  };
+}
+
+async function updateStationRecordTables(){
+  if(!stationRecordsData) return;
+  const tbody=document.querySelector("#stationRecordTable tbody");
+  tbody.innerHTML='<tr><td colspan="8">Rekordliste wird geladen …</td></tr>';
+  try{
+    const selection=await selectedRecordEntries();
+    const meta=RECORD_PARAMETER_META[selection.parameter];
+    const limit=Number(document.getElementById("recordLimitSelect").value||50);
+    const entries=selection.entries.slice(0,limit);
+    const periodLabel=selection.period==="year"
+      ?String(selection.year)
+      :(stationRecordsData.periods||[]).find(item=>item.id===selection.period)?.label || selection.period;
+    document.getElementById("recordSummary").textContent=
+      `${meta.label} · ${selection.area} · ${periodLabel} · ${entries.length} Einträge. `+
+      `Es werden einzelne Stationstage ausgewertet; eine Mindestlänge der Messreihe wird nicht verlangt.`;
+
+    if(!entries.length){
+      tbody.innerHTML='<tr><td colspan="8">Für diese Auswahl liegen keine Rekorde vor.</td></tr>';
+    }else{
+      tbody.innerHTML=entries.map((entry,index)=>{
+        const station=stationMeta(entry);
+        const preliminary=Boolean(entry[3]);
+        return `<tr>
+          <td>${index+1}</td>
+          <td class="record-value">${recordNumber(entry[0],meta.unit)}</td>
+          <td>${recordDateText(entry[1])}</td>
+          <td class="record-station">${station.name||"–"}</td>
+          <td>${station.id||"–"}</td>
+          <td>${station.state||"–"}</td>
+          <td>${station.height===null||station.height===undefined?"–":`${station.height} m`}</td>
+          <td><span class="record-badge ${preliminary?"preliminary":"checked"}">${preliminary?"vorläufig":"historisch geprüft"}</span></td>
+        </tr>`;
+      }).join("");
+    }
+  }catch(error){
+    tbody.innerHTML=`<tr><td colspan="8">${error.message}</td></tr>`;
+    document.getElementById("recordSummary").textContent="Die gewählte Rekordliste konnte nicht geladen werden.";
+  }
+  updateNewStationRecordTable();
+}
+
+function updateNewStationRecordTable(){
+  if(!stationRecordsData) return;
+  const parameter=document.getElementById("newRecordParamSelect").value;
+  const meta=RECORD_PARAMETER_META[parameter];
+  const records=stationRecordsData.station_records_current_year?.[parameter] || [];
+  const tbody=document.querySelector("#newStationRecordTable tbody");
+  document.getElementById("newRecordSummary").textContent=
+    records.length
+      ?`${records.length} Stationen haben ${stationRecordsData.current_year} ihren bisherigen ${meta.label.toLowerCase()}-Rekord übertroffen.`
+      :`Für ${stationRecordsData.current_year} wurde in dieser Kategorie noch kein neuer Stationsrekord erkannt.`;
+  if(!records.length){
+    tbody.innerHTML='<tr><td colspan="7">Keine neuen Stationsrekorde vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=records.slice(0,200).map(item=>{
+    const station=stationMeta(item.new);
+    return `<tr>
+      <td class="record-station">${station.name||"–"} (${station.id||item.station_id})</td>
+      <td>${station.state||"–"}</td>
+      <td class="record-value">${recordNumber(item.new[0],meta.unit)}</td>
+      <td>${recordDateText(item.new[1])}</td>
+      <td>${recordNumber(item.old[0],meta.unit)}</td>
+      <td>${recordDateText(item.old[1])}</td>
+      <td>${recordNumber(item.improvement,meta.unit)}</td>
+    </tr>`;
+  }).join("");
+}
+
 </script>
 </body>
 </html>
