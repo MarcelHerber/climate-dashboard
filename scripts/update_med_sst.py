@@ -17,7 +17,7 @@ import xarray as xr
 
 from dwd_common import atomic_write_json, read_json
 
-STATE_VERSION = 1
+STATE_VERSION = 2
 OUTPUT_VERSION = 1
 REFERENCE_START = 1991
 REFERENCE_END = 2020
@@ -67,6 +67,12 @@ def _days_since(value: str | None) -> int:
 
 
 def _download_subset(url: str, params: dict[str, str], label: str) -> Path:
+    """Lädt einen NCSS-Ausschnitt mit Wiederholungen.
+
+    NOAA/PSL kann bei größeren NCSS-Abfragen vorübergehend 502/503/504
+    zurückgeben. Die aufrufende Bereichsfunktion teilt einen fehlgeschlagenen
+    Zeitraum anschließend automatisch in kleinere Abschnitte.
+    """
     last_error: Exception | None = None
     for attempt in range(1, 5):
         path: Path | None = None
@@ -76,7 +82,7 @@ def _download_subset(url: str, params: dict[str, str], label: str) -> Path:
                 params=params,
                 timeout=(30, 360),
                 stream=True,
-                headers={"User-Agent": "climate-dashboard/1.0 (GitHub Actions)"},
+                headers={"User-Agent": "climate-dashboard/1.1 (GitHub Actions)"},
             ) as response:
                 response.raise_for_status()
                 content_type = response.headers.get("content-type", "").lower()
@@ -101,7 +107,12 @@ def _download_subset(url: str, params: dict[str, str], label: str) -> Path:
             if path is not None:
                 path.unlink(missing_ok=True)
             if attempt < 4:
-                time.sleep(attempt * 5)
+                wait_seconds = min(60, 5 * (2 ** (attempt - 1)))
+                print(
+                    f"WARNUNG: {label}, Versuch {attempt}/4 fehlgeschlagen: {exc}. "
+                    f"Neuer Versuch in {wait_seconds} s."
+                )
+                time.sleep(wait_seconds)
     raise RuntimeError(f"{label} konnte nicht geladen werden: {last_error}")
 
 
@@ -118,17 +129,31 @@ def _open_subset(path: Path) -> xr.Dataset:
     return loaded
 
 
-def _subset_params(time_value: str = "all") -> dict[str, str]:
-    return {
+def _subset_params(
+    *,
+    time_value: str | None = None,
+    time_start: date | None = None,
+    time_end: date | None = None,
+) -> dict[str, str]:
+    params = {
         "var": "sst",
         "north": "46",
         "south": "30",
         "west": "-6",
         "east": "37",
-        "time": time_value,
         "accept": "netcdf",
-        "addLatLon": "true",
+        # 2-D-Lat/Lon-Felder sind bei diesem regulären Gitter nicht nötig und
+        # vergrößern die Serverantwort nur.
+        "addLatLon": "false",
     }
+    if time_value is not None:
+        params["time"] = time_value
+    elif time_start is not None and time_end is not None:
+        params["time_start"] = f"{time_start.isoformat()}T00:00:00Z"
+        params["time_end"] = f"{time_end.isoformat()}T23:59:59Z"
+    else:
+        raise ValueError("Für den NOAA-Abruf muss time oder ein Zeitbereich angegeben werden.")
+    return params
 
 
 def _polygon_mask(lon: np.ndarray, lat: np.ndarray, polygon: list[tuple[float, float]]) -> np.ndarray:
@@ -199,6 +224,139 @@ def _weighted_region_means(dataset: xr.Dataset) -> tuple[pd.DatetimeIndex, dict[
     return times, result, counts
 
 
+def _merge_weighted_results(
+    chunks: list[tuple[pd.DatetimeIndex, dict[str, np.ndarray], dict[str, int]]],
+) -> tuple[pd.DatetimeIndex, dict[str, np.ndarray], dict[str, int]]:
+    """Führt zeitlich getrennte NOAA-Ausschnitte zusammen."""
+    records: dict[pd.Timestamp, dict[str, float]] = {}
+    counts: dict[str, int] = {}
+    for times, means, chunk_counts in chunks:
+        for region_id, value in chunk_counts.items():
+            counts[region_id] = max(counts.get(region_id, 0), int(value))
+        for index, timestamp in enumerate(times):
+            stamp = pd.Timestamp(timestamp)
+            row = records.setdefault(stamp, {})
+            for region in REGIONS:
+                region_id = region["id"]
+                value = float(means[region_id][index])
+                if math.isfinite(value):
+                    row[region_id] = value
+
+    ordered = sorted(records)
+    merged_means = {
+        region["id"]: np.array(
+            [records[stamp].get(region["id"], np.nan) for stamp in ordered],
+            dtype=float,
+        )
+        for region in REGIONS
+    }
+    return pd.DatetimeIndex(ordered), merged_means, counts
+
+
+def _fetch_weighted_range(
+    url: str,
+    start_date: date,
+    end_date: date,
+    label: str,
+    *,
+    minimum_split_days: int = 24,
+) -> tuple[pd.DatetimeIndex, dict[str, np.ndarray], dict[str, int]]:
+    """Lädt einen Zeitraum und halbiert ihn bei NOAA-Proxyfehlern automatisch."""
+    if end_date < start_date:
+        raise ValueError(f"Ungültiger NOAA-Zeitraum: {start_date} bis {end_date}")
+    try:
+        path = _download_subset(
+            url,
+            _subset_params(time_start=start_date, time_end=end_date),
+            f"{label} ({start_date} bis {end_date})",
+        )
+        return _weighted_region_means(_open_subset(path))
+    except Exception as exc:  # noqa: BLE001
+        span_days = (end_date - start_date).days + 1
+        if span_days <= minimum_split_days:
+            raise RuntimeError(
+                f"{label} konnte auch als kleiner Zeitraum {start_date} bis {end_date} "
+                f"nicht geladen werden: {exc}"
+            ) from exc
+        midpoint = start_date + (end_date - start_date) // 2
+        print(
+            f"WARNUNG: NOAA-Abruf {start_date} bis {end_date} wird nach Serverfehler "
+            f"in kleinere Zeiträume geteilt."
+        )
+        left = _fetch_weighted_range(
+            url,
+            start_date,
+            midpoint,
+            label,
+            minimum_split_days=minimum_split_days,
+        )
+        right = _fetch_weighted_range(
+            url,
+            midpoint + pd.Timedelta(days=1),
+            end_date,
+            label,
+            minimum_split_days=minimum_split_days,
+        )
+        return _merge_weighted_results([left, right])
+
+
+def _cached_year_is_valid(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    for region in REGIONS:
+        series = value.get(region["id"])
+        if not isinstance(series, list) or len(series) != 365:
+            return False
+        if sum(item is not None for item in series) < 350:
+            return False
+    return True
+
+
+def _fetch_daily_file(
+    year: int,
+    end_date: date,
+) -> tuple[pd.DatetimeIndex, dict[str, np.ndarray], dict[str, int]]:
+    """Ruft eine Jahresdatei vorsorglich in höchstens zwei Halbjahresblöcken ab."""
+    url = DAILY_URL.format(year=year)
+    ranges: list[tuple[date, date]] = []
+    first_start = date(year, 1, 1)
+    first_end = min(date(year, 6, 30), end_date)
+    if first_start <= first_end:
+        ranges.append((first_start, first_end))
+    second_start = date(year, 7, 1)
+    if second_start <= end_date:
+        ranges.append((second_start, end_date))
+    chunks = [
+        _fetch_weighted_range(url, start_date, range_end, f"OISST-Tagesdaten {year}")
+        for start_date, range_end in ranges
+    ]
+    if not chunks:
+        raise RuntimeError(f"Kein gültiger Abrufzeitraum für OISST-Tagesdaten {year}.")
+    return _merge_weighted_results(chunks)
+
+
+def _download_daily_year(year: int) -> tuple[dict[str, list[float | None]], dict[str, int]]:
+    times, means, counts = _fetch_daily_file(year, date(year, 12, 31))
+    keys = _non_leap_keys()
+    by_region: dict[str, dict[str, float]] = {region["id"]: {} for region in REGIONS}
+    for index, timestamp in enumerate(times):
+        key = timestamp.strftime("%m-%d")
+        if key == "02-29" or key not in keys:
+            continue
+        for region in REGIONS:
+            region_id = region["id"]
+            value = float(means[region_id][index])
+            if math.isfinite(value):
+                by_region[region_id][key] = value
+    result = {
+        region["id"]: [_round_or_none(by_region[region["id"]].get(key)) for key in keys]
+        for region in REGIONS
+    }
+    if sum(item is not None for item in result["med"]) < 350:
+        raise RuntimeError(f"OISST-Tagesdaten {year} enthalten unerwartet wenige Tage.")
+    return result, counts
+
+
 def _non_leap_keys() -> list[str]:
     base = pd.date_range("2001-01-01", "2001-12-31", freq="D")
     return [timestamp.strftime("%m-%d") for timestamp in base]
@@ -214,33 +372,56 @@ def _round_or_none(value: Any, digits: int = 3) -> float | None:
     return round(numeric, digits)
 
 
-def _build_daily_climatology() -> tuple[dict[str, dict[str, list[float | None]]], dict[str, int]]:
+def _build_daily_climatology(
+    state: dict[str, Any],
+    state_path: Path,
+) -> tuple[dict[str, dict[str, list[float | None]]], dict[str, int]]:
+    """Baut die Tagesklimatologie auf und speichert jedes fertige Jahr sofort.
+
+    Dadurch geht bei einem vorübergehenden NOAA-Ausfall nicht der gesamte
+    Fortschritt der 30 Referenzjahre verloren.
+    """
     keys = _non_leap_keys()
-    samples: dict[str, dict[str, list[float]]] = {
-        region["id"]: {key: [] for key in keys} for region in REGIONS
-    }
-    point_counts: dict[str, int] = {}
+    climate_years = state.get("climate_years")
+    if not isinstance(climate_years, dict):
+        climate_years = {}
+    point_counts = state.get("point_counts")
+    if not isinstance(point_counts, dict):
+        point_counts = {}
+
     for year in range(REFERENCE_START, REFERENCE_END + 1):
+        cached = climate_years.get(str(year))
+        if _cached_year_is_valid(cached):
+            print(f"Mittelmeer-SST: Tagesklimatologie {year} aus Zwischenspeicher")
+            continue
         print(f"Mittelmeer-SST: Tagesklimatologie {year}")
-        path = _download_subset(DAILY_URL.format(year=year), _subset_params(), f"OISST-Tagesdaten {year}")
-        dataset = _open_subset(path)
-        times, means, counts = _weighted_region_means(dataset)
-        point_counts = counts
-        for index, timestamp in enumerate(times):
-            key = timestamp.strftime("%m-%d")
-            if key == "02-29" or key not in samples["med"]:
-                continue
-            for region in REGIONS:
-                value = means[region["id"]][index]
-                if math.isfinite(float(value)):
-                    samples[region["id"]][key].append(float(value))
+        year_values, counts = _download_daily_year(year)
+        climate_years[str(year)] = year_values
+        point_counts.update(counts)
+        state.update({
+            "version": STATE_VERSION,
+            "reference_period": f"{REFERENCE_START}–{REFERENCE_END}",
+            "climate_years": climate_years,
+            "point_counts": point_counts,
+            "climate_progress": {
+                "completed_years": sorted(int(value) for value in climate_years),
+                "updated_at": _iso_now(),
+            },
+        })
+        atomic_write_json(state_path, state)
 
     climatology: dict[str, dict[str, list[float | None]]] = {}
     for region in REGIONS:
         region_id = region["id"]
-        stats = {name: [] for name in ("mean", "p05", "p95", "min", "max", "count")}
-        for key in keys:
-            values = np.asarray(samples[region_id][key], dtype=float)
+        stats: dict[str, list[Any]] = {
+            "mean": [], "p05": [], "p95": [], "min": [], "max": [], "count": []
+        }
+        for index, key in enumerate(keys):
+            values = np.array([
+                climate_years[str(year)][region_id][index]
+                for year in range(REFERENCE_START, REFERENCE_END + 1)
+                if climate_years[str(year)][region_id][index] is not None
+            ], dtype=float)
             if values.size < 25:
                 raise RuntimeError(
                     f"Zu wenige Referenzwerte für {region['label']} am {key}: {values.size}."
@@ -252,14 +433,18 @@ def _build_daily_climatology() -> tuple[dict[str, dict[str, list[float | None]]]
             stats["max"].append(_round_or_none(np.max(values)))
             stats["count"].append(int(values.size))
         climatology[region_id] = stats
-    return climatology, point_counts
+    return climatology, {key: int(value) for key, value in point_counts.items()}
 
 
 def _build_monthly_history() -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
     print("Mittelmeer-SST: monatliche Zeitreihe wird aktualisiert")
-    path = _download_subset(MONTHLY_URL, _subset_params(), "OISST-Monatsdaten")
-    dataset = _open_subset(path)
-    times, means, counts = _weighted_region_means(dataset)
+    times, means, counts = _fetch_weighted_range(
+        MONTHLY_URL,
+        date(1981, 9, 1),
+        date.today(),
+        "OISST-Monatsdaten",
+        minimum_split_days=365,
+    )
     raw: dict[str, list[dict[str, Any]]] = {region["id"]: [] for region in REGIONS}
     for index, timestamp in enumerate(times):
         month_key = timestamp.strftime("%Y-%m")
@@ -281,7 +466,8 @@ def _build_monthly_history() -> tuple[dict[str, list[dict[str, Any]]], dict[str,
             ]
             if len(climate_values) < 25:
                 raise RuntimeError(
-                    f"Zu wenige Monatswerte für die Klimatologie {region['label']} Monat {month}: {len(climate_values)}."
+                    f"Zu wenige Monatswerte für die Klimatologie {region['label']} "
+                    f"Monat {month}: {len(climate_values)}."
                 )
             climate_by_month[month] = float(np.mean(climate_values))
         result[region_id] = [
@@ -300,9 +486,7 @@ def _current_year_daily(
 ) -> tuple[dict[str, dict[str, Any]], str, dict[str, int]]:
     year = date.today().year
     print(f"Mittelmeer-SST: aktuelles Jahr {year}")
-    path = _download_subset(DAILY_URL.format(year=year), _subset_params(), f"OISST-Tagesdaten {year}")
-    dataset = _open_subset(path)
-    times, means, counts = _weighted_region_means(dataset)
+    times, means, counts = _fetch_daily_file(year, date.today())
     keys = _non_leap_keys()
     key_index = {key: index for index, key in enumerate(keys)}
     current: dict[str, dict[str, Any]] = {}
@@ -385,6 +569,10 @@ def _valid_state(state: Any) -> bool:
     )
 
 
+def _compatible_partial_state(state: Any) -> bool:
+    return isinstance(state, dict) and state.get("version") == STATE_VERSION
+
+
 def update_med_sst(root: Path, force_full: bool = False) -> dict[str, Any]:
     output_path = root / "med_sst.json"
     state_path = root / "med_sst_state.json"
@@ -395,19 +583,30 @@ def update_med_sst(root: Path, force_full: bool = False) -> dict[str, Any]:
         except (OSError, json.JSONDecodeError):
             state = {}
 
-    full_rebuild = force_full or not _valid_state(state) or _days_since(state.get("full_built_at")) >= FULL_REBUILD_DAYS
+    if force_full or not _compatible_partial_state(state):
+        state = {"version": STATE_VERSION}
+
+    rebuild_due = _days_since(state.get("full_built_at")) >= FULL_REBUILD_DAYS
+    full_rebuild = force_full or not _valid_state(state) or rebuild_due
     if full_rebuild:
-        daily_climatology, point_counts = _build_daily_climatology()
+        # Bei einem regulären jährlichen Neuaufbau werden die historischen
+        # Jahresmittel neu geladen. Ein abgebrochener Erstaufbau behält dagegen
+        # die bereits erfolgreich gespeicherten Jahre.
+        if force_full or (_valid_state(state) and rebuild_due):
+            state.pop("climate_years", None)
+            state.pop("daily_climatology", None)
+            state.pop("monthly", None)
+        daily_climatology, point_counts = _build_daily_climatology(state, state_path)
         monthly, monthly_counts = _build_monthly_history()
         point_counts.update(monthly_counts)
-        state = {
+        state.update({
             "version": STATE_VERSION,
             "full_built_at": _iso_now(),
             "monthly_checked_at": _iso_now(),
             "daily_climatology": daily_climatology,
             "monthly": monthly,
             "point_counts": point_counts,
-        }
+        })
     else:
         daily_climatology = state["daily_climatology"]
         monthly = state["monthly"]
