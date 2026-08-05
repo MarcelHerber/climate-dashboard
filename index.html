@@ -1,719 +1,233 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<title>Climate Dashboard Deutschland</title>
+from __future__ import annotations
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
+import csv
+import io
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
+from typing import Dict, Optional
 
-<style>
-body{
-  font-family:Arial,sans-serif;
-  padding:30px;
-  background:#f4f6f8;
+from dwd_common import atomic_write_json, download, read_json
+
+BASE_URL = "https://opendata.dwd.de/climate_environment/CDC/regional_averages_DE/monthly"
+PARAMETERS = {
+    "temp": ("air_temperature_mean", "tm"),
+    "rain": ("precipitation", "rr"),
+    "sun": ("sunshine_duration", "sd"),
 }
 
-.tabs{
-  display:flex;
-  gap:20px;
-  margin-bottom:30px;
+# Die Bezeichnungen links entsprechen exakt den DWD-Spaltennamen.
+# Rechts stehen die lesbaren Namen, die im Dashboard angezeigt werden.
+DWD_AREAS = {
+    "Deutschland": "Deutschland",
+    "Baden-Wuerttemberg": "Baden-Württemberg",
+    "Bayern": "Bayern",
+    "Brandenburg": "Brandenburg",
+    "Brandenburg/Berlin": "Brandenburg/Berlin",
+    "Hessen": "Hessen",
+    "Mecklenburg-Vorpommern": "Mecklenburg-Vorpommern",
+    "Niedersachsen": "Niedersachsen",
+    "Niedersachsen/Hamburg/Bremen": "Niedersachsen/Hamburg/Bremen",
+    "Nordrhein-Westfalen": "Nordrhein-Westfalen",
+    "Rheinland-Pfalz": "Rheinland-Pfalz",
+    "Saarland": "Saarland",
+    "Sachsen": "Sachsen",
+    "Sachsen-Anhalt": "Sachsen-Anhalt",
+    "Schleswig-Holstein": "Schleswig-Holstein",
+    "Thueringen": "Thüringen",
+    "Thueringen/Sachsen-Anhalt": "Thüringen/Sachsen-Anhalt",
 }
 
-.tab-button{
-  padding:10px 20px;
-  cursor:pointer;
-  background:#ddd;
-  border:none;
-  border-radius:6px;
-  font-weight:bold;
-}
-
-.tab-button.active{
-  background:#444;
-  color:white;
-}
-
-.tab-content{ display:none; }
-.tab-content.active{ display:block; }
-
-.chart-container{
-  width:100%;
-  height:450px;
-  margin:30px auto;
-  background:white;
-  padding:20px;
-  border-radius:8px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
-}
-
-button{
-  padding:8px 14px;
-  margin-top:10px;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:20px;
-  background:white;
-}
-
-th,td{
-  padding:8px;
-  border:1px solid #ccc;
-  text-align:center;
-}
-.data-status{
-  display:inline-block;
-  margin:0 0 22px 0;
-  padding:10px 14px;
-  background:white;
-  border-radius:8px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.08);
-  color:#444;
-  font-size:14px;
-}
-
-</style>
-</head>
-<body>
-
-<h1>Climate Dashboard Deutschland</h1>
-<div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
+AREA_ORDER = list(DWD_AREAS.values())
+AREA_RANK = {area: index for index, area in enumerate(AREA_ORDER)}
 
 
-<div class="tabs">
-  <button class="tab-button active" onclick="switchTab('monthly')">Monatswerte</button>
-  <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
-  <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
-</div>
-
-<!-- ================= MONATSDASHBOARD ================= -->
-
-<div id="monthly" class="tab-content active">
-
-<label>Parameter:</label>
-<select id="paramSelect">
-  <option value="rain">Niederschlag</option>
-  <option value="temp">Temperatur</option>
-  <option value="sun">Sonnenscheindauer</option>
-</select>
-
-<label>Monat:</label>
-<select id="monthSelect">
-  <optgroup label="Monate">
-    <option value="01">Januar</option>
-    <option value="02">Februar</option>
-    <option value="03">März</option>
-    <option value="04">April</option>
-    <option value="05">Mai</option>
-    <option value="06">Juni</option>
-    <option value="07">Juli</option>
-    <option value="08">August</option>
-    <option value="09">September</option>
-    <option value="10">Oktober</option>
-    <option value="11">November</option>
-    <option value="12">Dezember</option>
-  </optgroup>
-
-  <optgroup label="Jahreszeiten">
-    <option value="spring">Frühling (MAM)</option>
-    <option value="summer">Sommer (JJA)</option>
-    <option value="autumn">Herbst (SON)</option>
-    <option value="winter">Winter (DJF)</option>
-  </optgroup>
-
-  <optgroup label="Gesamt">
-    <option value="year">Ganzes Jahr</option>
-  </optgroup>
-</select>
-
-<button onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
-
-<div class="chart-container">
-  <canvas id="monthlyChart"></canvas>
-</div>
-  
-<div class="chart-container" style="height:auto;">
-  <h3>Statistik</h3>
-  <p><strong>Mittel 1991–2020:</strong> <span id="climateMean"></span></p>
-
-  <h4>Top 3 höchste Werte</h4>
-  <ul id="top3High"></ul>
-
-  <h4>Top 3 niedrigste Werte</h4>
-  <ul id="top3Low"></ul>
-</div>
-
-<div class="chart-container">
-  <canvas id="monthlyDeviationChart"></canvas>
-</div>
-
-</div>
-
-<!-- ================= TAGESDASHBOARD ================= -->
-
-<div id="daily" class="tab-content">
-
-<label>Jahr:</label>
-<select id="yearSelect"></select>
-
-<label>Zeitraum:</label>
-<select id="rangeSelect">
-  <option value="year">Ganzes Jahr</option>
-  <option value="winter">Winter</option>
-  <option value="spring">Frühling</option>
-  <option value="summer">Sommer</option>
-  <option value="autumn">Herbst</option>
-  <option value="01">Januar</option>
-  <option value="02">Februar</option>
-  <option value="03">März</option>
-  <option value="04">April</option>
-  <option value="05">Mai</option>
-  <option value="06">Juni</option>
-  <option value="07">Juli</option>
-  <option value="08">August</option>
-  <option value="09">September</option>
-  <option value="10">Oktober</option>
-  <option value="11">November</option>
-  <option value="12">Dezember</option>
-</select>
-
-<div class="chart-container">
-  <canvas id="dailyChart"></canvas>
-</div>
-
-<div class="chart-container">
-  <canvas id="dailyDeviationChart"></canvas>
-</div>
-
-<div class="chart-container">
-  <canvas id="dailyAllYearsChart"></canvas>
-  <button onclick="resetAllYearsZoom()">Zoom zurücksetzen</button>
-</div>
-
-</div>
-
-<!-- ================= KENNTAGE ================= -->
-
-<div id="extremes" class="tab-content">
-
-<div class="chart-container">
-  <canvas id="yearlyExtremeChart"></canvas>
-</div>
-  
-<div class="chart-container">
-  <canvas id="yearlyMaxChart"></canvas>
-  <button onclick="resetYearlyMaxZoom()">Zoom zurücksetzen</button>
-</div>
-
-<div class="chart-container">
-  <canvas id="heatmapChart"></canvas>
-</div>
-
-<h3>Top 30 heißeste Tage seit 1881</h3>
-<table id="topHotDaysTable">
-<thead>
-<tr>
-<th>Rang</th>
-<th>Datum</th>
-<th>°C</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-
-</div>
+def parse_float(value: str) -> Optional[float]:
+    value = value.strip().replace(",", ".")
+    if not value:
+        return None
+    number = float(value)
+    if number <= -999:
+        return None
+    return number
 
 
-<script>
+def parse_dwd_month_file(content: bytes) -> Dict[str, Dict[str, float]]:
+    """Liest eine DWD-Monatsdatei für alle verfügbaren Gebietsspalten."""
+    text = content.decode("latin-1")
+    rows = list(csv.reader(io.StringIO(text), delimiter=";"))
 
-// ================= DATENSTAND =================
+    header_index = next(
+        (index for index, row in enumerate(rows) if row and row[0].strip() == "Jahr"),
+        None,
+    )
+    if header_index is None:
+        raise ValueError("DWD-Monatsdatei enthält keine Kopfzeile 'Jahr'.")
 
-fetch("update_status.json", {cache:"no-store"})
-.then(r=>{
-  if(!r.ok) throw new Error("Statusdatei nicht verfügbar");
-  return r.json();
-})
-.then(status=>{
-  const parts=[];
-  if(status.daily && status.daily.latest_date){
-    const d=new Date(status.daily.latest_date+"T12:00:00");
-    parts.push(`Tagesdaten bis ${d.toLocaleDateString("de-DE")}`);
-  }
-  if(status.monthly && status.monthly.latest_complete_month){
-    const [y,m]=status.monthly.latest_complete_month.split("-");
-    parts.push(`Monatsdaten bis ${m}/${y}`);
-  }
-  if(status.updated_at){
-    const updated=new Date(status.updated_at);
-    parts.push(`zuletzt geprüft ${updated.toLocaleString("de-DE", {
-      timeZone:"Europe/Berlin",
-      dateStyle:"short",
-      timeStyle:"short"
-    })}`);
-  }
-  document.getElementById("dataStatus").textContent = parts.length
-    ? parts.join(" · ")
-    : "Datenstand nicht verfügbar";
-})
-.catch(()=>{
-  document.getElementById("dataStatus").textContent = "Datenstand nicht verfügbar";
-});
+    header = [column.strip() for column in rows[header_index]]
+    try:
+        year_index = header.index("Jahr")
+        month_index = header.index("Monat")
+    except ValueError as exc:
+        raise ValueError("Jahr oder Monat fehlt in einer DWD-Monatsdatei.") from exc
 
+    area_indices: dict[str, int] = {}
+    for dwd_name, display_name in DWD_AREAS.items():
+        if dwd_name in header:
+            area_indices[display_name] = header.index(dwd_name)
 
-// TAB SWITCH
-function switchTab(tab){
-  document.querySelectorAll(".tab-button").forEach(b=>b.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
-  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
-  document.getElementById(tab).classList.add("active");
-}
+    if "Deutschland" not in area_indices:
+        raise ValueError("Spalte Deutschland fehlt in einer DWD-Monatsdatei.")
 
-// ================= MONATSDATEN =================
-
-let monthlyData=[], monthlyChart, monthlyDeviationChart;
-
-fetch("data.json")
-.then(r=>r.json())
-.then(data=>{
-  monthlyData=data;
-  updateMonthly();
-});
-
-function updateMonthly(){
-
-  const param = document.getElementById("paramSelect").value;
-  const selection = document.getElementById("monthSelect").value;
-
-  const seasonMap = {
-    spring:["03","04","05"],
-    summer:["06","07","08"],
-    autumn:["09","10","11"],
-    winter:["12","01","02"]
-  };
-
-  const years = [...new Set(monthlyData.map(e=>e.date.substring(0,4)))];
-
-  let labels = [];
-  let values = [];
-
-  years.forEach(y=>{
-
-    let entries = monthlyData.filter(e=>e.date.startsWith(y));
-
-    if(selection==="year"){
-      entries = entries;
-
-    } else if(seasonMap[selection]){
-
-      if(selection==="winter"){
-        const prev = (parseInt(y)-1).toString();
-        entries = monthlyData.filter(e=>{
-          const yy=e.date.substring(0,4);
-          const m=e.date.substring(5,7);
-          return (yy===prev && m==="12") ||
-                 (yy===y && (m==="01"||m==="02"));
-        });
-      } else {
-        entries = entries.filter(e=>seasonMap[selection].includes(e.date.substring(5,7)));
-      }
-
-    } else {
-      entries = entries.filter(e=>e.date.substring(5,7)===selection);
+    result: Dict[str, Dict[str, float]] = {
+        area: {} for area in area_indices
     }
 
-    entries = entries.filter(e=>e[param]!==null);
+    for row in rows[header_index + 1 :]:
+        if len(row) <= max(year_index, month_index):
+            continue
 
-    if(entries.length===0) return;
+        year = row[year_index].strip()
+        month = row[month_index].strip().zfill(2)
+        if not (year.isdigit() and len(year) == 4 and month.isdigit()):
+            continue
 
-    let value;
+        key = f"{year}-{month}"
+        for area, column_index in area_indices.items():
+            if len(row) <= column_index:
+                continue
+            value = parse_float(row[column_index])
+            if value is not None:
+                result[area][key] = value
 
-    if(param==="temp"){
-      value = entries.reduce((s,e)=>s+e[param],0)/entries.length;
-    } else {
-      value = entries.reduce((s,e)=>s+e[param],0);
-    }
+    return result
 
-    labels.push(y);
-    values.push(value);
-  });
 
-  /* ===== TOP 3 ===== */
-
-const combined = labels.map((y,i)=>({
-  year: y,
-  value: values[i]
-}));
-
-const sortedHigh = [...combined]
-  .sort((a,b)=>b.value-a.value)
-  .slice(0,3);
-
-const sortedLow = [...combined]
-  .sort((a,b)=>a.value-b.value)
-  .slice(0,3);
-
-document.getElementById("top3High").innerHTML =
-  sortedHigh.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
-
-document.getElementById("top3Low").innerHTML =
-  sortedLow.map(e=>`<li>${e.year}: ${e.value.toFixed(2)}</li>`).join("");
-
-/* ===== Klimamittel 1991-2020 ===== */
-
-const climateValues = labels
-  .map((y,i)=>({year:parseInt(y),value:values[i]}))
-  .filter(e=>e.year>=1991 && e.year<=2020);
-
-  let mean = null;
-
-  if(climateValues.length>0){
-    mean = climateValues.reduce((s,e)=>s+e.value,0)/climateValues.length;
-    document.getElementById("climateMean").innerText = mean.toFixed(2);
-  } else {
-    document.getElementById("climateMean").innerText = "–";
-  }
-
-  /* ===== Diagramm ===== */
-
-  if(monthlyChart) monthlyChart.destroy();
-  monthlyChart = new Chart(document.getElementById("monthlyChart"),{
-    type:"bar",
-    data:{
-      labels,
-      datasets:[{
-        data:values,
-        backgroundColor:"gray"
-      }]
-    },
-    options:{responsive:true}
-  });
-
-  /* ===== Abweichung ===== */
-
-  if(monthlyDeviationChart) monthlyDeviationChart.destroy();
-  monthlyDeviationChart = new Chart(document.getElementById("monthlyDeviationChart"),{
-    type:"bar",
-    data:{
-      labels,
-      datasets:[{
-        data:values.map(v=>mean!==null ? v-mean : null),
-        backgroundColor:values.map(v=>mean!==null && v>=mean ? "red":"blue")
-      }]
-    },
-    options:{responsive:true}
-  });
-
-}
-
-function resetMonthlyZoom(){
-  if(monthlyChart) monthlyChart.resetZoom();
-}
-
-document.getElementById("paramSelect").addEventListener("change",updateMonthly);
-document.getElementById("monthSelect").addEventListener("change",updateMonthly);
-
-// ================= TAGESDATEN =================
-
-let dailyData=[], dailyChart, dailyDeviationChart, dailyAllYearsChart;
-
-fetch("daily_tmax_1881_2026.json")
-.then(r=>r.json())
-.then(data=>{
-  dailyData=data;
-  const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
-  const sel=document.getElementById("yearSelect");
-  years.forEach(y=>{
-    const o=document.createElement("option");
-    o.value=y; o.text=y;
-    sel.appendChild(o);
-  });
-  sel.value=years[years.length-1];
-  updateDaily();
-});
-
-function updateDaily(){
-
-  const year=document.getElementById("yearSelect").value;
-  const range=document.getElementById("rangeSelect").value;
-
-  const seasonMap={
-    winter:["12","01","02"],
-    spring:["03","04","05"],
-    summer:["06","07","08"],
-    autumn:["09","10","11"]
-  };
-
-  let filtered=dailyData.filter(d=>d.date.startsWith(year));
-
-  if(range==="winter"){
-    const prev=(parseInt(year)-1).toString();
-    filtered=dailyData.filter(d=>{
-      const y=d.date.substring(0,4);
-      const m=d.date.substring(5,7);
-      return (y===prev && m==="12") || (y===year && (m==="01"||m==="02"));
-    });
-  }
-  else if(range!=="year"){
-    if(seasonMap[range]){
-      filtered=filtered.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-    } else {
-      filtered=filtered.filter(d=>d.date.substring(5,7)===range);
-    }
-  }
-
-  const labels=filtered.map(d=>d.date);
-  const values=filtered.map(d=>d.tmax);
-  const climate=filtered.map(d=>d.climate_mean);
-  const deviation=filtered.map(d=>d.tmax-d.climate_mean);
-
-  if(dailyChart) dailyChart.destroy();
-  dailyChart=new Chart(document.getElementById("dailyChart"),{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        { label:"Tageswert", data:values, borderColor:"red", pointRadius:0 },
-        { label:"Klimamittel", data:climate, borderColor:"black", borderDash:[6,6], pointRadius:0 }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
-  });
-
-  if(dailyDeviationChart) dailyDeviationChart.destroy();
-  dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
-    type:"line",
-    data:{
-      labels:labels,
-      datasets:[
-        {
-          label:"Abweichung (°C)",
-          data:deviation,
-          fill:"origin",
-          pointRadius:0,
-          segment:{
-            borderColor:ctx=>{
-              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
-              return avg>=0?"red":"blue";
-            },
-            backgroundColor:ctx=>{
-              const avg=(ctx.p0.parsed.y+ctx.p1.parsed.y)/2;
-              return avg>=0?"rgba(255,0,0,0.25)":"rgba(0,150,255,0.25)";
+def normalize_existing(records: list[dict]) -> list[dict]:
+    """Alte Deutschland-only-Dateien bleiben beim ersten Update kompatibel."""
+    normalized = []
+    for item in records:
+        normalized.append(
+            {
+                "area": item.get("area", "Deutschland"),
+                "date": item["date"],
+                "rain": item.get("rain"),
+                "temp": item.get("temp"),
+                "sun": item.get("sun"),
             }
-          }
-        }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false}
-  });
+        )
+    return normalized
 
-  if(dailyAllYearsChart) dailyAllYearsChart.destroy();
 
-  const allYears=[...new Set(dailyData.map(d=>d.date.substring(0,4)))];
-  let datasets=[];
+def update_monthly(root: Path) -> dict:
+    target = root / "data.json"
+    existing_raw = read_json(target)
+    if not isinstance(existing_raw, list) or not existing_raw:
+        raise ValueError("data.json ist leer oder kein JSON-Array.")
 
-  allYears.forEach(y=>{
-    let yd=dailyData.filter(d=>d.date.startsWith(y));
-    if(range!=="year"){
-      if(seasonMap[range]){
-        yd=yd.filter(d=>seasonMap[range].includes(d.date.substring(5,7)));
-      } else {
-        yd=yd.filter(d=>d.date.substring(5,7)===range);
-      }
+    existing = normalize_existing(existing_raw)
+
+    old_non_null: dict[str, dict[str, int]] = defaultdict(dict)
+    existing_areas = sorted({item["area"] for item in existing})
+    for area in existing_areas:
+        area_records = [item for item in existing if item["area"] == area]
+        for parameter in PARAMETERS:
+            old_non_null[area][parameter] = sum(
+                item.get(parameter) is not None for item in area_records
+            )
+
+    # parameter -> Gebiet -> YYYY-MM -> Wert
+    source_data: dict[str, dict[str, dict[str, float]]] = {
+        parameter: defaultdict(dict) for parameter in PARAMETERS
     }
-    datasets.push({
-      data:yd.map(d=>d.tmax),
-      borderColor:y===year?"red":"rgba(0,0,255,0.05)",
-      borderWidth:y===year?2:1,
-      pointRadius:0
-    });
-  });
 
-  datasets.push({
-    data:filtered.map(d=>d.climate_mean),
-    borderColor:"black",
-    borderWidth:3,
-    pointRadius:0
-  });
+    for parameter, (directory, abbreviation) in PARAMETERS.items():
+        print(f"Monatsdaten: {parameter}")
+        for month in range(1, 13):
+            url = (
+                f"{BASE_URL}/{directory}/"
+                f"regional_averages_{abbreviation}_{month:02d}.txt"
+            )
+            parsed = parse_dwd_month_file(download(url))
+            for area, values in parsed.items():
+                source_data[parameter][area].update(values)
+            print(
+                f"  Monat {month:02d}: "
+                f"{len(parsed.get('Deutschland', {}))} Jahreswerte, "
+                f"{len(parsed)} Gebiete"
+            )
 
-  dailyAllYearsChart=new Chart(
-    document.getElementById("dailyAllYearsChart"),
-    {
-      type:"line",
-      data:{labels:labels,datasets:datasets},
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{display:false},
-          zoom:{
-            pan:{enabled:true,mode:"x"},
-            zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}
-          }
-        }
-      }
+    areas = [
+        area
+        for area in AREA_ORDER
+        if all(area in source_data[parameter] for parameter in PARAMETERS)
+    ]
+    if "Deutschland" not in areas:
+        raise RuntimeError("Deutschland fehlt nach dem DWD-Abruf.")
+    if len(areas) < 10:
+        raise RuntimeError(
+            f"Unerwartet wenige DWD-Gebiete gefunden: {len(areas)}."
+        )
+
+    current_year = date.today().year
+    first_year = min(int(item["date"][:4]) for item in existing)
+
+    updated: list[dict] = []
+    for area in areas:
+        for year in range(first_year, current_year + 1):
+            for month in range(1, 13):
+                key = f"{year:04d}-{month:02d}"
+                updated.append(
+                    {
+                        "area": area,
+                        "date": key,
+                        "rain": source_data["rain"][area].get(key),
+                        "temp": source_data["temp"][area].get(key),
+                        "sun": source_data["sun"][area].get(key),
+                    }
+                )
+
+    updated.sort(key=lambda item: (AREA_RANK.get(item["area"], 999), item["date"]))
+
+    # Bestehende Gebiete dürfen nicht plötzlich große Datenverluste haben.
+    for area in existing_areas:
+        if area not in areas:
+            raise RuntimeError(f"Vorhandenes Gebiet fehlt nach dem Update: {area}")
+        area_records = [item for item in updated if item["area"] == area]
+        for parameter in PARAMETERS:
+            new_count = sum(item[parameter] is not None for item in area_records)
+            old_count = old_non_null[area][parameter]
+            minimum = max(1, int(old_count * 0.98))
+            if new_count < minimum:
+                raise RuntimeError(
+                    f"Zu viele fehlende {parameter}-Werte für {area}: "
+                    f"alt={old_count}, neu={new_count}."
+                )
+
+    atomic_write_json(target, updated)
+
+    germany = [item for item in updated if item["area"] == "Deutschland"]
+    latest_by_parameter = {}
+    for parameter in PARAMETERS:
+        dates = [item["date"] for item in germany if item[parameter] is not None]
+        latest_by_parameter[parameter] = max(dates) if dates else None
+
+    complete_dates = [
+        item["date"]
+        for item in germany
+        if all(item[parameter] is not None for parameter in PARAMETERS)
+    ]
+
+    total_non_null = {
+        parameter: sum(item[parameter] is not None for item in updated)
+        for parameter in PARAMETERS
     }
-  );
-}
 
-function resetAllYearsZoom(){
-  if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();
-}
-
-document.getElementById("yearSelect").addEventListener("change",updateDaily);
-document.getElementById("rangeSelect").addEventListener("change",updateDaily);
-
-// ================= KENNTAGE =================
-
-fetch("daily_tmax_1881_2026.json")
-.then(r=>r.json())
-.then(data=>{
-
-  const years=[...new Set(data.map(d=>d.date.substring(0,4)))];
-
-  let summer={}, hot={}, veryHot={};
-  years.forEach(y=>{
-    summer[y]=0;
-    hot[y]=0;
-    veryHot[y]=0;
-  });
-// ===== Jahreshöchstwert pro Jahr =====
-
-let yearlyMax = {};
-years.forEach(y => yearlyMax[y] = -999);
-
-data.forEach(d => {
-  const y = d.date.substring(0,4);
-  if(d.tmax > yearlyMax[y]){
-    yearlyMax[y] = d.tmax;
-  }
-});
-
-const maxValues = years.map(y => yearlyMax[y]);
-
-// globaler Rekord finden
-const absoluteMax = Math.max(...maxValues);
-
-new Chart(document.getElementById("yearlyMaxChart"),{
-  type:"bar",
-  data:{
-    labels:years,
-    datasets:[{
-      label:"Jahreshöchstwert (°C)",
-      data:maxValues,
-      backgroundColor:maxValues.map(v =>
-        v === absoluteMax ? "darkred" : "rgba(255,0,0,0.6)"
-      )
-    }]
-  },
-  options:{
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{
-      zoom:{
-        pan:{enabled:true,mode:"x"},
-        zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}
-      }
-    },
-    scales:{
-      y:{
-        title:{
-          display:true,
-          text:"°C"
-        }
-      }
+    return {
+        "records": len(updated),
+        "areas": areas,
+        "area_count": len(areas),
+        "latest_complete_month": max(complete_dates) if complete_dates else None,
+        "latest_by_parameter": latest_by_parameter,
+        "non_null": total_non_null,
     }
-  }
-});
-
-  // ===== Jahreszählung =====
-
-  data.forEach(d=>{
-    const y=d.date.substring(0,4);
-    if(d.tmax>=25) summer[y]++;
-    if(d.tmax>=30) hot[y]++;
-    if(d.tmax>=35) veryHot[y]++;
-  });
-
-  new Chart(document.getElementById("yearlyExtremeChart"),{
-    type:"bar",
-    data:{
-      labels:years,
-      datasets:[
-        {label:"≥25°C", data:years.map(y=>summer[y]), backgroundColor:"orange"},
-        {label:"≥30°C", data:years.map(y=>hot[y]), backgroundColor:"red"},
-        {label:"≥35°C", data:years.map(y=>veryHot[y]), backgroundColor:"darkred"}
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false
-    }
-  });
-
-  // ===== Heatmap Ersatz (Monats-Balken je Jahr) =====
-
-  const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-
-  let monthlyHotCounts=Array(12).fill(0);
-
-  data.forEach(d=>{
-    const m=parseInt(d.date.substring(5,7))-1;
-    if(d.tmax>=30) monthlyHotCounts[m]++;
-  });
-
-  new Chart(document.getElementById("heatmapChart"),{
-    type:"bar",
-    data:{
-      labels:monthNames,
-      datasets:[
-        {
-          label:"Gesamt Hitzetage ≥30°C (alle Jahre)",
-          data:monthlyHotCounts,
-          backgroundColor:monthlyHotCounts.map(v=>{
-            const alpha=Math.min(v/500,1);
-            return `rgba(255,0,0,${alpha})`;
-          })
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false
-    }
-  });
-
-  // ===== Top 30 =====
-
-  const top30=[...data]
-    .sort((a,b)=>b.tmax-a.tmax)
-    .slice(0,30);
-
-  const tbody=document.querySelector("#topHotDaysTable tbody");
-  tbody.innerHTML="";
-
-  top30.forEach((d,i)=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${i+1}</td>
-        <td>${d.date}</td>
-        <td>${d.tmax.toFixed(1)}</td>
-      </tr>
-    `;
-  });
-
-});
-
-
-function resetYearlyMaxZoom(){
-  const chart = Chart.getChart("yearlyMaxChart");
-  if(chart){
-    chart.resetZoom();
-  }
-}
-</script>
-</body>
-</html>
