@@ -10,7 +10,6 @@ from pathlib import Path
 from dwd_common import atomic_write_json, read_json
 from update_daily import update_daily
 from update_monthly import update_monthly
-from update_med_sst import update_med_sst
 from update_station_precip import update_station_precip
 from update_station_climate_days import update_station_climate_days
 from update_station_records import update_station_records
@@ -24,7 +23,6 @@ def validate_files(root: Path) -> dict:
     station_records = read_json(root / "station_records.json")
     station_precip = read_json(root / "station_precip_index.json")
     station_climate_days = read_json(root / "station_climate_days_index.json")
-    med_sst = read_json(root / "med_sst.json")
 
     if not isinstance(monthly, list) or len(monthly) < 1700:
         raise RuntimeError("data.json enthält unerwartet wenige Datensätze.")
@@ -103,33 +101,6 @@ def validate_files(root: Path) -> dict:
         if not (root / relative_path).exists():
             raise RuntimeError(f"Aktuelle Kenntage-Datei fehlt: {relative_path}")
 
-    med_sst_ready = isinstance(med_sst, dict) and bool(med_sst.get("ready"))
-    med_regions = []
-    med_monthly_latest = None
-    if med_sst_ready:
-        med_regions = med_sst.get("regions") or []
-        if len(med_regions) < 3:
-            raise RuntimeError(f"med_sst.json enthält unerwartet wenige Regionen: {len(med_regions)}.")
-        daily_keys = med_sst.get("daily_keys") or []
-        if len(daily_keys) != 365:
-            raise RuntimeError(f"med_sst.json enthält {len(daily_keys)} statt 365 Kalendertage.")
-        for region in med_regions:
-            region_id = region.get("id")
-            climate = (med_sst.get("daily_climatology") or {}).get(region_id) or {}
-            current_region = (med_sst.get("current") or {}).get(region_id) or {}
-            monthly_region = (med_sst.get("monthly") or {}).get(region_id) or []
-            if len(climate.get("mean") or []) != 365:
-                raise RuntimeError(f"SST-Tagesklimatologie fehlt für Region {region_id}.")
-            if len(current_region.get("daily") or []) < 30:
-                raise RuntimeError(f"Aktuelle SST-Zeitreihe ist zu kurz für Region {region_id}.")
-            if len(monthly_region) < 400:
-                raise RuntimeError(f"SST-Monatszeitreihe ist zu kurz für Region {region_id}.")
-        med_monthly_latest = max(
-            item["date"]
-            for rows in (med_sst.get("monthly") or {}).values()
-            for item in rows
-        )
-
     return {
         "monthly_records": len(monthly),
         "monthly_area_count": len(monthly_by_area),
@@ -146,10 +117,6 @@ def validate_files(root: Path) -> dict:
         "station_climate_days_data_through": station_climate_days.get("data_through"),
         "station_climate_days_stations": len(climate_day_stations),
         "station_climate_days_current_files": len(climate_day_current_files),
-        "med_sst_ready": med_sst_ready,
-        "med_sst_data_through": med_sst.get("data_through") if isinstance(med_sst, dict) else None,
-        "med_sst_regions": len(med_regions),
-        "med_sst_monthly_latest": med_monthly_latest,
     }
 
 
@@ -164,8 +131,6 @@ def main() -> int:
     parser.add_argument("--station-precip-full", action="store_true")
     parser.add_argument("--skip-station-climate-days", action="store_true")
     parser.add_argument("--station-climate-days-full", action="store_true")
-    parser.add_argument("--skip-med-sst", action="store_true")
-    parser.add_argument("--med-sst-full", action="store_true")
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 
@@ -192,7 +157,6 @@ def main() -> int:
         "station_records": previous_status.get("station_records"),
         "station_precip": previous_status.get("station_precip"),
         "station_climate_days": previous_status.get("station_climate_days"),
-        "med_sst": previous_status.get("med_sst"),
     }
 
     if not args.daily_only:
@@ -217,41 +181,6 @@ def main() -> int:
             max_workers=args.workers,
             force_full=args.station_climate_days_full,
         )
-    if not args.skip_med_sst and not args.monthly_only:
-        try:
-            status["med_sst"] = update_med_sst(ROOT, force_full=args.med_sst_full)
-        except Exception as exc:  # noqa: BLE001
-            # NOAA/PSL ist ein externer Dienst. Ein zeitweiliger Ausfall darf
-            # die erfolgreichen DWD-Aktualisierungen nicht blockieren. Beim
-            # Erstaufbau bleibt med_sst.json auf ready=false; der nächste Lauf
-            # setzt dank des Zwischenspeichers an der letzten fertigen Stelle an.
-            old_sst = {}
-            try:
-                old_sst = read_json(ROOT / "med_sst.json")
-            except (OSError, json.JSONDecodeError):
-                old_sst = {}
-            print(f"WARNUNG: Mittelmeer-SST konnte nicht aktualisiert werden: {exc}", file=sys.stderr)
-            if not isinstance(old_sst, dict):
-                old_sst = {}
-            if not old_sst.get("ready"):
-                atomic_write_json(ROOT / "med_sst.json", {
-                    "ready": False,
-                    "message": (
-                        "Der Mittelmeer-SST-Erstaufbau ist noch nicht abgeschlossen. "
-                        "Der nächste automatische Lauf setzt ihn fort."
-                    ),
-                    "last_error": str(exc),
-                    "last_attempt_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                })
-            status["med_sst"] = {
-                "data_through": old_sst.get("data_through"),
-                "region_count": len(old_sst.get("regions") or []),
-                "reference_period": old_sst.get("reference_period"),
-                "source": "NOAA/NCEI OISST v2.1",
-                "stale": bool(old_sst.get("ready")),
-                "ready": bool(old_sst.get("ready")),
-                "warning": str(exc),
-            }
 
     status["validation"] = validate_files(ROOT)
     atomic_write_json(status_path, status)
