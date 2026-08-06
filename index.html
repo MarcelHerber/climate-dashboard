@@ -357,6 +357,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('extremes')">Deutschland-Kenntage</button>
   <button class="tab-button" onclick="switchTab('stationClimateDays')">Stations-Kenntage</button>
   <button class="tab-button" onclick="switchTab('stationHeatwaves')">Stations-Hitzewellen</button>
+  <button class="tab-button" onclick="switchTab('compare')">Vergleiche</button>
   <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
 </div>
 <div class="mobile-tab-navigation">
@@ -840,6 +841,48 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </div>
 </div>
 
+
+<!-- ================= VERGLEICHE ================= -->
+<div id="compare" class="tab-content">
+  <div class="section-header"><h2>Vergleichsmodus</h2><p>Zwei Gebiete, Jahre oder Stationen werden mit identischer Methodik und gemeinsamer Skala direkt gegenübergestellt.</p><span class="section-status">Geteilte Diagramme · CSV-, PNG- und PDF-Export</span></div>
+
+  <div class="chart-container auto">
+    <h2>Gebiete vergleichen</h2>
+    <div class="controls">
+      <div class="control-group"><label for="compareAreaA">Gebiet A</label><select id="compareAreaA"></select></div>
+      <div class="control-group"><label for="compareAreaB">Gebiet B</label><select id="compareAreaB"></select></div>
+      <div class="control-group"><label for="compareAreaParam">Parameter</label><select id="compareAreaParam"><option value="temp">Temperatur</option><option value="rain">Niederschlag</option><option value="sun">Sonnenscheindauer</option></select></div>
+      <div class="control-group"><label for="compareAreaPeriod">Zeitraum</label><select id="compareAreaPeriod" class="period-select"></select></div>
+    </div>
+    <div id="compareAreaSummary" class="summary-box">Vergleich wird vorbereitet …</div>
+    <div class="chart-container"><canvas id="compareAreaChart"></canvas></div>
+  </div>
+
+  <div class="chart-container auto">
+    <h2>Jahre bei den Tageshöchstwerten vergleichen</h2>
+    <div class="controls">
+      <div class="control-group"><label for="compareYearA">Jahr A</label><select id="compareYearA"></select></div>
+      <div class="control-group"><label for="compareYearB">Jahr B</label><select id="compareYearB"></select></div>
+      <div class="control-group"><label for="compareYearRange">Zeitraum</label><select id="compareYearRange"><option value="year">Ganzes Jahr</option><option value="winter">Winter</option><option value="spring">Frühling</option><option value="summer" selected>Sommer</option><option value="autumn">Herbst</option><option value="01">Januar</option><option value="02">Februar</option><option value="03">März</option><option value="04">April</option><option value="05">Mai</option><option value="06">Juni</option><option value="07">Juli</option><option value="08">August</option><option value="09">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option></select></div>
+    </div>
+    <div id="compareYearSummary" class="summary-box">Jahresvergleich wird vorbereitet …</div>
+    <div class="chart-container"><canvas id="compareYearChart"></canvas></div>
+  </div>
+
+  <div class="chart-container auto">
+    <h2>Stationen vergleichen</h2>
+    <div class="controls">
+      <div class="control-group"><label for="compareStationSource">Auswertung</label><select id="compareStationSource"><option value="precip">Kumulativer Niederschlag</option><option value="climateDays">Stations-Kenntage</option><option value="heatwaves">Hitzewellen pro Jahr</option></select></div>
+      <div class="control-group" style="min-width:280px"><label for="compareStationA">Station A</label><select id="compareStationA"></select></div>
+      <div class="control-group" style="min-width:280px"><label for="compareStationB">Station B</label><select id="compareStationB"></select></div>
+      <div id="compareStationMetricGroup" class="control-group"><label for="compareStationMetric">Kenntag</label><select id="compareStationMetric"></select></div>
+    </div>
+    <div id="compareStationSummary" class="summary-box">Stationsdaten werden beim ersten Öffnen geladen …</div>
+    <div class="chart-container"><canvas id="compareStationChart"></canvas></div>
+    <p class="note">Niederschlag und Stations-Kenntage zeigen den Verlauf des laufenden Jahres. Hitzewellen werden als Zahl der Ereignisse pro Jahr verglichen.</p>
+  </div>
+</div>
+
 <!-- ================= STATIONSREKORDE ================= -->
 <div id="records" class="tab-content">
   <div class="section-header"><h2>Stationsrekorde</h2><p>Ranglisten täglicher Temperatur- und Niederschlagsrekorde sowie neu aufgestellte Stationsrekorde im laufenden Jahr.</p><span class="section-status">Stationsbezogene Extremwerte</span></div>
@@ -978,6 +1021,9 @@ let stationHeatwavesLoading=null;
 let stationHeatwavesProfile=null;
 let stationHeatwavesBubbleChart=null;
 let stationHeatwavesBarChart=null;
+let compareAreaChart=null;
+let compareYearChart=null;
+let compareStationChart=null;
 let stationRecordsData=null;
 let stationRecordsLoading=null;
 const stationYearCache=new Map();
@@ -1002,9 +1048,10 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
+  if(tab==="compare") ensureComparisonMode();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -1494,6 +1541,7 @@ fetch("data.json",{cache:"no-store"})
   .then(raw=>{
     monthlyData=normalizeMonthly(raw);
     fillAreaSelectors();
+    fillCompareAreaSelectors();
     populateAccumulationYears();
     updateMonthly();
     updateMonthlyAnomalyTable();
@@ -1997,6 +2045,7 @@ fetch("daily_tmax_1881_2026.json",{cache:"no-store"})
   .then(data=>{
     dailyData=data;
     initializeDailyControls();
+    initializeCompareYearControls();
     updateDaily();
     buildExtremeCharts();
   })
@@ -4012,6 +4061,166 @@ function initializeChartExportButtons(){
   });
 }
 
+
+
+
+// ================= VERSION 10: VERGLEICHSMODUS =================
+let comparisonInitialized=false;
+function fillSelectOptions(select,items,selected){
+  if(!select) return;
+  const previous=select.value;
+  select.innerHTML="";
+  items.forEach(item=>{
+    const option=document.createElement("option");
+    option.value=typeof item==="string"?item:item.value;
+    option.textContent=typeof item==="string"?item:item.label;
+    select.appendChild(option);
+  });
+  const target=selected??previous;
+  if([...select.options].some(option=>option.value===String(target))) select.value=String(target);
+}
+function fillCompareAreaSelectors(){
+  if(!monthlyData.length) return;
+  const areas=availableAreas();
+  fillSelectOptions(document.getElementById("compareAreaA"),areas,"Deutschland");
+  fillSelectOptions(document.getElementById("compareAreaB"),areas,areas.includes("Saarland")?"Saarland":areas[1]);
+  updateCompareAreas();
+}
+function initializeCompareYearControls(){
+  if(!dailyData.length) return;
+  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
+  fillSelectOptions(document.getElementById("compareYearA"),years,years.at(-1));
+  fillSelectOptions(document.getElementById("compareYearB"),years,years.includes("2003")?"2003":years.at(-2));
+  updateCompareYears();
+}
+function updateCompareAreas(){
+  if(!monthlyData.length) return;
+  const areaA=document.getElementById("compareAreaA")?.value;
+  const areaB=document.getElementById("compareAreaB")?.value;
+  const param=document.getElementById("compareAreaParam")?.value||"temp";
+  const period=document.getElementById("compareAreaPeriod")?.value||"year";
+  if(!areaA||!areaB) return;
+  const a=seriesFor(areaA,period,param), b=seriesFor(areaB,period,param);
+  const byA=new Map(a.map(item=>[item.year,item.value])), byB=new Map(b.map(item=>[item.year,item.value]));
+  const years=[...new Set([...byA.keys(),...byB.keys()])].sort((x,y)=>x-y);
+  const valuesA=years.map(year=>byA.get(year)??null), valuesB=years.map(year=>byB.get(year)??null);
+  const latest=[...years].reverse().find(year=>Number.isFinite(byA.get(year))&&Number.isFinite(byB.get(year)));
+  const difference=latest?byA.get(latest)-byB.get(latest):null;
+  document.getElementById("compareAreaSummary").innerHTML=latest
+    ?`<strong>${periodLabel(period)} ${latest}:</strong> ${areaA} ${formatValue(byA.get(latest),param)}, ${areaB} ${formatValue(byB.get(latest),param)}. Differenz A minus B: ${difference>=0?"+":""}${difference.toLocaleString("de-DE",{maximumFractionDigits:2})} ${PARAM_META[param].unit}.`
+    :"Für beide Gebiete liegt noch kein gemeinsamer Wert vor.";
+  if(compareAreaChart) compareAreaChart.destroy();
+  compareAreaChart=new Chart(document.getElementById("compareAreaChart"),{
+    type:"line",data:{labels:years,datasets:[
+      {label:areaA,data:valuesA,borderColor:"#c92a2a",backgroundColor:"#c92a2a",borderWidth:2.5,pointRadius:1.5,tension:.1},
+      {label:areaB,data:valuesB,borderColor:"#1864ab",backgroundColor:"#1864ab",borderWidth:2.5,pointRadius:1.5,tension:.1}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`${PARAM_META[param].label}: ${areaA} und ${areaB} – ${periodLabel(period)}`},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{x:{ticks:{maxTicksLimit:18}},y:{title:{display:true,text:PARAM_META[param].unit}}}}
+  });
+}
+function updateCompareYears(){
+  if(!dailyData.length) return;
+  const yearA=document.getElementById("compareYearA")?.value, yearB=document.getElementById("compareYearB")?.value;
+  const range=document.getElementById("compareYearRange")?.value||"summer";
+  if(!yearA||!yearB) return;
+  const dataA=dailyPeriodFilter(yearA,range), dataB=dailyPeriodFilter(yearB,range);
+  const mapA=new Map(dataA.map(item=>[dailyCalendarKey(item.date),dailyNumber(item.tmax)]));
+  const mapB=new Map(dataB.map(item=>[dailyCalendarKey(item.date),dailyNumber(item.tmax)]));
+  const keys=[...new Set([...mapA.keys(),...mapB.keys()])].sort();
+  const valuesA=keys.map(key=>mapA.get(key)??null),valuesB=keys.map(key=>mapB.get(key)??null);
+  const meanA=dailyAverage(valuesA),meanB=dailyAverage(valuesB);
+  document.getElementById("compareYearSummary").innerHTML=`<strong>${dailyRangeLabel(range)}:</strong> mittleres Deutschland-Tagesmaximum ${yearA}: ${Number.isFinite(meanA)?meanA.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–"} °C; ${yearB}: ${Number.isFinite(meanB)?meanB.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–"} °C.`;
+  if(compareYearChart) compareYearChart.destroy();
+  compareYearChart=new Chart(document.getElementById("compareYearChart"),{
+    type:"line",data:{labels:keys,datasets:[
+      {label:yearA,data:valuesA,borderColor:"#c92a2a",borderWidth:2.3,pointRadius:0,tension:0},
+      {label:yearB,data:valuesB,borderColor:"#1864ab",borderWidth:2.3,pointRadius:0,tension:0}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`Tageshöchstwerte: ${yearA} und ${yearB} – ${dailyRangeLabel(range)}`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Tageshöchsttemperatur (°C)"}}}}
+  });
+}
+async function comparisonSourceIndex(source){
+  if(source==="precip"){await ensureStationPrecipLoaded();return stationPrecipIndex;}
+  if(source==="climateDays"){await ensureStationClimateDaysLoaded();return stationClimateDaysIndex;}
+  await ensureStationHeatwavesLoaded();return stationHeatwavesIndex;
+}
+async function populateCompareStations(){
+  const source=document.getElementById("compareStationSource").value;
+  const summary=document.getElementById("compareStationSummary");
+  summary.textContent="Stationsliste wird geladen …";
+  try{
+    const index=await comparisonSourceIndex(source);
+    const stations=(index.stations||[]).slice().sort((a,b)=>(a.state||"").localeCompare(b.state||"","de")||a.name.localeCompare(b.name,"de"));
+    const options=stations.map(station=>({value:station.id,label:`${station.name} (${station.id}) · ${station.state||"ohne Bundesland"}`}));
+    fillSelectOptions(document.getElementById("compareStationA"),options,options[0]?.value);
+    fillSelectOptions(document.getElementById("compareStationB"),options,options[1]?.value||options[0]?.value);
+    const metricGroup=document.getElementById("compareStationMetricGroup");
+    metricGroup.hidden=source!=="climateDays";
+    if(source==="climateDays"){
+      fillSelectOptions(document.getElementById("compareStationMetric"),(index.climate_days||[]).map(metric=>({value:metric.id,label:`${metric.label} · ${metric.definition}`})),"hot");
+    }
+    await updateCompareStations();
+  }catch(error){summary.textContent=`Stationsvergleich nicht verfügbar: ${error.message}`;}
+}
+async function updateCompareStations(){
+  const source=document.getElementById("compareStationSource").value;
+  const idA=document.getElementById("compareStationA").value,idB=document.getElementById("compareStationB").value;
+  if(!idA||!idB) return;
+  const index=await comparisonSourceIndex(source);
+  const stationA=index.stations.find(item=>item.id===idA),stationB=index.stations.find(item=>item.id===idB);
+  if(!stationA||!stationB) return;
+  const summary=document.getElementById("compareStationSummary");
+  summary.textContent="Vergleichsdaten werden geladen …";
+  if(compareStationChart) compareStationChart.destroy();
+  if(source==="precip"){
+    await loadStationPrecipCurrentMonths();
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const labels=index.labels||[];
+    const currentA=stationPrecipCumulativeWithGaps(stationPrecipCurrentDaily(idA),labels,index.data_through);
+    const currentB=stationPrecipCumulativeWithGaps(stationPrecipCurrentDaily(idB),labels,index.data_through);
+    const lastA=currentA.findLastIndex?.(Number.isFinite)??currentA.reduce((last,v,i)=>Number.isFinite(v)?i:last,-1);
+    const lastB=currentB.findLastIndex?.(Number.isFinite)??currentB.reduce((last,v,i)=>Number.isFinite(v)?i:last,-1);
+    summary.innerHTML=`<strong>${stationA.name}:</strong> ${lastA>=0?currentA[lastA].toLocaleString("de-DE",{maximumFractionDigits:1}):"–"} mm · <strong>${stationB.name}:</strong> ${lastB>=0?currentB[lastB].toLocaleString("de-DE",{maximumFractionDigits:1}):"–"} mm bis ${dailyGermanDate(index.data_through,true)}.`;
+    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels,datasets:[
+      {label:`${stationA.name} ${index.current_year}`,data:currentA,borderColor:"#c92a2a",borderWidth:2.6,pointRadius:0,spanGaps:true},
+      {label:`${stationA.name} Mittel`,data:profileA.climate_mean_cumulative||[],borderColor:"rgba(201,42,42,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0},
+      {label:`${stationB.name} ${index.current_year}`,data:currentB,borderColor:"#1864ab",borderWidth:2.6,pointRadius:0,spanGaps:true},
+      {label:`${stationB.name} Mittel`,data:profileB.climate_mean_cumulative||[],borderColor:"rgba(24,100,171,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Kumulativer Stationsniederschlag im Vergleich"},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Niederschlagssumme (mm)"}}}}});
+  }else if(source==="climateDays"){
+    await loadStationClimateDaysCurrentMonths();
+    const metricId=document.getElementById("compareStationMetric").value;
+    const metric=(index.climate_days||[]).find(item=>item.id===metricId);
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const curveA=stationClimateDaysCurrentCumulative(idA,metric),curveB=stationClimateDaysCurrentCumulative(idB,metric);
+    summary.innerHTML=`<strong>${metric?.label||metricId} ${index.current_year}:</strong> ${stationA.name} ${curveA.count}, ${stationB.name} ${curveB.count}.`;
+    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels:index.labels||[],datasets:[
+      {label:`${stationA.name} ${index.current_year}`,data:curveA,borderColor:"#c92a2a",borderWidth:2.6,pointRadius:0,spanGaps:true},
+      {label:`${stationA.name} Mittel`,data:profileA.climate_mean_cumulative?.[metricId]||[],borderColor:"rgba(201,42,42,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0},
+      {label:`${stationB.name} ${index.current_year}`,data:curveB,borderColor:"#1864ab",borderWidth:2.6,pointRadius:0,spanGaps:true},
+      {label:`${stationB.name} Mittel`,data:profileB.climate_mean_cumulative?.[metricId]||[],borderColor:"rgba(24,100,171,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`${metric?.label||"Kenntage"}: kumulativer Stationsvergleich`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{beginAtZero:true,title:{display:true,text:"Anzahl Tage"}}}}});
+  }else{
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const annualA=new Map((profileA.annual||[]).map(item=>[Number(item[0]),Number(item[1])])),annualB=new Map((profileB.annual||[]).map(item=>[Number(item[0]),Number(item[1])]));
+    annualA.set(Number(index.current_year),stationHeatwavesCurrent?.stations?.[idA]?.events?.length||0);
+    annualB.set(Number(index.current_year),stationHeatwavesCurrent?.stations?.[idB]?.events?.length||0);
+    const years=[...new Set([...annualA.keys(),...annualB.keys()])].sort((a,b)=>a-b);
+    summary.innerHTML=`<strong>Hitzewellen ${index.current_year}:</strong> ${stationA.name} ${annualA.get(Number(index.current_year))||0}, ${stationB.name} ${annualB.get(Number(index.current_year))||0}.`;
+    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels:years,datasets:[
+      {label:stationA.name,data:years.map(year=>annualA.get(year)??null),borderColor:"#c92a2a",borderWidth:2.3,pointRadius:2,spanGaps:false},
+      {label:stationB.name,data:years.map(year=>annualB.get(year)??null),borderColor:"#1864ab",borderWidth:2.3,pointRadius:2,spanGaps:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Zahl der Stations-Hitzewellen pro Jahr"},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{x:{ticks:{maxTicksLimit:18}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Hitzewellen"}}}}});
+  }
+  initializeChartExportButtons();
+}
+function ensureComparisonMode(){
+  if(comparisonInitialized){updateCompareAreas();updateCompareYears();return;}
+  comparisonInitialized=true;
+  ["compareAreaA","compareAreaB","compareAreaParam","compareAreaPeriod"].forEach(id=>document.getElementById(id)?.addEventListener("change",updateCompareAreas));
+  ["compareYearA","compareYearB","compareYearRange"].forEach(id=>document.getElementById(id)?.addEventListener("change",updateCompareYears));
+  document.getElementById("compareStationSource")?.addEventListener("change",populateCompareStations);
+  ["compareStationA","compareStationB","compareStationMetric"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>updateCompareStations().catch(error=>document.getElementById("compareStationSummary").textContent=error.message)));
+  fillCompareAreaSelectors();initializeCompareYearControls();populateCompareStations();
+}
 
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
