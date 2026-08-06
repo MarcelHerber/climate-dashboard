@@ -153,6 +153,8 @@ button.action{
 }
 .stat-card h4{margin:0 0 8px}
 .stat-card ul{margin:0;padding-left:20px}
+.daily-stat-value{font-size:22px;font-weight:700;line-height:1.25}
+.daily-stat-detail{margin-top:4px;color:var(--muted);font-size:12px;line-height:1.35}
 .summary-box{
   margin:0 0 18px;
   padding:14px 16px;
@@ -502,12 +504,41 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     </div>
   </div>
 
+  <div class="stat-grid" style="margin-bottom:18px;">
+    <div class="stat-card">
+      <h4>Höchster Wert</h4>
+      <div id="dailyMaxStat" class="daily-stat-value">–</div>
+      <div id="dailyMaxDetail" class="daily-stat-detail">im gewählten Zeitraum</div>
+    </div>
+    <div class="stat-card">
+      <h4>Datum des Höchstwerts</h4>
+      <div id="dailyMaxDateStat" class="daily-stat-value">–</div>
+      <div class="daily-stat-detail">Kalendertag des Maximums</div>
+    </div>
+    <div class="stat-card">
+      <h4>Mittlere Abweichung</h4>
+      <div id="dailyMeanDeviationStat" class="daily-stat-value">–</div>
+      <div class="daily-stat-detail">gegenüber 1991–2020</div>
+    </div>
+    <div class="stat-card">
+      <h4>Historischer Rang</h4>
+      <div id="dailyRankStat" class="daily-stat-value">–</div>
+      <div id="dailyRankDetail" class="daily-stat-detail">nach mittlerem Tageshöchstwert</div>
+    </div>
+  </div>
+
+  <div id="dailySummary" class="summary-box">Tageshöchstwerte werden berechnet …</div>
+
   <div class="chart-container"><canvas id="dailyChart"></canvas></div>
   <div class="chart-container"><canvas id="dailyDeviationChart"></canvas></div>
   <div class="chart-container">
     <canvas id="dailyAllYearsChart"></canvas>
     <button class="action" onclick="resetAllYearsZoom()">Zoom zurücksetzen</button>
   </div>
+
+  <p id="dailyMethodNote" class="note">
+    Dargestellt ist je Tag der höchste verfügbare Tageshöchstwert aller ausgewerteten DWD-Stationen und kein flächengewichtetes Deutschlandmittel.
+  </p>
 </div>
 
 <!-- ================= KENNTAGE ================= -->
@@ -1875,62 +1906,323 @@ function dailyPeriodFilter(year,range){
   return filtered;
 }
 
+const DAILY_RANGE_LABELS={
+  year:"Gesamtjahr",
+  winter:"Winter",
+  spring:"Frühling",
+  summer:"Sommer",
+  autumn:"Herbst",
+  "01":"Januar",
+  "02":"Februar",
+  "03":"März",
+  "04":"April",
+  "05":"Mai",
+  "06":"Juni",
+  "07":"Juli",
+  "08":"August",
+  "09":"September",
+  "10":"Oktober",
+  "11":"November",
+  "12":"Dezember"
+};
+
+function dailyRangeLabel(range){
+  return DAILY_RANGE_LABELS[range]||range;
+}
+
+function dailyCalendarKey(dateString){
+  return String(dateString||"").slice(5,10);
+}
+
+function dailyGermanDate(dateString,withYear=true){
+  if(!dateString) return "–";
+  const date=new Date(`${dateString}T00:00:00`);
+  if(Number.isNaN(date.getTime())) return dateString;
+  return date.toLocaleDateString("de-DE",withYear
+    ?{day:"2-digit",month:"long",year:"numeric"}
+    :{day:"2-digit",month:"long"}
+  );
+}
+
+function dailyNumber(value){
+  if(value===null || value===undefined || value==="") return null;
+  const number=Number(value);
+  return Number.isFinite(number)?number:null;
+}
+
+function dailyAverage(values){
+  const valid=values.filter(Number.isFinite);
+  return valid.length?valid.reduce((sum,value)=>sum+value,0)/valid.length:null;
+}
+
+function dailySigned(value,digits=1){
+  if(!Number.isFinite(value)) return "–";
+  const sign=value>0?"+":"";
+  return `${sign}${value.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})} °C`;
+}
+
+function dailyHistoricalRecordValues(filtered){
+  const recordByDay=new Map();
+  dailyData.forEach(item=>{
+    const value=dailyNumber(item.tmax);
+    if(!Number.isFinite(value)) return;
+    const key=dailyCalendarKey(item.date);
+    const previous=recordByDay.get(key);
+    if(previous===undefined || value>previous) recordByDay.set(key,value);
+  });
+  return filtered.map(item=>recordByDay.get(dailyCalendarKey(item.date))??null);
+}
+
+function dailyHistoricalRank(year,range,filtered){
+  const selectedKeys=[...new Set(filtered
+    .filter(item=>Number.isFinite(dailyNumber(item.tmax)))
+    .map(item=>dailyCalendarKey(item.date)))];
+  if(!selectedKeys.length) return null;
+  const selectedKeySet=new Set(selectedKeys);
+  const minimumCount=Math.max(1,Math.ceil(selectedKeys.length*.95));
+  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
+  const rows=[];
+
+  years.forEach(itemYear=>{
+    const values=dailyPeriodFilter(itemYear,range)
+      .filter(item=>selectedKeySet.has(dailyCalendarKey(item.date)))
+      .map(item=>dailyNumber(item.tmax))
+      .filter(Number.isFinite);
+    if(values.length<minimumCount) return;
+    rows.push({year:itemYear,mean:dailyAverage(values),count:values.length});
+  });
+
+  rows.sort((a,b)=>b.mean-a.mean || Number(b.year)-Number(a.year));
+  const index=rows.findIndex(item=>item.year===String(year));
+  if(index<0) return null;
+  return {rank:index+1,total:rows.length,mean:rows[index].mean,count:rows[index].count};
+}
+
 function updateDaily(){
   if(!dailyData.length) return;
   const year=document.getElementById("yearSelect").value;
   const range=document.getElementById("rangeSelect").value;
+  const periodLabel=dailyRangeLabel(range);
   const filtered=dailyPeriodFilter(year,range);
   const labels=filtered.map(item=>item.date);
-  const values=filtered.map(item=>item.tmax);
-  const climate=filtered.map(item=>item.climate_mean);
-  const deviation=filtered.map(item=>item.tmax-item.climate_mean);
+  const values=filtered.map(item=>dailyNumber(item.tmax));
+  const climate=filtered.map(item=>dailyNumber(item.climate_mean));
+  const deviation=filtered.map((item,index)=>
+    Number.isFinite(values[index])&&Number.isFinite(climate[index])?values[index]-climate[index]:null
+  );
+  const historicalRecord=dailyHistoricalRecordValues(filtered);
+
+  const validItems=filtered.filter(item=>Number.isFinite(dailyNumber(item.tmax)));
+  const maxItem=validItems.length
+    ?validItems.reduce((best,item)=>dailyNumber(item.tmax)>dailyNumber(best.tmax)?item:best)
+    :null;
+  const validDeviation=deviation.filter(Number.isFinite);
+  const meanDeviation=dailyAverage(validDeviation);
+  const aboveClimate=validDeviation.filter(value=>value>0).length;
+  const belowClimate=validDeviation.filter(value=>value<0).length;
+  const rank=dailyHistoricalRank(year,range,filtered);
+
+  document.getElementById("dailyMaxStat").textContent=maxItem
+    ?`${dailyNumber(maxItem.tmax).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`
+    :"–";
+  document.getElementById("dailyMaxDetail").textContent=maxItem
+    ?`${periodLabel} ${year}`
+    :"keine gültigen Tageswerte";
+  document.getElementById("dailyMaxDateStat").textContent=maxItem
+    ?dailyGermanDate(maxItem.date,false)
+    :"–";
+  document.getElementById("dailyMeanDeviationStat").textContent=dailySigned(meanDeviation,1);
+  document.getElementById("dailyRankStat").textContent=rank
+    ?`${rank.rank}. von ${rank.total}`
+    :"–";
+  document.getElementById("dailyRankDetail").textContent=rank
+    ?`Vergleich über ${rank.count} Kalendertage`
+    :"zu wenige vergleichbare Jahre";
+
+  const meanTmax=dailyAverage(values);
+  const strongestPositive=validDeviation.length?Math.max(...validDeviation):null;
+  const strongestNegative=validDeviation.length?Math.min(...validDeviation):null;
+  document.getElementById("dailySummary").innerHTML=
+    `<strong>${periodLabel} ${year}:</strong> ${validItems.length} ausgewertete Tageswerte`+
+    `${Number.isFinite(meanTmax)?`, mittleres Tagesmaximum ${meanTmax.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`:""}. `+
+    `${aboveClimate} Tage lagen über und ${belowClimate} Tage unter dem kalendarischen Mittel 1991–2020. `+
+    `${Number.isFinite(strongestPositive)?`Größte positive Abweichung ${dailySigned(strongestPositive,1)}`:""}`+
+    `${Number.isFinite(strongestNegative)?`, größte negative Abweichung ${dailySigned(strongestNegative,1)}`:""}.`;
+
+  const firstYear=[...new Set(dailyData.map(item=>item.date.slice(0,4)))].sort()[0];
+  const latestDate=dailyData.reduce((latest,item)=>item.date>latest?item.date:latest,"");
+  document.getElementById("dailyMethodNote").innerHTML=
+    `<strong>Methodik:</strong> Dargestellt ist je Kalendertag der höchste verfügbare Tageshöchstwert aller ausgewerteten DWD-Stationen; `+
+    `die Reihe ist kein flächengewichtetes Deutschlandmittel. Das Klimamittel bezieht sich auf 1991–2020. `+
+    `Die historische Tagesrekordlinie zeigt das höchste Tagesmaximum des jeweiligen Kalendertags seit ${firstYear}. `+
+    `Aktuelle Werte können vorläufig sein. <strong>Datenstand:</strong> ${dailyGermanDate(latestDate,true)}.`;
+
+  const mainTitle=`Tageshöchsttemperatur in Deutschland – ${periodLabel} ${year}`;
+  const deviationTitle=`Abweichung vom Tagesmittel 1991–2020 – ${periodLabel} ${year}`;
+  const comparisonTitle=`${year} im Vergleich mit allen Jahren seit ${firstYear} – ${periodLabel}`;
 
   if(dailyChart) dailyChart.destroy();
   dailyChart=new Chart(document.getElementById("dailyChart"),{
     type:"line",
     data:{labels,datasets:[
-      {label:"Tageswert",data:values,borderColor:"red",pointRadius:0},
-      {label:"Klimamittel",data:climate,borderColor:"black",borderDash:[6,6],pointRadius:0}
+      {
+        label:`Tageswert ${year}`,
+        data:values,
+        borderColor:"#d7191c",
+        backgroundColor:"rgba(215,25,28,.08)",
+        borderWidth:2.2,
+        pointRadius:0,
+        tension:0,
+        spanGaps:false
+      },
+      {
+        label:"Mittel 1991–2020",
+        data:climate,
+        borderColor:"#111",
+        borderDash:[7,5],
+        borderWidth:1.8,
+        pointRadius:0,
+        tension:0
+      },
+      {
+        label:`Historischer Tagesrekord seit ${firstYear}`,
+        data:historicalRecord,
+        borderColor:"#7f0000",
+        borderDash:[2,4],
+        borderWidth:1.5,
+        pointRadius:0,
+        tension:0
+      }
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{display:true,text:mainTitle,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{
+          display:true,
+          text:"Höchster an einer DWD-Station gemessener Tageswert; gepunktet: historischer Kalendertagsrekord",
+          color:"#666",
+          font:{size:12},
+          padding:{bottom:12}
+        },
+        datalabels:{display:false},
+        tooltip:{callbacks:{
+          title:items=>items.length?dailyGermanDate(labels[items[0].dataIndex],true):"",
+          label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`
+        }}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+        y:{title:{display:true,text:"Tageshöchsttemperatur (°C)"}}
+      }
+    }
   });
 
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
     type:"line",
     data:{labels,datasets:[{
-      label:"Abweichung (°C)",data:deviation,fill:"origin",pointRadius:0,
+      label:"Abweichung (°C)",
+      data:deviation,
+      fill:"origin",
+      pointRadius:0,
+      borderWidth:1.8,
+      tension:0,
       segment:{
-        borderColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"red":"blue",
-        backgroundColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"rgba(255,0,0,.25)":"rgba(0,150,255,.25)"
+        borderColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"#d7191c":"#2166ac",
+        backgroundColor:context=>(context.p0.parsed.y+context.p1.parsed.y)/2>=0?"rgba(215,25,28,.25)":"rgba(33,102,172,.24)"
       }
     }]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{display:true,text:deviationTitle,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{
+          display:true,
+          text:"Rot: über dem kalendarischen Mittel · Blau: unter dem kalendarischen Mittel",
+          color:"#666",
+          font:{size:12},
+          padding:{bottom:12}
+        },
+        datalabels:{display:false},
+        tooltip:{callbacks:{
+          title:items=>items.length?dailyGermanDate(labels[items[0].dataIndex],true):"",
+          label:context=>`Abweichung: ${dailySigned(context.parsed.y,1)}`
+        }}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+        y:{
+          title:{display:true,text:"Abweichung (°C)"},
+          grid:{color:context=>context.tick.value===0?"rgba(0,0,0,.65)":"rgba(0,0,0,.09)",lineWidth:context=>context.tick.value===0?1.4:1}
+        }
+      }
+    }
   });
 
   const allYears=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
   const datasets=allYears.map(itemYear=>{
     const data=dailyPeriodFilter(itemYear,range);
     return {
-      data:data.map(item=>item.tmax),
-      borderColor:itemYear===year?"red":"rgba(0,0,255,.05)",
-      borderWidth:itemYear===year?2:1,
-      pointRadius:0
+      label:itemYear,
+      data:data.map(item=>dailyNumber(item.tmax)),
+      borderColor:itemYear===year?"#d7191c":"rgba(46,92,150,.07)",
+      borderWidth:itemYear===year?2.5:1,
+      pointRadius:0,
+      tension:0
     };
   });
-  datasets.push({data:climate,borderColor:"black",borderWidth:3,pointRadius:0});
+  datasets.push({
+    label:"Mittel 1991–2020",
+    data:climate,
+    borderColor:"#111",
+    borderDash:[7,5],
+    borderWidth:2.4,
+    pointRadius:0,
+    tension:0
+  });
+  datasets.push({
+    label:`Historischer Tagesrekord seit ${firstYear}`,
+    data:historicalRecord,
+    borderColor:"#7f0000",
+    borderDash:[2,4],
+    borderWidth:1.5,
+    pointRadius:0,
+    tension:0
+  });
 
   if(dailyAllYearsChart) dailyAllYearsChart.destroy();
   dailyAllYearsChart=new Chart(document.getElementById("dailyAllYearsChart"),{
     type:"line",
     data:{labels,datasets},
     options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}}
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{display:true,text:comparisonTitle,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{
+          display:true,
+          text:`Alle verfügbaren Jahre in Grau-Blau; ${year} rot hervorgehoben`,
+          color:"#666",
+          font:{size:12},
+          padding:{bottom:12}
+        },
+        legend:{display:false},
+        datalabels:{display:false},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:14,maxRotation:0}},
+        y:{title:{display:true,text:"Tageshöchsttemperatur (°C)"}}
+      }
     }
   });
 }
-
 function resetAllYearsZoom(){if(dailyAllYearsChart) dailyAllYearsChart.resetZoom();}
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
 document.getElementById("rangeSelect").addEventListener("change",updateDaily);
