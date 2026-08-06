@@ -436,59 +436,6 @@ def write_current_month_files(
     return written
 
 
-
-def build_map_summaries(
-    root: Path,
-    profiles: list[StationProfile],
-    current_year: int,
-    data_through: date,
-    current_files: list[str],
-) -> dict[str, dict[str, Any]]:
-    """Compact current-year values for the browser map; avoids hundreds of profile requests."""
-    labels = labels_non_leap()
-    last_label = data_through.strftime("%m-%d")
-    try:
-        last_index = labels.index(last_label)
-    except ValueError:
-        last_index = max(0, len([label for label in labels if label <= last_label]) - 1)
-    totals: dict[str, float] = defaultdict(float)
-    valid_days: dict[str, int] = defaultdict(int)
-    for filename in current_files:
-        payload = read_json(root / "station_precip_current" / filename)
-        month = int(payload["month"])
-        for station_id, values in (payload.get("stations") or {}).items():
-            for day_number, value in enumerate(values, start=1):
-                day = date(current_year, month, day_number)
-                if day > data_through:
-                    break
-                if value is None:
-                    continue
-                totals[station_id] += float(value)
-                valid_days[station_id] += 1
-    expected_days = last_index + 1
-    result: dict[str, dict[str, Any]] = {}
-    for profile in profiles:
-        climate_value = None
-        try:
-            historical = read_json(root / profile.file)
-            curve = historical.get("climate_mean_cumulative") or []
-            if last_index < len(curve) and curve[last_index] is not None:
-                climate_value = float(curve[last_index])
-        except (OSError, ValueError, TypeError):
-            climate_value = None
-        current_total = round(totals.get(profile.station_id, 0.0), 1)
-        deviation = None
-        if climate_value and climate_value > 0:
-            deviation = round((current_total / climate_value - 1.0) * 100.0, 1)
-        result[profile.station_id] = {
-            "current_total": current_total,
-            "climate_mean_to_date": round(climate_value, 1) if climate_value is not None else None,
-            "deviation_percent": deviation,
-            "valid_days": valid_days.get(profile.station_id, 0),
-            "missing_days": max(0, expected_days - valid_days.get(profile.station_id, 0)),
-        }
-    return result
-
 def build_index(
     root: Path,
     profiles: list[StationProfile],
@@ -498,8 +445,6 @@ def build_index(
     historical_state: dict[str, Any],
 ) -> dict[str, Any]:
     states = sorted({profile.state for profile in profiles if profile.state})
-    data_through = date.fromisoformat(current_status["data_through"])
-    map_summaries = build_map_summaries(root, profiles, current_year, data_through, current_files)
     index = {
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -530,7 +475,6 @@ def build_index(
                 "reference_years": profile.reference_years,
                 "history_years": profile.history_years,
                 "file": profile.file,
-                "map": map_summaries.get(profile.station_id, {}),
             }
             for profile in profiles
         ],
