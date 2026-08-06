@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import math
 import os
+import re
 import tempfile
+import zipfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -15,24 +19,35 @@ from typing import Any, Iterable
 
 from dwd_common import atomic_write_json, download, read_json
 from update_station_records import (
-    HISTORICAL_PATTERN,
-    HISTORICAL_URL,
-    METADATA_URL,
-    RECENT_PATTERN,
-    RECENT_URL,
-    STATION_ID_PATTERN,
     MetadataIndex,
     NoUsableProductFileError,
+    Observation,
     download_station_zip,
     list_station_files,
     parse_metadata,
-    parse_station_zip,
 )
 
-STATE_VERSION = 1
+RR_BASE_URL = (
+    "https://opendata.dwd.de/climate_environment/CDC/"
+    "observations_germany/climate/daily/more_precip"
+)
+RR_HISTORICAL_URL = f"{RR_BASE_URL}/historical/"
+RR_RECENT_URL = f"{RR_BASE_URL}/recent/"
+RR_METADATA_URL = f"{RR_RECENT_URL}RR_Tageswerte_Beschreibung_Stationen.txt"
+RR_HISTORICAL_PATTERN = re.compile(
+    r'href=["\'](tageswerte_RR_\d{5}_\d{8}_\d{8}_hist\.zip)["\']',
+    re.IGNORECASE,
+)
+RR_RECENT_PATTERN = re.compile(
+    r'href=["\'](tageswerte_RR_\d{5}_akt\.zip)["\']',
+    re.IGNORECASE,
+)
+RR_STATION_ID_PATTERN = re.compile(r"tageswerte_RR_(\d{5})_", re.IGNORECASE)
+
+STATE_VERSION = 2
 MIN_REFERENCE_YEARS = 5
 MIN_HISTORY_YEARS = 5
-MIN_CURRENT_STATIONS = 100
+MIN_CURRENT_STATIONS = 500
 CURRENT_DAY_FRACTION = 0.65
 
 
@@ -70,10 +85,78 @@ def atomic_write_json_compact(path: Path, data: Any) -> None:
 
 
 def station_id_from_filename(filename: str) -> str:
-    match = STATION_ID_PATTERN.search(filename)
+    match = RR_STATION_ID_PATTERN.search(filename)
     if not match:
         raise ValueError(f"Stations-ID kann aus Dateiname nicht gelesen werden: {filename}")
     return match.group(1)
+
+
+def parse_rr_station_zip(
+    content: bytes,
+    station_id_hint: str,
+    metadata: MetadataIndex,
+    start_date: date,
+    end_date: date,
+    preliminary: bool,
+) -> list[Observation]:
+    """Liest tägliche Niederschlagssummen RS aus dem erweiterten DWD-RR-Netz."""
+    observations: list[Observation] = []
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        product_files: list[str] = []
+        for name in archive.namelist():
+            if not name.lower().endswith(".txt") or "produkt" not in name.lower():
+                continue
+            try:
+                with archive.open(name) as candidate:
+                    first_line = candidate.readline().decode("latin-1", errors="replace")
+                columns = {part.strip() for part in first_line.split(";")}
+                if {"STATIONS_ID", "MESS_DATUM", "RS"}.issubset(columns):
+                    product_files.append(name)
+            except (KeyError, OSError):
+                continue
+        if not product_files:
+            raise NoUsableProductFileError("keine auswertbare RR-Produktdatei")
+
+        with archive.open(product_files[0]) as raw:
+            text = io.TextIOWrapper(raw, encoding="latin-1", newline="")
+            reader = csv.reader(text, delimiter=";")
+            header = [column.strip() for column in next(reader)]
+            required = ["STATIONS_ID", "MESS_DATUM", "RS"]
+            missing = [column for column in required if column not in header]
+            if missing:
+                raise ValueError(f"Spalten fehlen: {', '.join(missing)}")
+            indices = {column: header.index(column) for column in required}
+            maximum_index = max(indices.values())
+            for row in reader:
+                if len(row) <= maximum_index:
+                    continue
+                try:
+                    day = datetime.strptime(row[indices["MESS_DATUM"]].strip(), "%Y%m%d").date()
+                except ValueError:
+                    continue
+                if day < start_date or day > end_date:
+                    continue
+                raw_value = row[indices["RS"]].strip().replace(",", ".")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    continue
+                if not 0.0 <= value <= 1000.0:
+                    continue
+                station_raw = row[indices["STATIONS_ID"]].strip()
+                station_id = station_raw.zfill(5) if station_raw else station_id_hint
+                segment = metadata.segment_for(station_id, day)
+                observations.append(
+                    Observation(
+                        day=day,
+                        metadata_key=segment.key,
+                        state=segment.state,
+                        station_id=station_id,
+                        values={"rsk_high": round(value, 1)},
+                        preliminary=preliminary,
+                    )
+                )
+    return observations
 
 
 def non_leap_index(day: date) -> int | None:
@@ -212,8 +295,8 @@ def process_historical_station(
 ) -> tuple[str, tuple[StationProfile, dict[str, Any]] | None, str | None]:
     station_id = station_id_from_filename(filename)
     try:
-        content = download_station_zip(HISTORICAL_URL, filename)
-        observations = parse_station_zip(
+        content = download_station_zip(RR_HISTORICAL_URL, filename)
+        observations = parse_rr_station_zip(
             content,
             station_id,
             metadata,
@@ -235,13 +318,13 @@ def build_historical_baselines(
     current_year: int,
     max_workers: int,
 ) -> tuple[list[StationProfile], dict[str, Any]]:
-    historical_files = list_station_files(HISTORICAL_URL, HISTORICAL_PATTERN, minimum=500)
+    historical_files = list_station_files(RR_HISTORICAL_URL, RR_HISTORICAL_PATTERN, minimum=4000)
     selected = [
         filename for filename in historical_files
         if station_id_from_filename(filename) in active_station_ids
     ]
-    if len(selected) < 200:
-        raise RuntimeError(f"Nur {len(selected)} historische KL-Dateien passen zu aktuellen Stationen.")
+    if len(selected) < 1000:
+        raise RuntimeError(f"Nur {len(selected)} historische RR-Dateien passen zu aktuellen Stationen.")
 
     target_dir = root / "station_precip_climate"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -266,7 +349,7 @@ def build_historical_baselines(
                 print(f"  historische Niederschlagsprofile: {index}/{len(futures)}")
 
     profiles.sort(key=lambda item: ((item.state or ""), item.name.casefold(), item.station_id))
-    if len(profiles) < 150:
+    if len(profiles) < 500:
         examples = " | ".join(errors[:5])
         raise RuntimeError(
             f"Nur {len(profiles)} Stationsprofile erfüllen die Datenanforderungen. {examples}"
@@ -340,8 +423,8 @@ def process_recent_station(
 ) -> tuple[str, dict[date, float], str | None]:
     station_id = station_id_from_filename(filename)
     try:
-        content = download_station_zip(RECENT_URL, filename)
-        observations = parse_station_zip(
+        content = download_station_zip(RR_RECENT_URL, filename)
+        observations = parse_rr_station_zip(
             content,
             station_id,
             metadata,
@@ -510,10 +593,11 @@ def build_index(
         "historical_band": "Minimum und Maximum aller vollständig vorliegenden Jahre",
         "complete_year_rule": "Jahr nur bei 365 gültigen Tageswerten; 29. Februar wird ausgelassen",
         "minimum_reference_years": MIN_REFERENCE_YEARS,
-        "source": "DWD CDC, tägliche KL-Stationswerte (RSK)",
+        "source": "DWD CDC, tägliche Niederschlagsbeobachtungen des erweiterten RR-Netzes (RS)",
         "source_note": (
-            "Historische Kurven stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
-            "Das laufende Jahr stammt aus recent und ist vorläufig."
+            "Verwendet werden DWD-Stationen und rechtlich sowie qualitativ gleichgestellte Partnernetze. "
+            "Historische Kurven stammen aus dem qualitätsgeprüften RR-Verzeichnis historical; "
+            "das laufende Jahr stammt aus recent und ist vorläufig."
         ),
         "states": states,
         "current_files": [f"station_precip_current/{name}" for name in current_files],
@@ -546,8 +630,8 @@ def build_index(
 
 def update_station_precip(root: Path, max_workers: int = 8, force_full: bool = False) -> dict[str, Any]:
     current_year = date.today().year
-    metadata = parse_metadata(download(METADATA_URL, timeout=120))
-    recent_files = list_station_files(RECENT_URL, RECENT_PATTERN, minimum=300)
+    metadata = parse_metadata(download(RR_METADATA_URL, timeout=180))
+    recent_files = list_station_files(RR_RECENT_URL, RR_RECENT_PATTERN, minimum=1500)
     active_station_ids = {station_id_from_filename(filename) for filename in recent_files}
 
     rebuilt = state_is_stale(root, current_year, force_full)

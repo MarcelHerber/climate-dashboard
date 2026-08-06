@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 import requests
 
@@ -41,8 +41,25 @@ RECENT_PATTERN = re.compile(
 )
 STATION_ID_PATTERN = re.compile(r"tageswerte_KL_(\d{5})_", re.IGNORECASE)
 
+RR_BASE_URL = (
+    "https://opendata.dwd.de/climate_environment/CDC/"
+    "observations_germany/climate/daily/more_precip"
+)
+RR_HISTORICAL_URL = f"{RR_BASE_URL}/historical/"
+RR_RECENT_URL = f"{RR_BASE_URL}/recent/"
+RR_METADATA_URL = f"{RR_RECENT_URL}RR_Tageswerte_Beschreibung_Stationen.txt"
+RR_HISTORICAL_PATTERN = re.compile(
+    r'href=["\'](tageswerte_RR_\d{5}_\d{8}_\d{8}_hist\.zip)["\']',
+    re.IGNORECASE,
+)
+RR_RECENT_PATTERN = re.compile(
+    r'href=["\'](tageswerte_RR_\d{5}_akt\.zip)["\']',
+    re.IGNORECASE,
+)
+RR_STATION_ID_PATTERN = re.compile(r"tageswerte_RR_(\d{5})_", re.IGNORECASE)
+
 TOP_K = 50
-STATE_VERSION = 1
+STATE_VERSION = 2
 FULL_REBUILD_AFTER_DAYS = 45
 
 STATE_ORDER = [
@@ -395,6 +412,7 @@ def parse_station_zip(
     end_date: date,
     preliminary: bool,
 ) -> list[Observation]:
+    """Liest Temperaturwerte TXK/TNK aus dem täglichen DWD-KL-Netz."""
     observations: list[Observation] = []
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         product_files = [
@@ -402,7 +420,7 @@ def parse_station_zip(
             if name.lower().endswith(".txt") and "produkt_klima_tag" in name.lower()
         ]
         if not product_files:
-            required = {"STATIONS_ID", "MESS_DATUM", "TXK", "TNK", "RSK"}
+            required = {"STATIONS_ID", "MESS_DATUM", "TXK", "TNK"}
             for name in archive.namelist():
                 if not name.lower().endswith(".txt"):
                     continue
@@ -414,25 +432,29 @@ def parse_station_zip(
                 except (KeyError, OSError):
                     continue
         if not product_files:
-            raise NoUsableProductFileError("keine auswertbare Produktdatei")
+            raise NoUsableProductFileError("keine auswertbare KL-Produktdatei")
 
         with archive.open(product_files[0]) as raw:
             text = io.TextIOWrapper(raw, encoding="latin-1", newline="")
             reader = csv.reader(text, delimiter=";")
             header = [column.strip() for column in next(reader)]
-            required_columns = ["STATIONS_ID", "MESS_DATUM", "TXK", "TNK", "RSK"]
+            required_columns = ["STATIONS_ID", "MESS_DATUM", "TXK", "TNK"]
             missing = [column for column in required_columns if column not in header]
             if missing:
                 raise ValueError(f"Spalten fehlen: {', '.join(missing)}")
             indices = {column: header.index(column) for column in required_columns}
             maximum_index = max(indices.values())
 
+            temperature_metrics = {
+                metric: specification
+                for metric, specification in METRICS.items()
+                if metric != "rsk_high"
+            }
             for row in reader:
                 if len(row) <= maximum_index:
                     continue
-                date_text = row[indices["MESS_DATUM"]].strip()
                 try:
-                    day = datetime.strptime(date_text, "%Y%m%d").date()
+                    day = datetime.strptime(row[indices["MESS_DATUM"]].strip(), "%Y%m%d").date()
                 except ValueError:
                     continue
                 if day < start_date or day > end_date:
@@ -441,7 +463,7 @@ def parse_station_zip(
                 station_id = station_raw.zfill(5) if station_raw else station_id_hint
                 segment = metadata.segment_for(station_id, day)
                 values: dict[str, float] = {}
-                for metric, specification in METRICS.items():
+                for metric, specification in temperature_metrics.items():
                     column = specification["column"]
                     raw_value = row[indices[column]].strip().replace(",", ".")
                     try:
@@ -461,6 +483,74 @@ def parse_station_zip(
                             preliminary=preliminary,
                         )
                     )
+    return observations
+
+
+def parse_rr_station_zip(
+    content: bytes,
+    station_id_hint: str,
+    metadata: MetadataIndex,
+    start_date: date,
+    end_date: date,
+    preliminary: bool,
+) -> list[Observation]:
+    """Liest tägliche Niederschlagssummen RS aus dem erweiterten DWD-RR-Netz."""
+    observations: list[Observation] = []
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        product_files: list[str] = []
+        for name in archive.namelist():
+            if not name.lower().endswith(".txt") or "produkt" not in name.lower():
+                continue
+            try:
+                with archive.open(name) as candidate:
+                    first_line = candidate.readline().decode("latin-1", errors="replace")
+                columns = {part.strip() for part in first_line.split(";")}
+                if {"STATIONS_ID", "MESS_DATUM", "RS"}.issubset(columns):
+                    product_files.append(name)
+            except (KeyError, OSError):
+                continue
+        if not product_files:
+            raise NoUsableProductFileError("keine auswertbare RR-Produktdatei")
+
+        with archive.open(product_files[0]) as raw:
+            text = io.TextIOWrapper(raw, encoding="latin-1", newline="")
+            reader = csv.reader(text, delimiter=";")
+            header = [column.strip() for column in next(reader)]
+            required = ["STATIONS_ID", "MESS_DATUM", "RS"]
+            missing = [column for column in required if column not in header]
+            if missing:
+                raise ValueError(f"Spalten fehlen: {', '.join(missing)}")
+            indices = {column: header.index(column) for column in required}
+            maximum_index = max(indices.values())
+            for row in reader:
+                if len(row) <= maximum_index:
+                    continue
+                try:
+                    day = datetime.strptime(row[indices["MESS_DATUM"]].strip(), "%Y%m%d").date()
+                except ValueError:
+                    continue
+                if day < start_date or day > end_date:
+                    continue
+                raw_value = row[indices["RS"]].strip().replace(",", ".")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    continue
+                if not plausible("rsk_high", value):
+                    continue
+                station_raw = row[indices["STATIONS_ID"]].strip()
+                station_id = station_raw.zfill(5) if station_raw else station_id_hint
+                segment = metadata.segment_for(station_id, day)
+                observations.append(
+                    Observation(
+                        day=day,
+                        metadata_key=segment.key,
+                        state=segment.state,
+                        station_id=station_id,
+                        values={"rsk_high": round(value, 1)},
+                        preliminary=preliminary,
+                    )
+                )
     return observations
 
 
@@ -667,17 +757,21 @@ def iter_downloaded_observations(
     end_date: date,
     preliminary: bool,
     max_workers: int,
+    *,
+    station_pattern: re.Pattern[str] = STATION_ID_PATTERN,
+    parser: Callable[[bytes, str, MetadataIndex, date, date, bool], list[Observation]] = parse_station_zip,
+    failure_tolerance: float = 0.0,
 ) -> Iterator[list[Observation]]:
     processed = 0
     skipped: list[str] = []
+    failed: list[str] = []
     batch_size = max(max_workers * 3, 12)
     for batch_start in range(0, len(filenames), batch_size):
         batch = filenames[batch_start : batch_start + batch_size]
-        failures: list[str] = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {}
             for filename in batch:
-                match = STATION_ID_PATTERN.search(filename)
+                match = station_pattern.search(filename)
                 station_id = match.group(1) if match else "00000"
                 future = executor.submit(
                     _download_and_parse,
@@ -688,6 +782,7 @@ def iter_downloaded_observations(
                     start_date,
                     end_date,
                     preliminary,
+                    parser,
                 )
                 futures[future] = filename
             for future in as_completed(futures):
@@ -699,15 +794,22 @@ def iter_downloaded_observations(
                 except NoUsableProductFileError as exc:
                     skipped.append(f"{filename}: {exc}")
                 except Exception as exc:  # noqa: BLE001
-                    failures.append(f"{filename}: {exc}")
+                    failed.append(f"{filename}: {exc}")
                 processed += 1
                 if processed % 50 == 0 or processed == len(filenames):
                     print(f"  verarbeitet: {processed}/{len(filenames)}")
-        if failures:
-            preview = "\n".join(failures[:10])
-            raise RuntimeError(
-                f"{len(failures)} DWD-Archive konnten nicht verarbeitet werden.\n{preview}"
-            )
+
+    allowed_failures = int(len(filenames) * failure_tolerance)
+    if len(failed) > allowed_failures:
+        preview = "\n".join(failed[:10])
+        raise RuntimeError(
+            f"{len(failed)} DWD-Archive konnten nicht verarbeitet werden "
+            f"(erlaubt: {allowed_failures}).\n{preview}"
+        )
+    if failed:
+        print(f"Warnung: {len(failed)} Archive konnten nicht verarbeitet werden.")
+        for message in failed[:8]:
+            print(f"  - {message}")
     if skipped:
         print(f"Warnung: {len(skipped)} Archive ohne Produktdatei übersprungen.")
         for message in skipped[:8]:
@@ -722,9 +824,10 @@ def _download_and_parse(
     start_date: date,
     end_date: date,
     preliminary: bool,
+    parser: Callable[[bytes, str, MetadataIndex, date, date, bool], list[Observation]],
 ) -> list[Observation]:
     content = download_station_zip(base_url, filename)
-    return parse_station_zip(content, station_id, metadata, start_date, end_date, preliminary)
+    return parser(content, station_id, metadata, start_date, end_date, preliminary)
 
 
 def state_is_stale(state: dict[str, Any], current_year: int) -> bool:
@@ -751,21 +854,33 @@ def write_year_file(root: Path, year: int, accumulator: YearAccumulator) -> None
     atomic_write_json_compact(root / "station_records_years" / f"{year}.json", payload)
 
 
-def full_rebuild(root: Path, metadata: MetadataIndex, current_year: int, max_workers: int) -> dict[str, Any]:
-    print("Stationsrekorde: vollständiger historischer Neuaufbau")
-    files = list_station_files(HISTORICAL_URL, HISTORICAL_PATTERN, minimum=500)
-    print(f"Historische DWD-Archive: {len(files)}")
+def full_rebuild(
+    root: Path,
+    kl_metadata: MetadataIndex,
+    rr_metadata: MetadataIndex,
+    current_year: int,
+    max_workers: int,
+) -> dict[str, Any]:
+    print("Stationsrekorde: vollständiger historischer Neuaufbau (KL-Temperatur + RR-Niederschlag)")
+    kl_files = list_station_files(HISTORICAL_URL, HISTORICAL_PATTERN, minimum=500)
+    rr_files = list_station_files(RR_HISTORICAL_URL, RR_HISTORICAL_PATTERN, minimum=4000)
+    print(f"Historische KL-Archive: {len(kl_files)}")
+    print(f"Historische RR-Archive: {len(rr_files)}")
     base_end = date(current_year - 1, 12, 31)
     base_accumulator = PeriodAccumulator()
     year_accumulators: dict[int, YearAccumulator] = {}
     baselines: dict[str, dict[str, Entry]] = {metric: {} for metric in METRICS}
     observation_count = 0
+    network_counts = {"kl": 0, "rr": 0}
+    network_end: dict[str, Optional[date]] = {"kl": None, "rr": None}
     data_start: Optional[date] = None
     data_end: Optional[date] = None
 
-    def consume(observation: Observation) -> None:
+    def consume(observation: Observation, network: str) -> None:
         nonlocal observation_count, data_start, data_end
         observation_count += 1
+        network_counts[network] += 1
+        network_end[network] = observation.day if network_end[network] is None else max(network_end[network], observation.day)
         data_start = observation.day if data_start is None else min(data_start, observation.day)
         data_end = observation.day if data_end is None else max(data_end, observation.day)
         base_accumulator.add(observation)
@@ -780,36 +895,53 @@ def full_rebuild(root: Path, metadata: MetadataIndex, current_year: int, max_wor
             )
 
     for observations in iter_downloaded_observations(
-        files,
-        HISTORICAL_URL,
-        metadata,
-        date(1750, 1, 1),
-        base_end,
-        preliminary=False,
-        max_workers=max_workers,
+        kl_files, HISTORICAL_URL, kl_metadata, date(1750, 1, 1), base_end, False, max_workers
     ):
         for observation in observations:
-            consume(observation)
+            consume(observation, "kl")
 
-    # Around the turn of the year the historical directory can lag behind.
-    # If it does, supplement the previous calendar year from the Recent files.
-    if data_end is None or data_end < base_end:
+    for observations in iter_downloaded_observations(
+        rr_files,
+        RR_HISTORICAL_URL,
+        rr_metadata,
+        date(1750, 1, 1),
+        base_end,
+        False,
+        max_workers,
+        station_pattern=RR_STATION_ID_PATTERN,
+        parser=parse_rr_station_zip,
+        failure_tolerance=0.01,
+    ):
+        for observation in observations:
+            consume(observation, "rr")
+
+    # Rund um den Jahreswechsel können beide historical-Verzeichnisse hinterherhinken.
+    if network_end["kl"] is None or network_end["kl"] < base_end:
         recent_files = list_station_files(RECENT_URL, RECENT_PATTERN, minimum=300)
-        print(
-            f"Historische Daten reichen nur bis {data_end}; "
-            f"ergänze {current_year - 1} aus {len(recent_files)} Recent-Archiven."
-        )
+        print(f"KL historical reicht nur bis {network_end['kl']}; ergänze {current_year - 1} aus recent.")
         for observations in iter_downloaded_observations(
-            recent_files,
-            RECENT_URL,
-            metadata,
-            date(current_year - 1, 1, 1),
-            base_end,
-            preliminary=True,
-            max_workers=max_workers,
+            recent_files, RECENT_URL, kl_metadata, date(current_year - 1, 1, 1), base_end, True, max_workers
         ):
             for observation in observations:
-                consume(observation)
+                consume(observation, "kl")
+
+    if network_end["rr"] is None or network_end["rr"] < base_end:
+        recent_files = list_station_files(RR_RECENT_URL, RR_RECENT_PATTERN, minimum=1500)
+        print(f"RR historical reicht nur bis {network_end['rr']}; ergänze {current_year - 1} aus recent.")
+        for observations in iter_downloaded_observations(
+            recent_files,
+            RR_RECENT_URL,
+            rr_metadata,
+            date(current_year - 1, 1, 1),
+            base_end,
+            True,
+            max_workers,
+            station_pattern=RR_STATION_ID_PATTERN,
+            parser=parse_rr_station_zip,
+            failure_tolerance=0.01,
+        ):
+            for observation in observations:
+                consume(observation, "rr")
 
     years = sorted(year_accumulators)
     if not years:
@@ -826,8 +958,12 @@ def full_rebuild(root: Path, metadata: MetadataIndex, current_year: int, max_wor
         "version": STATE_VERSION,
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "base_through_year": current_year - 1,
-        "historical_files": len(files),
+        "historical_files": len(kl_files) + len(rr_files),
+        "historical_files_kl": len(kl_files),
+        "historical_files_rr": len(rr_files),
         "historical_observations": observation_count,
+        "historical_observations_kl": network_counts["kl"],
+        "historical_observations_rr": network_counts["rr"],
         "historical_data_start": data_start.isoformat() if data_start else None,
         "historical_data_end": data_end.isoformat() if data_end else None,
         "available_years": years,
@@ -838,29 +974,37 @@ def full_rebuild(root: Path, metadata: MetadataIndex, current_year: int, max_wor
     return state
 
 
-def build_current_year(
+def _load_current_network(
+    files: list[str],
+    base_url: str,
     metadata: MetadataIndex,
     current_year: int,
     max_workers: int,
-) -> tuple[PeriodAccumulator, YearAccumulator, dict[str, dict[str, Entry]], dict[str, Any]]:
-    files = list_station_files(RECENT_URL, RECENT_PATTERN, minimum=300)
-    print(f"Aktuelle DWD-Archive für Stationsrekorde: {len(files)}")
+    *,
+    label: str,
+    minimum_absolute: int,
+    station_pattern: re.Pattern[str] = STATION_ID_PATTERN,
+    parser: Callable[[bytes, str, MetadataIndex, date, date, bool], list[Observation]] = parse_station_zip,
+    failure_tolerance: float = 0.0,
+) -> tuple[dict[date, list[Observation]], set[date], dict[str, Any]]:
+    print(f"Aktuelle {label}-Archive für Stationsrekorde: {len(files)}")
     observations_by_day: dict[date, list[Observation]] = defaultdict(list)
-
     for observations in iter_downloaded_observations(
         files,
-        RECENT_URL,
+        base_url,
         metadata,
         date(current_year, 1, 1),
         date.today(),
-        preliminary=True,
-        max_workers=max_workers,
+        True,
+        max_workers,
+        station_pattern=station_pattern,
+        parser=parser,
+        failure_tolerance=failure_tolerance,
     ):
         for observation in observations:
             observations_by_day[observation.day].append(observation)
-
     if not observations_by_day:
-        raise RuntimeError(f"Keine DWD-Stationswerte für {current_year} gelesen.")
+        raise RuntimeError(f"Keine aktuellen {label}-Stationswerte für {current_year} gelesen.")
 
     all_days = sorted(observations_by_day)
     newest_raw_day = all_days[-1]
@@ -876,40 +1020,86 @@ def build_current_year(
         reference_count = sorted_counts[len(sorted_counts) // 2]
     else:
         reference_count = max(counts.values())
-    minimum_station_count = max(100, int(reference_count * 0.65))
+    minimum_station_count = max(minimum_absolute, int(reference_count * 0.65))
     accepted_days = {day for day, count in counts.items() if count >= minimum_station_count}
     if not accepted_days:
         raise RuntimeError(
-            f"Kein aktueller DWD-Tag erreicht die Mindestzahl von {minimum_station_count} Stationen."
+            f"Kein aktueller {label}-Tag erreicht die Mindestzahl von {minimum_station_count} Stationen."
         )
+    data_end = max(accepted_days)
+    return observations_by_day, accepted_days, {
+        "files": len(files),
+        "newest_raw_dwd_date": newest_raw_day.isoformat(),
+        "data_through": data_end.isoformat(),
+        "latest_station_count": counts[data_end],
+        "minimum_station_count": minimum_station_count,
+        "reference_station_count": reference_count,
+    }
 
+
+def build_current_year(
+    kl_metadata: MetadataIndex,
+    rr_metadata: MetadataIndex,
+    current_year: int,
+    max_workers: int,
+) -> tuple[PeriodAccumulator, YearAccumulator, dict[str, dict[str, Entry]], dict[str, Any]]:
+    kl_files = list_station_files(RECENT_URL, RECENT_PATTERN, minimum=300)
+    rr_files = list_station_files(RR_RECENT_URL, RR_RECENT_PATTERN, minimum=1500)
+    kl_by_day, kl_days, kl_status = _load_current_network(
+        kl_files, RECENT_URL, kl_metadata, current_year, max_workers, label="KL", minimum_absolute=100
+    )
+    rr_by_day, rr_days, rr_status = _load_current_network(
+        rr_files,
+        RR_RECENT_URL,
+        rr_metadata,
+        current_year,
+        max_workers,
+        label="RR",
+        minimum_absolute=500,
+        station_pattern=RR_STATION_ID_PATTERN,
+        parser=parse_rr_station_zip,
+        failure_tolerance=0.01,
+    )
+
+    common_end = min(max(kl_days), max(rr_days))
     current_accumulator = PeriodAccumulator()
     year_accumulator = YearAccumulator()
     current_best: dict[str, dict[str, Entry]] = {metric: {} for metric in METRICS}
     observation_count = 0
-    for day in sorted(accepted_days):
-        for observation in observations_by_day[day]:
-            observation_count += 1
-            current_accumulator.add(observation)
-            year_accumulator.add(observation)
-            day_text = observation.day.isoformat()
-            for metric, value in observation.values.items():
-                update_best(
-                    current_best,
-                    metric,
-                    observation.station_id,
-                    [value, day_text, observation.metadata_key, 1],
-                )
+    network_observations = {"kl": 0, "rr": 0}
 
-    data_end = max(accepted_days)
+    for network, by_day, accepted_days in (("kl", kl_by_day, kl_days), ("rr", rr_by_day, rr_days)):
+        for day in sorted(day for day in accepted_days if day <= common_end):
+            for observation in by_day[day]:
+                observation_count += 1
+                network_observations[network] += 1
+                current_accumulator.add(observation)
+                year_accumulator.add(observation)
+                day_text = observation.day.isoformat()
+                for metric, value in observation.values.items():
+                    update_best(
+                        current_best,
+                        metric,
+                        observation.station_id,
+                        [value, day_text, observation.metadata_key, 1],
+                    )
+
     return current_accumulator, year_accumulator, current_best, {
-        "recent_files": len(files),
+        "recent_files": len(kl_files) + len(rr_files),
+        "recent_files_kl": len(kl_files),
+        "recent_files_rr": len(rr_files),
         "current_year_observations": observation_count,
-        "data_through": data_end.isoformat(),
-        "newest_raw_dwd_date": newest_raw_day.isoformat(),
-        "latest_station_count": counts[data_end],
-        "minimum_station_count": minimum_station_count,
-        "reference_station_count": reference_count,
+        "current_year_observations_kl": network_observations["kl"],
+        "current_year_observations_rr": network_observations["rr"],
+        "data_through": common_end.isoformat(),
+        "newest_raw_dwd_date": min(kl_status["newest_raw_dwd_date"], rr_status["newest_raw_dwd_date"]),
+        "latest_station_count": kl_status["latest_station_count"],
+        "minimum_station_count": kl_status["minimum_station_count"],
+        "reference_station_count": kl_status["reference_station_count"],
+        "rr_data_through": rr_status["data_through"],
+        "rr_latest_station_count": rr_status["latest_station_count"],
+        "rr_minimum_station_count": rr_status["minimum_station_count"],
+        "rr_reference_station_count": rr_status["reference_station_count"],
     }
 
 
@@ -952,7 +1142,8 @@ def build_new_station_records(
 
 def update_station_records(root: Path, max_workers: int = 8, force_full: bool = False) -> dict[str, Any]:
     current_year = date.today().year
-    metadata = parse_metadata(download(METADATA_URL, timeout=120))
+    kl_metadata = parse_metadata(download(METADATA_URL, timeout=120))
+    rr_metadata = parse_metadata(download(RR_METADATA_URL, timeout=180))
     state_path = root / "station_record_state.json"
     state: dict[str, Any] = {}
     if state_path.exists():
@@ -965,7 +1156,7 @@ def update_station_records(root: Path, max_workers: int = 8, force_full: bool = 
 
     rebuilt = force_full or state_is_stale(state, current_year)
     if rebuilt:
-        state = full_rebuild(root, metadata, current_year, max_workers)
+        state = full_rebuild(root, kl_metadata, rr_metadata, current_year, max_workers)
     else:
         print(
             "Stationsrekorde: historischer Zwischenspeicher wird verwendet "
@@ -973,21 +1164,24 @@ def update_station_records(root: Path, max_workers: int = 8, force_full: bool = 
         )
 
     current_accumulator, current_year_accumulator, current_best, current_status = build_current_year(
-        metadata, current_year, max_workers
+        kl_metadata, rr_metadata, current_year, max_workers
     )
     combined = combine_accumulators(state["base_top_lists"], current_accumulator)
     write_year_file(root, current_year, current_year_accumulator)
 
     available_years = sorted(set(int(year) for year in state.get("available_years", [])) | {current_year})
     new_station_records = build_new_station_records(state["station_baselines"], current_best)
+    stations = kl_metadata.public_dict()
+    for key, value in rr_metadata.public_dict().items():
+        stations.setdefault(key, value)
     payload = {
         "version": 1,
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "data_through": current_status["data_through"],
         "current_year": current_year,
-        "source": "Deutscher Wetterdienst (DWD), Climate Data Center, tägliche KL-Stationsdaten",
-        "source_note": "Werte des aktuellen Jahres stammen aus dem DWD-Recent-Verzeichnis und sind vorläufig.",
+        "source": "DWD CDC: KL-Netz für Temperatur, erweitertes RR-Netz für Niederschlag",
+        "source_note": "Niederschlagsrekorde verwenden RS aus daily/more_precip einschließlich gleichgestellter Partnernetze; aktuelle Werte sind vorläufig.",
         "areas": AREAS,
         "periods": PERIODS,
         "parameters": [
@@ -1000,7 +1194,7 @@ def update_station_records(root: Path, max_workers: int = 8, force_full: bool = 
             for metric, specification in METRICS.items()
         ],
         "available_years": available_years,
-        "stations": metadata.public_dict(),
+        "stations": stations,
         "top_lists": combined.public_lists(),
         "station_records_current_year": new_station_records,
     }
