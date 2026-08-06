@@ -3039,6 +3039,21 @@ function stationClimateDaysHexToRgba(hex,alpha){
   return `rgba(${(number>>16)&255},${(number>>8)&255},${number&255},${alpha})`;
 }
 
+function stationClimateDaysHistoricalCumulative(profile,metricId){
+  const encoded=profile?.historical_event_days?.[metricId]||[];
+  const length=(stationClimateDaysIndex?.labels||[]).length||365;
+  return encoded.map(item=>{
+    const year=String(item?.[0]??"");
+    const eventDays=new Set((item?.[1]||[]).map(value=>Number(value)));
+    let total=0;
+    const data=Array.from({length},(_,index)=>{
+      if(eventDays.has(index)) total+=1;
+      return total;
+    });
+    return {year,data};
+  }).filter(item=>item.year);
+}
+
 async function updateStationClimateDays(){
   if(!stationClimateDaysIndex) return;
   const stationId=document.getElementById("stationClimateDaysStationSelect").value;
@@ -3067,6 +3082,7 @@ async function updateStationClimateDays(){
       stationClimateDaysProfile,metric.id,period.id,stationClimateDaysIndex.data_through
     );
     const historical=stationClimateDaysHistoricalEntries(stationClimateDaysProfile,metric.id,period.id);
+    const historicalCumulative=stationClimateDaysHistoricalCumulative(stationClimateDaysProfile,metric.id);
     const top10=[...historical].sort((a,b)=>b.count-a.count || a.year-b.year).slice(0,10);
     const record=top10[0]||null;
     const missing=currentPeriod.missingDates.length;
@@ -3089,17 +3105,29 @@ async function updateStationClimateDays(){
       `historische Auswertung ${station.start_year}–${station.end_year}`
     ].filter(Boolean).join(" · ")+`.${missingText}`;
 
+    const historicalCumulativeDatasets=historicalCumulative.map(series=>({
+      label:series.year,
+      data:series.data,
+      borderColor:"rgba(70,86,104,.16)",
+      borderWidth:1,
+      pointRadius:0,
+      fill:false,
+      tension:.08,
+      isHistoricalYear:true
+    }));
+
     if(stationClimateDaysCumulativeChart) stationClimateDaysCumulativeChart.destroy();
     stationClimateDaysCumulativeChart=new Chart(document.getElementById("stationClimateDaysCumulativeChart"),{
       type:"line",
       data:{
         labels:(stationClimateDaysIndex.labels||[]).map(stationClimateDaysDateLabel),
         datasets:[
+          ...historicalCumulativeDatasets,
           {
             label:"Mittel 1991–2020",
             data:climateCumulative,
             borderColor:"#202020",
-            borderWidth:2,
+            borderWidth:2.2,
             borderDash:[8,5],
             pointRadius:0,
             fill:false,
@@ -3110,7 +3138,7 @@ async function updateStationClimateDays(){
             data:currentCumulative,
             borderColor:metric.color||"#c43d2f",
             backgroundColor:stationClimateDaysHexToRgba(metric.color,.12),
-            borderWidth:3,
+            borderWidth:3.2,
             pointRadius:0,
             spanGaps:true,
             fill:false,
@@ -3122,8 +3150,23 @@ async function updateStationClimateDays(){
         responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
         plugins:{
           title:{display:true,text:`${metric.label} im Jahresverlauf – ${station.name}`},
+          subtitle:{
+            display:true,
+            text:historicalCumulative.length
+              ?`${historicalCumulative.length} ausreichend vollständige historische Jahre in Grau · aktuelles Jahr farbig · Mittel 1991–2020 gestrichelt`
+              :"Historische Jahresverläufe werden nach dem nächsten vollständigen Profilauf ergänzt.",
+            color:"#666",
+            font:{size:12},
+            padding:{bottom:10}
+          },
+          legend:{
+            labels:{filter:item=>item.text==="Mittel 1991–2020" || item.text===String(stationClimateDaysIndex.current_year)}
+          },
           datalabels:{display:false},
-          tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationClimateDaysFormat(context.parsed.y,context.datasetIndex===0?1:0)} Tage`}},
+          tooltip:{
+            filter:context=>!context.dataset.isHistoricalYear,
+            callbacks:{label:context=>`${context.dataset.label}: ${stationClimateDaysFormat(context.parsed.y,context.dataset.label==="Mittel 1991–2020"?1:0)} Tage`}
+          },
           zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
         },
         scales:{
