@@ -1961,9 +1961,10 @@ function dailySigned(value,digits=1){
   return `${sign}${value.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})} °C`;
 }
 
-function dailyHistoricalRecordValues(filtered){
+function dailyHistoricalRecordValues(filtered,excludedYear){
   const recordByDay=new Map();
   dailyData.forEach(item=>{
+    if(excludedYear && item.date.slice(0,4)===String(excludedYear)) return;
     const value=dailyNumber(item.tmax);
     if(!Number.isFinite(value)) return;
     const key=dailyCalendarKey(item.date);
@@ -2010,7 +2011,7 @@ function updateDaily(){
   const deviation=filtered.map((item,index)=>
     Number.isFinite(values[index])&&Number.isFinite(climate[index])?values[index]-climate[index]:null
   );
-  const historicalRecord=dailyHistoricalRecordValues(filtered);
+  const historicalRecord=dailyHistoricalRecordValues(filtered,year);
 
   const validItems=filtered.filter(item=>Number.isFinite(dailyNumber(item.tmax)));
   const maxItem=validItems.length
@@ -2054,7 +2055,7 @@ function updateDaily(){
   document.getElementById("dailyMethodNote").innerHTML=
     `<strong>Methodik:</strong> Dargestellt ist je Kalendertag der höchste verfügbare Tageshöchstwert aller ausgewerteten DWD-Stationen; `+
     `die Reihe ist kein flächengewichtetes Deutschlandmittel. Das Klimamittel bezieht sich auf 1991–2020. `+
-    `Die historische Tagesrekordlinie zeigt das höchste Tagesmaximum des jeweiligen Kalendertags seit ${firstYear}. `+
+    `Die historische Tagesrekordlinie zeigt das höchste Tagesmaximum des jeweiligen Kalendertags seit ${firstYear}, wobei das ausgewählte Jahr ${year} immer ausgeschlossen wird. `+
     `Aktuelle Werte können vorläufig sein. <strong>Datenstand:</strong> ${dailyGermanDate(latestDate,true)}.`;
 
   const mainTitle=`Tageshöchsttemperatur in Deutschland – ${periodLabel} ${year}`;
@@ -2085,7 +2086,7 @@ function updateDaily(){
         tension:0
       },
       {
-        label:`Historischer Tagesrekord seit ${firstYear}`,
+        label:`Bisheriger Tagesrekord ohne ${year}`,
         data:historicalRecord,
         borderColor:"#7f0000",
         borderDash:[2,4],
@@ -2102,7 +2103,7 @@ function updateDaily(){
         title:{display:true,text:mainTitle,font:{size:18,weight:"bold"},padding:{bottom:4}},
         subtitle:{
           display:true,
-          text:"Höchster an einer DWD-Station gemessener Tageswert; gepunktet: historischer Kalendertagsrekord",
+          text:`Höchster an einer DWD-Station gemessener Tageswert; gepunktet: bisheriger Kalendertagsrekord ohne ${year}`,
           color:"#666",
           font:{size:12},
           padding:{bottom:12}
@@ -2186,7 +2187,7 @@ function updateDaily(){
     tension:0
   });
   datasets.push({
-    label:`Historischer Tagesrekord seit ${firstYear}`,
+    label:`Bisheriger Tagesrekord ohne ${year}`,
     data:historicalRecord,
     borderColor:"#7f0000",
     borderDash:[2,4],
@@ -2207,7 +2208,7 @@ function updateDaily(){
         title:{display:true,text:comparisonTitle,font:{size:18,weight:"bold"},padding:{bottom:4}},
         subtitle:{
           display:true,
-          text:`Alle verfügbaren Jahre in Grau-Blau; ${year} rot hervorgehoben`,
+          text:`Alle verfügbaren Jahre in Grau-Blau; ${year} rot hervorgehoben · gepunktet: bisheriger Kalendertagsrekord ohne ${year}`,
           color:"#666",
           font:{size:12},
           padding:{bottom:12}
