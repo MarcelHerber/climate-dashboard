@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynhMZJVK1U0YLaMZ7k7tq2vL2v9I=" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <style>
@@ -1049,6 +1049,8 @@ let stationHeatwavesBarChart=null;
 let compareAreaChart=null;
 let compareYearChart=null;
 let compareStationChart=null;
+let compareStationRequestId=0;
+let compareStationPopulateRequestId=0;
 let stationMap=null;
 let stationMapLayer=null;
 let stationMapLegend=null;
@@ -4195,6 +4197,7 @@ async function refreshMapControls(){
 function ensureStationMaps(){
   if(!mapsInitialized){mapsInitialized=true;document.getElementById("mapModeSelect").addEventListener("change",refreshMapControls);["mapMetricSelect","mapStateSelect","mapMinCoverage"].forEach(id=>document.getElementById(id).addEventListener("change",updateStationMap));refreshMapControls();}
   window.setTimeout(()=>stationMap?.invalidateSize(),80);
+  window.setTimeout(()=>stationMap?.invalidateSize(),350);
 }
 
 // ================= VERSION 10: VERGLEICHSMODUS =================
@@ -4275,12 +4278,36 @@ async function comparisonSourceIndex(source){
   if(source==="climateDays"){await ensureStationClimateDaysLoaded();return stationClimateDaysIndex;}
   await ensureStationHeatwavesLoaded();return stationHeatwavesIndex;
 }
+function destroyCompareStationChart(){
+  const canvas=document.getElementById("compareStationChart");
+  const registered=canvas&&typeof Chart.getChart==="function"?Chart.getChart(canvas):null;
+  if(registered){
+    try{registered.destroy();}catch(_error){}
+  }
+  if(compareStationChart&&compareStationChart!==registered){
+    try{compareStationChart.destroy();}catch(_error){}
+  }
+  compareStationChart=null;
+}
+function renderCompareStationChart(config,requestId){
+  if(requestId!==compareStationRequestId) return false;
+  const canvas=document.getElementById("compareStationChart");
+  if(!canvas) return false;
+  destroyCompareStationChart();
+  if(requestId!==compareStationRequestId) return false;
+  compareStationChart=new Chart(canvas,config);
+  return true;
+}
 async function populateCompareStations(){
+  const populateRequestId=++compareStationPopulateRequestId;
+  compareStationRequestId++;
+  destroyCompareStationChart();
   const source=document.getElementById("compareStationSource").value;
   const summary=document.getElementById("compareStationSummary");
   summary.textContent="Stationsliste wird geladen …";
   try{
     const index=await comparisonSourceIndex(source);
+    if(populateRequestId!==compareStationPopulateRequestId||source!==document.getElementById("compareStationSource").value) return;
     const stations=(index.stations||[]).slice().sort((a,b)=>(a.state||"").localeCompare(b.state||"","de")||a.name.localeCompare(b.name,"de"));
     const options=stations.map(station=>({value:station.id,label:`${station.name} (${station.id}) · ${station.state||"ohne Bundesland"}`}));
     fillSelectOptions(document.getElementById("compareStationA"),options,options[0]?.value);
@@ -4291,59 +4318,68 @@ async function populateCompareStations(){
       fillSelectOptions(document.getElementById("compareStationMetric"),(index.climate_days||[]).map(metric=>({value:metric.id,label:`${metric.label} · ${metric.definition}`})),"hot");
     }
     await updateCompareStations();
-  }catch(error){summary.textContent=`Stationsvergleich nicht verfügbar: ${error.message}`;}
+  }catch(error){
+    if(populateRequestId===compareStationPopulateRequestId) summary.textContent=`Stationsvergleich nicht verfügbar: ${error.message}`;
+  }
 }
 async function updateCompareStations(){
+  const requestId=++compareStationRequestId;
   const source=document.getElementById("compareStationSource").value;
   const idA=document.getElementById("compareStationA").value,idB=document.getElementById("compareStationB").value;
-  if(!idA||!idB) return;
-  const index=await comparisonSourceIndex(source);
-  const stationA=index.stations.find(item=>item.id===idA),stationB=index.stations.find(item=>item.id===idB);
-  if(!stationA||!stationB) return;
+  if(!idA||!idB){destroyCompareStationChart();return;}
   const summary=document.getElementById("compareStationSummary");
   summary.textContent="Vergleichsdaten werden geladen …";
-  if(compareStationChart) compareStationChart.destroy();
+  destroyCompareStationChart();
+  const index=await comparisonSourceIndex(source);
+  if(requestId!==compareStationRequestId) return;
+  const stationA=index.stations.find(item=>item.id===idA),stationB=index.stations.find(item=>item.id===idB);
+  if(!stationA||!stationB) return;
   if(source==="precip"){
     await loadStationPrecipCurrentMonths();
+    if(requestId!==compareStationRequestId) return;
     const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    if(requestId!==compareStationRequestId) return;
     const labels=index.labels||[];
     const currentA=stationPrecipCumulativeWithGaps(stationPrecipCurrentDaily(idA),labels,index.data_through);
     const currentB=stationPrecipCumulativeWithGaps(stationPrecipCurrentDaily(idB),labels,index.data_through);
     const lastA=currentA.findLastIndex?.(Number.isFinite)??currentA.reduce((last,v,i)=>Number.isFinite(v)?i:last,-1);
     const lastB=currentB.findLastIndex?.(Number.isFinite)??currentB.reduce((last,v,i)=>Number.isFinite(v)?i:last,-1);
     summary.innerHTML=`<strong>${stationA.name}:</strong> ${lastA>=0?currentA[lastA].toLocaleString("de-DE",{maximumFractionDigits:1}):"–"} mm · <strong>${stationB.name}:</strong> ${lastB>=0?currentB[lastB].toLocaleString("de-DE",{maximumFractionDigits:1}):"–"} mm bis ${dailyGermanDate(index.data_through,true)}.`;
-    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels,datasets:[
+    renderCompareStationChart({type:"line",data:{labels,datasets:[
       {label:`${stationA.name} ${index.current_year}`,data:currentA,borderColor:"#c92a2a",borderWidth:2.6,pointRadius:0,spanGaps:true},
       {label:`${stationA.name} Mittel`,data:profileA.climate_mean_cumulative||[],borderColor:"rgba(201,42,42,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0},
       {label:`${stationB.name} ${index.current_year}`,data:currentB,borderColor:"#1864ab",borderWidth:2.6,pointRadius:0,spanGaps:true},
       {label:`${stationB.name} Mittel`,data:profileB.climate_mean_cumulative||[],borderColor:"rgba(24,100,171,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Kumulativer Stationsniederschlag im Vergleich"},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Niederschlagssumme (mm)"}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Kumulativer Stationsniederschlag im Vergleich"},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Niederschlagssumme (mm)"}}}}},requestId);
   }else if(source==="climateDays"){
     await loadStationClimateDaysCurrentMonths();
+    if(requestId!==compareStationRequestId) return;
     const metricId=document.getElementById("compareStationMetric").value;
     const metric=(index.climate_days||[]).find(item=>item.id===metricId);
     const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    if(requestId!==compareStationRequestId) return;
     const curveA=stationClimateDaysCurrentCumulative(idA,metric),curveB=stationClimateDaysCurrentCumulative(idB,metric);
     summary.innerHTML=`<strong>${metric?.label||metricId} ${index.current_year}:</strong> ${stationA.name} ${curveA.count}, ${stationB.name} ${curveB.count}.`;
-    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels:index.labels||[],datasets:[
+    renderCompareStationChart({type:"line",data:{labels:index.labels||[],datasets:[
       {label:`${stationA.name} ${index.current_year}`,data:curveA,borderColor:"#c92a2a",borderWidth:2.6,pointRadius:0,spanGaps:true},
       {label:`${stationA.name} Mittel`,data:profileA.climate_mean_cumulative?.[metricId]||[],borderColor:"rgba(201,42,42,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0},
       {label:`${stationB.name} ${index.current_year}`,data:curveB,borderColor:"#1864ab",borderWidth:2.6,pointRadius:0,spanGaps:true},
       {label:`${stationB.name} Mittel`,data:profileB.climate_mean_cumulative?.[metricId]||[],borderColor:"rgba(24,100,171,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`${metric?.label||"Kenntage"}: kumulativer Stationsvergleich`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{beginAtZero:true,title:{display:true,text:"Anzahl Tage"}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`${metric?.label||"Kenntage"}: kumulativer Stationsvergleich`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{beginAtZero:true,title:{display:true,text:"Anzahl Tage"}}}}},requestId);
   }else{
     const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    if(requestId!==compareStationRequestId) return;
     const annualA=new Map((profileA.annual||[]).map(item=>[Number(item[0]),Number(item[1])])),annualB=new Map((profileB.annual||[]).map(item=>[Number(item[0]),Number(item[1])]));
     annualA.set(Number(index.current_year),stationHeatwavesCurrent?.stations?.[idA]?.events?.length||0);
     annualB.set(Number(index.current_year),stationHeatwavesCurrent?.stations?.[idB]?.events?.length||0);
     const years=[...new Set([...annualA.keys(),...annualB.keys()])].sort((a,b)=>a-b);
     summary.innerHTML=`<strong>Hitzewellen ${index.current_year}:</strong> ${stationA.name} ${annualA.get(Number(index.current_year))||0}, ${stationB.name} ${annualB.get(Number(index.current_year))||0}.`;
-    compareStationChart=new Chart(document.getElementById("compareStationChart"),{type:"line",data:{labels:years,datasets:[
+    renderCompareStationChart({type:"line",data:{labels:years,datasets:[
       {label:stationA.name,data:years.map(year=>annualA.get(year)??null),borderColor:"#c92a2a",borderWidth:2.3,pointRadius:2,spanGaps:false},
       {label:stationB.name,data:years.map(year=>annualB.get(year)??null),borderColor:"#1864ab",borderWidth:2.3,pointRadius:2,spanGaps:false}
-    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Zahl der Stations-Hitzewellen pro Jahr"},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{x:{ticks:{maxTicksLimit:18}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Hitzewellen"}}}}});
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:"Zahl der Stations-Hitzewellen pro Jahr"},datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{x:{ticks:{maxTicksLimit:18}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:"Hitzewellen"}}}}},requestId);
   }
-  initializeChartExportButtons();
+  if(requestId===compareStationRequestId) initializeChartExportButtons();
 }
 function ensureComparisonMode(){
   if(comparisonInitialized){updateCompareAreas();updateCompareYears();return;}
@@ -4480,5 +4516,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
+<!-- Dashboard Version 11.1: Stationskarten- und Stationsvergleich-Fix -->
 </body>
 </html>
