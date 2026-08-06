@@ -10,6 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3ynhMZJVK1U0YLaMZ7k7tq2vL2v9I=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <style>
 :root{
@@ -339,6 +341,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   .status-badges{gap:6px}
   .status-badge{font-size:11px}
 }
+
+/* Version 11: Stationskarten */
+.station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
+.map-legend{background:rgba(255,255,255,.94);padding:9px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:12px;line-height:1.45}
+.map-legend-gradient{height:10px;width:150px;border-radius:5px;background:linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b);margin:5px 0}
+.map-popup-title{font-weight:700;font-size:14px;margin-bottom:4px}.map-popup-meta{color:#555;font-size:12px}
+@media(max-width:700px){.station-map{height:560px}}
 </style>
 </head>
 <body>
@@ -358,6 +367,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('stationClimateDays')">Stations-Kenntage</button>
   <button class="tab-button" onclick="switchTab('stationHeatwaves')">Stations-Hitzewellen</button>
   <button class="tab-button" onclick="switchTab('compare')">Vergleiche</button>
+  <button class="tab-button" onclick="switchTab('maps')">Stationskarten</button>
   <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
 </div>
 <div class="mobile-tab-navigation">
@@ -883,6 +893,21 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </div>
 </div>
 
+
+<!-- ================= STATIONSKARTEN ================= -->
+<div id="maps" class="tab-content">
+  <div class="section-header"><h2>Stationskarten Deutschland</h2><p>Räumliche Verteilung aktueller Stationsrekorde, Kenntage, Hitzewellen und Niederschlagsabweichungen.</p><span class="section-status">DWD-Stationskoordinaten · Karte OpenStreetMap</span></div>
+  <div class="controls">
+    <div class="control-group"><label for="mapModeSelect">Kartenthema</label><select id="mapModeSelect"><option value="records">Neue Stationsrekorde</option><option value="climateDays">Stations-Kenntage aktuelles Jahr</option><option value="heatwaves">Hitzewellen aktuelles Jahr</option><option value="precip">Niederschlagsabweichung seit Jahresbeginn</option></select></div>
+    <div id="mapMetricGroup" class="control-group"><label for="mapMetricSelect">Parameter</label><select id="mapMetricSelect"></select></div>
+    <div class="control-group"><label for="mapStateSelect">Bundesland</label><select id="mapStateSelect"><option value="Deutschland">Deutschland</option></select></div>
+    <div class="control-group"><label for="mapMinCoverage">Max. fehlende Tage</label><select id="mapMinCoverage"><option value="999">keine Begrenzung</option><option value="30">höchstens 30</option><option value="10">höchstens 10</option><option value="3">höchstens 3</option></select></div>
+  </div>
+  <div id="mapSummary" class="summary-box">Karte wird beim ersten Öffnen geladen …</div>
+  <div class="chart-container auto"><div id="stationMap" class="station-map" role="img" aria-label="Deutschlandkarte der DWD-Stationen"></div></div>
+  <p id="mapMethodNote" class="note"></p>
+</div>
+
 <!-- ================= STATIONSREKORDE ================= -->
 <div id="records" class="tab-content">
   <div class="section-header"><h2>Stationsrekorde</h2><p>Ranglisten täglicher Temperatur- und Niederschlagsrekorde sowie neu aufgestellte Stationsrekorde im laufenden Jahr.</p><span class="section-status">Stationsbezogene Extremwerte</span></div>
@@ -1024,6 +1049,10 @@ let stationHeatwavesBarChart=null;
 let compareAreaChart=null;
 let compareYearChart=null;
 let compareStationChart=null;
+let stationMap=null;
+let stationMapLayer=null;
+let stationMapLegend=null;
+let mapsInitialized=false;
 let stationRecordsData=null;
 let stationRecordsLoading=null;
 const stationYearCache=new Map();
@@ -1049,6 +1078,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
   if(tab==="compare") ensureComparisonMode();
+  if(tab==="maps") ensureStationMaps();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
     [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
@@ -4063,6 +4093,109 @@ function initializeChartExportButtons(){
 
 
 
+
+
+
+// ================= VERSION 11: STATIONSKARTEN =================
+function mapColor(value,min,max,diverging=false){
+  if(!Number.isFinite(value)) return "#777";
+  if(diverging){
+    const limit=Math.max(Math.abs(min),Math.abs(max),1);
+    const normalized=Math.max(-1,Math.min(1,value/limit));
+    if(normalized<0){const t=normalized+1;return `rgb(${Math.round(33+(247-33)*t)},${Math.round(102+(247-102)*t)},${Math.round(172+(247-172)*t)})`;}
+    return `rgb(${Math.round(247+(178-247)*normalized)},${Math.round(247+(24-247)*normalized)},${Math.round(247+(43-247)*normalized)})`;
+  }
+  const t=max===min?.5:Math.max(0,Math.min(1,(value-min)/(max-min)));
+  return `rgb(${Math.round(255-(255-153)*t)},${Math.round(245-(245-0)*t)},${Math.round(235-(235-0)*t)})`;
+}
+function stationMetadataCoordinates(station){
+  const lat=Number(station.latitude??station.lat),lon=Number(station.longitude??station.lon);
+  return Number.isFinite(lat)&&Number.isFinite(lon)?[lat,lon]:null;
+}
+async function loadMapModeData(mode){
+  if(mode==="records"){await ensureStationRecordsLoaded();return stationRecordsData;}
+  if(mode==="climateDays"){await ensureStationClimateDaysLoaded();return stationClimateDaysIndex;}
+  if(mode==="heatwaves"){await ensureStationHeatwavesLoaded();return stationHeatwavesIndex;}
+  await ensureStationPrecipLoaded();return stationPrecipIndex;
+}
+function mapMetricsForMode(mode,data){
+  if(mode==="records") return (data.parameters||[]).map(item=>({value:item.id,label:item.label}));
+  if(mode==="climateDays") return (data.climate_days||[]).map(item=>({value:item.id,label:`${item.label} · ${item.definition}`}));
+  if(mode==="heatwaves") return [{value:"current_events",label:"Zahl der Hitzewellen"},{value:"current_heatwave_days",label:"Hitzewellentage"},{value:"current_max_tmax",label:"Maximale Tmax"}];
+  return [{value:"deviation_percent",label:"Abweichung in %"},{value:"current_total",label:"Niederschlagssumme"}];
+}
+function recordsMapPoints(data,metric,state){
+  const rows=data.station_records_current_year?.[metric]||[];
+  return rows.map(item=>{
+    const metadata=data.stations?.[item.new?.[2]];
+    if(!metadata || (state!=="Deutschland"&&metadata.state!==state)) return null;
+    return {station:metadata,value:Number(item.improvement),detail:`Neuer Wert: ${item.new?.[0]} · alter Wert: ${item.old?.[0]} · ${item.new?.[1]}`,missing:0};
+  }).filter(Boolean);
+}
+function regularMapPoints(data,metric,state,mode,maxMissing){
+  return (data.stations||[]).map(station=>{
+    if(state!=="Deutschland"&&station.state!==state) return null;
+    const map=station.map||{};
+    let value,missing=0,detail="";
+    if(mode==="climateDays"){
+      value=Number(map.current_counts?.[metric]);
+      const valid=Number(map.valid_days?.[metric]||0),elapsed=Number(map.elapsed_days||0);missing=Math.max(0,elapsed-valid);detail=`${value||0} Tage · ${missing} fehlende Tageswerte`;
+    }else if(mode==="heatwaves"){
+      value=map[metric]===null?null:Number(map[metric]);detail=metric==="current_max_tmax"?`${value} °C`:`${value||0}`;
+    }else{
+      value=map[metric]===null?null:Number(map[metric]);missing=Number(map.missing_days||0);detail=metric==="deviation_percent"?`${value>=0?"+":""}${value} % · ${map.current_total??"–"} mm`:`${value} mm · Abweichung ${map.deviation_percent??"–"} %`;
+    }
+    if(!Number.isFinite(value)||missing>maxMissing) return null;
+    return {station,value,detail,missing};
+  }).filter(Boolean);
+}
+function initializeLeafletMap(){
+  if(stationMap) return;
+  if(!window.L) throw new Error("Die Kartenbibliothek Leaflet konnte nicht geladen werden.");
+  stationMap=L.map("stationMap",{preferCanvas:true}).setView([51.15,10.45],6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:'&copy; OpenStreetMap-Mitwirkende'}).addTo(stationMap);
+  stationMapLayer=L.layerGroup().addTo(stationMap);
+}
+async function updateStationMap(){
+  const mode=document.getElementById("mapModeSelect").value;
+  const metric=document.getElementById("mapMetricSelect").value;
+  const state=document.getElementById("mapStateSelect").value;
+  const maxMissing=Number(document.getElementById("mapMinCoverage").value);
+  const summary=document.getElementById("mapSummary");summary.textContent="Kartendaten werden geladen …";
+  try{
+    const data=await loadMapModeData(mode);initializeLeafletMap();stationMapLayer.clearLayers();
+    let points=mode==="records"?recordsMapPoints(data,metric,state):regularMapPoints(data,metric,state,mode,maxMissing);
+    points=points.filter(point=>stationMetadataCoordinates(point.station));
+    const values=points.map(point=>point.value).filter(Number.isFinite);const min=values.length?Math.min(...values):0,max=values.length?Math.max(...values):1;
+    const diverging=mode==="precip"&&metric==="deviation_percent";
+    points.forEach(point=>{
+      const coords=stationMetadataCoordinates(point.station);const radius=5+8*Math.sqrt(Math.max(0,(point.value-min)/(max-min||1)));
+      const color=mapColor(point.value,min,max,diverging);
+      const marker=L.circleMarker(coords,{radius,fillColor:color,color:"#333",weight:.7,fillOpacity:.78});
+      marker.bindPopup(`<div class="map-popup-title">${point.station.name||point.station.id}</div><div>${point.detail}</div><div class="map-popup-meta">Station ${point.station.id||"–"} · ${point.station.state||"–"} · ${point.station.height??"–"} m</div>`);marker.addTo(stationMapLayer);
+    });
+    if(points.length){const bounds=L.latLngBounds(points.map(point=>stationMetadataCoordinates(point.station)));stationMap.fitBounds(bounds.pad(.08),{maxZoom:8});}
+    else stationMap.setView([51.15,10.45],6);
+    summary.innerHTML=`<strong>${points.length} Stationen</strong> werden dargestellt. Wertebereich: ${values.length?`${min.toLocaleString("de-DE")} bis ${max.toLocaleString("de-DE")}`:"keine Werte"}.`;
+    document.getElementById("mapMethodNote").textContent=mode==="records"?"Gezeigt werden Stationen, die im laufenden Jahr einen neuen Stationsrekord aufgestellt haben. Die Punktgröße beruht auf der Rekordverbesserung.":mode==="climateDays"?"Die Karte zeigt die Zahl der Kenntage seit Jahresbeginn. Stationen mit zu vielen fehlenden Tageswerten können herausgefiltert werden.":mode==="heatwaves"?"Hitzewellen entsprechen mindestens drei aufeinanderfolgenden Tagen mit Tmax ≥ 30,0 °C.":"Die Niederschlagsabweichung vergleicht die laufende Jahressumme bis zum Datenstand mit dem stationsbezogenen Mittel 1991–2020 bis zum gleichen Kalendertag.";
+    window.setTimeout(()=>stationMap.invalidateSize(),50);
+  }catch(error){summary.textContent=`Karte nicht verfügbar: ${error.message}`;}
+}
+async function refreshMapControls(){
+  const mode=document.getElementById("mapModeSelect").value;const summary=document.getElementById("mapSummary");summary.textContent="Kartenthema wird geladen …";
+  try{
+    const data=await loadMapModeData(mode);
+    fillSelectOptions(document.getElementById("mapMetricSelect"),mapMetricsForMode(mode,data));
+    const states=["Deutschland",...(data.states||[...new Set((data.stations?Array.isArray(data.stations)?data.stations:Object.values(data.stations):[]).map(item=>item.state).filter(Boolean))]).sort((a,b)=>a.localeCompare(b,"de"))];
+    fillSelectOptions(document.getElementById("mapStateSelect"),states,"Deutschland");
+    document.getElementById("mapMinCoverage").closest(".control-group").hidden=!["climateDays","precip"].includes(mode);
+    await updateStationMap();
+  }catch(error){summary.textContent=`Kartenthema nicht verfügbar: ${error.message}`;}
+}
+function ensureStationMaps(){
+  if(!mapsInitialized){mapsInitialized=true;document.getElementById("mapModeSelect").addEventListener("change",refreshMapControls);["mapMetricSelect","mapStateSelect","mapMinCoverage"].forEach(id=>document.getElementById(id).addEventListener("change",updateStationMap));refreshMapControls();}
+  window.setTimeout(()=>stationMap?.invalidateSize(),80);
+}
 
 // ================= VERSION 10: VERGLEICHSMODUS =================
 let comparisonInitialized=false;
