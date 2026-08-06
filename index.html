@@ -1357,6 +1357,34 @@ function updateMonthly(){
   const labels=values.map(item=>item.year);
   const dataValues=values.map(item=>item.value);
 
+  // 30-jähriges gleitendes Temperaturmittel. Der Wert eines Jahres
+  // umfasst dieses Jahr und die 29 unmittelbar vorhergehenden Jahre.
+  const valuesByYear=new Map(values.map(item=>[Number(item.year),item.value]));
+  const rollingMean30=labels.map(label=>{
+    if(param!=="temp") return null;
+    const endYear=Number(label);
+    const window=[];
+    for(let year=endYear-29;year<=endYear;year++){
+      const value=valuesByYear.get(year);
+      if(!Number.isFinite(value)) return null;
+      window.push(value);
+    }
+    return mean(window);
+  });
+
+  // Bei Temperatur beginnt die y-Achse knapp unter dem niedrigsten Wert,
+  // statt unnötig bei 0 °C zu starten.
+  let temperatureScaleMin;
+  if(param==="temp"){
+    const finiteValues=dataValues.filter(Number.isFinite);
+    if(finiteValues.length){
+      const lowest=Math.min(...finiteValues);
+      const highest=Math.max(...finiteValues);
+      const padding=Math.max(0.4,(highest-lowest)*0.06);
+      temperatureScaleMin=Math.floor((lowest-padding)*2)/2;
+    }
+  }
+
   const sortedHigh=[...values].sort((a,b)=>b.value-a.value).slice(0,3);
   const sortedLow=[...values].sort((a,b)=>a.value-b.value).slice(0,3);
   document.getElementById("top3High").innerHTML=sortedHigh.map(item=>`<li>${item.year}: ${formatValue(item.value,param)}</li>`).join("");
@@ -1374,7 +1402,8 @@ function updateMonthly(){
           label:PARAM_META[param].label,
           data:dataValues,
           backgroundColor:dataValues.map(value=>primaryBarColor(param,value,climateMean)),
-          borderWidth:0
+          borderWidth:0,
+          order:2
         },
         {
           type:"line",
@@ -1383,8 +1412,22 @@ function updateMonthly(){
           borderColor:"#111",
           borderDash:[7,5],
           borderWidth:2,
-          pointRadius:0
-        }
+          pointRadius:0,
+          order:1
+        },
+        ...(param==="temp"?[{
+          type:"line",
+          label:"30-jähriges gleitendes Mittel",
+          data:rollingMean30,
+          borderColor:"#245b7a",
+          borderDash:[2,5],
+          borderWidth:2.5,
+          pointRadius:0,
+          pointHoverRadius:3,
+          tension:0.12,
+          spanGaps:false,
+          order:0
+        }]:[])
       ]
     },
     options:{
@@ -1398,7 +1441,11 @@ function updateMonthly(){
       },
       scales:{
         x:{ticks:{maxTicksLimit:18}},
-        y:{title:{display:true,text:PARAM_META[param].unit}}
+        y:{
+          beginAtZero:param!=="temp",
+          ...(param==="temp" && Number.isFinite(temperatureScaleMin)?{min:temperatureScaleMin}:{}),
+          title:{display:true,text:PARAM_META[param].unit}
+        }
       }
     }
   });
