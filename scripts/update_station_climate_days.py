@@ -28,7 +28,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 1
+STATE_VERSION = 2
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -241,6 +241,12 @@ def build_profile_payload(
     reference_daily: dict[str, dict[int, list[int | None]]] = {
         item["id"]: defaultdict(lambda: [None] * 365) for item in CLIMATE_DAYS
     }
+    # Kompakte Grundlage für die historischen Jahresverläufe im Browser:
+    # metric -> year -> Indizes der Kalendertage, an denen der Kenntag auftrat.
+    # Aus diesen Ereignistagen wird die kumulative Kurve im Dashboard rekonstruiert.
+    historical_event_days: dict[str, dict[int, list[int]]] = {
+        item["id"]: defaultdict(list) for item in CLIMATE_DAYS
+    }
     observed_years: set[int] = set()
 
     for observation in observations:
@@ -263,6 +269,8 @@ def build_profile_payload(
                 bucket[1] += 1
                 if occurs:
                     bucket[0] += 1
+            if occurs:
+                historical_event_days[metric][observation.day.year].append(index)
             if REFERENCE_START <= observation.day.year <= REFERENCE_END:
                 reference_daily[metric][observation.day.year][index] = 1 if occurs else 0
 
@@ -308,6 +316,18 @@ def build_profile_payload(
             curve.append(round(cumulative_total, 2))
         climate_mean_cumulative[metric] = curve
 
+    # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
+    # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
+    # als vollwertiges historisches Vergleichsjahr dargestellt werden kann.
+    historical_event_days_payload: dict[str, list[list[Any]]] = {}
+    for specification in CLIMATE_DAYS:
+        metric = specification["id"]
+        valid_years = [int(item[0]) for item in counts[metric]["year"]]
+        historical_event_days_payload[metric] = [
+            [year, sorted(set(historical_event_days[metric].get(year, [])))]
+            for year in valid_years
+        ]
+
     segment = metadata.segment_for(station_id, date.today())
     years = sorted(valid_history_years)
     reference_years = [year for year in years if REFERENCE_START <= year <= REFERENCE_END]
@@ -340,6 +360,8 @@ def build_profile_payload(
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "counts": counts,
         "climate_mean_cumulative": climate_mean_cumulative,
+        "historical_event_days": historical_event_days_payload,
+        "historical_curve_encoding": "non_leap_day_indices_v1",
     }
     return profile, payload
 
