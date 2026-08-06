@@ -147,17 +147,16 @@ jobs:
             exit 1
           fi
 
-      - name: Veröffentlichungsordner erstellen
+      - name: Schlanken Veröffentlichungsordner erstellen
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf _site
-          mkdir -p \
-            _site/station_records_years \
-            _site/station_precip_climate \
-            _site/station_precip_current \
-            _site/station_climate_days_profiles \
-            _site/station_climate_days_current \
-            _site/station_heatwaves_profiles
+          mkdir -p _site
+
+          # Nur Frontend und kompakte Indexdateien werden über GitHub Pages verteilt.
+          # Die vielen historischen Stationsprofile bleiben im Repository und werden
+          # bei Bedarf direkt über raw.githubusercontent.com geladen.
           cp \
             index.html \
             data.json \
@@ -168,14 +167,12 @@ jobs:
             station_heatwaves_index.json \
             station_heatwaves_current.json \
             update_status.json \
-            .nojekyll \
             _site/
-          cp station_records_years/*.json _site/station_records_years/
-          cp station_precip_climate/*.json _site/station_precip_climate/
-          cp station_precip_current/*.json _site/station_precip_current/
-          cp station_climate_days_profiles/*.json _site/station_climate_days_profiles/
-          cp station_climate_days_current/*.json _site/station_climate_days_current/
-          cp station_heatwaves_profiles/*.json _site/station_heatwaves_profiles/
+          touch _site/.nojekyll
+
+          echo "Dateien im Pages-Artefakt: $(find _site -type f | wc -l)"
+          echo "Größe des Pages-Artefakts:"
+          du -sh _site
 
       - name: GitHub Pages konfigurieren
         uses: actions/configure-pages@v5
@@ -189,5 +186,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
         with:
-          timeout: "3600000"
           reporting_interval: "10000"
