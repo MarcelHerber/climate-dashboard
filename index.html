@@ -345,6 +345,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 /* Version 11: Stationskarten */
 .station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
 .station-map .leaflet-overlay-pane canvas{width:auto!important;height:auto!important;max-width:none!important}
+.station-map-marker-icon{background:transparent!important;border:0!important}
+.station-map-marker-dot{display:block;border-radius:50%;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.42)}
 .map-legend{background:rgba(255,255,255,.94);padding:9px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:12px;line-height:1.45}
 .map-legend-gradient{height:10px;width:150px;border-radius:5px;background:linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b);margin:5px 0}
 .map-popup-title{font-weight:700;font-size:14px;margin-bottom:4px}.map-popup-meta{color:#555;font-size:12px}
@@ -4155,7 +4157,7 @@ function regularMapPoints(data,metric,state,mode,maxMissing){
 function initializeLeafletMap(){
   if(stationMap) return;
   if(!window.L) throw new Error("Die Kartenbibliothek Leaflet konnte nicht geladen werden.");
-  stationMap=L.map("stationMap",{preferCanvas:true}).setView([51.15,10.45],6);
+  stationMap=L.map("stationMap").setView([51.15,10.45],6);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:'&copy; OpenStreetMap-Mitwirkende'}).addTo(stationMap);
   stationMapLayer=L.layerGroup().addTo(stationMap);
 }
@@ -4174,7 +4176,15 @@ async function updateStationMap(){
     points.forEach(point=>{
       const coords=stationMetadataCoordinates(point.station);const radius=5+8*Math.sqrt(Math.max(0,(point.value-min)/(max-min||1)));
       const color=mapColor(point.value,min,max,diverging);
-      const marker=L.circleMarker(coords,{radius,fillColor:color,color:"#333",weight:.7,fillOpacity:.78});
+      const diameter=Math.max(12,Math.round(radius*2));
+      const icon=L.divIcon({
+        className:"station-map-marker-icon",
+        html:`<span class="station-map-marker-dot" style="width:${diameter}px;height:${diameter}px;background:${color};border:1px solid #333"></span>`,
+        iconSize:[diameter,diameter],
+        iconAnchor:[diameter/2,diameter/2],
+        popupAnchor:[0,-diameter/2]
+      });
+      const marker=L.marker(coords,{icon,keyboard:true,title:point.station.name||point.station.id||"DWD-Station"});
       marker.bindPopup(`<div class="map-popup-title">${point.station.name||point.station.id}</div><div>${point.detail}</div><div class="map-popup-meta">Station ${point.station.id||"–"} · ${point.station.state||"–"} · ${point.station.height??"–"} m</div>`);marker.addTo(stationMapLayer);
     });
     if(points.length){const bounds=L.latLngBounds(points.map(point=>stationMetadataCoordinates(point.station)));stationMap.fitBounds(bounds.pad(.08),{maxZoom:8});}
