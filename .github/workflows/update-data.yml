@@ -187,4 +187,7 @@ jobs:
 
       - name: GitHub Pages veröffentlichen
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: "3600000"
+          reporting_interval: "10000"
