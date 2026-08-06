@@ -812,7 +812,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 <!-- ================= STATIONSNIEDERSCHLAG ================= -->
 <div id="stationPrecip" class="tab-content">
-  <div class="section-header"><h2>Stationsniederschlag</h2><p>Kumulative Niederschlagssumme des laufenden Jahres im Vergleich zum Mittel 1991–2020 und zum historischen Spannbereich.</p><span class="section-status">Aktuelle DWD-Werte vorläufig</span></div>
+  <div class="section-header"><h2>Stationsniederschlag</h2><p>Kumulative Niederschlagssumme des laufenden Jahres im erweiterten DWD-Niederschlagsnetz im Vergleich zum Mittel 1991–2020 und zum historischen Spannbereich.</p><span class="section-status">DWD-RR-Netz einschließlich gleichgestellter Partnernetze · aktuelle Werte vorläufig</span></div>
   <div id="stationPrecipLoading" class="record-loading">Stationsniederschlag wird beim ersten Öffnen geladen …</div>
   <div id="stationPrecipContent" hidden>
     <div class="controls">
@@ -825,7 +825,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         <input id="stationPrecipSearch" type="search" placeholder="Ort oder Stations-ID" style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
       </div>
       <div class="control-group" style="min-width:300px">
-        <label for="stationPrecipStationSelect">DWD-Station</label>
+        <label for="stationPrecipStationSelect">Niederschlagsstation</label>
         <select id="stationPrecipStationSelect"></select>
       </div>
       <button class="action" onclick="resetStationPrecipZoom()">Zoom zurücksetzen</button>
@@ -913,7 +913,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 <!-- ================= STATIONSREKORDE ================= -->
 <div id="records" class="tab-content">
-  <div class="section-header"><h2>Stationsrekorde</h2><p>Ranglisten täglicher Temperatur- und Niederschlagsrekorde sowie neu aufgestellte Stationsrekorde im laufenden Jahr.</p><span class="section-status">Stationsbezogene Extremwerte</span></div>
+  <div class="section-header"><h2>Stationsrekorde</h2><p>Temperaturrekorde aus dem DWD-KL-Netz und Niederschlagsrekorde aus dem deutlich dichteren RR-Netz einschließlich gleichgestellter Partnerstationen.</p><span class="section-status">Temperatur: KL-Netz · Niederschlag: RR-Netz</span></div>
   <div id="recordLoading" class="record-loading">Stationsrekorde werden beim ersten Öffnen geladen …</div>
   <div id="recordContent" hidden>
     <div class="controls">
@@ -4190,7 +4190,7 @@ async function updateStationMap(){
     if(points.length){const bounds=L.latLngBounds(points.map(point=>stationMetadataCoordinates(point.station)));stationMap.fitBounds(bounds.pad(.08),{maxZoom:8});}
     else stationMap.setView([51.15,10.45],6);
     summary.innerHTML=`<strong>${points.length} Stationen</strong> werden dargestellt. Wertebereich: ${values.length?`${min.toLocaleString("de-DE")} bis ${max.toLocaleString("de-DE")}`:"keine Werte"}.`;
-    document.getElementById("mapMethodNote").textContent=mode==="records"?"Gezeigt werden Stationen, die im laufenden Jahr einen neuen Stationsrekord aufgestellt haben. Die Punktgröße beruht auf der Rekordverbesserung.":mode==="climateDays"?"Die Karte zeigt die Zahl der Kenntage seit Jahresbeginn. Stationen mit zu vielen fehlenden Tageswerten können herausgefiltert werden.":mode==="heatwaves"?"Hitzewellen entsprechen mindestens drei aufeinanderfolgenden Tagen mit Tmax ≥ 30,0 °C.":"Die Niederschlagsabweichung vergleicht die laufende Jahressumme bis zum Datenstand mit dem stationsbezogenen Mittel 1991–2020 bis zum gleichen Kalendertag.";
+    document.getElementById("mapMethodNote").textContent=mode==="records"?"Gezeigt werden Stationen, die im laufenden Jahr einen neuen Stationsrekord aufgestellt haben. Die Punktgröße beruht auf der Rekordverbesserung.":mode==="climateDays"?"Die Karte zeigt die Zahl der Kenntage seit Jahresbeginn. Stationen mit zu vielen fehlenden Tageswerten können herausgefiltert werden.":mode==="heatwaves"?"Hitzewellen entsprechen mindestens drei aufeinanderfolgenden Tagen mit Tmax ≥ 30,0 °C.":"Die Niederschlagsabweichung nutzt das erweiterte DWD-RR-Netz und vergleicht die laufende Jahressumme bis zum Datenstand mit dem stationsbezogenen Mittel 1991–2020 bis zum gleichen Kalendertag.";
     window.setTimeout(()=>stationMap.invalidateSize(),50);
   }catch(error){summary.textContent=`Karte nicht verfügbar: ${error.message}`;}
 }
