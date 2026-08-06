@@ -35,11 +35,11 @@ permissions:
   pages: write
   id-token: write
 
-# Ein neuerer Lauf ersetzt einen noch laufenden älteren Lauf. Dadurch kann ein
-# alter Datenstand nicht nach einem zwischenzeitlichen manuellen Commit pushen.
+# GitHub Pages erlaubt nur eine aktive Veröffentlichung gleichzeitig.
+# Weitere Läufe warten deshalb, statt einen laufenden Pages-Deploy abzubrechen.
 concurrency:
-  group: climate-dashboard-pages
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   update-and-deploy:
