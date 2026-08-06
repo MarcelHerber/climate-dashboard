@@ -109,6 +109,8 @@ button.action{
 .chart-container.auto{min-height:0;height:auto}
 .chart-container canvas{width:100%!important;height:430px!important}
 .chart-container.tall canvas{height:650px!important}
+.chart-container.heatmap-tall{min-height:930px}
+.chart-container.heatmap-tall canvas{height:880px!important}
 
 .chart-export-tools{
   position:absolute;
@@ -312,6 +314,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   .chart-container canvas{height:390px!important}
   .chart-container.tall{min-height:570px}
   .chart-container.tall canvas{height:540px!important}
+  .chart-container.heatmap-tall{min-height:760px}
+  .chart-container.heatmap-tall canvas{height:710px!important}
 }
 </style>
 </head>
@@ -327,7 +331,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
-  <button class="tab-button" onclick="switchTab('extremes')">Kenntage</button>
+  <button class="tab-button" onclick="switchTab('extremes')">Deutschland-Kenntage</button>
   <button class="tab-button" onclick="switchTab('stationClimateDays')">Stations-Kenntage</button>
   <button class="tab-button" onclick="switchTab('stationHeatwaves')">Stations-Hitzewellen</button>
   <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>
@@ -543,18 +547,94 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 <!-- ================= KENNTAGE ================= -->
 <div id="extremes" class="tab-content">
-  <div class="chart-container"><canvas id="yearlyExtremeChart"></canvas></div>
+  <h2>Deutschland-Kenntage seit 1881</h2>
+  <p class="note" style="margin-top:-6px;margin-bottom:18px">
+    Ein Deutschland-Kenntag wird gezählt, sobald an mindestens einer ausgewerteten DWD-Station die gewählte Tageshöchsttemperatur erreicht wird.
+    Pro Kalendertag wird höchstens ein Tag gezählt. Das ist kein Stationsmittel und keine Summe über alle Stationen.
+  </p>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="extremeMetricSelect">Kenntag</label>
+      <select id="extremeMetricSelect">
+        <option value="summer">Sommertage · Tmax ≥ 25 °C</option>
+        <option value="hot" selected>Hitzetage · Tmax ≥ 30 °C</option>
+        <option value="veryHot">Wüstentage · Tmax ≥ 35 °C</option>
+        <option value="extremeHot">Extrem heiße Tage · Tmax ≥ 40 °C</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="extremePeriodSelect">Zeitraum</label>
+      <select id="extremePeriodSelect" class="period-select"></select>
+    </div>
+    <button class="action" onclick="resetExtremeYearZoom()">Jahresgrafik zurücksetzen</button>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:18px">
+    <div class="stat-card">
+      <h4 id="extremeCurrentHeading">Aktuelles Jahr</h4>
+      <div id="extremeCurrentStat" class="daily-stat-value">–</div>
+      <div id="extremeCurrentDetail" class="daily-stat-detail">bis zum aktuellen Datenstand</div>
+    </div>
+    <div class="stat-card">
+      <h4>Historischer Rang</h4>
+      <div id="extremeRankStat" class="daily-stat-value">–</div>
+      <div id="extremeRankDetail" class="daily-stat-detail">vergleichbarer Zeitraum</div>
+    </div>
+    <div class="stat-card">
+      <h4>Mittel 1991–2020</h4>
+      <div id="extremeMeanStat" class="daily-stat-value">–</div>
+      <div id="extremeMeanDetail" class="daily-stat-detail">vergleichbarer Zeitraum</div>
+    </div>
+    <div class="stat-card">
+      <h4>Rekord</h4>
+      <div id="extremeRecordStat" class="daily-stat-value">–</div>
+      <div id="extremeRecordDetail" class="daily-stat-detail">vergleichbarer Zeitraum</div>
+    </div>
+  </div>
+
+  <div id="extremeSummary" class="summary-box">Deutschland-Kenntage werden berechnet …</div>
+
+  <div class="chart-container">
+    <canvas id="extremeCumulativeChart"></canvas>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="yearlyExtremeChart"></canvas>
+  </div>
+
+  <div class="chart-container heatmap-tall">
+    <canvas id="heatmapChart"></canvas>
+  </div>
+
   <div class="chart-container">
     <canvas id="yearlyMaxChart"></canvas>
     <button class="action" onclick="resetYearlyMaxZoom()">Zoom zurücksetzen</button>
   </div>
-  <div class="chart-container"><canvas id="heatmapChart"></canvas></div>
 
-  <h3>Top 30 heißeste Tage seit 1881</h3>
-  <table id="topHotDaysTable">
-    <thead><tr><th>Rang</th><th>Datum</th><th>°C</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <div class="chart-container auto">
+    <h2 id="extremeRecordHeading">Top 10 Rekordjahre</h2>
+    <p id="extremeRecordNote" class="note"></p>
+    <div class="table-wrap">
+      <table id="extremeRecordTable">
+        <thead><tr><th>Rang</th><th>Jahr / Saison</th><th>Anzahl</th><th>Erster Kenntag</th><th>Letzter Kenntag</th><th>Jahreshöchstwert</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="chart-container auto">
+    <h2>Top 30 höchste Deutschland-Tagesmaxima seit 1881</h2>
+    <p class="note">Je Datum ist der höchste verfügbare Tageshöchstwert einer ausgewerteten DWD-Station dargestellt. Stationsnamen sind in dieser kompakten Tagesdatei derzeit nicht gespeichert.</p>
+    <div class="table-wrap">
+      <table id="topHotDaysTable">
+        <thead><tr><th>Rang</th><th>Datum</th><th>Tagesmaximum</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p id="extremeMethodNote" class="note"></p>
 </div>
 
 
@@ -841,6 +921,7 @@ let accumulationChart=null;
 let dailyChart=null;
 let dailyDeviationChart=null;
 let dailyAllYearsChart=null;
+let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
 let heatmapChart=null;
@@ -882,7 +963,7 @@ function switchTab(tab){
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -2228,64 +2309,332 @@ function resetAllYearsZoom(){if(dailyAllYearsChart) dailyAllYearsChart.resetZoom
 document.getElementById("yearSelect").addEventListener("change",updateDaily);
 document.getElementById("rangeSelect").addEventListener("change",updateDaily);
 
-// ================= KENNTAGE =================
-function buildExtremeCharts(){
-  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))];
-  const summer=Object.fromEntries(years.map(year=>[year,0]));
-  const hot=Object.fromEntries(years.map(year=>[year,0]));
-  const veryHot=Object.fromEntries(years.map(year=>[year,0]));
-  const yearlyMax=Object.fromEntries(years.map(year=>[year,-999]));
+// ================= DEUTSCHLAND-KENNTAGE =================
+const EXTREME_METRICS={
+  summer:{id:"summer",label:"Sommertage",threshold:25,color:"#f6a623",dark:"#a65d00"},
+  hot:{id:"hot",label:"Hitzetage",threshold:30,color:"#ef5b2a",dark:"#a82010"},
+  veryHot:{id:"veryHot",label:"Wüstentage",threshold:35,color:"#c62828",dark:"#750000"},
+  extremeHot:{id:"extremeHot",label:"Extrem heiße Tage",threshold:40,color:"#6d0012",dark:"#330008"}
+};
 
+function extremeDateKeys(range){
+  const ranges={
+    year:["2001-01-01","2001-12-31"],
+    winter:["2000-12-01","2001-02-28"],
+    spring:["2001-03-01","2001-05-31"],
+    summer:["2001-06-01","2001-08-31"],
+    autumn:["2001-09-01","2001-11-30"]
+  };
+  let start,end;
+  if(ranges[range]) [start,end]=ranges[range];
+  else{
+    const month=String(range).padStart(2,"0");
+    const lastDay=new Date(Date.UTC(2001,Number(month),0)).getUTCDate();
+    start=`2001-${month}-01`;
+    end=`2001-${month}-${String(lastDay).padStart(2,"0")}`;
+  }
+  const keys=[];
+  for(let cursor=new Date(`${start}T00:00:00Z`),stop=new Date(`${end}T00:00:00Z`);cursor<=stop;cursor.setUTCDate(cursor.getUTCDate()+1)){
+    keys.push(`${String(cursor.getUTCMonth()+1).padStart(2,"0")}-${String(cursor.getUTCDate()).padStart(2,"0")}`);
+  }
+  return keys;
+}
+
+function extremeKeyLabel(key){
+  const [month,day]=key.split("-");
+  return `${day}.${month}.`;
+}
+
+function extremeMetric(){
+  return EXTREME_METRICS[document.getElementById("extremeMetricSelect")?.value]||EXTREME_METRICS.hot;
+}
+
+function extremePeriod(){
+  return document.getElementById("extremePeriodSelect")?.value||"year";
+}
+
+function extremeYearData(year,metric,range,keys=extremeDateKeys(range)){
+  const values=dailyPeriodFilter(String(year),range)
+    .filter(item=>dailyCalendarKey(item.date)!=="02-29")
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  const keySet=new Set(keys);
+  const scopedValues=values.filter(item=>keySet.has(dailyCalendarKey(item.date)));
+  const byKey=new Map(values.map(item=>[dailyCalendarKey(item.date),item]));
+  const valid=keys.map(key=>byKey.get(key)).filter(item=>Number.isFinite(dailyNumber(item?.tmax)));
+  const events=scopedValues.filter(item=>Number.isFinite(dailyNumber(item.tmax))&&dailyNumber(item.tmax)>=metric.threshold);
+  return {
+    year:String(year),
+    count:events.length,
+    validDays:valid.length,
+    expectedDays:keys.length,
+    completeness:keys.length?valid.length/keys.length:0,
+    first:events.length?events[0].date:null,
+    last:events.length?events[events.length-1].date:null,
+    maxTmax:valid.length?Math.max(...valid.map(item=>dailyNumber(item.tmax))):null,
+    byKey
+  };
+}
+
+function extremeCumulative(yearData,metric,keys,cutoffIndex=keys.length-1){
+  let running=0;
+  return keys.map((key,index)=>{
+    if(index>cutoffIndex) return null;
+    const item=yearData.byKey.get(key);
+    const value=dailyNumber(item?.tmax);
+    if(Number.isFinite(value)&&value>=metric.threshold) running++;
+    return running;
+  });
+}
+
+function extremeMovingAverage(rows,windowSize=30){
+  return rows.map((row,index)=>{
+    if(index<windowSize-1) return null;
+    const values=rows.slice(index-windowSize+1,index+1).map(item=>item.count).filter(Number.isFinite);
+    return values.length===windowSize?dailyAverage(values):null;
+  });
+}
+
+function extremeMonthCounts(year,metric){
+  const counts=Array(12).fill(0);
   dailyData.forEach(item=>{
-    const year=item.date.slice(0,4);
-    yearlyMax[year]=Math.max(yearlyMax[year],item.tmax);
-    if(item.tmax>=25) summer[year]++;
-    if(item.tmax>=30) hot[year]++;
-    if(item.tmax>=35) veryHot[year]++;
+    if(item.date.slice(0,4)!==String(year)) return;
+    const value=dailyNumber(item.tmax);
+    if(Number.isFinite(value)&&value>=metric.threshold) counts[Number(item.date.slice(5,7))-1]++;
+  });
+  return counts;
+}
+
+function extremeHeatColor(value,maxValue){
+  if(!Number.isFinite(value)||value<=0) return "rgba(247,248,249,1)";
+  const ratio=Math.min(1,value/Math.max(1,maxValue));
+  const light=94-ratio*63;
+  return `hsl(${30-ratio*28} 88% ${light}%)`;
+}
+
+function buildExtremeCharts(){
+  const periodSelect=document.getElementById("extremePeriodSelect");
+  if(periodSelect&&!periodSelect.dataset.extremeInitialized){
+    populatePeriodSelect(periodSelect,"year");
+    periodSelect.dataset.extremeInitialized="true";
+  }
+  updateExtremeDashboard();
+}
+
+function updateExtremeDashboard(){
+  if(!dailyData.length) return;
+  const metric=extremeMetric();
+  const range=extremePeriod();
+  const periodLabel=dailyRangeLabel(range);
+  const years=[...new Set(dailyData.map(item=>item.date.slice(0,4)))].sort();
+  const currentYear=years[years.length-1];
+  const keys=extremeDateKeys(range);
+  const current=extremeYearData(currentYear,metric,range,keys);
+  const availableIndices=keys.map((key,index)=>Number.isFinite(dailyNumber(current.byKey.get(key)?.tmax))?index:-1).filter(index=>index>=0);
+  const cutoffIndex=availableIndices.length?Math.max(...availableIndices):-1;
+  const comparableKeys=cutoffIndex>=0?keys.slice(0,cutoffIndex+1):[];
+  const currentComparable=extremeYearData(currentYear,metric,range,comparableKeys);
+
+  const comparableRows=years.map(year=>extremeYearData(year,metric,range,comparableKeys))
+    .filter(row=>row.year===currentYear || (comparableKeys.length&&row.completeness>=.95));
+  const ranked=[...comparableRows].sort((a,b)=>b.count-a.count||Number(b.year)-Number(a.year));
+  const currentRank=ranked.findIndex(row=>row.year===currentYear);
+  const climateComparable=comparableRows.filter(row=>Number(row.year)>=1991&&Number(row.year)<=2020);
+  const climateComparableMean=dailyAverage(climateComparable.map(row=>row.count));
+  const comparableRecord=ranked.length?ranked[0]:null;
+
+  document.getElementById("extremeCurrentHeading").textContent=`${metric.label} ${currentYear}`;
+  document.getElementById("extremeCurrentStat").textContent=cutoffIndex>=0?String(currentComparable.count):"–";
+  document.getElementById("extremeCurrentDetail").textContent=cutoffIndex>=0
+    ?`${periodLabel}, Daten bis ${dailyGermanDate([...current.byKey.values()].sort((a,b)=>a.date.localeCompare(b.date)).at(-1)?.date,false)}`
+    :`${periodLabel} noch ohne Daten`;
+  document.getElementById("extremeRankStat").textContent=currentRank>=0?`${currentRank+1}. von ${ranked.length}`:"–";
+  document.getElementById("extremeRankDetail").textContent=comparableKeys.length?`gleiche ${comparableKeys.length} Kalendertage`:"Zeitraum noch nicht begonnen";
+  document.getElementById("extremeMeanStat").textContent=Number.isFinite(climateComparableMean)
+    ?climateComparableMean.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})
+    :"–";
+  document.getElementById("extremeMeanDetail").textContent="1991–2020, bis zum gleichen Kalendertag";
+  document.getElementById("extremeRecordStat").textContent=comparableRecord?String(comparableRecord.count):"–";
+  document.getElementById("extremeRecordDetail").textContent=comparableRecord?`${comparableRecord.year}, vergleichbarer Zeitraum`:"kein Vergleich möglich";
+
+  const difference=Number.isFinite(climateComparableMean)?currentComparable.count-climateComparableMean:null;
+  const incomplete=cutoffIndex>=0&&cutoffIndex<keys.length-1;
+  document.getElementById("extremeSummary").innerHTML=
+    `<strong>${metric.label} · ${periodLabel} ${currentYear}:</strong> ${cutoffIndex>=0?currentComparable.count:"keine"} Deutschlandtage mit Tmax ≥ ${metric.threshold.toFixed(0)} °C. `+
+    `${Number.isFinite(difference)?`Das sind ${difference>=0?"+":""}${difference.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} Tage gegenüber dem Mittel 1991–2020 bis zum gleichen Kalendertag. `:""}`+
+    `${incomplete?"Der aktuelle Zeitraum ist noch nicht abgeschlossen und wird deshalb nur mit denselben Kalendertagen früherer Jahre verglichen.":"Der gewählte Zeitraum ist für das aktuelle Jahr vollständig verfügbar."}`;
+
+  // Akkumulierter Verlauf
+  const historicalRows=years.filter(year=>year!==currentYear).map(year=>extremeYearData(year,metric,range,keys))
+    .filter(row=>row.completeness>=.98);
+  const historicalSeries=historicalRows.map(row=>extremeCumulative(row,metric,keys));
+  const climateSeries=historicalRows.filter(row=>Number(row.year)>=1991&&Number(row.year)<=2020)
+    .map(row=>extremeCumulative(row,metric,keys));
+  const climateMean=keys.map((_,index)=>dailyAverage(climateSeries.map(series=>series[index]).filter(Number.isFinite)));
+  const historicalMin=keys.map((_,index)=>{
+    const values=historicalSeries.map(series=>series[index]).filter(Number.isFinite);
+    return values.length?Math.min(...values):null;
+  });
+  const historicalMax=keys.map((_,index)=>{
+    const values=historicalSeries.map(series=>series[index]).filter(Number.isFinite);
+    return values.length?Math.max(...values):null;
+  });
+  const currentCumulative=extremeCumulative(current,metric,keys,cutoffIndex);
+  const cumulativeLabels=keys.map(extremeKeyLabel);
+
+  if(extremeCumulativeChart) extremeCumulativeChart.destroy();
+  extremeCumulativeChart=new Chart(document.getElementById("extremeCumulativeChart"),{
+    type:"line",
+    data:{labels:cumulativeLabels,datasets:[
+      {label:"Historisches Maximum",data:historicalMax,borderColor:"rgba(100,100,100,.35)",backgroundColor:"rgba(130,130,130,.18)",borderWidth:1,pointRadius:0,fill:"+1",tension:0},
+      {label:"Historisches Minimum",data:historicalMin,borderColor:"rgba(100,100,100,.35)",borderWidth:1,pointRadius:0,fill:false,tension:0},
+      {label:"Mittel 1991–2020",data:climateMean,borderColor:"#111",borderDash:[7,5],borderWidth:2,pointRadius:0,tension:0},
+      {label:String(currentYear),data:currentCumulative,borderColor:metric.color,backgroundColor:metric.color,borderWidth:3,pointRadius:0,tension:0,spanGaps:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+      plugins:{
+        title:{display:true,text:`Akkumulierte ${metric.label} – ${periodLabel} ${currentYear}`,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{display:true,text:"Aktuelles Jahr, Mittel 1991–2020 und historischer Min-Max-Spannbereich",color:"#666",font:{size:12},padding:{bottom:12}},
+        datalabels:{display:false},
+        tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString("de-DE",{maximumFractionDigits:1})} Tage`}}
+      },
+      scales:{x:{ticks:{maxTicksLimit:14,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Akkumulierte Anzahl"},ticks:{precision:0}}}
+    }
   });
 
-  const maxValues=years.map(year=>yearlyMax[year]);
-  const absoluteMax=Math.max(...maxValues);
-  if(yearlyMaxChart) yearlyMaxChart.destroy();
-  yearlyMaxChart=new Chart(document.getElementById("yearlyMaxChart"),{
-    type:"bar",
-    data:{labels:years,datasets:[{
-      label:"Jahreshöchstwert (°C)",data:maxValues,
-      backgroundColor:maxValues.map(value=>value===absoluteMax?"darkred":"rgba(255,0,0,.6)")
-    }]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}},scales:{y:{type:"linear",beginAtZero:false,min:28,ticks:{stepSize:2},title:{display:true,text:"°C"}}}}
-  });
+  // Jahres- und Saisonwerte
+  const fullRows=years.map(year=>extremeYearData(year,metric,range,keys))
+    .filter(row=>row.year===currentYear || row.completeness>=.98);
+  const completedRows=fullRows.filter(row=>row.year!==currentYear || row.completeness>=.98);
+  const climateFullMean=dailyAverage(completedRows.filter(row=>Number(row.year)>=1991&&Number(row.year)<=2020).map(row=>row.count));
+  const recordCount=completedRows.length?Math.max(...completedRows.map(row=>row.count)):null;
+  const moving=extremeMovingAverage(fullRows,30);
+  const barColors=fullRows.map(row=>row.year===currentYear?metric.color:(row.count===recordCount?metric.dark:"rgba(223,132,75,.62)"));
 
   if(yearlyExtremeChart) yearlyExtremeChart.destroy();
   yearlyExtremeChart=new Chart(document.getElementById("yearlyExtremeChart"),{
     type:"bar",
-    data:{labels:years,datasets:[
-      {label:"≥25°C",data:years.map(year=>summer[year]),backgroundColor:"orange"},
-      {label:"≥30°C",data:years.map(year=>hot[year]),backgroundColor:"red"},
-      {label:"≥35°C",data:years.map(year=>veryHot[year]),backgroundColor:"darkred"}
+    data:{labels:fullRows.map(row=>row.year),datasets:[
+      {type:"bar",label:metric.label,data:fullRows.map(row=>row.count),backgroundColor:barColors,borderColor:barColors,borderWidth:0},
+      {type:"line",label:"Mittel 1991–2020",data:fullRows.map(()=>climateFullMean),borderColor:"#111",borderDash:[8,5],borderWidth:2,pointRadius:0,spanGaps:true},
+      {type:"line",label:"30-jähriges gleitendes Mittel",data:moving,borderColor:metric.dark,borderDash:[2,5],borderWidth:2.2,pointRadius:0,spanGaps:false}
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        title:{display:true,text:`${metric.label} in Deutschland – ${periodLabel} seit ${fullRows[0]?.year||years[0]}`,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{display:true,text:`Ein Tag zählt, sobald mindestens eine DWD-Station Tmax ≥ ${metric.threshold.toFixed(0)} °C erreicht`,color:"#666",font:{size:12},padding:{bottom:12}},
+        datalabels:{display:false},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}},
+        tooltip:{callbacks:{afterLabel:context=>{
+          const row=fullRows[context.dataIndex];
+          return row.year===currentYear&&row.completeness<.98?"aktueller Zeitraum noch unvollständig":`${Math.round(row.completeness*100)} % Datenvollständigkeit`;
+        }}}
+      },
+      scales:{x:{ticks:{maxTicksLimit:18,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Anzahl der Deutschlandtage"},ticks:{precision:0}}}
+    }
   });
 
-  const monthlyHotCounts=Array(12).fill(0);
-  dailyData.forEach(item=>{if(item.tmax>=30) monthlyHotCounts[Number(item.date.slice(5,7))-1]++;});
+  // Jahr-Monat-Heatmap
+  const heatYears=years.filter(year=>dailyData.some(item=>item.date.startsWith(year)&&Number.isFinite(dailyNumber(item.tmax))));
+  const monthRows=heatYears.flatMap(year=>extremeMonthCounts(year,metric).map((value,index)=>({x:MONTH_SHORT[index],y:year,v:value})));
+  const heatMax=Math.max(1,...monthRows.map(item=>item.v));
   if(heatmapChart) heatmapChart.destroy();
   heatmapChart=new Chart(document.getElementById("heatmapChart"),{
-    type:"bar",
-    data:{labels:MONTH_SHORT,datasets:[{
-      label:"Gesamt Hitzetage ≥30°C (alle Jahre)",data:monthlyHotCounts,
-      backgroundColor:monthlyHotCounts.map(value=>`rgba(255,0,0,${Math.min(value/500,1)})`)
+    type:"matrix",
+    data:{datasets:[{
+      label:metric.label,
+      data:monthRows,
+      backgroundColor:context=>extremeHeatColor(context.raw?.v,heatMax),
+      borderColor:"rgba(255,255,255,.72)",
+      borderWidth:.6,
+      width:context=>{
+        const area=context.chart.chartArea;
+        return area?Math.max(3,area.width/12-1):20;
+      },
+      height:context=>{
+        const area=context.chart.chartArea;
+        return area?Math.max(3,area.height/heatYears.length-1):5;
+      }
     }]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false}}}
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        title:{display:true,text:`Jahr-Monat-Heatmap der ${metric.label}`,font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{display:true,text:`Zahl der Deutschlandtage mit Tmax ≥ ${metric.threshold.toFixed(0)} °C je Monat`,color:"#666",font:{size:12},padding:{bottom:12}},
+        legend:{display:false},datalabels:{display:false},
+        tooltip:{callbacks:{title:items=>items.length?`${items[0].raw.y} · ${items[0].raw.x}`:"",label:context=>`${context.raw.v} ${metric.label}`}}
+      },
+      scales:{
+        x:{type:"category",labels:MONTH_SHORT,offset:true,grid:{display:false},ticks:{maxRotation:0}},
+        y:{type:"category",labels:[...heatYears].reverse(),offset:true,grid:{display:false},ticks:{autoSkip:false,callback:(value,index)=>{
+          const year=[...heatYears].reverse()[index];
+          return year===currentYear||Number(year)%10===0?year:"";
+        }}}
+      }
+    }
   });
 
-  const top30=[...dailyData].sort((a,b)=>b.tmax-a.tmax).slice(0,30);
+  // Jahreshöchstwerte
+  const maxRows=years.map(year=>{
+    const items=dailyData.filter(item=>item.date.startsWith(year)).filter(item=>Number.isFinite(dailyNumber(item.tmax)));
+    if(!items.length) return {year,value:null,date:null};
+    const maxItem=items.reduce((best,item)=>dailyNumber(item.tmax)>dailyNumber(best.tmax)?item:best);
+    return {year,value:dailyNumber(maxItem.tmax),date:maxItem.date};
+  }).filter(row=>Number.isFinite(row.value));
+  const absoluteMax=Math.max(...maxRows.map(row=>row.value));
+  if(yearlyMaxChart) yearlyMaxChart.destroy();
+  yearlyMaxChart=new Chart(document.getElementById("yearlyMaxChart"),{
+    type:"bar",
+    data:{labels:maxRows.map(row=>row.year),datasets:[{
+      label:"Jahreshöchstwert",
+      data:maxRows.map(row=>row.value),
+      backgroundColor:maxRows.map(row=>row.year===currentYear?"#f57c00":row.value===absoluteMax?"#7f0000":"rgba(215,25,28,.58)")
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        title:{display:true,text:"Höchste in Deutschland gemessene Temperatur jedes Jahres",font:{size:18,weight:"bold"},padding:{bottom:4}},
+        subtitle:{display:true,text:"Höchster verfügbarer Tageshöchstwert einer ausgewerteten DWD-Station",color:"#666",font:{size:12},padding:{bottom:12}},
+        datalabels:{display:false},
+        tooltip:{callbacks:{afterLabel:context=>`Datum: ${dailyGermanDate(maxRows[context.dataIndex].date,true)}`}},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:"x"}}
+      },
+      scales:{x:{ticks:{maxTicksLimit:18,maxRotation:0}},y:{type:"linear",beginAtZero:false,min:28,ticks:{stepSize:2},title:{display:true,text:"°C"}}}
+    }
+  });
+
+  // Top-10-Rekordjahre
+  const topRows=[...fullRows].filter(row=>row.year!==currentYear||row.validDays>0)
+    .sort((a,b)=>b.count-a.count||Number(b.year)-Number(a.year)).slice(0,10);
+  document.getElementById("extremeRecordHeading").textContent=`Top 10 Jahre: ${metric.label} · ${periodLabel}`;
+  document.getElementById("extremeRecordNote").textContent=`Rangfolge nach der Zahl der Tage mit Tmax ≥ ${metric.threshold.toFixed(0)} °C. Historische Zeiträume benötigen mindestens 98 % Datenvollständigkeit.`;
+  document.querySelector("#extremeRecordTable tbody").innerHTML=topRows.map((row,index)=>`<tr>
+    <td>${index+1}</td>
+    <td>${row.year}</td>
+    <td class="record-value">${row.count}</td>
+    <td>${row.first?dailyGermanDate(row.first,false):"–"}</td>
+    <td>${row.last?dailyGermanDate(row.last,false):"–"}</td>
+    <td>${Number.isFinite(row.maxTmax)?`${row.maxTmax.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`:"–"}</td>
+    <td><span class="record-badge ${row.year===currentYear&&row.completeness<.98?"preliminary":"checked"}">${row.year===currentYear&&row.completeness<.98?"vorläufig":"vollständig"}</span></td>
+  </tr>`).join("")||'<tr><td colspan="7">Keine ausreichend vollständigen Zeiträume vorhanden.</td></tr>';
+
+  const top30=[...dailyData].filter(item=>Number.isFinite(dailyNumber(item.tmax))).sort((a,b)=>dailyNumber(b.tmax)-dailyNumber(a.tmax)).slice(0,30);
   document.querySelector("#topHotDaysTable tbody").innerHTML=top30.map((item,index)=>
-    `<tr><td>${index+1}</td><td>${item.date}</td><td>${item.tmax.toFixed(1)}</td></tr>`
+    `<tr><td>${index+1}</td><td>${dailyGermanDate(item.date,true)}</td><td class="record-value">${dailyNumber(item.tmax).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C</td></tr>`
   ).join("");
+
+  const latestDate=dailyData.reduce((latest,item)=>item.date>latest?item.date:latest,"");
+  document.getElementById("extremeMethodNote").innerHTML=
+    `<strong>Definitionen:</strong> Sommertag Tmax ≥ 25 °C · Hitzetag Tmax ≥ 30 °C · Wüstentag Tmax ≥ 35 °C · extrem heißer Tag Tmax ≥ 40 °C. `+
+    `Der 29. Februar wird in den jahresübergreifenden Vergleichen ausgelassen. Historische Balken und Spannbereiche verwenden nur Zeiträume mit mindestens 98 % Datenvollständigkeit. `+
+    `Aktuelle Werte können vorläufig sein. <strong>Datenstand:</strong> ${dailyGermanDate(latestDate,true)}.`;
 }
 
+function resetExtremeYearZoom(){if(yearlyExtremeChart) yearlyExtremeChart.resetZoom();}
 function resetYearlyMaxZoom(){if(yearlyMaxChart) yearlyMaxChart.resetZoom();}
+document.getElementById("extremeMetricSelect").addEventListener("change",updateExtremeDashboard);
+document.getElementById("extremePeriodSelect").addEventListener("change",updateExtremeDashboard);
 
 
 
@@ -3468,9 +3817,10 @@ const CHART_EXPORT_FALLBACK_TITLES={
   dailyChart:"Tageshöchstwerte",
   dailyDeviationChart:"Tageshöchstwerte - Abweichung",
   dailyAllYearsChart:"Tageshöchstwerte - Alle Jahre",
-  yearlyExtremeChart:"Kenntage nach Jahr",
+  extremeCumulativeChart:"Deutschland-Kenntage - Akkumuliert",
+  yearlyExtremeChart:"Deutschland-Kenntage nach Jahr",
   yearlyMaxChart:"Jahreshöchstwerte",
-  heatmapChart:"Hitzetage nach Monat",
+  heatmapChart:"Deutschland-Kenntage - Jahr-Monat-Heatmap",
   stationClimateDaysCumulativeChart:"Stations-Kenntage - Akkumuliert",
   stationClimateDaysBarChart:"Stations-Kenntage - Jahres- und Saisonwerte",
   stationHeatwavesBubbleChart:"Stations-Hitzewellen - Intensität und Schweregrad",
