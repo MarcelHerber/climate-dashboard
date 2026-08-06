@@ -116,7 +116,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "DWD-Daten automatisch aktualisiert"
+          git commit -m "DWD-Daten automatisch aktualisiert [skip ci]"
 
           # Während des langen DWD-Laufs kann auf GitHub ein neuer manueller
           # Commit eintreffen. Der Daten-Commit wird deshalb vor dem Push auf
