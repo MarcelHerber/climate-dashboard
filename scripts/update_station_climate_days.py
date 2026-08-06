@@ -493,7 +493,7 @@ def process_recent_station(
     filename: str,
     metadata: MetadataIndex,
     start_date: date,
-) -> tuple[str, dict[date, tuple[int, int]], str | None]:
+) -> tuple[str, dict[date, tuple[int, int, int | None]], str | None]:
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(RECENT_URL, filename)
@@ -505,12 +505,12 @@ def process_recent_station(
             date.today(),
             preliminary=True,
         )
-        values: dict[date, tuple[int, int]] = {}
+        values: dict[date, tuple[int, int, int | None]] = {}
         for observation in observations:
             tx, tn = observation_temperatures(observation)
             event_mask, valid_mask = event_and_valid_masks(tx, tn)
             if valid_mask:
-                values[observation.day] = (event_mask, valid_mask)
+                values[observation.day] = (event_mask, valid_mask, None if tx is None else int(round(tx * 10)))
         return station_id, values, None
     except NoUsableProductFileError as exc:
         return station_id, {}, f"{filename}: {exc}"
@@ -519,13 +519,14 @@ def process_recent_station(
 
 
 def accepted_data_through(
-    values_by_station: dict[str, dict[date, tuple[int, int]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]],
 ) -> tuple[date, dict[str, Any]]:
     counts: dict[date, int] = defaultdict(int)
     tx_bits = sum(1 << int(item["bit"]) for item in CLIMATE_DAYS if item["field"] == "tx")
     tn_bits = sum(1 << int(item["bit"]) for item in CLIMATE_DAYS if item["field"] == "tn")
     for values in values_by_station.values():
-        for day, (_, valid_mask) in values.items():
+        for day, value_tuple in values.items():
+            valid_mask = value_tuple[1]
             # Nur Stationen mit auswertbarem Tmax und Tmin zählen für die
             # Vollständigkeitsprüfung des jüngsten Tages.
             if (valid_mask & tx_bits) and (valid_mask & tn_bits):
@@ -572,7 +573,7 @@ def write_current_month_files(
     root: Path,
     data_through: date,
     profile_ids: set[str],
-    values_by_station: dict[str, dict[date, tuple[int, int]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]],
 ) -> list[str]:
     output_dir = root / "station_climate_days_current"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -582,15 +583,15 @@ def write_current_month_files(
     for year, month in month_sequence(start_date, data_through):
         next_month = date(year + (month == 12), month % 12 + 1, 1)
         days_in_month = (next_month - date(year, month, 1)).days
-        station_payload: dict[str, list[list[int] | None]] = {}
+        station_payload: dict[str, list[list[int | None] | None]] = {}
         for station_id in sorted(profile_ids):
             values = values_by_station.get(station_id, {})
-            month_values: list[list[int] | None] = []
+            month_values: list[list[int | None] | None] = []
             has_value = False
             for day_number in range(1, days_in_month + 1):
                 day = date(year, month, day_number)
                 pair = values.get(day) if day <= data_through else None
-                month_values.append(None if pair is None else [pair[0], pair[1]])
+                month_values.append(None if pair is None else [pair[0], pair[1], pair[2]])
                 has_value = has_value or pair is not None
             if has_value:
                 station_payload[station_id] = month_values
@@ -630,6 +631,7 @@ def build_index(
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
         "source": "DWD CDC, tägliche KL-Stationswerte (TXK und TNK)",
+        "current_payload_version": 2,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
@@ -698,7 +700,7 @@ def update_station_climate_days(
         if station_id_from_filename(filename) in profile_ids
     ]
     start_date = date(current_year - 1, 12, 1)
-    values_by_station: dict[str, dict[date, tuple[int, int]]] = {}
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]] = {}
     errors: list[str] = []
 
     print(f"Stations-Kenntage: {len(selected_recent)} aktuelle Stationsarchive werden verarbeitet.")
