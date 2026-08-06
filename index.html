@@ -1529,7 +1529,27 @@ function updateMonthlyAnomalyTable(){
 }
 
 // ================= DATENSTAND =================
-fetch("update_status.json",{cache:"no-store"})
+const DASHBOARD_RAW_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
+const DASHBOARD_RAW_PREFIXES=[
+  "station_records_years/",
+  "station_precip_climate/",
+  "station_precip_current/",
+  "station_climate_days_profiles/",
+  "station_climate_days_current/",
+  "station_heatwaves_profiles/"
+];
+function dashboardDataUrl(resource){
+  if(typeof resource!=="string") return resource;
+  const clean=resource.replace(/^\.\//,"").replace(/^\//,"");
+  return DASHBOARD_RAW_PREFIXES.some(prefix=>clean.startsWith(prefix))
+    ?`${DASHBOARD_RAW_BASE}${clean}`
+    :resource;
+}
+function dashboardFetch(resource,options){
+  return window.fetch(dashboardDataUrl(resource),options);
+}
+
+dashboardFetch("update_status.json",{cache:"no-store"})
   .then(response=>{if(!response.ok) throw new Error(); return response.json();})
   .then(status=>{
     const parts=[];
@@ -1571,7 +1591,7 @@ fetch("update_status.json",{cache:"no-store"})
   });
 
 // ================= MONATSDATEN LADEN =================
-fetch("data.json",{cache:"no-store"})
+dashboardFetch("data.json",{cache:"no-store"})
   .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
   .then(raw=>{
     monthlyData=normalizeMonthly(raw);
@@ -2075,7 +2095,7 @@ document.getElementById("accParamSelect").addEventListener("change",updateAccumu
 document.getElementById("accYearSelect").addEventListener("change",updateAccumulation);
 
 // ================= TAGESDATEN =================
-fetch("daily_tmax_1881_2026.json",{cache:"no-store"})
+dashboardFetch("daily_tmax_1881_2026.json",{cache:"no-store"})
   .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
   .then(data=>{
     dailyData=data;
@@ -2793,7 +2813,7 @@ function ensureStationClimateDaysLoaded(){
   if(stationClimateDaysLoading) return stationClimateDaysLoading;
   const loading=document.getElementById("stationClimateDaysLoading");
   loading.textContent="Stations-Kenntage werden geladen …";
-  stationClimateDaysLoading=fetch("station_climate_days_index.json",{cache:"no-store"})
+  stationClimateDaysLoading=dashboardFetch("station_climate_days_index.json",{cache:"no-store"})
     .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
     .then(data=>{
       if(!data.ready) throw new Error(data.message || "Die Stations-Kenntage wurden noch nicht aufgebaut.");
@@ -2886,7 +2906,7 @@ async function loadStationClimateDaysCurrentMonths(){
   const files=stationClimateDaysIndex.current_files||[];
   await Promise.all(files.map(async file=>{
     if(stationClimateDaysMonthCache.has(file)) return;
-    const response=await fetch(file,{cache:"no-store"});
+    const response=await dashboardFetch(file,{cache:"no-store"});
     if(!response.ok) throw new Error(`${file} konnte nicht geladen werden (HTTP ${response.status}).`);
     stationClimateDaysMonthCache.set(file,await response.json());
   }));
@@ -3034,7 +3054,7 @@ async function updateStationClimateDays(){
 
   try{
     const [profileResponse]=await Promise.all([
-      fetch(station.file,{cache:"no-store"}),
+      dashboardFetch(station.file,{cache:"no-store"}),
       loadStationClimateDaysCurrentMonths()
     ]);
     if(!profileResponse.ok) throw new Error(`Profildatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
@@ -3174,12 +3194,12 @@ function ensureStationHeatwavesLoaded(){
   if(stationHeatwavesLoading) return stationHeatwavesLoading;
   const loading=document.getElementById("stationHeatwavesLoading");
   loading.textContent="Stations-Hitzewellen werden geladen …";
-  stationHeatwavesLoading=fetch("station_heatwaves_index.json",{cache:"no-store"})
+  stationHeatwavesLoading=dashboardFetch("station_heatwaves_index.json",{cache:"no-store"})
     .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
     .then(async data=>{
       if(!data.ready) throw new Error(data.message || "Die Stations-Hitzewellen wurden noch nicht aufgebaut.");
       stationHeatwavesIndex=data;
-      const currentResponse=await fetch(data.current_file||"station_heatwaves_current.json",{cache:"no-store"});
+      const currentResponse=await dashboardFetch(data.current_file||"station_heatwaves_current.json",{cache:"no-store"});
       if(!currentResponse.ok) throw new Error(`Aktuelle Hitzewellen konnten nicht geladen werden (HTTP ${currentResponse.status}).`);
       stationHeatwavesCurrent=await currentResponse.json();
       initializeStationHeatwavesControls();
@@ -3311,7 +3331,7 @@ async function updateStationHeatwaves(){
   document.getElementById("stationHeatwavesSummary").textContent=`${station.name}: Hitzewellen werden geladen …`;
 
   try{
-    const response=await fetch(station.file,{cache:"no-store"});
+    const response=await dashboardFetch(station.file,{cache:"no-store"});
     if(!response.ok) throw new Error(`Profildatei konnte nicht geladen werden (HTTP ${response.status}).`);
     stationHeatwavesProfile=await response.json();
     const currentData=stationHeatwavesCurrent.stations?.[stationId]||{events:[],missing_warm_days:0};
@@ -3477,7 +3497,7 @@ function ensureStationPrecipLoaded(){
   if(stationPrecipLoading) return stationPrecipLoading;
   const loading=document.getElementById("stationPrecipLoading");
   loading.textContent="Stationsniederschlag wird geladen …";
-  stationPrecipLoading=fetch("station_precip_index.json",{cache:"no-store"})
+  stationPrecipLoading=dashboardFetch("station_precip_index.json",{cache:"no-store"})
     .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
     .then(data=>{
       if(!data.ready) throw new Error(data.message || "Die Stations-Niederschlagsdateien wurden noch nicht aufgebaut.");
@@ -3547,7 +3567,7 @@ async function loadStationPrecipCurrentMonths(){
   const files=stationPrecipIndex.current_files||[];
   await Promise.all(files.map(async file=>{
     if(stationPrecipMonthCache.has(file)) return;
-    const response=await fetch(file,{cache:"no-store"});
+    const response=await dashboardFetch(file,{cache:"no-store"});
     if(!response.ok) throw new Error(`${file} konnte nicht geladen werden (HTTP ${response.status}).`);
     stationPrecipMonthCache.set(file,await response.json());
   }));
@@ -3594,7 +3614,7 @@ async function updateStationPrecipitation(){
   document.getElementById("stationPrecipSummary").textContent=`${station.name}: Daten werden geladen …`;
   try{
     const [profileResponse]=await Promise.all([
-      fetch(station.file,{cache:"no-store"}),
+      dashboardFetch(station.file,{cache:"no-store"}),
       loadStationPrecipCurrentMonths()
     ]);
     if(!profileResponse.ok) throw new Error(`Klimadatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
@@ -3776,7 +3796,7 @@ function ensureStationRecordsLoaded(){
   if(stationRecordsLoading) return stationRecordsLoading;
   const loading=document.getElementById("recordLoading");
   loading.textContent="Stationsrekorde werden geladen …";
-  stationRecordsLoading=fetch("station_records.json",{cache:"no-store"})
+  stationRecordsLoading=dashboardFetch("station_records.json",{cache:"no-store"})
     .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
     .then(data=>{
       if(!data.ready) throw new Error(data.message || "Die Rekorddatei wurde noch nicht aufgebaut.");
@@ -3852,7 +3872,7 @@ async function selectedRecordEntries(){
     const year=document.getElementById("recordYearSelect").value;
     let yearData=stationYearCache.get(year);
     if(!yearData){
-      const response=await fetch(`station_records_years/${year}.json`,{cache:"no-store"});
+      const response=await dashboardFetch(`station_records_years/${year}.json`,{cache:"no-store"});
       if(!response.ok) throw new Error(`Jahresdatei ${year} konnte nicht geladen werden (HTTP ${response.status}).`);
       yearData=await response.json();
       stationYearCache.set(year,yearData);
@@ -4348,7 +4368,7 @@ async function updateCompareStations(){
   if(source==="precip"){
     await loadStationPrecipCurrentMonths();
     if(requestId!==compareStationRequestId) return;
-    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await dashboardFetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
     if(requestId!==compareStationRequestId) return;
     const labels=index.labels||[];
     const currentA=stationPrecipCumulativeWithGaps(stationPrecipCurrentDaily(idA),labels,index.data_through);
@@ -4367,7 +4387,7 @@ async function updateCompareStations(){
     if(requestId!==compareStationRequestId) return;
     const metricId=document.getElementById("compareStationMetric").value;
     const metric=(index.climate_days||[]).find(item=>item.id===metricId);
-    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await dashboardFetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
     if(requestId!==compareStationRequestId) return;
     const curveA=stationClimateDaysCurrentCumulative(idA,metric),curveB=stationClimateDaysCurrentCumulative(idB,metric);
     summary.innerHTML=`<strong>${metric?.label||metricId} ${index.current_year}:</strong> ${stationA.name} ${curveA.count}, ${stationB.name} ${curveB.count}.`;
@@ -4378,7 +4398,7 @@ async function updateCompareStations(){
       {label:`${stationB.name} Mittel`,data:profileB.climate_mean_cumulative?.[metricId]||[],borderColor:"rgba(24,100,171,.55)",borderDash:[6,5],borderWidth:1.7,pointRadius:0}
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`${metric?.label||"Kenntage"}: kumulativer Stationsvergleich`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:14}},y:{beginAtZero:true,title:{display:true,text:"Anzahl Tage"}}}}},requestId);
   }else{
-    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await fetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
+    const [profileA,profileB]=await Promise.all([stationA,stationB].map(async station=>{const response=await dashboardFetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`${station.name}: HTTP ${response.status}`);return response.json();}));
     if(requestId!==compareStationRequestId) return;
     const annualA=new Map((profileA.annual||[]).map(item=>[Number(item[0]),Number(item[1])])),annualB=new Map((profileB.annual||[]).map(item=>[Number(item[0]),Number(item[1])]));
     annualA.set(Number(index.current_year),stationHeatwavesCurrent?.stations?.[idA]?.events?.length||0);
