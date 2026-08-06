@@ -6,11 +6,6 @@ on:
       timezone: "Europe/Berlin"
   workflow_dispatch:
     inputs:
-      daily_full_rebuild:
-        description: "Tagesmaxima mit Stationsnamen seit 1881 vollständig neu aufbauen"
-        required: false
-        type: boolean
-        default: false
       station_records_full:
         description: "Stationsrekorde vollständig neu aufbauen"
         required: false
@@ -74,9 +69,6 @@ jobs:
         shell: bash
         run: |
           EXTRA_ARGS=""
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.daily_full_rebuild }}" == "true" ]]; then
-            EXTRA_ARGS="$EXTRA_ARGS --daily-full-rebuild"
-          fi
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.station_records_full }}" == "true" ]]; then
             EXTRA_ARGS="$EXTRA_ARGS --station-records-full"
           fi
@@ -90,12 +82,6 @@ jobs:
             EXTRA_ARGS="$EXTRA_ARGS --station-heatwaves-full"
           fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
-
-      - name: Dashboard automatisch prüfen
-        shell: bash
-        run: |
-          python scripts/validate_dashboard.py
-          node --check js/dashboard.js
 
       - name: Änderungen versionieren
         shell: bash
@@ -166,8 +152,6 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p \
-            _site/css \
-            _site/js \
             _site/station_records_years \
             _site/station_precip_climate \
             _site/station_precip_current \
@@ -186,8 +170,6 @@ jobs:
             update_status.json \
             .nojekyll \
             _site/
-          cp css/dashboard.css _site/css/
-          cp js/dashboard.js _site/js/
           cp station_records_years/*.json _site/station_records_years/
           cp station_precip_climate/*.json _site/station_precip_climate/
           cp station_precip_current/*.json _site/station_precip_current/
