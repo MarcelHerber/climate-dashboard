@@ -612,6 +612,42 @@ def write_current_month_files(
     return written
 
 
+
+def build_map_summaries(
+    root: Path,
+    profiles: list[StationProfile],
+    data_through: date,
+    current_files: list[str],
+) -> dict[str, dict[str, Any]]:
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    valid: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for filename in current_files:
+        payload = read_json(root / "station_climate_days_current" / filename)
+        year = int(payload["year"]); month = int(payload["month"])
+        for station_id, values in (payload.get("stations") or {}).items():
+            for day_number, pair in enumerate(values, start=1):
+                day = date(year, month, day_number)
+                if day > data_through:
+                    break
+                if not pair or len(pair) < 2:
+                    continue
+                occurrence_mask = int(pair[0]); valid_mask = int(pair[1])
+                for metric in CLIMATE_DAYS:
+                    bit = 1 << int(metric["bit"])
+                    if valid_mask & bit:
+                        valid[station_id][metric["id"]] += 1
+                        if occurrence_mask & bit:
+                            counts[station_id][metric["id"]] += 1
+    elapsed = sum(1 for label in labels_non_leap() if f"{data_through.year}-{label}" <= data_through.isoformat())
+    result: dict[str, dict[str, Any]] = {}
+    for profile in profiles:
+        result[profile.station_id] = {
+            "current_counts": dict(counts.get(profile.station_id, {})),
+            "valid_days": dict(valid.get(profile.station_id, {})),
+            "elapsed_days": elapsed,
+        }
+    return result
+
 def build_index(
     root: Path,
     profiles: list[StationProfile],
@@ -621,6 +657,9 @@ def build_index(
     historical_state: dict[str, Any],
 ) -> dict[str, Any]:
     states = sorted({profile.state for profile in profiles if profile.state})
+    map_summaries = build_map_summaries(
+        root, profiles, date.fromisoformat(current_status["data_through"]), current_files
+    )
     index = {
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -654,6 +693,7 @@ def build_index(
                 "history_years": profile.history_years,
                 "reference_years": profile.reference_years,
                 "file": profile.file,
+                "map": map_summaries.get(profile.station_id, {}),
             }
             for profile in profiles
         ],
