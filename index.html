@@ -2903,7 +2903,7 @@ async function updateStationPrecipitation(){
       options:{
         responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
         plugins:{
-          title:{display:true,text:"Kumulative Niederschlagsabweichung"},
+          title:{display:true,text:`Kumulative Niederschlagsabweichung – ${station.name} (${station.id})`},
           datalabels:{display:false},
           tooltip:{callbacks:{label:context=>`${context.parsed.y>=0?"+":""}${stationPrecipFormat(context.parsed.y)} mm`}},
           zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
