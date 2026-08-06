@@ -4476,11 +4476,15 @@ for(const [key,value] of dashboardUrl.searchParams.entries()){
 }
 
 function persistDashboardState(key,value){
-  dashboardState[key]=String(value);
+  const normalized=String(value);
+  const isEmptySearch=key.endsWith("Search") && normalized==="";
+  if(isEmptySearch) delete dashboardState[key];
+  else dashboardState[key]=normalized;
   try{localStorage.setItem(DASHBOARD_STATE_KEY,JSON.stringify(dashboardState));}catch(_error){}
   const url=new URL(window.location.href);
-  if(key==="tab") url.searchParams.set("tab",String(value));
-  else url.searchParams.set(`s_${key}`,String(value));
+  if(key==="tab") url.searchParams.set("tab",normalized);
+  else if(isEmptySearch) url.searchParams.delete(`s_${key}`);
+  else url.searchParams.set(`s_${key}`,normalized);
   history.replaceState(null,"",url);
 }
 
@@ -4494,7 +4498,11 @@ function restoreDashboardControls(){
       return;
     }
     const optionExists=!control.options || [...control.options].some(option=>option.value===saved);
-    if(optionExists && control.value!==saved){control.value=saved;control.dispatchEvent(new Event("change",{bubbles:true}));}
+    if(optionExists && control.value!==saved){
+      control.value=saved;
+      const eventType=control instanceof HTMLInputElement && control.type==="search"?"input":"change";
+      control.dispatchEvent(new Event(eventType,{bubbles:true}));
+    }
   });
 }
 
@@ -4573,6 +4581,11 @@ async function runChartCsvExport(button,canvas){
 
 function initializeDashboardState(){
   initializeMobileTabNavigation();
+  document.addEventListener("input",event=>{
+    const control=event.target;
+    if(!(control instanceof HTMLInputElement) || !control.id || control.type!=="search") return;
+    persistDashboardState(control.id,control.value);
+  });
   document.addEventListener("change",event=>{
     const control=event.target;
     if(!(control instanceof HTMLSelectElement || control instanceof HTMLInputElement) || !control.id) return;
@@ -4590,6 +4603,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 11.1: Stationskarten- und Stationsvergleich-Fix -->
+<!-- Dashboard Version 11.7: Stationssuchfelder können zuverlässig geleert werden -->
 </body>
 </html>
