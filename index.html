@@ -109,10 +109,10 @@ button.action{
 }
 .chart-container.tall{min-height:690px}
 .chart-container.auto{min-height:0;height:auto}
-.chart-container canvas{width:100%!important;height:430px!important}
-.chart-container.tall canvas{height:650px!important}
+.chart-container > canvas{width:100%!important;height:430px!important}
+.chart-container.tall > canvas{height:650px!important}
 .chart-container.heatmap-tall{min-height:930px}
-.chart-container.heatmap-tall canvas{height:880px!important}
+.chart-container.heatmap-tall > canvas{height:880px!important}
 
 .chart-export-tools{
   position:absolute;
@@ -138,7 +138,7 @@ button.action{
 .chart-export-button:focus-visible{outline:3px solid rgba(40,100,180,.28);outline-offset:2px}
 .chart-export-button[disabled]{opacity:.55;cursor:wait}
 .chart-container.has-export-tools{padding-top:54px}
-.chart-container.has-export-tools canvas{display:block}
+.chart-container.has-export-tools > canvas{display:block}
 @media (max-width:640px){
   .chart-export-tools{position:static;justify-content:flex-end;margin:-2px 0 10px}
   .chart-container.has-export-tools{padding-top:10px}
@@ -313,11 +313,11 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   body{padding:14px}
   .control-group{min-width:100%}
   .chart-container{padding:10px;min-height:420px}
-  .chart-container canvas{height:390px!important}
+  .chart-container > canvas{height:390px!important}
   .chart-container.tall{min-height:570px}
-  .chart-container.tall canvas{height:540px!important}
+  .chart-container.tall > canvas{height:540px!important}
   .chart-container.heatmap-tall{min-height:760px}
-  .chart-container.heatmap-tall canvas{height:710px!important}
+  .chart-container.heatmap-tall > canvas{height:710px!important}
 }
 
 /* Version 9: einheitliche Seitenelemente, mobile Navigation und Datenstatus */
@@ -344,6 +344,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 /* Version 11: Stationskarten */
 .station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
+.station-map .leaflet-overlay-pane canvas{width:auto!important;height:auto!important;max-width:none!important}
 .map-legend{background:rgba(255,255,255,.94);padding:9px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:12px;line-height:1.45}
 .map-legend-gradient{height:10px;width:150px;border-radius:5px;background:linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b);margin:5px 0}
 .map-popup-title{font-weight:700;font-size:14px;margin-bottom:4px}.map-popup-meta{color:#555;font-size:12px}
@@ -4058,7 +4059,7 @@ async function runChartExport(button,canvas,format){
 }
 
 function initializeChartExportButtons(){
-  document.querySelectorAll(".chart-container canvas").forEach(canvas=>{
+  document.querySelectorAll(".chart-container > canvas").forEach(canvas=>{
     const container=canvas.closest(".chart-container");
     if(!container || container.querySelector(`.chart-export-tools[data-canvas-id="${canvas.id}"]`)) return;
     container.classList.add("has-export-tools");
