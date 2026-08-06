@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dwd_common import atomic_write_json, read_json
 from update_daily import update_daily
+from rebuild_daily_tmax import rebuild_daily_tmax
 from update_monthly import update_monthly
 from update_station_precip import update_station_precip
 from update_station_climate_days import update_station_climate_days
@@ -150,6 +151,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Aktualisiert das Climate Dashboard mit DWD-Daten.")
     parser.add_argument("--monthly-only", action="store_true")
     parser.add_argument("--daily-only", action="store_true")
+    parser.add_argument("--daily-full-rebuild", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--skip-station-records", action="store_true")
     parser.add_argument("--station-records-full", action="store_true")
@@ -191,7 +193,11 @@ def main() -> int:
     if not args.daily_only:
         status["monthly"] = update_monthly(ROOT)
     if not args.monthly_only:
-        status["daily"] = update_daily(ROOT, max_workers=args.workers)
+        status["daily"] = (
+            rebuild_daily_tmax(ROOT, max_workers=args.workers)
+            if args.daily_full_rebuild
+            else update_daily(ROOT, max_workers=args.workers)
+        )
     if not args.skip_station_records and not args.monthly_only:
         status["station_records"] = update_station_records(
             ROOT,

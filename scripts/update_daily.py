@@ -15,6 +15,7 @@ from typing import Dict, Iterable, Optional, Tuple
 import requests
 
 from dwd_common import USER_AGENT, atomic_write_json, download, read_json
+from update_station_records import METADATA_URL, parse_metadata
 
 RECENT_URL = (
     "https://opendata.dwd.de/climate_environment/CDC/"
@@ -265,14 +266,31 @@ def update_daily(root: Path, max_workers: int = 8) -> dict:
         )
 
     climate_means = climate_means_from_existing(existing)
+    metadata = parse_metadata(download(METADATA_URL, timeout=120))
 
-    # Correct overlapping recent dates first.
+    def enrich_item(day: date, value: float, station_id: str) -> dict:
+        segment = metadata.segment_for(station_id, day)
+        return {
+            "date": day.isoformat(),
+            "tmax": value,
+            "climate_mean": climate_means[day.strftime("%m-%d")],
+            "station_id": station_id,
+            "station_name": segment.name,
+            "station_state": None if segment.state == "__Unbekannt__" else segment.state,
+            "station_height": segment.height,
+            "station_latitude": segment.latitude,
+            "station_longitude": segment.longitude,
+            "station_count": counts.get(day),
+        }
+
+    # Correct overlapping recent dates first and add quality metadata.
     changed_overlap = 0
-    for day, (value, _station_id) in accepted.items():
+    for day, (value, station_id) in accepted.items():
         if day in existing_by_date:
-            old_value = float(existing_by_date[day]["tmax"])
-            if old_value != value:
-                existing_by_date[day]["tmax"] = value
+            old_item = existing_by_date[day]
+            enriched = enrich_item(day, value, station_id)
+            if any(old_item.get(key) != enriched.get(key) for key in enriched):
+                existing_by_date[day] = {**old_item, **enriched}
                 changed_overlap += 1
 
     # Only extend through a continuous block after the old endpoint.
@@ -283,11 +301,7 @@ def update_daily(root: Path, max_workers: int = 8) -> dict:
         month_day = cursor.strftime("%m-%d")
         if month_day not in climate_means:
             raise RuntimeError(f"Klimamittel fehlt für {month_day}.")
-        existing_by_date[cursor] = {
-            "date": cursor.isoformat(),
-            "tmax": value,
-            "climate_mean": climate_means[month_day],
-        }
+        existing_by_date[cursor] = enrich_item(cursor, value, _station_id)
         added += 1
         cursor += timedelta(days=1)
 

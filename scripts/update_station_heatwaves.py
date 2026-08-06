@@ -413,6 +413,7 @@ def build_index(
     current_year: int,
     data_through: date,
     historical_state: dict[str, Any],
+    current_payload: dict[str, Any],
 ) -> dict[str, Any]:
     states = sorted({profile.state for profile in profiles if profile.state})
     recent_start = current_year - RECENT_WINDOW_YEARS
@@ -456,6 +457,11 @@ def build_index(
                 "history_years": profile.history_years,
                 "event_count": profile.event_count,
                 "file": profile.file,
+                "map": {
+                    "current_events": len((current_payload.get("stations", {}).get(profile.station_id, {}) or {}).get("events", [])),
+                    "current_heatwave_days": sum(int(event.get("duration", 0)) for event in (current_payload.get("stations", {}).get(profile.station_id, {}) or {}).get("events", [])),
+                    "current_max_tmax": max([float(event.get("max_tmax", -999)) for event in (current_payload.get("stations", {}).get(profile.station_id, {}) or {}).get("events", [])], default=None),
+                },
             }
             for profile in profiles
         ],
@@ -499,7 +505,7 @@ def update_station_heatwaves(
         )
 
     current_payload, data_through = build_current_file(root, profiles, current_year)
-    index = build_index(root, profiles, current_year, data_through, historical_state)
+    index = build_index(root, profiles, current_year, data_through, historical_state, current_payload)
     current_event_count = sum(
         len(item.get("events", []))
         for item in current_payload.get("stations", {}).values()
