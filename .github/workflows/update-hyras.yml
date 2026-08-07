@@ -52,7 +52,7 @@ jobs:
             fi
           fi
 
-      - name: HYRAS aktuell, freie Zeiträume und Historie bauen
+      - name: HYRAS aktuell, Historie und Mouseover-Raster bauen
         run: |
           python scripts/update_hyras_maps.py \
             --output /tmp/hyras-data \
@@ -72,6 +72,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Historie und Zeiträume aktualisieren (1-km-Historie)"
+          git commit -m "HYRAS 15.4 Mouseover aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
