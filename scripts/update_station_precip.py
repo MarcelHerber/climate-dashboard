@@ -552,23 +552,30 @@ def build_map_summaries(
     result: dict[str, dict[str, Any]] = {}
     for profile in profiles:
         climate_value = None
+        climate_curve: list[float | None] = []
         try:
             historical = read_json(root / profile.file)
-            curve = historical.get("climate_mean_cumulative") or []
-            if last_index < len(curve) and curve[last_index] is not None:
-                climate_value = float(curve[last_index])
+            raw_curve = historical.get("climate_mean_cumulative") or []
+            climate_curve = [round(float(value), 1) if value is not None else None for value in raw_curve]
+            if last_index < len(climate_curve) and climate_curve[last_index] is not None:
+                climate_value = float(climate_curve[last_index])
         except (OSError, ValueError, TypeError):
             climate_value = None
+            climate_curve = []
         current_total = round(totals.get(profile.station_id, 0.0), 1)
         deviation = None
         if climate_value and climate_value > 0:
             deviation = round((current_total / climate_value - 1.0) * 100.0, 1)
+
         result[profile.station_id] = {
             "current_total": current_total,
             "climate_mean_to_date": round(climate_value, 1) if climate_value is not None else None,
             "deviation_percent": deviation,
             "valid_days": valid_days.get(profile.station_id, 0),
             "missing_days": max(0, expected_days - valid_days.get(profile.station_id, 0)),
+            # Die 365 kumulierten Klimawerte erlauben im Browser beliebige Zeiträume,
+            # ohne für jede Kartenstation ein separates historisches Profil nachzuladen.
+            "climate_mean_cumulative": climate_curve,
         }
     return result
 
@@ -597,7 +604,8 @@ def build_index(
         "source_note": (
             "Verwendet werden DWD-Stationen und rechtlich sowie qualitativ gleichgestellte Partnernetze. "
             "Historische Kurven stammen aus dem qualitätsgeprüften RR-Verzeichnis historical; "
-            "das laufende Jahr stammt aus recent und ist vorläufig."
+            "das laufende Jahr stammt aus recent und ist vorläufig. Frei wählbare Zeiträume werden "
+            "gegen exakt denselben Kalenderabschnitt des stationsbezogenen Mittels 1991–2020 verglichen."
         ),
         "states": states,
         "current_files": [f"station_precip_current/{name}" for name in current_files],
