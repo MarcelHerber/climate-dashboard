@@ -44,8 +44,8 @@ jobs:
           git fetch origin hyras-data --depth=1 || true
           if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
             git worktree add --detach /tmp/hyras-existing origin/hyras-data
-            if [ -d /tmp/hyras-existing/historical ]; then
-              cp -a /tmp/hyras-existing/historical /tmp/hyras-data/
+            if [ -d /tmp/hyras-existing/historical_1km ]; then
+              cp -a /tmp/hyras-existing/historical_1km /tmp/hyras-data/
             fi
             if [ -f /tmp/hyras-existing/hyras_historical_manifest.json ]; then
               cp /tmp/hyras-existing/hyras_historical_manifest.json /tmp/hyras-data/
@@ -58,7 +58,8 @@ jobs:
             --output /tmp/hyras-data \
             --work /tmp/hyras-work \
             --reference-cache /tmp/hyras-reference-cache \
-            --web-factor 2
+            --web-factor 2 \
+            --historical-factor 1
 
       - name: hyras-data Branch veröffentlichen
         env:
@@ -71,6 +72,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Historie und Zeiträume aktualisieren (feineres Raster)"
+          git commit -m "HYRAS Historie und Zeiträume aktualisieren (1-km-Historie)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
