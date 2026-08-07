@@ -28,7 +28,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 2
+STATE_VERSION = 3
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -248,14 +248,36 @@ def build_profile_payload(
         item["id"]: defaultdict(list) for item in CLIMATE_DAYS
     }
     observed_years: set[int] = set()
+    daily_tx_record_max: list[float | None] = [None] * 365
+    daily_tn_record_min: list[float | None] = [None] * 365
+    reference_tx_daily: dict[int, list[float | None]] = defaultdict(lambda: [None] * 365)
+    reference_tn_daily: dict[int, list[float | None]] = defaultdict(lambda: [None] * 365)
+    hottest_candidates: list[list[Any]] = []
+    coldest_candidates: list[list[Any]] = []
+    warmest_night_candidates: list[list[Any]] = []
 
     for observation in observations:
         if observation.day.year >= current_year:
             continue
+        tx, tn = observation_temperatures(observation)
+        if tx is not None:
+            hottest_candidates.append([observation.day.isoformat(), round(float(tx), 1)])
+        if tn is not None:
+            coldest_candidates.append([observation.day.isoformat(), round(float(tn), 1)])
+            warmest_night_candidates.append([observation.day.isoformat(), round(float(tn), 1)])
         index = non_leap_index(observation.day)
+        if index is not None:
+            if tx is not None and (daily_tx_record_max[index] is None or tx > daily_tx_record_max[index]):
+                daily_tx_record_max[index] = round(float(tx), 1)
+            if tn is not None and (daily_tn_record_min[index] is None or tn < daily_tn_record_min[index]):
+                daily_tn_record_min[index] = round(float(tn), 1)
+            if REFERENCE_START <= observation.day.year <= REFERENCE_END:
+                if tx is not None:
+                    reference_tx_daily[observation.day.year][index] = round(float(tx), 1)
+                if tn is not None:
+                    reference_tn_daily[observation.day.year][index] = round(float(tn), 1)
         if index is None:
             continue
-        tx, tn = observation_temperatures(observation)
         observed_years.add(observation.day.year)
         for specification in CLIMATE_DAYS:
             metric = specification["id"]
@@ -316,6 +338,26 @@ def build_profile_payload(
             curve.append(round(cumulative_total, 2))
         climate_mean_cumulative[metric] = curve
 
+    def daily_reference_mean(source: dict[int, list[float | None]]) -> list[float | None]:
+        result: list[float | None] = []
+        for index in range(365):
+            values = [series[index] for series in source.values() if series[index] is not None]
+            result.append(round(sum(values) / len(values), 1) if values else None)
+        return result
+
+    temperature_reference_daily_mean = {
+        "tx": daily_reference_mean(reference_tx_daily),
+        "tn": daily_reference_mean(reference_tn_daily),
+    }
+    hottest_candidates.sort(key=lambda item: (-float(item[1]), item[0]))
+    coldest_candidates.sort(key=lambda item: (float(item[1]), item[0]))
+    warmest_night_candidates.sort(key=lambda item: (-float(item[1]), item[0]))
+    temperature_extremes = {
+        "hottest_days": hottest_candidates[:20],
+        "coldest_nights": coldest_candidates[:20],
+        "warmest_nights": warmest_night_candidates[:20],
+    }
+
     # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
     # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
     # als vollwertiges historisches Vergleichsjahr dargestellt werden kann.
@@ -362,6 +404,9 @@ def build_profile_payload(
         "climate_mean_cumulative": climate_mean_cumulative,
         "historical_event_days": historical_event_days_payload,
         "historical_curve_encoding": "non_leap_day_indices_v1",
+        "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
+        "temperature_reference_daily_mean": temperature_reference_daily_mean,
+        "temperature_extremes": temperature_extremes,
     }
     return profile, payload
 
@@ -515,7 +560,7 @@ def process_recent_station(
     filename: str,
     metadata: MetadataIndex,
     start_date: date,
-) -> tuple[str, dict[date, tuple[int, int, int | None]], str | None]:
+) -> tuple[str, dict[date, tuple[int, int, int | None, int | None]], str | None]:
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(RECENT_URL, filename)
@@ -527,12 +572,12 @@ def process_recent_station(
             date.today(),
             preliminary=True,
         )
-        values: dict[date, tuple[int, int, int | None]] = {}
+        values: dict[date, tuple[int, int, int | None, int | None]] = {}
         for observation in observations:
             tx, tn = observation_temperatures(observation)
             event_mask, valid_mask = event_and_valid_masks(tx, tn)
             if valid_mask:
-                values[observation.day] = (event_mask, valid_mask, None if tx is None else int(round(tx * 10)))
+                values[observation.day] = (event_mask, valid_mask, None if tx is None else int(round(tx * 10)), None if tn is None else int(round(tn * 10)))
         return station_id, values, None
     except NoUsableProductFileError as exc:
         return station_id, {}, f"{filename}: {exc}"
@@ -541,7 +586,7 @@ def process_recent_station(
 
 
 def accepted_data_through(
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]],
 ) -> tuple[date, dict[str, Any]]:
     counts: dict[date, int] = defaultdict(int)
     tx_bits = sum(1 << int(item["bit"]) for item in CLIMATE_DAYS if item["field"] == "tx")
@@ -595,7 +640,7 @@ def write_current_month_files(
     root: Path,
     data_through: date,
     profile_ids: set[str],
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]],
 ) -> list[str]:
     output_dir = root / "station_climate_days_current"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -762,7 +807,7 @@ def update_station_climate_days(
         if station_id_from_filename(filename) in profile_ids
     ]
     start_date = date(current_year - 1, 12, 1)
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None]]] = {}
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]] = {}
     errors: list[str] = []
 
     print(f"Stations-Kenntage: {len(selected_recent)} aktuelle Stationsarchive werden verarbeitet.")
