@@ -790,12 +790,16 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <div class="section-header">
     <h2>HYRAS-Flächenkarten</h2>
     <p>Flächendeckender Niederschlag auf dem 1-km-Raster HYRAS-DE des Deutschen Wetterdienstes.</p>
-    <span class="section-status">Schritt 1 · aktuellster vollständig verfügbarer Monat · Referenz 1991–2020</span>
+    <span class="section-status">Version 15.1 · Monate, Jahreszeiten, Sommer/Jahr bisher · Referenz 1991–2020</span>
   </div>
 
   <div id="hyrasStatus" class="hyras-status">HYRAS-Daten werden beim ersten Öffnen geladen …</div>
 
   <div class="controls">
+    <div class="control-group">
+      <label for="hyrasPeriodSelect">Zeitraum</label>
+      <select id="hyrasPeriodSelect"><option value="">Zeiträume werden geladen …</option></select>
+    </div>
     <div class="control-group">
       <label for="hyrasMetricSelect">Darstellung</label>
       <select id="hyrasMetricSelect">
@@ -808,8 +812,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
   <div class="stat-grid" style="margin-bottom:16px">
     <div class="stat-card"><h4>Zeitraum</h4><div id="hyrasPeriodStat" class="current-value">–</div><div id="hyrasDataThrough" class="daily-stat-detail">–</div></div>
-    <div class="stat-card"><h4>Rastermittel</h4><div id="hyrasCurrentMean" class="current-value">–</div><div class="daily-stat-detail">aktueller Monat</div></div>
-    <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="hyrasReferenceMean" class="current-value">–</div><div class="daily-stat-detail">gleicher Kalendermonat</div></div>
+    <div class="stat-card"><h4>Rastermittel</h4><div id="hyrasCurrentMean" class="current-value">–</div><div id="hyrasCurrentMeanDetail" class="daily-stat-detail">gewählter Zeitraum</div></div>
+    <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="hyrasReferenceMean" class="current-value">–</div><div id="hyrasReferenceMeanDetail" class="daily-stat-detail">gleicher Kalenderzeitraum</div></div>
     <div class="stat-card"><h4>Vom Mittel</h4><div id="hyrasPercentMean" class="current-value">–</div><div id="hyrasAnomalyMean" class="daily-stat-detail">–</div></div>
   </div>
 
@@ -819,7 +823,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <a id="hyrasOpenImage" href="#" target="_blank" rel="noopener">Karte groß öffnen</a>
     </div>
   </div>
-  <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Die Karte basiert auf täglichen HYRAS-Niederschlagsrastern und zeigt den aktuellsten vollständig verfügbaren Kalendermonat. Das Raster hat 1 km Auflösung. Die angezeigten Deutschlandwerte sind Mittel über Rasterzellen mit gültigem aktuellem und Referenzwert und keine separate amtliche Gebietsmittelreihe.</p>
+  <p id="hyrasReferenceNote" class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Das Raster hat 1 km Auflösung. Prozent- und Abweichungskarten werden nur dann gezeigt, wenn für den gewählten Zeitraum ein exakter 1991–2020-Vergleich vorliegt.</p>
 </div>
 
 <!-- ================= AKTUELL / 10-MINUTEN ================= -->
@@ -5429,7 +5433,7 @@ async function renderStationProfileAuxiliary(){
 window.addEventListener('stationprofilechange',()=>renderStationProfileAuxiliary().catch(error=>console.error('Stationsprofil Zusatzdaten:',error)));
 
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
-// ================= VERSION 15.0: HYRAS-FLÄCHENKARTEN =================
+// ================= VERSION 15.1: HYRAS-FLÄCHENKARTEN =================
 function hyrasNum(value,unit="",digits=1){
   const n=Number(value);
   if(!Number.isFinite(n)) return "–";
@@ -5451,19 +5455,70 @@ function hyrasMetricConfig(metric){
   if(metric==="anomaly") return {key:"anomaly",label:"Abweichung in l/m²"};
   return {key:"percent",label:"Prozent des Mittels 1991–2020"};
 }
+function hyrasSelectedPeriod(){
+  const periods=hyrasIndex?.periods||[];
+  const selected=document.getElementById("hyrasPeriodSelect")?.value;
+  return periods.find(period=>period.key===selected)||periods.find(period=>period.key===hyrasIndex?.default_period)||periods[0]||null;
+}
+function populateHyrasPeriods(){
+  const select=document.getElementById("hyrasPeriodSelect");
+  if(!select || !hyrasIndex) return;
+  const periods=hyrasIndex.periods||[];
+  const previous=select.value;
+  select.innerHTML="";
+  const groups={month:[],season:[],summary:[],current:[]};
+  periods.forEach(period=>{
+    if(period.period_type==="month") groups.month.push(period);
+    else if(period.period_type==="season") groups.season.push(period);
+    else if(["summer_live","ytd_live"].includes(period.period_type)) groups.current.push(period);
+    else groups.summary.push(period);
+  });
+  const addGroup=(label,rows)=>{
+    if(!rows.length) return;
+    const group=document.createElement("optgroup");group.label=label;
+    rows.forEach(period=>{const option=document.createElement("option");option.value=period.key;option.textContent=`${period.label} · ${period.date_label||""}`;group.appendChild(option);});
+    select.appendChild(group);
+  };
+  addGroup("Bisherige Zeiträume",groups.summary);
+  addGroup("Aktuell bis zum jüngsten HYRAS-Tag",groups.current);
+  addGroup("Abgeschlossene Jahreszeiten",groups.season);
+  addGroup("Abgeschlossene Monate",groups.month);
+  const target=(previous&&periods.some(p=>p.key===previous))?previous:(hyrasIndex.default_period||periods[0]?.key||"");
+  select.value=target;
+}
+function updateHyrasMetricAvailability(period){
+  const select=document.getElementById("hyrasMetricSelect");
+  if(!select || !period) return;
+  const hasPercent=Boolean(period.outputs?.percent);
+  const hasAnomaly=Boolean(period.outputs?.anomaly);
+  [...select.options].forEach(option=>{
+    if(option.value==="percent") option.disabled=!hasPercent;
+    if(option.value==="anomaly") option.disabled=!hasAnomaly;
+  });
+  if((select.value==="percent"&&!hasPercent)||(select.value==="anomaly"&&!hasAnomaly)) select.value="sum";
+}
 function renderHyras(){
   if(!hyrasIndex) return;
-  const stats=hyrasIndex.stats||{};
+  const period=hyrasSelectedPeriod();
+  if(!period) return;
+  updateHyrasMetricAvailability(period);
+  const stats=period.stats||{};
   const metric=document.getElementById("hyrasMetricSelect")?.value||"percent";
   const cfg=hyrasMetricConfig(metric);
-  const file=hyrasIndex.outputs?.[cfg.key];
-  document.getElementById("hyrasPeriodStat").textContent=hyrasIndex.label||`${hyrasIndex.month_name||""} ${hyrasIndex.year||""}`;
-  document.getElementById("hyrasDataThrough").textContent=`HYRAS-Tagesdatei bis ${hyrasDate(hyrasIndex.data_through)}`;
+  const file=period.outputs?.[cfg.key];
+  document.getElementById("hyrasPeriodStat").textContent=period.label||"–";
+  document.getElementById("hyrasDataThrough").textContent=period.date_label||`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`;
   document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
+  document.getElementById("hyrasCurrentMeanDetail").textContent=`Rastermittel · ${period.date_label||"gewählter Zeitraum"}`;
   document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
+  document.getElementById("hyrasReferenceMeanDetail").textContent=period.reference_exact?"exakter gleicher Kalenderzeitraum 1991–2020":"für laufenden Teilmonat noch nicht berechnet";
   document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
   const anom=Number(stats.anomaly_mean_mm);
-  document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:`Abweichung nicht verfügbar`;
+  document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:"Abweichung nicht verfügbar";
+  const note=document.getElementById("hyrasReferenceNote");
+  if(note){
+    note.textContent=period.reference_note||"Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. 1-km-Raster. Prozent- und Abweichungskarten basieren auf einem exakten Vergleich mit dem gleichen Kalenderzeitraum 1991–2020.";
+  }
   const frame=document.getElementById("hyrasMapFrame");
   const link=document.getElementById("hyrasOpenImage");
   if(!file){
@@ -5473,7 +5528,7 @@ function renderHyras(){
   }
   const url=`${HYRAS_DATA_BASE}/${file}?t=${Date.now()}`;
   const img=document.createElement("img");
-  img.alt=`HYRAS ${cfg.label} · ${hyrasIndex.label||""}`;
+  img.alt=`HYRAS ${cfg.label} · ${period.label||""}`;
   img.loading="eager";
   img.src=url;
   img.onerror=()=>{frame.innerHTML='<div class="hyras-loading">Die HYRAS-Karte konnte nicht geladen werden.</div>';};
@@ -5490,7 +5545,8 @@ async function ensureHyrasLoaded(force=false){
     try{
       hyrasIndex=await hyrasFetchJson("hyras_index.json");
       hyrasLastFetch=Date.now();
-      if(status){status.className="hyras-status";status.textContent=`${hyrasIndex.label} · Referenz ${hyrasIndex.reference} · HYRAS-DE-PR ${hyrasIndex.resolution_km}-km-Raster · Daten bis ${hyrasDate(hyrasIndex.data_through)}`;}
+      populateHyrasPeriods();
+      if(status){status.className="hyras-status";status.textContent=`${hyrasIndex.periods?.length||0} Zeiträume · Referenz ${hyrasIndex.reference} · HYRAS-DE-PR ${hyrasIndex.resolution_km}-km-Raster · Daten bis ${hyrasDate(hyrasIndex.data_through)}`;}
       renderHyras();
     }catch(error){
       console.error("HYRAS:",error);
@@ -5503,6 +5559,7 @@ async function ensureHyrasLoaded(force=false){
 }
 function initHyrasControls(){
   document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
+  document.getElementById("hyrasPeriodSelect")?.addEventListener("change",()=>renderHyras());
 }
 initHyrasControls();
 
