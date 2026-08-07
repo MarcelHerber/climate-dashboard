@@ -352,7 +352,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .current-table-wrap table{margin:0}.current-table-wrap thead th{position:sticky;top:0;background:#f4f5f6;z-index:1}
 .current-value{font-size:24px;font-weight:700;line-height:1.2}.current-unit{font-size:14px;font-weight:600;color:var(--muted)}
 .current-refresh-button{padding:8px 12px;border:1px solid #aab4bd;border-radius:7px;background:#fff;font-weight:700;cursor:pointer}.current-refresh-button:hover{background:#f4f6f7}
-.current-map-wrap{margin:16px 0 18px}.current-map-wrap .controls{margin:0 0 10px}.current-live-map{height:440px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#f6f8fa}.current-map-legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:10px;font-size:12px;color:#39424a}.current-map-legend-item{display:flex;align-items:center;gap:6px}.current-map-legend-swatch{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.2)}.current-map-note{margin-top:8px}.current-live-map .leaflet-popup-content{line-height:1.35}.current-map-empty{padding:14px;color:var(--muted)}
+.current-map-wrap{margin:16px 0 18px}.current-map-wrap .controls{margin:0 0 10px}.current-live-map{height:520px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#f6f8fa}.current-map-legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:10px;font-size:12px;color:#39424a}.current-map-legend-item{display:flex;align-items:center;gap:6px}.current-map-legend-swatch{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.2)}.current-map-note{margin-top:8px}.current-live-map .leaflet-popup-content{line-height:1.35}.current-map-empty{padding:14px;color:var(--muted)}.current-map-label-icon{background:transparent;border:none}.current-map-label-wrap{display:flex;flex-direction:column;align-items:center;transform:translateY(-4px)}.current-map-label{padding:2px 5px;border-radius:4px;border:1px solid rgba(17,24,39,.18);background:rgba(255,255,255,.92);backdrop-filter:blur(1px);font-size:12px;line-height:1.1;font-weight:800;color:var(--label-color,#111827);box-shadow:0 1px 3px rgba(0,0,0,.18);white-space:nowrap}.current-map-label.selected{border:2px solid #111827;box-shadow:0 2px 6px rgba(0,0,0,.28)}.current-map-dot{width:6px;height:6px;border-radius:50%;background:var(--label-color,#111827);border:1px solid rgba(255,255,255,.95);margin-top:2px;box-shadow:0 0 0 1px rgba(17,24,39,.15)}
 
 /* Version 11: Stationskarten */
 .station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
@@ -809,6 +809,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
           <option value="precip_10min">Niederschlag letzte 10 Min.</option>
           <option value="today_precip">Niederschlag heute</option>
           <option value="humidity">Relative Feuchte</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="currentMapDisplaySelect">Darstellung</label>
+        <select id="currentMapDisplaySelect">
+          <option value="labels">Wertekarte</option>
+          <option value="declutter">Wertekarte (ausgedünnt)</option>
         </select>
       </div>
     </div>
@@ -5386,13 +5393,40 @@ function currentMapLegendHtml(metric){
   }
   return labels.join('');
 }
+function currentMapDisplayValue(metric,value){
+  const spec=currentMapMetricSpec(metric);
+  return Number(value).toLocaleString('de-DE',{minimumFractionDigits:spec.digits,maximumFractionDigits:spec.digits});
+}
+function currentMapLabelIcon(metric,value,selected=false){
+  const color=currentMapColor(metric,value);
+  const label=currentMapDisplayValue(metric,value);
+  return L.divIcon({
+    className:'current-map-label-icon',
+    html:`<div class="current-map-label-wrap" style="--label-color:${color}"><div class="current-map-label${selected?' selected':''}">${label}</div><div class="current-map-dot"></div></div>`,
+    iconSize:[44,24],
+    iconAnchor:[22,24],
+    popupAnchor:[0,-22]
+  });
+}
+function currentMapPopupHtml(station,metric,value){
+  const spec=currentMapMetricSpec(metric);
+  const valueLabel=`${currentMapDisplayValue(metric,value)} ${spec.unit}`;
+  return `<strong>${station.name||'Station'} (${station.id})</strong><br>${station.state||''}${Number.isFinite(Number(station.elevation_m))?` · ${Number(station.elevation_m).toLocaleString('de-DE')} m`:''}<br><strong>${spec.label}:</strong> ${valueLabel}<br><span class="note">Messzeitpunkt: ${currentDateTime(station.latest_local||station.latest_utc)}</span>`;
+}
+function currentMapKeepLabel(point,kept,minDistance){
+  return !kept.some(other=>Math.hypot(point.x-other.x,point.y-other.y)<minDistance);
+}
+function currentMapBuildCandidates(metric){
+  return currentFilteredStations().filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon))).map(station=>({station,value:currentMapMetricValue(station,metric)})).filter(item=>item.value!==null);
+}
 function renderCurrentMap(){
   const container=document.getElementById('currentMap');
   const legend=document.getElementById('currentMapLegend');
   if(!container) return;
   if(!window.L){container.innerHTML='<div class="current-map-empty">Leaflet konnte nicht geladen werden.</div>';return;}
   const metric=document.getElementById('currentMapMetricSelect')?.value||'temperature';
-  const stations=currentFilteredStations().filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon)));
+  const displayMode=document.getElementById('currentMapDisplaySelect')?.value||'labels';
+  const candidates=currentMapBuildCandidates(metric);
   if(legend) legend.innerHTML=currentMapLegendHtml(metric);
   if(container.querySelector('.current-map-empty') && currentLiveMap){container.innerHTML=''; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null;}
   if(!currentLiveMap){
@@ -5402,30 +5436,35 @@ function renderCurrentMap(){
     currentLiveMapLayer=L.layerGroup().addTo(currentLiveMap);
   }
   currentLiveMapLayer.clearLayers();
-  if(!stations.length){container.innerHTML='<div class="current-map-empty">Keine Station passt zum aktuellen Filter.</div>'; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null; return;}
+  if(!candidates.length){container.innerHTML='<div class="current-map-empty">Für den gewählten Kartenparameter sind im aktuellen Filter keine Werte verfügbar.</div>'; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null; return;}
   const selectedId=document.getElementById('currentStationSelect')?.value||'';
-  const bounds=[];
-  let selectedStation=null;
-  stations.forEach(station=>{
-    const value=currentMapMetricValue(station,metric);
-    if(value===null) return;
-    const selected=station.id===selectedId;
-    const marker=L.circleMarker([Number(station.lat),Number(station.lon)],{radius:selected?8:6,weight:selected?2.8:1.2,color:selected?'#111827':'rgba(0,0,0,.45)',fillColor:currentMapColor(metric,value),fillOpacity:.9});
-    const spec=currentMapMetricSpec(metric);
-    const valueLabel=`${Number(value).toLocaleString('de-DE',{minimumFractionDigits:spec.digits,maximumFractionDigits:spec.digits})} ${spec.unit}`;
-    const popup=`<strong>${station.name||'Station'} (${station.id})</strong><br>${station.state||''}${Number.isFinite(Number(station.elevation_m))?` · ${Number(station.elevation_m).toLocaleString('de-DE')} m`:''}<br><strong>${spec.label}:</strong> ${valueLabel}<br><span class="note">Messzeitpunkt: ${currentDateTime(station.latest_local||station.latest_utc)}</span>`;
-    marker.bindPopup(popup);
-    marker.on('click',()=>{const select=document.getElementById('currentStationSelect'); if(select){select.value=station.id; persistDashboardState('currentStationSelect',station.id); loadCurrentStation(station.id);} });
-    marker.addTo(currentLiveMapLayer);
-    bounds.push([Number(station.lat),Number(station.lon)]);
-    if(selected) selectedStation=station;
-  });
-  if(!bounds.length){container.innerHTML='<div class="current-map-empty">Für den gewählten Kartenparameter sind im aktuellen Filter keine Werte verfügbar.</div>'; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null; return;}
-  if(selectedStation){
-    currentLiveMap.setView([Number(selectedStation.lat),Number(selectedStation.lon)],Math.max(currentLiveMap.getZoom()||6,7),{animate:false});
+  const selectedCandidate=candidates.find(item=>item.station.id===selectedId)||null;
+  const bounds=candidates.map(item=>[Number(item.station.lat),Number(item.station.lon)]);
+  currentLiveMap.invalidateSize(false);
+  if(selectedCandidate){
+    currentLiveMap.setView([Number(selectedCandidate.station.lat),Number(selectedCandidate.station.lon)],Math.max(currentLiveMap.getZoom()||6,7),{animate:false});
   }else{
-    currentLiveMap.fitBounds(bounds,{padding:[22,22],maxZoom:7});
+    currentLiveMap.fitBounds(bounds,{padding:[26,26],maxZoom:7});
   }
+  const prioritized=[...candidates].sort((a,b)=>{
+    if(a.station.id===selectedId) return -1;
+    if(b.station.id===selectedId) return 1;
+    return Math.abs(b.value)-Math.abs(a.value);
+  });
+  const minDistance=displayMode==='declutter'?18:0;
+  const keptPoints=[];
+  prioritized.forEach(item=>{
+    const lat=Number(item.station.lat);
+    const lon=Number(item.station.lon);
+    const point=currentLiveMap.latLngToLayerPoint([lat,lon]);
+    const selected=item.station.id===selectedId;
+    if(minDistance>0 && !selected && !currentMapKeepLabel(point,keptPoints,minDistance)) return;
+    keptPoints.push(point);
+    const marker=L.marker([lat,lon],{icon:currentMapLabelIcon(metric,item.value,selected)});
+    marker.bindPopup(currentMapPopupHtml(item.station,metric,item.value));
+    marker.on('click',()=>{const select=document.getElementById('currentStationSelect'); if(select){select.value=item.station.id; persistDashboardState('currentStationSelect',item.station.id); loadCurrentStation(item.station.id);} });
+    marker.addTo(currentLiveMapLayer);
+  });
 }
 function currentWindCompass(value){
   const deg=Number(value);
@@ -5587,11 +5626,13 @@ function initCurrentControls(){
   const select=document.getElementById("currentStationSelect");
   const refresh=document.getElementById("currentRefreshButton");
   const metric=document.getElementById("currentMapMetricSelect");
+  const display=document.getElementById("currentMapDisplaySelect");
   state?.addEventListener("change",()=>populateCurrentStations(false));
   search?.addEventListener("input",()=>populateCurrentStations(false));
   select?.addEventListener("change",()=>{persistDashboardState("currentStationSelect",select.value);loadCurrentStation(select.value);});
   refresh?.addEventListener("click",()=>ensureCurrentConditions(true));
   metric?.addEventListener("change",()=>renderCurrentMap());
+  display?.addEventListener("change",()=>renderCurrentMap());
   window.setInterval(()=>{
     if(document.getElementById("current")?.classList.contains("active")) ensureCurrentConditions(true);
   },5*60*1000);
