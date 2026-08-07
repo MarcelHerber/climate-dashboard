@@ -792,7 +792,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         <div class="chart-container"><canvas id="stationProfileTemperatureChart"></canvas></div>
       </section>
       <section class="profile-section chart-container auto">
-        <div class="profile-section-heading"><div><div class="profile-kicker">Tageswerte</div><h2 id="stationProfileDailyTitle">Tagesdaten des aktuellen Jahres</h2></div><p class="note">Tagesmittel = (Tmin + Tmax) / 2. Aktuelle DWD-Werte sind vorläufig.</p></div>
+        <div class="profile-section-heading"><div><div class="profile-kicker">Tageswerte</div><h2 id="stationProfileDailyTitle">Tagesdaten des aktuellen Jahres</h2></div><p class="note">Tagesmittel = DWD-Tagesmittel TMK. Aktuelle DWD-Werte sind vorläufig.</p></div>
         <div id="stationProfileDailyMessage" class="note"></div>
         <div class="profile-daily-table"><table id="stationProfileDailyTable"><thead><tr><th>Datum</th><th>Minimum</th><th>Mittel</th><th>Maximum</th></tr></thead><tbody></tbody></table></div>
       </section>
@@ -4979,7 +4979,7 @@ window.addEventListener('stationprofilechange',()=>renderStationProfileClimate()
 function stationProfileCurrentTemperatureRows(){
   const id=document.getElementById('stationProfileStationSelect')?.value;if(!id)return [];
   const year=Number(stationClimateDaysIndex.current_year),through=stationClimateDaysIndex.data_through,rows=[];
-  (stationClimateDaysIndex.labels||[]).forEach((label,index)=>{const iso=`${year}-${label}`;if(iso>through)return;const pair=stationClimateDaysPair(id,iso);if(!pair)return;const tx=Number.isFinite(Number(pair[2]))?Number(pair[2])/10:null;const tn=Number.isFinite(Number(pair[3]))?Number(pair[3])/10:null;if(tx===null&&tn===null)return;rows.push({index,date:iso,tx,tn,tm:tx!==null&&tn!==null?(tx+tn)/2:null});});return rows;
+  (stationClimateDaysIndex.labels||[]).forEach((label,index)=>{const iso=`${year}-${label}`;if(iso>through)return;const pair=stationClimateDaysPair(id,iso);if(!pair)return;const tx=Number.isFinite(Number(pair[2]))?Number(pair[2])/10:null;const tn=Number.isFinite(Number(pair[3]))?Number(pair[3])/10:null;const tm=Number.isFinite(Number(pair[4]))?Number(pair[4])/10:(tx!==null&&tn!==null?(tx+tn)/2:null);if(tx===null&&tn===null&&tm===null)return;rows.push({index,date:iso,tx,tn,tm});});return rows;
 }
 function stationProfileTemperatureColor(value){if(!Number.isFinite(value))return '#555';if(value>=40)return '#7f1717';if(value>=35)return '#c63d2f';if(value>=30)return '#df6b2f';if(value>=25)return '#d89a16';return '#46525a';}
 function stationProfileMinColor(value){if(!Number.isFinite(value))return '#555';if(value>=20)return '#9b3ed1';if(value<0)return '#2785c7';return '#5d666b';}
@@ -5009,7 +5009,7 @@ async function renderStationProfileTemperature(){
     {label:`Tmin ${stationClimateDaysIndex.current_year}`,data:tn,borderColor:'#386d8d',borderWidth:2,pointRadius:0,spanGaps:false,segment:{borderColor:ctx=>stationProfileMinColor((ctx.p0.parsed.y+ctx.p1.parsed.y)/2)}}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Temperaturverlauf ${stationClimateDaysIndex.current_year} – ${stationProfileProfile.name||''}`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:12}},y:{title:{display:true,text:'Temperatur (°C)'}}}}});
   document.getElementById('stationProfileDailyTitle').textContent=`Tagesdaten ${stationClimateDaysIndex.current_year}`;
-  document.getElementById('stationProfileDailyMessage').textContent=rows.some(r=>Number.isFinite(r.tn))?'':'Tmin ist in den aktuellen Stationsdateien noch nicht enthalten. Nach dem Version-12.3-Datenlauf erscheint die vollständige Tabelle.';
+  document.getElementById('stationProfileDailyMessage').textContent=(rows.some(r=>Number.isFinite(r.tn))&&rows.some(r=>Number.isFinite(r.tm)))?'':'Tmin/Tagesmittel sind in den geladenen aktuellen Stationsdateien noch nicht enthalten. Nach dem aktuellen DWD-KL-Datenlauf erscheint die vollständige Tabelle.';
   const latest=rows.at(-1)?.date;document.querySelector('#stationProfileDailyTable tbody').innerHTML=[...rows].reverse().map(r=>`<tr class="${r.date===latest?'latest':''}"><td>${dailyGermanDate(r.date,false)}</td><td>${stationProfileTempLabel(r.tn,'tn')}</td><td>${stationProfileTempLabel(r.tm,'tm')}</td><td>${stationProfileTempLabel(r.tx,'tx')}</td></tr>`).join('');
   stationProfileRenderExtremeTable('stationProfileHotTable',stationProfileMergeExtremes('hottest_days',rows));stationProfileRenderExtremeTable('stationProfileColdTable',stationProfileMergeExtremes('coldest_nights',rows));stationProfileRenderExtremeTable('stationProfileWarmNightTable',stationProfileMergeExtremes('warmest_nights',rows));initializeChartExportButtons();
 }
