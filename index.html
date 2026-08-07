@@ -214,6 +214,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .streak-chase-map-legend i{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.22)}
 @media(max-width:900px){.streak-chase-hero{grid-template-columns:1fr 1fr}.streak-chase-card.primary{grid-column:1/-1}}
 @media(max-width:560px){.streak-chase-hero{grid-template-columns:1fr}}
+.streak-progression-hero{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin:12px 0 16px}
+.streak-progression-card{border:1px solid #d8e0e5;border-radius:10px;background:#fff;padding:13px 14px;min-width:0}
+.streak-progression-card .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.45px;color:#69747c;font-weight:800}
+.streak-progression-card .value{margin-top:4px;font-size:21px;font-weight:850;line-height:1.15;color:#202a31}
+.streak-progression-card .detail{margin-top:5px;font-size:11px;color:var(--muted);line-height:1.4}
+@media(max-width:900px){.streak-progression-hero{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.streak-progression-hero{grid-template-columns:1fr}}
 .record-year-control[hidden]{display:none}
 .record-loading{padding:18px;background:white;border-radius:8px;box-shadow:var(--shadow)}
 
@@ -1754,6 +1761,48 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         </div>
       </div>
       <p id="activeStreakNote" class="note" style="margin-top:12px"></p>
+
+      <h2 style="margin-top:40px">Historische Rekordentwicklung</h2>
+      <p class="note" style="margin-top:-4px">Wann wurde ein Serienrekord erstmals aufgestellt – und welche spätere Serie hat ihn überboten? Die Zeitachse zeigt nur echte neue Rekordstufen, keine bloßen Gleichstände.</p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="streakProgressionScopeSelect">Ebene</label>
+          <select id="streakProgressionScopeSelect">
+            <option value="national" selected>Deutschlandrekord</option>
+            <option value="station">Stationsrekord</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="streakProgressionMetricSelect">Kenntag</label>
+          <select id="streakProgressionMetricSelect"></select>
+        </div>
+        <div id="streakProgressionAreaGroup" class="control-group" hidden>
+          <label for="streakProgressionAreaSelect">Gebiet</label>
+          <select id="streakProgressionAreaSelect"></select>
+        </div>
+        <div id="streakProgressionStationGroup" class="control-group" hidden>
+          <label for="streakProgressionStationSelect">Station</label>
+          <select id="streakProgressionStationSelect"></select>
+        </div>
+        <button id="streakProgressionDownload" class="action" type="button">Diagramm als PNG</button>
+      </div>
+      <div id="streakProgressionHero" class="streak-progression-hero"></div>
+      <div id="streakProgressionSummary" class="summary-box">Historische Rekordentwicklung wird aufgebaut …</div>
+      <div class="chart-container" style="height:430px">
+        <canvas id="streakProgressionChart"></canvas>
+      </div>
+      <div class="table-wrap" style="margin-top:18px">
+        <table id="streakProgressionTable">
+          <thead>
+            <tr>
+              <th>Stufe</th><th>Rekord seit</th><th>Rekord</th><th>Verbesserung</th><th>Serie von</th><th>bis</th>
+              <th>Station</th><th>Bundesland</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="streakProgressionNote" class="note" style="margin-top:12px"></p>
     </div>
 
     <p id="recordSourceNote" class="note" style="margin-top:18px"></p>
@@ -1898,6 +1947,8 @@ let nationalStreakMap=null;
 let nationalStreakMapLayer=null;
 let activeStreakMap=null;
 let activeStreakMapLayer=null;
+let streakProgressionChart=null;
+const streakProgressionProfileCache=new Map();
 const stationYearCache=new Map();
 
 function showError(message){
@@ -1931,7 +1982,7 @@ function switchTab(tab,{persist=true}={}){
     ensureStationStreaksLoaded();
   }
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,streakProgressionChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -5773,6 +5824,9 @@ function updateNewStationRecordTable(){
 function ensureStationStreaksLoaded(){
   if(stationStreakIndex){
     updateStationStreakTable();
+    updateNationalStreakRecords();
+    updateActiveStreakRecords();
+    updateStreakRecordProgression();
     return Promise.resolve(stationStreakIndex);
   }
   if(stationStreakLoading) return stationStreakLoading;
@@ -5791,6 +5845,7 @@ function ensureStationStreaksLoaded(){
       document.getElementById("stationStreakContent").hidden=false;
       updateStationStreakTable();
       updateNationalStreakRecords();
+      updateStreakRecordProgression();
       return data;
     })
     .catch(error=>{
@@ -5864,8 +5919,40 @@ function initializeStationStreakControls(){
     .forEach(id=>document.getElementById(id)?.addEventListener("change",updateActiveStreakRecords));
   document.getElementById("activeStreakMapDownload")?.addEventListener("click",downloadActiveStreakMap);
 
+  const progressionMetric=document.getElementById("streakProgressionMetricSelect");
+  if(progressionMetric){
+    progressionMetric.innerHTML="";
+    (stationStreakIndex.climate_days||[]).forEach(metric=>{
+      const option=document.createElement("option");
+      option.value=metric.id; option.textContent=`${metric.label} · ${metric.definition}`;
+      progressionMetric.appendChild(option);
+    });
+    if((stationStreakIndex.climate_days||[]).some(item=>item.id==="hot")) progressionMetric.value="hot";
+  }
+  const progressionArea=document.getElementById("streakProgressionAreaSelect");
+  if(progressionArea){
+    progressionArea.innerHTML='<option value="Deutschland">Deutschland</option>';
+    (stationStreakIndex.states||[]).forEach(state=>{
+      const option=document.createElement("option"); option.value=state; option.textContent=state; progressionArea.appendChild(option);
+    });
+  }
+  populateStreakProgressionStations();
+  document.getElementById("streakProgressionScopeSelect")?.addEventListener("change",()=>{
+    updateStreakProgressionControlVisibility();
+    updateStreakRecordProgression();
+  });
+  document.getElementById("streakProgressionMetricSelect")?.addEventListener("change",updateStreakRecordProgression);
+  document.getElementById("streakProgressionAreaSelect")?.addEventListener("change",()=>{
+    populateStreakProgressionStations();
+    updateStreakRecordProgression();
+  });
+  document.getElementById("streakProgressionStationSelect")?.addEventListener("change",updateStreakRecordProgression);
+  document.getElementById("streakProgressionDownload")?.addEventListener("click",downloadStreakProgressionChart);
+  updateStreakProgressionControlVisibility();
+
   updateNationalStreakRecords();
   updateActiveStreakRecords();
+  updateStreakRecordProgression();
 }
 
 function stationStreakDateText(iso){
@@ -6090,6 +6177,200 @@ function activeStreakGapText(row){
   if(difference===1) return "1 Tag";
   if(difference===0) return "eingestellt";
   return `+${Math.abs(difference)} Tage`;
+}
+
+function updateStreakProgressionControlVisibility(){
+  const stationMode=document.getElementById("streakProgressionScopeSelect")?.value==="station";
+  const areaGroup=document.getElementById("streakProgressionAreaGroup");
+  const stationGroup=document.getElementById("streakProgressionStationGroup");
+  if(areaGroup) areaGroup.hidden=!stationMode;
+  if(stationGroup) stationGroup.hidden=!stationMode;
+}
+
+function populateStreakProgressionStations(){
+  if(!stationStreakIndex) return;
+  const select=document.getElementById("streakProgressionStationSelect");
+  if(!select) return;
+  const area=document.getElementById("streakProgressionAreaSelect")?.value||"Deutschland";
+  const previous=select.value;
+  const stations=(stationStreakIndex.stations||[])
+    .filter(station=>area==="Deutschland"||station.state===area)
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"de")||String(a.id).localeCompare(String(b.id)));
+  select.innerHTML="";
+  stations.forEach(station=>{
+    const option=document.createElement("option");
+    option.value=station.id;
+    option.textContent=`${station.name||station.id} (${station.id})`;
+    select.appendChild(option);
+  });
+  if(stations.some(station=>station.id===previous)) select.value=previous;
+  else if(stations.length) select.value=stations[0].id;
+}
+
+async function streakProgressionProfile(stationId){
+  if(streakProgressionProfileCache.has(stationId)) return streakProgressionProfileCache.get(stationId);
+  const station=stationStreakStation(stationId);
+  if(!station?.file) throw new Error("Stationsprofil nicht gefunden.");
+  const response=await dashboardFetch(station.file,{cache:"no-store"});
+  if(!response.ok) throw new Error(`Stationsprofil konnte nicht geladen werden (HTTP ${response.status}).`);
+  const profile=await response.json();
+  streakProgressionProfileCache.set(stationId,profile);
+  return profile;
+}
+
+function streakProgressionOverlap(a,b){
+  if(!a?.start||!a?.end||!b?.start||!b?.end) return false;
+  return String(a.start)<=String(b.end) && String(b.start)<=String(a.end);
+}
+
+function streakProgressionRecompute(rows){
+  const byDate=new Map();
+  (rows||[]).forEach(raw=>{
+    if(!raw) return;
+    const date=String(raw.record_date||raw.end||"");
+    const duration=Number(raw.duration||0);
+    if(!date||!Number.isFinite(duration)||duration<=0) return;
+    const current=byDate.get(date);
+    if(!current||duration>Number(current.duration||0)) byDate.set(date,{...raw,record_date:date,duration});
+  });
+  const ordered=[...byDate.values()].sort((a,b)=>String(a.record_date).localeCompare(String(b.record_date))||Number(b.duration)-Number(a.duration));
+  const result=[]; let record=0;
+  ordered.forEach(raw=>{
+    const duration=Number(raw.duration||0);
+    if(duration<=record) return;
+    result.push({...raw,previous_duration:record||null,improvement:duration-record});
+    record=duration;
+  });
+  return result;
+}
+
+async function streakProgressionRows(scope,metricId,stationId){
+  if(scope==="national") return (stationStreakIndex.national_streak_record_progression?.[metricId]||[]).map(row=>({...row}));
+  const profile=await streakProgressionProfile(stationId);
+  const historical=(profile?.streak_record_progression?.[metricId]||[]).map(row=>({...row,station_id:stationId}));
+  const current=(stationStreakIndex.current_station_record_progression?.[stationId]?.[metricId]||[]).map(row=>({...row,station_id:stationId}));
+  const filteredHistorical=historical.filter(row=>!current.some(currentRow=>streakProgressionOverlap(row,currentRow)));
+  return streakProgressionRecompute([...filteredHistorical,...current]);
+}
+
+function streakProgressionHero(rows,scope,metric,station){
+  const el=document.getElementById("streakProgressionHero");
+  if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div class="streak-progression-card"><div class="eyebrow">Rekordentwicklung</div><div class="value">Keine Daten</div><div class="detail">Für diese Auswahl liegen noch keine Rekordstufen vor.</div></div>';
+    return;
+  }
+  const first=rows[0],last=rows[rows.length-1];
+  const biggest=[...rows].sort((a,b)=>Number(b.improvement||0)-Number(a.improvement||0))[0];
+  const holder=scope==="national"?stationStreakStation(last.station_id):station;
+  el.innerHTML=`
+    <div class="streak-progression-card"><div class="eyebrow">Erster erfasster Rekord</div><div class="value">${first.duration} Tage</div><div class="detail">seit ${stationStreakDateText(first.record_date||first.end)}</div></div>
+    <div class="streak-progression-card"><div class="eyebrow">Aktueller Rekord</div><div class="value">${last.duration} Tage</div><div class="detail">${holder?.name||last.station_id||station?.name||""} · ${stationStreakDateText(last.record_date||last.end)}</div></div>
+    <div class="streak-progression-card"><div class="eyebrow">Rekordstufen</div><div class="value">${rows.length}</div><div class="detail">echte Verbesserungen · Gleichstände nicht gezählt</div></div>
+    <div class="streak-progression-card"><div class="eyebrow">Größter Sprung</div><div class="value">+${Number(biggest.improvement||biggest.duration)} Tage</div><div class="detail">auf ${biggest.duration} Tage · ${stationStreakDateText(biggest.record_date||biggest.end)}</div></div>`;
+}
+
+function renderStreakProgressionChart(rows,scope,metric,station){
+  const canvas=document.getElementById("streakProgressionChart");
+  if(!canvas) return;
+  if(streakProgressionChart){streakProgressionChart.destroy();streakProgressionChart=null;}
+  const labels=rows.map(row=>{
+    const iso=row.record_date||row.end||"";
+    return iso?stationStreakDateText(iso):"–";
+  });
+  const data=rows.map(row=>Number(row.duration||0));
+  const title=scope==="national"?`Deutschlandrekord · ${metric.label}`:`Stationsrekord ${station?.name||""} · ${metric.label}`;
+  streakProgressionChart=new Chart(canvas,{
+    type:"line",
+    data:{labels,datasets:[{label:"Rekordlänge",data,borderColor:metric.color||"#a83b32",backgroundColor:metric.color||"#a83b32",stepped:"after",tension:0,pointRadius:4,pointHoverRadius:6,borderWidth:2.5,fill:false}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:"nearest",intersect:false},
+      plugins:{
+        title:{display:true,text:title,font:{size:16,weight:"bold"}},
+        legend:{display:false},
+        datalabels:{display:rows.length<=24,align:"top",anchor:"end",formatter:value=>`${value} T.`,font:{weight:"bold",size:10}},
+        tooltip:{callbacks:{afterLabel:ctx=>{const row=rows[ctx.dataIndex],holder=scope==="national"?stationStreakStation(row.station_id):station;return [`Serie: ${stationStreakDateText(row.start)} – ${stationStreakDateText(row.end)}`,holder?.name?`Station: ${holder.name} (${holder.id})`:"",`Verbesserung: +${row.improvement||row.duration} Tage`].filter(Boolean);}}}
+      },
+      scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Tage in Folge"},ticks:{precision:0}}}
+    }
+  });
+}
+
+function renderStreakProgressionTable(rows,scope,station){
+  const tbody=document.querySelector("#streakProgressionTable tbody");
+  if(!tbody) return;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="9">Keine Rekordstufen vorhanden.</td></tr>';return;}
+  tbody.innerHTML=rows.map((row,index)=>{
+    const holder=scope==="national"?stationStreakStation(row.station_id):station;
+    const status=row.ongoing?'laufend · vorläufig':row.preliminary?'vorläufig':'historisch geprüft';
+    const badge=row.preliminary?'preliminary':'checked';
+    return `<tr>
+      <td><strong>${index+1}</strong></td>
+      <td>${stationStreakDateText(row.record_date||row.end)}</td>
+      <td class="record-value"><strong>${row.duration} Tage</strong>${stationStreakCrossesBoundary(row)}</td>
+      <td>+${Number(row.improvement||row.duration).toLocaleString("de-DE")} Tage</td>
+      <td>${stationStreakDateText(row.start)}</td>
+      <td>${stationStreakDateText(row.end)}</td>
+      <td class="record-station">${holder?.name||"–"}<br><span class="note">${holder?.id||row.station_id||"–"}</span></td>
+      <td>${holder?.state||"–"}</td>
+      <td><span class="record-badge ${badge}">${status}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+async function updateStreakRecordProgression(){
+  if(!stationStreakIndex) return;
+  const scope=document.getElementById("streakProgressionScopeSelect")?.value||"national";
+  const metricId=document.getElementById("streakProgressionMetricSelect")?.value||"hot";
+  const metric=(stationStreakIndex.climate_days||[]).find(item=>item.id===metricId)||{label:metricId,definition:"",color:"#a83b32"};
+  const stationId=document.getElementById("streakProgressionStationSelect")?.value||"";
+  const station=stationId?stationStreakStation(stationId):null;
+  const summary=document.getElementById("streakProgressionSummary"),note=document.getElementById("streakProgressionNote");
+  if(Number(stationStreakIndex.current_payload_version||0)<7){
+    if(summary) summary.textContent="Rekordentwicklungs-Daten sind noch nicht aufgebaut. Bitte den aktualisierten DWD-Workflow einmal ausführen.";
+    streakProgressionHero([],scope,metric,station); renderStreakProgressionChart([],scope,metric,station); renderStreakProgressionTable([],scope,station);
+    if(note) note.textContent="Für 16.8 ist einmalig ein historischer Neuaufbau der Stations-Kenntage erforderlich.";
+    return;
+  }
+  if(scope==="station"&&!stationId){
+    if(summary) summary.textContent="Bitte eine Station auswählen.";
+    renderStreakProgressionChart([],scope,metric,station); renderStreakProgressionTable([],scope,station); return;
+  }
+  try{
+    if(summary) summary.textContent="Rekordentwicklung wird geladen …";
+    const rows=await streakProgressionRows(scope,metricId,stationId);
+    streakProgressionHero(rows,scope,metric,station);
+    renderStreakProgressionChart(rows,scope,metric,station);
+    renderStreakProgressionTable(rows,scope,station);
+    if(!rows.length){
+      if(summary) summary.innerHTML=`<strong>${metric.label}:</strong> Für diese Auswahl liegen noch keine Rekordstufen vor.`;
+    }else{
+      const first=rows[0],last=rows[rows.length-1],holder=scope==="national"?stationStreakStation(last.station_id):station;
+      if(summary) summary.innerHTML=`<strong>${scope==="national"?"Deutschlandrekord":`Stationsrekord ${station?.name||stationId}`} · ${metric.label}:</strong> `+
+        `Der erfasste Rekord entwickelte sich in ${rows.length} Stufen von ${first.duration} auf ${last.duration} Tage. `+
+        `Die derzeit jüngste Rekordserie lief vom ${stationStreakDateText(last.start)} bis ${stationStreakDateText(last.end)}`+
+        `${holder?.name?` an der Station ${holder.name}`:""}.`;
+    }
+    if(note) note.textContent=(stationStreakIndex.streak_progression_scope||"Die Zeitachse enthält nur echte Rekordverbesserungen.")+" "+(stationStreakIndex.streak_rule||"");
+  }catch(error){
+    if(summary) summary.textContent=`Rekordentwicklung konnte nicht geladen werden: ${error.message}`;
+    renderStreakProgressionChart([],scope,metric,station); renderStreakProgressionTable([],scope,station);
+  }
+}
+
+function downloadStreakProgressionChart(){
+  const canvas=document.getElementById("streakProgressionChart");
+  if(!canvas||!streakProgressionChart) return;
+  const scope=document.getElementById("streakProgressionScopeSelect")?.value||"national";
+  const metricId=document.getElementById("streakProgressionMetricSelect")?.value||"hot";
+  const metric=(stationStreakIndex?.climate_days||[]).find(item=>item.id===metricId)||{label:metricId};
+  const stationId=document.getElementById("streakProgressionStationSelect")?.value||"";
+  const station=stationId?stationStreakStation(stationId):null;
+  const filename=safeExportFilename(`Rekordentwicklung_${scope==="national"?"Deutschland":station?.name||stationId}_${metric.label}`,"png");
+  const exportCanvas=document.createElement("canvas");
+  exportCanvas.width=canvas.width; exportCanvas.height=canvas.height;
+  const ctx=exportCanvas.getContext("2d"); ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,exportCanvas.width,exportCanvas.height); ctx.drawImage(canvas,0,0);
+  const link=document.createElement("a"); link.download=filename; link.href=exportCanvas.toDataURL("image/png",1); document.body.appendChild(link); link.click(); link.remove();
 }
 
 function activeStreakStatusInfo(row){
