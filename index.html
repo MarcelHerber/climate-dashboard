@@ -420,7 +420,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 <!-- ================= GEBIETSMITTEL ================= -->
 <div id="monthly" class="tab-content active">
-  <div class="section-header"><h2>Gebietsmittel Deutschland und Bundesländer</h2><p>Monatliche, saisonale und jährliche Temperatur-, Niederschlags- und Sonnenscheinwerte mit Klimavergleich 1991–2020.</p><span class="section-status">DWD-Gebietsmittel · aktuelle Werte vorläufig</span></div>
+  <div class="section-header"><h2>Gebietsmittel Deutschland und Bundesländer</h2><p>Monatliche, saisonale und jährliche Temperatur-, Niederschlags- und Sonnenscheinwerte mit frei wählbarer 30-jähriger Referenzperiode.</p><span class="section-status">DWD-Gebietsmittel · aktuelle Werte vorläufig</span></div>
   <div class="controls">
     <div class="control-group">
       <label for="monthlyAreaSelect">Gebiet</label>
@@ -438,6 +438,23 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <label for="monthSelect">Zeitraum</label>
       <select id="monthSelect" class="period-select"></select>
     </div>
+    <div class="control-group">
+      <label for="monthlyReferenceSelect">Referenzperiode</label>
+      <select id="monthlyReferenceSelect">
+        <option value="1881-1910">1881–1910</option>
+        <option value="1911-1940">1911–1940</option>
+        <option value="1931-1960">1931–1960</option>
+        <option value="1961-1990">1961–1990</option>
+        <option value="1971-2000">1971–2000</option>
+        <option value="1981-2010">1981–2010</option>
+        <option value="1991-2020" selected>1991–2020</option>
+        <option value="custom">Eigene 30-Jahresperiode …</option>
+      </select>
+    </div>
+    <div id="monthlyReferenceCustomGroup" class="control-group" hidden>
+      <label for="monthlyReferenceStart">Startjahr</label>
+      <input id="monthlyReferenceStart" type="number" min="1881" max="1997" step="1" value="1951" inputmode="numeric">
+    </div>
     <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
   </div>
 
@@ -448,7 +465,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <div class="chart-container auto">
     <div class="stat-grid">
       <div class="stat-card">
-        <h4>Mittel 1991–2020</h4>
+        <h4 id="monthlyClimateMeanTitle">Mittel 1991–2020</h4>
         <div id="climateMean">–</div>
       </div>
       <div class="stat-card">
@@ -469,7 +486,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <div class="chart-container auto anomaly-table-card">
     <div class="anomaly-table-heading">
       <div>
-        <h2>Abweichungstabelle 1991–2020</h2>
+        <h2 id="monthlyAnomalyTitle">Abweichungstabelle 1991–2020</h2>
         <p id="monthlyAnomalyTableSubtitle">Tabelle wird berechnet …</p>
       </div>
       <div id="monthlyAnomalyLegend" class="anomaly-legend" aria-label="Farblegende"></div>
@@ -486,7 +503,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <div id="monthlyAbsoluteAnomalyCard" class="chart-container auto anomaly-table-card">
     <div class="anomaly-table-heading">
       <div>
-        <h2>Absolute Abweichung 1991–2020</h2>
+        <h2 id="monthlyAbsoluteAnomalyTitle">Absolute Abweichung 1991–2020</h2>
         <p id="monthlyAbsoluteAnomalyTableSubtitle">Tabelle wird berechnet …</p>
       </div>
       <div id="monthlyAbsoluteAnomalyLegend" class="anomaly-legend" aria-label="Farblegende"></div>
@@ -1373,6 +1390,50 @@ function mean(values){
   return values.reduce((sum,value)=>sum+value,0)/values.length;
 }
 
+function monthlyReferencePeriod(){
+  const select=document.getElementById("monthlyReferenceSelect");
+  let start=1991;
+  let end=2020;
+  if(select?.value==="custom"){
+    start=Math.round(Number(document.getElementById("monthlyReferenceStart")?.value));
+    if(!Number.isFinite(start)) start=1951;
+    start=Math.max(1881,Math.min(1997,start));
+    end=start+29;
+  }else if(select?.value && /^\d{4}-\d{4}$/.test(select.value)){
+    [start,end]=select.value.split("-").map(Number);
+  }
+  return {start,end,label:`${start}–${end}`};
+}
+
+function monthlyReferenceMean(series,reference=monthlyReferencePeriod()){
+  const values=series.filter(item=>item.year>=reference.start && item.year<=reference.end && Number.isFinite(item.value));
+  // Eine 30-jährige Referenz sollte praktisch vollständig sein. 29 Werte werden toleriert,
+  // damit z. B. der Winter 1881 wegen des fehlenden Dezember 1880 nicht die gesamte Periode sperrt.
+  return values.length>=29?mean(values.map(item=>item.value)):null;
+}
+
+function monthlyReferenceMeanForPeriod(byDate,period,param,reference=monthlyReferencePeriod()){
+  const values=[];
+  for(let year=reference.start;year<=reference.end;year++){
+    const value=aggregatePeriodFromMap(byDate,year,period,param);
+    if(Number.isFinite(value)) values.push(value);
+  }
+  return values.length>=29?mean(values):null;
+}
+
+function updateMonthlyReferenceUi(){
+  const reference=monthlyReferencePeriod();
+  const custom=document.getElementById("monthlyReferenceCustomGroup");
+  if(custom) custom.hidden=document.getElementById("monthlyReferenceSelect")?.value!=="custom";
+  const meanTitle=document.getElementById("monthlyClimateMeanTitle");
+  const anomalyTitle=document.getElementById("monthlyAnomalyTitle");
+  const absoluteTitle=document.getElementById("monthlyAbsoluteAnomalyTitle");
+  if(meanTitle) meanTitle.textContent=`Mittel ${reference.label}`;
+  if(anomalyTitle) anomalyTitle.textContent=`Abweichungstabelle ${reference.label}`;
+  if(absoluteTitle) absoluteTitle.textContent=`Absolute Abweichung ${reference.label}`;
+  return reference;
+}
+
 function stdDev(values){
   if(values.length<2) return null;
   const avg=mean(values);
@@ -1551,14 +1612,10 @@ function updateMonthlyAbsoluteAnomalyTable(){
   const byDate=new Map(rows.map(item=>[item.date,item]));
   const allYears=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
 
+  const reference=updateMonthlyReferenceUi();
   const climateByPeriod=new Map();
   ANOMALY_TABLE_PERIODS.forEach(period=>{
-    const values=[];
-    for(let year=1991;year<=2020;year++){
-      const value=aggregatePeriodFromMap(byDate,year,period.value,param);
-      if(Number.isFinite(value)) values.push(value);
-    }
-    climateByPeriod.set(period.value,mean(values));
+    climateByPeriod.set(period.value,monthlyReferenceMeanForPeriod(byDate,period.value,param,reference));
   });
 
   const tableYears=allYears.filter(year=>
@@ -1591,7 +1648,7 @@ function updateMonthlyAbsoluteAnomalyTable(){
       const tooltip=[
         `${year} · ${periodLabel(period.value)}`,
         `Wert: ${formatTableAbsolute(absolute,param)}`,
-        `Mittel 1991–2020: ${formatTableAbsolute(climate,param)}`,
+        `Mittel ${reference.label}: ${formatTableAbsolute(climate,param)}`,
         `Absolute Abweichung: ${absoluteText}`,
         `Relative Abweichung: ${relativeText}`
       ].join("\n");
@@ -1614,7 +1671,7 @@ function updateMonthlyAbsoluteAnomalyTable(){
     ?"Braun kennzeichnet trockene, Blau nasse Abweichungen."
     :"Grau kennzeichnet sonnenarme, Orange bis Dunkelrot sonnenreiche Abweichungen.";
   document.getElementById("monthlyAbsoluteAnomalyTableNote").textContent=
-    `${colorDescription} Die Zahlen zeigen die absolute Differenz zum Mittel 1991–2020 (${param==="rain"?"1 mm Niederschlag entspricht 1 l/m²":"Stunden"}). Die Farbintensität richtet sich weiterhin nach der prozentualen Abweichung, damit Monate, Jahreszeiten und Gesamtjahre untereinander vergleichbar bleiben. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
+    `${colorDescription} Die Zahlen zeigen die absolute Differenz zum Mittel ${reference.label} (${param==="rain"?"1 mm Niederschlag entspricht 1 l/m²":"Stunden"}). Die Farbintensität richtet sich weiterhin nach der prozentualen Abweichung, damit Monate, Jahreszeiten und Gesamtjahre untereinander vergleichbar bleiben. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
 }
 
 function updateMonthlyAnomalyTable(){
@@ -1625,14 +1682,10 @@ function updateMonthlyAnomalyTable(){
   const byDate=new Map(rows.map(item=>[item.date,item]));
   const allYears=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].sort((a,b)=>a-b);
 
+  const reference=updateMonthlyReferenceUi();
   const climateByPeriod=new Map();
   ANOMALY_TABLE_PERIODS.forEach(period=>{
-    const values=[];
-    for(let year=1991;year<=2020;year++){
-      const value=aggregatePeriodFromMap(byDate,year,period.value,param);
-      if(Number.isFinite(value)) values.push(value);
-    }
-    climateByPeriod.set(period.value,mean(values));
+    climateByPeriod.set(period.value,monthlyReferenceMeanForPeriod(byDate,period.value,param,reference));
   });
 
   const tableYears=allYears.filter(year=>
@@ -1663,7 +1716,7 @@ function updateMonthlyAnomalyTable(){
       const tooltip=[
         `${year} · ${periodLabel(period.value)}`,
         `Wert: ${formatTableAbsolute(absolute,param)}`,
-        `Mittel 1991–2020: ${formatTableAbsolute(climate,param)}`,
+        `Mittel ${reference.label}: ${formatTableAbsolute(climate,param)}`,
         `Abweichung: ${anomalyText}${param==="temp"?` ${unitText}`:""}`
       ].join("\n");
       return `<td class="${separator.trim()}" style="background:${background};color:${foreground}" title="${tooltip}">${anomalyText}</td>`;
@@ -1686,7 +1739,7 @@ function updateMonthlyAnomalyTable(){
       ?"Braun kennzeichnet trockene, Blau nasse Abweichungen."
       :"Grau kennzeichnet sonnenarme, Orange bis Dunkelrot sonnenreiche Abweichungen.";
   document.getElementById("monthlyAnomalyTableNote").textContent=
-    `${colorDescription} Temperatur wird als Differenz in °C dargestellt; Niederschlag und Sonnenscheindauer als prozentuale Abweichung vom jeweiligen Mittel 1991–2020. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
+    `${colorDescription} Temperatur wird als Differenz in °C dargestellt; Niederschlag und Sonnenscheindauer als prozentuale Abweichung vom jeweiligen Mittel ${reference.label}. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
 
   updateMonthlyAbsoluteAnomalyTable();
 }
@@ -1775,8 +1828,8 @@ function updateMonthly(){
   const param=document.getElementById("paramSelect").value;
   const selection=document.getElementById("monthSelect").value;
   const values=seriesFor(area,selection,param);
-  const climateValues=values.filter(item=>item.year>=1991 && item.year<=2020).map(item=>item.value);
-  const climateMean=mean(climateValues);
+  const reference=updateMonthlyReferenceUi();
+  const climateMean=monthlyReferenceMean(values,reference);
   const labels=values.map(item=>item.year);
   const dataValues=values.map(item=>item.value);
 
@@ -1830,7 +1883,7 @@ function updateMonthly(){
         },
         {
           type:"line",
-          label:"Mittel 1991–2020",
+          label:`Mittel ${reference.label}`,
           data:dataValues.map(()=>climateMean),
           borderColor:"#111",
           borderDash:[7,5],
@@ -1878,7 +1931,7 @@ function updateMonthly(){
   monthlyDeviationChart=new Chart(document.getElementById("monthlyDeviationChart"),{
     type:"bar",
     data:{labels,datasets:[{
-      label:`Abweichung vom Mittel 1991–2020 (${PARAM_META[param].unit})`,
+      label:`Abweichung vom Mittel ${reference.label} (${PARAM_META[param].unit})`,
       data:deviations,
       backgroundColor:deviations.map(value=>deviationColor(param,value))
     }]},
@@ -1886,7 +1939,7 @@ function updateMonthly(){
       responsive:true,
       maintainAspectRatio:false,
       plugins:{
-        title:{display:true,text:`${area}: Abweichungen – ${periodLabel(selection)}`},
+        title:{display:true,text:`${area}: Abweichungen zu ${reference.label} – ${periodLabel(selection)}`},
         datalabels:{display:false}
       },
       scales:{
@@ -2252,6 +2305,8 @@ document.getElementById("accAreaSelect").addEventListener("change",()=>{
 });
 document.getElementById("paramSelect").addEventListener("change",()=>{updateMonthly();updateMonthlyAnomalyTable();});
 document.getElementById("monthSelect").addEventListener("change",updateMonthly);
+document.getElementById("monthlyReferenceSelect").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
+document.getElementById("monthlyReferenceStart").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
 document.getElementById("indexPeriodSelect").addEventListener("change",updateClimateIndex);
 document.getElementById("indexLabelsToggle").addEventListener("change",updateClimateIndex);
 document.getElementById("accParamSelect").addEventListener("change",updateAccumulation);
@@ -5182,6 +5237,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.4: vollständiges Stationsprofil in vier Teststufen -->
+<!-- Dashboard Version 12.5: flexible Referenzperioden bei Gebietsmitteln -->
 </body>
 </html>
