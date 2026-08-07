@@ -1648,6 +1648,42 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         </table>
       </div>
       <p id="stationStreakNote" class="note" style="margin-top:14px"></p>
+
+      <h2 style="margin-top:36px">Deutschlandweite Serienrekorde</h2>
+      <p class="note" style="margin-top:-4px">Top 20 einzelner Kenntage-Serien im erfassten Stationsnetz. Eine Station kann mehrfach vertreten sein, wenn dort mehrere außergewöhnlich lange Folgen auftraten.</p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="nationalStreakMetricSelect">Kenntag</label>
+          <select id="nationalStreakMetricSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="nationalStreakMapToggle">Karte</label>
+          <select id="nationalStreakMapToggle">
+            <option value="show" selected>anzeigen</option>
+            <option value="hide">ausblenden</option>
+          </select>
+        </div>
+        <button id="nationalStreakMapDownload" class="action" type="button">Karte als PNG</button>
+      </div>
+      <div id="nationalStreakSummary" class="summary-box">Deutschlandweite Serienrekorde werden aufgebaut …</div>
+      <div class="table-wrap">
+        <table id="nationalStreakTable">
+          <thead>
+            <tr>
+              <th>Rang</th><th>Serie</th><th>Von</th><th>Bis</th><th>Station</th><th>Stations-ID</th>
+              <th>Bundesland</th><th>Messreihe</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="nationalStreakMapWrap" class="chart-container auto" style="margin-top:18px;position:relative">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+          <div><h3 id="nationalStreakMapTitle" style="margin:0">Deutschlandweite Serienrekorde</h3><div id="nationalStreakMapSubtitle" class="note" style="margin-top:3px">Top 20 im Stationsnetz</div></div>
+        </div>
+        <div id="nationalStreakMap" class="station-map" style="height:540px" role="img" aria-label="Karte der deutschlandweiten Kenntage-Serienrekorde"></div>
+      </div>
+      <p id="nationalStreakNote" class="note" style="margin-top:12px"></p>
     </div>
 
     <p id="recordSourceNote" class="note" style="margin-top:18px"></p>
@@ -1788,6 +1824,8 @@ let stationRecordsData=null;
 let stationRecordsLoading=null;
 let stationStreakIndex=null;
 let stationStreakLoading=null;
+let nationalStreakMap=null;
+let nationalStreakMapLayer=null;
 const stationYearCache=new Map();
 
 function showError(message){
@@ -5680,6 +5718,7 @@ function ensureStationStreaksLoaded(){
       loading.hidden=true;
       document.getElementById("stationStreakContent").hidden=false;
       updateStationStreakTable();
+      updateNationalStreakRecords();
       return data;
     })
     .catch(error=>{
@@ -5713,6 +5752,22 @@ function initializeStationStreakControls(){
 
   ["streakMetricSelect","streakAreaSelect","streakMinYearsSelect","streakLimitSelect"]
     .forEach(id=>document.getElementById(id)?.addEventListener("change",updateStationStreakTable));
+
+  const nationalMetric=document.getElementById("nationalStreakMetricSelect");
+  if(nationalMetric){
+    nationalMetric.innerHTML="";
+    (stationStreakIndex.climate_days||[]).forEach(metric=>{
+      const option=document.createElement("option");
+      option.value=metric.id;
+      option.textContent=`${metric.label} · ${metric.definition}`;
+      nationalMetric.appendChild(option);
+    });
+    if((stationStreakIndex.climate_days||[]).some(item=>item.id==="hot")) nationalMetric.value="hot";
+    nationalMetric.addEventListener("change",updateNationalStreakRecords);
+  }
+  document.getElementById("nationalStreakMapToggle")?.addEventListener("change",updateNationalStreakRecords);
+  document.getElementById("nationalStreakMapDownload")?.addEventListener("click",downloadNationalStreakMap);
+  updateNationalStreakRecords();
 }
 
 function stationStreakDateText(iso){
@@ -5793,6 +5848,134 @@ function updateStationStreakTable(){
   document.getElementById("stationStreakNote").textContent=
     `${rule} Pro Station wird für die Rangliste nur die längste bekannte Folge des gewählten Kenntags verwendet. `+
     `Das laufende Jahr ist vorläufig.`;
+}
+
+
+function nationalStreakStation(stationId){
+  return (stationStreakIndex?.stations||[]).find(station=>station.id===stationId) || null;
+}
+
+function updateNationalStreakRecords(){
+  if(!stationStreakIndex) return;
+  const metricId=document.getElementById("nationalStreakMetricSelect")?.value || "hot";
+  const metric=(stationStreakIndex.climate_days||[]).find(item=>item.id===metricId) || {label:metricId,definition:"",color:"#b44"};
+  const rows=(stationStreakIndex.national_streak_records?.[metricId]||[]).slice(0,20);
+  const tbody=document.querySelector("#nationalStreakTable tbody");
+  const summary=document.getElementById("nationalStreakSummary");
+  const note=document.getElementById("nationalStreakNote");
+  if(!tbody || !summary) return;
+
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="9">Die deutschlandweiten Top-20 sind im aktuellen Kenntage-Index noch nicht vorhanden. Nach dem ersten Neuaufbau mit dem aktualisierten Backend erscheinen sie automatisch.</td></tr>';
+    summary.textContent=`${metric.label}: nationale Serienrekorde sind noch nicht aufgebaut.`;
+  }else{
+    const leader=rows[0],station=nationalStreakStation(leader.station_id);
+    summary.innerHTML=`<strong>Deutschlandrekord · ${metric.label}:</strong> ${Number(leader.duration).toLocaleString("de-DE")} Tage in Folge an ${station?.name||leader.station_id} `+
+      `(${stationStreakDateText(leader.start)}–${stationStreakDateText(leader.end)}). Top ${rows.length} einzelne Serien.`;
+    tbody.innerHTML=rows.map((run,index)=>{
+      const station=nationalStreakStation(run.station_id)||{};
+      const measurement=`${station.start_year??"–"}–${station.end_year??"–"} · ${station.history_years??"–"} J.`;
+      return `<tr>
+        <td><strong>${index+1}</strong></td>
+        <td class="record-value"><strong>${Number(run.duration).toLocaleString("de-DE")}</strong> Tage${stationStreakCrossesBoundary(run)}</td>
+        <td>${stationStreakDateText(run.start)}</td>
+        <td>${stationStreakDateText(run.end)}</td>
+        <td class="record-station">${station.name||"–"}</td>
+        <td>${station.id||run.station_id||"–"}</td>
+        <td>${station.state||"–"}</td>
+        <td>${measurement}</td>
+        <td>${stationStreakStatus(run)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  if(note){
+    note.textContent=(stationStreakIndex.national_streak_scope||"Deutschlandweite Top-20 über das erfasste Kenntage-Stationsnetz.")+" "+
+      (stationStreakIndex.streak_rule||"");
+  }
+  const mapTitle=document.getElementById("nationalStreakMapTitle");
+  const mapSubtitle=document.getElementById("nationalStreakMapSubtitle");
+  if(mapTitle) mapTitle.textContent=`Deutschlandweite Serienrekorde · ${metric.label}`;
+  if(mapSubtitle) mapSubtitle.textContent=`Top ${rows.length||20} · ${metric.definition||""} · Datenstand ${stationStreakIndex.data_through||"–"}`;
+  updateNationalStreakMap(rows,metric);
+}
+
+function updateNationalStreakMap(rows,metric){
+  const wrap=document.getElementById("nationalStreakMapWrap");
+  const show=document.getElementById("nationalStreakMapToggle")?.value!=="hide";
+  if(!wrap) return;
+  wrap.hidden=!show;
+  if(!show) return;
+  const mapElement=document.getElementById("nationalStreakMap");
+  if(!mapElement || typeof L==="undefined") return;
+  if(!nationalStreakMap){
+    nationalStreakMap=L.map(mapElement,{zoomControl:true,scrollWheelZoom:true}).setView([51.15,10.35],6);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      maxZoom:18,attribution:'&copy; OpenStreetMap-Mitwirkende',crossOrigin:true
+    }).addTo(nationalStreakMap);
+    nationalStreakMapLayer=L.layerGroup().addTo(nationalStreakMap);
+  }
+  nationalStreakMapLayer.clearLayers();
+
+  const grouped=new Map();
+  rows.forEach((run,index)=>{
+    const station=nationalStreakStation(run.station_id);
+    if(!station || !Number.isFinite(Number(station.latitude)) || !Number.isFinite(Number(station.longitude))) return;
+    const key=station.id;
+    if(!grouped.has(key)) grouped.set(key,{station,runs:[]});
+    grouped.get(key).runs.push({run,rank:index+1});
+  });
+  const bounds=[];
+  grouped.forEach(({station,runs})=>{
+    const bestRank=Math.min(...runs.map(item=>item.rank));
+    const radius=bestRank===1?11:bestRank<=3?9:bestRank<=10?7:6;
+    const marker=L.circleMarker([Number(station.latitude),Number(station.longitude)],{
+      radius,weight:2,color:"#ffffff",fillColor:metric.color||"#b23a2a",fillOpacity:.9
+    });
+    const recordLines=runs.map(({run,rank})=>
+      `<div><strong>#${rank}</strong> · ${run.duration} Tage · ${stationStreakDateText(run.start)}–${stationStreakDateText(run.end)}</div>`
+    ).join("");
+    marker.bindPopup(`<strong>${station.name}</strong><br>${station.state||""}<br><span style="font-size:12px">${metric.label}</span><hr style="margin:6px 0">${recordLines}`);
+    marker.bindTooltip(`#${bestRank} · ${station.name}: ${runs[0].run.duration} Tage`,{direction:"top"});
+    marker.addTo(nationalStreakMapLayer);
+    bounds.push([Number(station.latitude),Number(station.longitude)]);
+  });
+  if(bounds.length){
+    nationalStreakMap.fitBounds(bounds,{padding:[24,24],maxZoom:7});
+  }else{
+    nationalStreakMap.setView([51.15,10.35],6);
+  }
+  setTimeout(()=>nationalStreakMap?.invalidateSize(),50);
+}
+
+async function downloadNationalStreakMap(){
+  const mapElement=document.getElementById("nationalStreakMapWrap");
+  const button=document.getElementById("nationalStreakMapDownload");
+  if(!mapElement || mapElement.hidden) return;
+  if(typeof html2canvas!=="function"){
+    alert("Die Exportbibliothek konnte nicht geladen werden.");
+    return;
+  }
+  const metricId=document.getElementById("nationalStreakMetricSelect")?.value || "hot";
+  const metric=(stationStreakIndex?.climate_days||[]).find(item=>item.id===metricId) || {label:metricId};
+  const oldText=button?.textContent;
+  if(button){button.disabled=true;button.textContent="Export …";}
+  const controls=mapElement.querySelectorAll(".leaflet-control-container");
+  const oldDisplays=[...controls].map(node=>node.style.display);
+  try{
+    controls.forEach(node=>{node.style.display="none";});
+    nationalStreakMap?.invalidateSize();
+    await new Promise(resolve=>setTimeout(resolve,180));
+    const canvas=await html2canvas(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    const link=document.createElement("a");
+    link.download=`kenntage_serienrekorde_${metricId}_deutschland.png`;
+    link.href=canvas.toDataURL("image/png");
+    link.click();
+  }catch(error){
+    alert(`Kartenexport fehlgeschlagen: ${error.message}`);
+  }finally{
+    if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
+  }
 }
 
 
