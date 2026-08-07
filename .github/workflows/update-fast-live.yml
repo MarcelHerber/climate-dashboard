@@ -1,0 +1,85 @@
+name: DWD Fast Live SYNOP aktualisieren
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fast-live-synop
+  cancel-in-progress: false
+
+jobs:
+  update-fast-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install --upgrade requests
+
+      - name: CDC-Livestationsindex laden
+        shell: bash
+        run: |
+          git fetch origin live-data:refs/remotes/origin/live-data
+          git show origin/live-data:current_index.json > /tmp/current_index.json
+          test -s /tmp/current_index.json
+          echo "CDC-Livestationsindex geladen."
+
+      - name: Vorherigen Fast-Live-Stand laden
+        shell: bash
+        run: |
+          rm -rf /tmp/fast-live
+          mkdir -p /tmp/fast-live
+          if git ls-remote --exit-code --heads origin fast-live >/dev/null 2>&1; then
+            git fetch origin fast-live:refs/remotes/origin/fast-live
+            git archive origin/fast-live | tar -x -C /tmp/fast-live
+            echo "Vorheriger fast-live-Stand geladen."
+          else
+            echo "Noch kein fast-live-Branch vorhanden – erster Aufbau."
+          fi
+
+      - name: DWD SYNOP Fast Live bauen
+        id: fast
+        run: >-
+          python scripts/update_synop_fast.py
+          --output /tmp/fast-live
+          --station-index /tmp/current_index.json
+          --window-minutes 95
+          --max-distance-km 5
+
+      - name: Fast-Live-Branch veröffentlichen
+        if: steps.fast.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan fast-live-publish
+          git rm -rf . >/dev/null 2>&1 || true
+          cp -a /tmp/fast-live/. .
+          touch .nojekyll
+          git add -A
+          git commit -m "DWD SYNOP Fast-Live aktualisiert"
+          git branch -M fast-live
+          git push --force origin fast-live
+
+          echo "Fast-Live-Daten veröffentlicht."
+          echo "Stationen: ${{ steps.fast.outputs.station_count }}"
+          echo "Letzter Messzeitpunkt: ${{ steps.fast.outputs.latest_measurement }}"
+
+      - name: Keine neuen SYNOP-Daten
+        if: steps.fast.outputs.changed != 'true'
+        run: echo "Keine neuen DWD-SYNOP-Batches. Keine Veröffentlichung notwendig."
