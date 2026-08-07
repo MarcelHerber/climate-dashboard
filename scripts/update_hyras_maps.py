@@ -21,9 +21,10 @@ from pyproj import CRS, Transformer
 from PIL import Image, ImageDraw
 
 DAILY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/hyras_de/precipitation"
+MONTHLY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/hyras_de/precipitation"
 CLIM_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation"
 BOUNDARY_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
-USER_AGENT = "climate-dashboard-hyras/15.2 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-hyras/15.3 (+GitHub Actions; DWD Open Data)"
 
 MONTH_ABBR = {1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MONTH_DE = {1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"}
@@ -649,6 +650,217 @@ def build_web_cumulative_package(
     (out / "hyras_web_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return manifest
 
+
+def sample_monthly_for_web(da: xr.DataArray, factor: int) -> tuple[np.ndarray, list[str], np.ndarray, np.ndarray]:
+    """Sample a monthly HYRAS cube onto the same compact web grid used by free periods."""
+    td = time_dim(da)
+    y_name, x_name = spatial_dim_names(da)
+    sampled = da.isel({y_name: slice(None, None, factor), x_name: slice(None, None, factor)}).transpose(td, y_name, x_name)
+    values = np.asarray(sampled.values, dtype=np.float32)
+    x = np.asarray(sampled[x_name].values, dtype=float)
+    y = np.asarray(sampled[y_name].values, dtype=float)
+    dates = [str(v)[:10] for v in sampled[td].values.astype("datetime64[D]")]
+    values[~np.isfinite(values)] = np.nan
+    values[values < 0] = np.nan
+    if len(x) > 1 and x[0] > x[-1]:
+        x = x[::-1]
+        values = values[:, :, ::-1]
+    if len(y) > 1 and y[0] < y[-1]:
+        y = y[::-1]
+        values = values[:, ::-1, :]
+    return values, dates, x, y
+
+
+def latest_monthly_archive(listing_text: str, max_year: int) -> tuple[str, int] | None:
+    """Find newest consolidated monthly HYRAS file starting in 1931."""
+    matches = []
+    pattern = re.compile(r'href="(pr_hyras_1_1931_(\d{4})_v(\d+)-(\d+)_de_monsum\.nc)"')
+    for filename, end_s, major_s, minor_s in pattern.findall(listing_text):
+        end_year = int(end_s)
+        if end_year <= max_year:
+            matches.append((end_year, int(major_s), int(minor_s), filename))
+    if not matches:
+        return None
+    matches.sort()
+    end_year, _major, _minor, filename = matches[-1]
+    return filename, end_year
+
+
+def monthly_annual_file_map(listing_text: str, years: range) -> dict[int, str]:
+    wanted = set(years)
+    found: dict[int, tuple[tuple[int, int], str]] = {}
+    pattern = re.compile(r'href="(pr_hyras_1_(\d{4})_v(\d+)-(\d+)_de_monsum\.nc)"')
+    for filename, year_s, major_s, minor_s in pattern.findall(listing_text):
+        year = int(year_s)
+        if year not in wanted:
+            continue
+        version = (int(major_s), int(minor_s))
+        if year not in found or version > found[year][0]:
+            found[year] = (version, filename)
+    return {year: item[1] for year, item in found.items()}
+
+
+def historical_month_path(out: Path, year: int, month: int) -> Path:
+    return out / "historical" / str(year) / f"month_{month:02d}.png"
+
+
+def historical_year_complete(out: Path, year: int) -> bool:
+    return all(historical_month_path(out, year, m).exists() for m in range(1, 13))
+
+
+def build_historical_monthly_package(
+    *, out: Path, work: Path, factor: int, current_year: int,
+    expected_x: np.ndarray, expected_y: np.ndarray, data_crs: CRS,
+) -> dict[str, Any]:
+    """Build compact monthly HYRAS web rasters for 1931 through the previous year.
+
+    Existing rasters copied from the hyras-data branch are reused. The expensive
+    consolidated archive is therefore only needed on the first historical build.
+    """
+    target_first = 1931
+    target_last = current_year - 1
+    if target_last < target_first:
+        raise RuntimeError("Kein historischer HYRAS-Zeitraum verfügbar")
+
+    hist_root = out / "historical"
+    hist_root.mkdir(parents=True, exist_ok=True)
+    ref_root = hist_root / "reference"
+    ref_root.mkdir(parents=True, exist_ok=True)
+    manifest_path = out / "hyras_historical_manifest.json"
+
+    existing_years = [y for y in range(target_first, target_last + 1) if historical_year_complete(out, y)]
+    missing_years = [y for y in range(target_first, target_last + 1) if y not in set(existing_years)]
+    ref_complete = all((ref_root / f"month_{m:02d}.png").exists() for m in range(1, 13))
+    print(f"Historische Monatsraster: {len(existing_years)} Jahre vorhanden, {len(missing_years)} Jahre fehlen.")
+
+    listing = directory_text(MONTHLY_BASE + "/")
+    archive = latest_monthly_archive(listing, target_last)
+    reference_sums = [np.zeros((len(expected_y), len(expected_x)), dtype=np.float64) for _ in range(12)]
+    reference_counts = [np.zeros((len(expected_y), len(expected_x)), dtype=np.uint16) for _ in range(12)]
+    need_reference = not ref_complete
+
+    # On a first build the consolidated 1931-20xx file is far faster than ~100 separate downloads.
+    archive_end = 1930
+    if archive and (need_reference or any(y <= archive[1] for y in missing_years)):
+        archive_name, archive_end = archive
+        archive_file = work / "historical" / archive_name
+        if not archive_file.exists():
+            download(f"{MONTHLY_BASE}/{archive_name}", archive_file)
+        print(f"Verarbeite HYRAS-Monatsarchiv {archive_name} …")
+        with xr.open_dataset(archive_file, decode_times=True) as ds:
+            source = pick_precip_var(ds)
+            vals, dates, x, y = sample_monthly_for_web(source, factor)
+        if vals.shape[1:] != (len(expected_y), len(expected_x)) or not np.allclose(x, expected_x) or not np.allclose(y, expected_y):
+            raise RuntimeError("Historisches HYRAS-Monatsraster passt nicht zum aktuellen Webraster")
+        missing_set = set(missing_years)
+        for i, iso in enumerate(dates):
+            dt = datetime.strptime(iso, "%Y-%m-%d")
+            if dt.year < target_first or dt.year > min(target_last, archive_end):
+                continue
+            if dt.year in missing_set:
+                encode_precip_png(vals[i], historical_month_path(out, dt.year, dt.month))
+            if need_reference and 1991 <= dt.year <= 2020:
+                arr = vals[i]
+                valid = np.isfinite(arr)
+                reference_sums[dt.month - 1][valid] += arr[valid]
+                reference_counts[dt.month - 1][valid] += 1
+        try:
+            archive_file.unlink()
+        except OSError:
+            pass
+
+    # Years newer than the consolidated archive are tiny annual monthly files (e.g. 2025).
+    remaining = [y for y in missing_years if not historical_year_complete(out, y)]
+    annual_map = monthly_annual_file_map(listing, range(target_first, target_last + 1))
+    for pos, year in enumerate(remaining, start=1):
+        filename = annual_map.get(year)
+        if not filename:
+            raise RuntimeError(f"Keine HYRAS-Monatsdatei für historisches Jahr {year} gefunden")
+        target = work / "historical" / filename
+        if not target.exists():
+            download(f"{MONTHLY_BASE}/{filename}", target)
+        print(f"Historisches Jahr {year} ({pos}/{len(remaining)}) …")
+        with xr.open_dataset(target, decode_times=True) as ds:
+            vals, dates, x, y = sample_monthly_for_web(pick_precip_var(ds), factor)
+        if vals.shape[1:] != (len(expected_y), len(expected_x)) or not np.allclose(x, expected_x) or not np.allclose(y, expected_y):
+            raise RuntimeError(f"Historisches HYRAS-Raster {year} passt nicht zum Webraster")
+        seen = set()
+        for i, iso in enumerate(dates):
+            dt = datetime.strptime(iso, "%Y-%m-%d")
+            if dt.year != year:
+                continue
+            encode_precip_png(vals[i], historical_month_path(out, year, dt.month))
+            seen.add(dt.month)
+            if need_reference and 1991 <= year <= 2020:
+                arr = vals[i]
+                valid = np.isfinite(arr)
+                reference_sums[dt.month - 1][valid] += arr[valid]
+                reference_counts[dt.month - 1][valid] += 1
+        if len(seen) < 12:
+            raise RuntimeError(f"Historisches HYRAS-Jahr {year} enthält nur {len(seen)} Monatswerte")
+        try:
+            target.unlink()
+        except OSError:
+            pass
+
+    # If a new installation needs the reference, it was accumulated from 1991-2020 above.
+    if need_reference:
+        # If 1991-2020 were already present as PNGs but reference files were deleted,
+        # rebuild their mean directly from the compact rasters without a new NetCDF download.
+        if not all(np.any(c > 0) for c in reference_counts):
+            for year in range(1991, 2021):
+                for month in range(1, 13):
+                    p = historical_month_path(out, year, month)
+                    if not p.exists():
+                        continue
+                    image = np.asarray(Image.open(p).convert("RGBA"), dtype=np.uint8)
+                    valid = image[..., 3] > 0
+                    q = image[..., 0].astype(np.uint32) * 65536 + image[..., 1].astype(np.uint32) * 256 + image[..., 2].astype(np.uint32)
+                    arr = q.astype(np.float32) / 10.0
+                    reference_sums[month - 1][valid] += arr[valid]
+                    reference_counts[month - 1][valid] += 1
+        for month in range(1, 13):
+            counts = reference_counts[month - 1]
+            with np.errstate(invalid="ignore", divide="ignore"):
+                ref = (reference_sums[month - 1] / np.where(counts > 0, counts, np.nan)).astype(np.float32)
+            encode_precip_png(ref, ref_root / f"month_{month:02d}.png")
+
+    years = [y for y in range(target_first, target_last + 1) if historical_year_complete(out, y)]
+    if not years:
+        raise RuntimeError("Keine historischen Monatsraster erfolgreich erzeugt")
+    if years[0] != target_first or years[-1] != target_last:
+        print(f"Warnung: historische Reihe ist nicht vollständig: {years[0]}–{years[-1]}")
+
+    manifest = {
+        "schema_version": 1,
+        "product": "DWD HYRAS-DE-PR monthly precipitation",
+        "first_year": years[0],
+        "last_year": years[-1],
+        "years": years,
+        "native_resolution_km": 1,
+        "web_sampling_km": factor,
+        "value_scale": 10,
+        "width": len(expected_x),
+        "height": len(expected_y),
+        "data_crs": data_crs.to_string(),
+        "month_file_pattern": "historical/{year}/month_{month}.png",
+        "reference_files": {str(m): f"historical/reference/month_{m:02d}.png" for m in range(1, 13)},
+        "reference": "1991-2020",
+        "boundary_overlay": "web/boundaries.png",
+        "seasons": {
+            "spring": [3, 4, 5],
+            "summer": [6, 7, 8],
+            "autumn": [9, 10, 11],
+            "winter": [12, 1, 2],
+            "year": list(range(1, 13)),
+        },
+        "note": "Historische Monats-, Jahreszeiten- und Jahreskarten werden im Browser aus monatlichen HYRAS-Summen auf einem kompakten 5-km-Webraster zusammengesetzt. Quelle ist das native 1-km-HYRAS-DE-PR-Monatsprodukt; Referenz ist 1991-2020.",
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"Historisches HYRAS-Webpaket bereit: {years[0]}–{years[-1]} ({len(years)} Jahre).")
+    return manifest
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="hyras_output")
@@ -777,11 +989,20 @@ def main() -> int:
         out=out, work=work, cache_dir=Path(args.reference_cache), geojson=geojson, data_crs=data_crs,
     )
 
+    # Kompakte historische Monatsraster 1931 bis Vorjahr. Bereits vorhandene
+    # Raster aus dem hyras-data-Branch werden vom Workflow vorab wiederverwendet.
+    _sample_vals, _sample_dates, hist_x, hist_y = sample_daily_for_web(daily, max(2, args.web_factor))
+    del _sample_vals, _sample_dates
+    historical_manifest = build_historical_monthly_package(
+        out=out, work=work, factor=max(2, args.web_factor), current_year=args.year,
+        expected_x=hist_x, expected_y=hist_y, data_crs=data_crs,
+    )
+
     # Default: Sommer-bisher mit exaktem Vergleich, sonst letzter vollständiger Monat.
     default_key = f"{args.year}_summer_so_far_complete" if any(p["key"] == f"{args.year}_summer_so_far_complete" for p in periods) else f"{args.year}_{latest_month:02d}"
 
     metadata = {
-        "schema_version": 4,
+        "schema_version": 5,
         "product": "DWD HYRAS-DE-PR",
         "resolution_km": 1,
         "reference": "1991-2020",
@@ -794,7 +1015,10 @@ def main() -> int:
         "periods": periods,
         "web_manifest": "hyras_web_manifest.json",
         "web_sampling_km": web_manifest["web_sampling_km"],
-        "note": "Version 15.2: wie 15.1 plus tagesgenaue freie Zeiträume über ein kompaktes Browser-Webraster. Die statischen Presetkarten bleiben im nativen 1-km-Raster.",
+        "historical_manifest": "hyras_historical_manifest.json",
+        "historical_first_year": historical_manifest["first_year"],
+        "historical_last_year": historical_manifest["last_year"],
+        "note": "Version 15.3: wie 15.2 plus historische Monats-, Jahreszeiten- und Jahresauswahl ab 1931 über ein kompaktes 5-km-Webraster. Die aktuellen Presetkarten bleiben im nativen 1-km-Raster.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
