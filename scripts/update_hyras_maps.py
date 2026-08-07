@@ -24,7 +24,7 @@ DAILY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/dail
 MONTHLY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/hyras_de/precipitation"
 CLIM_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation"
 BOUNDARY_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
-USER_AGENT = "climate-dashboard-hyras/15.3 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-hyras/15.3.1 (+GitHub Actions; DWD Open Data)"
 
 MONTH_ABBR = {1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MONTH_DE = {1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"}
@@ -854,7 +854,7 @@ def build_historical_monthly_package(
             "winter": [12, 1, 2],
             "year": list(range(1, 13)),
         },
-        "note": "Historische Monats-, Jahreszeiten- und Jahreskarten werden im Browser aus monatlichen HYRAS-Summen auf einem kompakten 5-km-Webraster zusammengesetzt. Quelle ist das native 1-km-HYRAS-DE-PR-Monatsprodukt; Referenz ist 1991-2020.",
+        "note": "Historische Monats-, Jahreszeiten- und Jahreskarten werden im Browser aus monatlichen HYRAS-Summen auf einem feineren 2-km-Webraster zusammengesetzt. Quelle ist das native 1-km-HYRAS-DE-PR-Monatsprodukt; Referenz ist 1991-2020.",
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Historisches HYRAS-Webpaket bereit: {years[0]}–{years[-1]} ({len(years)} Jahre).")
@@ -867,7 +867,7 @@ def main() -> int:
     parser.add_argument("--work", default="hyras_work")
     parser.add_argument("--year", type=int, default=datetime.now(timezone.utc).year)
     parser.add_argument("--reference-cache", default="hyras_reference_cache")
-    parser.add_argument("--web-factor", type=int, default=5)
+    parser.add_argument("--web-factor", type=int, default=2)
     args = parser.parse_args()
 
     out = Path(args.output)
@@ -1018,7 +1018,7 @@ def main() -> int:
         "historical_manifest": "hyras_historical_manifest.json",
         "historical_first_year": historical_manifest["first_year"],
         "historical_last_year": historical_manifest["last_year"],
-        "note": "Version 15.3: wie 15.2 plus historische Monats-, Jahreszeiten- und Jahresauswahl ab 1931 über ein kompaktes 5-km-Webraster. Die aktuellen Presetkarten bleiben im nativen 1-km-Raster.",
+        "note": "Version 15.3.1: wie 15.2 plus historische Monats-, Jahreszeiten- und Jahresauswahl ab 1931 über ein feineres 2-km-Webraster. Die aktuellen Presetkarten bleiben im nativen 1-km-Raster.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
