@@ -342,6 +342,17 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   .status-badge{font-size:11px}
 }
 
+
+/* Version 13.1: DWD 10-Minuten-Aktuellbereich */
+.current-live-banner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 16px;padding:12px 14px;border-radius:8px;background:#f3f8fb;border:1px solid #cbdde8}
+.current-live-banner strong{font-size:14px}.current-live-banner .note{margin:0}
+.current-live-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#1a8f5a;margin-right:7px;vertical-align:1px}
+.current-live-dot.stale{background:#d28a00}.current-live-dot.error{background:#b3261e}
+.current-table-wrap{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff}
+.current-table-wrap table{margin:0}.current-table-wrap thead th{position:sticky;top:0;background:#f4f5f6;z-index:1}
+.current-value{font-size:24px;font-weight:700;line-height:1.2}.current-unit{font-size:14px;font-weight:600;color:var(--muted)}
+.current-refresh-button{padding:8px 12px;border:1px solid #aab4bd;border-radius:7px;background:#fff;font-weight:700;cursor:pointer}.current-refresh-button:hover{background:#f4f6f7}
+
 /* Version 11: Stationskarten */
 .station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
 .station-map .leaflet-overlay-pane canvas{width:auto!important;height:auto!important;max-width:none!important}
@@ -403,6 +414,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('current')">Aktuell</button>
   <button class="tab-button" onclick="switchTab('stationProfile')">Stationsprofil</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
@@ -754,6 +766,58 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p id="extremeMethodNote" class="note"></p>
 </div>
 
+
+<!-- ================= AKTUELL / 10-MINUTEN ================= -->
+<div id="current" class="tab-content">
+  <div class="section-header">
+    <h2>Aktuelle DWD-Stationswerte</h2>
+    <p>Nahezu aktuelle 10-Minuten-Messwerte aus dem DWD-CDC-<code>air_temperature/now</code>-Bestand. Die Seite prüft automatisch auf einen neuen Live-Datensatz.</p>
+    <span class="section-status">10-Minuten-Auflösung · aktuelle Werte vorläufig · DWD-now wird in Abständen unter einer Stunde aktualisiert</span>
+  </div>
+
+  <div id="currentLiveBanner" class="current-live-banner">
+    <div><span id="currentLiveDot" class="current-live-dot"></span><strong id="currentLiveStatus">Live-Daten werden beim ersten Öffnen geladen …</strong></div>
+    <button id="currentRefreshButton" class="current-refresh-button" type="button">Jetzt prüfen</button>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="currentStateSelect">Bundesland</label>
+      <select id="currentStateSelect"><option value="">Alle Bundesländer</option></select>
+    </div>
+    <div class="control-group">
+      <label for="currentStationSearch">Station suchen</label>
+      <input id="currentStationSearch" type="search" placeholder="Name oder Stations-ID" autocomplete="off">
+    </div>
+    <div class="control-group">
+      <label for="currentStationSelect">Station</label>
+      <select id="currentStationSelect"></select>
+    </div>
+  </div>
+
+  <div id="currentStationHeading" class="summary-box">Station auswählen …</div>
+
+  <div class="stat-grid" style="margin-bottom:18px">
+    <div class="stat-card"><h4>Temperatur</h4><div id="currentTemp" class="current-value">–</div><div id="currentTempDetail" class="daily-stat-detail">letzter 10-Minuten-Wert</div></div>
+    <div class="stat-card"><h4>Heute bisher</h4><div id="currentMinMax" class="current-value">–</div><div id="currentMean" class="daily-stat-detail">10-Minuten-Minimum / Maximum</div></div>
+    <div class="stat-card"><h4>Relative Feuchte</h4><div id="currentHumidity" class="current-value">–</div><div class="daily-stat-detail">RF_10</div></div>
+    <div class="stat-card"><h4>Taupunkt</h4><div id="currentDewpoint" class="current-value">–</div><div class="daily-stat-detail">TD_10</div></div>
+    <div class="stat-card"><h4>Luftdruck</h4><div id="currentPressure" class="current-value">–</div><div class="daily-stat-detail">Stationshöhe · PP_10</div></div>
+    <div class="stat-card"><h4>Temperatur 5 cm</h4><div id="currentGroundTemp" class="current-value">–</div><div class="daily-stat-detail">TM5_10</div></div>
+  </div>
+
+  <h3>Verlauf der letzten 24 Stunden</h3>
+  <div class="chart-container tall"><canvas id="currentConditionsChart"></canvas></div>
+
+  <h3>Messwerte heute</h3>
+  <div class="current-table-wrap">
+    <table id="currentTodayTable">
+      <thead><tr><th>Zeit</th><th>Temperatur</th><th>Feuchte</th><th>Taupunkt</th><th>Luftdruck</th><th>5 cm</th></tr></thead>
+      <tbody><tr><td colspan="6">Noch keine Daten geladen.</td></tr></tbody>
+    </table>
+  </div>
+  <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), 10-minütige Stationsmessungen der Lufttemperatur. Die aktuellen <code>now</code>-Werte sind noch nicht abschließend qualitätsgeprüft. Die Live-Aktualisierung läuft unabhängig vom normalen GitHub-Pages-Deployment.</p>
+</div>
 
 <!-- ================= STATIONSPROFIL ================= -->
 <div id="stationProfile" class="tab-content">
@@ -1221,6 +1285,12 @@ let accumulationChart=null;
 let dailyChart=null;
 let dailyDeviationChart=null;
 let dailyAllYearsChart=null;
+let currentConditionsChart=null;
+let currentLiveIndex=null;
+let currentLiveProfile=null;
+let currentLiveLoading=null;
+let currentLiveLastFetch=0;
+const CURRENT_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/live-data";
 let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
@@ -1273,6 +1343,7 @@ function switchTab(tab,{persist=true}={}){
   const mobile=document.getElementById("mobileTabSelect");
   if(mobile) mobile.value=tab;
   if(persist) persistDashboardState("tab",tab);
+  if(tab==="current") ensureCurrentConditions();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
@@ -1281,7 +1352,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="maps") ensureStationMaps();
   if(tab==="records") ensureStationRecordsLoaded();
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -5192,6 +5263,170 @@ async function renderStationProfileAuxiliary(){
 window.addEventListener('stationprofilechange',()=>renderStationProfileAuxiliary().catch(error=>console.error('Stationsprofil Zusatzdaten:',error)));
 
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
+// ================= AKTUELL / DWD 10-MINUTEN =================
+function currentNum(value,unit="",digits=1){
+  if(value===null || value===undefined || value==="") return "–";
+  const n=Number(value);
+  if(!Number.isFinite(n)) return "–";
+  return `${n.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})}${unit?` ${unit}`:""}`;
+}
+function currentDateTime(value){
+  if(!value) return "–";
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?String(value):date.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function currentAgeMinutes(value){
+  if(!value) return null;
+  const ms=Date.now()-new Date(value).getTime();
+  return Number.isFinite(ms)?Math.max(0,Math.round(ms/60000)):null;
+}
+async function currentFetchJson(path){
+  const separator=path.includes("?")?"&":"?";
+  const response=await fetch(`${CURRENT_LIVE_BASE}/${path}${separator}t=${Date.now()}`,{cache:"no-store"});
+  if(!response.ok) throw new Error(`Live-Datei ${path} nicht erreichbar (${response.status})`);
+  return response.json();
+}
+function populateCurrentStations(preserve=true){
+  const select=document.getElementById("currentStationSelect");
+  if(!select || !currentLiveIndex) return;
+  const previous=preserve?select.value:"";
+  const state=document.getElementById("currentStateSelect")?.value||"";
+  const search=(document.getElementById("currentStationSearch")?.value||"").trim().toLocaleLowerCase("de-DE");
+  const rows=(currentLiveIndex.stations||[]).filter(station=>{
+    if(state && station.state!==state) return false;
+    if(!search) return true;
+    return `${station.name||""} ${station.id||""} ${station.state||""}`.toLocaleLowerCase("de-DE").includes(search);
+  });
+  select.innerHTML="";
+  rows.forEach(station=>{
+    const option=document.createElement("option");
+    option.value=station.id;
+    option.textContent=`${station.name||"Station"} (${station.id})${station.state?` · ${station.state}`:""}`;
+    select.appendChild(option);
+  });
+  const saved=dashboardState.currentStationSelect;
+  if(previous && rows.some(station=>station.id===previous)) select.value=previous;
+  else if(saved && rows.some(station=>station.id===saved)) select.value=saved;
+  if(!select.value && rows[0]) select.value=rows[0].id;
+  if(select.value) loadCurrentStation(select.value);
+  else renderCurrentEmpty("Keine Station entspricht dem Filter.");
+}
+function renderCurrentEmpty(message){
+  document.getElementById("currentStationHeading").textContent=message;
+  ["currentTemp","currentMinMax","currentHumidity","currentDewpoint","currentPressure","currentGroundTemp"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
+  const tbody=document.querySelector("#currentTodayTable tbody");
+  if(tbody) tbody.innerHTML=`<tr><td colspan="6">${message}</td></tr>`;
+  if(currentConditionsChart){currentConditionsChart.destroy();currentConditionsChart=null;}
+}
+function currentPopulateStates(){
+  const select=document.getElementById("currentStateSelect");
+  if(!select || !currentLiveIndex) return;
+  const previous=select.value;
+  const states=[...new Set((currentLiveIndex.stations||[]).map(station=>station.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
+  select.innerHTML='<option value="">Alle Bundesländer</option>'+states.map(state=>`<option value="${state}">${state}</option>`).join("");
+  if(previous && states.includes(previous)) select.value=previous;
+  else if(dashboardState.currentStateSelect && states.includes(dashboardState.currentStateSelect)) select.value=dashboardState.currentStateSelect;
+}
+function renderCurrentLiveStatus(){
+  const status=document.getElementById("currentLiveStatus");
+  const dot=document.getElementById("currentLiveDot");
+  if(!status || !currentLiveIndex) return;
+  const age=currentAgeMinutes(currentLiveIndex.latest_measurement_utc);
+  const latest=currentDateTime(currentLiveIndex.latest_measurement_utc);
+  const generated=currentDateTime(currentLiveIndex.generated_at_utc);
+  status.textContent=`${currentLiveIndex.station_count||0} Stationen · letzter Messzeitpunkt ${latest}${age!==null?` · ${age} min alt`:""} · Live-Snapshot ${generated}`;
+  dot.className="current-live-dot"+(age!==null&&age>90?" stale":"");
+}
+async function ensureCurrentConditions(force=false){
+  const now=Date.now();
+  if(currentLiveLoading) return currentLiveLoading;
+  if(!force && currentLiveIndex && now-currentLiveLastFetch<120000){renderCurrentLiveStatus();return;}
+  const status=document.getElementById("currentLiveStatus");
+  const dot=document.getElementById("currentLiveDot");
+  if(status) status.textContent="Live-Daten werden geprüft …";
+  currentLiveLoading=(async()=>{
+    try{
+      currentLiveIndex=await currentFetchJson("current_index.json");
+      currentLiveLastFetch=Date.now();
+      currentPopulateStates();
+      populateCurrentStations(true);
+      renderCurrentLiveStatus();
+    }catch(error){
+      console.error("Aktuellbereich:",error);
+      if(status) status.textContent=`Aktuelle Daten noch nicht verfügbar: ${error.message}. Den Workflow „DWD 10-Minuten-Aktuellbereich aktualisieren“ einmal starten.`;
+      if(dot) dot.className="current-live-dot error";
+    }finally{currentLiveLoading=null;}
+  })();
+  return currentLiveLoading;
+}
+async function loadCurrentStation(stationId){
+  if(!stationId) return;
+  const heading=document.getElementById("currentStationHeading");
+  if(heading) heading.textContent="Stationsdaten werden geladen …";
+  try{
+    const profile=await currentFetchJson(`stations/${stationId}.json`);
+    if(document.getElementById("currentStationSelect")?.value!==stationId) return;
+    currentLiveProfile=profile;
+    renderCurrentStation(profile);
+  }catch(error){
+    console.error(error);
+    renderCurrentEmpty(`Station ${stationId} konnte nicht geladen werden: ${error.message}`);
+  }
+}
+function renderCurrentStation(profile){
+  const station=profile.station||{};
+  const latest=profile.latest||{};
+  const today=profile.today||{};
+  const meta=[station.state,Number.isFinite(Number(station.elevation_m))?`${Number(station.elevation_m).toLocaleString("de-DE")} m`:"",`letzte Messung ${currentDateTime(latest.local||latest.utc)}`].filter(Boolean).join(" · ");
+  document.getElementById("currentStationHeading").innerHTML=`<strong>${station.name||"Station"} (${station.id||"–"})</strong><br><span class="note">${meta}</span>`;
+  document.getElementById("currentTemp").textContent=currentNum(latest.temperature_c,"°C",1);
+  document.getElementById("currentTempDetail").textContent=`Messzeitpunkt ${currentDateTime(latest.local||latest.utc)}`;
+  document.getElementById("currentMinMax").textContent=`${currentNum(today.min_c,"°C",1)} / ${currentNum(today.max_c,"°C",1)}`;
+  document.getElementById("currentMean").textContent=`Minimum / Maximum · Mittel der 10-Min-Werte ${currentNum(today.mean_10min_c,"°C",1)}`;
+  document.getElementById("currentHumidity").textContent=currentNum(latest.humidity_pct,"%",0);
+  document.getElementById("currentDewpoint").textContent=currentNum(latest.dewpoint_c,"°C",1);
+  document.getElementById("currentPressure").textContent=currentNum(latest.pressure_hpa,"hPa",1);
+  document.getElementById("currentGroundTemp").textContent=currentNum(latest.ground_temp_c,"°C",1);
+
+  const liveNumber=value=>value===null||value===undefined||value===""?null:Number(value);
+  const series=(profile.series||[]).map(row=>({time:row[0],temp:liveNumber(row[1]),humidity:liveNumber(row[2]),dew:liveNumber(row[3]),pressure:liveNumber(row[4]),ground:liveNumber(row[5])}));
+  const cutoff=Date.now()-24*3600*1000;
+  const chartRows=series.filter(row=>new Date(row.time).getTime()>=cutoff);
+  const labels=chartRows.map(row=>new Date(row.time).toLocaleTimeString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"}));
+  if(currentConditionsChart){currentConditionsChart.destroy();currentConditionsChart=null;}
+  const canvas=document.getElementById("currentConditionsChart");
+  if(canvas){
+    const existing=Chart.getChart(canvas);if(existing)existing.destroy();
+    currentConditionsChart=new Chart(canvas,{type:"line",data:{labels,datasets:[
+      {label:"Temperatur",data:chartRows.map(row=>Number.isFinite(row.temp)?row.temp:null),borderColor:"#d7191c",borderWidth:2.2,pointRadius:0,tension:.12},
+      {label:"Taupunkt",data:chartRows.map(row=>Number.isFinite(row.dew)?row.dew:null),borderColor:"#2166ac",borderWidth:1.6,borderDash:[5,4],pointRadius:0,tension:.12}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`Temperatur und Taupunkt – ${station.name||station.id} – letzte 24 Stunden`,font:{size:17,weight:"bold"}},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{title:{display:true,text:"°C"}}}}});
+  }
+
+  const todayDate=today.date;
+  const todayRows=series.filter(row=>{
+    const local=String(row.time).slice(0,10);
+    return !todayDate || local===todayDate;
+  }).reverse();
+  const tbody=document.querySelector("#currentTodayTable tbody");
+  if(tbody) tbody.innerHTML=todayRows.length?todayRows.map(row=>`<tr><td>${new Date(row.time).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td><td>${currentNum(row.temp,"°C",1)}</td><td>${currentNum(row.humidity,"%",0)}</td><td>${currentNum(row.dew,"°C",1)}</td><td>${currentNum(row.pressure,"hPa",1)}</td><td>${currentNum(row.ground,"°C",1)}</td></tr>`).join(""):'<tr><td colspan="6">Für heute sind noch keine 10-Minuten-Werte vorhanden.</td></tr>';
+}
+function initCurrentControls(){
+  const state=document.getElementById("currentStateSelect");
+  const search=document.getElementById("currentStationSearch");
+  const select=document.getElementById("currentStationSelect");
+  const refresh=document.getElementById("currentRefreshButton");
+  state?.addEventListener("change",()=>populateCurrentStations(false));
+  search?.addEventListener("input",()=>populateCurrentStations(false));
+  select?.addEventListener("change",()=>{persistDashboardState("currentStationSelect",select.value);loadCurrentStation(select.value);});
+  refresh?.addEventListener("click",()=>ensureCurrentConditions(true));
+  window.setInterval(()=>{
+    if(document.getElementById("current")?.classList.contains("active")) ensureCurrentConditions(true);
+  },5*60*1000);
+}
+initCurrentControls();
+
+
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
 try{dashboardState=JSON.parse(localStorage.getItem(DASHBOARD_STATE_KEY)||"{}");}catch(_error){dashboardState={};}
@@ -5329,6 +5564,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.6: flexible Referenzperioden und gleitende Mittel bei Gebietsmitteln -->
+<!-- Dashboard Version 13.1: Aktuellbereich mit DWD-10-Minuten-Livedaten -->
 </body>
 </html>
