@@ -771,7 +771,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 <div id="current" class="tab-content">
   <div class="section-header">
     <h2>Aktuelle DWD-Stationswerte</h2>
-    <p>Nahezu aktuelle 10-Minuten-Messwerte aus dem DWD-CDC-<code>air_temperature/now</code>-Bestand. Die Seite prüft automatisch auf einen neuen Live-Datensatz.</p>
+    <p>Nahezu aktuelle 10-Minuten-Messwerte aus den DWD-CDC-<code>now</code>-Beständen für Temperatur, Wind, Böen und Niederschlag. Zusatzparameter werden über dieselbe DWD-Stations-ID verknüpft.</p>
     <span class="section-status">10-Minuten-Auflösung · aktuelle Werte vorläufig · DWD-now wird in Abständen unter einer Stunde aktualisiert</span>
   </div>
 
@@ -804,19 +804,29 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     <div class="stat-card"><h4>Taupunkt</h4><div id="currentDewpoint" class="current-value">–</div><div class="daily-stat-detail">TD_10</div></div>
     <div class="stat-card"><h4>Luftdruck</h4><div id="currentPressure" class="current-value">–</div><div class="daily-stat-detail">Stationshöhe · PP_10</div></div>
     <div class="stat-card"><h4>Temperatur 5 cm</h4><div id="currentGroundTemp" class="current-value">–</div><div class="daily-stat-detail">TM5_10</div></div>
+    <div class="stat-card"><h4>Wind</h4><div id="currentWind" class="current-value">–</div><div id="currentWindDetail" class="daily-stat-detail">FF_10 · 10-Minuten-Mittel</div></div>
+    <div class="stat-card"><h4>Windrichtung</h4><div id="currentWindDirection" class="current-value">–</div><div id="currentWindDirectionDetail" class="daily-stat-detail">DD_10</div></div>
+    <div class="stat-card"><h4>Böe</h4><div id="currentGust" class="current-value">–</div><div id="currentGustDetail" class="daily-stat-detail">FX_10 · Maximum der letzten 10 Minuten</div></div>
+    <div class="stat-card"><h4>Niederschlag</h4><div id="currentPrecip" class="current-value">–</div><div id="currentPrecipDetail" class="daily-stat-detail">RWS_10 · Summe der letzten 10 Minuten</div></div>
   </div>
 
-  <h3>Verlauf der letzten 24 Stunden</h3>
+  <h3>Temperatur · letzte 24 Stunden</h3>
   <div class="chart-container tall"><canvas id="currentConditionsChart"></canvas></div>
+
+  <h3>Wind und Böen · letzte 24 Stunden</h3>
+  <div class="chart-container tall"><canvas id="currentWindChart"></canvas></div>
+
+  <h3>Niederschlag · letzte 24 Stunden</h3>
+  <div class="chart-container tall"><canvas id="currentPrecipChart"></canvas></div>
 
   <h3>Messwerte heute</h3>
   <div class="current-table-wrap">
     <table id="currentTodayTable">
-      <thead><tr><th>Zeit</th><th>Temperatur</th><th>Feuchte</th><th>Taupunkt</th><th>Luftdruck</th><th>5 cm</th></tr></thead>
-      <tbody><tr><td colspan="6">Noch keine Daten geladen.</td></tr></tbody>
+      <thead><tr><th>Zeit</th><th>Temperatur</th><th>Feuchte</th><th>Taupunkt</th><th>Luftdruck</th><th>5 cm</th><th>Wind</th><th>Richtung</th><th>Böe</th><th>Niederschlag</th></tr></thead>
+      <tbody><tr><td colspan="10">Noch keine Daten geladen.</td></tr></tbody>
     </table>
   </div>
-  <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), 10-minütige Stationsmessungen der Lufttemperatur. Die aktuellen <code>now</code>-Werte sind noch nicht abschließend qualitätsgeprüft. Die Live-Aktualisierung läuft unabhängig vom normalen GitHub-Pages-Deployment.</p>
+  <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), 10-minütige Stationsmessungen aus <code>air_temperature/now</code>, <code>wind/now</code>, <code>extreme_wind/now</code> und <code>precipitation/now</code>. Wind/Böen/Niederschlag erscheinen nur, wenn der jeweilige Parameter unter derselben DWD-Stations-ID verfügbar ist. Die aktuellen <code>now</code>-Werte sind noch nicht abschließend qualitätsgeprüft. Die Live-Aktualisierung läuft unabhängig vom normalen GitHub-Pages-Deployment.</p>
 </div>
 
 <!-- ================= STATIONSPROFIL ================= -->
@@ -1286,6 +1296,8 @@ let dailyChart=null;
 let dailyDeviationChart=null;
 let dailyAllYearsChart=null;
 let currentConditionsChart=null;
+let currentWindChart=null;
+let currentPrecipChart=null;
 let currentLiveIndex=null;
 let currentLiveProfile=null;
 let currentLiveLoading=null;
@@ -5311,12 +5323,25 @@ function populateCurrentStations(preserve=true){
   if(select.value) loadCurrentStation(select.value);
   else renderCurrentEmpty("Keine Station entspricht dem Filter.");
 }
+function currentWindCompass(value){
+  const deg=Number(value);
+  if(!Number.isFinite(deg)) return "–";
+  const names=["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return names[Math.round((((deg%360)+360)%360)/22.5)%16];
+}
+function currentMsToKmh(value){
+  const n=Number(value);
+  return Number.isFinite(n)?n*3.6:null;
+}
 function renderCurrentEmpty(message){
   document.getElementById("currentStationHeading").textContent=message;
-  ["currentTemp","currentMinMax","currentHumidity","currentDewpoint","currentPressure","currentGroundTemp"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
+  ["currentTemp","currentMinMax","currentHumidity","currentDewpoint","currentPressure","currentGroundTemp","currentWind","currentWindDirection","currentGust","currentPrecip"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
+  ["currentWindDetail","currentWindDirectionDetail","currentGustDetail","currentPrecipDetail"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
   const tbody=document.querySelector("#currentTodayTable tbody");
-  if(tbody) tbody.innerHTML=`<tr><td colspan="6">${message}</td></tr>`;
+  if(tbody) tbody.innerHTML=`<tr><td colspan="10">${message}</td></tr>`;
   if(currentConditionsChart){currentConditionsChart.destroy();currentConditionsChart=null;}
+  if(currentWindChart){currentWindChart.destroy();currentWindChart=null;}
+  if(currentPrecipChart){currentPrecipChart.destroy();currentPrecipChart=null;}
 }
 function currentPopulateStates(){
   const select=document.getElementById("currentStateSelect");
@@ -5334,7 +5359,9 @@ function renderCurrentLiveStatus(){
   const age=currentAgeMinutes(currentLiveIndex.latest_measurement_utc);
   const latest=currentDateTime(currentLiveIndex.latest_measurement_utc);
   const generated=currentDateTime(currentLiveIndex.generated_at_utc);
-  status.textContent=`${currentLiveIndex.station_count||0} Stationen · letzter Messzeitpunkt ${latest}${age!==null?` · ${age} min alt`:""} · Live-Snapshot ${generated}`;
+  const counts=currentLiveIndex.availability_counts||{};
+  const extras=currentLiveIndex.schema_version>=2?` · Wind ${counts.wind||0} · Böen ${counts.gust||0} · Niederschlag ${counts.precipitation||0}`:"";
+  status.textContent=`${currentLiveIndex.station_count||0} Temperaturstationen${extras} · letzter Messzeitpunkt ${latest}${age!==null?` · ${age} min alt`:""} · Live-Snapshot ${generated}`;
   dot.className="current-live-dot"+(age!==null&&age>90?" stale":"");
 }
 async function ensureCurrentConditions(force=false){
@@ -5377,10 +5404,12 @@ function renderCurrentStation(profile){
   const station=profile.station||{};
   const latest=profile.latest||{};
   const today=profile.today||{};
-  const meta=[station.state,Number.isFinite(Number(station.elevation_m))?`${Number(station.elevation_m).toLocaleString("de-DE")} m`:"",`letzte Messung ${currentDateTime(latest.local||latest.utc)}`].filter(Boolean).join(" · ");
+  const availability=profile.availability||{};
+  const availableLabels=[availability.wind?"Wind":null,availability.gust?"Böen":null,availability.precipitation?"Niederschlag":null].filter(Boolean);
+  const meta=[station.state,Number.isFinite(Number(station.elevation_m))?`${Number(station.elevation_m).toLocaleString("de-DE")} m`:"",`letzte Messung ${currentDateTime(latest.local||latest.utc)}`,availableLabels.length?`Zusatzdaten: ${availableLabels.join(", ")}`:"keine Zusatzparameter an dieser Stations-ID"].filter(Boolean).join(" · ");
   document.getElementById("currentStationHeading").innerHTML=`<strong>${station.name||"Station"} (${station.id||"–"})</strong><br><span class="note">${meta}</span>`;
   document.getElementById("currentTemp").textContent=currentNum(latest.temperature_c,"°C",1);
-  document.getElementById("currentTempDetail").textContent=`Messzeitpunkt ${currentDateTime(latest.local||latest.utc)}`;
+  document.getElementById("currentTempDetail").textContent=`Messzeitpunkt ${currentDateTime(latest.temperature_local||latest.temperature_utc||latest.local||latest.utc)}`;
   document.getElementById("currentMinMax").textContent=`${currentNum(today.min_c,"°C",1)} / ${currentNum(today.max_c,"°C",1)}`;
   document.getElementById("currentMean").textContent=`Minimum / Maximum · Mittel der 10-Min-Werte ${currentNum(today.mean_10min_c,"°C",1)}`;
   document.getElementById("currentHumidity").textContent=currentNum(latest.humidity_pct,"%",0);
@@ -5388,11 +5417,27 @@ function renderCurrentStation(profile){
   document.getElementById("currentPressure").textContent=currentNum(latest.pressure_hpa,"hPa",1);
   document.getElementById("currentGroundTemp").textContent=currentNum(latest.ground_temp_c,"°C",1);
 
+  document.getElementById("currentWind").textContent=currentNum(latest.wind_speed_ms,"m/s",1);
+  const windKmh=currentMsToKmh(latest.wind_speed_ms);
+  document.getElementById("currentWindDetail").textContent=Number.isFinite(windKmh)?`${currentNum(windKmh,"km/h",1)} · ${currentDateTime(latest.wind_local||latest.wind_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  const windDir=Number(latest.wind_direction_deg);
+  document.getElementById("currentWindDirection").textContent=Number.isFinite(windDir)?`${currentWindCompass(windDir)} · ${Math.round(windDir)}°`:"–";
+  document.getElementById("currentWindDirectionDetail").textContent=Number.isFinite(windDir)?"DD_10 · 10-Minuten-Mittel":"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentGust").textContent=currentNum(latest.gust_speed_ms,"m/s",1);
+  const gustKmh=currentMsToKmh(latest.gust_speed_ms);
+  document.getElementById("currentGustDetail").textContent=Number.isFinite(gustKmh)?`${currentNum(gustKmh,"km/h",1)} · Tagesmaximum ${currentNum(today.max_gust_ms,"m/s",1)} · ${currentDateTime(latest.gust_local||latest.gust_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentPrecip").textContent=currentNum(latest.precip_10min_mm,"mm",1);
+  document.getElementById("currentPrecipDetail").textContent=latest.precip_10min_mm!==null&&latest.precip_10min_mm!==undefined?`letzte 10 Min · heute ${currentNum(today.precip_sum_mm,"mm",1)} · ${currentDateTime(latest.precipitation_local||latest.precipitation_utc)}`:"an dieser Stations-ID nicht verfügbar";
+
   const liveNumber=value=>value===null||value===undefined||value===""?null:Number(value);
-  const series=(profile.series||[]).map(row=>({time:row[0],temp:liveNumber(row[1]),humidity:liveNumber(row[2]),dew:liveNumber(row[3]),pressure:liveNumber(row[4]),ground:liveNumber(row[5])}));
+  const series=(profile.series||[]).map(row=>({
+    time:row[0],temp:liveNumber(row[1]),humidity:liveNumber(row[2]),dew:liveNumber(row[3]),pressure:liveNumber(row[4]),ground:liveNumber(row[5]),
+    wind:liveNumber(row[6]),windDir:liveNumber(row[7]),gust:liveNumber(row[8]),gustDir:liveNumber(row[9]),precip:liveNumber(row[10]),precipDuration:liveNumber(row[11]),precipIndicator:liveNumber(row[12])
+  }));
   const cutoff=Date.now()-24*3600*1000;
   const chartRows=series.filter(row=>new Date(row.time).getTime()>=cutoff);
   const labels=chartRows.map(row=>new Date(row.time).toLocaleTimeString("de-DE",{weekday:"short",hour:"2-digit",minute:"2-digit"}));
+
   if(currentConditionsChart){currentConditionsChart.destroy();currentConditionsChart=null;}
   const canvas=document.getElementById("currentConditionsChart");
   if(canvas){
@@ -5403,13 +5448,32 @@ function renderCurrentStation(profile){
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`Temperatur und Taupunkt – ${station.name||station.id} – letzte 24 Stunden`,font:{size:17,weight:"bold"}},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{title:{display:true,text:"°C"}}}}});
   }
 
+  if(currentWindChart){currentWindChart.destroy();currentWindChart=null;}
+  const windCanvas=document.getElementById("currentWindChart");
+  if(windCanvas){
+    const existing=Chart.getChart(windCanvas);if(existing)existing.destroy();
+    currentWindChart=new Chart(windCanvas,{type:"line",data:{labels,datasets:[
+      {label:"Windmittel FF_10",data:chartRows.map(row=>Number.isFinite(row.wind)?row.wind:null),borderColor:"#2b6f92",borderWidth:2,pointRadius:0,tension:.1},
+      {label:"Böe FX_10",data:chartRows.map(row=>Number.isFinite(row.gust)?row.gust:null),borderColor:"#b45f06",borderWidth:1.8,pointRadius:0,tension:.08}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`Wind und Böen – ${station.name||station.id} – letzte 24 Stunden`,font:{size:17,weight:"bold"}},datalabels:{display:false},tooltip:{callbacks:{afterBody(items){const idx=items?.[0]?.dataIndex;if(idx===undefined)return "";const row=chartRows[idx];return Number.isFinite(row.windDir)?`Windrichtung: ${currentWindCompass(row.windDir)} (${Math.round(row.windDir)}°)`:"";}}}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"m/s"}}}}});
+  }
+
+  if(currentPrecipChart){currentPrecipChart.destroy();currentPrecipChart=null;}
+  const precipCanvas=document.getElementById("currentPrecipChart");
+  if(precipCanvas){
+    const existing=Chart.getChart(precipCanvas);if(existing)existing.destroy();
+    currentPrecipChart=new Chart(precipCanvas,{type:"bar",data:{labels,datasets:[
+      {label:"Niederschlag je 10 Minuten",data:chartRows.map(row=>Number.isFinite(row.precip)?Math.max(0,row.precip):null),backgroundColor:"rgba(31,119,180,.58)",borderColor:"#1f77b4",borderWidth:1}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{title:{display:true,text:`10-Minuten-Niederschlag – ${station.name||station.id} – letzte 24 Stunden`,font:{size:17,weight:"bold"}},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"mm / 10 min"}}}}});
+  }
+
   const todayDate=today.date;
   const todayRows=series.filter(row=>{
     const local=String(row.time).slice(0,10);
     return !todayDate || local===todayDate;
   }).reverse();
   const tbody=document.querySelector("#currentTodayTable tbody");
-  if(tbody) tbody.innerHTML=todayRows.length?todayRows.map(row=>`<tr><td>${new Date(row.time).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td><td>${currentNum(row.temp,"°C",1)}</td><td>${currentNum(row.humidity,"%",0)}</td><td>${currentNum(row.dew,"°C",1)}</td><td>${currentNum(row.pressure,"hPa",1)}</td><td>${currentNum(row.ground,"°C",1)}</td></tr>`).join(""):'<tr><td colspan="6">Für heute sind noch keine 10-Minuten-Werte vorhanden.</td></tr>';
+  if(tbody) tbody.innerHTML=todayRows.length?todayRows.map(row=>`<tr><td>${new Date(row.time).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td><td>${currentNum(row.temp,"°C",1)}</td><td>${currentNum(row.humidity,"%",0)}</td><td>${currentNum(row.dew,"°C",1)}</td><td>${currentNum(row.pressure,"hPa",1)}</td><td>${currentNum(row.ground,"°C",1)}</td><td>${currentNum(row.wind,"m/s",1)}</td><td>${Number.isFinite(row.windDir)?`${currentWindCompass(row.windDir)} ${Math.round(row.windDir)}°`:"–"}</td><td>${currentNum(row.gust,"m/s",1)}</td><td>${currentNum(row.precip,"mm",1)}</td></tr>`).join(""):'<tr><td colspan="10">Für heute sind noch keine 10-Minuten-Werte vorhanden.</td></tr>';
 }
 function initCurrentControls(){
   const state=document.getElementById("currentStateSelect");
