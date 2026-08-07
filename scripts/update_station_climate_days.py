@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 6
+STATE_VERSION = 7
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -974,18 +974,68 @@ def build_index(
     map_summaries = build_map_summaries(root, profiles, data_through, current_files)
 
     longest_by_station: dict[str, dict[str, dict[str, Any] | None]] = {}
+    national_streak_records: dict[str, list[dict[str, Any]]] = {
+        item["id"]: [] for item in CLIMATE_DAYS
+    }
     for profile in profiles:
         current_runs = longest_runs_from_current_values(
             values_by_station.get(profile.station_id, {}), data_through, current_year, limit=5
         )
+
+        # Für die deutschlandweiten Top-20 werden nicht nur die beste Folge je Station,
+        # sondern die bis zu fünf längsten historischen Folgen aus dem Stationsprofil
+        # berücksichtigt. Dadurch kann eine Station mit mehreren außergewöhnlichen Serien
+        # mehrfach in der nationalen Rekordliste auftauchen.
+        historical_top_runs: dict[str, list[dict[str, Any]]] = {}
+        try:
+            profile_payload = read_json(root / profile.file)
+            raw_longest = profile_payload.get("longest_runs", {})
+            for specification in CLIMATE_DAYS:
+                metric_id = specification["id"]
+                rows = raw_longest.get(metric_id, [])
+                historical_top_runs[metric_id] = [dict(row) for row in rows if isinstance(row, dict)]
+        except (OSError, json.JSONDecodeError, TypeError):
+            for specification in CLIMATE_DAYS:
+                metric_id = specification["id"]
+                best = profile.longest_runs.get(metric_id)
+                historical_top_runs[metric_id] = [dict(best)] if isinstance(best, dict) else []
+
         merged_metrics: dict[str, dict[str, Any] | None] = {}
         for specification in CLIMATE_DAYS:
             metric = specification["id"]
-            historical_best = profile.longest_runs.get(metric)
-            historical_rows = [historical_best] if historical_best else []
-            merged = merge_run_lists(historical_rows, current_runs.get(metric, []), limit=5)
+            merged = merge_run_lists(
+                historical_top_runs.get(metric, []), current_runs.get(metric, []), limit=5
+            )
             merged_metrics[metric] = merged[0] if merged else None
+            for run in merged:
+                national_streak_records[metric].append({
+                    **dict(run),
+                    "station_id": profile.station_id,
+                })
         longest_by_station[profile.station_id] = merged_metrics
+
+    # Echte nationale Top-20 einzelner Serien. Derselbe Stationsstandort darf mehrfach
+    # vorkommen, wenn dort mehrere der deutschlandweit längsten Folgen registriert wurden.
+    for specification in CLIMATE_DAYS:
+        metric = specification["id"]
+        unique: dict[tuple[str, str, str, int], dict[str, Any]] = {}
+        for run in national_streak_records[metric]:
+            key = (
+                str(run.get("station_id", "")),
+                str(run.get("start", "")),
+                str(run.get("end", "")),
+                int(run.get("duration", 0)),
+            )
+            previous = unique.get(key)
+            if previous is None or (previous.get("preliminary") and not run.get("preliminary")):
+                unique[key] = run
+        rows = list(unique.values())
+        rows.sort(key=lambda run: (
+            -int(run.get("duration", 0)),
+            str(run.get("start", "")),
+            str(run.get("station_id", "")),
+        ))
+        national_streak_records[metric] = rows[:20]
 
     index = {
         "ready": True,
@@ -997,7 +1047,7 @@ def build_index(
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
         "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK und TMK)",
-        "current_payload_version": 4,
+        "current_payload_version": 5,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
@@ -1006,6 +1056,11 @@ def build_index(
         "streak_rule": (
             "Kenntage-Serien laufen über Monats- und Jahresgrenzen weiter. Fehlende für die jeweilige "
             "Metrik relevante Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Tag."
+        ),
+        "national_streak_records": national_streak_records,
+        "national_streak_scope": (
+            "Deutschlandweite Top-20 einzelner Serien über alle in der Stations-Kenntage-Auswertung "
+            "enthaltenen Stationen; eine Station kann mit mehreren Serien vertreten sein."
         ),
         "climate_days": [dict(item) for item in CLIMATE_DAYS],
         "periods": PERIODS,
