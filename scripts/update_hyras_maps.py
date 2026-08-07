@@ -21,7 +21,7 @@ from pyproj import CRS, Transformer
 DAILY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/hyras_de/precipitation"
 CLIM_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation"
 BOUNDARY_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
-USER_AGENT = "climate-dashboard-hyras/15.0.1 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-hyras/15.1 (+GitHub Actions; DWD Open Data)"
 
 MONTH_ABBR = {1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MONTH_DE = {1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"}
@@ -304,6 +304,118 @@ def finite_stats(current: xr.DataArray, ref: xr.DataArray) -> dict[str, float | 
     }
 
 
+
+def date_sum(da: xr.DataArray, start_date: str, end_date: str) -> xr.DataArray:
+    td = time_dim(da)
+    start = np.datetime64(start_date)
+    end = np.datetime64(end_date)
+    sel = da.where((da[td] >= start) & (da[td] <= end), drop=True)
+    if sel.sizes.get(td, 0) == 0:
+        raise RuntimeError(f"Keine HYRAS-Tage für {start_date} bis {end_date}")
+    return squeeze_2d(sel.sum(td, skipna=True, min_count=1))
+
+
+def month_end(year: int, month: int) -> str:
+    return f"{year:04d}-{month:02d}-{calendar.monthrange(year, month)[1]:02d}"
+
+
+def period_label_date(start_date: str, end_date: str) -> str:
+    s = datetime.strptime(start_date, "%Y-%m-%d")
+    e = datetime.strptime(end_date, "%Y-%m-%d")
+    if s.year == e.year:
+        return f"{s.strftime('%d.%m.')}–{e.strftime('%d.%m.%Y')}"
+    return f"{s.strftime('%d.%m.%Y')}–{e.strftime('%d.%m.%Y')}"
+
+
+def load_month_reference(month: int, work: Path, cache: dict[int, xr.DataArray]) -> tuple[xr.DataArray, str]:
+    if month in cache:
+        return cache[month], latest_clim_filename(month)
+    filename = latest_clim_filename(month)
+    target = work / filename
+    if not target.exists():
+        download(f"{CLIM_BASE}/{filename}", target)
+    with xr.open_dataset(target, decode_times=True) as ds:
+        da = squeeze_2d(pick_precip_var(ds)).load()
+    cache[month] = da
+    return da, filename
+
+
+def reference_for_months(months: list[int], work: Path, cache: dict[int, xr.DataArray]) -> tuple[xr.DataArray, list[str]]:
+    refs: list[xr.DataArray] = []
+    files: list[str] = []
+    for month in months:
+        ref, filename = load_month_reference(month, work, cache)
+        refs.append(ref)
+        files.append(filename)
+    base = refs[0].copy(deep=True)
+    for ref in refs[1:]:
+        base, aligned = xr.align(base, ref, join="exact")
+        base = base + aligned
+    return squeeze_2d(base), files
+
+
+def period_output_names(key: str, has_reference: bool) -> dict[str, str]:
+    outputs = {"sum": f"hyras_{key}_sum.png"}
+    if has_reference:
+        outputs["percent"] = f"hyras_{key}_percent_1991_2020.png"
+        outputs["anomaly"] = f"hyras_{key}_anomaly_mm_1991_2020.png"
+    return outputs
+
+
+def render_period(
+    *, out: Path, current: xr.DataArray, reference: xr.DataArray | None,
+    key: str, title_label: str, subtitle_period: str, geojson, data_crs: CRS,
+    source_files: list[str], period_type: str, start_date: str, end_date: str,
+    reference_note: str | None = None,
+) -> dict[str, Any]:
+    sum_bounds = [0,10,25,50,75,100,150,200,300,500,750,1000]
+    sum_cmap = ListedColormap(["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#4292c6","#2171b5","#08519c","#08306b","#041f4a","#02142f"])
+    sum_norm = BoundaryNorm(sum_bounds, sum_cmap.N, clip=True)
+    pct_bounds = [0,25,50,75,90,110,125,150,200,300]
+    pct_cmap = ListedColormap(["#6b3d1f","#9a6334","#c99762","#e4c49f","#f1ede5","#dcebd5","#a8d39b","#68ad6f","#287d46"])
+    pct_norm = BoundaryNorm(pct_bounds, pct_cmap.N, clip=True)
+    anom_bounds = [-400,-250,-150,-100,-75,-50,-25,-10,10,25,50,75,100,150,250,400]
+    anom_cmap = ListedColormap(["#3b1f00","#543005","#8c510a","#bf812d","#d69f4b","#dfc27d","#ead8ad","#f6e8c3","#f5f5f5","#c7eae5","#80cdc1","#35978f","#1b7f75","#01665e","#003c30"])
+    anom_norm = BoundaryNorm(anom_bounds, anom_cmap.N, clip=True)
+
+    outputs = period_output_names(key, reference is not None)
+    plot_map(current, out / outputs["sum"], f"HYRAS-Niederschlag · {title_label}", f"Niederschlagssumme · {subtitle_period}", sum_cmap, sum_norm, "Niederschlag (l/m²)", geojson, data_crs)
+
+    stats: dict[str, float | None]
+    if reference is not None:
+        current, reference = xr.align(current, reference, join="exact")
+        pct = xr.where(reference > 0.1, current / reference * 100.0, np.nan)
+        anom = current - reference
+        plot_map(pct, out / outputs["percent"], f"HYRAS-Niederschlag · {title_label}", f"Prozent des Mittels 1991–2020 · {subtitle_period}", pct_cmap, pct_norm, "% von 1991–2020", geojson, data_crs)
+        plot_map(anom, out / outputs["anomaly"], f"HYRAS-Niederschlag · {title_label}", f"Absolute Abweichung zu 1991–2020 · {subtitle_period}", anom_cmap, anom_norm, "Abweichung (l/m²)", geojson, data_crs)
+        stats = finite_stats(current, reference)
+    else:
+        arr = np.asarray(current.values, dtype=float)
+        finite = np.isfinite(arr)
+        cur = float(np.mean(arr[finite])) if finite.any() else None
+        stats = {
+            "current_mean_mm": round(cur, 1) if cur is not None else None,
+            "reference_mean_mm": None,
+            "percent_of_reference": None,
+            "anomaly_mean_mm": None,
+        }
+
+    return {
+        "key": key,
+        "label": title_label,
+        "period_type": period_type,
+        "start_date": start_date,
+        "end_date": end_date,
+        "date_label": subtitle_period,
+        "reference": "1991-2020" if reference is not None else None,
+        "reference_exact": reference is not None,
+        "reference_note": reference_note,
+        "outputs": outputs,
+        "stats": stats,
+        "climatology_source_files": source_files,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="hyras_output")
@@ -325,62 +437,124 @@ def main() -> int:
         da = pick_precip_var(ds)
         data_crs = detect_data_crs(ds, da)
         print(f"Verwende HYRAS-Kartenprojektion: {data_crs.to_string()}")
-        year, month, data_through = latest_complete_month(da)
-        current = month_sum(da, year, month).load()
+        latest_year, latest_month, data_through = latest_complete_month(da)
+        daily = da.load()
 
-    clim_name = latest_clim_filename(month)
-    clim_url = f"{CLIM_BASE}/{clim_name}"
-    clim_file = work / clim_name
-    download(clim_url, clim_file)
-    with xr.open_dataset(clim_file, decode_times=True) as ds:
-        reference = squeeze_2d(pick_precip_var(ds)).load()
+    if latest_year != args.year:
+        raise RuntimeError(f"Aktuellster vollständiger Monat liegt nicht in {args.year}: {latest_year}-{latest_month:02d}")
 
-    current, reference = xr.align(current, reference, join="exact")
-    pct = xr.where(reference > 0.1, current / reference * 100.0, np.nan)
-    anom = current - reference
+    data_through_dt = datetime.strptime(data_through, "%Y-%m-%d")
     geojson = load_boundaries()
+    ref_cache: dict[int, xr.DataArray] = {}
+    periods: list[dict[str, Any]] = []
 
-    sum_bounds = [0,10,25,50,75,100,150,200,300,500]
-    sum_cmap = ListedColormap(["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#4292c6","#2171b5","#08519c","#08306b"])
-    sum_norm = BoundaryNorm(sum_bounds, sum_cmap.N, clip=True)
-    pct_bounds = [0,25,50,75,90,110,125,150,200,300]
-    pct_cmap = ListedColormap(["#6b3d1f","#9a6334","#c99762","#e4c49f","#f1ede5","#dcebd5","#a8d39b","#68ad6f","#287d46"])
-    pct_norm = BoundaryNorm(pct_bounds, pct_cmap.N, clip=True)
-    anom_bounds = [-200,-150,-100,-75,-50,-25,-10,10,25,50,75,100,150,200]
-    anom_cmap = ListedColormap(["#543005","#8c510a","#bf812d","#dfc27d","#ead8ad","#f6e8c3","#f5f5f5","#c7eae5","#80cdc1","#35978f","#1b7f75","#01665e","#003c30"])
-    anom_norm = BoundaryNorm(anom_bounds, anom_cmap.N, clip=True)
+    # Vollständige Monate des aktuellen Jahres.
+    complete_months: list[int] = []
+    for month in range(1, latest_month + 1):
+        try:
+            current = month_sum(daily, args.year, month).load()
+        except Exception as exc:
+            print(f"Monat {month:02d} übersprungen: {exc}")
+            continue
+        complete_months.append(month)
+        reference, ref_files = reference_for_months([month], work, ref_cache)
+        key = f"{args.year}_{month:02d}"
+        periods.append(render_period(
+            out=out, current=current, reference=reference, key=key,
+            title_label=f"{MONTH_DE[month]} {args.year}", subtitle_period=f"01.{month:02d}.–{calendar.monthrange(args.year, month)[1]:02d}.{month:02d}.{args.year}",
+            geojson=geojson, data_crs=data_crs, source_files=ref_files,
+            period_type="month", start_date=f"{args.year}-{month:02d}-01", end_date=month_end(args.year, month),
+        ))
 
-    name = f"{MONTH_DE[month]} {year}"
-    outputs = {
-        "sum":"hyras_latest_sum.png",
-        "percent":"hyras_latest_percent_1991_2020.png",
-        "anomaly":"hyras_latest_anomaly_mm_1991_2020.png",
-    }
-    plot_map(current, out/outputs["sum"], f"HYRAS-Niederschlag · {name}", "Niederschlagssumme", sum_cmap, sum_norm, "Niederschlag (l/m²)", geojson, data_crs)
-    plot_map(pct, out/outputs["percent"], f"HYRAS-Niederschlag · {name}", "Prozent des Mittels 1991–2020", pct_cmap, pct_norm, "% von 1991–2020", geojson, data_crs)
-    plot_map(anom, out/outputs["anomaly"], f"HYRAS-Niederschlag · {name}", "Absolute Abweichung zum Mittel 1991–2020", anom_cmap, anom_norm, "Abweichung (l/m²)", geojson, data_crs)
+    # Abgeschlossene Jahreszeiten, sobald alle Monate vorhanden sind.
+    season_defs = [
+        ("spring", "Frühling", [3,4,5]),
+        ("summer", "Sommer", [6,7,8]),
+        ("autumn", "Herbst", [9,10,11]),
+    ]
+    for key, label, months in season_defs:
+        if not all(m in complete_months for m in months):
+            continue
+        start_date = f"{args.year}-{months[0]:02d}-01"
+        end_date = month_end(args.year, months[-1])
+        current = date_sum(daily, start_date, end_date).load()
+        reference, ref_files = reference_for_months(months, work, ref_cache)
+        periods.append(render_period(
+            out=out, current=current, reference=reference, key=f"{args.year}_{key}",
+            title_label=f"{label} {args.year}", subtitle_period=period_label_date(start_date, end_date),
+            geojson=geojson, data_crs=data_crs, source_files=ref_files, period_type="season",
+            start_date=start_date, end_date=end_date,
+        ))
 
-    stats = finite_stats(current, reference)
+    # Sommer bis zum Ende des letzten vollständigen Monats – exakter Referenzvergleich.
+    summer_complete_months = [m for m in (6,7,8) if m in complete_months]
+    if summer_complete_months:
+        start_date = f"{args.year}-06-01"
+        end_date = month_end(args.year, summer_complete_months[-1])
+        current = date_sum(daily, start_date, end_date).load()
+        reference, ref_files = reference_for_months(summer_complete_months, work, ref_cache)
+        periods.append(render_period(
+            out=out, current=current, reference=reference, key=f"{args.year}_summer_so_far_complete",
+            title_label=f"Sommer bisher {args.year}", subtitle_period=period_label_date(start_date, end_date),
+            geojson=geojson, data_crs=data_crs, source_files=ref_files, period_type="summer_so_far_complete",
+            start_date=start_date, end_date=end_date,
+            reference_note="Exakter Vergleich 1991–2020 über vollständig abgeschlossene Kalendermonate.",
+        ))
+
+    # Jahr bis zum Ende des letzten vollständigen Monats – exakter Referenzvergleich.
+    if complete_months:
+        start_date = f"{args.year}-01-01"
+        end_date = month_end(args.year, complete_months[-1])
+        current = date_sum(daily, start_date, end_date).load()
+        reference, ref_files = reference_for_months(complete_months, work, ref_cache)
+        periods.append(render_period(
+            out=out, current=current, reference=reference, key=f"{args.year}_ytd_complete",
+            title_label=f"Jahr bisher {args.year}", subtitle_period=period_label_date(start_date, end_date),
+            geojson=geojson, data_crs=data_crs, source_files=ref_files, period_type="ytd_complete",
+            start_date=start_date, end_date=end_date,
+            reference_note="Exakter Vergleich 1991–2020 über vollständig abgeschlossene Kalendermonate.",
+        ))
+
+    # Aktueller Zeitraum bis zum letzten HYRAS-Tag. Für Teilmonate zunächst nur Summe.
+    if data_through_dt.month >= 6:
+        start_date = f"{args.year}-06-01"
+        current = date_sum(daily, start_date, data_through).load()
+        periods.append(render_period(
+            out=out, current=current, reference=None, key=f"{args.year}_summer_live",
+            title_label=f"Sommer aktuell {args.year}", subtitle_period=period_label_date(start_date, data_through),
+            geojson=geojson, data_crs=data_crs, source_files=[], period_type="summer_live",
+            start_date=start_date, end_date=data_through,
+            reference_note="Für den laufenden Teilmonat wird in 15.1 bewusst noch keine 1991–2020-Abweichung berechnet. Die exakte tagesgenaue Referenz folgt im nächsten HYRAS-Schritt.",
+        ))
+    start_date = f"{args.year}-01-01"
+    current = date_sum(daily, start_date, data_through).load()
+    periods.append(render_period(
+        out=out, current=current, reference=None, key=f"{args.year}_ytd_live",
+        title_label=f"Jahr aktuell {args.year}", subtitle_period=period_label_date(start_date, data_through),
+        geojson=geojson, data_crs=data_crs, source_files=[], period_type="ytd_live",
+        start_date=start_date, end_date=data_through,
+        reference_note="Für den laufenden Teilmonat wird in 15.1 bewusst noch keine 1991–2020-Abweichung berechnet. Die exakte tagesgenaue Referenz folgt im nächsten HYRAS-Schritt.",
+    ))
+
+    # Default: Sommer-bisher mit exaktem Vergleich, sonst letzter vollständiger Monat.
+    default_key = f"{args.year}_summer_so_far_complete" if any(p["key"] == f"{args.year}_summer_so_far_complete" for p in periods) else f"{args.year}_{latest_month:02d}"
+
     metadata = {
-        "schema_version": 2,
+        "schema_version": 3,
         "product": "DWD HYRAS-DE-PR",
         "resolution_km": 1,
-        "period_type": "month",
-        "year": year,
-        "month": month,
-        "month_name": MONTH_DE[month],
-        "label": name,
         "reference": "1991-2020",
         "data_through": data_through,
         "daily_source_file": daily_name,
-        "climatology_source_file": clim_name,
         "data_crs": data_crs.to_string(),
-        "outputs": outputs,
-        "stats": stats,
-        "note": "Aktuellster vollständig in der DWD-HYRAS-Tagesdatei enthaltener Kalendermonat. Rastermittel über Zellen mit gültigem aktuellem und Referenzwert.",
+        "year": args.year,
+        "latest_complete_month": latest_month,
+        "default_period": default_key,
+        "periods": periods,
+        "note": "Version 15.1: vollständige Monate, abgeschlossene Jahreszeiten, Sommer/Jahr bis zum letzten vollständigen Monat sowie aktuelle Summen bis zum jüngsten HYRAS-Tag. Prozent- und Abweichungskarten für Teilmonate folgen erst mit tagesgenauer 1991–2020-Referenz.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(metadata, ensure_ascii=False, indent=2))
+    print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
     return 0
 
 
