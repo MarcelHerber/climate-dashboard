@@ -352,6 +352,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .current-table-wrap table{margin:0}.current-table-wrap thead th{position:sticky;top:0;background:#f4f5f6;z-index:1}
 .current-value{font-size:24px;font-weight:700;line-height:1.2}.current-unit{font-size:14px;font-weight:600;color:var(--muted)}
 .current-refresh-button{padding:8px 12px;border:1px solid #aab4bd;border-radius:7px;background:#fff;font-weight:700;cursor:pointer}.current-refresh-button:hover{background:#f4f6f7}
+.current-map-wrap{margin:16px 0 18px}.current-map-wrap .controls{margin:0 0 10px}.current-live-map{height:440px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#f6f8fa}.current-map-legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:10px;font-size:12px;color:#39424a}.current-map-legend-item{display:flex;align-items:center;gap:6px}.current-map-legend-swatch{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.2)}.current-map-note{margin-top:8px}.current-live-map .leaflet-popup-content{line-height:1.35}.current-map-empty{padding:14px;color:var(--muted)}
 
 /* Version 11: Stationskarten */
 .station-map{height:720px;width:100%;border-radius:8px;overflow:hidden;background:#e9eef2}
@@ -796,6 +797,25 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </div>
 
   <div id="currentStationHeading" class="summary-box">Station auswählen …</div>
+
+  <div class="current-map-wrap">
+    <div class="controls">
+      <div class="control-group">
+        <label for="currentMapMetricSelect">Kartenparameter</label>
+        <select id="currentMapMetricSelect">
+          <option value="temperature">Temperatur</option>
+          <option value="wind">Wind</option>
+          <option value="gust">Böe</option>
+          <option value="precip_10min">Niederschlag letzte 10 Min.</option>
+          <option value="today_precip">Niederschlag heute</option>
+          <option value="humidity">Relative Feuchte</option>
+        </select>
+      </div>
+    </div>
+    <div id="currentMap" class="current-live-map"><div class="current-map-empty">Karte wird geladen …</div></div>
+    <div id="currentMapLegend" class="current-map-legend"></div>
+    <p class="note current-map-note">Klick auf einen Stationspunkt übernimmt die Station direkt in den Detailbereich. Dargestellt wird jeweils der jüngste verfügbare Live-Wert der gewählten Größe.</p>
+  </div>
 
   <div class="stat-grid" style="margin-bottom:18px">
     <div class="stat-card"><h4>Temperatur</h4><div id="currentTemp" class="current-value">–</div><div id="currentTempDetail" class="daily-stat-detail">letzter 10-Minuten-Wert</div></div>
@@ -1302,6 +1322,8 @@ let currentLiveIndex=null;
 let currentLiveProfile=null;
 let currentLiveLoading=null;
 let currentLiveLastFetch=0;
+let currentLiveMap=null;
+let currentLiveMapLayer=null;
 const CURRENT_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/live-data";
 let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
@@ -5298,17 +5320,21 @@ async function currentFetchJson(path){
   if(!response.ok) throw new Error(`Live-Datei ${path} nicht erreichbar (${response.status})`);
   return response.json();
 }
-function populateCurrentStations(preserve=true){
-  const select=document.getElementById("currentStationSelect");
-  if(!select || !currentLiveIndex) return;
-  const previous=preserve?select.value:"";
+function currentFilteredStations(){
+  if(!currentLiveIndex) return [];
   const state=document.getElementById("currentStateSelect")?.value||"";
   const search=(document.getElementById("currentStationSearch")?.value||"").trim().toLocaleLowerCase("de-DE");
-  const rows=(currentLiveIndex.stations||[]).filter(station=>{
+  return (currentLiveIndex.stations||[]).filter(station=>{
     if(state && station.state!==state) return false;
     if(!search) return true;
     return `${station.name||""} ${station.id||""} ${station.state||""}`.toLocaleLowerCase("de-DE").includes(search);
   });
+}
+function populateCurrentStations(preserve=true){
+  const select=document.getElementById("currentStationSelect");
+  if(!select || !currentLiveIndex) return;
+  const previous=preserve?select.value:"";
+  const rows=currentFilteredStations();
   select.innerHTML="";
   rows.forEach(station=>{
     const option=document.createElement("option");
@@ -5322,6 +5348,84 @@ function populateCurrentStations(preserve=true){
   if(!select.value && rows[0]) select.value=rows[0].id;
   if(select.value) loadCurrentStation(select.value);
   else renderCurrentEmpty("Keine Station entspricht dem Filter.");
+  renderCurrentMap();
+}
+function currentMapMetricSpec(metric){
+  switch(metric){
+    case "wind":return {label:"Wind",unit:"m/s",digits:1,getter:s=>s.wind_speed_ms,breaks:[0,2,4,6,8,12,16],colors:["#f1f5f9","#cfe8f3","#9fd0e0","#6fb6ca","#3f98b2","#1f6f93","#0d4f6b","#08354a"]};
+    case "gust":return {label:"Böe",unit:"m/s",digits:1,getter:s=>s.gust_speed_ms,breaks:[0,4,8,12,16,20,25],colors:["#fff4dd","#ffe0a6","#ffc46d","#f99e3a","#eb7a12","#cb5a04","#a24102","#7f3200"]};
+    case "precip_10min":return {label:"Niederschlag letzte 10 Min.",unit:"mm",digits:1,getter:s=>s.precip_10min_mm,breaks:[0,0.1,0.5,1,2,5,10],colors:["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#08306b"]};
+    case "today_precip":return {label:"Niederschlag heute",unit:"mm",digits:1,getter:s=>s.today_precip_sum_mm,breaks:[0,1,5,10,20,40,60],colors:["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#08306b"]};
+    case "humidity":return {label:"Relative Feuchte",unit:"%",digits:0,getter:s=>s.humidity_pct,breaks:[20,30,40,50,60,70,85],colors:["#fff7fb","#ece7f2","#d0d1e6","#a6bddb","#74a9cf","#3690c0","#0570b0","#034e7b"]};
+    case "temperature":
+    default:return {label:"Temperatur",unit:"°C",digits:1,getter:s=>s.temperature_c,breaks:[-5,0,10,20,25,30,35],colors:["#313695","#4575b4","#74add1","#abd9e9","#fee090","#fdae61","#f46d43","#d73027"]};
+  }
+}
+function currentMapMetricValue(station,metric){
+  const spec=currentMapMetricSpec(metric);
+  const value=Number(spec.getter(station));
+  return Number.isFinite(value)?value:null;
+}
+function currentMapColor(metric,value){
+  const spec=currentMapMetricSpec(metric);
+  if(!Number.isFinite(value)) return '#cfd8dc';
+  let index=0;
+  while(index<spec.breaks.length && value>=spec.breaks[index]) index++;
+  return spec.colors[Math.min(index,spec.colors.length-1)];
+}
+function currentMapLegendHtml(metric){
+  const spec=currentMapMetricSpec(metric);
+  const labels=[];
+  const fmt=(n)=>Number(n).toLocaleString('de-DE',{maximumFractionDigits:spec.digits,minimumFractionDigits:spec.digits});
+  for(let i=0;i<spec.colors.length;i++){
+    let label='';
+    if(i===0) label=`< ${fmt(spec.breaks[0])} ${spec.unit}`;
+    else if(i===spec.colors.length-1) label=`≥ ${fmt(spec.breaks[spec.breaks.length-1])} ${spec.unit}`;
+    else label=`${fmt(spec.breaks[i-1])}–${fmt(spec.breaks[i])} ${spec.unit}`;
+    labels.push(`<span class="current-map-legend-item"><span class="current-map-legend-swatch" style="background:${spec.colors[i]}"></span>${label}</span>`);
+  }
+  return labels.join('');
+}
+function renderCurrentMap(){
+  const container=document.getElementById('currentMap');
+  const legend=document.getElementById('currentMapLegend');
+  if(!container) return;
+  if(!window.L){container.innerHTML='<div class="current-map-empty">Leaflet konnte nicht geladen werden.</div>';return;}
+  const metric=document.getElementById('currentMapMetricSelect')?.value||'temperature';
+  const stations=currentFilteredStations().filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon)));
+  if(legend) legend.innerHTML=currentMapLegendHtml(metric);
+  if(container.querySelector('.current-map-empty') && currentLiveMap){container.innerHTML=''; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null;}
+  if(!currentLiveMap){
+    container.innerHTML='';
+    currentLiveMap=L.map(container,{scrollWheelZoom:false}).setView([51.2,10.4],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; OpenStreetMap'}).addTo(currentLiveMap);
+    currentLiveMapLayer=L.layerGroup().addTo(currentLiveMap);
+  }
+  currentLiveMapLayer.clearLayers();
+  if(!stations.length){container.innerHTML='<div class="current-map-empty">Keine Station passt zum aktuellen Filter.</div>'; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null; return;}
+  const selectedId=document.getElementById('currentStationSelect')?.value||'';
+  const bounds=[];
+  let selectedStation=null;
+  stations.forEach(station=>{
+    const value=currentMapMetricValue(station,metric);
+    if(value===null) return;
+    const selected=station.id===selectedId;
+    const marker=L.circleMarker([Number(station.lat),Number(station.lon)],{radius:selected?8:6,weight:selected?2.8:1.2,color:selected?'#111827':'rgba(0,0,0,.45)',fillColor:currentMapColor(metric,value),fillOpacity:.9});
+    const spec=currentMapMetricSpec(metric);
+    const valueLabel=`${Number(value).toLocaleString('de-DE',{minimumFractionDigits:spec.digits,maximumFractionDigits:spec.digits})} ${spec.unit}`;
+    const popup=`<strong>${station.name||'Station'} (${station.id})</strong><br>${station.state||''}${Number.isFinite(Number(station.elevation_m))?` · ${Number(station.elevation_m).toLocaleString('de-DE')} m`:''}<br><strong>${spec.label}:</strong> ${valueLabel}<br><span class="note">Messzeitpunkt: ${currentDateTime(station.latest_local||station.latest_utc)}</span>`;
+    marker.bindPopup(popup);
+    marker.on('click',()=>{const select=document.getElementById('currentStationSelect'); if(select){select.value=station.id; persistDashboardState('currentStationSelect',station.id); loadCurrentStation(station.id);} });
+    marker.addTo(currentLiveMapLayer);
+    bounds.push([Number(station.lat),Number(station.lon)]);
+    if(selected) selectedStation=station;
+  });
+  if(!bounds.length){container.innerHTML='<div class="current-map-empty">Für den gewählten Kartenparameter sind im aktuellen Filter keine Werte verfügbar.</div>'; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null; return;}
+  if(selectedStation){
+    currentLiveMap.setView([Number(selectedStation.lat),Number(selectedStation.lon)],Math.max(currentLiveMap.getZoom()||6,7),{animate:false});
+  }else{
+    currentLiveMap.fitBounds(bounds,{padding:[22,22],maxZoom:7});
+  }
 }
 function currentWindCompass(value){
   const deg=Number(value);
@@ -5378,6 +5482,7 @@ async function ensureCurrentConditions(force=false){
       currentPopulateStates();
       populateCurrentStations(true);
       renderCurrentLiveStatus();
+      renderCurrentMap();
     }catch(error){
       console.error("Aktuellbereich:",error);
       if(status) status.textContent=`Aktuelle Daten noch nicht verfügbar: ${error.message}. Den Workflow „DWD 10-Minuten-Aktuellbereich aktualisieren“ einmal starten.`;
@@ -5474,16 +5579,19 @@ function renderCurrentStation(profile){
   }).reverse();
   const tbody=document.querySelector("#currentTodayTable tbody");
   if(tbody) tbody.innerHTML=todayRows.length?todayRows.map(row=>`<tr><td>${new Date(row.time).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}</td><td>${currentNum(row.temp,"°C",1)}</td><td>${currentNum(row.humidity,"%",0)}</td><td>${currentNum(row.dew,"°C",1)}</td><td>${currentNum(row.pressure,"hPa",1)}</td><td>${currentNum(row.ground,"°C",1)}</td><td>${currentNum(row.wind,"m/s",1)}</td><td>${Number.isFinite(row.windDir)?`${currentWindCompass(row.windDir)} ${Math.round(row.windDir)}°`:"–"}</td><td>${currentNum(row.gust,"m/s",1)}</td><td>${currentNum(row.precip,"mm",1)}</td></tr>`).join(""):'<tr><td colspan="10">Für heute sind noch keine 10-Minuten-Werte vorhanden.</td></tr>';
+  renderCurrentMap();
 }
 function initCurrentControls(){
   const state=document.getElementById("currentStateSelect");
   const search=document.getElementById("currentStationSearch");
   const select=document.getElementById("currentStationSelect");
   const refresh=document.getElementById("currentRefreshButton");
+  const metric=document.getElementById("currentMapMetricSelect");
   state?.addEventListener("change",()=>populateCurrentStations(false));
   search?.addEventListener("input",()=>populateCurrentStations(false));
   select?.addEventListener("change",()=>{persistDashboardState("currentStationSelect",select.value);loadCurrentStation(select.value);});
   refresh?.addEventListener("click",()=>ensureCurrentConditions(true));
+  metric?.addEventListener("change",()=>renderCurrentMap());
   window.setInterval(()=>{
     if(document.getElementById("current")?.classList.contains("active")) ensureCurrentConditions(true);
   },5*60*1000);
