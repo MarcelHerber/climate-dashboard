@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact near-real-time DWD 10-minute station data (v13.2.1).
+"""Build compact near-real-time DWD 10-minute station data (v13.6.3).
 
 Primary station network:
 - DWD CDC 10-minute air_temperature/now
@@ -41,7 +41,7 @@ PRECIP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germ
 META_URL = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/historical/zehn_min_tu_Beschreibung_Stationen.txt"
 
 BERLIN = ZoneInfo("Europe/Berlin")
-USER_AGENT = "climate-dashboard-current/13.2.1 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-current/13.6.3 (+GitHub Actions; DWD Open Data)"
 GERMAN_STATES = sorted([
     "Baden-Württemberg", "Bayern", "Berlin", "Brandenburg", "Bremen", "Hamburg",
     "Hessen", "Mecklenburg-Vorpommern", "Niedersachsen", "Nordrhein-Westfalen",
@@ -49,7 +49,7 @@ GERMAN_STATES = sorted([
     "Schleswig-Holstein", "Thüringen",
 ], key=len, reverse=True)
 
-LIVE_SCHEMA_VERSION = 3
+LIVE_SCHEMA_VERSION = 4
 AUX_SEMAPHORE = threading.Semaphore(4)
 
 SOURCE_CONFIG = {
@@ -135,6 +135,10 @@ def parse_station_metadata(text: str) -> dict[str, dict[str, Any]]:
         except ValueError:
             continue
         remainder = parts[6].strip()
+        # Some current DWD station metadata exports append the access-status
+        # column (e.g. "Frei") after the Bundesland. It is metadata, not part
+        # of the station name. Strip it before resolving the federal state.
+        remainder = re.sub(r"\s+Frei\s*$", "", remainder, flags=re.IGNORECASE).strip()
         state = ""
         name = remainder
         for candidate in GERMAN_STATES:
