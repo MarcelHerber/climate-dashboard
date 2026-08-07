@@ -1,0 +1,51 @@
+name: HYRAS Flächenkarten aktualisieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 10 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data
+  cancel-in-progress: false
+
+jobs:
+  hyras:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellste vollständige Monatskarten bauen
+        run: |
+          rm -rf /tmp/hyras-data /tmp/hyras-work
+          python scripts/update_hyras_maps.py \
+            --output /tmp/hyras-data \
+            --work /tmp/hyras-work
+
+      - name: hyras-data Branch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd /tmp/hyras-data
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Monatskarten aktualisieren"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
