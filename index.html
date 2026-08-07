@@ -222,6 +222,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 @media(max-width:900px){.streak-progression-hero{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.streak-progression-hero{grid-template-columns:1fr}}
 .record-year-control[hidden]{display:none}
+[hidden]{display:none!important}
 .record-loading{padding:18px;background:white;border-radius:8px;box-shadow:var(--shadow)}
 
 /* Farbige Abweichungstabelle der DWD-Gebietsmittel */
@@ -1787,7 +1788,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         <button id="streakProgressionDownload" class="action" type="button">Diagramm als PNG</button>
       </div>
       <div id="streakProgressionHero" class="streak-progression-hero"></div>
-      <div id="streakProgressionSummary" class="summary-box">Historische Rekordentwicklung wird aufgebaut …</div>
+      <div id="streakProgressionSummary" class="summary-box">Historische Rekordentwicklung wird geladen …</div>
       <div class="chart-container" style="height:430px">
         <canvas id="streakProgressionChart"></canvas>
       </div>
@@ -1979,7 +1980,9 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="maps") ensureStationMaps();
   if(tab==="records"){
     ensureStationRecordsLoaded();
-    ensureStationStreaksLoaded();
+    ensureStationStreaksLoaded()
+      .then(()=>window.setTimeout(()=>runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Tab"),180))
+      .catch(error=>console.error("Stations-Serien konnten im Rekord-Tab nicht vollständig geladen werden:",error));
   }
   window.setTimeout(()=>{
     [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,streakProgressionChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
@@ -5821,12 +5824,24 @@ function updateNewStationRecordTable(){
 
 
 // ================= LÄNGSTE KENNTAGE-SERIEN =================
+function runStationStreakUiTask(task,label){
+  try{
+    const result=task();
+    if(result && typeof result.catch==="function") result.catch(error=>console.error(`Stations-Serien · ${label}:`,error));
+  }catch(error){
+    console.error(`Stations-Serien · ${label}:`,error);
+  }
+}
+function refreshStationStreakUi(){
+  runStationStreakUiTask(updateStationStreakTable,"Stationsrangliste");
+  runStationStreakUiTask(updateNationalStreakRecords,"Deutschlandrekorde");
+  runStationStreakUiTask(updateActiveStreakRecords,"Rekordjagd");
+  runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung");
+}
 function ensureStationStreaksLoaded(){
   if(stationStreakIndex){
-    updateStationStreakTable();
-    updateNationalStreakRecords();
-    updateActiveStreakRecords();
-    updateStreakRecordProgression();
+    refreshStationStreakUi();
+    window.setTimeout(()=>runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Nachlauf"),120);
     return Promise.resolve(stationStreakIndex);
   }
   if(stationStreakLoading) return stationStreakLoading;
@@ -5843,9 +5858,10 @@ function ensureStationStreaksLoaded(){
       initializeStationStreakControls();
       loading.hidden=true;
       document.getElementById("stationStreakContent").hidden=false;
-      updateStationStreakTable();
-      updateNationalStreakRecords();
-      updateStreakRecordProgression();
+      refreshStationStreakUi();
+      // Zweiter, entkoppelter Aufruf: selbst wenn Leaflet/andere Serienmodule beim ersten
+      // Rendern Probleme machen, wird die historische Rekordentwicklung sicher gestartet.
+      window.setTimeout(()=>runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Nachlauf"),120);
       return data;
     })
     .catch(error=>{
@@ -5939,20 +5955,21 @@ function initializeStationStreakControls(){
   populateStreakProgressionStations();
   document.getElementById("streakProgressionScopeSelect")?.addEventListener("change",()=>{
     updateStreakProgressionControlVisibility();
-    updateStreakRecordProgression();
+    runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Auswahl");
   });
-  document.getElementById("streakProgressionMetricSelect")?.addEventListener("change",updateStreakRecordProgression);
+  document.getElementById("streakProgressionMetricSelect")?.addEventListener("change",()=>runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Kenntag"));
   document.getElementById("streakProgressionAreaSelect")?.addEventListener("change",()=>{
     populateStreakProgressionStations();
-    updateStreakRecordProgression();
+    runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Gebiet");
   });
-  document.getElementById("streakProgressionStationSelect")?.addEventListener("change",updateStreakRecordProgression);
+  document.getElementById("streakProgressionStationSelect")?.addEventListener("change",()=>runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Station"));
   document.getElementById("streakProgressionDownload")?.addEventListener("click",downloadStreakProgressionChart);
   updateStreakProgressionControlVisibility();
 
-  updateNationalStreakRecords();
-  updateActiveStreakRecords();
-  updateStreakRecordProgression();
+  // Jeder Teil rendert unabhängig. Ein Kartenfehler darf die Zeitachse nicht blockieren.
+  runStationStreakUiTask(updateNationalStreakRecords,"Deutschlandrekorde Init");
+  runStationStreakUiTask(updateActiveStreakRecords,"Rekordjagd Init");
+  runStationStreakUiTask(updateStreakRecordProgression,"Rekordentwicklung Init");
 }
 
 function stationStreakDateText(iso){
