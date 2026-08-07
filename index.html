@@ -1300,6 +1300,15 @@ Chart.register(ChartDataLabels);
 // Schärfere Canvas-Ausgabe auf Standardmonitoren; Retina-Displays behalten ihre höhere Auflösung.
 Chart.defaults.devicePixelRatio=Math.max(2,window.devicePixelRatio||1);
 
+const DASHBOARD_STATE_KEY="climateDashboardStateV9";
+let dashboardState={};
+try{dashboardState=JSON.parse(localStorage.getItem(DASHBOARD_STATE_KEY)||"{}");}catch(_error){dashboardState={};}
+const dashboardUrl=new URL(window.location.href);
+for(const [key,value] of dashboardUrl.searchParams.entries()){
+  if(key==="tab") dashboardState.tab=value;
+  else if(key.startsWith("s_")) dashboardState[key.slice(2)]=value;
+}
+
 const MONTH_NAMES = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 const MONTH_SHORT = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
 const PERIOD_OPTIONS = [
@@ -5706,15 +5715,6 @@ function initCurrentControls(){
 }
 initCurrentControls();
 
-
-const DASHBOARD_STATE_KEY="climateDashboardStateV9";
-let dashboardState={};
-try{dashboardState=JSON.parse(localStorage.getItem(DASHBOARD_STATE_KEY)||"{}");}catch(_error){dashboardState={};}
-const dashboardUrl=new URL(window.location.href);
-for(const [key,value] of dashboardUrl.searchParams.entries()){
-  if(key==="tab") dashboardState.tab=value;
-  else if(key.startsWith("s_")) dashboardState[key.slice(2)]=value;
-}
 
 function persistDashboardState(key,value){
   const normalized=String(value);
