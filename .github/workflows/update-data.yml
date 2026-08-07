@@ -2,7 +2,11 @@ name: DWD-Daten aktualisieren und GitHub Pages veröffentlichen
 
 on:
   schedule:
+    # 1. Prüfung gegen 10:17 Uhr. Ist der DWD zu diesem Zeitpunkt noch nicht
+    # aktualisiert, prüft der zweite Lauf rund eine Stunde später erneut.
     - cron: "17 10 * * *"
+      timezone: "Europe/Berlin"
+    - cron: "17 11 * * *"
       timezone: "Europe/Berlin"
   workflow_dispatch:
     inputs:
@@ -84,6 +88,7 @@ jobs:
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
       - name: Änderungen versionieren
+        id: versioning
         shell: bash
         run: |
           set -euo pipefail
@@ -111,10 +116,22 @@ jobs:
             station_heatwaves_current.json \
             update_status.json
 
-          if git diff --cached --quiet; then
+          # update_status.json kann allein durch den Prüfzeitpunkt geändert werden.
+          # Für die Entscheidung, ob wirklich neue DWD-Daten vorliegen, wird diese
+          # Datei deshalb nicht als fachliche Datenänderung gewertet.
+          REAL_CHANGES="$(git diff --cached --name-only | grep -v '^update_status\.json$' || true)"
+
+          if [[ -z "$REAL_CHANGES" ]]; then
             echo "Keine neuen oder korrigierten DWD-Daten vorhanden."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            git restore --staged update_status.json 2>/dev/null || true
+            git restore update_status.json 2>/dev/null || true
             exit 0
           fi
+
+          echo "Neue DWD-Daten erkannt:"
+          printf '%s\n' "$REAL_CHANGES"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
           git commit -m "DWD-Daten automatisch aktualisiert [skip ci]"
 
@@ -148,6 +165,7 @@ jobs:
           fi
 
       - name: Schlanken Veröffentlichungsordner erstellen
+        if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -175,15 +193,24 @@ jobs:
           du -sh _site
 
       - name: GitHub Pages konfigurieren
+        if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
         uses: actions/configure-pages@v5
 
       - name: Website-Artefakt hochladen
+        if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: "_site"
 
       - name: GitHub Pages veröffentlichen
+        if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
         id: deployment
         uses: actions/deploy-pages@v5
         with:
           reporting_interval: "10000"
+
+      - name: Keine neuen DWD-Daten – späterer Prüflauf übernimmt
+        if: github.event_name == 'schedule' && steps.versioning.outputs.changed != 'true'
+        run: |
+          echo "Bei diesem Prüflauf lagen noch keine neuen DWD-Daten vor."
+          echo "Der zweite tägliche Zeitplan prüft rund eine Stunde später automatisch erneut."
