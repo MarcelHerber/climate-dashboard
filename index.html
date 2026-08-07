@@ -1649,6 +1649,39 @@ function formatAbsoluteTableDeviation(value,param){
   return param==="rain"?`${sign}${formatted} l/m²`:`${sign}${formatted} h`;
 }
 
+function niceAbsoluteLegendMax(value,param){
+  if(!Number.isFinite(value) || value<=0) return param==="rain"?100:50;
+  const target=value;
+  const exponent=Math.floor(Math.log10(target));
+  const base=Math.pow(10,exponent);
+  const fraction=target/base;
+  let niceFraction;
+  if(fraction<=1) niceFraction=1;
+  else if(fraction<=2) niceFraction=2;
+  else if(fraction<=2.5) niceFraction=2.5;
+  else if(fraction<=5) niceFraction=5;
+  else niceFraction=10;
+  return niceFraction*base;
+}
+
+function absoluteLegendValues(maxValue){
+  return [-maxValue,-maxValue/2,0,maxValue/2,maxValue];
+}
+
+function absoluteColorValue(value,param,maxValue){
+  if(!Number.isFinite(value) || !Number.isFinite(maxValue) || maxValue<=0) return 0;
+  const colorExtent=param==="rain"?60:40;
+  return Math.max(-colorExtent,Math.min(colorExtent,(value/maxValue)*colorExtent));
+}
+
+function absoluteLegendLabel(value,param){
+  if(value===0) return "0";
+  const sign=value>0?"+":"";
+  const maximum=Math.abs(value)>=100?0:1;
+  const formatted=value.toLocaleString("de-DE",{minimumFractionDigits:0,maximumFractionDigits:maximum});
+  return param==="rain"?`${sign}${formatted} l/m²`:`${sign}${formatted} h`;
+}
+
 function updateMonthlyAbsoluteAnomalyTable(){
   if(!monthlyData.length) return;
   const card=document.getElementById("monthlyAbsoluteAnomalyCard");
@@ -1676,6 +1709,19 @@ function updateMonthlyAbsoluteAnomalyTable(){
     ANOMALY_TABLE_PERIODS.some(period=>Number.isFinite(aggregatePeriodFromMap(byDate,year,period.value,param)))
   ).sort((a,b)=>b-a);
 
+  // Für die absolute Tabelle wird auch die Farbskala in der absoluten Einheit dargestellt.
+  // Eine gemeinsame dynamische Skala gilt für alle Zellen der aktuell sichtbaren Tabelle.
+  const absoluteAnomalies=[];
+  tableYears.forEach(year=>{
+    ANOMALY_TABLE_PERIODS.forEach(period=>{
+      const absolute=aggregatePeriodFromMap(byDate,year,period.value,param);
+      const climate=climateByPeriod.get(period.value);
+      if(Number.isFinite(absolute) && Number.isFinite(climate)) absoluteAnomalies.push(absolute-climate);
+    });
+  });
+  const rawMaximum=absoluteAnomalies.length?Math.max(...absoluteAnomalies.map(value=>Math.abs(value))):0;
+  const absoluteLegendMax=niceAbsoluteLegendMax(rawMaximum,param);
+
   const table=document.getElementById("monthlyAbsoluteAnomalyTable");
   const thead=table.querySelector("thead");
   const tbody=table.querySelector("tbody");
@@ -1694,8 +1740,8 @@ function updateMonthlyAbsoluteAnomalyTable(){
       if(absoluteAnomaly===null || relativeAnomaly===null){
         return `<td class="no-value${separator}" title="Für ${periodLabel(period.value)} ${year} liegt kein vollständiger Wert vor.">–</td>`;
       }
-      // Farbe weiterhin relativ zum jeweiligen Klimamittel, damit Monats-, Saison- und Jahresfelder vergleichbar bleiben.
-      const background=interpolateAnomalyColor(param,relativeAnomaly);
+      // Farbe folgt in dieser Tabelle bewusst der absoluten Abweichung (l/m² bzw. Stunden).
+      const background=interpolateAnomalyColor(param,absoluteColorValue(absoluteAnomaly,param,absoluteLegendMax));
       const foreground=readableTextColor(background);
       const absoluteText=formatAbsoluteTableDeviation(absoluteAnomaly,param);
       const relativeText=formatTableAnomaly(relativeAnomaly,param);
@@ -1716,16 +1762,16 @@ function updateMonthlyAbsoluteAnomalyTable(){
     `${area} · ${PARAM_META[param].label} · absolute Differenz in ${unit}`;
 
   const legend=document.getElementById("monthlyAbsoluteAnomalyLegend");
-  legend.innerHTML=ANOMALY_LEGEND_VALUES[param].map(value=>{
-    const background=interpolateAnomalyColor(param,value);
-    return `<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${background}"></span>${anomalyLegendLabel(value,param)}</span>`;
+  legend.innerHTML=absoluteLegendValues(absoluteLegendMax).map(value=>{
+    const background=interpolateAnomalyColor(param,absoluteColorValue(value,param,absoluteLegendMax));
+    return `<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${background}"></span>${absoluteLegendLabel(value,param)}</span>`;
   }).join("");
 
   const colorDescription=param==="rain"
     ?"Braun kennzeichnet trockene, Blau nasse Abweichungen."
     :"Grau kennzeichnet sonnenarme, Orange bis Dunkelrot sonnenreiche Abweichungen.";
   document.getElementById("monthlyAbsoluteAnomalyTableNote").textContent=
-    `${colorDescription} Die Zahlen zeigen die absolute Differenz zum Mittel ${reference.label} (${param==="rain"?"1 mm Niederschlag entspricht 1 l/m²":"Stunden"}). Die Farbintensität richtet sich weiterhin nach der prozentualen Abweichung, damit Monate, Jahreszeiten und Gesamtjahre untereinander vergleichbar bleiben. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
+    `${colorDescription} Zahlen und Farbskala zeigen die absolute Differenz zum Mittel ${reference.label} in ${param==="rain"?"l/m² (1 mm Niederschlag = 1 l/m²)":"Stunden"}. Die Skala wird automatisch an den größten absoluten Wert der dargestellten Tabelle angepasst. Winter ${latestYear} umfasst Dezember ${latestYear-1} sowie Januar und Februar ${latestYear}. Unvollständige Zeiträume bleiben leer.`;
 }
 
 function updateMonthlyAnomalyTable(){
