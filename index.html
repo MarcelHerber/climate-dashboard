@@ -417,6 +417,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .hyras-status.error{background:#fff1f0;border-color:#e1b3af;color:#8b211a}
 .hyras-loading{padding:36px 18px;text-align:center;color:var(--muted)}
 .hyras-custom-range{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px;padding:12px 14px;border:1px solid var(--border);border-radius:9px;background:#fbfcfd}.hyras-custom-range .control-group{margin:0}.hyras-custom-range input[type="date"]{min-width:155px}.hyras-custom-apply{padding:9px 13px;border:1px solid #8f9aa3;border-radius:7px;background:#fff;font-weight:700;cursor:pointer}.hyras-custom-apply:hover{background:#f4f6f7}.hyras-custom-message{flex-basis:100%;margin:0;color:var(--muted);font-size:13px}.hyras-custom-message.error{color:#9c2018}.hyras-map-frame canvas{display:block;max-width:100%;height:auto;background:#fff}.hyras-dynamic-wrap{width:100%;padding:12px;background:#fff}.hyras-dynamic-title{text-align:center;font-size:20px;font-weight:800;margin:4px 0}.hyras-dynamic-subtitle{text-align:center;color:#4b5563;font-size:13px;margin:0 0 10px}.hyras-dynamic-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 10px;margin:10px 4px 2px;font-size:11px;color:#4b5563}.hyras-dynamic-legend span{display:flex;align-items:center;gap:4px}.hyras-dynamic-legend i{display:inline-block;width:13px;height:13px;border:1px solid rgba(0,0,0,.18)}
+.hyras-dynamic-wrap{position:relative}.hyras-hover-tooltip{position:absolute;z-index:25;display:none;min-width:220px;max-width:280px;padding:9px 11px;border-radius:8px;background:rgba(20,28,36,.94);color:#fff;box-shadow:0 5px 18px rgba(0,0,0,.22);font-size:12px;line-height:1.45;pointer-events:none;text-align:left}.hyras-hover-tooltip strong{font-size:13px}.hyras-hover-tooltip .hyras-tip-grid{display:grid;grid-template-columns:1fr auto;gap:2px 12px;margin-top:5px}.hyras-hover-tooltip .hyras-tip-value{font-variant-numeric:tabular-nums;font-weight:700}.hyras-map-frame canvas{cursor:crosshair;touch-action:manipulation}
 .hyras-historical-range{background:#f8faf7;border-left:4px solid #5b7f60}.hyras-historical-range select{min-width:145px}.hyras-historical-range .hyras-custom-message strong{color:#2f4934}
 @media(max-width:700px){.hyras-map-frame{min-height:360px}}
 
@@ -792,7 +793,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <div class="section-header">
     <h2>HYRAS-Flächenkarten</h2>
     <p>Flächendeckender Niederschlag auf dem 1-km-Raster HYRAS-DE des Deutschen Wetterdienstes.</p>
-    <span class="section-status">Version 15.3 · aktuell + historische HYRAS-Zeiträume ab 1931 · Referenz 1991–2020</span>
+    <span class="section-status">Version 15.4 · interaktive HYRAS-Karten mit Mouseover · Historie ab 1931 · Referenz 1991–2020</span>
   </div>
 
   <div id="hyrasStatus" class="hyras-status">HYRAS-Daten werden beim ersten Öffnen geladen …</div>
@@ -866,7 +867,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <a id="hyrasOpenImage" href="#" target="_blank" rel="noopener">Karte groß öffnen</a>
     </div>
   </div>
-  <p id="hyrasReferenceNote" class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Das Raster hat 1 km Auflösung. Prozent- und Abweichungskarten werden nur dann gezeigt, wenn für den gewählten Zeitraum ein exakter 1991–2020-Vergleich vorliegt.</p>
+  <p class="note" style="margin-top:10px"><strong>Interaktiv:</strong> Maus über die Karte bewegen (auf Touchgeräten tippen), um den Niederschlag der Rasterzelle, das Mittel 1991–2020, Prozent und Abweichung zu sehen.</p>
+  <p id="hyrasReferenceNote" class="note" style="margin-top:8px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Das Raster hat 1 km Auflösung. Prozent- und Abweichungskarten werden nur dann gezeigt, wenn für den gewählten Zeitraum ein exakter 1991–2020-Vergleich vorliegt.</p>
 </div>
 
 <!-- ================= AKTUELL / 10-MINUTEN ================= -->
@@ -1507,7 +1509,9 @@ let hyrasWebManifest=null;
 let hyrasCustomState=null;
 let hyrasHistoricalManifest=null;
 let hyrasHistoricalState=null;
+let hyrasPresetState=null;
 const hyrasWebImageCache=new Map();
+const hyrasGeoLookupCache=new Map();
 let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
@@ -5628,32 +5632,85 @@ function hyrasHistoricalTypeControls(){
   const month=document.getElementById("hyrasHistoricalMonth");
   if(month) month.disabled=type!=="month";
 }
-async function hyrasRenderHistoricalMap(){
-  if(!hyrasHistoricalState)return;
-  const metric=document.getElementById("hyrasMetricSelect")?.value||"percent";
-  const cfg=hyrasColorConfig(metric),state=hyrasHistoricalState,n=state.current.values.length;
-  const values=new Float32Array(n),valid=new Uint8Array(n);
+async function hyrasLoadGeoLookup(path){
+  if(!path) return null;
+  if(hyrasGeoLookupCache.has(path)) return hyrasGeoLookupCache.get(path);
+  const promise=hyrasFetchJson(path).catch(error=>{hyrasGeoLookupCache.delete(path);throw error;});
+  hyrasGeoLookupCache.set(path,promise);return promise;
+}
+function hyrasLookupBracket(indices,value){
+  if(!indices?.length)return [0,0,0];
+  if(value<=indices[0])return [0,0,0];
+  const last=indices.length-1;if(value>=indices[last])return [last,last,0];
+  let lo=0,hi=last;
+  while(hi-lo>1){const mid=(lo+hi)>>1;if(indices[mid]<=value)lo=mid;else hi=mid;}
+  const a=indices[lo],b=indices[hi],t=b===a?0:(value-a)/(b-a);return [lo,hi,Math.max(0,Math.min(1,t))];
+}
+function hyrasLookupCoord(lookup,col,row){
+  if(!lookup)return null;
+  const [x0,x1,tx]=hyrasLookupBracket(lookup.x_indices,col),[y0,y1,ty]=hyrasLookupBracket(lookup.y_indices,row);
+  const bilinear=(grid)=>{const a=Number(grid?.[y0]?.[x0]),b=Number(grid?.[y0]?.[x1]),c=Number(grid?.[y1]?.[x0]),d=Number(grid?.[y1]?.[x1]);if(![a,b,c,d].every(Number.isFinite))return NaN;return a*(1-tx)*(1-ty)+b*tx*(1-ty)+c*(1-tx)*ty+d*tx*ty;};
+  const lon=bilinear(lookup.lon),lat=bilinear(lookup.lat);return Number.isFinite(lon)&&Number.isFinite(lat)?{lon,lat}:null;
+}
+function hyrasMetricRaster(state,metric){
+  const n=state.current.values.length,values=new Float32Array(n),valid=new Uint8Array(n);
   for(let i=0;i<n;i++){
-    const c=state.current.values[i],r=state.reference.values[i];
+    const c=state.current.values[i],r=state.reference?.values?.[i];
     if(metric==="sum"){
-      if(state.current.valid[i]){values[i]=c;valid[i]=1;}
-    }else if(state.current.valid[i]&&state.reference.valid[i]&&Number.isFinite(r)&&r>0.1){
+      if(state.current.valid[i]&&Number.isFinite(c)){values[i]=c;valid[i]=1;}
+    }else if(state.current.valid[i]&&state.reference?.valid?.[i]&&Number.isFinite(c)&&Number.isFinite(r)&&r>0.1){
       values[i]=metric==="percent"?c/r*100:c-r;valid[i]=1;
     }
   }
-  const raw=document.createElement("canvas");raw.width=state.width;raw.height=state.height;const rctx=raw.getContext("2d");
-  const img=rctx.createImageData(state.width,state.height);
-  for(let i=0,j=0;i<n;i++,j+=4){
-    if(!valid[i]||!Number.isFinite(values[i])){img.data[j+3]=0;continue;}
-    const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;
-  }
+  return {values,valid};
+}
+function hyrasTipNumber(value,digits=1){return Number.isFinite(Number(value))?Number(value).toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits}):"–";}
+function hyrasAttachMouseover(canvas,wrap,state,geoLookupPath){
+  const tip=document.createElement("div");tip.className="hyras-hover-tooltip";wrap.appendChild(tip);
+  let lookupPromise=geoLookupPath?hyrasLoadGeoLookup(geoLookupPath).catch(()=>null):Promise.resolve(null);
+  const update=async event=>{
+    const rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
+    const px=Math.max(0,Math.min(rect.width-0.001,event.clientX-rect.left)),py=Math.max(0,Math.min(rect.height-0.001,event.clientY-rect.top));
+    const col=Math.max(0,Math.min(state.width-1,Math.floor(px/rect.width*state.width))),row=Math.max(0,Math.min(state.height-1,Math.floor(py/rect.height*state.height))),idx=row*state.width+col;
+    const c=state.current?.valid?.[idx]?Number(state.current.values[idx]):NaN;
+    if(!Number.isFinite(c)){tip.style.display="none";return;}
+    const r=state.reference?.valid?.[idx]?Number(state.reference.values[idx]):NaN;
+    const pct=Number.isFinite(r)&&r>0.1?c/r*100:NaN,anom=Number.isFinite(r)?c-r:NaN;
+    const lookup=await lookupPromise,coord=hyrasLookupCoord(lookup,col,row);
+    const coordText=coord?`${hyrasTipNumber(coord.lat,3)}° N · ${hyrasTipNumber(coord.lon,3)}° E`:`Raster ${col+1} / ${row+1}`;
+    tip.innerHTML=`<strong>HYRAS-Rasterzelle</strong><div class="hyras-tip-grid"><span>Niederschlag</span><span class="hyras-tip-value">${hyrasTipNumber(c,1)} l/m²</span><span>Mittel 1991–2020</span><span class="hyras-tip-value">${hyrasTipNumber(r,1)}${Number.isFinite(r)?" l/m²":""}</span><span>Vom Mittel</span><span class="hyras-tip-value">${hyrasTipNumber(pct,0)}${Number.isFinite(pct)?" %":""}</span><span>Abweichung</span><span class="hyras-tip-value">${Number.isFinite(anom)&&anom>=0?"+":""}${hyrasTipNumber(anom,1)}${Number.isFinite(anom)?" l/m²":""}</span></div><div style="margin-top:5px;color:#d6dde3">${coordText}</div>`;
+    tip.style.display="block";
+    const wrect=wrap.getBoundingClientRect(),tw=tip.offsetWidth||240,th=tip.offsetHeight||120;let left=event.clientX-wrect.left+14,top=event.clientY-wrect.top+14;if(left+tw>wrect.width-6)left=event.clientX-wrect.left-tw-14;if(top+th>wrect.height-6)top=event.clientY-wrect.top-th-14;tip.style.left=`${Math.max(6,left)}px`;tip.style.top=`${Math.max(6,top)}px`;
+  };
+  canvas.addEventListener("pointermove",event=>{update(event).catch(()=>{});});
+  canvas.addEventListener("pointerleave",()=>{tip.style.display="none";});
+  canvas.addEventListener("click",event=>{update(event).catch(()=>{});});
+}
+async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geoLookup,downloadName}){
+  const metric=document.getElementById("hyrasMetricSelect")?.value||"percent",cfg=hyrasColorConfig(metric),raster=hyrasMetricRaster(state,metric),n=raster.values.length;
+  const raw=document.createElement("canvas");raw.width=state.width;raw.height=state.height;const rctx=raw.getContext("2d"),img=rctx.createImageData(state.width,state.height);
+  for(let i=0,j=0;i<n;i++,j+=4){if(!raster.valid[i]||!Number.isFinite(raster.values[i])){img.data[j+3]=0;continue;}const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(raster.values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;}
   rctx.putImageData(img,0,0);
-  const scale=state.resolutionKm<=1?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
-  try{const manifest=await hyrasLoadHistoricalManifest();const response=await fetch(`${HYRAS_DATA_BASE}/${manifest.boundary_overlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Historiengrenzen:",error);}
-  const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";
-  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · ${state.label}</div><div class="hyras-dynamic-subtitle">${state.dateLabel} · ${metricLabel} · Referenz 1991–2020 · historisches HYRAS-1-km-Raster</div>`;wrap.appendChild(canvas);
-  const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);
-  const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=`hyras_historisch_${state.year}_${state.type}_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
+  const scale=(Number(state.resolutionKm||1)<=1)?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
+  if(boundaryOverlay){try{const response=await fetch(`${HYRAS_DATA_BASE}/${boundaryOverlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Grenzen:",error);}}
+  const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";wrap.innerHTML=`<div class="hyras-dynamic-title">${title}</div><div class="hyras-dynamic-subtitle">${subtitle} · ${hyrasMetricConfig(metric).label}</div>`;wrap.appendChild(canvas);const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);hyrasAttachMouseover(canvas,wrap,state,geoLookup);
+  const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=downloadName||`hyras_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
+}
+async function hyrasLoadPresetState(period){
+  const info=period?.interactive;if(!info?.current)throw new Error("Interaktives 1-km-Raster fehlt für diesen Zeitraum.");
+  const current=hyrasDecodeEncodedRaster(await hyrasLoadEncodedRaster(info.current),info.value_scale||10);let reference=null;
+  if(info.reference)reference=hyrasDecodeEncodedRaster(await hyrasLoadEncodedRaster(info.reference),info.value_scale||10);
+  return {current,reference,width:current.width,height:current.height,resolutionKm:1,key:period.key};
+}
+async function hyrasRenderPresetMap(period){
+  if(!hyrasPresetState||hyrasPresetState.key!==period.key)hyrasPresetState=await hyrasLoadPresetState(period);
+  const interactive=hyrasIndex?.interactive||{};
+  await hyrasDrawInteractiveMap({state:hyrasPresetState,title:`HYRAS-Niederschlag · ${period.label||""}`,subtitle:`${period.date_label||""} · ${period.reference_exact?"Referenz 1991–2020":"aktueller HYRAS-Zeitraum"}`,boundaryOverlay:interactive.boundary_overlay_1km,geoLookup:interactive.geo_lookup_1km,downloadName:`hyras_${period.key}_${document.getElementById("hyrasMetricSelect")?.value||"sum"}.png`});
+}
+async function hyrasRenderHistoricalMap(){
+  if(!hyrasHistoricalState)return;
+  const manifest=await hyrasLoadHistoricalManifest(),state=hyrasHistoricalState;
+  await hyrasDrawInteractiveMap({state,title:`HYRAS-Niederschlag · ${state.label}`,subtitle:`${state.dateLabel} · Referenz 1991–2020 · historisches HYRAS-1-km-Raster`,boundaryOverlay:manifest.boundary_overlay,geoLookup:manifest.geo_lookup,downloadName:`hyras_historisch_${state.year}_${state.type}_${document.getElementById("hyrasMetricSelect")?.value||"percent"}.png`});
 }
 async function hyrasApplyHistorical(){
   const msg=document.getElementById("hyrasHistoricalMessage");
@@ -5761,30 +5818,9 @@ function hyrasDynamicLegend(metric){
 }
 async function hyrasRenderCustomMap(){
   if(!hyrasCustomState)return;
-  const metric=document.getElementById("hyrasMetricSelect")?.value||"percent";
-  const cfg=hyrasColorConfig(metric),state=hyrasCustomState,n=state.current.values.length;
-  const values=new Float32Array(n),valid=new Uint8Array(n);
-  for(let i=0;i<n;i++){
-    const c=state.current.values[i],r=state.reference.values[i];
-    if(metric==="sum"){
-      if(state.current.valid[i]){values[i]=c;valid[i]=1;}
-    }else if(state.current.valid[i]&&state.reference.valid[i]&&Number.isFinite(r)&&r>0.1){
-      values[i]=metric==="percent"?c/r*100:c-r;valid[i]=1;
-    }
-  }
-  const raw=document.createElement("canvas");raw.width=state.width;raw.height=state.height;const rctx=raw.getContext("2d");
-  const img=rctx.createImageData(state.width,state.height);
-  for(let i=0,j=0;i<n;i++,j+=4){
-    if(!valid[i]||!Number.isFinite(values[i])){img.data[j+3]=0;continue;}
-    const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;
-  }
-  rctx.putImageData(img,0,0);
-  const scale=state.resolutionKm<=1?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
-  try{const manifest=await hyrasLoadWebManifest();const response=await fetch(`${HYRAS_DATA_BASE}/${manifest.boundary_overlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Grenzen:",error);}
-  const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";
-  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · Freier Zeitraum</div><div class="hyras-dynamic-subtitle">${hyrasDate(state.start)}–${hyrasDate(state.end)} · ${metricLabel} · tagesgenaue Referenz 1991–2020</div>`;wrap.appendChild(canvas);
-  const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);
-  const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=`hyras_${state.start}_${state.end}_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
+  const manifest=await hyrasLoadWebManifest(),state=hyrasCustomState;
+  state.resolutionKm=Number(manifest.web_sampling_km||2);
+  await hyrasDrawInteractiveMap({state,title:"HYRAS-Niederschlag · Freier Zeitraum",subtitle:`${hyrasDate(state.start)}–${hyrasDate(state.end)} · tagesgenaue Referenz 1991–2020`,boundaryOverlay:manifest.boundary_overlay,geoLookup:manifest.geo_lookup,downloadName:`hyras_${state.start}_${state.end}_${document.getElementById("hyrasMetricSelect")?.value||"percent"}.png`});
 }
 async function hyrasApplyCustomRange(){
   const msg=document.getElementById("hyrasCustomMessage"),start=document.getElementById("hyrasCustomStart")?.value,end=document.getElementById("hyrasCustomEnd")?.value;
@@ -5824,48 +5860,22 @@ function updateHyrasMetricAvailability(period){
   });
   if((select.value==="percent"&&!hasPercent)||(select.value==="anomaly"&&!hasAnomaly)) select.value="sum";
 }
+function hyrasRenderPresetFallback(period,cfg,file){
+  const frame=document.getElementById("hyrasMapFrame"),link=document.getElementById("hyrasOpenImage");
+  if(!file){frame.innerHTML='<div class="hyras-loading">Für diese Darstellung wurde keine Karte erzeugt.</div>';if(link)link.style.display="none";return;}
+  const url=`${HYRAS_DATA_BASE}/${file}?t=${Date.now()}`;if(link){link.textContent="Karte groß öffnen";link.target="_blank";link.removeAttribute("download");}
+  const img=document.createElement("img");img.alt=`HYRAS ${cfg.label} · ${period.label||""}`;img.loading="eager";img.src=url;img.onerror=()=>{frame.innerHTML='<div class="hyras-loading">Die HYRAS-Karte konnte nicht geladen werden.</div>';};frame.innerHTML="";frame.appendChild(img);if(link){link.href=url;link.style.display="inline-block";}
+}
 function renderHyras(){
-  if(!hyrasIndex) return;
+  if(!hyrasIndex)return;
   const special=document.getElementById("hyrasPeriodSelect")?.value;
-  if(special==="__custom__"){if(hyrasCustomState)hyrasRenderCustomMap();return;}
-  if(special==="__historical__"){if(hyrasHistoricalState)hyrasRenderHistoricalMap();return;}
-  const period=hyrasSelectedPeriod();
-  if(!period) return;
-  updateHyrasMetricAvailability(period);
-  const stats=period.stats||{};
-  const metric=document.getElementById("hyrasMetricSelect")?.value||"percent";
-  const cfg=hyrasMetricConfig(metric);
-  const file=period.outputs?.[cfg.key];
-  document.getElementById("hyrasPeriodStat").textContent=period.label||"–";
-  document.getElementById("hyrasDataThrough").textContent=period.date_label||`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`;
-  document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
-  document.getElementById("hyrasCurrentMeanDetail").textContent=`Rastermittel · ${period.date_label||"gewählter Zeitraum"}`;
-  document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
-  document.getElementById("hyrasReferenceMeanDetail").textContent=period.reference_exact?"exakter gleicher Kalenderzeitraum 1991–2020":"für laufenden Teilmonat noch nicht berechnet";
-  document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
-  const anom=Number(stats.anomaly_mean_mm);
-  document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:"Abweichung nicht verfügbar";
-  const note=document.getElementById("hyrasReferenceNote");
-  if(note){
-    note.textContent=period.reference_note||"Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. 1-km-Raster. Prozent- und Abweichungskarten basieren auf einem exakten Vergleich mit dem gleichen Kalenderzeitraum 1991–2020.";
-  }
-  const frame=document.getElementById("hyrasMapFrame");
-  const link=document.getElementById("hyrasOpenImage");
-  if(!file){
-    frame.innerHTML='<div class="hyras-loading">Für diese Darstellung wurde keine Karte erzeugt.</div>';
-    if(link) link.style.display="none";
-    return;
-  }
-  const url=`${HYRAS_DATA_BASE}/${file}?t=${Date.now()}`;
-  if(link){link.textContent="Karte groß öffnen";link.target="_blank";link.removeAttribute("download");}
-  const img=document.createElement("img");
-  img.alt=`HYRAS ${cfg.label} · ${period.label||""}`;
-  img.loading="eager";
-  img.src=url;
-  img.onerror=()=>{frame.innerHTML='<div class="hyras-loading">Die HYRAS-Karte konnte nicht geladen werden.</div>';};
-  frame.innerHTML="";
-  frame.appendChild(img);
-  if(link){link.href=url;link.style.display="inline-block";}
+  if(special==="__custom__"){if(hyrasCustomState)hyrasRenderCustomMap().catch(error=>console.error("HYRAS frei rendern:",error));return;}
+  if(special==="__historical__"){if(hyrasHistoricalState)hyrasRenderHistoricalMap().catch(error=>console.error("HYRAS Historie rendern:",error));return;}
+  const period=hyrasSelectedPeriod();if(!period)return;updateHyrasMetricAvailability(period);
+  const stats=period.stats||{},metric=document.getElementById("hyrasMetricSelect")?.value||"percent",cfg=hyrasMetricConfig(metric),file=period.outputs?.[cfg.key];
+  document.getElementById("hyrasPeriodStat").textContent=period.label||"–";document.getElementById("hyrasDataThrough").textContent=period.date_label||`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`;document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);document.getElementById("hyrasCurrentMeanDetail").textContent=`Rastermittel · ${period.date_label||"gewählter Zeitraum"}`;document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);document.getElementById("hyrasReferenceMeanDetail").textContent=period.reference_exact?"exakter gleicher Kalenderzeitraum 1991–2020":"für laufenden Teilmonat noch nicht berechnet";document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);const anom=Number(stats.anomaly_mean_mm);document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:"Abweichung nicht verfügbar";
+  const note=document.getElementById("hyrasReferenceNote");if(note)note.textContent=period.reference_note||"Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. 1-km-Raster. Mouseover zeigt die native Rasterzelle; Prozent und Abweichung basieren auf dem gleichen Kalenderzeitraum 1991–2020.";
+  hyrasRenderPresetMap(period).catch(error=>{console.warn("Interaktive HYRAS-Presetkarte nicht verfügbar, PNG-Fallback:",error);hyrasRenderPresetFallback(period,cfg,file);});
 }
 async function ensureHyrasLoaded(force=false){
   if(hyrasLoading) return hyrasLoading;
@@ -5892,7 +5902,7 @@ async function ensureHyrasLoaded(force=false){
 }
 function initHyrasControls(){
   document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
-  document.getElementById("hyrasPeriodSelect")?.addEventListener("change",event=>{if(event.target.value!=="__custom__")hyrasCustomState=null;if(event.target.value!=="__historical__")hyrasHistoricalState=null;renderHyras();});
+  document.getElementById("hyrasPeriodSelect")?.addEventListener("change",event=>{if(event.target.value!=="__custom__")hyrasCustomState=null;if(event.target.value!=="__historical__")hyrasHistoricalState=null;hyrasPresetState=null;renderHyras();});
   document.getElementById("hyrasCustomApply")?.addEventListener("click",()=>hyrasApplyCustomRange());
   document.getElementById("hyrasHistoricalType")?.addEventListener("change",()=>hyrasHistoricalTypeControls());
   document.getElementById("hyrasHistoricalApply")?.addEventListener("click",()=>hyrasApplyHistorical());
