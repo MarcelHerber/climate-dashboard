@@ -351,6 +351,27 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .map-legend-gradient{height:10px;width:150px;border-radius:5px;background:linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b);margin:5px 0}
 .map-popup-title{font-weight:700;font-size:14px;margin-bottom:4px}.map-popup-meta{color:#555;font-size:12px}
 @media(max-width:700px){.station-map{height:560px}}
+
+/* Version 12: Stationsprofil */
+.profile-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:start;margin-bottom:18px;padding:20px;background:var(--card);border-radius:10px;box-shadow:var(--shadow);border-left:5px solid #15806c}
+.profile-kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#15806c;margin-bottom:7px}
+.profile-title{font-size:clamp(26px,4vw,38px);font-weight:800;margin:0 0 7px}
+.profile-meta{color:var(--muted);line-height:1.5}
+.profile-data-status{text-align:right;font-size:13px;color:#4d575f;line-height:1.5}
+.profile-data-status strong{display:block;color:#222;font-size:15px}
+.profile-control-grid{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:12px;width:100%}
+.profile-control-grid .control-group{min-width:0}
+.profile-nearby{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.profile-nearby button{min-width:150px;text-align:left;border:1px solid var(--border);background:#fff;border-radius:8px;padding:10px;cursor:pointer}
+.profile-nearby button:hover{border-color:#15806c;background:#f2fbf8}
+.profile-nearby-name{display:block;font-weight:700;margin-bottom:3px}
+.profile-nearby-meta{font-size:11px;color:var(--muted)}
+.profile-quicklinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.profile-quicklinks button{border:1px solid #b7c5c1;background:#f7fbfa;color:#17483f;border-radius:7px;padding:8px 11px;font-weight:700;cursor:pointer}
+.profile-placeholder{padding:18px;border:1px dashed #b7c5c1;border-radius:8px;background:#f8fbfa;color:#53605d;line-height:1.5}
+@media(max-width:850px){.profile-hero{grid-template-columns:1fr}.profile-data-status{text-align:left}.profile-control-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.profile-control-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -364,6 +385,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('stationProfile')">Stationsprofil</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
   <button class="tab-button" onclick="switchTab('extremes')">Deutschland-Kenntage</button>
@@ -682,6 +704,52 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p id="extremeMethodNote" class="note"></p>
 </div>
 
+
+<!-- ================= STATIONSPROFIL ================= -->
+<div id="stationProfile" class="tab-content">
+  <div class="section-header"><h2>Stationsprofil</h2><p>Eine Station auswählen und Temperatur, Kenntage, Hitzewellen, Rekorde und Niederschlag zentral zusammenführen.</p><span class="section-status">DWD-KL-Stationsnetz · aktuelle Werte vorläufig</span></div>
+  <div id="stationProfileLoading" class="record-loading">Stationsprofil wird beim ersten Öffnen geladen …</div>
+  <div id="stationProfileContent" hidden>
+    <div class="controls">
+      <div class="control-group"><label for="stationProfileStateSelect">Bundesland</label><select id="stationProfileStateSelect"></select></div>
+      <div class="control-group"><label for="stationProfileSearch">Station suchen</label><input id="stationProfileSearch" type="search" placeholder="Ort oder Stations-ID" style="padding:9px 10px;border:1px solid #bbb;border-radius:6px"></div>
+      <div class="control-group" style="flex:1 1 300px"><label for="stationProfileStationSelect">DWD-Station</label><select id="stationProfileStationSelect"></select></div>
+    </div>
+
+    <div class="profile-hero">
+      <div>
+        <div class="profile-kicker">Ausgewählte Station</div>
+        <div id="stationProfileTitle" class="profile-title">–</div>
+        <div id="stationProfileMeta" class="profile-meta">–</div>
+      </div>
+      <div id="stationProfileDataStatus" class="profile-data-status"><strong>Datenstand</strong>–</div>
+    </div>
+
+    <div class="controls">
+      <div class="profile-control-grid">
+        <div class="control-group"><label for="stationProfileYearSelect">Ausgewähltes Jahr</label><select id="stationProfileYearSelect"></select></div>
+        <div class="control-group"><label for="stationProfileReferenceSelect">Vergleichszeitraum</label><select id="stationProfileReferenceSelect"><option value="1961-1990">1961–1990</option><option value="1971-2000">1971–2000</option><option value="1981-2010">1981–2010</option><option value="1991-2020" selected>1991–2020</option></select></div>
+        <div class="control-group"><label for="stationProfileFromSelect">Startjahr</label><select id="stationProfileFromSelect"></select></div>
+        <div class="control-group"><label for="stationProfileRollingSelect">Gleitendes Mittel</label><select id="stationProfileRollingSelect"><option value="0">Aus</option><option value="5">5 Jahre</option><option value="10">10 Jahre</option><option value="20">20 Jahre</option><option value="30" selected>30 Jahre</option></select></div>
+      </div>
+    </div>
+
+    <div class="chart-container auto">
+      <h2>Nahegelegene Stationen</h2>
+      <div id="stationProfileNearby" class="profile-nearby"></div>
+      <div class="profile-quicklinks">
+        <button onclick="openStationProfileDetail('stationClimateDays')">Stations-Kenntage öffnen</button>
+        <button onclick="openStationProfileDetail('stationHeatwaves')">Hitzewellen öffnen</button>
+        <button onclick="openStationProfileDetail('stationPrecip')">Stationsniederschlag öffnen</button>
+        <button onclick="openStationProfileDetail('records')">Stationsrekorde öffnen</button>
+      </div>
+    </div>
+
+    <div id="stationProfileStageContent" class="chart-container auto">
+      <div class="profile-placeholder"><strong>Stationsprofil – Grundgerüst.</strong> Die Auswertungskarten und Zeitreihen werden in den folgenden, getrennten Updates ergänzt. So lässt sich jede Erweiterung einzeln testen.</div>
+    </div>
+  </div>
+</div>
 
 <!-- ================= STATIONS-KENNTAGE ================= -->
 <div id="stationClimateDays" class="tab-content">
@@ -1109,6 +1177,7 @@ function switchTab(tab,{persist=true}={}){
   const mobile=document.getElementById("mobileTabSelect");
   if(mobile) mobile.value=tab;
   if(persist) persistDashboardState("tab",tab);
+  if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
@@ -4652,6 +4721,103 @@ function ensureComparisonMode(){
   fillCompareAreaSelectors();initializeCompareYearControls();populateCompareStations();
 }
 
+// ================= VERSION 12.1: STATIONSPROFIL – GRUNDGERÜST =================
+let stationProfileInitialized=false;
+let stationProfileProfile=null;
+let stationProfileRequestId=0;
+
+function stationProfileDistanceKm(a,b){
+  if(!Number.isFinite(Number(a?.latitude))||!Number.isFinite(Number(a?.longitude))||!Number.isFinite(Number(b?.latitude))||!Number.isFinite(Number(b?.longitude))) return Infinity;
+  const rad=value=>Number(value)*Math.PI/180;
+  const dLat=rad(Number(b.latitude)-Number(a.latitude));
+  const dLon=rad(Number(b.longitude)-Number(a.longitude));
+  const lat1=rad(a.latitude),lat2=rad(b.latitude);
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 6371*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function stationProfileFilteredStations(){
+  const state=document.getElementById("stationProfileStateSelect")?.value||"Deutschland";
+  const search=(document.getElementById("stationProfileSearch")?.value||"").trim().toLocaleLowerCase("de-DE");
+  return (stationClimateDaysIndex?.stations||[]).filter(station=>{
+    if(state!=="Deutschland"&&station.state!==state) return false;
+    return !search||`${station.name} ${station.id}`.toLocaleLowerCase("de-DE").includes(search);
+  });
+}
+function populateStationProfileStations(preferred){
+  const select=document.getElementById("stationProfileStationSelect");
+  if(!select) return;
+  const previous=preferred||select.value;
+  const stations=stationProfileFilteredStations();
+  select.innerHTML="";
+  stations.forEach(station=>{const option=document.createElement("option");option.value=station.id;option.textContent=`${station.name} (${station.id})`;select.appendChild(option);});
+  if(stations.some(station=>station.id===previous)) select.value=previous;
+  else if(stations.length) select.value=stations[0].id;
+}
+function initializeStationProfileControls(){
+  if(stationProfileInitialized) return;
+  stationProfileInitialized=true;
+  const state=document.getElementById("stationProfileStateSelect");
+  state.innerHTML='<option value="Deutschland">Deutschland – alle Stationen</option>';
+  (stationClimateDaysIndex?.states||[]).forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=name;state.appendChild(option);});
+  state.value="Deutschland";
+  state.addEventListener("change",()=>{populateStationProfileStations();updateStationProfileBase();});
+  document.getElementById("stationProfileSearch")?.addEventListener("input",()=>{populateStationProfileStations();updateStationProfileBase();});
+  document.getElementById("stationProfileStationSelect")?.addEventListener("change",updateStationProfileBase);
+  ["stationProfileYearSelect","stationProfileReferenceSelect","stationProfileFromSelect","stationProfileRollingSelect"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>window.dispatchEvent(new CustomEvent("stationprofilechange"))));
+  populateStationProfileStations();
+}
+async function ensureStationProfile(){
+  const loading=document.getElementById("stationProfileLoading");
+  try{
+    await ensureStationClimateDaysLoaded();
+    initializeStationProfileControls();
+    loading.hidden=true;document.getElementById("stationProfileContent").hidden=false;
+    await updateStationProfileBase();
+  }catch(error){loading.hidden=false;loading.textContent=`Stationsprofil konnte nicht geladen werden: ${error.message}`;loading.style.color="#7a1010";}
+}
+function stationProfileFillYearControls(station,profile){
+  const yearSelect=document.getElementById("stationProfileYearSelect"),fromSelect=document.getElementById("stationProfileFromSelect");
+  const current=Number(stationClimateDaysIndex.current_year);
+  const years=new Set([current]);
+  Object.values(profile?.counts||{}).forEach(metric=>((metric?.year)||[]).forEach(row=>years.add(Number(row[0]))));
+  const sorted=[...years].filter(Number.isFinite).sort((a,b)=>b-a);
+  const prevYear=yearSelect.value;yearSelect.innerHTML="";sorted.forEach(year=>{const o=document.createElement("option");o.value=String(year);o.textContent=String(year);yearSelect.appendChild(o);});
+  yearSelect.value=sorted.includes(Number(prevYear))?prevYear:String(current);
+  const start=Number(station.start_year||sorted.at(-1)||current);
+  const choices=[start,1951,1961,1971,1981,1991,2001,2011].filter((value,index,array)=>value>=start&&value<=current&&array.indexOf(value)===index).sort((a,b)=>a-b);
+  const prevFrom=fromSelect.value;fromSelect.innerHTML="";choices.forEach(year=>{const o=document.createElement("option");o.value=String(year);o.textContent=year===start?`${year} (Messbeginn)`:String(year);fromSelect.appendChild(o);});
+  fromSelect.value=choices.includes(Number(prevFrom))?prevFrom:String(choices[0]||start);
+}
+function stationProfileRenderNearby(station){
+  const box=document.getElementById("stationProfileNearby");
+  const nearby=(stationClimateDaysIndex?.stations||[]).filter(item=>item.id!==station.id).map(item=>({station:item,distance:stationProfileDistanceKm(station,item)})).filter(item=>Number.isFinite(item.distance)).sort((a,b)=>a.distance-b.distance).slice(0,6);
+  box.innerHTML=nearby.map(({station:item,distance})=>`<button type="button" data-profile-station="${item.id}"><span class="profile-nearby-name">${item.name}</span><span class="profile-nearby-meta">${distance.toLocaleString("de-DE",{maximumFractionDigits:0})} km · ${item.start_year||"?"}–${item.end_year||"?"}</span></button>`).join("")||'<span class="note">Keine nahegelegenen Stationen mit Koordinaten gefunden.</span>';
+  box.querySelectorAll("[data-profile-station]").forEach(button=>button.addEventListener("click",()=>{
+    const target=button.dataset.profileStation;
+    document.getElementById("stationProfileStateSelect").value="Deutschland";document.getElementById("stationProfileSearch").value="";populateStationProfileStations(target);document.getElementById("stationProfileStationSelect").value=target;updateStationProfileBase();
+  }));
+}
+async function updateStationProfileBase(){
+  const requestId=++stationProfileRequestId;
+  const id=document.getElementById("stationProfileStationSelect")?.value;if(!id) return;
+  const station=stationClimateDaysIndex.stations.find(item=>item.id===id);if(!station) return;
+  document.getElementById("stationProfileTitle").textContent=`${station.name} (${station.id})`;
+  document.getElementById("stationProfileMeta").textContent=[station.state,Number.isFinite(Number(station.height))?`${station.height} m`:null,station.start_year?`Messreihe seit ${station.start_year}`:null].filter(Boolean).join(" · ");
+  document.getElementById("stationProfileDataStatus").innerHTML=`<strong>Messwerte bis ${dailyGermanDate(stationClimateDaysIndex.data_through,true)}</strong>Aktuelle DWD-Werte vorläufig`;
+  stationProfileRenderNearby(station);
+  try{
+    const response=await dashboardFetch(station.file,{cache:"force-cache"});if(!response.ok) throw new Error(`HTTP ${response.status}`);const profile=await response.json();if(requestId!==stationProfileRequestId)return;stationProfileProfile=profile;stationProfileFillYearControls(station,profile);window.dispatchEvent(new CustomEvent("stationprofilechange"));
+  }catch(error){if(requestId===stationProfileRequestId) document.getElementById("stationProfileDataStatus").innerHTML+=`<br><span style="color:#a12222">Historisches Profil: ${error.message}</span>`;}
+}
+async function openStationProfileDetail(tab){
+  const id=document.getElementById("stationProfileStationSelect")?.value;if(!id){switchTab(tab);return;}
+  const station=stationClimateDaysIndex?.stations?.find(item=>item.id===id);
+  if(tab==="stationClimateDays"){await ensureStationClimateDaysLoaded();document.getElementById("stationClimateDaysStateSelect").value="Deutschland";document.getElementById("stationClimateDaysSearch").value=id;populateStationClimateDaysStations();document.getElementById("stationClimateDaysStationSelect").value=id;await updateStationClimateDays();}
+  else if(tab==="stationHeatwaves"){await ensureStationHeatwavesLoaded();document.getElementById("stationHeatwavesStateSelect").value="Deutschland";document.getElementById("stationHeatwavesSearch").value=id;populateStationHeatwavesStations();document.getElementById("stationHeatwavesStationSelect").value=id;await updateStationHeatwaves();}
+  else if(tab==="stationPrecip"){await ensureStationPrecipLoaded();document.getElementById("stationPrecipStateSelect").value="Deutschland";document.getElementById("stationPrecipSearch").value=id;populateStationPrecipStations();if([...document.getElementById("stationPrecipStationSelect").options].some(o=>o.value===id)){document.getElementById("stationPrecipStationSelect").value=id;await updateStationPrecipitation();}}
+  switchTab(tab);
+}
+
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
@@ -4790,6 +4956,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 11.8: frei wählbare Niederschlagszeiträume bei Station und Karte -->
+<!-- Dashboard Version 12.1: Stationsprofil Grundgerüst -->
 </body>
 </html>
