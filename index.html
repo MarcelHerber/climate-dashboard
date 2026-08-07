@@ -421,6 +421,12 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .hyras-historical-range{background:#f8faf7;border-left:4px solid #5b7f60}.hyras-historical-range select{min-width:145px}.hyras-historical-range .hyras-custom-message strong{color:#2f4934}
 @media(max-width:700px){.hyras-map-frame{min-height:360px}}
 
+
+/* ================= 16.0 GEBIETSMITTEL-KARTE ================= */
+.regional-map-card{padding:18px}.regional-map-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}.regional-map-heading h2{margin:0 0 4px;font-size:22px}.regional-map-heading p{margin:0;color:var(--muted);max-width:820px}.regional-map-controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin:14px 0}.regional-map-controls .control-group{margin:0}.regional-map-controls select{min-width:150px}.regional-map-checkbox{display:flex;gap:8px;align-items:center;padding:8px 0;font-size:13px}.regional-map-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin:10px 0 14px}.regional-map-summary .stat-card{min-height:86px}.regional-map-summary .stat-card h4{font-size:12px}.regional-map-summary .stat-card>div{font-size:20px;font-weight:800}.regional-map-wrap{position:relative}.regional-map{height:650px;border:1px solid #cbd4da;border-radius:11px;overflow:hidden;background:#f5f7f8}.regional-map .leaflet-container{background:#f5f7f8}.regional-map .leaflet-control-attribution{display:none}.regional-map .leaflet-interactive{transition:fill-opacity .12s ease}.regional-map-legend{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:10px;color:#45505a;font-size:12px}.regional-map-legend-item{display:flex;align-items:center;gap:5px}.regional-map-legend-swatch{width:24px;height:12px;border:1px solid rgba(0,0,0,.17);border-radius:2px}.regional-map-note{margin:9px 0 0;color:var(--muted);font-size:12px;line-height:1.45}.regional-map-value-label{background:rgba(255,255,255,.92)!important;border:1px solid rgba(26,36,44,.25)!important;border-radius:5px!important;box-shadow:0 1px 4px rgba(0,0,0,.16)!important;color:#15202a!important;font-size:11px!important;font-weight:800!important;line-height:1.08!important;padding:3px 5px!important;text-align:center!important;white-space:nowrap!important}.regional-map-value-label:before{display:none!important}.regional-map-tooltip{line-height:1.45;min-width:205px}.regional-map-hover-tooltip{background:rgba(255,255,255,.97)!important;border:1px solid #bdc8cf!important;border-radius:7px!important;box-shadow:0 3px 12px rgba(0,0,0,.18)!important;padding:8px 10px!important;color:#17212a!important}.regional-map-hover-tooltip:before{border-top-color:#bdc8cf!important}.regional-map-tooltip strong{font-size:14px}.regional-map-tooltip .muted{color:#68727b;font-size:11px}.regional-map-no-data{padding:18px;color:var(--muted)}
+@media(max-width:900px){.regional-map{height:540px}.regional-map-summary{grid-template-columns:repeat(2,minmax(130px,1fr))}.regional-map-value-label{font-size:9px!important;padding:2px 4px!important}}
+@media(max-width:560px){.regional-map{height:490px}.regional-map-summary{grid-template-columns:1fr 1fr}.regional-map-controls .control-group{width:100%}.regional-map-controls select{width:100%}}
+
 </style>
 </head>
 <body>
@@ -504,6 +510,41 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <input id="monthlyRollingYears" type="number" min="2" max="60" step="1" value="15" inputmode="numeric">
     </div>
     <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
+  </div>
+
+
+  <div class="chart-container auto regional-map-card">
+    <div class="regional-map-heading">
+      <div>
+        <h2>Gebietsmittel-Karte Deutschland</h2>
+        <p>Räumlicher Vergleich der DWD-Gebietsmittel für den oben gewählten Parameter, Zeitraum und die Referenzperiode.</p>
+      </div>
+      <span class="section-status">Bundesländer · DWD-Gebietsmittel</span>
+    </div>
+    <div class="regional-map-controls">
+      <div class="control-group">
+        <label for="regionalMapYearSelect">Jahr</label>
+        <select id="regionalMapYearSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="regionalMapModeSelect">Kartendarstellung</label>
+        <select id="regionalMapModeSelect">
+          <option value="anomaly" selected>Absolute Abweichung</option>
+          <option value="percent">Vom Mittel (%)</option>
+          <option value="absolute">Absoluter Wert</option>
+        </select>
+      </div>
+      <label class="regional-map-checkbox"><input id="regionalMapLabelsToggle" type="checkbox" checked> Werte in der Karte</label>
+    </div>
+    <div class="regional-map-summary">
+      <div class="stat-card"><h4>Deutschland</h4><div id="regionalMapGermany">–</div><small id="regionalMapGermanyDetail">–</small></div>
+      <div class="stat-card"><h4>Höchster Kartenwert</h4><div id="regionalMapHigh">–</div><small id="regionalMapHighDetail">–</small></div>
+      <div class="stat-card"><h4>Niedrigster Kartenwert</h4><div id="regionalMapLow">–</div><small id="regionalMapLowDetail">–</small></div>
+      <div class="stat-card"><h4>Referenz</h4><div id="regionalMapReference">1991–2020</div><small id="regionalMapReferenceDetail">30-jähriges Mittel</small></div>
+    </div>
+    <div class="regional-map-wrap"><div id="regionalMap" class="regional-map" aria-label="Deutschlandkarte der DWD-Gebietsmittel"></div></div>
+    <div id="regionalMapLegend" class="regional-map-legend"></div>
+    <p id="regionalMapNote" class="regional-map-note">Berlin nutzt das DWD-Gebietsmittel Brandenburg/Berlin; Hamburg und Bremen das DWD-Gebietsmittel Niedersachsen/Hamburg/Bremen, sofern keine eigenen DWD-Gebietsspalten vorliegen.</p>
   </div>
 
   <div class="chart-container">
@@ -1479,6 +1520,11 @@ let monthlyData=[];
 let dailyData=[];
 let monthlyChart=null;
 let monthlyDeviationChart=null;
+let regionalMap=null;
+let regionalMapLayer=null;
+let regionalMapGeoJson=null;
+let regionalMapGeoPromise=null;
+let regionalMapHoverTooltip=null;
 let climateIndexChart=null;
 let accumulationChart=null;
 let dailyChart=null;
@@ -1566,6 +1612,7 @@ function switchTab(tab,{persist=true}={}){
   if(persist) persistDashboardState("tab",tab);
   if(tab==="current") ensureCurrentConditions();
   if(tab==="hyras") ensureHyrasLoaded();
+  if(tab==="monthly") window.setTimeout(()=>{if(regionalMap){regionalMap.invalidateSize();updateRegionalMap();}},80);
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
@@ -2211,6 +2258,8 @@ dashboardFetch("data.json",{cache:"no-store"})
     updateMonthlyAnomalyTable();
     updateClimateIndex();
     updateAccumulation();
+    populateRegionalMapYears({preserve:false});
+    updateRegionalMap();
   })
   .catch(error=>showError(`Monatsdaten konnten nicht geladen werden: ${error.message}`));
 
@@ -2331,6 +2380,196 @@ function updateMonthly(){
       }
     }
   });
+}
+
+
+// ================= 16.0 GEBIETSMITTEL-KARTE =================
+const REGIONAL_MAP_STATE_AREA={
+  "Baden-Württemberg":"Baden-Württemberg",
+  "Bayern":"Bayern",
+  "Berlin":"Brandenburg/Berlin",
+  "Brandenburg":"Brandenburg",
+  "Bremen":"Niedersachsen/Hamburg/Bremen",
+  "Hamburg":"Niedersachsen/Hamburg/Bremen",
+  "Hessen":"Hessen",
+  "Mecklenburg-Vorpmern":"Mecklenburg-Vorpommern",
+  "Niedersachsen":"Niedersachsen",
+  "Nordrhein-Westfalen":"Nordrhein-Westfalen",
+  "Rheinland-Pfalz":"Rheinland-Pfalz",
+  "Saarland":"Saarland",
+  "Sachsen":"Sachsen",
+  "Sachsen-Anhalt":"Sachsen-Anhalt",
+  "Schleswig-Holstein":"Schleswig-Holstein",
+  "Thüringen":"Thüringen"
+};
+const REGIONAL_MAP_STATE_SHORT={
+  "Baden-Württemberg":"BW","Bayern":"BY","Berlin":"BE","Brandenburg":"BB","Bremen":"HB","Hamburg":"HH","Hessen":"HE",
+  "Mecklenburg-Vorpommern":"MV","Niedersachsen":"NI","Nordrhein-Westfalen":"NW","Rheinland-Pfalz":"RP","Saarland":"SL","Sachsen":"SN",
+  "Sachsen-Anhalt":"ST","Schleswig-Holstein":"SH","Thüringen":"TH"
+};
+const REGIONAL_MAP_COLORS={
+  negative:["#54278f","#756bb1","#9e9ac8","#cbc9e2","#e7e7ef"],
+  positive:["#fee0d2","#fc9272","#ef3b2c","#cb181d","#8b0000"],
+  dry:["#8c510a","#bf812d","#dfc27d","#f6e8c3"],
+  wet:["#d1e5f0","#92c5de","#4393c3","#2166ac"],
+  low:["#313695","#74add1","#e0f3f8","#ffffbf","#fdae61","#d73027"]
+};
+
+function regionalMapParam(){return document.getElementById("paramSelect")?.value||"rain";}
+function regionalMapSelection(){return document.getElementById("monthSelect")?.value||"07";}
+function regionalMapMode(){
+  const select=document.getElementById("regionalMapModeSelect");
+  let mode=select?.value||"anomaly";
+  if(regionalMapParam()==="temp" && mode==="percent"){
+    mode="anomaly";
+    if(select)select.value="anomaly";
+  }
+  return mode;
+}
+function regionalMapAvailableYears(){
+  if(!monthlyData.length)return [];
+  const param=regionalMapParam(),selection=regionalMapSelection();
+  const rows=areaRows("Deutschland");
+  const years=[...new Set(rows.map(item=>Number(item.date.slice(0,4))))].filter(Number.isFinite).sort((a,b)=>a-b);
+  return years.filter(year=>Number.isFinite(aggregatePeriod(rows,year,selection,param)));
+}
+function populateRegionalMapYears({preserve=true}={}){
+  const select=document.getElementById("regionalMapYearSelect");if(!select)return;
+  const previous=Number(select.value);const years=regionalMapAvailableYears();select.innerHTML="";
+  years.forEach(year=>{const option=document.createElement("option");option.value=year;option.textContent=year;select.appendChild(option);});
+  if(!years.length)return;
+  select.value=preserve&&years.includes(previous)?String(previous):String(years[years.length-1]);
+}
+function regionalMapAreaForState(name){
+  const preferred=REGIONAL_MAP_STATE_AREA[name]||name;
+  const areas=new Set(availableAreas());
+  if(areas.has(name))return name;
+  if(areas.has(preferred))return preferred;
+  return null;
+}
+function regionalMapReferenceValue(area,param,selection,reference){
+  if(!area)return null;
+  return monthlyReferenceMean(seriesFor(area,selection,param),reference);
+}
+function regionalMapRecord(area,year,param,selection,reference){
+  if(!area)return {value:null,reference:null,anomaly:null,percent:null};
+  const value=aggregatePeriod(areaRows(area),year,selection,param);
+  const ref=regionalMapReferenceValue(area,param,selection,reference);
+  return {
+    value:Number.isFinite(value)?value:null,
+    reference:Number.isFinite(ref)?ref:null,
+    anomaly:Number.isFinite(value)&&Number.isFinite(ref)?value-ref:null,
+    percent:Number.isFinite(value)&&Number.isFinite(ref)&&ref!==0?value/ref*100:null
+  };
+}
+function regionalMapMetric(record,mode){
+  if(mode==="absolute")return record.value;
+  if(mode==="percent")return record.percent;
+  return record.anomaly;
+}
+function regionalMapMetricLabel(param,mode){
+  if(mode==="absolute")return `${PARAM_META[param].label} (${param==="rain"?"l/m²":PARAM_META[param].unit})`;
+  if(mode==="percent")return "Vom Mittel (%)";
+  return `Abweichung (${param==="rain"?"l/m²":PARAM_META[param].unit})`;
+}
+function regionalMapMetricText(value,param,mode){
+  if(!Number.isFinite(value))return "–";
+  const sign=mode==="anomaly"&&value>0?"+":"";
+  if(mode==="percent")return `${Math.round(value)} %`;
+  if(param==="temp")return `${sign}${value.toFixed(mode==="absolute"?1:1).replace(".",",")} °C`;
+  const unit=param==="rain"?"l/m²":"h";
+  return `${sign}${value.toFixed(1).replace(".",",")} ${unit}`;
+}
+function regionalMapScale(values,param,mode){
+  const finite=values.filter(Number.isFinite);if(!finite.length)return {color:()=>"#e5e7eb",legend:[]};
+  if(mode==="anomaly"){
+    const abs=Math.max(...finite.map(v=>Math.abs(v)),param==="temp"?.5:1);
+    const stops=[-abs,-abs*.66,-abs*.33,0,abs*.33,abs*.66,abs];
+    const colors=param==="temp"?["#313695","#74add1","#d7eef5","#f7f7f7","#fdae61","#ef6548","#a50026"]:["#8c510a","#bf812d","#dfc27d","#f5f5f5","#80cdc1","#35978f","#01665e"];
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    const legend=stops.map((v,i)=>({value:v,color:colors[i]}));return {color,legend};
+  }
+  if(mode==="percent"){
+    const stops=[0,50,75,90,100,110,125,150];const colors=["#8c510a","#bf812d","#dfc27d","#f6e8c3","#d1e5f0","#92c5de","#4393c3","#2166ac"];
+    const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";let i=0;while(i<stops.length-1&&v>=stops[i+1])i++;return colors[Math.min(i,colors.length-1)];};
+    return {color,legend:stops.map((v,i)=>({value:v,color:colors[i]}))};
+  }
+  const min=Math.min(...finite),max=Math.max(...finite),range=max-min||1;const colors=REGIONAL_MAP_COLORS.low;
+  const color=v=>{if(!Number.isFinite(v))return "#e5e7eb";const t=Math.max(0,Math.min(.999,(v-min)/range));return colors[Math.min(colors.length-1,Math.floor(t*colors.length))];};
+  return {color,legend:colors.map((c,i)=>({value:min+range*i/(colors.length-1),color:c}))};
+}
+function renderRegionalMapLegend(scale,param,mode){
+  const el=document.getElementById("regionalMapLegend");if(!el)return;
+  const items=scale.legend.map(item=>`<span class="regional-map-legend-item"><span class="regional-map-legend-swatch" style="background:${item.color}"></span>${regionalMapMetricText(item.value,param,mode)}</span>`);
+  items.push('<span class="regional-map-legend-item"><span class="regional-map-legend-swatch" style="background:#e5e7eb"></span>keine Daten</span>');
+  el.innerHTML=items.join("");
+}
+function regionalMapLoadGeoJson(){
+  if(regionalMapGeoJson)return Promise.resolve(regionalMapGeoJson);
+  if(regionalMapGeoPromise)return regionalMapGeoPromise;
+  regionalMapGeoPromise=fetch(CURRENT_MAP_BOUNDARY_URL,{cache:"force-cache"}).then(r=>{if(!r.ok)throw new Error(`Bundesländergrenzen HTTP ${r.status}`);return r.json();}).then(data=>regionalMapGeoJson=data).finally(()=>regionalMapGeoPromise=null);
+  return regionalMapGeoPromise;
+}
+function initRegionalMap(){
+  const container=document.getElementById("regionalMap");if(!container||typeof L==="undefined")return false;
+  if(regionalMap)return true;
+  regionalMap=L.map(container,{zoomControl:true,attributionControl:false,minZoom:5,maxZoom:9,scrollWheelZoom:false}).setView([51.15,10.3],6);
+  return true;
+}
+function regionalMapTooltip(name,area,record,param,mode,reference,year){
+  const combined=area&&area!==name?`<div class="muted">DWD-Gebiet: ${area}</div>`:"";
+  return `<div class="regional-map-tooltip"><strong>${name}</strong>${combined}<div>${periodLabel(regionalMapSelection())} ${year}</div><hr style="border:0;border-top:1px solid #e4e7e9;margin:6px 0"><div>Wert: <b>${regionalMapMetricText(record.value,param,"absolute")}</b></div><div>Mittel ${reference.label}: <b>${regionalMapMetricText(record.reference,param,"absolute")}</b></div><div>Abweichung: <b>${regionalMapMetricText(record.anomaly,param,"anomaly")}</b></div>${param!=="temp"?`<div>Vom Mittel: <b>${regionalMapMetricText(record.percent,param,"percent")}</b></div>`:""}</div>`;
+}
+function updateRegionalMap(){
+  if(!monthlyData.length)return;
+  const yearSelect=document.getElementById("regionalMapYearSelect");if(!yearSelect)return;
+  if(!yearSelect.options.length)populateRegionalMapYears({preserve:false});
+  const year=Number(yearSelect.value);if(!Number.isFinite(year))return;
+  const param=regionalMapParam(),selection=regionalMapSelection(),reference=monthlyReferencePeriod(),mode=regionalMapMode();
+  const modeSelect=document.getElementById("regionalMapModeSelect");
+  if(modeSelect){[...modeSelect.options].forEach(o=>{o.disabled=param==="temp"&&o.value==="percent";});}
+  document.getElementById("regionalMapReference").textContent=reference.label;
+  document.getElementById("regionalMapReferenceDetail").textContent=`${periodLabel(selection)} · ${PARAM_META[param].label}`;
+  const states=["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen"];
+  const byState=new Map();
+  states.forEach(name=>{const area=regionalMapAreaForState(name);byState.set(name,{area,...regionalMapRecord(area,year,param,selection,reference)});});
+  const values=[...byState.values()].map(r=>regionalMapMetric(r,mode)).filter(Number.isFinite);const scale=regionalMapScale(values,param,mode);
+  renderRegionalMapLegend(scale,param,mode);
+  const germany=regionalMapRecord("Deutschland",year,param,selection,reference);const germanyMetric=regionalMapMetric(germany,mode);
+  document.getElementById("regionalMapGermany").textContent=regionalMapMetricText(germanyMetric,param,mode);
+  document.getElementById("regionalMapGermanyDetail").textContent=`${periodLabel(selection)} ${year}`;
+  const ranked=states.map(name=>({name,value:regionalMapMetric(byState.get(name),mode)})).filter(x=>Number.isFinite(x.value)).sort((a,b)=>b.value-a.value);
+  const high=ranked[0],low=ranked[ranked.length-1];
+  document.getElementById("regionalMapHigh").textContent=high?regionalMapMetricText(high.value,param,mode):"–";
+  document.getElementById("regionalMapHighDetail").textContent=high?.name||"–";
+  document.getElementById("regionalMapLow").textContent=low?regionalMapMetricText(low.value,param,mode):"–";
+  document.getElementById("regionalMapLowDetail").textContent=low?.name||"–";
+  regionalMapLoadGeoJson().then(geo=>{
+    if(!initRegionalMap())return;
+    if(regionalMapLayer){regionalMap.removeLayer(regionalMapLayer);regionalMapLayer=null;}
+    const labels=document.getElementById("regionalMapLabelsToggle")?.checked!==false;
+    regionalMapLayer=L.geoJSON(geo,{
+      style:feature=>{const name=feature?.properties?.name;const record=byState.get(name);const value=record?regionalMapMetric(record,mode):null;return {color:"#ffffff",weight:1.7,fillColor:scale.color(value),fillOpacity:Number.isFinite(value)?.9:.5};},
+      onEachFeature:(feature,layer)=>{
+        const name=feature?.properties?.name||"Bundesland";const record=byState.get(name)||{area:null,value:null,reference:null,anomaly:null,percent:null};const metric=regionalMapMetric(record,mode);
+        const hoverHtml=regionalMapTooltip(name,record.area,record,param,mode,reference,year);
+        if(labels&&Number.isFinite(metric))layer.bindTooltip(`${REGIONAL_MAP_STATE_SHORT[name]||""}<br>${regionalMapMetricText(metric,param,mode)}`,{permanent:true,direction:"center",className:"regional-map-value-label",interactive:false});
+        layer.on({
+          mouseover:e=>{
+            e.target.setStyle({weight:2.7,color:"#263238",fillOpacity:1});
+            if(regionalMapHoverTooltip)regionalMap.removeLayer(regionalMapHoverTooltip);
+            regionalMapHoverTooltip=L.tooltip({direction:"top",offset:[0,-7],opacity:.98,className:"regional-map-hover-tooltip"}).setLatLng(e.latlng).setContent(hoverHtml).addTo(regionalMap);
+          },
+          mousemove:e=>{if(regionalMapHoverTooltip)regionalMapHoverTooltip.setLatLng(e.latlng);},
+          mouseout:e=>{regionalMapLayer?.resetStyle(e.target);if(regionalMapHoverTooltip){regionalMap.removeLayer(regionalMapHoverTooltip);regionalMapHoverTooltip=null;}},
+          click:()=>{const area=record.area;if(area&&[...document.getElementById("monthlyAreaSelect").options].some(o=>o.value===area)){document.getElementById("monthlyAreaSelect").value=area;synchronizeArea("monthlyAreaSelect");updateMonthly();updateMonthlyAnomalyTable();updateClimateIndex();updateAccumulation();}}
+        });
+      }
+    }).addTo(regionalMap);
+    regionalMap.fitBounds(regionalMapLayer.getBounds(),{padding:[12,12],animate:false});
+    window.setTimeout(()=>regionalMap.invalidateSize(),50);
+  }).catch(error=>{const mapEl=document.getElementById("regionalMap");if(mapEl)mapEl.innerHTML=`<div class="regional-map-no-data">Deutschlandkarte konnte nicht geladen werden: ${error.message}</div>`;});
+  const note=document.getElementById("regionalMapNote");if(note)note.textContent=`${regionalMapMetricLabel(param,mode)} · ${periodLabel(selection)} ${year} · Referenz ${reference.label}. Berlin nutzt Brandenburg/Berlin; Hamburg und Bremen Niedersachsen/Hamburg/Bremen, sofern keine eigenen DWD-Gebietsspalten vorliegen. Klick auf ein Bundesland übernimmt das zugehörige DWD-Gebiet in die Diagramme.`;
 }
 
 function resetMonthlyZoom(){if(monthlyChart) monthlyChart.resetZoom();}
@@ -2686,12 +2925,15 @@ document.getElementById("indexAreaSelect").addEventListener("change",()=>{
 document.getElementById("accAreaSelect").addEventListener("change",()=>{
   synchronizeArea("accAreaSelect"); updateMonthly(); updateMonthlyAnomalyTable(); updateClimateIndex(); updateAccumulation();
 });
-document.getElementById("paramSelect").addEventListener("change",()=>{updateMonthly();updateMonthlyAnomalyTable();});
-document.getElementById("monthSelect").addEventListener("change",updateMonthly);
-document.getElementById("monthlyReferenceSelect").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
-document.getElementById("monthlyReferenceStart").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
+document.getElementById("paramSelect").addEventListener("change",()=>{updateMonthly();updateMonthlyAnomalyTable();populateRegionalMapYears();updateRegionalMap();});
+document.getElementById("monthSelect").addEventListener("change",()=>{updateMonthly();populateRegionalMapYears();updateRegionalMap();});
+document.getElementById("monthlyReferenceSelect").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();updateRegionalMap();});
+document.getElementById("monthlyReferenceStart").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();updateRegionalMap();});
 document.getElementById("monthlyRollingSelect").addEventListener("change",()=>{updateMonthlyRollingUi();updateMonthly();});
 document.getElementById("monthlyRollingYears").addEventListener("change",()=>{updateMonthlyRollingUi();updateMonthly();});
+document.getElementById("regionalMapYearSelect").addEventListener("change",updateRegionalMap);
+document.getElementById("regionalMapModeSelect").addEventListener("change",updateRegionalMap);
+document.getElementById("regionalMapLabelsToggle").addEventListener("change",updateRegionalMap);
 document.getElementById("indexPeriodSelect").addEventListener("change",updateClimateIndex);
 document.getElementById("indexLabelsToggle").addEventListener("change",updateClimateIndex);
 document.getElementById("accParamSelect").addEventListener("change",updateAccumulation);
