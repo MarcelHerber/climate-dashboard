@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 5
+STATE_VERSION = 6
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -148,6 +148,7 @@ class StationProfile:
     history_years: int
     reference_years: int
     file: str
+    longest_runs: dict[str, dict[str, Any] | None]
 
 
 def atomic_write_json_compact(path: Path, data: Any) -> None:
@@ -220,6 +221,156 @@ def metric_occurs(specification: dict[str, Any], tx: float | None, tn: float | N
     return value >= threshold
 
 
+def _run_sort_key(run: dict[str, Any]) -> tuple[Any, ...]:
+    return (-int(run["duration"]), str(run["start"]), str(run["end"]))
+
+
+def _push_top_run(
+    result: dict[str, list[dict[str, Any]]],
+    metric: str,
+    start: date,
+    end: date,
+    *,
+    preliminary: bool,
+    ongoing: bool = False,
+    limit: int = 5,
+) -> None:
+    duration = (end - start).days + 1
+    if duration <= 0:
+        return
+    run = {
+        "duration": duration,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "preliminary": bool(preliminary),
+        "ongoing": bool(ongoing),
+    }
+    rows = result.setdefault(metric, [])
+    key = (run["start"], run["end"], run["duration"])
+    existing = {(row["start"], row["end"], row["duration"]): row for row in rows}
+    if key in existing:
+        # Bei identischem Zeitraum hat die qualitätsgeprüfte historische Serie Vorrang.
+        if existing[key].get("preliminary") and not preliminary:
+            rows.remove(existing[key])
+            rows.append(run)
+    else:
+        rows.append(run)
+    rows.sort(key=_run_sort_key)
+    del rows[limit:]
+
+
+def longest_runs_from_observations(observations, limit: int = 5) -> dict[str, list[dict[str, Any]]]:
+    """Ermittelt echte kalendertägliche Serien aus historischen Beobachtungen.
+
+    Monats- und Jahresgrenzen werden nicht getrennt. Ein fehlender für die jeweilige
+    Metrik benötigter Tageswert unterbricht die Serie. Der 29. Februar zählt als
+    normaler Kalendertag und wird hier bewusst *nicht* entfernt.
+    """
+    daily: dict[date, tuple[float | None, float | None]] = {}
+    for observation in observations:
+        daily[observation.day] = observation_temperatures(observation)
+
+    result: dict[str, list[dict[str, Any]]] = {item["id"]: [] for item in CLIMATE_DAYS}
+    active: dict[str, tuple[date, date] | None] = {item["id"]: None for item in CLIMATE_DAYS}
+
+    def finish(metric: str) -> None:
+        run = active.get(metric)
+        if run is None:
+            return
+        _push_top_run(result, metric, run[0], run[1], preliminary=False, limit=limit)
+        active[metric] = None
+
+    previous_day: date | None = None
+    for day in sorted(daily):
+        if previous_day is not None and day != previous_day + timedelta(days=1):
+            for specification in CLIMATE_DAYS:
+                finish(specification["id"])
+
+        tx, tn = daily[day]
+        for specification in CLIMATE_DAYS:
+            metric = specification["id"]
+            occurs = metric_occurs(specification, tx, tn)
+            if occurs is True:
+                run = active.get(metric)
+                active[metric] = (day, day) if run is None else (run[0], day)
+            else:
+                # False ebenso wie None (fehlender relevanter Wert) beendet eine Serie.
+                finish(metric)
+        previous_day = day
+
+    for specification in CLIMATE_DAYS:
+        finish(specification["id"])
+    return result
+
+
+def longest_runs_from_current_values(
+    values: dict[date, tuple[int, int, int | None, int | None, int | None]],
+    data_through: date,
+    current_year: int,
+    limit: int = 5,
+) -> dict[str, list[dict[str, Any]]]:
+    result: dict[str, list[dict[str, Any]]] = {item["id"]: [] for item in CLIMATE_DAYS}
+    active: dict[str, tuple[date, date] | None] = {item["id"]: None for item in CLIMATE_DAYS}
+
+    def finish(metric: str) -> None:
+        run = active.get(metric)
+        if run is None:
+            return
+        # Reine Vorjahres-Serien sind bereits im historischen Profil enthalten. Relevant
+        # ist hier nur eine Serie, die in das aktuelle Jahr hineinreicht.
+        if run[1].year >= current_year:
+            _push_top_run(
+                result,
+                metric,
+                run[0],
+                run[1],
+                preliminary=True,
+                ongoing=(run[1] == data_through),
+                limit=limit,
+            )
+        active[metric] = None
+
+    previous_day: date | None = None
+    for day in sorted(day for day in values if day <= data_through):
+        if previous_day is not None and day != previous_day + timedelta(days=1):
+            for specification in CLIMATE_DAYS:
+                finish(specification["id"])
+
+        pair = values[day]
+        event_mask = int(pair[0])
+        valid_mask = int(pair[1])
+        for specification in CLIMATE_DAYS:
+            metric = specification["id"]
+            bit = 1 << int(specification["bit"])
+            occurs = bool(valid_mask & bit) and bool(event_mask & bit)
+            if occurs:
+                run = active.get(metric)
+                active[metric] = (day, day) if run is None else (run[0], day)
+            else:
+                finish(metric)
+        previous_day = day
+
+    for specification in CLIMATE_DAYS:
+        finish(specification["id"])
+    return result
+
+
+def merge_run_lists(
+    historical: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    merged: dict[tuple[str, str, int], dict[str, Any]] = {}
+    for run in [*historical, *current]:
+        key = (str(run["start"]), str(run["end"]), int(run["duration"]))
+        previous = merged.get(key)
+        if previous is None or (previous.get("preliminary") and not run.get("preliminary")):
+            merged[key] = dict(run)
+    rows = list(merged.values())
+    rows.sort(key=_run_sort_key)
+    return rows[:limit]
+
+
 def observation_temperatures(observation) -> tuple[float | None, float | None]:
     tx = observation.values.get("txk_high")
     tn = observation.values.get("tnk_low")
@@ -250,6 +401,7 @@ def build_profile_payload(
     historical_event_days: dict[str, dict[int, list[int]]] = {
         item["id"]: defaultdict(list) for item in CLIMATE_DAYS
     }
+    historical_longest_runs = longest_runs_from_observations(observations, limit=5)
     observed_years: set[int] = set()
     daily_tx_record_max: list[float | None] = [None] * 365
     daily_tn_record_min: list[float | None] = [None] * 365
@@ -388,6 +540,10 @@ def build_profile_payload(
         history_years=len(years),
         reference_years=len(reference_years),
         file=f"station_climate_days_profiles/{station_id}.json",
+        longest_runs={
+            metric: (rows[0] if rows else None)
+            for metric, rows in historical_longest_runs.items()
+        },
     )
     payload = {
         "station_id": station_id,
@@ -407,6 +563,11 @@ def build_profile_payload(
         "climate_mean_cumulative": climate_mean_cumulative,
         "historical_event_days": historical_event_days_payload,
         "historical_curve_encoding": "non_leap_day_indices_v1",
+        "longest_runs": historical_longest_runs,
+        "streak_rule": (
+            "Kalendertägliche Folgen ohne Schnitt an Monats- oder Jahresgrenzen; fehlende relevante "
+            "Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Kalendertag."
+        ),
         "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
         "temperature_reference_daily_mean": temperature_reference_daily_mean,
         "temperature_extremes": temperature_extremes,
@@ -540,6 +701,17 @@ def load_profiles_from_index(root: Path) -> list[StationProfile]:
                 history_years=item["history_years"],
                 reference_years=item.get("reference_years", 0),
                 file=item["file"],
+                longest_runs={
+                    metric["id"]: (
+                        dict(((item.get("historical_longest_runs") or item.get("longest_runs") or {}).get(metric["id"])))
+                        if isinstance(
+                            (item.get("historical_longest_runs") or item.get("longest_runs") or {}).get(metric["id"]),
+                            dict,
+                        )
+                        else None
+                    )
+                    for metric in CLIMATE_DAYS
+                },
             )
         )
     return profiles
@@ -795,11 +967,26 @@ def build_index(
     current_status: dict[str, Any],
     current_files: list[str],
     historical_state: dict[str, Any],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
 ) -> dict[str, Any]:
     states = sorted({profile.state for profile in profiles if profile.state})
-    map_summaries = build_map_summaries(
-        root, profiles, date.fromisoformat(current_status["data_through"]), current_files
-    )
+    data_through = date.fromisoformat(current_status["data_through"])
+    map_summaries = build_map_summaries(root, profiles, data_through, current_files)
+
+    longest_by_station: dict[str, dict[str, dict[str, Any] | None]] = {}
+    for profile in profiles:
+        current_runs = longest_runs_from_current_values(
+            values_by_station.get(profile.station_id, {}), data_through, current_year, limit=5
+        )
+        merged_metrics: dict[str, dict[str, Any] | None] = {}
+        for specification in CLIMATE_DAYS:
+            metric = specification["id"]
+            historical_best = profile.longest_runs.get(metric)
+            historical_rows = [historical_best] if historical_best else []
+            merged = merge_run_lists(historical_rows, current_runs.get(metric, []), limit=5)
+            merged_metrics[metric] = merged[0] if merged else None
+        longest_by_station[profile.station_id] = merged_metrics
+
     index = {
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -815,6 +1002,10 @@ def build_index(
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
             "Heißer Tag; Wüstentag entspricht dem DWD-Begriff Sehr heißer Tag."
+        ),
+        "streak_rule": (
+            "Kenntage-Serien laufen über Monats- und Jahresgrenzen weiter. Fehlende für die jeweilige "
+            "Metrik relevante Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Tag."
         ),
         "climate_days": [dict(item) for item in CLIMATE_DAYS],
         "periods": PERIODS,
@@ -834,6 +1025,8 @@ def build_index(
                 "reference_years": profile.reference_years,
                 "file": profile.file,
                 "map": map_summaries.get(profile.station_id, {}),
+                "historical_longest_runs": profile.longest_runs,
+                "longest_runs": longest_by_station.get(profile.station_id, {}),
             }
             for profile in profiles
         ],
@@ -879,7 +1072,7 @@ def update_station_climate_days(
         filename for filename in recent_files
         if station_id_from_filename(filename) in profile_ids
     ]
-    start_date = date(current_year - 1, 12, 1)
+    start_date = date(current_year - 1, 1, 1)
     values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]] = {}
     errors: list[str] = []
 
@@ -912,6 +1105,7 @@ def update_station_climate_days(
         current_status,
         current_files,
         historical_state,
+        values_by_station,
     )
 
     return {
