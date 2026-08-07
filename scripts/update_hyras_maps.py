@@ -24,7 +24,7 @@ DAILY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/dail
 MONTHLY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/hyras_de/precipitation"
 CLIM_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation"
 BOUNDARY_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
-USER_AGENT = "climate-dashboard-hyras/15.3.2 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-hyras/15.4 (+GitHub Actions; DWD Open Data)"
 
 MONTH_ABBR = {1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MONTH_DE = {1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"}
@@ -384,9 +384,21 @@ def render_period(
     outputs = period_output_names(key, reference is not None)
     plot_map(current, out / outputs["sum"], f"HYRAS-Niederschlag · {title_label}", f"Niederschlagssumme · {subtitle_period}", sum_cmap, sum_norm, "Niederschlag (l/m²)", geojson, data_crs)
 
+    # Native 1-km values for browser rendering + mouseover.
+    current_web, current_x, current_y = sample_2d_for_web(current, 1)
+    interactive_current = f"interactive/presets/{key}_current.png"
+    encode_precip_png(current_web, out / interactive_current)
+    interactive: dict[str, Any] = {"current": interactive_current, "value_scale": 10}
+
     stats: dict[str, float | None]
     if reference is not None:
         current, reference = xr.align(current, reference, join="exact")
+        reference_web, ref_x, ref_y = sample_2d_for_web(reference, 1)
+        if reference_web.shape != current_web.shape or not np.allclose(ref_x, current_x) or not np.allclose(ref_y, current_y):
+            raise RuntimeError(f"Interaktives Referenzraster passt nicht zu {key}")
+        interactive_reference = f"interactive/presets/{key}_reference.png"
+        encode_precip_png(reference_web, out / interactive_reference)
+        interactive["reference"] = interactive_reference
         pct = xr.where(reference > 0.1, current / reference * 100.0, np.nan)
         anom = current - reference
         plot_map(pct, out / outputs["percent"], f"HYRAS-Niederschlag · {title_label}", f"Prozent des Mittels 1991–2020 · {subtitle_period}", pct_cmap, pct_norm, "% von 1991–2020", geojson, data_crs)
@@ -414,6 +426,7 @@ def render_period(
         "reference_exact": reference is not None,
         "reference_note": reference_note,
         "outputs": outputs,
+        "interactive": interactive,
         "stats": stats,
         "climatology_source_files": source_files,
     }
@@ -424,6 +437,25 @@ def spatial_dim_names(da: xr.DataArray) -> tuple[str, str]:
     x_name = next((d for d in da.dims if d.lower() in {"x", "lon", "longitude", "rlon"}), da.dims[-1])
     y_name = next((d for d in da.dims if d.lower() in {"y", "lat", "latitude", "rlat"}), da.dims[-2])
     return y_name, x_name
+
+
+def sample_2d_for_web(da: xr.DataArray, factor: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Sample a 2D HYRAS field and orient it north-up / west-left for browser use."""
+    da = squeeze_2d(da)
+    y_name, x_name = spatial_dim_names(da)
+    sampled = da.isel({y_name: slice(None, None, factor), x_name: slice(None, None, factor)}).transpose(y_name, x_name)
+    values = np.asarray(sampled.values, dtype=np.float32)
+    x = np.asarray(sampled[x_name].values, dtype=float)
+    y = np.asarray(sampled[y_name].values, dtype=float)
+    values[~np.isfinite(values)] = np.nan
+    values[values < 0] = np.nan
+    if len(x) > 1 and x[0] > x[-1]:
+        x = x[::-1]
+        values = values[:, ::-1]
+    if len(y) > 1 and y[0] < y[-1]:
+        y = y[::-1]
+        values = values[::-1, :]
+    return values, x, y
 
 
 def sample_daily_for_web(da: xr.DataArray, factor: int) -> tuple[np.ndarray, list[str], np.ndarray, np.ndarray]:
@@ -587,6 +619,37 @@ def build_boundary_overlay(
     image.save(target, optimize=True)
 
 
+def build_geo_lookup(
+    *, data_crs: CRS, x: np.ndarray, y: np.ndarray, target: Path, stride: int = 20,
+) -> None:
+    """Write a small lon/lat lookup grid for precise browser mouseover without proj4.js."""
+    if len(x) < 2 or len(y) < 2:
+        raise RuntimeError("HYRAS-Raster zu klein für Geo-Lookup")
+    x_idx = list(range(0, len(x), stride))
+    y_idx = list(range(0, len(y), stride))
+    if x_idx[-1] != len(x) - 1:
+        x_idx.append(len(x) - 1)
+    if y_idx[-1] != len(y) - 1:
+        y_idx.append(len(y) - 1)
+    sx = np.asarray([x[i] for i in x_idx], dtype=float)
+    sy = np.asarray([y[i] for i in y_idx], dtype=float)
+    xx, yy = np.meshgrid(sx, sy)
+    transformer = Transformer.from_crs(data_crs, "EPSG:4326", always_xy=True)
+    lon, lat = transformer.transform(xx, yy)
+    payload = {
+        "schema_version": 1,
+        "width": int(len(x)),
+        "height": int(len(y)),
+        "stride": int(stride),
+        "x_indices": x_idx,
+        "y_indices": y_idx,
+        "lon": np.round(np.asarray(lon, dtype=float), 5).tolist(),
+        "lat": np.round(np.asarray(lat, dtype=float), 5).tolist(),
+    }
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
 def build_web_cumulative_package(
     *, daily: xr.DataArray, year: int, data_through: str, factor: int,
     out: Path, work: Path, cache_dir: Path, geojson: dict[str, Any] | None,
@@ -630,6 +693,8 @@ def build_web_cumulative_package(
 
     boundary_rel = "web/boundaries.png"
     build_boundary_overlay(geojson=geojson, data_crs=data_crs, x=x, y=y, target=out / boundary_rel)
+    geo_lookup_rel = "web/geo_lookup.json"
+    build_geo_lookup(data_crs=data_crs, x=x, y=y, target=out / geo_lookup_rel, stride=12)
     manifest = {
         "schema_version": 1,
         "year": year,
@@ -645,6 +710,7 @@ def build_web_cumulative_package(
         "current_files": current_files,
         "reference_files": reference_files,
         "boundary_overlay": boundary_rel,
+        "geo_lookup": geo_lookup_rel,
         "note": "Freie Zeiträume werden tagesgenau gegen die mittlere Tagesniederschlagssumme 1991–2020 verglichen. Für schnelle Browserdarstellung wird jedes fünfte 1-km-HYRAS-Rasterelement verwendet.",
     }
     (out / "hyras_web_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -994,16 +1060,25 @@ def main() -> int:
     # Raster aus dem hyras-data-Branch werden vom Workflow vorab wiederverwendet.
     _sample_vals, _sample_dates, hist_x, hist_y = sample_daily_for_web(daily, max(1, args.historical_factor))
     del _sample_vals, _sample_dates
+    native_boundary_rel = "interactive/boundaries_1km.png"
+    native_geo_rel = "interactive/geo_lookup_1km.json"
+    build_boundary_overlay(geojson=geojson, data_crs=data_crs, x=hist_x, y=hist_y, target=out / native_boundary_rel)
+    build_geo_lookup(data_crs=data_crs, x=hist_x, y=hist_y, target=out / native_geo_rel, stride=20)
     historical_manifest = build_historical_monthly_package(
         out=out, work=work, factor=max(1, args.historical_factor), current_year=args.year,
         expected_x=hist_x, expected_y=hist_y, data_crs=data_crs,
+    )
+    historical_manifest["boundary_overlay"] = native_boundary_rel
+    historical_manifest["geo_lookup"] = native_geo_rel
+    (out / "hyras_historical_manifest.json").write_text(
+        json.dumps(historical_manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
 
     # Default: Sommer-bisher mit exaktem Vergleich, sonst letzter vollständiger Monat.
     default_key = f"{args.year}_summer_so_far_complete" if any(p["key"] == f"{args.year}_summer_so_far_complete" for p in periods) else f"{args.year}_{latest_month:02d}"
 
     metadata = {
-        "schema_version": 6,
+        "schema_version": 7,
         "product": "DWD HYRAS-DE-PR",
         "resolution_km": 1,
         "reference": "1991-2020",
@@ -1020,7 +1095,11 @@ def main() -> int:
         "historical_first_year": historical_manifest["first_year"],
         "historical_last_year": historical_manifest["last_year"],
         "historical_resolution_km": historical_manifest["web_sampling_km"],
-        "note": "Version 15.3.2: historische Monats-, Jahreszeiten- und Jahreskarten ab 1931 werden im nativen 1-km-HYRAS-Raster bereitgestellt. Die freien tagesgenauen Zeiträume bleiben aus Performancegründen separat auf einem kompakteren Webraster.",
+        "interactive": {
+            "boundary_overlay_1km": native_boundary_rel,
+            "geo_lookup_1km": native_geo_rel,
+        },
+        "note": "Version 15.4: Mouseover für aktuelle Presetkarten, historische Karten und freie Zeiträume. Historie und aktuelle Presets nutzen native 1-km-Werte; freie tagesgenaue Zeiträume bleiben auf dem separaten 2-km-Webraster.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
