@@ -775,8 +775,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 <div id="current" class="tab-content">
   <div class="section-header">
     <h2>Aktuelle DWD-Stationswerte</h2>
-    <p>Nahezu aktuelle 10-Minuten-Messwerte aus den DWD-CDC-<code>now</code>-Beständen für Temperatur, Wind, Böen und Niederschlag. Zusatzparameter werden über dieselbe DWD-Stations-ID verknüpft.</p>
-    <span class="section-status">10-Minuten-Auflösung · aktuelle Werte vorläufig · DWD-now wird in Abständen unter einer Stunde aktualisiert</span>
+    <p>Hybrid-Liveansicht: schnelle DWD-SYNOP-Meldungen für Temperatur und Wind werden mit den vollständigen DWD-CDC-10-Minuten-Daten kombiniert. Niederschlag und 24-h-Verläufe bleiben auf dem CDC-Datensatz.</p>
+    <span class="section-status">Fast Live SYNOP + CDC 10-Minuten · aktuelle Werte vorläufig · automatische Aktualisierung</span>
   </div>
 
   <div id="currentLiveBanner" class="current-live-banner">
@@ -1388,6 +1388,8 @@ let currentConditionsChart=null;
 let currentWindChart=null;
 let currentPrecipChart=null;
 let currentLiveIndex=null;
+let currentFastIndex=null;
+let currentFastByStation=new Map();
 let currentLiveProfile=null;
 let currentLiveLoading=null;
 let currentLiveLastFetch=0;
@@ -1397,6 +1399,7 @@ let currentLiveMapBoundaryLayer=null;
 let currentLiveMapBoundaryData=null;
 let currentLiveMapBoundaryPromise=null;
 const CURRENT_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/live-data";
+const CURRENT_FAST_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/fast-live";
 const CURRENT_MAP_BOUNDARY_URL="https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
 let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
@@ -5393,6 +5396,102 @@ async function currentFetchJson(path){
   if(!response.ok) throw new Error(`Live-Datei ${path} nicht erreichbar (${response.status})`);
   return response.json();
 }
+async function currentFetchFastJson(path){
+  const separator=path.includes("?")?"&":"?";
+  const response=await fetch(`${CURRENT_FAST_LIVE_BASE}/${path}${separator}t=${Date.now()}`,{cache:"no-store"});
+  if(!response.ok) throw new Error(`Fast-Live-Datei ${path} nicht erreichbar (${response.status})`);
+  return response.json();
+}
+function currentNewerIso(a,b){
+  if(!a) return b||null;
+  if(!b) return a||null;
+  return new Date(a).getTime()>=new Date(b).getTime()?a:b;
+}
+function currentFastStation(stationId){
+  return currentFastByStation.get(String(stationId||''))||null;
+}
+function currentMergeFastIntoIndex(base,fast){
+  const merged={...base};
+  merged._cdc_latest_measurement_utc=base.latest_measurement_utc||null;
+  merged._cdc_generated_at_utc=base.generated_at_utc||null;
+  if(!fast || !Array.isArray(fast.stations)){
+    merged.fast_live_available=false;
+    return merged;
+  }
+  currentFastByStation=new Map(fast.stations.map(item=>[String(item.station_id||''),item]));
+  merged.stations=(base.stations||[]).map(station=>{
+    const out={...station};
+    const f=currentFastStation(station.id);
+    if(!f) return out;
+    out.fast_live=true;
+    out.fast_live_time_utc=f.time_utc||null;
+    out.fast_live_wmo_id=f.wmo_id||null;
+    out.cdc_latest_utc=station.latest_utc||null;
+    out.cdc_latest_local=station.latest_local||null;
+    out.fast_live_temperature=Number.isFinite(Number(f.temperature_c));
+    out.fast_live_humidity=Number.isFinite(Number(f.humidity_pct));
+    out.fast_live_wind=Number.isFinite(Number(f.wind_speed_ms));
+    out.fast_live_gust=Number.isFinite(Number(f.gust_speed_ms));
+    if(Number.isFinite(Number(f.temperature_c))){
+      out.temperature_c=Number(f.temperature_c);
+      const oldMax=Number(out.today_max_c),oldMin=Number(out.today_min_c),v=Number(f.temperature_c);
+      if(!Number.isFinite(oldMax)||v>oldMax) out.today_max_c=v;
+      if(!Number.isFinite(oldMin)||v<oldMin) out.today_min_c=v;
+    }
+    if(Number.isFinite(Number(f.dewpoint_c))) out.dewpoint_c=Number(f.dewpoint_c);
+    if(Number.isFinite(Number(f.humidity_pct))) out.humidity_pct=Number(f.humidity_pct);
+    if(Number.isFinite(Number(f.pressure_hpa))) out.pressure_hpa=Number(f.pressure_hpa);
+    if(Number.isFinite(Number(f.wind_speed_ms))) out.wind_speed_ms=Number(f.wind_speed_ms);
+    if(Number.isFinite(Number(f.wind_direction_deg))) out.wind_direction_deg=Number(f.wind_direction_deg);
+    if(Number.isFinite(Number(f.gust_speed_ms))) out.gust_speed_ms=Number(f.gust_speed_ms);
+    const mergedLatest=currentNewerIso(out.latest_utc,f.time_utc);
+    if(mergedLatest===f.time_utc){out.latest_utc=f.time_utc;out.latest_local=null;}
+    else out.latest_utc=mergedLatest;
+    return out;
+  });
+  merged.fast_live_available=true;
+  merged.fast_live_station_count=fast.station_count||fast.stations.length;
+  merged.fast_live_latest_measurement_utc=fast.latest_measurement_utc||null;
+  merged.fast_live_generated_at_utc=fast.generated_at_utc||null;
+  merged.latest_measurement_utc=currentNewerIso(base.latest_measurement_utc,fast.latest_measurement_utc);
+  return merged;
+}
+function currentMergeFastProfile(profile){
+  const stationId=profile?.station?.id;
+  const fast=currentFastStation(stationId);
+  if(!fast) return profile;
+  const merged={...profile,latest:{...(profile.latest||{})},today:{...(profile.today||{})},_fast_live:fast};
+  const latest=merged.latest,today=merged.today;
+  const fastTime=fast.time_utc||null;
+  const baseTemperatureTime=latest.temperature_utc||latest.temperature_local||latest.utc||latest.local;
+  const baseWindTime=latest.wind_utc||latest.wind_local||latest.utc||latest.local;
+  const baseGustTime=latest.gust_utc||latest.gust_local||latest.utc||latest.local;
+  const isNewer=(cdcTime)=>{
+    if(!fastTime) return false;
+    if(!cdcTime) return true;
+    return new Date(fastTime).getTime()>new Date(cdcTime).getTime();
+  };
+  if(Number.isFinite(Number(fast.temperature_c)) && isNewer(baseTemperatureTime)){
+    latest.temperature_c=Number(fast.temperature_c);latest.temperature_utc=fastTime;latest.temperature_local=null;latest.temperature_source='synop';
+  }
+  if(Number.isFinite(Number(fast.dewpoint_c)) && isNewer(baseTemperatureTime)){latest.dewpoint_c=Number(fast.dewpoint_c);latest.dewpoint_source='synop';}
+  if(Number.isFinite(Number(fast.humidity_pct)) && isNewer(baseTemperatureTime)){latest.humidity_pct=Number(fast.humidity_pct);latest.humidity_source='synop';}
+  if(Number.isFinite(Number(fast.pressure_hpa)) && isNewer(baseTemperatureTime)){latest.pressure_hpa=Number(fast.pressure_hpa);latest.pressure_source='synop';}
+  if(Number.isFinite(Number(fast.wind_speed_ms)) && isNewer(baseWindTime)){
+    latest.wind_speed_ms=Number(fast.wind_speed_ms);latest.wind_direction_deg=Number.isFinite(Number(fast.wind_direction_deg))?Number(fast.wind_direction_deg):latest.wind_direction_deg;latest.wind_utc=fastTime;latest.wind_local=null;latest.wind_source='synop';
+  }
+  if(Number.isFinite(Number(fast.gust_speed_ms)) && isNewer(baseGustTime)){
+    latest.gust_speed_ms=Number(fast.gust_speed_ms);latest.gust_direction_deg=Number.isFinite(Number(fast.gust_direction_deg))?Number(fast.gust_direction_deg):latest.gust_direction_deg;latest.gust_utc=fastTime;latest.gust_local=null;latest.gust_source='synop';
+  }
+  latest.utc=currentNewerIso(latest.utc,fastTime);
+  const fastDate=fastTime?new Date(fastTime).toLocaleDateString('sv-SE',{timeZone:'Europe/Berlin'}):null;
+  if(fastDate && (!today.date || fastDate===today.date) && Number.isFinite(Number(fast.temperature_c))){
+    const v=Number(fast.temperature_c),mn=Number(today.min_c),mx=Number(today.max_c);
+    if(!Number.isFinite(mn)||v<mn) today.min_c=v;
+    if(!Number.isFinite(mx)||v>mx) today.max_c=v;
+  }
+  return merged;
+}
 const CURRENT_GERMAN_STATES=["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen-Anhalt","Sachsen","Schleswig-Holstein","Thüringen"];
 function currentNormalizeStationMeta(station){
   const normalized={...station};
@@ -5534,14 +5633,30 @@ function currentMapDisplayValue(metric,value){
   const spec=currentMapMetricSpec(metric);
   return Number(value).toLocaleString('de-DE',{minimumFractionDigits:spec.digits,maximumFractionDigits:spec.digits});
 }
-function currentMapAgeMinutes(station){
-  const stamp=station?.latest_utc||station?.latest_local;
+function currentMapMetricTime(station,metric=null){
+  if(!station) return null;
+  if(metric==='precip_10min' || metric==='today_precip') return station.cdc_latest_utc||station.cdc_latest_local||station.latest_utc||station.latest_local||null;
+  if(metric==='temperature' && station.fast_live_temperature) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
+  if(metric==='humidity' && station.fast_live_humidity) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
+  if(metric==='wind' && station.fast_live_wind) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
+  if(metric==='gust' && station.fast_live_gust) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
+  return station.latest_utc||station.latest_local||null;
+}
+function currentMapMetricIsFast(station,metric){
+  if(metric==='temperature') return Boolean(station?.fast_live_temperature);
+  if(metric==='humidity') return Boolean(station?.fast_live_humidity);
+  if(metric==='wind') return Boolean(station?.fast_live_wind);
+  if(metric==='gust') return Boolean(station?.fast_live_gust);
+  return false;
+}
+function currentMapAgeMinutes(station,metric=null){
+  const stamp=currentMapMetricTime(station,metric);
   if(!stamp) return null;
   const age=(Date.now()-new Date(stamp).getTime())/60000;
   return Number.isFinite(age)?Math.max(0,Math.round(age)):null;
 }
-function currentMapAgeText(station){
-  const age=currentMapAgeMinutes(station);
+function currentMapAgeText(station,metric=null){
+  const age=currentMapAgeMinutes(station,metric);
   if(age===null) return 'Datenalter unbekannt';
   if(age<=1) return 'gerade aktualisiert';
   return `${age} min alt`;
@@ -5578,9 +5693,11 @@ function currentMapLabelIcon(metric,value,selected=false,stale=false){
 function currentMapPopupHtml(station,metric,value){
   const spec=currentMapMetricSpec(metric);
   const valueLabel=`${currentMapDisplayValue(metric,value)} ${spec.unit}`;
-  const age=currentMapAgeMinutes(station);
+  const age=currentMapAgeMinutes(station,metric);
   const ageStyle=age!==null&&age>60?'color:#6b7280;font-weight:700':'';
-  return `<strong>${station.name||'Station'} (${station.id})</strong><br>${station.state||''}${Number.isFinite(Number(station.elevation_m))?` · ${Number(station.elevation_m).toLocaleString('de-DE')} m`:''}<br><strong>${spec.label}:</strong> ${valueLabel}<br><span>Messzeitpunkt: ${currentDateTime(station.latest_local||station.latest_utc)}</span><br><span style="${ageStyle}">Datenalter: ${currentMapAgeText(station)}</span>`;
+  const fast=currentMapMetricIsFast(station,metric);
+  const stamp=currentMapMetricTime(station,metric);
+  return `<strong>${station.name||'Station'} (${station.id})</strong><br>${station.state||''}${Number.isFinite(Number(station.elevation_m))?` · ${Number(station.elevation_m).toLocaleString('de-DE')} m`:''}<br><strong>${spec.label}:</strong> ${valueLabel}${fast?' <strong style="color:#0a806a">· Fast Live</strong>':''}<br><span>Messzeitpunkt: ${currentDateTime(stamp)}</span><br><span style="${ageStyle}">Datenalter: ${currentMapAgeText(station,metric)}</span>`;
 }
 function currentMapKeepLabel(point,kept,minDistance){
   return !kept.some(other=>Math.hypot(point.x-other.x,point.y-other.y)<minDistance);
@@ -5640,8 +5757,8 @@ function renderCurrentRanking(metric,candidates){
   tbody.innerHTML=ranked.map((item,index)=>{
     const s=item.station;
     const value=`${currentMapDisplayValue(metric,item.value)} ${spec.unit}`;
-    const time=currentTimeOnly(s.latest_local||s.latest_utc);
-    const stale=currentMapAgeMinutes(s)>60;
+    const time=currentTimeOnly(currentMapMetricTime(s,metric));
+    const stale=currentMapAgeMinutes(s,metric)>60;
     return `<tr data-station-id="${s.id}" class="${s.id===selectedId?'selected':''}"${stale?' style="opacity:.67"':''}><td class="current-ranking-rank">${index+1}</td><td class="current-ranking-station"><strong>${s.name||'Station'}</strong> <span class="note">(${s.id})</span></td><td class="current-ranking-state">${s.state||'–'}</td><td class="current-ranking-value" style="color:${stale?'#6b7280':currentMapColor(metric,item.value)}">${value}</td><td class="current-ranking-time">${time}${stale?' · alt':''}</td></tr>`;
   }).join('');
   tbody.querySelectorAll('tr[data-station-id]').forEach(row=>row.addEventListener('click',()=>{
@@ -5759,7 +5876,7 @@ function renderCurrentMap(){
     const lon=Number(item.station.lon);
     const point=currentLiveMap.latLngToLayerPoint([lat,lon]);
     const selected=item.station.id===selectedId;
-    const stale=(currentMapAgeMinutes(item.station)??0)>60;
+    const stale=(currentMapAgeMinutes(item.station,metric)??0)>60;
     if(minDistance>0 && !selected && !currentMapKeepLabel(point,keptPoints,minDistance)) return;
     keptPoints.push(point);
     const marker=L.marker([lat,lon],{icon:currentMapLabelIcon(metric,item.value,selected,stale),zIndexOffset:selected?1000:(stale?-10:0)});
@@ -5850,25 +5967,37 @@ function renderCurrentLiveStatus(){
   const status=document.getElementById("currentLiveStatus");
   const dot=document.getElementById("currentLiveDot");
   if(!status || !currentLiveIndex) return;
-  const age=currentAgeMinutes(currentLiveIndex.latest_measurement_utc);
-  const latest=currentDateTime(currentLiveIndex.latest_measurement_utc);
-  const generated=currentDateTime(currentLiveIndex.generated_at_utc);
+  const overallAge=currentAgeMinutes(currentLiveIndex.latest_measurement_utc);
+  const cdcLatest=currentLiveIndex._cdc_latest_measurement_utc||currentLiveIndex.latest_measurement_utc;
+  const cdcAge=currentAgeMinutes(cdcLatest);
+  const fastLatest=currentLiveIndex.fast_live_latest_measurement_utc;
+  const fastAge=currentAgeMinutes(fastLatest);
   const counts=currentLiveIndex.availability_counts||{};
-  const extras=currentLiveIndex.schema_version>=2?` · Wind ${counts.wind||0} · Böen ${counts.gust||0} · Niederschlag ${counts.precipitation||0}`:"";
-  status.textContent=`${currentLiveIndex.station_count||0} Temperaturstationen${extras} · letzter Messzeitpunkt ${latest}${age!==null?` · ${age} min alt`:""} · Live-Snapshot ${generated}`;
-  dot.className="current-live-dot"+(age!==null&&age>90?" stale":"");
+  const extras=currentLiveIndex.schema_version>=2?` · CDC: Wind ${counts.wind||0}, Böen ${counts.gust||0}, Niederschlag ${counts.precipitation||0}`:"";
+  if(currentLiveIndex.fast_live_available){
+    status.textContent=`Fast Live SYNOP: ${currentLiveIndex.fast_live_station_count||0} Stationen · ${currentDateTime(fastLatest)}${fastAge!==null?` · ${fastAge} min alt`:""} · CDC-Stand ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras}`;
+  }else{
+    status.textContent=`CDC Live: ${currentLiveIndex.station_count||0} Temperaturstationen · ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras} · Fast Live noch nicht verfügbar`;
+  }
+  dot.className="current-live-dot"+(overallAge!==null&&overallAge>45?" stale":"");
 }
 async function ensureCurrentConditions(force=false){
   const now=Date.now();
   if(currentLiveLoading) return currentLiveLoading;
-  if(!force && currentLiveIndex && now-currentLiveLastFetch<120000){renderCurrentLiveStatus();return;}
+  if(!force && currentLiveIndex && now-currentLiveLastFetch<60000){renderCurrentLiveStatus();return;}
   const status=document.getElementById("currentLiveStatus");
   const dot=document.getElementById("currentLiveDot");
   if(status) status.textContent="Live-Daten werden geprüft …";
   currentLiveLoading=(async()=>{
     try{
-      currentLiveIndex=await currentFetchJson("current_index.json");
-      currentLiveIndex.stations=(currentLiveIndex.stations||[]).map(currentNormalizeStationMeta);
+      const [cdcIndex,fastIndex]=await Promise.all([
+        currentFetchJson("current_index.json"),
+        currentFetchFastJson("fast_current.json").catch(error=>{console.warn("Fast Live SYNOP noch nicht verfügbar:",error);return null;})
+      ]);
+      cdcIndex.stations=(cdcIndex.stations||[]).map(currentNormalizeStationMeta);
+      currentFastIndex=fastIndex;
+      currentFastByStation=new Map((fastIndex?.stations||[]).map(item=>[String(item.station_id||''),item]));
+      currentLiveIndex=currentMergeFastIntoIndex(cdcIndex,fastIndex);
       currentLiveLastFetch=Date.now();
       currentPopulateStates();
       populateCurrentStations(true);
@@ -5898,15 +6027,17 @@ async function loadCurrentStation(stationId){
   }
 }
 function renderCurrentStation(profile){
+  profile=currentMergeFastProfile(profile);
   const station=currentNormalizeStationMeta(profile.station||{});
   const latest=profile.latest||{};
   const today=profile.today||{};
   const availability=profile.availability||{};
   const availableLabels=[availability.wind?"Wind":null,availability.gust?"Böen":null,availability.precipitation?"Niederschlag":null].filter(Boolean);
-  const meta=[station.state,Number.isFinite(Number(station.elevation_m))?`${Number(station.elevation_m).toLocaleString("de-DE")} m`:"",`letzte Messung ${currentDateTime(latest.local||latest.utc)}`,availableLabels.length?`Zusatzdaten: ${availableLabels.join(", ")}`:"keine Zusatzparameter an dieser Stations-ID"].filter(Boolean).join(" · ");
+  const fastInfo=profile._fast_live?.time_utc?`Fast Live SYNOP ${currentTimeOnly(profile._fast_live.time_utc)}`:"";
+  const meta=[station.state,Number.isFinite(Number(station.elevation_m))?`${Number(station.elevation_m).toLocaleString("de-DE")} m`:"",fastInfo||`letzte Messung ${currentDateTime(latest.local||latest.utc)}`,availableLabels.length?`Zusatzdaten: ${availableLabels.join(", ")}`:"keine Zusatzparameter an dieser Stations-ID"].filter(Boolean).join(" · ");
   document.getElementById("currentStationHeading").innerHTML=`<strong>${station.name||"Station"} (${station.id||"–"})</strong><br><span class="note">${meta}</span>`;
   document.getElementById("currentTemp").textContent=currentNum(latest.temperature_c,"°C",1);
-  document.getElementById("currentTempDetail").textContent=`Messzeitpunkt ${currentDateTime(latest.temperature_local||latest.temperature_utc||latest.local||latest.utc)}`;
+  document.getElementById("currentTempDetail").textContent=`${latest.temperature_source==='synop'?'Fast Live SYNOP · ':''}Messzeitpunkt ${currentDateTime(latest.temperature_local||latest.temperature_utc||latest.local||latest.utc)}`;
   document.getElementById("currentMinMax").textContent=`${currentNum(today.min_c,"°C",1)} / ${currentNum(today.max_c,"°C",1)}`;
   document.getElementById("currentMean").textContent=`Minimum / Maximum · Mittel der 10-Min-Werte ${currentNum(today.mean_10min_c,"°C",1)}`;
   document.getElementById("currentHumidity").textContent=currentNum(latest.humidity_pct,"%",0);
@@ -5916,13 +6047,13 @@ function renderCurrentStation(profile){
 
   document.getElementById("currentWind").textContent=currentNum(latest.wind_speed_ms,"m/s",1);
   const windKmh=currentMsToKmh(latest.wind_speed_ms);
-  document.getElementById("currentWindDetail").textContent=Number.isFinite(windKmh)?`${currentNum(windKmh,"km/h",1)} · ${currentDateTime(latest.wind_local||latest.wind_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentWindDetail").textContent=Number.isFinite(windKmh)?`${latest.wind_source==='synop'?'Fast Live SYNOP · ':''}${currentNum(windKmh,"km/h",1)} · ${currentDateTime(latest.wind_local||latest.wind_utc)}`:"an dieser Stations-ID nicht verfügbar";
   const windDir=Number(latest.wind_direction_deg);
   document.getElementById("currentWindDirection").textContent=Number.isFinite(windDir)?`${currentWindCompass(windDir)} · ${Math.round(windDir)}°`:"–";
   document.getElementById("currentWindDirectionDetail").textContent=Number.isFinite(windDir)?"DD_10 · 10-Minuten-Mittel":"an dieser Stations-ID nicht verfügbar";
   document.getElementById("currentGust").textContent=currentNum(latest.gust_speed_ms,"m/s",1);
   const gustKmh=currentMsToKmh(latest.gust_speed_ms);
-  document.getElementById("currentGustDetail").textContent=Number.isFinite(gustKmh)?`${currentNum(gustKmh,"km/h",1)} · Tagesmaximum ${currentNum(today.max_gust_ms,"m/s",1)} · ${currentDateTime(latest.gust_local||latest.gust_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentGustDetail").textContent=Number.isFinite(gustKmh)?`${latest.gust_source==='synop'?'Fast Live SYNOP · ':''}${currentNum(gustKmh,"km/h",1)} · Tagesmaximum ${currentNum(today.max_gust_ms,"m/s",1)} · ${currentDateTime(latest.gust_local||latest.gust_utc)}`:"an dieser Stations-ID nicht verfügbar";
   document.getElementById("currentPrecip").textContent=currentNum(latest.precip_10min_mm,"mm",1);
   document.getElementById("currentPrecipDetail").textContent=latest.precip_10min_mm!==null&&latest.precip_10min_mm!==undefined?`letzte 10 Min · heute ${currentNum(today.precip_sum_mm,"mm",1)} · ${currentDateTime(latest.precipitation_local||latest.precipitation_utc)}`:"an dieser Stations-ID nicht verfügbar";
 
@@ -5998,7 +6129,7 @@ function initCurrentControls(){
   currentMapSetFullscreenButton();
   window.setInterval(()=>{
     if(document.getElementById("current")?.classList.contains("active")) ensureCurrentConditions(true);
-  },5*60*1000);
+  },2*60*1000);
 }
 initCurrentControls();
 
