@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact near-real-time DWD 10-minute station data (v13.2).
+"""Build compact near-real-time DWD 10-minute station data (v13.2.1).
 
 Primary station network:
 - DWD CDC 10-minute air_temperature/now
@@ -31,6 +31,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
+import threading
+import time
 
 TEMP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/now/"
 WIND_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/wind/now/"
@@ -39,13 +41,16 @@ PRECIP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germ
 META_URL = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/historical/zehn_min_tu_Beschreibung_Stationen.txt"
 
 BERLIN = ZoneInfo("Europe/Berlin")
-USER_AGENT = "climate-dashboard-current/13.2 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-current/13.2.1 (+GitHub Actions; DWD Open Data)"
 GERMAN_STATES = sorted([
     "Baden-Württemberg", "Bayern", "Berlin", "Brandenburg", "Bremen", "Hamburg",
     "Hessen", "Mecklenburg-Vorpommern", "Niedersachsen", "Nordrhein-Westfalen",
     "Rheinland-Pfalz", "Saarland", "Sachsen", "Sachsen-Anhalt",
     "Schleswig-Holstein", "Thüringen",
 ], key=len, reverse=True)
+
+LIVE_SCHEMA_VERSION = 3
+AUX_SEMAPHORE = threading.Semaphore(4)
 
 SOURCE_CONFIG = {
     "temperature": {
@@ -85,10 +90,22 @@ SOURCE_CONFIG = {
 }
 
 
-def request_bytes(url: str, timeout: int = 35) -> bytes:
-    response = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
-    response.raise_for_status()
-    return response.content
+def request_bytes(url: str, timeout: int = 35, attempts: int = 5) -> bytes:
+    """HTTP GET with short retries. DWD occasionally throttles many small ZIP requests."""
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            response = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
+            if response.status_code in {429, 500, 502, 503, 504}:
+                raise requests.HTTPError(f"HTTP {response.status_code} for {url}", response=response)
+            response.raise_for_status()
+            return response.content
+        except (requests.RequestException, OSError) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            time.sleep(min(8.0, 0.8 * (2 ** (attempt - 1))))
+    raise RuntimeError(f"DWD-Abruf fehlgeschlagen nach {attempts} Versuchen: {last_error}")
 
 
 def request_text(url: str, timeout: int = 35) -> str:
@@ -223,7 +240,15 @@ def fetch_source_rows(source: str, station_id: str, available: set[str], cutoff:
         return []
     config = SOURCE_CONFIG[source]
     filename = config["filename"].format(id=station_id)
-    raw = request_bytes(config["base"] + filename)
+
+    # Temperature is the primary source. Auxiliary products are deliberately
+    # throttled because the DWD serves hundreds of very small ZIP files and can
+    # temporarily reject a burst of parallel requests.
+    if source == "temperature":
+        raw = request_bytes(config["base"] + filename)
+    else:
+        with AUX_SEMAPHORE:
+            raw = request_bytes(config["base"] + filename)
     rows = parse_product_zip(raw, config["fields"])
     return [row for row in rows if row["dt"] >= cutoff]
 
@@ -234,12 +259,15 @@ def build_station_profile(
     available_files: dict[str, set[str]],
     now_utc: datetime,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    cutoff = now_utc - timedelta(hours=30)
+    temp_cutoff = now_utc - timedelta(hours=30)
+    # Auxiliary DWD now products do not always arrive at the same time as TU.
+    # Keep a wider safety window, while the frontend still plots only 24 h.
+    aux_cutoff = now_utc - timedelta(hours=72)
     source_rows: dict[str, list[dict[str, Any]]] = {}
     source_errors: dict[str, str] = {}
 
     # Temperature is the primary network and must be readable.
-    source_rows["temperature"] = fetch_source_rows("temperature", station_id, available_files["temperature"], cutoff)
+    source_rows["temperature"] = fetch_source_rows("temperature", station_id, available_files["temperature"], temp_cutoff)
     if not source_rows["temperature"]:
         raise RuntimeError("keine Temperatur-Messwerte in den letzten 30 Stunden")
 
@@ -250,7 +278,7 @@ def build_station_profile(
             source_rows[source] = []
             continue
         try:
-            source_rows[source] = fetch_source_rows(source, station_id, available_files[source], cutoff)
+            source_rows[source] = fetch_source_rows(source, station_id, available_files[source], aux_cutoff)
         except Exception as exc:
             source_rows[source] = []
             source_errors[source] = str(exc)[:180]
@@ -372,7 +400,7 @@ def build_station_profile(
     }
 
     profile = {
-        "schema_version": 2,
+        "schema_version": LIVE_SCHEMA_VERSION,
         "station": meta,
         "availability": availability,
         "source_errors": source_errors,
@@ -436,10 +464,13 @@ def main() -> int:
         except Exception:
             old_state = {}
 
-    if not args.force and old_state.get("source_hash") == source_hash and (output / "current_index.json").exists():
+    state_is_current = old_state.get("schema_version") == LIVE_SCHEMA_VERSION
+    if not args.force and state_is_current and old_state.get("source_hash") == source_hash and (output / "current_index.json").exists():
         print("Alle DWD-now-Bestände unverändert – kein neuer Live-Datensatz nötig.")
         set_output("changed", "false")
         return 0
+    if not state_is_current:
+        print(f"Live-Schema wird auf Version {LIVE_SCHEMA_VERSION} aktualisiert – erzwinge einmaligen Neuaufbau.")
 
     metadata = parse_station_metadata(metadata_text)
     temp_station_ids = sorted(available_files["temperature"])
@@ -494,15 +525,33 @@ def main() -> int:
         for source in ("temperature", "wind", "gust", "precipitation")
     }
 
+    # Diagnostic summary is intentionally printed into the Actions log. It makes
+    # it obvious whether a source is missing from the DWD listing or failed while
+    # downloading/parsing.
+    source_error_counts = {source: 0 for source in ("wind", "gust", "precipitation")}
+    source_error_samples: dict[str, list[str]] = {source: [] for source in source_error_counts}
+    for profile in profiles.values():
+        for source, message in (profile.get("source_errors") or {}).items():
+            if source in source_error_counts:
+                source_error_counts[source] += 1
+                if len(source_error_samples[source]) < 3:
+                    source_error_samples[source].append(message)
+    print("Erfolgreich mit Zusatzdaten:", availability_counts)
+    print("Fehler je Zusatzquelle:", source_error_counts)
+    for source, samples in source_error_samples.items():
+        if samples:
+            print(f"  {source} – Beispiel(e): " + " | ".join(samples))
+
     index = {
-        "schema_version": 2,
+        "schema_version": LIVE_SCHEMA_VERSION,
         "generated_at_utc": now_utc.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "latest_measurement_utc": latest_source,
         "station_count": len(stations),
         "failed_station_count": len(failures),
         "availability_counts": availability_counts,
+        "source_error_counts": source_error_counts,
         "source": "DWD CDC 10-minute now: air_temperature + wind + extreme_wind + precipitation",
-        "source_note": "10-Minuten-Messwerte; DWD-now-Produkte werden in Abständen unter einer Stunde aktualisiert; aktuelle Werte sind vorläufig. Zusatzparameter werden über dieselbe Stations-ID verknüpft.",
+        "source_note": "10-Minuten-Messwerte; DWD-now-Produkte werden in Abständen unter einer Stunde aktualisiert; aktuelle Werte sind vorläufig. Zusatzparameter werden über dieselbe Stations-ID verknüpft und können zeitversetzt zum Temperaturprodukt eintreffen.",
         "stations": stations,
         "failures": failures[:50],
     }
@@ -513,7 +562,7 @@ def main() -> int:
         "latest_measurement_utc": latest_source,
         "station_count": len(stations),
         "availability_counts": availability_counts,
-        "schema_version": 2,
+        "schema_version": LIVE_SCHEMA_VERSION,
     })
 
     print(
