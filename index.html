@@ -455,6 +455,21 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <label for="monthlyReferenceStart">Startjahr</label>
       <input id="monthlyReferenceStart" type="number" min="1881" max="1997" step="1" value="1951" inputmode="numeric">
     </div>
+    <div class="control-group">
+      <label for="monthlyRollingSelect">Gleitendes Mittel</label>
+      <select id="monthlyRollingSelect">
+        <option value="0">Aus</option>
+        <option value="5">5 Jahre</option>
+        <option value="10">10 Jahre</option>
+        <option value="20">20 Jahre</option>
+        <option value="30" selected>30 Jahre</option>
+        <option value="custom">Frei …</option>
+      </select>
+    </div>
+    <div id="monthlyRollingCustomGroup" class="control-group" hidden>
+      <label for="monthlyRollingYears">Fensterbreite</label>
+      <input id="monthlyRollingYears" type="number" min="2" max="60" step="1" value="15" inputmode="numeric">
+    </div>
     <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
   </div>
 
@@ -1434,6 +1449,45 @@ function updateMonthlyReferenceUi(){
   return reference;
 }
 
+function monthlyRollingWindow(){
+  const select=document.getElementById("monthlyRollingSelect");
+  if(!select || select.value==="0") return 0;
+  if(select.value==="custom"){
+    let years=Math.round(Number(document.getElementById("monthlyRollingYears")?.value));
+    if(!Number.isFinite(years)) years=15;
+    return Math.max(2,Math.min(60,years));
+  }
+  const years=Number(select.value);
+  return Number.isFinite(years)?years:0;
+}
+
+function updateMonthlyRollingUi(){
+  const custom=document.getElementById("monthlyRollingCustomGroup");
+  if(custom) custom.hidden=document.getElementById("monthlyRollingSelect")?.value!=="custom";
+  return monthlyRollingWindow();
+}
+
+function monthlyRollingSeries(values,windowYears){
+  if(!windowYears) return values.map(()=>null);
+  const byYear=new Map(values.map(item=>[Number(item.year),item.value]));
+  return values.map(item=>{
+    const endYear=Number(item.year);
+    const window=[];
+    for(let year=endYear-windowYears+1;year<=endYear;year++){
+      const value=byYear.get(year);
+      if(!Number.isFinite(value)) return null;
+      window.push(value);
+    }
+    return mean(window);
+  });
+}
+
+function monthlyRollingColor(param){
+  if(param==="rain") return "#2f6f44";
+  if(param==="sun") return "#a86b00";
+  return "#245b7a";
+}
+
 function stdDev(values){
   if(values.length<2) return null;
   const avg=mean(values);
@@ -1833,20 +1887,10 @@ function updateMonthly(){
   const labels=values.map(item=>item.year);
   const dataValues=values.map(item=>item.value);
 
-  // 30-jähriges gleitendes Temperaturmittel. Der Wert eines Jahres
-  // umfasst dieses Jahr und die 29 unmittelbar vorhergehenden Jahre.
-  const valuesByYear=new Map(values.map(item=>[Number(item.year),item.value]));
-  const rollingMean30=labels.map(label=>{
-    if(param!=="temp") return null;
-    const endYear=Number(label);
-    const window=[];
-    for(let year=endYear-29;year<=endYear;year++){
-      const value=valuesByYear.get(year);
-      if(!Number.isFinite(value)) return null;
-      window.push(value);
-    }
-    return mean(window);
-  });
+  // Frei wählbares gleitendes Mittel. Der Wert eines Jahres umfasst dieses Jahr
+  // und die unmittelbar vorhergehenden Jahre innerhalb der gewählten Fensterbreite.
+  const rollingWindow=updateMonthlyRollingUi();
+  const rollingMean=monthlyRollingSeries(values,rollingWindow);
 
   // Bei Temperatur beginnt die y-Achse knapp unter dem niedrigsten Wert,
   // statt unnötig bei 0 °C zu starten.
@@ -1891,11 +1935,11 @@ function updateMonthly(){
           pointRadius:0,
           order:1
         },
-        ...(param==="temp"?[{
+        ...(rollingWindow?[{
           type:"line",
-          label:"30-jähriges gleitendes Mittel",
-          data:rollingMean30,
-          borderColor:"#245b7a",
+          label:`${rollingWindow}-jähriges gleitendes Mittel`,
+          data:rollingMean,
+          borderColor:monthlyRollingColor(param),
           borderDash:[2,5],
           borderWidth:2.5,
           pointRadius:0,
@@ -2307,6 +2351,8 @@ document.getElementById("paramSelect").addEventListener("change",()=>{updateMont
 document.getElementById("monthSelect").addEventListener("change",updateMonthly);
 document.getElementById("monthlyReferenceSelect").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
 document.getElementById("monthlyReferenceStart").addEventListener("change",()=>{updateMonthlyReferenceUi();updateMonthly();updateMonthlyAnomalyTable();});
+document.getElementById("monthlyRollingSelect").addEventListener("change",()=>{updateMonthlyRollingUi();updateMonthly();});
+document.getElementById("monthlyRollingYears").addEventListener("change",()=>{updateMonthlyRollingUi();updateMonthly();});
 document.getElementById("indexPeriodSelect").addEventListener("change",updateClimateIndex);
 document.getElementById("indexLabelsToggle").addEventListener("change",updateClimateIndex);
 document.getElementById("accParamSelect").addEventListener("change",updateAccumulation);
@@ -5237,6 +5283,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.5: flexible Referenzperioden bei Gebietsmitteln -->
+<!-- Dashboard Version 12.6: flexible Referenzperioden und gleitende Mittel bei Gebietsmitteln -->
 </body>
 </html>
