@@ -35,7 +35,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/hyras-reference-cache
-          key: hyras-daily-reference-1991-2020-v6-web5-v1
+          key: hyras-daily-reference-1991-2020-v6-web2-v1
 
       - name: Vorhandenes historisches HYRAS-Paket übernehmen
         run: |
@@ -58,7 +58,7 @@ jobs:
             --output /tmp/hyras-data \
             --work /tmp/hyras-work \
             --reference-cache /tmp/hyras-reference-cache \
-            --web-factor 5
+            --web-factor 2
 
       - name: hyras-data Branch veröffentlichen
         env:
@@ -71,6 +71,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Historie und Zeiträume aktualisieren"
+          git commit -m "HYRAS Historie und Zeiträume aktualisieren (feineres Raster)"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
