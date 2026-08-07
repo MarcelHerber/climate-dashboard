@@ -838,7 +838,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     </div>
     <div class="current-ranking-table-wrap">
       <table class="current-ranking-table" id="currentRankingTable">
-        <thead><tr><th>Platz</th><th>Station</th><th>Bundesland</th><th>Wert</th><th>Messzeitpunkt</th></tr></thead>
+        <thead><tr><th>Platz</th><th>Station (ID)</th><th>Bundesland</th><th>Wert</th><th>Uhrzeit</th></tr></thead>
         <tbody><tr><td colspan="5">Noch keine Live-Daten geladen.</td></tr></tbody>
       </table>
     </div>
@@ -5356,6 +5356,27 @@ async function currentFetchJson(path){
   if(!response.ok) throw new Error(`Live-Datei ${path} nicht erreichbar (${response.status})`);
   return response.json();
 }
+const CURRENT_GERMAN_STATES=["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen-Anhalt","Sachsen","Schleswig-Holstein","Thüringen"];
+function currentNormalizeStationMeta(station){
+  const normalized={...station};
+  let name=String(normalized.name||"").trim().replace(/\s+Frei$/i,"").trim();
+  let state=String(normalized.state||"").trim().replace(/^Frei$/i,"").trim();
+  if(!state){
+    const match=[...CURRENT_GERMAN_STATES].sort((a,b)=>b.length-a.length).find(candidate=>name===candidate||name.endsWith(` ${candidate}`));
+    if(match){
+      state=match;
+      name=name.slice(0,-match.length).trim();
+    }
+  }
+  normalized.name=name||normalized.name||`Station ${normalized.id||""}`;
+  normalized.state=state;
+  return normalized;
+}
+function currentTimeOnly(value){
+  if(!value) return "–";
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?String(value):date.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+}
 function currentFilteredStations(){
   if(!currentLiveIndex) return [];
   const state=document.getElementById("currentStateSelect")?.value||"";
@@ -5477,7 +5498,7 @@ function renderCurrentRanking(metric,candidates){
   tbody.innerHTML=ranked.map((item,index)=>{
     const s=item.station;
     const value=`${currentMapDisplayValue(metric,item.value)} ${spec.unit}`;
-    const time=currentDateTime(s.latest_local||s.latest_utc);
+    const time=currentTimeOnly(s.latest_local||s.latest_utc);
     return `<tr data-station-id="${s.id}" class="${s.id===selectedId?'selected':''}"><td class="current-ranking-rank">${index+1}</td><td class="current-ranking-station"><strong>${s.name||'Station'}</strong> <span class="note">(${s.id})</span></td><td class="current-ranking-state">${s.state||'–'}</td><td class="current-ranking-value" style="color:${currentMapColor(metric,item.value)}">${value}</td><td class="current-ranking-time">${time}</td></tr>`;
   }).join('');
   tbody.querySelectorAll('tr[data-station-id]').forEach(row=>row.addEventListener('click',()=>{
@@ -5589,6 +5610,7 @@ async function ensureCurrentConditions(force=false){
   currentLiveLoading=(async()=>{
     try{
       currentLiveIndex=await currentFetchJson("current_index.json");
+      currentLiveIndex.stations=(currentLiveIndex.stations||[]).map(currentNormalizeStationMeta);
       currentLiveLastFetch=Date.now();
       currentPopulateStates();
       populateCurrentStations(true);
@@ -5617,7 +5639,7 @@ async function loadCurrentStation(stationId){
   }
 }
 function renderCurrentStation(profile){
-  const station=profile.station||{};
+  const station=currentNormalizeStationMeta(profile.station||{});
   const latest=profile.latest||{};
   const today=profile.today||{};
   const availability=profile.availability||{};
