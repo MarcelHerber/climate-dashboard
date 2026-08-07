@@ -15,7 +15,7 @@ concurrency:
 jobs:
   hyras:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: HYRAS-Abhängigkeiten installieren
         run: pip install -r requirements-hyras.txt
 
-      - name: Aktuellste vollständige Monatskarten bauen
+      - name: HYRAS-Zeiträume und Karten bauen
         run: |
           rm -rf /tmp/hyras-data /tmp/hyras-work
           python scripts/update_hyras_maps.py \
@@ -46,6 +46,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Monatskarten aktualisieren"
+          git commit -m "HYRAS Zeitraumkarten aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
