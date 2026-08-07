@@ -372,6 +372,18 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 @media(max-width:850px){.profile-hero{grid-template-columns:1fr}.profile-data-status{text-align:left}.profile-control-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.profile-control-grid{grid-template-columns:1fr}}
 
+
+.profile-section{margin:22px 0}
+.profile-section-heading{display:flex;justify-content:space-between;gap:15px;align-items:end;margin:0 0 12px}.profile-section-heading h2{margin:0}.profile-section-heading .note{margin:0;text-align:right}
+.profile-event-grid{display:grid;grid-template-columns:repeat(2,minmax(280px,1fr));gap:12px}
+.profile-event-card{background:#fff;border:1px solid var(--border);border-top:4px solid var(--metric,#555);border-radius:9px;padding:15px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.profile-event-card h3{margin:0 0 4px;color:var(--metric,#333)}.profile-event-definition{font-size:12px;color:var(--muted);margin-bottom:13px}
+.profile-event-row{display:grid;grid-template-columns:repeat(3,1fr);gap:0;text-align:center}.profile-event-row+ .profile-event-row{border-top:1px solid #e2e5e8;margin-top:12px;padding-top:12px}
+.profile-event-value{font-size:23px;font-weight:800;color:var(--metric,#333)}.profile-event-label{font-size:11px;color:var(--muted);line-height:1.3;margin-top:3px}.profile-event-cell+ .profile-event-cell{border-left:1px solid #e2e5e8}
+.profile-table-scroll{max-height:520px;overflow:auto;border:1px solid var(--border);border-radius:8px}.profile-table-scroll table{margin:0}.profile-table-scroll thead th{position:sticky;top:0;background:#29323a;color:#fff;z-index:2}
+.profile-current-row{background:#e5f5f1;font-weight:700}
+@media(max-width:760px){.profile-event-grid{grid-template-columns:1fr}.profile-event-row{grid-template-columns:1fr 1fr 1fr}.profile-section-heading{align-items:start;flex-direction:column}.profile-section-heading .note{text-align:left}}
+
 </style>
 </head>
 <body>
@@ -745,8 +757,21 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       </div>
     </div>
 
-    <div id="stationProfileStageContent" class="chart-container auto">
-      <div class="profile-placeholder"><strong>Stationsprofil – Grundgerüst.</strong> Die Auswertungskarten und Zeitreihen werden in den folgenden, getrennten Updates ergänzt. So lässt sich jede Erweiterung einzeln testen.</div>
+    <div id="stationProfileStageContent">
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Sommer & Hitze</div><h2>Sommerereignisse</h2></div><p class="note">Oben: bis zum aktuellen Datenstand im Kalender. Unten: Gesamtjahreswerte ohne Hochrechnung.</p></div>
+        <div id="stationProfileSummerCards" class="profile-event-grid"></div>
+      </section>
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Winter</div><h2>Winterereignisse</h2></div></div>
+        <div id="stationProfileWinterCards" class="profile-event-grid"></div>
+      </section>
+      <div class="chart-container"><canvas id="stationProfileSummerAnnualChart"></canvas></div>
+      <div class="chart-container"><canvas id="stationProfileWinterAnnualChart"></canvas></div>
+      <section class="profile-section chart-container auto">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Jahresvergleich</div><h2 id="stationProfileComparisonTitle">Klimaereignisse bis zum Datenstand</h2></div><p class="note">Historische Jahre werden auf denselben Kalendertag begrenzt.</p></div>
+        <div class="profile-table-scroll"><table id="stationProfileComparisonTable"><thead><tr><th>Jahr</th><th>Sommertage</th><th>Hitzetage</th><th>Wüstentage</th><th>≥40 °C</th><th>Tropennächte</th><th>Frosttage</th><th>Eistage</th></tr></thead><tbody></tbody></table></div>
+      </section>
     </div>
   </div>
 </div>
@@ -4725,6 +4750,8 @@ function ensureComparisonMode(){
 let stationProfileInitialized=false;
 let stationProfileProfile=null;
 let stationProfileRequestId=0;
+let stationProfileSummerAnnualChart=null;
+let stationProfileWinterAnnualChart=null;
 
 function stationProfileDistanceKm(a,b){
   if(!Number.isFinite(Number(a?.latitude))||!Number.isFinite(Number(a?.longitude))||!Number.isFinite(Number(b?.latitude))||!Number.isFinite(Number(b?.longitude))) return Infinity;
@@ -4817,6 +4844,91 @@ async function openStationProfileDetail(tab){
   else if(tab==="stationPrecip"){await ensureStationPrecipLoaded();document.getElementById("stationPrecipStateSelect").value="Deutschland";document.getElementById("stationPrecipSearch").value=id;populateStationPrecipStations();if([...document.getElementById("stationPrecipStationSelect").options].some(o=>o.value===id)){document.getElementById("stationPrecipStationSelect").value=id;await updateStationPrecipitation();}}
   switchTab(tab);
 }
+
+// ================= VERSION 12.2: STATIONSPROFIL – KENNTAGE =================
+function stationProfileReferenceYears(){
+  const value=document.getElementById("stationProfileReferenceSelect")?.value||"1991-2020";
+  const [start,end]=value.split("-").map(Number);return {start,end,label:value.replace("-","–")};
+}
+function stationProfileCutoffIndex(){
+  const md=String(stationClimateDaysIndex?.data_through||"").slice(5);
+  const index=(stationClimateDaysIndex?.labels||[]).indexOf(md);return index>=0?index:364;
+}
+function stationProfileMetric(id){return (stationClimateDaysIndex?.climate_days||[]).find(item=>item.id===id);}
+function stationProfileEventDays(metricId){
+  return new Map((stationProfileProfile?.historical_event_days?.[metricId]||[]).map(row=>[Number(row[0]),row[1]||[]]));
+}
+function stationProfileAnnualCount(metricId,year){
+  const row=(stationProfileProfile?.counts?.[metricId]?.year||[]).find(item=>Number(item[0])===Number(year));return row?Number(row[1]):null;
+}
+function stationProfileCountToCutoff(metricId,year,cutoff){
+  const current=Number(stationClimateDaysIndex.current_year);
+  if(Number(year)===current){
+    const metric=stationProfileMetric(metricId);if(!metric)return null;
+    const curve=stationClimateDaysCurrentCumulative(document.getElementById("stationProfileStationSelect").value,metric);
+    const v=curve[cutoff];
+    if(Number.isFinite(v)) return Number(v);
+    for(let i=cutoff;i>=0;i--) if(Number.isFinite(curve[i])) return Number(curve[i]);
+    return 0;
+  }
+  const days=stationProfileEventDays(metricId).get(Number(year));if(!days)return null;
+  return days.filter(index=>Number(index)<=cutoff).length;
+}
+function stationProfileReferenceStats(metricId,cutoff){
+  const ref=stationProfileReferenceYears();const annual=[],toDate=[];
+  for(let year=ref.start;year<=ref.end;year++){
+    const a=stationProfileAnnualCount(metricId,year);const d=stationProfileCountToCutoff(metricId,year,cutoff);
+    if(Number.isFinite(a))annual.push(a);if(Number.isFinite(d))toDate.push(d);
+  }
+  const mean=list=>list.length?list.reduce((a,b)=>a+b,0)/list.length:null;
+  return {annualMean:mean(annual),toDateMean:mean(toDate),years:Math.min(annual.length,toDate.length)};
+}
+function stationProfileHistoricalMax(metricId,cutoff){
+  const current=Number(stationClimateDaysIndex.current_year);let bestDate=null,bestAnnual=null;
+  (stationProfileProfile?.counts?.[metricId]?.year||[]).forEach(row=>{
+    const year=Number(row[0]);if(year===current)return;
+    const annual=Number(row[1]);const td=stationProfileCountToCutoff(metricId,year,cutoff);
+    if(Number.isFinite(td)&&(!bestDate||td>bestDate.value))bestDate={value:td,year};
+    if(Number.isFinite(annual)&&(!bestAnnual||annual>bestAnnual.value))bestAnnual={value:annual,year};
+  });return {toDate:bestDate,annual:bestAnnual};
+}
+function stationProfileEventCard(metricId){
+  const metric=stationProfileMetric(metricId);if(!metric)return "";
+  const selected=Number(document.getElementById("stationProfileYearSelect").value);const current=Number(stationClimateDaysIndex.current_year);const cutoff=stationProfileCutoffIndex();
+  const ref=stationProfileReferenceStats(metricId,cutoff),max=stationProfileHistoricalMax(metricId,cutoff);
+  const selectedToDate=stationProfileCountToCutoff(metricId,selected,cutoff);const selectedAnnual=selected===current?null:stationProfileAnnualCount(metricId,selected);
+  const fmt=value=>Number.isFinite(value)?Number(value).toLocaleString("de-DE",{maximumFractionDigits:1}):"–";
+  return `<article class="profile-event-card" style="--metric:${metric.color||'#555'}"><h3>${metric.label}</h3><div class="profile-event-definition">${metric.definition}</div>
+    <div class="profile-event-row"><div class="profile-event-cell"><div class="profile-event-value">${fmt(ref.toDateMean)}</div><div class="profile-event-label">Durchschnitt bis Datenstand<br>${stationProfileReferenceYears().label}</div></div><div class="profile-event-cell"><div class="profile-event-value">${fmt(selectedToDate)}</div><div class="profile-event-label">Messwert bis Datenstand<br>${selected}</div></div><div class="profile-event-cell"><div class="profile-event-value">${max.toDate?fmt(max.toDate.value):'–'}</div><div class="profile-event-label">Maximum bis Datenstand<br>${max.toDate?.year||'–'}</div></div></div>
+    <div class="profile-event-row"><div class="profile-event-cell"><div class="profile-event-value">${fmt(ref.annualMean)}</div><div class="profile-event-label">Durchschnitt Gesamtjahr<br>${stationProfileReferenceYears().label}</div></div><div class="profile-event-cell"><div class="profile-event-value">${selected===current?fmt(selectedToDate):fmt(selectedAnnual)}</div><div class="profile-event-label">${selected===current?'Bisheriger Stand':'Gesamtjahr'}<br>${selected}</div></div><div class="profile-event-cell"><div class="profile-event-value">${max.annual?fmt(max.annual.value):'–'}</div><div class="profile-event-label">Maximum Gesamtjahr<br>${max.annual?.year||'–'}</div></div></div></article>`;
+}
+function stationProfileRolling(values,windowSize){
+  if(!windowSize)return values.map(()=>null);return values.map((_,index)=>{if(index<windowSize-1)return null;const window=values.slice(index-windowSize+1,index+1).filter(Number.isFinite);return window.length===windowSize?window.reduce((a,b)=>a+b,0)/window.length:null;});
+}
+function stationProfileAnnualSeries(metricId,years){
+  const current=Number(stationClimateDaysIndex.current_year);return years.map(year=>year===current?stationProfileCountToCutoff(metricId,year,stationProfileCutoffIndex()):stationProfileAnnualCount(metricId,year));
+}
+function renderStationProfileAnnualChart(canvasId,group,title,existing){
+  if(existing)existing.destroy();const from=Number(document.getElementById("stationProfileFromSelect").value||0);const current=Number(stationClimateDaysIndex.current_year);const years=[];for(let year=from;year<=current;year++)years.push(year);const rolling=Number(document.getElementById("stationProfileRollingSelect").value||0);const datasets=[];
+  group.forEach(id=>{const metric=stationProfileMetric(id);if(!metric)return;const values=stationProfileAnnualSeries(id,years);datasets.push({label:metric.label,data:values,borderColor:stationClimateDaysHexToRgba(metric.color,.34),backgroundColor:'transparent',borderWidth:1.2,pointRadius:1.2,spanGaps:true,tension:0});if(rolling){datasets.push({label:`${rolling}-Jahres-Mittel · ${metric.label}`,data:stationProfileRolling(values.map((v,i)=>years[i]===current?null:v),rolling),borderColor:metric.color,borderDash:[6,4],borderWidth:2.4,pointRadius:0,spanGaps:true,tension:.15});}});
+  return new Chart(document.getElementById(canvasId),{type:'line',data:{labels:years,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:title,font:{size:18,weight:'bold'}},subtitle:{display:true,text:`Historische Gesamtjahre; ${current} bis Datenstand. Gleitendes Mittel ohne laufendes Jahr.`,color:'#666'},datalabels:{display:false},zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},drag:{enabled:true},mode:'x'}}},scales:{x:{ticks:{maxTicksLimit:18}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Anzahl Tage'}}}}});
+}
+function stationProfileComparisonRows(){
+  const from=Number(document.getElementById("stationProfileFromSelect").value||0),current=Number(stationClimateDaysIndex.current_year),cutoff=stationProfileCutoffIndex();const ids=['summer','hot','desert','extreme_hot','tropical_night','frost','ice'];const rows=[];
+  for(let year=current;year>=from;year--){const values=ids.map(id=>stationProfileCountToCutoff(id,year,cutoff));if(values.some(Number.isFinite))rows.push({year,values});}return rows;
+}
+async function renderStationProfileClimate(){
+  if(!stationProfileProfile||!stationClimateDaysIndex||!document.getElementById('stationProfileSummerCards'))return;
+  await loadStationClimateDaysCurrentMonths();
+  document.getElementById('stationProfileSummerCards').innerHTML=['summer','hot','desert','tropical_night','extreme_hot'].map(stationProfileEventCard).join('');
+  document.getElementById('stationProfileWinterCards').innerHTML=['frost','ice'].map(stationProfileEventCard).join('');
+  stationProfileSummerAnnualChart=renderStationProfileAnnualChart('stationProfileSummerAnnualChart',['summer','hot','desert','tropical_night'],'Sommerereignisse pro Jahr',stationProfileSummerAnnualChart);
+  stationProfileWinterAnnualChart=renderStationProfileAnnualChart('stationProfileWinterAnnualChart',['frost','ice'],'Winterereignisse pro Jahr',stationProfileWinterAnnualChart);
+  const date=dailyGermanDate(stationClimateDaysIndex.data_through,true);document.getElementById('stationProfileComparisonTitle').textContent=`Klimaereignisse bis ${date}`;
+  const tbody=document.querySelector('#stationProfileComparisonTable tbody');tbody.innerHTML=stationProfileComparisonRows().map(row=>`<tr class="${row.year===Number(stationClimateDaysIndex.current_year)?'profile-current-row':''}"><td>${row.year}</td>${row.values.map(value=>`<td>${Number.isFinite(value)?value:'–'}</td>`).join('')}</tr>`).join('');
+  initializeChartExportButtons();
+}
+window.addEventListener('stationprofilechange',()=>renderStationProfileClimate().catch(error=>console.error('Stationsprofil Kenntage:',error)));
 
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
@@ -4956,6 +5068,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.1: Stationsprofil Grundgerüst -->
+<!-- Dashboard Version 12.2: Stationsprofil Kenntage und Jahresvergleich -->
 </body>
 </html>
