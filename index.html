@@ -820,6 +820,17 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
           <option value="declutter">Wertekarte (ausgedünnt)</option>
         </select>
       </div>
+      <div class="control-group">
+        <label for="currentMapClimateDaySelect">Heute bisher</label>
+        <select id="currentMapClimateDaySelect">
+          <option value="all">Alle Stationen</option>
+          <option value="20">Warmer Tag · Tmax ≥ 20 °C</option>
+          <option value="25">Sommertag · Tmax ≥ 25 °C</option>
+          <option value="30">Hitzetag · Tmax ≥ 30 °C</option>
+          <option value="35">Wüstentag · Tmax ≥ 35 °C</option>
+          <option value="40">40-Grad-Tag · Tmax ≥ 40 °C</option>
+        </select>
+      </div>
       <div class="control-group current-map-action-group">
         <label>Ansicht / Export</label>
         <div class="current-map-action-buttons">
@@ -831,7 +842,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     </div>
     <div id="currentMap" class="current-live-map"><div class="current-map-empty">Karte wird geladen …</div></div>
     <div id="currentMapLegend" class="current-map-legend"></div>
-    <p class="note current-map-note">Klick auf einen Stationspunkt übernimmt die Station direkt in den Detailbereich. Dargestellt wird jeweils der jüngste verfügbare Live-Wert der gewählten Größe.</p>
+    <p class="note current-map-note">Klick auf einen Stationswert übernimmt die Station direkt in den Detailbereich. Der Kenntagefilter nutzt das bisherige Tagesmaximum der Station; nach Erreichen einer Schwelle bleibt die Station für den restlichen Tag im Filter.</p>
   </div>
 
   <div class="current-ranking">
@@ -5507,8 +5518,29 @@ function currentMapPopupHtml(station,metric,value){
 function currentMapKeepLabel(point,kept,minDistance){
   return !kept.some(other=>Math.hypot(point.x-other.x,point.y-other.y)<minDistance);
 }
+function currentMapClimateDayThreshold(){
+  const value=document.getElementById('currentMapClimateDaySelect')?.value||'all';
+  if(value==='all') return null;
+  const threshold=Number(value);
+  return Number.isFinite(threshold)?threshold:null;
+}
+function currentMapClimateDayLabel(){
+  const threshold=currentMapClimateDayThreshold();
+  if(threshold===null) return 'alle Stationen';
+  if(threshold===20) return 'Warmer Tag · Tmax ≥ 20 °C';
+  if(threshold===25) return 'Sommertag · Tmax ≥ 25 °C';
+  if(threshold===30) return 'Hitzetag · Tmax ≥ 30 °C';
+  if(threshold===35) return 'Wüstentag · Tmax ≥ 35 °C';
+  if(threshold===40) return '40-Grad-Tag · Tmax ≥ 40 °C';
+  return `Tmax ≥ ${threshold.toLocaleString('de-DE')} °C`;
+}
 function currentMapBuildCandidates(metric){
-  return currentFilteredStations().filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon))).map(station=>({station,value:currentMapMetricValue(station,metric)})).filter(item=>item.value!==null);
+  const threshold=currentMapClimateDayThreshold();
+  return currentFilteredStations()
+    .filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon)))
+    .filter(station=>threshold===null || (Number.isFinite(Number(station.today_max_c)) && Number(station.today_max_c)>=threshold))
+    .map(station=>({station,value:currentMapMetricValue(station,metric)}))
+    .filter(item=>item.value!==null);
 }
 function currentRankingTitle(metric){
   switch(metric){
@@ -5531,7 +5563,9 @@ function renderCurrentRanking(metric,candidates){
   const ranked=[...(candidates||[])].sort((a,b)=>b.value-a.value).slice(0,15);
   if(title) title.textContent=currentRankingTitle(metric);
   const state=document.getElementById('currentStateSelect')?.value||'';
-  if(subtitle) subtitle.textContent=`Top ${ranked.length}${state?` in ${state}`:' in Deutschland'} · Klick auf eine Zeile öffnet die Station.`;
+  const climateFilter=currentMapClimateDayThreshold();
+  const filterText=climateFilter===null?'':` · ${currentMapClimateDayLabel()}`;
+  if(subtitle) subtitle.textContent=`Top ${ranked.length}${state?` in ${state}`:' in Deutschland'}${filterText} · Klick auf eine Zeile öffnet die Station.`;
   if(!ranked.length){
     tbody.innerHTML='<tr><td colspan="5">Für den gewählten Parameter sind keine aktuellen Werte verfügbar.</td></tr>';
     return;
@@ -5610,7 +5644,9 @@ function currentMapUpdateTitle(metric){
   const spec=currentMapMetricSpec(metric);
   const state=document.getElementById('currentStateSelect')?.value||'Deutschland';
   const latest=currentLiveIndex?.latest_measurement_utc?currentDateTime(currentLiveIndex.latest_measurement_utc):'–';
-  overlay.innerHTML=`<strong>${spec.label} · ${state}</strong><span>DWD 10-Minuten-Livedaten · Stand ${latest}</span>`;
+  const filter=currentMapClimateDayThreshold();
+  const filterText=filter===null?'':` · Filter: ${currentMapClimateDayLabel()}`;
+  overlay.innerHTML=`<strong>${spec.label} · ${state}</strong><span>DWD 10-Minuten-Livedaten · Stand ${latest}${filterText}</span>`;
 }
 function renderCurrentMap(){
   const container=document.getElementById('currentMap');
@@ -5620,7 +5656,11 @@ function renderCurrentMap(){
   const metric=document.getElementById('currentMapMetricSelect')?.value||'temperature';
   const displayMode=document.getElementById('currentMapDisplaySelect')?.value||'labels';
   const candidates=currentMapBuildCandidates(metric);
-  if(legend) legend.innerHTML=currentMapLegendHtml(metric)+'<span class="current-map-legend-stale">älter als 60 min</span>';
+  if(legend){
+    const climateFilter=currentMapClimateDayThreshold();
+    const filterBadge=climateFilter===null?'':`<span class="current-map-legend-stale" style="border-style:solid">${currentMapClimateDayLabel()}</span>`;
+    legend.innerHTML=currentMapLegendHtml(metric)+'<span class="current-map-legend-stale">älter als 60 min</span>'+filterBadge;
+  }
   renderCurrentRanking(metric,candidates);
   if(container.querySelector('.current-map-empty') && currentLiveMap){container.innerHTML=''; currentLiveMap.remove(); currentLiveMap=null; currentLiveMapLayer=null;currentLiveMapBoundaryLayer=null;}
   if(!currentLiveMap){
@@ -5872,6 +5912,7 @@ function initCurrentControls(){
   const refresh=document.getElementById("currentRefreshButton");
   const metric=document.getElementById("currentMapMetricSelect");
   const display=document.getElementById("currentMapDisplaySelect");
+  const climateDay=document.getElementById("currentMapClimateDaySelect");
   const fullscreenButton=document.getElementById("currentMapFullscreenButton");
   const pngButton=document.getElementById("currentMapPngButton");
   const pdfButton=document.getElementById("currentMapPdfButton");
@@ -5881,6 +5922,7 @@ function initCurrentControls(){
   refresh?.addEventListener("click",()=>ensureCurrentConditions(true));
   metric?.addEventListener("change",()=>renderCurrentMap());
   display?.addEventListener("change",()=>renderCurrentMap());
+  climateDay?.addEventListener("change",()=>renderCurrentMap());
   fullscreenButton?.addEventListener("click",()=>currentMapToggleFullscreen());
   pngButton?.addEventListener("click",()=>currentMapExport('png').catch(error=>{console.error(error);alert(`PNG-Export nicht möglich: ${error.message}`);}));
   pdfButton?.addEventListener("click",()=>currentMapExport('pdf').catch(error=>{console.error(error);alert(`PDF-Export nicht möglich: ${error.message}`);}));
