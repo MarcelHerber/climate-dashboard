@@ -1604,6 +1604,52 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       </table>
     </div>
 
+    <h2 style="margin-top:34px">Längste Kenntage-Serien je Station</h2>
+    <div id="stationStreakLoading" class="record-loading">Kenntage-Serien werden geladen …</div>
+    <div id="stationStreakContent" hidden>
+      <div class="controls">
+        <div class="control-group">
+          <label for="streakMetricSelect">Kenntag</label>
+          <select id="streakMetricSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="streakAreaSelect">Gebiet</label>
+          <select id="streakAreaSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="streakMinYearsSelect">Messreihenlänge</label>
+          <select id="streakMinYearsSelect">
+            <option value="0">alle verfügbaren</option>
+            <option value="30" selected>mindestens 30 Jahre</option>
+            <option value="50">mindestens 50 Jahre</option>
+            <option value="80">mindestens 80 Jahre</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="streakLimitSelect">Anzahl</label>
+          <select id="streakLimitSelect">
+            <option value="10">Top 10</option>
+            <option value="25">Top 25</option>
+            <option value="50" selected>Top 50</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="stationStreakSummary" class="summary-box">Serienrekorde werden aufgebaut …</div>
+      <div class="table-wrap">
+        <table id="stationStreakTable">
+          <thead>
+            <tr>
+              <th>Rang</th><th>Serie</th><th>Von</th><th>Bis</th><th>Station</th><th>Stations-ID</th>
+              <th>Bundesland</th><th>Messreihe</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="stationStreakNote" class="note" style="margin-top:14px"></p>
+    </div>
+
     <p id="recordSourceNote" class="note" style="margin-top:18px"></p>
   </div>
 </div>
@@ -1740,6 +1786,8 @@ let stationMapLegend=null;
 let mapsInitialized=false;
 let stationRecordsData=null;
 let stationRecordsLoading=null;
+let stationStreakIndex=null;
+let stationStreakLoading=null;
 const stationYearCache=new Map();
 
 function showError(message){
@@ -1768,7 +1816,10 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="stationHeatwaves") ensureStationHeatwavesLoaded();
   if(tab==="compare") ensureComparisonMode();
   if(tab==="maps") ensureStationMaps();
-  if(tab==="records") ensureStationRecordsLoaded();
+  if(tab==="records"){
+    ensureStationRecordsLoaded();
+    ensureStationStreaksLoaded();
+  }
   window.setTimeout(()=>{
     [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
@@ -5605,6 +5656,143 @@ function updateNewStationRecordTable(){
       <td>${recordNumber(item.improvement,meta.unit)}</td>
     </tr>`;
   }).join("");
+}
+
+
+// ================= LÄNGSTE KENNTAGE-SERIEN =================
+function ensureStationStreaksLoaded(){
+  if(stationStreakIndex){
+    updateStationStreakTable();
+    return Promise.resolve(stationStreakIndex);
+  }
+  if(stationStreakLoading) return stationStreakLoading;
+  const loading=document.getElementById("stationStreakLoading");
+  if(!loading) return Promise.resolve(null);
+  loading.hidden=false;
+  loading.style.color="";
+  loading.textContent="Kenntage-Serien werden geladen …";
+  stationStreakLoading=dashboardFetch("station_climate_days_index.json",{cache:"no-store"})
+    .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
+    .then(data=>{
+      if(!data.ready) throw new Error(data.message || "Die Stations-Kenntage wurden noch nicht aufgebaut.");
+      stationStreakIndex=data;
+      initializeStationStreakControls();
+      loading.hidden=true;
+      document.getElementById("stationStreakContent").hidden=false;
+      updateStationStreakTable();
+      return data;
+    })
+    .catch(error=>{
+      loading.textContent=`Kenntage-Serien konnten nicht geladen werden: ${error.message}`;
+      loading.style.color="#7a1010";
+      throw error;
+    });
+  return stationStreakLoading;
+}
+
+function initializeStationStreakControls(){
+  const metricSelect=document.getElementById("streakMetricSelect");
+  metricSelect.innerHTML="";
+  (stationStreakIndex.climate_days||[]).forEach(metric=>{
+    const option=document.createElement("option");
+    option.value=metric.id;
+    option.textContent=`${metric.label} · ${metric.definition}`;
+    metricSelect.appendChild(option);
+  });
+  if((stationStreakIndex.climate_days||[]).some(item=>item.id==="hot")) metricSelect.value="hot";
+
+  const areaSelect=document.getElementById("streakAreaSelect");
+  areaSelect.innerHTML='<option value="Deutschland">Deutschland</option>';
+  (stationStreakIndex.states||[]).forEach(state=>{
+    const option=document.createElement("option");
+    option.value=state;
+    option.textContent=state;
+    areaSelect.appendChild(option);
+  });
+  areaSelect.value="Deutschland";
+
+  ["streakMetricSelect","streakAreaSelect","streakMinYearsSelect","streakLimitSelect"]
+    .forEach(id=>document.getElementById(id)?.addEventListener("change",updateStationStreakTable));
+}
+
+function stationStreakDateText(iso){
+  if(!iso) return "–";
+  const day=new Date(`${iso}T12:00:00Z`);
+  if(Number.isNaN(day.getTime())) return iso;
+  return day.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+function stationStreakStatus(run){
+  if(run?.ongoing) return '<span class="record-badge preliminary">laufend · vorläufig</span>';
+  if(run?.preliminary) return '<span class="record-badge preliminary">vorläufig</span>';
+  return '<span class="record-badge checked">historisch geprüft</span>';
+}
+
+function stationStreakCrossesBoundary(run){
+  if(!run?.start || !run?.end) return "";
+  const start=String(run.start).slice(0,7);
+  const end=String(run.end).slice(0,7);
+  if(start===end) return "";
+  const startYear=String(run.start).slice(0,4);
+  const endYear=String(run.end).slice(0,4);
+  return startYear===endYear?" · monatsübergreifend":" · jahresübergreifend";
+}
+
+function updateStationStreakTable(){
+  if(!stationStreakIndex) return;
+  const tbody=document.querySelector("#stationStreakTable tbody");
+  if(!tbody) return;
+  const metricId=document.getElementById("streakMetricSelect")?.value || "hot";
+  const area=document.getElementById("streakAreaSelect")?.value || "Deutschland";
+  const minYears=Number(document.getElementById("streakMinYearsSelect")?.value || 0);
+  const limit=Number(document.getElementById("streakLimitSelect")?.value || 50);
+  const metric=(stationStreakIndex.climate_days||[]).find(item=>item.id===metricId) || {label:metricId,definition:""};
+
+  const candidates=(stationStreakIndex.stations||[])
+    .filter(station=>area==="Deutschland" || station.state===area)
+    .filter(station=>Number(station.history_years||0)>=minYears)
+    .map(station=>({station,run:station.longest_runs?.[metricId]||null}))
+    .filter(item=>item.run && Number(item.run.duration)>0)
+    .sort((a,b)=>
+      Number(b.run.duration)-Number(a.run.duration) ||
+      String(a.run.start).localeCompare(String(b.run.start)) ||
+      String(a.station.name||"").localeCompare(String(b.station.name||""),"de")
+    );
+
+  const rows=candidates.slice(0,limit);
+  if(!candidates.length){
+    tbody.innerHTML='<tr><td colspan="9">Noch keine Serienrekorde vorhanden. Nach dem ersten Daten-Neuaufbau erscheinen die längsten Folgen hier automatisch.</td></tr>';
+    document.getElementById("stationStreakSummary").textContent=
+      `${metric.label} · ${area}: Seriendaten sind im aktuellen Kenntage-Index noch nicht vorhanden.`;
+  }else{
+    const leader=candidates[0];
+    document.getElementById("stationStreakSummary").innerHTML=
+      `<strong>${metric.label}:</strong> längste Folge ${leader.run.duration} Tage an ${leader.station.name} `+
+      `(${stationStreakDateText(leader.run.start)}–${stationStreakDateText(leader.run.end)}). `+
+      `${candidates.length} Stationen erfüllen den Filter${minYears?` ≥ ${minYears} Messjahre`:""}.`;
+
+    tbody.innerHTML=rows.map((item,index)=>{
+      const station=item.station,run=item.run;
+      const measurement=`${station.start_year??"–"}–${station.end_year??"–"} · ${station.history_years??"–"} J.`;
+      return `<tr>
+        <td>${index+1}</td>
+        <td class="record-value"><strong>${Number(run.duration).toLocaleString("de-DE")}</strong> Tage${stationStreakCrossesBoundary(run)}</td>
+        <td>${stationStreakDateText(run.start)}</td>
+        <td>${stationStreakDateText(run.end)}</td>
+        <td class="record-station">${station.name||"–"}</td>
+        <td>${station.id||"–"}</td>
+        <td>${station.state||"–"}</td>
+        <td>${measurement}</td>
+        <td>${stationStreakStatus(run)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  const rule=stationStreakIndex.streak_rule ||
+    "Serien laufen über Monats- und Jahresgrenzen weiter. Fehlende relevante Tageswerte unterbrechen die Folge; der 29. Februar zählt als normaler Kalendertag.";
+  document.getElementById("stationStreakNote").textContent=
+    `${rule} Pro Station wird für die Rangliste nur die längste bekannte Folge des gewählten Kenntags verwendet. `+
+    `Das laufende Jahr ist vorläufig.`;
 }
 
 
