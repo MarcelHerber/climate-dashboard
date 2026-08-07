@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import os
 import tempfile
+import zipfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -28,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 4
+STATE_VERSION = 5
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -556,28 +559,98 @@ def event_and_valid_masks(tx: float | None, tn: float | None) -> tuple[int, int]
     return event_mask, valid_mask
 
 
+def parse_recent_kl_temperatures(
+    content: bytes,
+    start_date: date,
+    end_date: date,
+) -> dict[date, tuple[float | None, float | None, float | None]]:
+    """Liest TXK, TNK und TMK direkt aus der DWD-KL-Produktdatei.
+
+    Damit ist der aktuelle Stationsprofil-Datensatz nicht davon abhängig,
+    welche Metriken der Rekord-Updater gerade exportiert. TMK ist das vom
+    DWD bereitgestellte Tagesmittel und wird nicht aus Tmin/Tmax angenähert.
+    """
+    result: dict[date, tuple[float | None, float | None, float | None]] = {}
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        product_files = [
+            name for name in archive.namelist()
+            if name.lower().endswith(".txt") and "produkt_klima_tag" in name.lower()
+        ]
+        if not product_files:
+            for name in archive.namelist():
+                if not name.lower().endswith(".txt"):
+                    continue
+                try:
+                    with archive.open(name) as candidate:
+                        first_line = candidate.readline().decode("latin-1", errors="replace")
+                    columns = {part.strip() for part in first_line.split(";")}
+                    if {"MESS_DATUM", "TXK", "TNK", "TMK"}.issubset(columns):
+                        product_files.append(name)
+                        break
+                except (KeyError, OSError):
+                    continue
+        if not product_files:
+            raise NoUsableProductFileError("keine KL-Produktdatei mit TXK/TNK/TMK")
+
+        with archive.open(product_files[0]) as raw:
+            text = io.TextIOWrapper(raw, encoding="latin-1", newline="")
+            reader = csv.reader(text, delimiter=";")
+            header = [column.strip() for column in next(reader)]
+            required = ["MESS_DATUM", "TXK", "TNK", "TMK"]
+            missing = [column for column in required if column not in header]
+            if missing:
+                raise ValueError(f"Spalten fehlen in KL-Datei: {', '.join(missing)}")
+            indices = {column: header.index(column) for column in required}
+            maximum_index = max(indices.values())
+
+            def parse_temperature(row: list[str], column: str) -> float | None:
+                raw_value = row[indices[column]].strip().replace(",", ".")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    return None
+                if value <= -900 or not (-60.0 <= value <= 60.0):
+                    return None
+                return round(value, 1)
+
+            for row in reader:
+                if len(row) <= maximum_index:
+                    continue
+                try:
+                    day = datetime.strptime(row[indices["MESS_DATUM"]].strip(), "%Y%m%d").date()
+                except ValueError:
+                    continue
+                if day < start_date or day > end_date:
+                    continue
+                tx = parse_temperature(row, "TXK")
+                tn = parse_temperature(row, "TNK")
+                tm = parse_temperature(row, "TMK")
+                if tx is None and tn is None and tm is None:
+                    continue
+                result[day] = (tx, tn, tm)
+    return result
+
+
 def process_recent_station(
     filename: str,
     metadata: MetadataIndex,
     start_date: date,
-) -> tuple[str, dict[date, tuple[int, int, int | None, int | None]], str | None]:
+) -> tuple[str, dict[date, tuple[int, int, int | None, int | None, int | None]], str | None]:
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(RECENT_URL, filename)
-        observations = parse_station_zip(
-            content,
-            station_id,
-            metadata,
-            start_date,
-            date.today(),
-            preliminary=True,
-        )
-        values: dict[date, tuple[int, int, int | None, int | None]] = {}
-        for observation in observations:
-            tx, tn = observation_temperatures(observation)
+        temperatures = parse_recent_kl_temperatures(content, start_date, date.today())
+        values: dict[date, tuple[int, int, int | None, int | None, int | None]] = {}
+        for day, (tx, tn, tm) in temperatures.items():
             event_mask, valid_mask = event_and_valid_masks(tx, tn)
-            if valid_mask:
-                values[observation.day] = (event_mask, valid_mask, None if tx is None else int(round(tx * 10)), None if tn is None else int(round(tn * 10)))
+            if valid_mask or tm is not None:
+                values[day] = (
+                    event_mask,
+                    valid_mask,
+                    None if tx is None else int(round(tx * 10)),
+                    None if tn is None else int(round(tn * 10)),
+                    None if tm is None else int(round(tm * 10)),
+                )
         return station_id, values, None
     except NoUsableProductFileError as exc:
         return station_id, {}, f"{filename}: {exc}"
@@ -586,7 +659,7 @@ def process_recent_station(
 
 
 def accepted_data_through(
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
 ) -> tuple[date, dict[str, Any]]:
     counts: dict[date, int] = defaultdict(int)
     tx_bits = sum(1 << int(item["bit"]) for item in CLIMATE_DAYS if item["field"] == "tx")
@@ -640,7 +713,7 @@ def write_current_month_files(
     root: Path,
     data_through: date,
     profile_ids: set[str],
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
 ) -> list[str]:
     output_dir = root / "station_climate_days_current"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -658,7 +731,7 @@ def write_current_month_files(
             for day_number in range(1, days_in_month + 1):
                 day = date(year, month, day_number)
                 pair = values.get(day) if day <= data_through else None
-                month_values.append(None if pair is None else [pair[0], pair[1], pair[2], pair[3]])
+                month_values.append(None if pair is None else [pair[0], pair[1], pair[2], pair[3], pair[4]])
                 has_value = has_value or pair is not None
             if has_value:
                 station_payload[station_id] = month_values
@@ -736,8 +809,8 @@ def build_index(
         "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
-        "source": "DWD CDC, tägliche KL-Stationswerte (TXK und TNK)",
-        "current_payload_version": 3,
+        "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK und TMK)",
+        "current_payload_version": 4,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
@@ -807,7 +880,7 @@ def update_station_climate_days(
         if station_id_from_filename(filename) in profile_ids
     ]
     start_date = date(current_year - 1, 12, 1)
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None]]] = {}
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]] = {}
     errors: list[str] = []
 
     print(f"Stations-Kenntage: {len(selected_recent)} aktuelle Stationsarchive werden verarbeitet.")
