@@ -387,6 +387,9 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 .profile-temp-grid{display:grid;grid-template-columns:repeat(3,minmax(260px,1fr));gap:12px}.profile-extreme-card{background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden}.profile-extreme-card h3{margin:0;padding:14px 14px 4px}.profile-extreme-card .note{padding:0 14px 10px;margin:0}.profile-extreme-card table{margin:0}.profile-extreme-card tr.current-year{background:#e5f5f1;font-weight:700}.profile-temp-badge{display:inline-block;border-radius:6px;padding:3px 6px;font-weight:700}.profile-temp-hot{background:#ffe3d6;color:#b33a00}.profile-temp-veryhot{background:#ffd1cf;color:#9f1f1f}.profile-temp-tropical{background:#efe0ff;color:#7e2fc2}.profile-temp-frost{background:#dceeff;color:#17639d}.profile-daily-table{max-height:560px;overflow:auto;border:1px solid var(--border);border-radius:8px}.profile-daily-table table{margin:0}.profile-daily-table thead th{position:sticky;top:0;background:#29323a;color:white;z-index:2}.profile-daily-table tr.latest{background:#e5f5f1;font-weight:700}@media(max-width:900px){.profile-temp-grid{grid-template-columns:1fr}}
 
+
+.profile-overview-grid{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:12px;margin:18px 0}.profile-overview-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05)}.profile-overview-card .label{font-size:12px;color:var(--muted);font-weight:700}.profile-overview-card .value{font-size:25px;font-weight:800;margin:7px 0 3px}.profile-overview-card .detail{font-size:12px;color:var(--muted);line-height:1.35}.station-profile-map{height:430px;border-radius:8px;overflow:hidden;background:#e9eef2}.profile-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profile-method-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:16px;line-height:1.55;color:#4e585d}.profile-method-card h3{color:#222;margin:0 0 8px}@media(max-width:900px){.profile-overview-grid{grid-template-columns:1fr 1fr}.profile-method-grid{grid-template-columns:1fr}}@media(max-width:560px){.profile-overview-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -740,6 +743,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <div id="stationProfileDataStatus" class="profile-data-status"><strong>Datenstand</strong>–</div>
     </div>
 
+    <div id="stationProfileOverview" class="profile-overview-grid">
+      <div class="profile-overview-card"><div class="label">Niederschlag seit Jahresbeginn</div><div id="stationProfilePrecipValue" class="value">–</div><div id="stationProfilePrecipDetail" class="detail">wird geladen …</div></div>
+      <div class="profile-overview-card"><div class="label">Hitzewellen aktuelles Jahr</div><div id="stationProfileHeatwaveValue" class="value">–</div><div id="stationProfileHeatwaveDetail" class="detail">≥ 3 Tage mit Tmax ≥ 30 °C</div></div>
+      <div class="profile-overview-card"><div class="label">Historische Messjahre</div><div id="stationProfileHistoryValue" class="value">–</div><div id="stationProfileHistoryDetail" class="detail">ausreichend vollständige Jahre</div></div>
+      <div class="profile-overview-card"><div class="label">Referenz</div><div id="stationProfileReferenceValue" class="value">1991–2020</div><div id="stationProfileReferenceDetail" class="detail">für Niederschlag und Standarddarstellung</div></div>
+    </div>
+
     <div class="controls">
       <div class="profile-control-grid">
         <div class="control-group"><label for="stationProfileYearSelect">Ausgewähltes Jahr</label><select id="stationProfileYearSelect"></select></div>
@@ -750,7 +760,9 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     </div>
 
     <div class="chart-container auto">
-      <h2>Nahegelegene Stationen</h2>
+      <h2>Station und Umgebung</h2>
+      <div id="stationProfileMap" class="station-profile-map"></div>
+      <h3 style="margin-top:16px">Nahegelegene Stationen</h3>
       <div id="stationProfileNearby" class="profile-nearby"></div>
       <div class="profile-quicklinks">
         <button onclick="openStationProfileDetail('stationClimateDays')">Stations-Kenntage öffnen</button>
@@ -790,6 +802,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
           <div class="profile-extreme-card"><h3>Heißeste Tage</h3><p class="note">Größtes Tagesmaximum</p><table id="stationProfileHotTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
           <div class="profile-extreme-card"><h3>Kälteste Nächte</h3><p class="note">Kleinstes Tagesminimum</p><table id="stationProfileColdTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
           <div class="profile-extreme-card"><h3>Wärmste Nächte</h3><p class="note">Größtes Tagesminimum</p><table id="stationProfileWarmNightTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </section>
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Methodik</div><h2>Definitionen und Datenquellen</h2></div></div>
+        <div class="profile-method-grid">
+          <div class="profile-method-card"><h3>Temperatur und Klimaereignisse</h3><div id="stationProfileMethodTemp">DWD CDC, tägliche KL-Stationswerte. Sommertage: Tmax ≥ 25 °C; Hitzetage: Tmax ≥ 30 °C; Wüstentage: Tmax ≥ 35 °C; Tropennächte: Tmin ≥ 20 °C; Frosttage: Tmin &lt; 0 °C; Eistage: Tmax &lt; 0 °C.</div></div>
+          <div class="profile-method-card"><h3>Niederschlag und Hitzewellen</h3><div id="stationProfileMethodOther">Niederschlag aus dem erweiterten DWD-RR-/more_precip-Netz. Hitzewelle im Dashboard: mindestens drei aufeinanderfolgende Tage mit Tmax ≥ 30 °C.</div></div>
         </div>
       </section>
     </div>
@@ -4773,6 +4792,11 @@ let stationProfileRequestId=0;
 let stationProfileSummerAnnualChart=null;
 let stationProfileWinterAnnualChart=null;
 let stationProfileTemperatureChart=null;
+let stationProfileMap=null;
+let stationProfileMapLayer=null;
+let stationProfilePrecipIndex=null;
+let stationProfileHeatwaveIndex=null;
+let stationProfileHeatwaveCurrent=null;
 
 function stationProfileDistanceKm(a,b){
   if(!Number.isFinite(Number(a?.latitude))||!Number.isFinite(Number(a?.longitude))||!Number.isFinite(Number(b?.latitude))||!Number.isFinite(Number(b?.longitude))) return Infinity;
@@ -4991,6 +5015,35 @@ async function renderStationProfileTemperature(){
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileTemperature().catch(error=>console.error('Stationsprofil Temperatur:',error)));
 
+// ================= VERSION 12.4: STATIONSPROFIL – ÜBERBLICK, KARTE, NIEDERSCHLAG =================
+async function stationProfileLoadAuxiliary(){
+  const tasks=[];
+  if(!stationProfilePrecipIndex)tasks.push(dashboardFetch('station_precip_index.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(`Niederschlagsindex HTTP ${r.status}`);return r.json();}).then(data=>stationProfilePrecipIndex=data).catch(error=>console.warn(error)));
+  if(!stationProfileHeatwaveIndex)tasks.push(dashboardFetch('station_heatwaves_index.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(`Hitzewellenindex HTTP ${r.status}`);return r.json();}).then(async data=>{stationProfileHeatwaveIndex=data;if(data.ready){const r=await dashboardFetch(data.current_file||'station_heatwaves_current.json',{cache:'no-store'});if(r.ok)stationProfileHeatwaveCurrent=await r.json();}}).catch(error=>console.warn(error)));
+  await Promise.all(tasks);
+}
+function stationProfileRenderOverview(){
+  const id=document.getElementById('stationProfileStationSelect')?.value;if(!id)return;
+  document.getElementById('stationProfileHistoryValue').textContent=stationProfileProfile?.history_years??'–';
+  const ref=stationProfileReferenceYears();document.getElementById('stationProfileReferenceValue').textContent=ref.label;document.getElementById('stationProfileReferenceDetail').textContent=`Auswahl für Kenntage: ${ref.label}; Niederschlag derzeit 1991–2020`;
+  const precip=stationProfilePrecipIndex?.stations?.find(item=>item.id===id);const map=precip?.map||{};
+  document.getElementById('stationProfilePrecipValue').textContent=Number.isFinite(Number(map.current_total))?`${Number(map.current_total).toLocaleString('de-DE',{maximumFractionDigits:1})} mm`:'–';
+  document.getElementById('stationProfilePrecipDetail').textContent=precip?(Number.isFinite(Number(map.deviation_percent))?`${Number(map.deviation_percent)>0?'+':''}${Number(map.deviation_percent).toLocaleString('de-DE',{maximumFractionDigits:1})} % zu 1991–2020 · ${map.missing_days||0} fehlende Tage`:'Referenzwert nicht verfügbar'):'Keine gleichnamige RR-Station im aktuellen Niederschlagsindex';
+  const events=stationProfileHeatwaveCurrent?.stations?.[id]?.events||[];document.getElementById('stationProfileHeatwaveValue').textContent=stationProfileHeatwaveIndex?.ready?String(events.length):'–';document.getElementById('stationProfileHeatwaveDetail').textContent=stationProfileHeatwaveIndex?.ready?`${events.reduce((sum,event)=>sum+Number(event.duration||0),0)} Hitzewellentage · Stand ${dailyGermanDate(stationProfileHeatwaveCurrent?.data_through||stationClimateDaysIndex.data_through,true)}`:'Hitzewellendaten noch nicht aufgebaut';
+}
+function stationProfileMarkerIcon(active=false){return L.divIcon({className:'station-map-marker-icon',html:`<span class="station-map-marker-dot" style="width:${active?18:12}px;height:${active?18:12}px;background:${active?'#0a806a':'#73c9b8'};border:${active?3:2}px solid #fff"></span>`,iconSize:[active?18:12,active?18:12],iconAnchor:[active?9:6,active?9:6]});}
+function stationProfileRenderMap(){
+  const id=document.getElementById('stationProfileStationSelect')?.value,station=stationClimateDaysIndex?.stations?.find(item=>item.id===id),container=document.getElementById('stationProfileMap');if(!container||!station||!Number.isFinite(Number(station.latitude))||!Number.isFinite(Number(station.longitude))){if(container)container.innerHTML='<div class="note" style="padding:16px">Keine Koordinaten verfügbar.</div>';return;}
+  if(!stationProfileMap){stationProfileMap=L.map(container,{scrollWheelZoom:false}).setView([station.latitude,station.longitude],8);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; OpenStreetMap'}).addTo(stationProfileMap);stationProfileMapLayer=L.layerGroup().addTo(stationProfileMap);}stationProfileMapLayer.clearLayers();
+  L.marker([station.latitude,station.longitude],{icon:stationProfileMarkerIcon(true)}).bindPopup(`<strong>${station.name}</strong><br>${station.state||''} · ${station.height??'–'} m`).addTo(stationProfileMapLayer);
+  (stationClimateDaysIndex.stations||[]).filter(item=>item.id!==id).map(item=>({item,d:stationProfileDistanceKm(station,item)})).filter(x=>x.d<=70&&Number.isFinite(x.d)).sort((a,b)=>a.d-b.d).slice(0,25).forEach(({item,d})=>L.marker([item.latitude,item.longitude],{icon:stationProfileMarkerIcon(false)}).bindPopup(`<strong>${item.name}</strong><br>${d.toLocaleString('de-DE',{maximumFractionDigits:0})} km entfernt`).on('click',()=>{}).addTo(stationProfileMapLayer));
+  stationProfileMap.setView([station.latitude,station.longitude],8);setTimeout(()=>stationProfileMap.invalidateSize(),50);
+}
+async function renderStationProfileAuxiliary(){
+  if(!stationProfileProfile)return;await stationProfileLoadAuxiliary();stationProfileRenderOverview();stationProfileRenderMap();
+}
+window.addEventListener('stationprofilechange',()=>renderStationProfileAuxiliary().catch(error=>console.error('Stationsprofil Zusatzdaten:',error)));
+
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
@@ -5129,6 +5182,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.3: Stationsprofil Temperatur, Tagesdaten und Extreme -->
+<!-- Dashboard Version 12.4: vollständiges Stationsprofil in vier Teststufen -->
 </body>
 </html>
