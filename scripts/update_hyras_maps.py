@@ -24,7 +24,7 @@ DAILY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/dail
 MONTHLY_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/hyras_de/precipitation"
 CLIM_BASE = "https://opendata.dwd.de/climate_environment/CDC/grids_germany/multi_annual/hyras_de/precipitation"
 BOUNDARY_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
-USER_AGENT = "climate-dashboard-hyras/15.3.1 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-hyras/15.3.2 (+GitHub Actions; DWD Open Data)"
 
 MONTH_ABBR = {1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MONTH_DE = {1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"}
@@ -701,7 +701,7 @@ def monthly_annual_file_map(listing_text: str, years: range) -> dict[int, str]:
 
 
 def historical_month_path(out: Path, year: int, month: int) -> Path:
-    return out / "historical" / str(year) / f"month_{month:02d}.png"
+    return out / "historical_1km" / str(year) / f"month_{month:02d}.png"
 
 
 def historical_year_complete(out: Path, year: int) -> bool:
@@ -722,7 +722,7 @@ def build_historical_monthly_package(
     if target_last < target_first:
         raise RuntimeError("Kein historischer HYRAS-Zeitraum verfügbar")
 
-    hist_root = out / "historical"
+    hist_root = out / "historical_1km"
     hist_root.mkdir(parents=True, exist_ok=True)
     ref_root = hist_root / "reference"
     ref_root.mkdir(parents=True, exist_ok=True)
@@ -832,7 +832,7 @@ def build_historical_monthly_package(
         print(f"Warnung: historische Reihe ist nicht vollständig: {years[0]}–{years[-1]}")
 
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "product": "DWD HYRAS-DE-PR monthly precipitation",
         "first_year": years[0],
         "last_year": years[-1],
@@ -843,8 +843,8 @@ def build_historical_monthly_package(
         "width": len(expected_x),
         "height": len(expected_y),
         "data_crs": data_crs.to_string(),
-        "month_file_pattern": "historical/{year}/month_{month}.png",
-        "reference_files": {str(m): f"historical/reference/month_{m:02d}.png" for m in range(1, 13)},
+        "month_file_pattern": "historical_1km/{year}/month_{month}.png",
+        "reference_files": {str(m): f"historical_1km/reference/month_{m:02d}.png" for m in range(1, 13)},
         "reference": "1991-2020",
         "boundary_overlay": "web/boundaries.png",
         "seasons": {
@@ -854,7 +854,7 @@ def build_historical_monthly_package(
             "winter": [12, 1, 2],
             "year": list(range(1, 13)),
         },
-        "note": "Historische Monats-, Jahreszeiten- und Jahreskarten werden im Browser aus monatlichen HYRAS-Summen auf einem feineren 2-km-Webraster zusammengesetzt. Quelle ist das native 1-km-HYRAS-DE-PR-Monatsprodukt; Referenz ist 1991-2020.",
+        "note": "Historische Monats-, Jahreszeiten- und Jahreskarten werden im Browser direkt aus monatlichen HYRAS-Summen im nativen 1-km-HYRAS-Raster zusammengesetzt. Referenz ist 1991-2020.",
     }
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Historisches HYRAS-Webpaket bereit: {years[0]}–{years[-1]} ({len(years)} Jahre).")
@@ -868,6 +868,7 @@ def main() -> int:
     parser.add_argument("--year", type=int, default=datetime.now(timezone.utc).year)
     parser.add_argument("--reference-cache", default="hyras_reference_cache")
     parser.add_argument("--web-factor", type=int, default=2)
+    parser.add_argument("--historical-factor", type=int, default=1)
     args = parser.parse_args()
 
     out = Path(args.output)
@@ -991,10 +992,10 @@ def main() -> int:
 
     # Kompakte historische Monatsraster 1931 bis Vorjahr. Bereits vorhandene
     # Raster aus dem hyras-data-Branch werden vom Workflow vorab wiederverwendet.
-    _sample_vals, _sample_dates, hist_x, hist_y = sample_daily_for_web(daily, max(2, args.web_factor))
+    _sample_vals, _sample_dates, hist_x, hist_y = sample_daily_for_web(daily, max(1, args.historical_factor))
     del _sample_vals, _sample_dates
     historical_manifest = build_historical_monthly_package(
-        out=out, work=work, factor=max(2, args.web_factor), current_year=args.year,
+        out=out, work=work, factor=max(1, args.historical_factor), current_year=args.year,
         expected_x=hist_x, expected_y=hist_y, data_crs=data_crs,
     )
 
@@ -1002,7 +1003,7 @@ def main() -> int:
     default_key = f"{args.year}_summer_so_far_complete" if any(p["key"] == f"{args.year}_summer_so_far_complete" for p in periods) else f"{args.year}_{latest_month:02d}"
 
     metadata = {
-        "schema_version": 5,
+        "schema_version": 6,
         "product": "DWD HYRAS-DE-PR",
         "resolution_km": 1,
         "reference": "1991-2020",
@@ -1018,7 +1019,8 @@ def main() -> int:
         "historical_manifest": "hyras_historical_manifest.json",
         "historical_first_year": historical_manifest["first_year"],
         "historical_last_year": historical_manifest["last_year"],
-        "note": "Version 15.3.1: wie 15.2 plus historische Monats-, Jahreszeiten- und Jahresauswahl ab 1931 über ein feineres 2-km-Webraster. Die aktuellen Presetkarten bleiben im nativen 1-km-Raster.",
+        "historical_resolution_km": historical_manifest["web_sampling_km"],
+        "note": "Version 15.3.2: historische Monats-, Jahreszeiten- und Jahreskarten ab 1931 werden im nativen 1-km-HYRAS-Raster bereitgestellt. Die freien tagesgenauen Zeiträume bleiben aus Performancegründen separat auf einem kompakteren Webraster.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
