@@ -850,7 +850,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       </select>
     </div>
     <button id="hyrasHistoricalApply" class="hyras-custom-apply" type="button">Historische Karte anzeigen</button>
-    <p id="hyrasHistoricalMessage" class="hyras-custom-message"><strong>Historische Auswahl:</strong> Monat, Jahreszeit oder Gesamtjahr gegen 1991–2020. Die Browserkarte nutzt ein feineres Webraster aus den nativen HYRAS-1-km-Monatsdaten.</p>
+    <p id="hyrasHistoricalMessage" class="hyras-custom-message"><strong>Historische Auswahl:</strong> Monat, Jahreszeit oder Gesamtjahr gegen 1991–2020. Die historischen Monats-, Jahreszeiten- und Jahreskarten nutzen das native HYRAS-1-km-Raster.</p>
   </div>
 
   <div class="stat-grid" style="margin-bottom:16px">
@@ -5648,10 +5648,10 @@ async function hyrasRenderHistoricalMap(){
     const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;
   }
   rctx.putImageData(img,0,0);
-  const scale=4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
+  const scale=state.resolutionKm<=1?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
   try{const manifest=await hyrasLoadHistoricalManifest();const response=await fetch(`${HYRAS_DATA_BASE}/${manifest.boundary_overlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Historiengrenzen:",error);}
   const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";
-  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · ${state.label}</div><div class="hyras-dynamic-subtitle">${state.dateLabel} · ${metricLabel} · Referenz 1991–2020 · historisches HYRAS-Webraster</div>`;wrap.appendChild(canvas);
+  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · ${state.label}</div><div class="hyras-dynamic-subtitle">${state.dateLabel} · ${metricLabel} · Referenz 1991–2020 · historisches HYRAS-1-km-Raster</div>`;wrap.appendChild(canvas);
   const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);
   const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=`hyras_historisch_${state.year}_${state.type}_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
 }
@@ -5672,18 +5672,18 @@ async function hyrasApplyHistorical(){
     const referenceParts=selection.map(item=>refByMonth.get(item.month));
     const current=hyrasSumRasters(currentParts),reference=hyrasSumRasters(referenceParts),stats=hyrasCustomStats(current,reference);
     const label=hyrasHistoricalLabel(year,type,month),dateLabel=hyrasHistoricalDateLabel(year,type,month);
-    hyrasHistoricalState={year,type,month,label,dateLabel,current,reference,stats,width:current.width,height:current.height};
+    hyrasHistoricalState={year,type,month,label,dateLabel,current,reference,stats,width:current.width,height:current.height,resolutionKm:Number(manifest.web_sampling_km||1)};
     hyrasCustomState=null;
     const select=document.getElementById("hyrasPeriodSelect");if(select)select.value="__historical__";
     document.getElementById("hyrasPeriodStat").textContent=label;
     document.getElementById("hyrasDataThrough").textContent=dateLabel;
     document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
-    document.getElementById("hyrasCurrentMeanDetail").textContent=`historisches HYRAS-Webraster ${manifest.web_sampling_km} km`;
+    document.getElementById("hyrasCurrentMeanDetail").textContent=`historisches HYRAS-1-km-Raster ${manifest.web_sampling_km} km`;
     document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
     document.getElementById("hyrasReferenceMeanDetail").textContent="Mittel 1991–2020 · gleicher Kalendermonat/Zeitraum";
     document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
     const a=Number(stats.anomaly_mean_mm);document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(a)?`${a>=0?"+":""}${hyrasNum(a,"l/m²",1)} zum Mittel`:"–";
-    document.getElementById("hyrasReferenceNote").textContent=`Historische HYRAS-Auswertung ${manifest.first_year}–${manifest.last_year}: Monatssummen aus dem nativen 1-km-HYRAS-DE-PR, für die Browserkarte auf ${manifest.web_sampling_km} km abgetastet. Referenz 1991–2020.`;
+    document.getElementById("hyrasReferenceNote").textContent=`Historische HYRAS-Auswertung ${manifest.first_year}–${manifest.last_year}: Monatssummen direkt im nativen ${manifest.web_sampling_km}-km-HYRAS-DE-PR-Raster. Referenz 1991–2020.`;
     [...document.getElementById("hyrasMetricSelect").options].forEach(o=>o.disabled=false);
     await hyrasRenderHistoricalMap();
     if(msg)msg.textContent=`Berechnet: ${label} · ${dateLabel} · Vergleich mit 1991–2020.`;
@@ -5779,7 +5779,7 @@ async function hyrasRenderCustomMap(){
     const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;
   }
   rctx.putImageData(img,0,0);
-  const scale=4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
+  const scale=state.resolutionKm<=1?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
   try{const manifest=await hyrasLoadWebManifest();const response=await fetch(`${HYRAS_DATA_BASE}/${manifest.boundary_overlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Grenzen:",error);}
   const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";
   const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · Freier Zeitraum</div><div class="hyras-dynamic-subtitle">${hyrasDate(state.start)}–${hyrasDate(state.end)} · ${metricLabel} · tagesgenaue Referenz 1991–2020</div>`;wrap.appendChild(canvas);
