@@ -1,0 +1,75 @@
+name: DWD 10-Minuten-Aktuellbereich aktualisieren
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: current-10min-live-data
+  cancel-in-progress: true
+
+jobs:
+  update-current:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install --upgrade requests
+
+      - name: Vorherigen Live-Stand laden
+        shell: bash
+        run: |
+          rm -rf /tmp/climate-live
+          mkdir -p /tmp/climate-live
+          if git ls-remote --exit-code --heads origin live-data >/dev/null 2>&1; then
+            git fetch origin live-data:refs/remotes/origin/live-data
+            git archive origin/live-data | tar -x -C /tmp/climate-live
+            echo "Vorheriger live-data-Stand geladen."
+          else
+            echo "Noch kein live-data-Branch vorhanden – erster Aufbau."
+          fi
+
+      - name: DWD-now prüfen und Live-Daten bauen
+        id: current
+        run: python scripts/update_current_10min.py --output /tmp/climate-live --workers 16
+
+      - name: Live-Datenbranch veröffentlichen
+        if: steps.current.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan live-data-publish
+          git rm -rf . >/dev/null 2>&1 || true
+          cp -a /tmp/climate-live/. .
+          touch .nojekyll
+          git add -A
+          git commit -m "DWD 10-Minuten-Livedaten aktualisiert"
+          git branch -M live-data
+          git push --force origin live-data
+
+          echo "Live-Daten veröffentlicht."
+          echo "Stationen: ${{ steps.current.outputs.station_count }}"
+          echo "Letzter Messzeitpunkt: ${{ steps.current.outputs.latest_measurement }}"
+
+      - name: Keine neuen DWD-Daten
+        if: steps.current.outputs.changed != 'true'
+        run: echo "DWD-now-Verzeichnis unverändert. Keine Veröffentlichung notwendig."
