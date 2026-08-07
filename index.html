@@ -405,6 +405,19 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 .profile-overview-grid{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:12px;margin:18px 0}.profile-overview-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05)}.profile-overview-card .label{font-size:12px;color:var(--muted);font-weight:700}.profile-overview-card .value{font-size:25px;font-weight:800;margin:7px 0 3px}.profile-overview-card .detail{font-size:12px;color:var(--muted);line-height:1.35}.station-profile-map{height:430px;border-radius:8px;overflow:hidden;background:#e9eef2}.profile-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profile-method-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:16px;line-height:1.55;color:#4e585d}.profile-method-card h3{color:#222;margin:0 0 8px}@media(max-width:900px){.profile-overview-grid{grid-template-columns:1fr 1fr}.profile-method-grid{grid-template-columns:1fr}}@media(max-width:560px){.profile-overview-grid{grid-template-columns:1fr}}
 
+
+/* Version 15.0: HYRAS-Flächenkarten */
+.hyras-map-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:16px}
+.hyras-map-frame{min-height:560px;display:flex;align-items:center;justify-content:center;background:#f6f8fa;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.hyras-map-frame img{display:block;width:100%;height:auto;max-height:920px;object-fit:contain;background:#fff}
+.hyras-map-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.hyras-map-actions a{display:inline-block;padding:8px 12px;border:1px solid #aab4bd;border-radius:7px;background:#fff;color:#24313a;text-decoration:none;font-weight:700}
+.hyras-map-actions a:hover{background:#f4f6f7}
+.hyras-status{padding:10px 12px;border-radius:8px;background:#f3f8fb;border:1px solid #cbdde8;margin-bottom:12px}
+.hyras-status.error{background:#fff1f0;border-color:#e1b3af;color:#8b211a}
+.hyras-loading{padding:36px 18px;text-align:center;color:var(--muted)}
+@media(max-width:700px){.hyras-map-frame{min-height:360px}}
+
 </style>
 </head>
 <body>
@@ -418,6 +431,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button active" onclick="switchTab('monthly')">Gebietsmittel</button>
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
+  <button class="tab-button" onclick="switchTab('hyras')">Flächenkarten</button>
   <button class="tab-button" onclick="switchTab('current')">Aktuell</button>
   <button class="tab-button" onclick="switchTab('stationProfile')">Stationsprofil</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
@@ -770,6 +784,43 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p id="extremeMethodNote" class="note"></p>
 </div>
 
+
+<!-- ================= HYRAS-FLÄCHENKARTEN ================= -->
+<div id="hyras" class="tab-content">
+  <div class="section-header">
+    <h2>HYRAS-Flächenkarten</h2>
+    <p>Flächendeckender Niederschlag auf dem 1-km-Raster HYRAS-DE des Deutschen Wetterdienstes.</p>
+    <span class="section-status">Schritt 1 · aktuellster vollständig verfügbarer Monat · Referenz 1991–2020</span>
+  </div>
+
+  <div id="hyrasStatus" class="hyras-status">HYRAS-Daten werden beim ersten Öffnen geladen …</div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="hyrasMetricSelect">Darstellung</label>
+      <select id="hyrasMetricSelect">
+        <option value="percent">Prozent des Mittels 1991–2020</option>
+        <option value="sum">Niederschlagssumme</option>
+        <option value="anomaly">Abweichung in l/m²</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:16px">
+    <div class="stat-card"><h4>Zeitraum</h4><div id="hyrasPeriodStat" class="current-value">–</div><div id="hyrasDataThrough" class="daily-stat-detail">–</div></div>
+    <div class="stat-card"><h4>Rastermittel</h4><div id="hyrasCurrentMean" class="current-value">–</div><div class="daily-stat-detail">aktueller Monat</div></div>
+    <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="hyrasReferenceMean" class="current-value">–</div><div class="daily-stat-detail">gleicher Kalendermonat</div></div>
+    <div class="stat-card"><h4>Vom Mittel</h4><div id="hyrasPercentMean" class="current-value">–</div><div id="hyrasAnomalyMean" class="daily-stat-detail">–</div></div>
+  </div>
+
+  <div class="hyras-map-card">
+    <div id="hyrasMapFrame" class="hyras-map-frame"><div class="hyras-loading">Karte wird geladen …</div></div>
+    <div class="hyras-map-actions">
+      <a id="hyrasOpenImage" href="#" target="_blank" rel="noopener">Karte groß öffnen</a>
+    </div>
+  </div>
+  <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Die Karte basiert auf täglichen HYRAS-Niederschlagsrastern und zeigt den aktuellsten vollständig verfügbaren Kalendermonat. Das Raster hat 1 km Auflösung. Die angezeigten Deutschlandwerte sind Mittel über Rasterzellen mit gültigem aktuellem und Referenzwert und keine separate amtliche Gebietsmittelreihe.</p>
+</div>
 
 <!-- ================= AKTUELL / 10-MINUTEN ================= -->
 <div id="current" class="tab-content">
@@ -1401,6 +1452,10 @@ let currentLiveMapBoundaryPromise=null;
 const CURRENT_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/live-data";
 const CURRENT_FAST_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/fast-live";
 const CURRENT_MAP_BOUNDARY_URL="https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
+const HYRAS_DATA_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/hyras-data";
+let hyrasIndex=null;
+let hyrasLoading=null;
+let hyrasLastFetch=0;
 let extremeCumulativeChart=null;
 let yearlyExtremeChart=null;
 let yearlyMaxChart=null;
@@ -1454,6 +1509,7 @@ function switchTab(tab,{persist=true}={}){
   if(mobile) mobile.value=tab;
   if(persist) persistDashboardState("tab",tab);
   if(tab==="current") ensureCurrentConditions();
+  if(tab==="hyras") ensureHyrasLoaded();
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
   if(tab==="stationClimateDays") ensureStationClimateDaysLoaded();
@@ -5373,6 +5429,83 @@ async function renderStationProfileAuxiliary(){
 window.addEventListener('stationprofilechange',()=>renderStationProfileAuxiliary().catch(error=>console.error('Stationsprofil Zusatzdaten:',error)));
 
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
+// ================= VERSION 15.0: HYRAS-FLÄCHENKARTEN =================
+function hyrasNum(value,unit="",digits=1){
+  const n=Number(value);
+  if(!Number.isFinite(n)) return "–";
+  return `${n.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})}${unit?` ${unit}`:""}`;
+}
+function hyrasDate(value){
+  if(!value) return "–";
+  const d=new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(d.getTime())?value:d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+async function hyrasFetchJson(path){
+  const sep=path.includes("?")?"&":"?";
+  const response=await fetch(`${HYRAS_DATA_BASE}/${path}${sep}t=${Date.now()}`,{cache:"no-store"});
+  if(!response.ok) throw new Error(`HYRAS-Datei ${path} nicht erreichbar (HTTP ${response.status})`);
+  return response.json();
+}
+function hyrasMetricConfig(metric){
+  if(metric==="sum") return {key:"sum",label:"Niederschlagssumme"};
+  if(metric==="anomaly") return {key:"anomaly",label:"Abweichung in l/m²"};
+  return {key:"percent",label:"Prozent des Mittels 1991–2020"};
+}
+function renderHyras(){
+  if(!hyrasIndex) return;
+  const stats=hyrasIndex.stats||{};
+  const metric=document.getElementById("hyrasMetricSelect")?.value||"percent";
+  const cfg=hyrasMetricConfig(metric);
+  const file=hyrasIndex.outputs?.[cfg.key];
+  document.getElementById("hyrasPeriodStat").textContent=hyrasIndex.label||`${hyrasIndex.month_name||""} ${hyrasIndex.year||""}`;
+  document.getElementById("hyrasDataThrough").textContent=`HYRAS-Tagesdatei bis ${hyrasDate(hyrasIndex.data_through)}`;
+  document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
+  document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
+  document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
+  const anom=Number(stats.anomaly_mean_mm);
+  document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:`Abweichung nicht verfügbar`;
+  const frame=document.getElementById("hyrasMapFrame");
+  const link=document.getElementById("hyrasOpenImage");
+  if(!file){
+    frame.innerHTML='<div class="hyras-loading">Für diese Darstellung wurde keine Karte erzeugt.</div>';
+    if(link) link.style.display="none";
+    return;
+  }
+  const url=`${HYRAS_DATA_BASE}/${file}?t=${Date.now()}`;
+  const img=document.createElement("img");
+  img.alt=`HYRAS ${cfg.label} · ${hyrasIndex.label||""}`;
+  img.loading="eager";
+  img.src=url;
+  img.onerror=()=>{frame.innerHTML='<div class="hyras-loading">Die HYRAS-Karte konnte nicht geladen werden.</div>';};
+  frame.innerHTML="";
+  frame.appendChild(img);
+  if(link){link.href=url;link.style.display="inline-block";}
+}
+async function ensureHyrasLoaded(force=false){
+  if(hyrasLoading) return hyrasLoading;
+  if(!force && hyrasIndex && Date.now()-hyrasLastFetch<5*60*1000){renderHyras();return;}
+  const status=document.getElementById("hyrasStatus");
+  if(status){status.className="hyras-status";status.textContent="HYRAS-Karten werden geprüft …";}
+  hyrasLoading=(async()=>{
+    try{
+      hyrasIndex=await hyrasFetchJson("hyras_index.json");
+      hyrasLastFetch=Date.now();
+      if(status){status.className="hyras-status";status.textContent=`${hyrasIndex.label} · Referenz ${hyrasIndex.reference} · HYRAS-DE-PR ${hyrasIndex.resolution_km}-km-Raster · Daten bis ${hyrasDate(hyrasIndex.data_through)}`;}
+      renderHyras();
+    }catch(error){
+      console.error("HYRAS:",error);
+      if(status){status.className="hyras-status error";status.textContent=`HYRAS-Karten noch nicht verfügbar: ${error.message}. Den Workflow „HYRAS Flächenkarten aktualisieren“ einmal starten.`;}
+      const frame=document.getElementById("hyrasMapFrame");
+      if(frame) frame.innerHTML='<div class="hyras-loading">Noch kein HYRAS-Kartendatensatz veröffentlicht.</div>';
+    }finally{hyrasLoading=null;}
+  })();
+  return hyrasLoading;
+}
+function initHyrasControls(){
+  document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
+}
+initHyrasControls();
+
 // ================= AKTUELL / DWD 10-MINUTEN =================
 function currentNum(value,unit="",digits=1){
   if(value===null || value===undefined || value==="") return "–";
