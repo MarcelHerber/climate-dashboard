@@ -384,6 +384,9 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .profile-current-row{background:#e5f5f1;font-weight:700}
 @media(max-width:760px){.profile-event-grid{grid-template-columns:1fr}.profile-event-row{grid-template-columns:1fr 1fr 1fr}.profile-section-heading{align-items:start;flex-direction:column}.profile-section-heading .note{text-align:left}}
 
+
+.profile-temp-grid{display:grid;grid-template-columns:repeat(3,minmax(260px,1fr));gap:12px}.profile-extreme-card{background:#fff;border:1px solid var(--border);border-radius:9px;overflow:hidden}.profile-extreme-card h3{margin:0;padding:14px 14px 4px}.profile-extreme-card .note{padding:0 14px 10px;margin:0}.profile-extreme-card table{margin:0}.profile-extreme-card tr.current-year{background:#e5f5f1;font-weight:700}.profile-temp-badge{display:inline-block;border-radius:6px;padding:3px 6px;font-weight:700}.profile-temp-hot{background:#ffe3d6;color:#b33a00}.profile-temp-veryhot{background:#ffd1cf;color:#9f1f1f}.profile-temp-tropical{background:#efe0ff;color:#7e2fc2}.profile-temp-frost{background:#dceeff;color:#17639d}.profile-daily-table{max-height:560px;overflow:auto;border:1px solid var(--border);border-radius:8px}.profile-daily-table table{margin:0}.profile-daily-table thead th{position:sticky;top:0;background:#29323a;color:white;z-index:2}.profile-daily-table tr.latest{background:#e5f5f1;font-weight:700}@media(max-width:900px){.profile-temp-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -771,6 +774,23 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <section class="profile-section chart-container auto">
         <div class="profile-section-heading"><div><div class="profile-kicker">Jahresvergleich</div><h2 id="stationProfileComparisonTitle">Klimaereignisse bis zum Datenstand</h2></div><p class="note">Historische Jahre werden auf denselben Kalendertag begrenzt.</p></div>
         <div class="profile-table-scroll"><table id="stationProfileComparisonTable"><thead><tr><th>Jahr</th><th>Sommertage</th><th>Hitzetage</th><th>Wüstentage</th><th>≥40 °C</th><th>Tropennächte</th><th>Frosttage</th><th>Eistage</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Temperaturverlauf · aktuelles Jahr</div><h2>Das Jahr auf einen Blick</h2></div><p class="note">Tmax und Tmin des laufenden Jahres mit Allzeit-Randkurven und Klimamittel 1991–2020.</p></div>
+        <div class="chart-container"><canvas id="stationProfileTemperatureChart"></canvas></div>
+      </section>
+      <section class="profile-section chart-container auto">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Tageswerte</div><h2 id="stationProfileDailyTitle">Tagesdaten des aktuellen Jahres</h2></div><p class="note">Tagesmittel = (Tmin + Tmax) / 2. Aktuelle DWD-Werte sind vorläufig.</p></div>
+        <div id="stationProfileDailyMessage" class="note"></div>
+        <div class="profile-daily-table"><table id="stationProfileDailyTable"><thead><tr><th>Datum</th><th>Minimum</th><th>Mittel</th><th>Maximum</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Allzeitrekorde der Station</div><h2>Extreme seit Messbeginn</h2></div><p class="note">Top 10 historischer und aktueller Tageswerte. Werte des laufenden Jahres werden hervorgehoben.</p></div>
+        <div class="profile-temp-grid">
+          <div class="profile-extreme-card"><h3>Heißeste Tage</h3><p class="note">Größtes Tagesmaximum</p><table id="stationProfileHotTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
+          <div class="profile-extreme-card"><h3>Kälteste Nächte</h3><p class="note">Kleinstes Tagesminimum</p><table id="stationProfileColdTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
+          <div class="profile-extreme-card"><h3>Wärmste Nächte</h3><p class="note">Größtes Tagesminimum</p><table id="stationProfileWarmNightTable"><thead><tr><th>Platz</th><th>Datum</th><th>°C</th></tr></thead><tbody></tbody></table></div>
+        </div>
       </section>
     </div>
   </div>
@@ -4752,6 +4772,7 @@ let stationProfileProfile=null;
 let stationProfileRequestId=0;
 let stationProfileSummerAnnualChart=null;
 let stationProfileWinterAnnualChart=null;
+let stationProfileTemperatureChart=null;
 
 function stationProfileDistanceKm(a,b){
   if(!Number.isFinite(Number(a?.latitude))||!Number.isFinite(Number(a?.longitude))||!Number.isFinite(Number(b?.latitude))||!Number.isFinite(Number(b?.longitude))) return Infinity;
@@ -4930,6 +4951,46 @@ async function renderStationProfileClimate(){
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileClimate().catch(error=>console.error('Stationsprofil Kenntage:',error)));
 
+// ================= VERSION 12.3: STATIONSPROFIL – TEMPERATUR UND EXTREME =================
+function stationProfileCurrentTemperatureRows(){
+  const id=document.getElementById('stationProfileStationSelect')?.value;if(!id)return [];
+  const year=Number(stationClimateDaysIndex.current_year),through=stationClimateDaysIndex.data_through,rows=[];
+  (stationClimateDaysIndex.labels||[]).forEach((label,index)=>{const iso=`${year}-${label}`;if(iso>through)return;const pair=stationClimateDaysPair(id,iso);if(!pair)return;const tx=Number.isFinite(Number(pair[2]))?Number(pair[2])/10:null;const tn=Number.isFinite(Number(pair[3]))?Number(pair[3])/10:null;if(tx===null&&tn===null)return;rows.push({index,date:iso,tx,tn,tm:tx!==null&&tn!==null?(tx+tn)/2:null});});return rows;
+}
+function stationProfileTemperatureColor(value){if(!Number.isFinite(value))return '#555';if(value>=40)return '#7f1717';if(value>=35)return '#c63d2f';if(value>=30)return '#df6b2f';if(value>=25)return '#d89a16';return '#46525a';}
+function stationProfileMinColor(value){if(!Number.isFinite(value))return '#555';if(value>=20)return '#9b3ed1';if(value<0)return '#2785c7';return '#5d666b';}
+function stationProfileTempLabel(value,kind){if(!Number.isFinite(value))return '–';const cls=kind==='tn'?(value>=20?'profile-temp-tropical':value<0?'profile-temp-frost':''):(value>=35?'profile-temp-veryhot':value>=30?'profile-temp-hot':'');return `<span class="profile-temp-badge ${cls}">${value.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} °C</span>`;}
+function stationProfileMergeExtremes(kind,currentRows){
+  const historical=stationProfileProfile?.temperature_extremes?.[kind]||[];let current=[];
+  if(kind==='hottest_days')current=currentRows.filter(r=>Number.isFinite(r.tx)).map(r=>[r.date,r.tx]);
+  else current=currentRows.filter(r=>Number.isFinite(r.tn)).map(r=>[r.date,r.tn]);
+  const all=[...historical,...current];
+  all.sort((a,b)=>kind==='coldest_nights'?Number(a[1])-Number(b[1])||String(a[0]).localeCompare(String(b[0])):Number(b[1])-Number(a[1])||String(a[0]).localeCompare(String(b[0])));
+  return all.slice(0,10);
+}
+function stationProfileRenderExtremeTable(id,rows){
+  const currentYear=String(stationClimateDaysIndex.current_year);document.querySelector(`#${id} tbody`).innerHTML=rows.map((row,index)=>`<tr class="${String(row[0]).startsWith(currentYear)?'current-year':''}"><td>${index+1}.</td><td>${dailyGermanDate(row[0],false)}</td><td>${Number(row[1]).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})}</td></tr>`).join('');
+}
+async function renderStationProfileTemperature(){
+  if(!stationProfileProfile||!stationClimateDaysIndex||!document.getElementById('stationProfileTemperatureChart'))return;await loadStationClimateDaysCurrentMonths();
+  const rows=stationProfileCurrentTemperatureRows(),labels=(stationClimateDaysIndex.labels||[]).map(stationClimateDaysDateLabel),tx=Array(365).fill(null),tn=Array(365).fill(null);rows.forEach(r=>{tx[r.index]=r.tx;tn[r.index]=r.tn;});
+  const records=stationProfileProfile.temperature_daily_records||{},reference=stationProfileProfile.temperature_reference_daily_mean||{};
+  if(stationProfileTemperatureChart)stationProfileTemperatureChart.destroy();
+  stationProfileTemperatureChart=new Chart(document.getElementById('stationProfileTemperatureChart'),{type:'line',data:{labels,datasets:[
+    {label:'Allzeit-Maximum',data:records.tx_max||[],borderColor:'rgba(229,104,55,.32)',borderWidth:1.4,pointRadius:0,spanGaps:true},
+    {label:'Allzeit-Minimum',data:records.tn_min||[],borderColor:'rgba(53,151,211,.32)',borderWidth:1.4,pointRadius:0,spanGaps:true},
+    {label:'Mittel Tmax 1991–2020',data:reference.tx||[],borderColor:'rgba(60,60,60,.42)',borderDash:[5,5],borderWidth:1.2,pointRadius:0,spanGaps:true},
+    {label:'Mittel Tmin 1991–2020',data:reference.tn||[],borderColor:'rgba(100,100,100,.32)',borderDash:[3,5],borderWidth:1.2,pointRadius:0,spanGaps:true},
+    {label:`Tmax ${stationClimateDaysIndex.current_year}`,data:tx,borderColor:'#d95c18',borderWidth:2.2,pointRadius:0,spanGaps:false,segment:{borderColor:ctx=>stationProfileTemperatureColor((ctx.p0.parsed.y+ctx.p1.parsed.y)/2)}},
+    {label:`Tmin ${stationClimateDaysIndex.current_year}`,data:tn,borderColor:'#386d8d',borderWidth:2,pointRadius:0,spanGaps:false,segment:{borderColor:ctx=>stationProfileMinColor((ctx.p0.parsed.y+ctx.p1.parsed.y)/2)}}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Temperaturverlauf ${stationClimateDaysIndex.current_year} – ${stationProfileProfile.name||''}`},datalabels:{display:false}},scales:{x:{ticks:{maxTicksLimit:12}},y:{title:{display:true,text:'Temperatur (°C)'}}}}});
+  document.getElementById('stationProfileDailyTitle').textContent=`Tagesdaten ${stationClimateDaysIndex.current_year}`;
+  document.getElementById('stationProfileDailyMessage').textContent=rows.some(r=>Number.isFinite(r.tn))?'':'Tmin ist in den aktuellen Stationsdateien noch nicht enthalten. Nach dem Version-12.3-Datenlauf erscheint die vollständige Tabelle.';
+  const latest=rows.at(-1)?.date;document.querySelector('#stationProfileDailyTable tbody').innerHTML=[...rows].reverse().map(r=>`<tr class="${r.date===latest?'latest':''}"><td>${dailyGermanDate(r.date,false)}</td><td>${stationProfileTempLabel(r.tn,'tn')}</td><td>${stationProfileTempLabel(r.tm,'tm')}</td><td>${stationProfileTempLabel(r.tx,'tx')}</td></tr>`).join('');
+  stationProfileRenderExtremeTable('stationProfileHotTable',stationProfileMergeExtremes('hottest_days',rows));stationProfileRenderExtremeTable('stationProfileColdTable',stationProfileMergeExtremes('coldest_nights',rows));stationProfileRenderExtremeTable('stationProfileWarmNightTable',stationProfileMergeExtremes('warmest_nights',rows));initializeChartExportButtons();
+}
+window.addEventListener('stationprofilechange',()=>renderStationProfileTemperature().catch(error=>console.error('Stationsprofil Temperatur:',error)));
+
 // ================= VERSION 9: ZUSTAND, MOBILE NAVIGATION, CSV =================
 const DASHBOARD_STATE_KEY="climateDashboardStateV9";
 let dashboardState={};
@@ -5068,6 +5129,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 12.2: Stationsprofil Kenntage und Jahresvergleich -->
+<!-- Dashboard Version 12.3: Stationsprofil Temperatur, Tagesdaten und Extreme -->
 </body>
 </html>
