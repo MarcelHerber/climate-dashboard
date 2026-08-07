@@ -15,7 +15,7 @@ concurrency:
 jobs:
   hyras:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
@@ -29,12 +29,21 @@ jobs:
       - name: HYRAS-Abhängigkeiten installieren
         run: pip install -r requirements-hyras.txt
 
-      - name: HYRAS-Zeiträume und Karten bauen
+      - name: Tagesreferenz 1991-2020 cachen
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-cache
+          key: hyras-daily-reference-1991-2020-v6-web5-v1
+
+      - name: HYRAS-Zeiträume, freie Tagesreferenz und Karten bauen
         run: |
           rm -rf /tmp/hyras-data /tmp/hyras-work
+          mkdir -p /tmp/hyras-reference-cache
           python scripts/update_hyras_maps.py \
             --output /tmp/hyras-data \
-            --work /tmp/hyras-work
+            --work /tmp/hyras-work \
+            --reference-cache /tmp/hyras-reference-cache \
+            --web-factor 5
 
       - name: hyras-data Branch veröffentlichen
         env:
@@ -46,6 +55,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Zeitraumkarten aktualisieren"
+          git commit -m "HYRAS freie Zeiträume aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
