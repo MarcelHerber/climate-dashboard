@@ -822,7 +822,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <input id="hyrasCustomEnd" type="date">
     </div>
     <button id="hyrasCustomApply" class="hyras-custom-apply" type="button">Freien Zeitraum anzeigen</button>
-    <p id="hyrasCustomMessage" class="hyras-custom-message">Tagesgenauer Vergleich mit 1991–2020. Die freie Browserkarte nutzt für schnelle Berechnung ein 5-km-Webraster aus dem HYRAS-1-km-Gitter.</p>
+    <p id="hyrasCustomMessage" class="hyras-custom-message">Tagesgenauer Vergleich mit 1991–2020. Die freie Browserkarte nutzt für schnelle Berechnung ein feineres Webraster aus dem HYRAS-1-km-Gitter.</p>
   </div>
 
   <div class="hyras-custom-range hyras-historical-range">
@@ -850,7 +850,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       </select>
     </div>
     <button id="hyrasHistoricalApply" class="hyras-custom-apply" type="button">Historische Karte anzeigen</button>
-    <p id="hyrasHistoricalMessage" class="hyras-custom-message"><strong>Historische Auswahl:</strong> Monat, Jahreszeit oder Gesamtjahr gegen 1991–2020. Die Browserkarte nutzt ein kompaktes 5-km-Raster aus den nativen HYRAS-1-km-Monatsdaten.</p>
+    <p id="hyrasHistoricalMessage" class="hyras-custom-message"><strong>Historische Auswahl:</strong> Monat, Jahreszeit oder Gesamtjahr gegen 1991–2020. Die Browserkarte nutzt ein feineres Webraster aus den nativen HYRAS-1-km-Monatsdaten.</p>
   </div>
 
   <div class="stat-grid" style="margin-bottom:16px">
@@ -5651,7 +5651,7 @@ async function hyrasRenderHistoricalMap(){
   const scale=4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
   try{const manifest=await hyrasLoadHistoricalManifest();const response=await fetch(`${HYRAS_DATA_BASE}/${manifest.boundary_overlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Historiengrenzen:",error);}
   const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";
-  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · ${state.label}</div><div class="hyras-dynamic-subtitle">${state.dateLabel} · ${metricLabel} · Referenz 1991–2020 · historisches Webraster</div>`;wrap.appendChild(canvas);
+  const metricLabel=hyrasMetricConfig(metric).label;wrap.innerHTML=`<div class="hyras-dynamic-title">HYRAS-Niederschlag · ${state.label}</div><div class="hyras-dynamic-subtitle">${state.dateLabel} · ${metricLabel} · Referenz 1991–2020 · historisches HYRAS-Webraster</div>`;wrap.appendChild(canvas);
   const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);
   const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=`hyras_historisch_${state.year}_${state.type}_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
 }
@@ -5678,7 +5678,7 @@ async function hyrasApplyHistorical(){
     document.getElementById("hyrasPeriodStat").textContent=label;
     document.getElementById("hyrasDataThrough").textContent=dateLabel;
     document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
-    document.getElementById("hyrasCurrentMeanDetail").textContent=`historisches Webraster ${manifest.web_sampling_km} km`;
+    document.getElementById("hyrasCurrentMeanDetail").textContent=`historisches HYRAS-Webraster ${manifest.web_sampling_km} km`;
     document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
     document.getElementById("hyrasReferenceMeanDetail").textContent="Mittel 1991–2020 · gleicher Kalendermonat/Zeitraum";
     document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
