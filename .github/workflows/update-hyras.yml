@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Python einrichten
         uses: actions/setup-python@v5
@@ -35,10 +37,23 @@ jobs:
           path: /tmp/hyras-reference-cache
           key: hyras-daily-reference-1991-2020-v6-web5-v1
 
-      - name: HYRAS-Zeiträume, freie Tagesreferenz und Karten bauen
+      - name: Vorhandenes historisches HYRAS-Paket übernehmen
         run: |
-          rm -rf /tmp/hyras-data /tmp/hyras-work
-          mkdir -p /tmp/hyras-reference-cache
+          rm -rf /tmp/hyras-data /tmp/hyras-work /tmp/hyras-existing
+          mkdir -p /tmp/hyras-data /tmp/hyras-reference-cache
+          git fetch origin hyras-data --depth=1 || true
+          if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
+            git worktree add --detach /tmp/hyras-existing origin/hyras-data
+            if [ -d /tmp/hyras-existing/historical ]; then
+              cp -a /tmp/hyras-existing/historical /tmp/hyras-data/
+            fi
+            if [ -f /tmp/hyras-existing/hyras_historical_manifest.json ]; then
+              cp /tmp/hyras-existing/hyras_historical_manifest.json /tmp/hyras-data/
+            fi
+          fi
+
+      - name: HYRAS aktuell, freie Zeiträume und Historie bauen
+        run: |
           python scripts/update_hyras_maps.py \
             --output /tmp/hyras-data \
             --work /tmp/hyras-work \
@@ -50,11 +65,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd /tmp/hyras-data
+          rm -rf .git
           git init
           git checkout -b hyras-data
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS freie Zeiträume aktualisieren"
+          git commit -m "HYRAS Historie und Zeiträume aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
