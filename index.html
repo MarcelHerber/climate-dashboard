@@ -812,7 +812,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 <!-- ================= STATIONSNIEDERSCHLAG ================= -->
 <div id="stationPrecip" class="tab-content">
-  <div class="section-header"><h2>Stationsniederschlag</h2><p>Kumulative Niederschlagssumme des laufenden Jahres im erweiterten DWD-Niederschlagsnetz im Vergleich zum Mittel 1991–2020 und zum historischen Spannbereich.</p><span class="section-status">DWD-RR-Netz einschließlich gleichgestellter Partnernetze · aktuelle Werte vorläufig</span></div>
+  <div class="section-header"><h2>Stationsniederschlag</h2><p>Kumulative Niederschlagssumme im erweiterten DWD-Niederschlagsnetz für frei wählbare Zeiträume im Vergleich mit exakt demselben Kalenderabschnitt des Mittels 1991–2020.</p><span class="section-status">DWD-RR-Netz einschließlich gleichgestellter Partnernetze · aktuelle Werte vorläufig</span></div>
   <div id="stationPrecipLoading" class="record-loading">Stationsniederschlag wird beim ersten Öffnen geladen …</div>
   <div id="stationPrecipContent" hidden>
     <div class="controls">
@@ -827,6 +827,28 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <div class="control-group" style="min-width:300px">
         <label for="stationPrecipStationSelect">Niederschlagsstation</label>
         <select id="stationPrecipStationSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="stationPrecipPeriodSelect">Zeitraum</label>
+        <select id="stationPrecipPeriodSelect">
+          <option value="ytd">Seit Jahresbeginn</option>
+          <option value="spring">Frühling (01.03.–31.05.)</option>
+          <option value="summer">Sommer (01.06.–31.08.)</option>
+          <option value="autumn">Herbst (01.09.–30.11.)</option>
+          <option value="month-01">Januar</option><option value="month-02">Februar</option><option value="month-03">März</option>
+          <option value="month-04">April</option><option value="month-05">Mai</option><option value="month-06">Juni</option>
+          <option value="month-07">Juli</option><option value="month-08">August</option><option value="month-09">September</option>
+          <option value="month-10">Oktober</option><option value="month-11">November</option><option value="month-12">Dezember</option>
+          <option value="custom">Freier Zeitraum</option>
+        </select>
+      </div>
+      <div id="stationPrecipCustomRangeGroup" class="control-group" hidden style="min-width:290px">
+        <label>Freier Zeitraum</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="stationPrecipStartDate" type="date" aria-label="Startdatum Niederschlagszeitraum" style="padding:8px;border:1px solid #bbb;border-radius:6px">
+          <span>bis</span>
+          <input id="stationPrecipEndDate" type="date" aria-label="Enddatum Niederschlagszeitraum" style="padding:8px;border:1px solid #bbb;border-radius:6px">
+        </div>
       </div>
       <button class="action" onclick="resetStationPrecipZoom()">Zoom zurücksetzen</button>
     </div>
@@ -843,10 +865,10 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
     <div class="chart-container auto">
       <div class="stat-grid">
-        <div class="stat-card"><h4>Aktuelles Jahr</h4><div id="stationPrecipCurrentStat">–</div></div>
+        <div class="stat-card"><h4>Gewählter Zeitraum</h4><div id="stationPrecipCurrentStat">–</div></div>
         <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="stationPrecipMeanStat">–</div></div>
         <div class="stat-card"><h4>Abweichung</h4><div id="stationPrecipDeviationStat">–</div></div>
-        <div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>
+        <div class="stat-card"><h4>Historischer Spannbereich (ab 01.01.)</h4><div id="stationPrecipRangeStat">–</div></div>
         <div class="stat-card"><h4>Datenlücken im aktuellen Jahr</h4><div id="stationPrecipMissingStat">–</div></div>
       </div>
     </div>
@@ -901,8 +923,16 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 <div id="maps" class="tab-content">
   <div class="section-header"><h2>Stationskarten Deutschland</h2><p>Räumliche Verteilung aktueller Stationsrekorde, Kenntage, Hitzewellen und Niederschlagsabweichungen.</p><span class="section-status">DWD-Stationskoordinaten · Karte OpenStreetMap</span></div>
   <div class="controls">
-    <div class="control-group"><label for="mapModeSelect">Kartenthema</label><select id="mapModeSelect"><option value="records">Neue Stationsrekorde</option><option value="climateDays">Stations-Kenntage aktuelles Jahr</option><option value="heatwaves">Hitzewellen aktuelles Jahr</option><option value="precip">Niederschlagsabweichung seit Jahresbeginn</option></select></div>
+    <div class="control-group"><label for="mapModeSelect">Kartenthema</label><select id="mapModeSelect"><option value="records">Neue Stationsrekorde</option><option value="climateDays">Stations-Kenntage aktuelles Jahr</option><option value="heatwaves">Hitzewellen aktuelles Jahr</option><option value="precip">Niederschlag – Zeitraum frei wählbar</option></select></div>
     <div id="mapMetricGroup" class="control-group"><label for="mapMetricSelect">Parameter</label><select id="mapMetricSelect"></select></div>
+    <div id="mapPrecipPeriodGroup" class="control-group" hidden><label for="mapPrecipPeriodSelect">Niederschlagszeitraum</label><select id="mapPrecipPeriodSelect">
+      <option value="ytd">Seit Jahresbeginn</option><option value="spring">Frühling</option><option value="summer">Sommer</option><option value="autumn">Herbst</option>
+      <option value="month-01">Januar</option><option value="month-02">Februar</option><option value="month-03">März</option><option value="month-04">April</option>
+      <option value="month-05">Mai</option><option value="month-06">Juni</option><option value="month-07">Juli</option><option value="month-08">August</option>
+      <option value="month-09">September</option><option value="month-10">Oktober</option><option value="month-11">November</option><option value="month-12">Dezember</option>
+      <option value="custom">Freier Zeitraum</option>
+    </select></div>
+    <div id="mapPrecipCustomRangeGroup" class="control-group" hidden style="min-width:290px"><label>Freier Zeitraum</label><div style="display:flex;gap:6px;align-items:center"><input id="mapPrecipStartDate" type="date" aria-label="Startdatum Kartenzeitraum" style="padding:8px;border:1px solid #bbb;border-radius:6px"><span>bis</span><input id="mapPrecipEndDate" type="date" aria-label="Enddatum Kartenzeitraum" style="padding:8px;border:1px solid #bbb;border-radius:6px"></div></div>
     <div class="control-group"><label for="mapStateSelect">Bundesland</label><select id="mapStateSelect"><option value="Deutschland">Deutschland</option></select></div>
     <div class="control-group"><label for="mapMinCoverage">Max. fehlende Tage</label><select id="mapMinCoverage"><option value="999">keine Begrenzung</option><option value="30">höchstens 30</option><option value="10">höchstens 10</option><option value="3">höchstens 3</option></select></div>
   </div>
@@ -3532,6 +3562,92 @@ function stationPrecipDateLabel(monthDay){
   return `${day}.${month}.`;
 }
 
+function stationPrecipGermanIsoDate(iso){
+  if(!iso) return "–";
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+function stationPrecipLastDayOfMonth(year,month){
+  return new Date(year,month,0).getDate();
+}
+
+function stationPrecipClampIso(iso,minIso,maxIso){
+  if(!iso) return minIso;
+  return iso<minIso?minIso:iso>maxIso?maxIso:iso;
+}
+
+function stationPrecipResolveRange(period,customStart,customEnd,index=stationPrecipIndex){
+  const year=Number(index.current_year);
+  const first=`${year}-01-01`;
+  const dataThrough=index.data_through;
+  let start=first,end=dataThrough,label="Seit Jahresbeginn";
+  if(period==="spring"){start=`${year}-03-01`;end=`${year}-05-31`;label="Frühling";}
+  else if(period==="summer"){start=`${year}-06-01`;end=`${year}-08-31`;label="Sommer";}
+  else if(period==="autumn"){start=`${year}-09-01`;end=`${year}-11-30`;label="Herbst";}
+  else if(period?.startsWith("month-")){
+    const month=Number(period.slice(6));
+    const monthText=String(month).padStart(2,"0");
+    start=`${year}-${monthText}-01`;
+    end=`${year}-${monthText}-${String(stationPrecipLastDayOfMonth(year,month)).padStart(2,"0")}`;
+    label=new Date(year,month-1,1).toLocaleDateString("de-DE",{month:"long"});
+  }else if(period==="custom"){
+    start=stationPrecipClampIso(customStart||first,first,dataThrough);
+    end=stationPrecipClampIso(customEnd||dataThrough,first,dataThrough);
+    label="Freier Zeitraum";
+  }
+  if(start>dataThrough){
+    return {valid:false,start,end:dataThrough,label,message:`${label} ${year} hat zum Datenstand ${stationPrecipGermanIsoDate(dataThrough)} noch nicht begonnen.`};
+  }
+  end=end>dataThrough?dataThrough:end;
+  if(end<start){
+    return {valid:false,start,end,label,message:"Das Enddatum liegt vor dem Startdatum."};
+  }
+  const startKey=start.slice(5),endKey=end.slice(5);
+  const labels=index.labels||[];
+  const startIndex=labels.indexOf(startKey);
+  const endIndex=labels.indexOf(endKey);
+  if(startIndex<0||endIndex<0||endIndex<startIndex){
+    return {valid:false,start,end,label,message:"Der gewählte Zeitraum konnte nicht auf die Tagesachse abgebildet werden."};
+  }
+  const displayLabel=period==="ytd"
+    ?`Seit Jahresbeginn bis ${stationPrecipGermanIsoDate(end)}`
+    :`${label} ${year} · ${stationPrecipGermanIsoDate(start)}–${stationPrecipGermanIsoDate(end)}`;
+  return {valid:true,start,end,startIndex,endIndex,label,displayLabel,period,year};
+}
+
+function stationPrecipRangeFromPageControls(){
+  return stationPrecipResolveRange(
+    document.getElementById("stationPrecipPeriodSelect")?.value||"ytd",
+    document.getElementById("stationPrecipStartDate")?.value,
+    document.getElementById("stationPrecipEndDate")?.value
+  );
+}
+
+function stationPrecipRangeFromMapControls(){
+  return stationPrecipResolveRange(
+    document.getElementById("mapPrecipPeriodSelect")?.value||"ytd",
+    document.getElementById("mapPrecipStartDate")?.value,
+    document.getElementById("mapPrecipEndDate")?.value
+  );
+}
+
+function stationPrecipConfigureDateInputs(prefix,index=stationPrecipIndex){
+  if(!index) return;
+  const year=Number(index.current_year);
+  const min=`${year}-01-01`,max=index.data_through;
+  const start=document.getElementById(`${prefix}StartDate`);
+  const end=document.getElementById(`${prefix}EndDate`);
+  [start,end].forEach(input=>{if(input){input.min=min;input.max=max;}});
+  if(start&&!start.value) start.value=min;
+  if(end&&!end.value) end.value=max;
+}
+
+function stationPrecipToggleCustomRange(prefix){
+  const period=document.getElementById(`${prefix}PeriodSelect`)?.value;
+  const group=document.getElementById(`${prefix}CustomRangeGroup`);
+  if(group) group.hidden=period!=="custom";
+}
+
 function ensureStationPrecipLoaded(){
   if(stationPrecipIndex){
     updateStationPrecipitation();
@@ -3546,6 +3662,8 @@ function ensureStationPrecipLoaded(){
       if(!data.ready) throw new Error(data.message || "Die Stations-Niederschlagsdateien wurden noch nicht aufgebaut.");
       stationPrecipIndex=data;
       initializeStationPrecipControls();
+      stationPrecipConfigureDateInputs("stationPrecip");
+      stationPrecipConfigureDateInputs("mapPrecip");
       loading.hidden=true;
       document.getElementById("stationPrecipContent").hidden=false;
       document.getElementById("stationPrecipSourceNote").textContent=data.source_note || "";
@@ -3578,6 +3696,12 @@ function initializeStationPrecipControls(){
     updateStationPrecipitation();
   });
   document.getElementById("stationPrecipStationSelect").addEventListener("change",updateStationPrecipitation);
+  document.getElementById("stationPrecipPeriodSelect")?.addEventListener("change",()=>{
+    stationPrecipToggleCustomRange("stationPrecip");
+    updateStationPrecipitation();
+  });
+  ["stationPrecipStartDate","stationPrecipEndDate"].forEach(id=>document.getElementById(id)?.addEventListener("change",updateStationPrecipitation));
+  stationPrecipToggleCustomRange("stationPrecip");
   populateStationPrecipStations();
 }
 
@@ -3646,6 +3770,42 @@ function stationPrecipCumulativeWithGaps(values,labels,dataThrough){
   return result;
 }
 
+function stationPrecipRangeCumulative(values,labels,range){
+  let total=0;
+  const missingDates=[];
+  const result=[];
+  for(let index=range.startIndex;index<=range.endIndex;index++){
+    const value=values[index];
+    const iso=`${range.year}-${labels[index]}`;
+    if(value===null || value===undefined || !Number.isFinite(Number(value))){
+      missingDates.push(iso);
+      result.push(null);
+      continue;
+    }
+    total+=Number(value);
+    result.push(Math.round(total*10)/10);
+  }
+  result.missingDates=missingDates;
+  result.missingCount=missingDates.length;
+  result.total=Math.round(total*10)/10;
+  return result;
+}
+
+function stationPrecipRangeCurveFromCumulative(curve,range){
+  if(!Array.isArray(curve)||!curve.length) return [];
+  const base=range.startIndex>0?Number(curve[range.startIndex-1]||0):0;
+  return curve.slice(range.startIndex,range.endIndex+1).map(value=>
+    value===null||value===undefined||!Number.isFinite(Number(value))?null:Math.round((Number(value)-base)*10)/10
+  );
+}
+
+function stationPrecipRangeTotalFromCumulative(curve,range){
+  if(!Array.isArray(curve)||range.endIndex>=curve.length) return null;
+  const end=Number(curve[range.endIndex]);
+  const base=range.startIndex>0?Number(curve[range.startIndex-1]):0;
+  return Number.isFinite(end)&&Number.isFinite(base)?Math.round((end-base)*10)/10:null;
+}
+
 async function updateStationPrecipitation(){
   if(!stationPrecipIndex) return;
   const stationId=document.getElementById("stationPrecipStationSelect").value;
@@ -3653,8 +3813,13 @@ async function updateStationPrecipitation(){
     document.getElementById("stationPrecipSummary").textContent="Für diese Auswahl wurde keine Station gefunden.";
     return;
   }
+  const range=stationPrecipRangeFromPageControls();
+  if(!range.valid){
+    document.getElementById("stationPrecipSummary").textContent=range.message;
+    return;
+  }
   const station=stationPrecipIndex.stations.find(item=>item.id===stationId);
-  document.getElementById("stationPrecipSummary").textContent=`${station.name}: Daten werden geladen …`;
+  document.getElementById("stationPrecipSummary").textContent=`${station.name}: Daten für ${range.displayLabel} werden geladen …`;
   try{
     const [profileResponse]=await Promise.all([
       dashboardFetch(station.file,{cache:"no-store"}),
@@ -3664,136 +3829,87 @@ async function updateStationPrecipitation(){
     stationPrecipProfile=await profileResponse.json();
 
     const labels=stationPrecipIndex.labels||[];
+    const selectedLabels=labels.slice(range.startIndex,range.endIndex+1);
     const currentDaily=stationPrecipCurrentDaily(stationId);
-    const currentCumulative=stationPrecipCumulativeWithGaps(currentDaily,labels,stationPrecipIndex.data_through);
-    const climate=stationPrecipProfile.climate_mean_cumulative||[];
-    const historicalMin=stationPrecipProfile.historical_min_cumulative||[];
-    const historicalMax=stationPrecipProfile.historical_max_cumulative||[];
-    const lastIndex=currentCumulative.reduce((last,value,index)=>value!==null?index:last,-1);
-    const currentValue=lastIndex>=0?currentCumulative[lastIndex]:null;
-    const climateValue=lastIndex>=0?climate[lastIndex]:null;
-    const deviation=currentValue!==null&&climateValue!==null?currentValue-climateValue:null;
+    const currentCumulative=stationPrecipRangeCumulative(currentDaily,labels,range);
+    const climate=stationPrecipRangeCurveFromCumulative(stationPrecipProfile.climate_mean_cumulative||[],range);
+    const currentValue=currentCumulative.total;
+    const climateValue=climate.length?climate[climate.length-1]:null;
+    const deviation=Number.isFinite(currentValue)&&Number.isFinite(climateValue)?currentValue-climateValue:null;
     const percentage=deviation!==null&&climateValue>0?deviation/climateValue*100:null;
-    const minValue=lastIndex>=0?historicalMin[lastIndex]:null;
-    const maxValue=lastIndex>=0?historicalMax[lastIndex]:null;
-    const minYear=lastIndex>=0?stationPrecipProfile.historical_min_year[lastIndex]:null;
-    const maxYear=lastIndex>=0?stationPrecipProfile.historical_max_year[lastIndex]:null;
-    const lastLabel=lastIndex>=0?stationPrecipDateLabel(labels[lastIndex]):"–";
+
+    let historicalMin=[],historicalMax=[],minValue=null,maxValue=null,minYear=null,maxYear=null;
+    const ytdCompatible=range.startIndex===0;
+    if(ytdCompatible){
+      historicalMin=(stationPrecipProfile.historical_min_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      historicalMax=(stationPrecipProfile.historical_max_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
+      maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
+      minYear=(stationPrecipProfile.historical_min_year||[])[range.endIndex]??null;
+      maxYear=(stationPrecipProfile.historical_max_year||[])[range.endIndex]??null;
+    }
 
     const missingDates=currentCumulative.missingDates||[];
     const missingCount=currentCumulative.missingCount||0;
-    document.getElementById("stationPrecipCurrentStat").textContent=currentValue===null?"–":`${stationPrecipFormat(currentValue)} mm bis ${lastLabel}`;
-    document.getElementById("stationPrecipMeanStat").textContent=climateValue===null?"–":`${stationPrecipFormat(climateValue)} mm bis ${lastLabel}`;
+    document.getElementById("stationPrecipCurrentStat").textContent=Number.isFinite(currentValue)?`${stationPrecipFormat(currentValue)} mm · ${range.displayLabel}`:"–";
+    document.getElementById("stationPrecipMeanStat").textContent=Number.isFinite(climateValue)?`${stationPrecipFormat(climateValue)} mm · gleicher Kalenderzeitraum`:"–";
     document.getElementById("stationPrecipDeviationStat").textContent=deviation===null?"–":`${deviation>=0?"+":""}${stationPrecipFormat(deviation)} mm (${percentage>=0?"+":""}${stationPrecipFormat(percentage)} %)`;
-    document.getElementById("stationPrecipRangeStat").textContent=minValue===null?"–":`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`;
+    document.getElementById("stationPrecipRangeStat").textContent=ytdCompatible&&minValue!==null
+      ?`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`
+      :"Für Zeiträume mit Start nach dem 01.01. nicht vorab berechnet";
     document.getElementById("stationPrecipMissingStat").textContent=missingCount===0
-      ? "Keine fehlenden Tageswerte"
-      : `${missingCount} ${missingCount===1?"Tag":"Tage"} ohne Messwert`;
+      ? "Keine fehlenden Tageswerte im Zeitraum"
+      : `${missingCount} ${missingCount===1?"Tag":"Tage"} ohne Messwert im Zeitraum`;
 
     const metaParts=[
-      `${station.name} (${station.id})`,
-      station.state||"Bundesland unbekannt",
+      `${station.name} (${station.id})`,station.state||"Bundesland unbekannt",
       station.height===null||station.height===undefined?null:`${station.height} m ü. NHN`,
-      `${station.reference_years} vollständige Referenzjahre 1991–2020`,
-      `${station.history_years} vollständige Jahre im Spannbereich`
+      range.displayLabel,
+      `${station.reference_years} vollständige Referenzjahre 1991–2020`
     ].filter(Boolean);
     let gapText="";
     if(missingCount>0){
       const shownDates=missingDates.slice(0,5).map(iso=>new Date(`${iso}T00:00:00`).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"}));
       const moreDates=missingCount>shownDates.length?` und ${missingCount-shownDates.length} weitere`:"";
-      gapText=` Im aktuellen Jahr fehlen bis zum Datenstand ${missingCount} ${missingCount===1?"Tageswert":"Tageswerte"} (${shownDates.join(", ")}${moreDates}). Die rote Kurve wird mit den vorhandenen Messwerten fortgeführt; fehlende Tage werden nicht als 0 mm gewertet.`;
-    }else{
-      gapText=" Im aktuellen Jahr liegen bis zum Datenstand alle Tageswerte vor.";
-    }
+      gapText=` Es fehlen ${missingCount} ${missingCount===1?"Tageswert":"Tageswerte"} (${shownDates.join(", ")}${moreDates}). Fehlende Tage werden nicht als 0 mm gewertet.`;
+    }else gapText=" Für den gewählten Zeitraum liegen bis zum Datenstand alle Tageswerte vor.";
+    if(!ytdCompatible) gapText+=" Der historische Min-Max-Spannbereich wird bei frei beginnenden Zeiträumen bewusst nicht angezeigt, weil die bisher gespeicherten historischen Hüllkurven auf den 1. Januar bezogen sind.";
     document.getElementById("stationPrecipSummary").textContent=metaParts.join(" · ")+`.${gapText}`;
 
     if(stationPrecipChart) stationPrecipChart.destroy();
+    const datasets=[];
+    if(ytdCompatible){
+      datasets.push(
+        {label:"Historisches Maximum",data:historicalMax,borderColor:"rgba(110,110,110,.65)",backgroundColor:"rgba(150,150,150,.18)",borderWidth:1,pointRadius:0,fill:{target:1,above:"rgba(150,150,150,.18)"},tension:.12},
+        {label:"Historisches Minimum",data:historicalMin,borderColor:"rgba(110,110,110,.65)",borderWidth:1,pointRadius:0,fill:false,tension:.12}
+      );
+    }
+    datasets.push(
+      {label:"Mittel 1991–2020",data:climate,borderColor:"#111",borderWidth:2,borderDash:[8,5],pointRadius:0,fill:false,tension:.12},
+      {label:String(stationPrecipIndex.current_year),data:currentCumulative,borderColor:"#c53030",backgroundColor:"rgba(197,48,48,.08)",borderWidth:3,pointRadius:0,spanGaps:true,fill:false,tension:.12}
+    );
     stationPrecipChart=new Chart(document.getElementById("stationPrecipChart"),{
-      type:"line",
-      data:{labels:labels.map(stationPrecipDateLabel),datasets:[
-        {
-          label:"Historisches Maximum",
-          data:historicalMax,
-          borderColor:"rgba(110,110,110,.65)",
-          backgroundColor:"rgba(150,150,150,.18)",
-          borderWidth:1,
-          pointRadius:0,
-          fill:{target:1,above:"rgba(150,150,150,.18)"},
-          tension:.12
-        },
-        {
-          label:"Historisches Minimum",
-          data:historicalMin,
-          borderColor:"rgba(110,110,110,.65)",
-          borderWidth:1,
-          pointRadius:0,
-          fill:false,
-          tension:.12
-        },
-        {
-          label:"Mittel 1991–2020",
-          data:climate,
-          borderColor:"#111",
-          borderWidth:2,
-          borderDash:[8,5],
-          pointRadius:0,
-          fill:false,
-          tension:.12
-        },
-        {
-          label:String(stationPrecipIndex.current_year),
-          data:currentCumulative,
-          borderColor:"#c53030",
-          backgroundColor:"rgba(197,48,48,.08)",
-          borderWidth:3,
-          pointRadius:0,
-          spanGaps:true,
-          fill:false,
-          tension:.12
-        }
-      ]},
-      options:{
-        responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
-        plugins:{
-          title:{display:true,text:`Kumulierte Niederschlagssumme – ${station.name}`},
-          datalabels:{display:false},
-          tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationPrecipFormat(context.parsed.y)} mm`}},
-          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
-        },
-        scales:{
-          x:{ticks:{maxTicksLimit:14,maxRotation:0}},
-          y:{beginAtZero:true,title:{display:true,text:"Niederschlagssumme (mm)"}}
-        }
-      }
+      type:"line",data:{labels:selectedLabels.map(stationPrecipDateLabel),datasets},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{
+        title:{display:true,text:`Kumulierte Niederschlagssumme – ${station.name} – ${range.displayLabel}`},
+        subtitle:{display:true,text:"Die Summe startet am ersten Tag des gewählten Zeitraums wieder bei 0 mm.",color:"#666",font:{size:12}},
+        datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${stationPrecipFormat(context.parsed.y)} mm`}},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+      },scales:{x:{ticks:{maxTicksLimit:14,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Niederschlagssumme (mm)"}}}}
     });
 
-    const deviationSeries=currentCumulative.map((value,index)=>value===null?null:Math.round((value-climate[index])*10)/10);
+    const deviationSeries=currentCumulative.map((value,index)=>value===null||climate[index]===null?null:Math.round((value-climate[index])*10)/10);
     if(stationPrecipDeviationChart) stationPrecipDeviationChart.destroy();
     stationPrecipDeviationChart=new Chart(document.getElementById("stationPrecipDeviationChart"),{
-      type:"line",
-      data:{labels:labels.map(stationPrecipDateLabel),datasets:[{
-        label:`Abweichung ${stationPrecipIndex.current_year} zu 1991–2020`,
-        data:deviationSeries,
-        borderColor:"rgba(80,80,80,.9)",
-        borderWidth:2,
-        pointRadius:0,
-        fill:{target:"origin",above:"rgba(50,145,75,.24)",below:"rgba(154,94,43,.24)"},
-        segment:{borderColor:context=>context.p1.parsed.y>=0?"rgba(44,130,66,.95)":"rgba(145,82,35,.95)"},
-        tension:.12
-      }]},
-      options:{
-        responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
-        plugins:{
-          title:{display:true,text:`Kumulative Niederschlagsabweichung – ${station.name} (${station.id})`},
-          datalabels:{display:false},
-          tooltip:{callbacks:{label:context=>`${context.parsed.y>=0?"+":""}${stationPrecipFormat(context.parsed.y)} mm`}},
-          zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
-        },
-        scales:{
-          x:{ticks:{maxTicksLimit:14,maxRotation:0}},
-          y:{title:{display:true,text:"Abweichung (mm)"}}
-        }
-      }
+      type:"line",data:{labels:selectedLabels.map(stationPrecipDateLabel),datasets:[{
+        label:`Abweichung ${stationPrecipIndex.current_year} zu 1991–2020`,data:deviationSeries,borderColor:"rgba(80,80,80,.9)",borderWidth:2,pointRadius:0,
+        fill:{target:"origin",above:"rgba(50,145,75,.24)",below:"rgba(154,94,43,.24)"},segment:{borderColor:context=>context.p1.parsed.y>=0?"rgba(44,130,66,.95)":"rgba(145,82,35,.95)"},tension:.12
+      }]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{
+        title:{display:true,text:`Kumulative Niederschlagsabweichung – ${station.name} (${station.id}) – ${range.displayLabel}`},
+        subtitle:{display:true,text:"Vergleich mit exakt demselben Kalenderzeitraum des Mittels 1991–2020.",color:"#666",font:{size:12}},
+        datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.parsed.y>=0?"+":""}${stationPrecipFormat(context.parsed.y)} mm`}},
+        zoom:{pan:{enabled:true,mode:"x"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
+      },scales:{x:{ticks:{maxTicksLimit:14,maxRotation:0}},y:{title:{display:true,text:"Abweichung (mm)"}}}}
     });
   }catch(error){
     document.getElementById("stationPrecipSummary").textContent=`Stationskurve konnte nicht geladen werden: ${error.message}`;
@@ -4210,10 +4326,55 @@ function regularMapPoints(data,metric,state,mode,maxMissing){
       const valid=Number(map.valid_days?.[metric]||0),elapsed=Number(map.elapsed_days||0);missing=Math.max(0,elapsed-valid);detail=`${value||0} Tage · ${missing} fehlende Tageswerte`;
     }else if(mode==="heatwaves"){
       value=map[metric]===null?null:Number(map[metric]);detail=metric==="current_max_tmax"?`${value} °C`:`${value||0}`;
-    }else{
-      value=map[metric]===null?null:Number(map[metric]);missing=Number(map.missing_days||0);detail=metric==="deviation_percent"?`${value>=0?"+":""}${value} % · ${map.current_total??"–"} mm`:`${value} mm · Abweichung ${map.deviation_percent??"–"} %`;
     }
     if(!Number.isFinite(value)||missing>maxMissing) return null;
+    return {station,value,detail,missing};
+  }).filter(Boolean);
+}
+
+function stationPrecipCurrentRangeSummaries(range){
+  const result=new Map();
+  const labels=stationPrecipIndex.labels||[];
+  const byMonth=new Map();
+  for(const payload of stationPrecipMonthCache.values()) byMonth.set(Number(payload.month),payload);
+  for(let index=range.startIndex;index<=range.endIndex;index++){
+    const [monthText,dayText]=labels[index].split("-");
+    const payload=byMonth.get(Number(monthText));
+    if(!payload) continue;
+    const dayIndex=Number(dayText)-1;
+    for(const [stationId,values] of Object.entries(payload.stations||{})){
+      const value=values?.[dayIndex];
+      let item=result.get(stationId);
+      if(!item){item={total:0,valid:0};result.set(stationId,item);}
+      if(value===null||value===undefined||!Number.isFinite(Number(value))) continue;
+      item.total+=Number(value);item.valid+=1;
+    }
+  }
+  for(const item of result.values()) item.total=Math.round(item.total*10)/10;
+  return result;
+}
+
+function precipMapPoints(data,metric,state,maxMissing,range){
+  const summaries=stationPrecipCurrentRangeSummaries(range);
+  const expectedDays=range.endIndex-range.startIndex+1;
+  return (data.stations||[]).map(station=>{
+    if(state!=="Deutschland"&&station.state!==state) return null;
+    const current=summaries.get(station.id)||{total:0,valid:0};
+    const missing=Math.max(0,expectedDays-current.valid);
+    if(current.valid===0||missing>maxMissing) return null;
+    const map=station.map||{};
+    let climate=stationPrecipRangeTotalFromCumulative(map.climate_mean_cumulative||[],range);
+    // Rückwärtskompatibilität: Vor dem ersten Datenlauf mit Version 11.8 ist nur YTD im Index vorhanden.
+    if(climate===null&&range.startIndex===0&&range.endIndex===((data.labels||[]).indexOf(data.data_through?.slice(5)))){
+      climate=Number(map.climate_mean_to_date);
+    }
+    const currentTotal=current.total;
+    const deviationPercent=Number.isFinite(climate)&&climate>0?Math.round((currentTotal/climate-1)*1000)/10:null;
+    const value=metric==="deviation_percent"?deviationPercent:currentTotal;
+    if(!Number.isFinite(value)) return null;
+    const detail=metric==="deviation_percent"
+      ?`${value>=0?"+":""}${stationPrecipFormat(value)} % · ${stationPrecipFormat(currentTotal)} mm · Mittel ${stationPrecipFormat(climate)} mm`
+      :`${stationPrecipFormat(currentTotal)} mm · Abweichung ${deviationPercent===null?"–":`${deviationPercent>=0?"+":""}${stationPrecipFormat(deviationPercent)} %`}`;
     return {station,value,detail,missing};
   }).filter(Boolean);
 }
@@ -4232,7 +4393,16 @@ async function updateStationMap(){
   const summary=document.getElementById("mapSummary");summary.textContent="Kartendaten werden geladen …";
   try{
     const data=await loadMapModeData(mode);initializeLeafletMap();stationMapLayer.clearLayers();
-    let points=mode==="records"?recordsMapPoints(data,metric,state):regularMapPoints(data,metric,state,mode,maxMissing);
+    let range=null,points;
+    if(mode==="records") points=recordsMapPoints(data,metric,state);
+    else if(mode==="precip"){
+      stationPrecipConfigureDateInputs("mapPrecip",data);
+      stationPrecipToggleCustomRange("mapPrecip");
+      range=stationPrecipRangeFromMapControls();
+      if(!range.valid){summary.textContent=range.message;return;}
+      await loadStationPrecipCurrentMonths();
+      points=precipMapPoints(data,metric,state,maxMissing,range);
+    }else points=regularMapPoints(data,metric,state,mode,maxMissing);
     points=points.filter(point=>stationMetadataCoordinates(point.station));
     const values=points.map(point=>point.value).filter(Number.isFinite);const min=values.length?Math.min(...values):0,max=values.length?Math.max(...values):1;
     const diverging=mode==="precip"&&metric==="deviation_percent";
@@ -4243,17 +4413,22 @@ async function updateStationMap(){
       const icon=L.divIcon({
         className:"station-map-marker-icon",
         html:`<span class="station-map-marker-dot" style="width:${diameter}px;height:${diameter}px;background:${color};border:1px solid #333"></span>`,
-        iconSize:[diameter,diameter],
-        iconAnchor:[diameter/2,diameter/2],
-        popupAnchor:[0,-diameter/2]
+        iconSize:[diameter,diameter],iconAnchor:[diameter/2,diameter/2],popupAnchor:[0,-diameter/2]
       });
       const marker=L.marker(coords,{icon,keyboard:true,title:point.station.name||point.station.id||"DWD-Station"});
-      marker.bindPopup(`<div class="map-popup-title">${point.station.name||point.station.id}</div><div>${point.detail}</div><div class="map-popup-meta">Station ${point.station.id||"–"} · ${point.station.state||"–"} · ${point.station.height??"–"} m</div>`);marker.addTo(stationMapLayer);
+      marker.bindPopup(`<div class="map-popup-title">${point.station.name||point.station.id}</div><div>${point.detail}</div>${range?`<div>${range.displayLabel}</div>`:""}<div class="map-popup-meta">Station ${point.station.id||"–"} · ${point.station.state||"–"} · ${point.station.height??"–"} m · ${point.missing||0} fehlende Tage</div>`);marker.addTo(stationMapLayer);
     });
     if(points.length){const bounds=L.latLngBounds(points.map(point=>stationMetadataCoordinates(point.station)));stationMap.fitBounds(bounds.pad(.08),{maxZoom:8});}
     else stationMap.setView([51.15,10.45],6);
-    summary.innerHTML=`<strong>${points.length} Stationen</strong> werden dargestellt. Wertebereich: ${values.length?`${min.toLocaleString("de-DE")} bis ${max.toLocaleString("de-DE")}`:"keine Werte"}.`;
-    document.getElementById("mapMethodNote").textContent=mode==="records"?"Gezeigt werden Stationen, die im laufenden Jahr einen neuen Stationsrekord aufgestellt haben. Die Punktgröße beruht auf der Rekordverbesserung.":mode==="climateDays"?"Die Karte zeigt die Zahl der Kenntage seit Jahresbeginn. Stationen mit zu vielen fehlenden Tageswerten können herausgefiltert werden.":mode==="heatwaves"?"Hitzewellen entsprechen mindestens drei aufeinanderfolgenden Tagen mit Tmax ≥ 30,0 °C.":"Die Niederschlagsabweichung nutzt das erweiterte DWD-RR-Netz und vergleicht die laufende Jahressumme bis zum Datenstand mit dem stationsbezogenen Mittel 1991–2020 bis zum gleichen Kalendertag.";
+    const periodText=range?` · ${range.displayLabel}`:"";
+    summary.innerHTML=`<strong>${points.length} Stationen</strong> werden dargestellt${periodText}. Wertebereich: ${values.length?`${min.toLocaleString("de-DE")} bis ${max.toLocaleString("de-DE")}`:"keine Werte"}.`;
+    document.getElementById("mapMethodNote").textContent=mode==="records"
+      ?"Gezeigt werden Stationen, die im laufenden Jahr einen neuen Stationsrekord aufgestellt haben. Die Punktgröße beruht auf der Rekordverbesserung."
+      :mode==="climateDays"
+        ?"Die Karte zeigt die Zahl der Kenntage seit Jahresbeginn. Stationen mit zu vielen fehlenden Tageswerten können herausgefiltert werden."
+        :mode==="heatwaves"
+          ?"Hitzewellen entsprechen mindestens drei aufeinanderfolgenden Tagen mit Tmax ≥ 30,0 °C."
+          :`Die Niederschlagskarte nutzt das erweiterte DWD-RR-Netz. Für ${range.displayLabel} wird die tatsächlich gemessene Summe mit exakt demselben Kalenderabschnitt des stationsbezogenen Mittels 1991–2020 verglichen. Fehlende Tage werden nicht als 0 mm gewertet.`;
     window.setTimeout(()=>stationMap.invalidateSize(),50);
   }catch(error){summary.textContent=`Karte nicht verfügbar: ${error.message}`;}
 }
@@ -4265,11 +4440,23 @@ async function refreshMapControls(){
     const states=["Deutschland",...(data.states||[...new Set((data.stations?Array.isArray(data.stations)?data.stations:Object.values(data.stations):[]).map(item=>item.state).filter(Boolean))]).sort((a,b)=>a.localeCompare(b,"de"))];
     fillSelectOptions(document.getElementById("mapStateSelect"),states,"Deutschland");
     document.getElementById("mapMinCoverage").closest(".control-group").hidden=!["climateDays","precip"].includes(mode);
+    document.getElementById("mapPrecipPeriodGroup").hidden=mode!=="precip";
+    if(mode==="precip"){
+      stationPrecipConfigureDateInputs("mapPrecip",data);
+      stationPrecipToggleCustomRange("mapPrecip");
+    }else document.getElementById("mapPrecipCustomRangeGroup").hidden=true;
     await updateStationMap();
   }catch(error){summary.textContent=`Kartenthema nicht verfügbar: ${error.message}`;}
 }
 function ensureStationMaps(){
-  if(!mapsInitialized){mapsInitialized=true;document.getElementById("mapModeSelect").addEventListener("change",refreshMapControls);["mapMetricSelect","mapStateSelect","mapMinCoverage"].forEach(id=>document.getElementById(id).addEventListener("change",updateStationMap));refreshMapControls();}
+  if(!mapsInitialized){
+    mapsInitialized=true;
+    document.getElementById("mapModeSelect").addEventListener("change",refreshMapControls);
+    ["mapMetricSelect","mapStateSelect","mapMinCoverage"].forEach(id=>document.getElementById(id).addEventListener("change",updateStationMap));
+    document.getElementById("mapPrecipPeriodSelect")?.addEventListener("change",()=>{stationPrecipToggleCustomRange("mapPrecip");updateStationMap();});
+    ["mapPrecipStartDate","mapPrecipEndDate"].forEach(id=>document.getElementById(id)?.addEventListener("change",updateStationMap));
+    refreshMapControls();
+  }
   window.setTimeout(()=>stationMap?.invalidateSize(),80);
   window.setTimeout(()=>stationMap?.invalidateSize(),350);
 }
@@ -4603,6 +4790,6 @@ initializeChartExportButtons();
 initializeDashboardState();
 
 </script>
-<!-- Dashboard Version 11.7: Stationssuchfelder können zuverlässig geleert werden -->
+<!-- Dashboard Version 11.8: frei wählbare Niederschlagszeiträume bei Station und Karte -->
 </body>
 </html>
