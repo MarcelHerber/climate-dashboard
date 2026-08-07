@@ -28,7 +28,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 3
+STATE_VERSION = 4
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -658,7 +658,7 @@ def write_current_month_files(
             for day_number in range(1, days_in_month + 1):
                 day = date(year, month, day_number)
                 pair = values.get(day) if day <= data_through else None
-                month_values.append(None if pair is None else [pair[0], pair[1], pair[2]])
+                month_values.append(None if pair is None else [pair[0], pair[1], pair[2], pair[3]])
                 has_value = has_value or pair is not None
             if has_value:
                 station_payload[station_id] = month_values
@@ -737,7 +737,7 @@ def build_index(
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
         "source": "DWD CDC, tägliche KL-Stationswerte (TXK und TNK)",
-        "current_payload_version": 2,
+        "current_payload_version": 3,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
