@@ -1,35 +1,40 @@
-# ERA5-Land Europa – V5 Wasserhaushalt
+# ERA5-Land Europa – V6 Schnee & Schneewasser
 
 Die Dateien liegen bereits in der richtigen Repository-Struktur. Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet.
 
-## V5 starten
+## V6 starten
 
 Nach dem Hochladen:
 
 **Actions → ERA5-Land Europa aktualisieren → Run workflow**
 
-`force` beim ersten normalen V5-Lauf **nicht aktivieren**. Der V4-Cache wird übernommen. Der erste V5-Aufbau kann länger dauern, weil Wasserhaushalts-Referenzen 1991–2020 und die historische 1°-Analyse ergänzt werden. Große CDS-Abrufe sind in Blöcke geteilt und werden bei temporären Fehlern automatisch wiederholt.
+`force` beim ersten V6-Lauf **nicht aktivieren**. Der Workflow stellt zunächst den vorhandenen V5-Cache wieder her und ergänzt nur die neuen Schnee-Bausteine. Temporäre CDS-Fehler werden weiterhin automatisch wiederholt.
 
-## Neu in V5
+## Neu in V6
 
-- Gesamtverdunstung (ERA5-Land `total_evaporation`)
-- Gesamtabfluss (`runoff`)
-- Oberflächenabfluss (`surface_runoff`)
-- unterirdischer Abfluss (`sub_surface_runoff`)
-- Wasserbilanz **P − E** = Niederschlag minus positive Gesamtverdunstung
-- für alle fünf Größen: Absolutwert, Abweichung 1991–2020, Perzentil 1991–2020
+- Schneehöhe (`snow_depth`) in cm
+- Schneewasseräquivalent (`snow_depth_water_equivalent`) in mm Wasseräquivalent
+- Schneebedeckung (`snow_cover`) in %
+- für alle drei Größen: Absolutwert, Abweichung 1991–2020 und Perzentil 1991–2020
 - jüngster vollständiger Monat und Sommer JJA/bisher
-- Gitterpunktanalyse auf 1° mit Jahresverlauf, Klimamittel, Vergleichsjahr und historischem Rang seit 1950
-- Karten bleiben auf 0,1°
+- 0,1°-Europakarten
+- 1°-Gitterpunktanalyse mit Jahresverlauf, Klimamittel, Vergleichsjahr und historischem Rang seit 1950
 
-## Vorzeichen und Einheiten
+Schneehöhe, Schneewasseräquivalent und Schneebedeckung sind Zustandsgrößen. Bei Zeiträumen mit mehreren Monaten wird deshalb ein nach Kalendertagen gewichtetes Mittel gebildet und **keine Summe**.
 
-ERA5-Land speichert `total_evaporation` nach ECMWF-Konvention bei Verdunstung überwiegend negativ. V5 dreht das Vorzeichen für die Anzeige um, sodass positive mm-Werte intuitiv Wasserabgabe durch Verdunstung bedeuten. Die monatlich gemittelten akkumulierten hydrologischen Größen werden von m/Tag in Monatssummen in mm umgerechnet.
+## Bestehende V5-Funktionen bleiben erhalten
+
+Temperatur, Niederschlag, vier Bodenfeuchteschichten, Verdunstung, Gesamt-/Oberflächen-/Untergrundabfluss und Wasserbilanz P − E bleiben vollständig enthalten.
 
 ## Cache
 
-Der Workflow verwendet einen V5-Cache mit Fallback auf V4/V3/V2/V1. Ein normaler Lauf ergänzt nur fehlende V5-Bausteine. `--force` löscht bzw. erneuert die jeweiligen Cache-Dateien und sollte nur zur Fehlerbehebung verwendet werden.
+Der Workflow verwendet nun einen V6-Cache mit Fallback auf V5/V4/V3/V2/V1. Dadurch müssen die bereits erfolgreich aufgebauten V5-Referenzen nicht erneut heruntergeladen werden. `--force` sollte nur zur gezielten Fehlerbehebung verwendet werden.
 
 ## Ergebnis
 
-Nach erfolgreichem Lauf schreibt `era5_land_europe/index.json` `payload_version: 5`. `era5_land_europe/analysis.json` wird auf `payload_version: 2` erweitert.
+Nach erfolgreichem Lauf schreibt:
+
+- `era5_land_europe/index.json` → `payload_version: 6`
+- `era5_land_europe/analysis.json` → `payload_version: 3`
+
+Danach wie gewohnt **Update and Deploy** ausführen, damit die neue Oberfläche auf GitHub Pages veröffentlicht wird.
