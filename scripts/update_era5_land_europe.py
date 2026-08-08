@@ -70,6 +70,34 @@ SOIL_LAYERS = {
         "depth_cm": [100, 289],
     },
 }
+HYDRO_VARS = {
+    "evaporation": {
+        "variable": "total_evaporation",
+        "aliases": ("e", "total_evaporation", "evaporation"),
+        "label": "Gesamtverdunstung",
+        "positive_evaporation": True,
+    },
+    "runoff": {
+        "variable": "runoff",
+        "aliases": ("ro", "runoff", "total_runoff"),
+        "label": "Gesamtabfluss",
+    },
+    "surface_runoff": {
+        "variable": "surface_runoff",
+        "aliases": ("sro", "surface_runoff"),
+        "label": "Oberflächenabfluss",
+    },
+    "sub_surface_runoff": {
+        "variable": "sub_surface_runoff",
+        "aliases": ("ssro", "sub_surface_runoff", "subsurface_runoff"),
+        "label": "Unterirdischer Abfluss",
+    },
+}
+HYDRO_DERIVED = {
+    "water_balance": {"label": "Wasserbilanz P − E"},
+}
+HYDRO_ALL_KEYS = tuple(HYDRO_VARS) + tuple(HYDRO_DERIVED)
+
 LAT_ALIASES = ("latitude", "lat")
 LON_ALIASES = ("longitude", "lon")
 
@@ -194,6 +222,32 @@ def request_soil_monthly_file(client: cdsapi.Client, years: list[int], months: l
     label = f"soil years {years[0]}–{years[-1]}, months {months}"
     print(f"CDS soil-moisture request (4 layers): years {years[0]}–{years[-1]}, months {months}")
     retrieve_with_retry(client, request, target, label)
+
+def request_hydro_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path, *, include_precipitation: bool = False) -> None:
+    """Download ERA5-Land water-budget variables.
+
+    Monthly averaged accumulated hydrological fields are returned by the CDS as
+    effective metres per day and are converted after reading. Total precipitation
+    is optionally included so the derived P-E water balance can be ranked per year.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    variables = [meta["variable"] for meta in HYDRO_VARS.values()]
+    if include_precipitation:
+        variables.append("total_precipitation")
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": variables,
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"water budget years {years[0]}–{years[-1]}, months {months}"
+    print(f"CDS water-budget request: years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
+
 
 def open_download(path: Path) -> xr.Dataset:
     if zipfile.is_zipfile(path):
@@ -333,6 +387,152 @@ def load_current_soil_months(client: cdsapi.Client, year: int, months: list[int]
         }
     ds.close()
     return result
+
+
+def _monthly_accum_to_mm(values: np.ndarray, years: np.ndarray, month: int, *, invert_sign: bool = False) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    days = np.asarray([calendar.monthrange(int(y), int(month))[1] for y in years], dtype=float)
+    while days.ndim < values.ndim:
+        days = days[..., None]
+    result = values * days * 1000.0
+    if invert_sign:
+        result = -result
+    return result
+
+
+def load_current_hydro_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, dict]:
+    cache_file = CACHE_DIR / f"current_water_v5_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_hydro_monthly_file(client, [year], months, cache_file)
+
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+    slices: dict[str, list[xr.DataArray]] = {}
+    for key, meta in HYDRO_VARS.items():
+        name = variable_name(ds, meta["aliases"])
+        da = ds[name]
+        tdim = time_dim(da, lat_name, lon_name)
+        if tdim is None:
+            if len(months) != 1:
+                ds.close()
+                raise RuntimeError(f"Monatsdimension für {key} nicht erkannt.")
+            parts = [da]
+        else:
+            if da.sizes[tdim] != len(months):
+                ds.close()
+                raise RuntimeError(f"Unerwartete Anzahl Wasserhaushaltsfelder für {key}: {da.sizes[tdim]} statt {len(months)}")
+            parts = [da.isel({tdim: idx}) for idx in range(len(months))]
+        slices[key] = parts
+
+    result: dict[int, dict] = {}
+    for idx, month in enumerate(months):
+        values = {}
+        for key, meta in HYDRO_VARS.items():
+            raw = np.asarray(slices[key][idx].squeeze().values, dtype=float)
+            mm = _monthly_accum_to_mm(raw[None, ...], np.asarray([year]), month, invert_sign=bool(meta.get("positive_evaporation")))[0]
+            values[key] = mm
+        result[month] = {"lat": lat, "lon": lon, **values}
+    ds.close()
+    return result
+
+
+def load_hydro_reference_month(client: cdsapi.Client, month: int, force: bool) -> dict:
+    """Thirty individual 1991–2020 water-budget fields on the full 0.1° map grid."""
+    ref_file = CACHE_DIR / f"water_reference_v5_1991_2020_{month:02d}.nc"
+    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
+    chunks = year_chunks(ref_years.tolist(), 10)
+    chunk_files = [CACHE_DIR / f"raw_water_reference_v5_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for item in [ref_file, *chunk_files]:
+            try: item.unlink()
+            except FileNotFoundError: pass
+    if ref_file.exists():
+        ds = xr.open_dataset(ref_file)
+        result = {
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "fields": {key: np.asarray(ds[key].values, dtype=float) for key in HYDRO_ALL_KEYS},
+        }
+        ds.close()
+        return result
+
+    lat = lon = None
+    years_parts: list[np.ndarray] = []
+    field_parts: dict[str, list[np.ndarray]] = {key: [] for key in HYDRO_VARS}
+    precip_parts: list[np.ndarray] = []
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_hydro_monthly_file(client, chunk, [month], raw_file, include_precipitation=True)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close(); raise RuntimeError("ERA5-Land-Gitter der Wasserhaushalts-Referenz stimmt nicht überein.")
+
+        expected = np.asarray(chunk, dtype=int)
+        years_here_final = expected
+        for key, meta in HYDRO_VARS.items():
+            name = variable_name(ds, meta["aliases"])
+            da = ds[name]
+            tdim = time_dim(da, lat_name, lon_name)
+            if tdim is None or da.sizes[tdim] != len(chunk):
+                ds.close(); raise RuntimeError(f"Zeitdimension Wasserhaushalt {key} {chunk[0]}–{chunk[-1]} unvollständig.")
+            da = da.transpose(tdim, lat_name, lon_name)
+            vals = np.asarray(da.values, dtype=float)
+            try: years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+            except Exception: years_here = expected.copy()
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order = [int(np.where(years_here == y)[0][0]) for y in expected]
+                vals = vals[order]
+                years_here_final = expected
+            vals = _monthly_accum_to_mm(vals, expected, month, invert_sign=bool(meta.get("positive_evaporation")))
+            field_parts[key].append(vals.astype(np.float32))
+
+        pname = variable_name(ds, PRECIP_ALIASES)
+        pda = ds[pname]
+        pdim = time_dim(pda, lat_name, lon_name)
+        if pdim is None or pda.sizes[pdim] != len(chunk):
+            ds.close(); raise RuntimeError("Zeitdimension Niederschlag in Wasserbilanz-Referenz unvollständig.")
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        pvals = np.asarray(pda.values, dtype=float)
+        try: years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception: years_p = expected.copy()
+        if years_p.size == expected.size and set(years_p.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_p == y)[0][0]) for y in expected]
+            pvals = pvals[order]
+        precip_parts.append(_monthly_accum_to_mm(pvals, expected, month).astype(np.float32))
+        years_parts.append(years_here_final)
+        ds.close()
+
+    assert lat is not None and lon is not None
+    years_all = np.concatenate(years_parts)
+    if not np.array_equal(years_all, ref_years):
+        raise RuntimeError("Wasserhaushalts-Referenzjahre 1991–2020 sind nicht vollständig.")
+    fields = {key: np.concatenate(parts, axis=0) for key, parts in field_parts.items()}
+    precipitation = np.concatenate(precip_parts, axis=0)
+    fields["water_balance"] = precipitation - fields["evaporation"]
+    out = xr.Dataset(
+        {key: (("year", "latitude", "longitude"), np.asarray(values, dtype=np.float32)) for key, values in fields.items()},
+        coords={"year": years_all, "latitude": lat, "longitude": lon},
+        attrs={"reference_period": "1991-2020", "month": month, "description": "ERA5-Land water budget monthly totals in mm", "download_strategy": "10-year CDS chunks with retry"},
+    )
+    encoding = {key: {"zlib": True, "complevel": 3, "dtype": "float32"} for key in out.data_vars}
+    out.to_netcdf(ref_file, encoding=encoding)
+    out.close()
+    for raw_file in chunk_files:
+        try: raw_file.unlink()
+        except FileNotFoundError: pass
+    return {"lat": lat, "lon": lon, "years": years_all, "fields": {k: np.asarray(v, dtype=float) for k, v in fields.items()}}
 
 
 def year_chunks(years: Iterable[int], chunk_size: int) -> list[list[int]]:
@@ -629,6 +829,33 @@ def combine_reference_soil(reference_by_month: dict[int, dict], layer_key: str, 
     return combined
 
 
+def percentile_field(current: np.ndarray, reference_samples: np.ndarray) -> np.ndarray:
+    return soil_percentile_field(current, reference_samples)
+
+
+def combine_reference_hydro(reference_by_month: dict[int, dict], key: str, months: list[int]) -> np.ndarray:
+    years = np.asarray(reference_by_month[months[0]]["years"], dtype=int)
+    arrays = []
+    for month in months:
+        item = reference_by_month[month]
+        if not np.array_equal(np.asarray(item["years"], dtype=int), years):
+            raise RuntimeError(f"Referenzjahre für Wasserhaushalt Monat {month} sind nicht deckungsgleich.")
+        arrays.append(np.asarray(item["fields"][key], dtype=float))
+    stack = np.stack(arrays, axis=0)
+    valid = np.isfinite(stack)
+    total = np.nansum(stack, axis=0)
+    total[~np.any(valid, axis=0)] = np.nan
+    return total
+
+
+def combine_hydro(fields: dict[int, np.ndarray], months: list[int]) -> np.ndarray:
+    stack = np.stack([fields[m] for m in months], axis=0)
+    valid = np.isfinite(stack)
+    total = np.nansum(stack, axis=0)
+    total[~np.any(valid, axis=0)] = np.nan
+    return total
+
+
 def finite_quantile(field: np.ndarray, q: float) -> float:
     vals = np.asarray(field, dtype=float)
     vals = vals[np.isfinite(vals)]
@@ -684,13 +911,20 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
         cmap = "BrBG"
         vmax = max(0.02, math.ceil(finite_quantile(np.abs(data), 0.98) * 100) / 100)
         kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
-    elif kind == "soil_percentile":
-        # Dry classes on the low-percentile side, wet classes on the high side.
+    elif kind in {"soil_percentile", "hydro_percentile"}:
         percentile_boundaries = [0, 5, 10, 20, 30, 70, 80, 90, 95, 100.0001]
         percentile_ticks = [2.5, 7.5, 15, 25, 50, 75, 85, 92.5, 97.5]
         percentile_ticklabels = ["≤5", "5–10", "10–20", "20–30", "30–70", "70–80", "80–90", "90–95", ">95"]
         cmap = plt.get_cmap("BrBG", len(percentile_boundaries) - 1)
         kwargs.update(norm=BoundaryNorm(percentile_boundaries, cmap.N, clip=True))
+    elif kind == "hydro_absolute":
+        cmap = "YlGnBu"
+        hi = max(5.0, math.ceil(finite_quantile(data, 0.98) / 10) * 10)
+        kwargs.update(vmin=0.0, vmax=hi)
+    elif kind in {"hydro_anomaly", "water_balance_absolute"}:
+        cmap = "BrBG"
+        vmax = max(5.0, math.ceil(finite_quantile(np.abs(data), 0.98) / 10) * 10)
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
     else:
         cmap = "viridis"
 
@@ -740,7 +974,8 @@ def combine_soil_moisture(fields: dict[int, np.ndarray], year: int, months: list
 
 
 def make_period_maps(period_id: str, period_label: str, year: int, months: list[int], current: dict,
-                     climate: dict, current_soil: dict, reference_soil: dict) -> dict:
+                     climate: dict, current_soil: dict, reference_soil: dict,
+                     current_hydro: dict, reference_hydro: dict) -> dict:
     lat, lon = current[months[0]][0], current[months[0]][1]
     current_temp = combine_temperature({m: current[m][2] for m in months}, year, months)
     climate_temp = combine_temperature({m: climate[m][2] for m in months}, 2001, months)
@@ -748,7 +983,8 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
     climate_precip = combine_precipitation({m: climate[m][3] for m in months}, months)
 
     temp_anom = current_temp - climate_temp
-    precip_pct = np.where(climate_precip > 1.0, current_precip / climate_precip * 100.0, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        precip_pct = np.where(climate_precip > 1.0, current_precip / climate_precip * 100.0, np.nan)
 
     files = {
         "temp_absolute": MAP_DIR / f"temperature_{period_id}_absolute.png",
@@ -784,7 +1020,8 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
             {m: current_soil[m]["layers"][layer_key] for m in months}, year, months
         )
         reference_samples = combine_reference_soil(reference_soil, layer_key, months)
-        climate_soil_field = np.nanmean(reference_samples, axis=0)
+        with np.errstate(invalid="ignore"):
+            climate_soil_field = np.nanmean(reference_samples, axis=0)
         soil_anom = current_soil_field - climate_soil_field
         soil_percentile = soil_percentile_field(current_soil_field, reference_samples)
 
@@ -826,9 +1063,58 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
             },
         }
 
-    # Keep layer-1 fields at the old V2 location so a still-cached V2 frontend
-    # continues to display the surface-soil maps during deployment.
     soil_payload = {"layers": soil_layers_payload, **soil_layers_payload["layer1"]}
+
+    # Water budget: current monthly totals have already been converted to mm.
+    current_hydro_fields = {
+        key: combine_hydro({m: current_hydro[m][key] for m in months}, months)
+        for key in HYDRO_VARS
+    }
+    current_hydro_fields["water_balance"] = current_precip - current_hydro_fields["evaporation"]
+    hydro_payload: dict[str, dict] = {}
+    for key in HYDRO_ALL_KEYS:
+        label = HYDRO_VARS.get(key, HYDRO_DERIVED.get(key, {})).get("label", key)
+        reference_samples = combine_reference_hydro(reference_hydro, key, months)
+        with np.errstate(invalid="ignore"):
+            reference_field = np.nanmean(reference_samples, axis=0)
+        current_field = current_hydro_fields[key]
+        anomaly = current_field - reference_field
+        pct = percentile_field(current_field, reference_samples)
+        hydro_files = {
+            "absolute": MAP_DIR / f"{key}_{period_id}_absolute.png",
+            "anomaly": MAP_DIR / f"{key}_{period_id}_anomaly.png",
+            "percentile": MAP_DIR / f"{key}_{period_id}_percentile.png",
+        }
+        absolute_kind = "water_balance_absolute" if key == "water_balance" else "hydro_absolute"
+        absolute_subtitle = "Niederschlag minus Gesamtverdunstung · Landflächen" if key == "water_balance" else "Monatssumme / Periodensumme · Landflächen"
+        render_map(current_field, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle=absolute_subtitle, unit="mm", filename=hydro_files["absolute"], kind=absolute_kind)
+        render_map(anomaly, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle="Abweichung gegenüber 1991–2020 · Landflächen", unit="mm",
+                   filename=hydro_files["anomaly"], kind="hydro_anomaly")
+        render_map(pct, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle="Empirisches Perzentil gegenüber 1991–2020 · Landflächen", unit="Perzentilklasse 1991–2020",
+                   filename=hydro_files["percentile"], kind="hydro_percentile")
+        cur_mean = weighted_mean(current_field, lat)
+        ref_mean = weighted_mean(reference_field, lat)
+        valid_pct = np.isfinite(pct)
+        hydro_payload[key] = {
+            "absolute": {"file": rel(hydro_files["absolute"]), "unit": "mm", "label": label},
+            "anomaly": {"file": rel(hydro_files["anomaly"]), "unit": "mm", "label": "Abweichung 1991–2020"},
+            "percentile": {"file": rel(hydro_files["percentile"]), "unit": "Perzentil", "label": "Perzentil 1991–2020"},
+            "stats": {
+                "current": cur_mean,
+                "reference": ref_mean,
+                "difference": None if cur_mean is None or ref_mean is None else cur_mean - ref_mean,
+                "low_area_percent": weighted_fraction(pct <= 20.0, valid_pct, lat),
+                "very_low_area_percent": weighted_fraction(pct <= 10.0, valid_pct, lat),
+                "high_area_percent": weighted_fraction(pct >= 80.0, valid_pct, lat),
+                "very_high_area_percent": weighted_fraction(pct >= 90.0, valid_pct, lat),
+            },
+        }
 
     return {
         "id": period_id,
@@ -838,22 +1124,17 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
         "temperature": {
             "absolute": {"file": rel(files["temp_absolute"]), "unit": "°C", "label": "Temperatur"},
             "anomaly": {"file": rel(files["temp_anomaly"]), "unit": "K", "label": "Abweichung 1991–2020"},
-            "stats": {
-                "current": stats_temp_current,
-                "reference": stats_temp_ref,
-                "difference": None if stats_temp_current is None or stats_temp_ref is None else stats_temp_current - stats_temp_ref,
-            },
+            "stats": {"current": stats_temp_current, "reference": stats_temp_ref,
+                      "difference": None if stats_temp_current is None or stats_temp_ref is None else stats_temp_current - stats_temp_ref},
         },
         "precipitation": {
             "absolute": {"file": rel(files["precip_absolute"]), "unit": "mm", "label": "Niederschlag"},
             "percent": {"file": rel(files["precip_percent"]), "unit": "%", "label": "Prozent vom Mittel 1991–2020"},
-            "stats": {
-                "current": stats_precip_current,
-                "reference": stats_precip_ref,
-                "percent": None if not stats_precip_ref else stats_precip_current / stats_precip_ref * 100.0,
-            },
+            "stats": {"current": stats_precip_current, "reference": stats_precip_ref,
+                      "percent": None if not stats_precip_ref else stats_precip_current / stats_precip_ref * 100.0},
         },
         "soil_moisture": soil_payload,
+        **hydro_payload,
     }
 
 
@@ -985,6 +1266,96 @@ def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, forc
             pass
     return {"years": years_all, "lat": lat, "lon": lon, "temperature": temp_all, "precipitation": precip_all}
 
+def load_history_hydro_month(client: cdsapi.Client, month: int, end_year: int, force: bool, reference_month: dict) -> dict:
+    """Water-budget history since 1950 sampled to 1°; 1991–2020 reuses the full-grid reference cache."""
+    sampled_file = CACHE_DIR / f"history_water_v5_{month:02d}_{HISTORY_START}_{end_year}_1deg.nc"
+    if force:
+        try: sampled_file.unlink()
+        except FileNotFoundError: pass
+    if sampled_file.exists():
+        ds = xr.open_dataset(sampled_file)
+        result = {
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "fields": {key: np.asarray(ds[key].values, dtype=float) for key in HYDRO_VARS},
+        }
+        ds.close(); return result
+
+    early_years = list(range(HISTORY_START, REFERENCE_START))
+    late_years = list(range(REFERENCE_END + 1, end_year + 1))
+    chunks = year_chunks(early_years, 10) + year_chunks(late_years, 10)
+    chunk_files = [CACHE_DIR / f"raw_history_water_v5_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for f in chunk_files:
+            try: f.unlink()
+            except FileNotFoundError: pass
+
+    pieces: list[tuple[np.ndarray, dict[str, np.ndarray], np.ndarray, np.ndarray]] = []
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_hydro_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds); ds = normalize_lon(ds, lon_name)
+        expected = np.asarray(chunk, dtype=int)
+        fields = {}
+        years_final = expected.copy()
+        for key, meta in HYDRO_VARS.items():
+            name = variable_name(ds, meta["aliases"]); da = ds[name]; tdim = time_dim(da, lat_name, lon_name)
+            if tdim is None or da.sizes[tdim] != len(chunk):
+                ds.close(); raise RuntimeError(f"Historien-Zeitdimension Wasserhaushalt {key} unvollständig.")
+            da = da.transpose(tdim, lat_name, lon_name); vals = np.asarray(da.values, dtype=float)
+            try: years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+            except Exception: years_here = expected.copy()
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order=[int(np.where(years_here==y)[0][0]) for y in expected]; vals=vals[order]
+            vals=_monthly_accum_to_mm(vals, expected, month, invert_sign=bool(meta.get("positive_evaporation")))
+            fields[key]=sample_1deg(vals).astype(np.float32)
+        lat_here=np.asarray(ds[lat_name].values,dtype=float)[::ANALYSIS_GRID_STEP]
+        lon_here=np.asarray(ds[lon_name].values,dtype=float)[::ANALYSIS_GRID_STEP]
+        pieces.append((years_final,fields,lat_here,lon_here)); ds.close()
+
+    ref_years=np.asarray(reference_month["years"],dtype=int)
+    ref_fields={key: sample_1deg(reference_month["fields"][key]).astype(np.float32) for key in HYDRO_VARS}
+    ref_lat=np.asarray(reference_month["lat"],dtype=float)[::ANALYSIS_GRID_STEP]
+    ref_lon=np.asarray(reference_month["lon"],dtype=float)[::ANALYSIS_GRID_STEP]
+    pieces.append((ref_years,ref_fields,ref_lat,ref_lon))
+    pieces.sort(key=lambda item:int(item[0][0]))
+    years_all=np.concatenate([item[0] for item in pieces])
+    expected_all=np.arange(HISTORY_START,end_year+1,dtype=int)
+    if not np.array_equal(years_all,expected_all):
+        raise RuntimeError("Wasserhaushalts-Historienjahre seit 1950 sind nicht vollständig.")
+    lat=pieces[0][2]; lon=pieces[0][3]
+    for item in pieces[1:]:
+        if not (np.array_equal(lat,item[2]) and np.array_equal(lon,item[3])):
+            raise RuntimeError("1°-Wasserhaushaltsgitter stimmt zwischen Historienblöcken nicht überein.")
+    fields_all={key:np.concatenate([item[1][key] for item in pieces],axis=0) for key in HYDRO_VARS}
+    out=xr.Dataset({key:(("year","latitude","longitude"),fields_all[key]) for key in HYDRO_VARS},
+                   coords={"year":years_all,"latitude":lat,"longitude":lon},
+                   attrs={"source":"ERA5-Land monthly means","analysis_grid":"1 degree","month":month,"download_strategy":"historical chunks + reuse 1991-2020 reference"})
+    encoding={key:{"zlib":True,"complevel":3,"dtype":"float32"} for key in out.data_vars}; out.to_netcdf(sampled_file,encoding=encoding); out.close()
+    for raw_file in chunk_files:
+        try: raw_file.unlink()
+        except FileNotFoundError: pass
+    return {"years":years_all,"lat":lat,"lon":lon,"fields":{k:np.asarray(v,dtype=float) for k,v in fields_all.items()}}
+
+
+def combine_history_hydro(history_by_month: dict[int, dict], history_tp_by_month: dict[int, dict], months: list[int]) -> dict:
+    years=np.asarray(history_by_month[months[0]]["years"],dtype=int)
+    lat=np.asarray(history_by_month[months[0]]["lat"],dtype=float); lon=np.asarray(history_by_month[months[0]]["lon"],dtype=float)
+    fields={}
+    for key in HYDRO_VARS:
+        arrays=[]
+        for m in months:
+            item=history_by_month[m]
+            if not np.array_equal(np.asarray(item["years"],dtype=int),years): raise RuntimeError("Wasserhaushalts-Historienjahre nicht deckungsgleich.")
+            arrays.append(np.asarray(item["fields"][key],dtype=float))
+        stack=np.stack(arrays,axis=0); valid=np.isfinite(stack); total=np.nansum(stack,axis=0); total[~np.any(valid,axis=0)]=np.nan; fields[key]=total
+    precip=combine_history_tp(history_tp_by_month,months)["precipitation"]
+    fields["water_balance"]=precip-fields["evaporation"]
+    return {"years":years,"lat":lat,"lon":lon,"fields":fields}
+
+
 def combine_history_tp(history_by_month: dict[int, dict], months: list[int]) -> dict:
     years = np.asarray(history_by_month[months[0]]["years"], dtype=int)
     lat = np.asarray(history_by_month[months[0]]["lat"], dtype=float)
@@ -1014,8 +1385,9 @@ def combine_history_tp(history_by_month: dict[int, dict], months: list[int]) -> 
 
 
 def build_analysis_payload(*, latest_year: int, latest_month: int, summer_year: int, summer_months: list[int],
-                           current_all: dict, current_soil_all: dict, climate: dict, soil_reference: dict,
-                           history_tp: dict[int, dict]) -> dict:
+                           current_all: dict, current_soil_all: dict, current_hydro_all: dict,
+                           climate: dict, soil_reference: dict, hydro_reference: dict,
+                           history_tp: dict[int, dict], history_hydro: dict[int, dict]) -> dict:
     months = list(range(1, latest_month + 1))
     lat = np.asarray(current_all[(latest_year, latest_month)][0], dtype=float)[::ANALYSIS_GRID_STEP]
     lon = np.asarray(current_all[(latest_year, latest_month)][1], dtype=float)[::ANALYSIS_GRID_STEP]
@@ -1028,72 +1400,75 @@ def build_analysis_payload(*, latest_year: int, latest_month: int, summer_year: 
     soil_monthly = {}
     for layer_key in SOIL_LAYERS:
         cur = np.stack([sample_1deg(current_soil_all[(latest_year, m)]["layers"][layer_key]) for m in months])
-        ref_mean = []
-        pct = []
-        for m in months:
+        ref_mean, pct = [], []
+        for idx, m in enumerate(months):
             samples = sample_1deg(soil_reference[m]["layers"][layer_key])
-            ref_mean.append(np.nanmean(samples, axis=0))
-            pct.append(soil_percentile_field(cur[months.index(m)], samples))
-        soil_monthly[layer_key] = {
-            "current": cur,
-            "reference": np.stack(ref_mean),
-            "percentile": np.stack(pct),
-        }
+            with np.errstate(invalid="ignore"): ref_mean.append(np.nanmean(samples, axis=0))
+            pct.append(soil_percentile_field(cur[idx], samples))
+        soil_monthly[layer_key] = {"current": cur, "reference": np.stack(ref_mean), "percentile": np.stack(pct)}
+
+    hydro_monthly = {}
+    for key in HYDRO_VARS:
+        cur=np.stack([sample_1deg(current_hydro_all[(latest_year,m)][key]) for m in months])
+        refs=[]; pcts=[]
+        for idx,m in enumerate(months):
+            samples=sample_1deg(hydro_reference[m]["fields"][key])
+            with np.errstate(invalid="ignore"): refs.append(np.nanmean(samples,axis=0))
+            pcts.append(percentile_field(cur[idx],samples))
+        hydro_monthly[key]={"current":cur,"reference":np.stack(refs),"percentile":np.stack(pcts)}
+    wb_current=precip_current-hydro_monthly["evaporation"]["current"]
+    wb_refs=[]; wb_pcts=[]
+    for idx,m in enumerate(months):
+        samples=sample_1deg(hydro_reference[m]["fields"]["water_balance"])
+        with np.errstate(invalid="ignore"): wb_refs.append(np.nanmean(samples,axis=0))
+        wb_pcts.append(percentile_field(wb_current[idx],samples))
+    hydro_monthly["water_balance"]={"current":wb_current,"reference":np.stack(wb_refs),"percentile":np.stack(wb_pcts)}
 
     hist_latest = combine_history_tp(history_tp, [latest_month])
     hist_summer = combine_history_tp(history_tp, summer_months)
+    hydro_hist_latest = combine_history_hydro(history_hydro, history_tp, [latest_month])
+    hydro_hist_summer = combine_history_hydro(history_hydro, history_tp, summer_months)
 
     soil_hist_periods = {}
-    for period_id, period_year, period_months in (
-        ("latest_month", latest_year, [latest_month]),
-        ("summer", summer_year, summer_months),
-    ):
+    for period_id, period_year, period_months in (("latest_month", latest_year, [latest_month]), ("summer", summer_year, summer_months)):
         layers = {}
         for layer_key in SOIL_LAYERS:
             reference_values = sample_1deg(combine_reference_soil(soil_reference, layer_key, period_months))
-            current_values = sample_1deg(combine_soil_moisture(
-                {m: current_soil_all[(period_year, m)]["layers"][layer_key] for m in period_months},
-                period_year, period_months,
-            ))
+            current_values = sample_1deg(combine_soil_moisture({m: current_soil_all[(period_year, m)]["layers"][layer_key] for m in period_months}, period_year, period_months))
             layers[layer_key] = {"reference": reference_values, "current": current_values}
         soil_hist_periods[period_id] = layers
 
-    # Only expose land analysis points. ERA5-Land ocean cells are missing/NaN.
     land_mask = np.isfinite(temp_current[-1]) & np.isfinite(soil_monthly["layer1"]["current"][-1])
     points = []
     reference_years = list(range(REFERENCE_START, REFERENCE_END + 1))
     hist_periods = {"latest_month": hist_latest, "summer": hist_summer}
+    hydro_hist_periods = {"latest_month": hydro_hist_latest, "summer": hydro_hist_summer}
 
     for iy, ix in zip(*np.where(land_mask)):
         point = {
-            "lat": round(float(lat[iy]), 2),
-            "lon": round(float(lon[ix]), 2),
+            "lat": round(float(lat[iy]), 2), "lon": round(float(lon[ix]), 2),
             "monthly": {
-                "temperature": {
-                    "current": [round_json(v, 2) for v in temp_current[:, iy, ix]],
-                    "reference": [round_json(v, 2) for v in temp_ref[:, iy, ix]],
-                },
-                "precipitation": {
-                    "current": [round_json(v, 1) for v in precip_current[:, iy, ix]],
-                    "reference": [round_json(v, 1) for v in precip_ref[:, iy, ix]],
-                },
+                "temperature": {"current": [round_json(v, 2) for v in temp_current[:, iy, ix]], "reference": [round_json(v, 2) for v in temp_ref[:, iy, ix]]},
+                "precipitation": {"current": [round_json(v, 1) for v in precip_current[:, iy, ix]], "reference": [round_json(v, 1) for v in precip_ref[:, iy, ix]]},
                 "soil_moisture": {"layers": {}},
             },
             "history": {},
         }
+        for key in HYDRO_ALL_KEYS:
+            hm=hydro_monthly[key]
+            point["monthly"][key]={"current":[round_json(v,1) for v in hm["current"][:,iy,ix]],"reference":[round_json(v,1) for v in hm["reference"][:,iy,ix]],"percentile":[round_json(v,1) for v in hm["percentile"][:,iy,ix]]}
         for layer_key in SOIL_LAYERS:
             sm = soil_monthly[layer_key]
-            point["monthly"]["soil_moisture"]["layers"][layer_key] = {
-                "current": [round_json(v, 4) for v in sm["current"][:, iy, ix]],
-                "reference": [round_json(v, 4) for v in sm["reference"][:, iy, ix]],
-                "percentile": [round_json(v, 1) for v in sm["percentile"][:, iy, ix]],
-            }
+            point["monthly"]["soil_moisture"]["layers"][layer_key] = {"current": [round_json(v, 4) for v in sm["current"][:, iy, ix]], "reference": [round_json(v, 4) for v in sm["reference"][:, iy, ix]], "percentile": [round_json(v, 1) for v in sm["percentile"][:, iy, ix]]}
         for period_id, hist in hist_periods.items():
             point["history"][period_id] = {
                 "temperature": [round_json(v, 2) for v in hist["temperature"][:, iy, ix]],
                 "precipitation": [round_json(v, 1) for v in hist["precipitation"][:, iy, ix]],
                 "soil_moisture": {"layers": {}},
             }
+            hh=hydro_hist_periods[period_id]
+            for key in HYDRO_ALL_KEYS:
+                point["history"][period_id][key]=[round_json(v,1) for v in hh["fields"][key][:,iy,ix]]
             for layer_key in SOIL_LAYERS:
                 soil_hist = soil_hist_periods[period_id][layer_key]
                 vals = [round_json(v, 4) for v in soil_hist["reference"][:, iy, ix]]
@@ -1102,25 +1477,17 @@ def build_analysis_payload(*, latest_year: int, latest_month: int, summer_year: 
         points.append(point)
 
     payload = {
-        "ready": True,
-        "payload_version": 1,
-        "analysis_grid": "1,0° (nächster verfügbarer Landpunkt)",
-        "analysis_year": latest_year,
-        "months": months,
-        "month_labels": [MONTH_NAMES[m] for m in months],
-        "history_years": {
-            "latest_month": [int(y) for y in hist_latest["years"]],
-            "summer": [int(y) for y in hist_summer["years"]],
-        },
-        "soil_history_years": {
-            "latest_month": reference_years + [latest_year],
-            "summer": reference_years + [summer_year],
-        },
-        "history_note": "Temperatur und Niederschlag: historische Einordnung seit 1950. Bodenfeuchte: Einzeljahre 1991–2020 plus aktuelles Jahr.",
+        "ready": True, "payload_version": 2,
+        "analysis_grid": "1,0° (nächster verfügbarer Landpunkt)", "analysis_year": latest_year,
+        "months": months, "month_labels": [MONTH_NAMES[m] for m in months],
+        "history_years": {"latest_month": [int(y) for y in hist_latest["years"]], "summer": [int(y) for y in hist_summer["years"]]},
+        "soil_history_years": {"latest_month": reference_years + [latest_year], "summer": reference_years + [summer_year]},
+        "history_note": "Temperatur, Niederschlag und Wasserhaushalt: historische Einordnung seit 1950. Bodenfeuchte: Einzeljahre 1991–2020 plus aktuelles Jahr.",
         "points": points,
     }
     atomic_write_json(ANALYSIS_PATH, payload)
     return payload
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="ERA5-Land Europakarten für das Climate Dashboard erzeugen.")
@@ -1151,18 +1518,22 @@ def main() -> int:
         for period_id in ("latest_month", "summer"):
             for view in ("absolute", "anomaly", "percentile"):
                 required.append(MAP_DIR / f"soil_moisture_{layer_key}_{period_id}_{view}.png")
+    for key in HYDRO_ALL_KEYS:
+        for period_id in ("latest_month", "summer"):
+            for view in ("absolute", "anomaly", "percentile"):
+                required.append(MAP_DIR / f"{key}_{period_id}_{view}.png")
 
     if INDEX_PATH.exists() and not args.force:
         try:
             existing = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
             if (
                 existing.get("ready")
-                and int(existing.get("payload_version", 0)) >= 4
+                and int(existing.get("payload_version", 0)) >= 5
                 and existing.get("latest_month_key") == target_key
                 and all(path.exists() for path in required)
                 and ANALYSIS_PATH.exists()
             ):
-                print(f"ERA5-Land Europa V4 ist bereits aktuell für {target_key}.")
+                print(f"ERA5-Land Europa V5 ist bereits aktuell für {target_key}.")
                 return 0
         except Exception:
             pass
@@ -1174,54 +1545,65 @@ def main() -> int:
     client = cds_client()
     current_all: dict[tuple[int, int], tuple] = {}
     current_soil_all: dict[tuple[int, int], dict] = {}
+    current_hydro_all: dict[tuple[int, int], dict] = {}
     for year, month_set in sorted(needed_by_year.items()):
         month_list = sorted(month_set)
         data = load_current_months(client, year, month_list, args.force)
         soil_data = load_current_soil_months(client, year, month_list, args.force)
-        for month, values in data.items():
-            current_all[(year, month)] = values
-        for month, values in soil_data.items():
-            current_soil_all[(year, month)] = values
+        hydro_data = load_current_hydro_months(client, year, month_list, args.force)
+        for month, values in data.items(): current_all[(year, month)] = values
+        for month, values in soil_data.items(): current_soil_all[(year, month)] = values
+        for month, values in hydro_data.items(): current_hydro_all[(year, month)] = values
 
     climate: dict[int, tuple] = {}
     soil_reference: dict[int, dict] = {}
+    hydro_reference: dict[int, dict] = {}
     all_needed_months = sorted(set(range(1, latest_month + 1)) | set(summer_months))
     for month in all_needed_months:
         climate[month] = load_climatology_month(client, month, args.force)
         soil_reference[month] = load_soil_reference_month(client, month, args.force)
+        hydro_reference[month] = load_hydro_reference_month(client, month, args.force)
 
     latest_current = {latest_month: current_all[(latest_year, latest_month)]}
     latest_climate = {latest_month: climate[latest_month]}
     latest_current_soil = {latest_month: current_soil_all[(latest_year, latest_month)]}
     latest_reference_soil = {latest_month: soil_reference[latest_month]}
+    latest_current_hydro = {latest_month: current_hydro_all[(latest_year, latest_month)]}
+    latest_reference_hydro = {latest_month: hydro_reference[latest_month]}
     latest_label = f"{MONTH_NAMES[latest_month]} {latest_year}"
     latest_payload = make_period_maps(
         "latest_month", latest_label, latest_year, [latest_month],
         latest_current, latest_climate, latest_current_soil, latest_reference_soil,
+        latest_current_hydro, latest_reference_hydro,
     )
 
     summer_current = {month: current_all[(summer_year, month)] for month in summer_months}
     summer_climate = {month: climate[month] for month in summer_months}
     summer_current_soil = {month: current_soil_all[(summer_year, month)] for month in summer_months}
     summer_reference_soil = {month: soil_reference[month] for month in summer_months}
+    summer_current_hydro = {month: current_hydro_all[(summer_year, month)] for month in summer_months}
+    summer_reference_hydro = {month: hydro_reference[month] for month in summer_months}
     summer_suffix = "" if summer_months == [6, 7, 8] else " bisher"
     summer_label = f"Sommer {summer_year}{summer_suffix} ({month_range_label(summer_months)})"
     summer_payload = make_period_maps(
         "summer", summer_label, summer_year, summer_months,
         summer_current, summer_climate, summer_current_soil, summer_reference_soil,
+        summer_current_hydro, summer_reference_hydro,
     )
 
     history_months = sorted({latest_month, *summer_months})
     history_tp = {month: load_history_tp_month(client, month, latest_year, args.force) for month in history_months}
+    history_hydro = {month: load_history_hydro_month(client, month, latest_year, args.force, hydro_reference[month]) for month in history_months}
     analysis_payload = build_analysis_payload(
         latest_year=latest_year, latest_month=latest_month, summer_year=summer_year, summer_months=summer_months,
-        current_all=current_all, current_soil_all=current_soil_all, climate=climate, soil_reference=soil_reference,
-        history_tp=history_tp,
+        current_all=current_all, current_soil_all=current_soil_all, current_hydro_all=current_hydro_all,
+        climate=climate, soil_reference=soil_reference, hydro_reference=hydro_reference,
+        history_tp=history_tp, history_hydro=history_hydro,
     )
 
     payload = {
         "ready": True,
-        "payload_version": 4,
+        "payload_version": 5,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "latest_month_key": target_key,
         "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
@@ -1230,12 +1612,13 @@ def main() -> int:
         "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
         "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
         "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
-        "availability_note": "V4 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "availability_note": "V5 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
         "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
         "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
-        "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950},
+        "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
+        "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950, "payload_version": 2},
         "click_geometry": MAP_CLICK_GEOMETRY,
-        "percentile_note": "Bodenfeuchte-Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. P≤20 wird als trocken, P≤10 als sehr trocken, P≥80 als feucht eingeordnet.",
+        "percentile_note": "Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. Bei Bodenfeuchte und Wasserbilanz markieren niedrige Perzentile ungewöhnlich trockene Bedingungen; bei Verdunstung und Abfluss bedeuten sie ungewöhnlich niedrige Werte.",
         "soil_layers": {key: {"label": meta["label"], "depth_cm": meta["depth_cm"]} for key, meta in SOIL_LAYERS.items()},
         "periods": {
             "latest_month": latest_payload,
@@ -1243,7 +1626,7 @@ def main() -> int:
         },
     }
     atomic_write_json(INDEX_PATH, payload)
-    print(f"ERA5-Land Europa V4 erzeugt: {INDEX_PATH}")
+    print(f"ERA5-Land Europa V5 erzeugt: {INDEX_PATH}")
     print(f"Datenstand: {payload['data_through']}")
     return 0
 
