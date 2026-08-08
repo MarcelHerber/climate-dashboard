@@ -1735,7 +1735,6 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
             <option value="hide">ausblenden</option>
           </select>
         </div>
-        <button id="activeStreakMapDownload" class="action" type="button">Karte als PNG</button>
       </div>
       <div id="activeStreakHero" class="streak-chase-hero"></div>
       <div id="activeStreakSummary" class="summary-box">Aktuell laufende Serien werden ausgewertet …</div>
@@ -5937,7 +5936,6 @@ function initializeStationStreakControls(){
   }
   ["activeStreakMetricSelect","activeStreakAreaSelect","activeStreakSortSelect","activeStreakMapToggle"]
     .forEach(id=>document.getElementById(id)?.addEventListener("change",updateActiveStreakRecords));
-  document.getElementById("activeStreakMapDownload")?.addEventListener("click",downloadActiveStreakMap);
 
   const progressionMetric=document.getElementById("streakProgressionMetricSelect");
   if(progressionMetric){
@@ -6623,43 +6621,6 @@ function updateActiveStreakMap(rows,metric){
     activeStreakMap.setView([51.15,10.35],6,{animate:false});
   }
   setTimeout(()=>activeStreakMap?.invalidateSize(),80);
-}
-
-async function downloadActiveStreakMap(){
-  const wrap=document.getElementById("activeStreakMapWrap");
-  const leafletElement=document.getElementById("activeStreakMap");
-  const button=document.getElementById("activeStreakMapDownload");
-  if(!wrap || wrap.hidden || !leafletElement || !activeStreakMap) return;
-  if(typeof html2canvas!=="function"){
-    alert("Die Exportbibliothek konnte nicht geladen werden."); return;
-  }
-  const metricId=document.getElementById("activeStreakMetricSelect")?.value||"hot";
-  const area=document.getElementById("activeStreakAreaSelect")?.value||"Deutschland";
-  const oldText=button?.textContent;
-  const controls=wrap.querySelectorAll(".leaflet-control-container");
-  const oldDisplays=[...controls].map(node=>node.style.display);
-  if(button){button.disabled=true;button.textContent="Export …";}
-  try{
-    controls.forEach(node=>{node.style.display="none";});
-    // Die Kartenansicht wird beim Export nicht mehr verändert. Dadurch bleiben
-    // Tile-, Marker- und Overlay-Panes pixelgenau synchron.
-    activeStreakMap.invalidateSize(false);
-    await waitForLeafletExportTiles(leafletElement,650);
-    const canvas=await html2canvas(wrap,{
-      scale:3,backgroundColor:"#ffffff",useCORS:true,allowTaint:false,logging:false,
-      scrollX:0,scrollY:-window.scrollY
-    });
-    const link=document.createElement("a");
-    link.download=`kenntage_rekordjagd_${metricId}_${String(area).toLowerCase().replace(/[^a-z0-9]+/g,"_")}.png`;
-    link.href=canvas.toDataURL("image/png",1);
-    document.body.appendChild(link); link.click(); link.remove();
-  }catch(error){
-    alert(`Kartenexport fehlgeschlagen: ${error.message}`);
-  }finally{
-    controls.forEach((node,index)=>{node.style.display=oldDisplays[index]||"";});
-    activeStreakMap.invalidateSize(false);
-    if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
-  }
 }
 
 
