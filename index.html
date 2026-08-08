@@ -2552,7 +2552,7 @@ function updateMonthlyAnomalyTable(){
 // ================= DATENSTAND =================
 const DASHBOARD_RAW_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
 const STATION_STREAK_INDEX_URL=DASHBOARD_RAW_BASE+"station_climate_days_index.json";
-console.info("Climate Dashboard 16.8.3 · Rekordentwicklung lädt Kenntage-Index direkt aus main");
+console.info("Climate Dashboard 16.8.4 · Rekordentwicklung · Backend STATE_VERSION 8");
 const DASHBOARD_RAW_PREFIXES=[
   "station_climate_days_index.json",
   "station_records_years/",
@@ -6353,7 +6353,7 @@ async function updateStreakRecordProgression(){
     const loadedVersion=Number(stationStreakIndex?.current_payload_version||0);
     if(summary) summary.textContent=`Rekordentwicklungs-Daten fehlen in der geladenen Kenntage-Datei (Payload-Version ${loadedVersion||"unbekannt"}).`;
     streakProgressionHero([],scope,metric,station); renderStreakProgressionChart([],scope,metric,station); renderStreakProgressionTable([],scope,station);
-    if(note) note.textContent=`16.8.3 lädt station_climate_days_index.json direkt aus dem main-Branch. Geladene Payload-Version: ${loadedVersion||"unbekannt"}.`;
+    if(note) note.textContent=`16.8.4 lädt station_climate_days_index.json direkt aus dem main-Branch. Das benötigte Backend erzeugt Payload-Version 7. Geladene Payload-Version: ${loadedVersion||"unbekannt"}.`;
     return;
   }
   if(scope==="station"&&!stationId){
