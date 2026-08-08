@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "ERA5-Land Karten auch für denselben Monat neu erzeugen"
+        description: "ERA5-Land V5 komplett neu aufbauen (normalerweise AUS lassen)"
         required: false
         type: boolean
         default: false
@@ -49,8 +49,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .era5_cache
-          key: era5-land-europe-v4-${{ runner.os }}-${{ steps.cache-month.outputs.month }}
+          key: era5-land-europe-v5-${{ runner.os }}-${{ steps.cache-month.outputs.month }}
           restore-keys: |
+            era5-land-europe-v5-${{ runner.os }}-
             era5-land-europe-v4-${{ runner.os }}-
             era5-land-europe-v3-${{ runner.os }}
             era5-land-europe-v2-${{ runner.os }}
