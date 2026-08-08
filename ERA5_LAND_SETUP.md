@@ -36,7 +36,7 @@ Danach schreibt der Workflow nur die kleinen fertigen Webprodukte nach:
 
 Die Website lädt diese Dateien direkt aus dem `main`-Branch. Deshalb muss nach einem späteren ERA5-Land-Datenupdate nicht jedes Mal GitHub Pages neu gebaut werden.
 
-## Umfang V1
+## Umfang V2
 
 - Europa, 72°N–34°N und 25°W–45°E
 - ERA5-Land 0,1° CDS-Gitter
@@ -46,7 +46,17 @@ Die Website lädt diese Dateien direkt aus dem `main`-Branch. Deshalb muss nach 
 - Niederschlag
   - Summe in mm
   - Prozent vom Mittel 1991–2020
+- Bodenfeuchte, Schicht 1 (0–7 cm)
+  - volumetrischer Bodenwassergehalt in m³/m³
+  - Abweichung gegenüber 1991–2020
 - jüngster sicher verfügbarer vollständiger Monat
 - Sommer (JJA) bis zum jüngsten vollständig verfügbaren Monat
 
 Hinweis: ERA5-Land ist ein Landprodukt. Meeresflächen bleiben in den Karten leer.
+
+
+## Update von V1 auf V2
+
+`era5_land_europe/index.json` und die vorhandenen Karten sind bewusst nicht Teil dieses Update-ZIPs. Sie sind bereits vom V1-Workflow erzeugte Ausgabedateien und sollen beim Hochladen nicht zurückgesetzt werden. Der nächste erfolgreiche V2-Workflow ergänzt/aktualisiert sie automatisch.
+
+Der vorhandene V1-Cache für Temperatur und Niederschlag wird beim ersten V2-Lauf wiederverwendet. Neu heruntergeladen werden im Wesentlichen die Bodenfeuchtefelder und deren 1991–2020-Klimatologien für die aktuell benötigten Monate. Nach dem erfolgreichen V2-Lauf enthält `era5_land_europe/index.json` `payload_version: 2`.
