@@ -1,47 +1,54 @@
-# ERA5-Land Europa – V4 Gitterpunktanalyse
+# ERA5-Land Europa – V5 Wasserhaushalt
 
-Die Dateien im ZIP sind bereits in der richtigen Repository-Struktur angeordnet. Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet.
+Die Dateien im ZIP liegen bereits in der richtigen Repository-Struktur. Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet.
 
-## V4 starten
+## V5 starten
 
 Nach dem Hochladen:
 
 **Actions → ERA5-Land Europa aktualisieren → Run workflow**
 
-Beim ersten V4-Lauf wird der V3-Cache weiterverwendet. Neu aufgebaut werden die Daten für die interaktive Gitterpunktanalyse. Weil dafür zusätzliche Monatsreferenzen und historische Temperatur-/Niederschlagswerte seit 1950 benötigt werden, kann dieser erste Lauf deutlich länger dauern. Der Workflow hat dafür ein Zeitlimit von 300 Minuten.
+Die Option **force** beim ersten normalen V5-Lauf bitte **nicht aktivieren**. Der Workflow stellt zuerst den vorhandenen V4-Cache wieder her und ergänzt nur die neuen Wasserhaushaltsdaten.
 
-**V4.1-Stabilitätsfix:** Große historische CDS-Abfragen werden in kleinere Blöcke zerlegt. Bodenfeuchte 1991–2020 wird in 5-Jahres-Blöcken geladen, Temperatur/Niederschlag in 10-Jahres-Blöcken. Fehlgeschlagene CDS-Jobs werden automatisch bis zu dreimal versucht. Erfolgreiche Teilblöcke bleiben während eines unvollständigen Laufs im Cache erhalten, sodass ein einzelner CDS-Fehler nicht wieder den kompletten Aufbau erzwingt.
+Der erste V5-Lauf kann deutlich länger dauern als ein späteres Monatsupdate, weil für die neuen Parameter die 1991–2020-Referenz sowie die 1°-Historie seit 1950 aufgebaut werden. Große CDS-Abfragen sind in 10-Jahres-Blöcke zerlegt und werden bei temporären CDS-Fehlern automatisch bis zu dreimal versucht.
 
-## Neu in V4
+## Neu in V5
 
-- sichtbare Europakarten weiterhin auf dem ERA5-Land-CDS-Gitter 0,1°
-- Klick direkt auf die Karte wählt den nächstgelegenen Land-Analysepunkt auf einem kompakten 1,0°-Raster
-- Jahresverlauf des aktuellen Jahres gegen 1991–2020
-- Temperatur, Niederschlag und alle vier Bodenfeuchteschichten
-- historischer Rang für den gewählten Kartenzeitraum
-- Temperatur und Niederschlag: Rang und Verlauf seit 1950
-- Bodenfeuchte: Einordnung aus den Einzeljahren 1991–2020 plus aktuellem Jahr
-- frei wählbares Vergleichsjahr
-- aktueller Wert, Klimamittel, Abweichung bzw. Prozent vom Mittel und Perzentil/Rang
-- zwei Punktdiagramme: Monatsverlauf und historische Entwicklung
+- Gesamtverdunstung (ERA5-Land `total_evaporation`), als positive Wasserabgabe in mm dargestellt
+- Gesamtabfluss (`runoff`)
+- Oberflächenabfluss (`surface_runoff`)
+- unterirdischer Abfluss (`sub_surface_runoff`)
+- abgeleitete Wasserbilanz **P−E = Niederschlag − Gesamtverdunstung**
+- je Parameter: Absolutwert, Abweichung 1991–2020 und empirisches Perzentil 1991–2020
+- Karten für jüngsten vollständigen Monat und Sommer bisher/JJA
+- Integration aller Wasserhaushaltsparameter in die V4-Gitterpunktanalyse
+- historische Gitterpunktreihe und Rang seit 1950
+- Vergleichsjahr wie bisher frei wählbar
+
+## Einheiten und Vorzeichen
+
+Die monatlich gemittelten akkumulierten hydrologischen ERA5-Land-Größen werden als effektive Meter Wasseräquivalent pro Tag geliefert. Das Skript multipliziert mit der Zahl der Kalendertage und mit 1000 und stellt die Ergebnisse als **mm pro Monat bzw. Zeitraum** dar.
+
+ERA5-Land verwendet für akkumulierte Flüsse die ECMWF-Konvention „positiv nach unten“. `total_evaporation` ist deshalb bei Verdunstung normalerweise negativ. Im Dashboard wird das Vorzeichen umgedreht, sodass **positive Verdunstungswerte einen Wasserverlust von der Oberfläche** bedeuten.
+
+Die Wasserbilanz ist rein diagnostisch als **Niederschlag minus Gesamtverdunstung** definiert. Negative Werte bedeuten ein rechnerisches Defizit, positive Werte einen Überschuss; Speicherung, Abfluss und andere Bilanzterme sind darin nicht vollständig geschlossen.
 
 ## Datenstruktur
 
-Der Workflow erzeugt zusätzlich:
+Der Workflow aktualisiert:
 
-`era5_land_europe/analysis.json`
+- `era5_land_europe/index.json` → `payload_version: 5`
+- `era5_land_europe/analysis.json` → `payload_version: 2`
+- zusätzliche Karten-PNGs unter `era5_land_europe/maps/`
 
-Die Datei enthält nur ein ausgedünntes 1°-Analyseraster, damit die Website trotz historischer Zeitreihen schnell bleibt. Die Karten-PNGs selbst bleiben hochauflösend.
+Die sichtbaren Karten bleiben 0,1°. Die historische Klickanalyse bleibt auf einem kompakten 1,0°-Landraster.
 
-## Bodenfeuchteschichten
+## Bestehende Funktionen bleiben erhalten
 
-- Layer 1: 0–7 cm
-- Layer 2: 7–28 cm
-- Layer 3: 28–100 cm
-- Layer 4: 100–289 cm
-
-Die Bodenfeuchte wird als volumetrischer Bodenwassergehalt in m³/m³ dargestellt. Die Kartenperzentile bleiben rasterzellenweise auf Basis 1991–2020.
-
-## Update von V3 auf V4
-
-Die bereits erzeugten Dateien unter `era5_land_europe/` sind bewusst nicht Bestandteil dieses ZIPs. Dadurch werden vorhandene V3-Karten beim Hochladen nicht überschrieben. Der nächste erfolgreiche ERA5-Land-Workflow erzeugt `analysis.json`, aktualisiert die Karten und schreibt `payload_version: 4`.
+- Temperatur und Niederschlag
+- alle vier Bodenfeuchteschichten (0–7, 7–28, 28–100, 100–289 cm)
+- Bodenfeuchte-Perzentile
+- Klickanalyse mit Monatsverlauf
+- historische Einordnung
+- Vergleichsjahr
+- PNG-Download der ERA5-Land-Karten
