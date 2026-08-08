@@ -6226,7 +6226,7 @@ function populateStreakProgressionStations(){
 
 async function streakProgressionProfile(stationId){
   if(streakProgressionProfileCache.has(stationId)) return streakProgressionProfileCache.get(stationId);
-  const station=stationStreakStation(stationId);
+  const station=nationalStreakStation(stationId);
   if(!station?.file) throw new Error("Stationsprofil nicht gefunden.");
   const response=await dashboardFetch(station.file,{cache:"no-store"});
   if(!response.ok) throw new Error(`Stationsprofil konnte nicht geladen werden (HTTP ${response.status}).`);
@@ -6279,7 +6279,7 @@ function streakProgressionHero(rows,scope,metric,station){
   }
   const first=rows[0],last=rows[rows.length-1];
   const biggest=[...rows].sort((a,b)=>Number(b.improvement||0)-Number(a.improvement||0))[0];
-  const holder=scope==="national"?stationStreakStation(last.station_id):station;
+  const holder=scope==="national"?nationalStreakStation(last.station_id):station;
   el.innerHTML=`
     <div class="streak-progression-card"><div class="eyebrow">Erster erfasster Rekord</div><div class="value">${first.duration} Tage</div><div class="detail">seit ${stationStreakDateText(first.record_date||first.end)}</div></div>
     <div class="streak-progression-card"><div class="eyebrow">Aktueller Rekord</div><div class="value">${last.duration} Tage</div><div class="detail">${holder?.name||last.station_id||station?.name||""} · ${stationStreakDateText(last.record_date||last.end)}</div></div>
@@ -6306,7 +6306,7 @@ function renderStreakProgressionChart(rows,scope,metric,station){
         title:{display:true,text:title,font:{size:16,weight:"bold"}},
         legend:{display:false},
         datalabels:{display:rows.length<=24,align:"top",anchor:"end",formatter:value=>`${value} T.`,font:{weight:"bold",size:10}},
-        tooltip:{callbacks:{afterLabel:ctx=>{const row=rows[ctx.dataIndex],holder=scope==="national"?stationStreakStation(row.station_id):station;return [`Serie: ${stationStreakDateText(row.start)} – ${stationStreakDateText(row.end)}`,holder?.name?`Station: ${holder.name} (${holder.id})`:"",`Verbesserung: +${row.improvement||row.duration} Tage`].filter(Boolean);}}}
+        tooltip:{callbacks:{afterLabel:ctx=>{const row=rows[ctx.dataIndex],holder=scope==="national"?nationalStreakStation(row.station_id):station;return [`Serie: ${stationStreakDateText(row.start)} – ${stationStreakDateText(row.end)}`,holder?.name?`Station: ${holder.name} (${holder.id})`:"",`Verbesserung: +${row.improvement||row.duration} Tage`].filter(Boolean);}}}
       },
       scales:{x:{ticks:{autoSkip:true,maxRotation:45,minRotation:0}},y:{beginAtZero:true,title:{display:true,text:"Tage in Folge"},ticks:{precision:0}}}
     }
@@ -6318,7 +6318,7 @@ function renderStreakProgressionTable(rows,scope,station){
   if(!tbody) return;
   if(!rows.length){tbody.innerHTML='<tr><td colspan="9">Keine Rekordstufen vorhanden.</td></tr>';return;}
   tbody.innerHTML=rows.map((row,index)=>{
-    const holder=scope==="national"?stationStreakStation(row.station_id):station;
+    const holder=scope==="national"?nationalStreakStation(row.station_id):station;
     const status=row.ongoing?'laufend · vorläufig':row.preliminary?'vorläufig':'historisch geprüft';
     const badge=row.preliminary?'preliminary':'checked';
     return `<tr>
@@ -6341,7 +6341,7 @@ async function updateStreakRecordProgression(){
   const metricId=document.getElementById("streakProgressionMetricSelect")?.value||"hot";
   const metric=(stationStreakIndex.climate_days||[]).find(item=>item.id===metricId)||{label:metricId,definition:"",color:"#a83b32"};
   const stationId=document.getElementById("streakProgressionStationSelect")?.value||"";
-  const station=stationId?stationStreakStation(stationId):null;
+  const station=stationId?nationalStreakStation(stationId):null;
   const summary=document.getElementById("streakProgressionSummary"),note=document.getElementById("streakProgressionNote");
   if(Number(stationStreakIndex.current_payload_version||0)<7){
     if(summary) summary.textContent="Rekordentwicklungs-Daten sind noch nicht aufgebaut. Bitte den aktualisierten DWD-Workflow einmal ausführen.";
@@ -6362,7 +6362,7 @@ async function updateStreakRecordProgression(){
     if(!rows.length){
       if(summary) summary.innerHTML=`<strong>${metric.label}:</strong> Für diese Auswahl liegen noch keine Rekordstufen vor.`;
     }else{
-      const first=rows[0],last=rows[rows.length-1],holder=scope==="national"?stationStreakStation(last.station_id):station;
+      const first=rows[0],last=rows[rows.length-1],holder=scope==="national"?nationalStreakStation(last.station_id):station;
       if(summary) summary.innerHTML=`<strong>${scope==="national"?"Deutschlandrekord":`Stationsrekord ${station?.name||stationId}`} · ${metric.label}:</strong> `+
         `Der erfasste Rekord entwickelte sich in ${rows.length} Stufen von ${first.duration} auf ${last.duration} Tage. `+
         `Die derzeit jüngste Rekordserie lief vom ${stationStreakDateText(last.start)} bis ${stationStreakDateText(last.end)}`+
@@ -6382,7 +6382,7 @@ function downloadStreakProgressionChart(){
   const metricId=document.getElementById("streakProgressionMetricSelect")?.value||"hot";
   const metric=(stationStreakIndex?.climate_days||[]).find(item=>item.id===metricId)||{label:metricId};
   const stationId=document.getElementById("streakProgressionStationSelect")?.value||"";
-  const station=stationId?stationStreakStation(stationId):null;
+  const station=stationId?nationalStreakStation(stationId):null;
   const filename=safeExportFilename(`Rekordentwicklung_${scope==="national"?"Deutschland":station?.name||stationId}_${metric.label}`,"png");
   const exportCanvas=document.createElement("canvas");
   exportCanvas.width=canvas.width; exportCanvas.height=canvas.height;
