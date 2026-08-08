@@ -1,0 +1,113 @@
+name: ERA5-Land Europa aktualisieren
+
+on:
+  schedule:
+    # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
+    # Der tägliche Lauf ist leichtgewichtig: Wenn kein neuer Zielmonat vorliegt,
+    # beendet sich das Skript ohne CDS-Download.
+    - cron: "37 12 * * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "ERA5-Land Karten auch für denselben Monat neu erzeugen"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-land-europe
+  cancel-in-progress: false
+
+jobs:
+  update-era5-land:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: ERA5-Land Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_cache
+          key: era5-land-europe-v1-${{ runner.os }}
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CDSAPI_KEY:-}" ]]; then
+            echo "FEHLER: GitHub Secret CDSAPI_KEY fehlt."
+            echo "Repository Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: ERA5-Land Europakarten erzeugen
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/update_era5_land_europe.py $EXTRA_ARGS
+
+      - name: Änderungen versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe
+
+          if git diff --cached --quiet; then
+            echo "Keine neuen ERA5-Land Monatsdaten vorhanden."
+            exit 0
+          fi
+
+          git commit -m "ERA5-Land Europa aktualisiert [skip ci]"
+
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "Rebase fehlgeschlagen."
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              PUSH_OK=true
+              break
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+
+          if [[ "$PUSH_OK" != "true" ]]; then
+            echo "ERA5-Land Update konnte nicht auf main gepusht werden."
+            exit 1
+          fi
