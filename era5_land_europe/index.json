@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 3,
-  "generated_at": "2026-08-08T15:28:36+00:00",
+  "payload_version": 4,
+  "generated_at": "2026-08-08T16:50:11+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,9 +14,20 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V3 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V4 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
   "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
+  "analysis": {
+    "file": "era5_land_europe/analysis.json",
+    "grid": "1,0° (nächster verfügbarer Landpunkt)",
+    "history_start": 1950
+  },
+  "click_geometry": {
+    "left": 0.07,
+    "top": 0.16,
+    "right": 0.96,
+    "bottom": 0.82
+  },
   "percentile_note": "Bodenfeuchte-Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. P≤20 wird als trocken, P≤10 als sehr trocken, P≥80 als feucht eingeordnet.",
   "soil_layers": {
     "layer1": {
