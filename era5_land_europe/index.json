@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 5,
-  "generated_at": "2026-08-08T18:59:33+00:00",
+  "payload_version": 6,
+  "generated_at": "2026-08-08T21:07:38+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,15 +14,16 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V5 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V6 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
   "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
   "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
+  "snow_note": "Schnee: Schneehöhe wird in cm, Schneewasseräquivalent in mm Wasseräquivalent und Schneebedeckung in % dargestellt. Monats- und Saisonwerte sind zeitgewichtete Mittel der monatlichen ERA5-Land-Zustandsgrößen.",
   "analysis": {
     "file": "era5_land_europe/analysis.json",
     "grid": "1,0° (nächster verfügbarer Landpunkt)",
     "history_start": 1950,
-    "payload_version": 2
+    "payload_version": 3
   },
   "click_geometry": {
     "left": 0.07,
@@ -389,6 +390,84 @@
           "high_area_percent": 16.341798408211446,
           "very_high_area_percent": 8.933788528303847
         }
+      },
+      "snow_depth": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_depth_latest_month_absolute.png",
+          "unit": "cm",
+          "label": "Schneehöhe"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_depth_latest_month_anomaly.png",
+          "unit": "cm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_depth_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 12.216381725200485,
+          "reference": 12.347028019850148,
+          "difference": -0.13064629464966337,
+          "low_area_percent": 0.42775288721257265,
+          "very_low_area_percent": 0.1446523261210137,
+          "high_area_percent": 97.13865306983848,
+          "very_high_area_percent": 95.18543531302893
+        }
+      },
+      "snow_water_equivalent": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Schneewasseräquivalent"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 36.67789551012295,
+          "reference": 37.241376188661846,
+          "difference": -0.5634806785388946,
+          "low_area_percent": 98.47455105815459,
+          "very_low_area_percent": 98.21263787941776,
+          "high_area_percent": 0.23287345362814613,
+          "very_high_area_percent": 0.17272525711540226
+        }
+      },
+      "snow_cover": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_cover_latest_month_absolute.png",
+          "unit": "%",
+          "label": "Schneebedeckung"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_cover_latest_month_anomaly.png",
+          "unit": "Prozentpunkte",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_cover_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 0.3892355550765127,
+          "reference": 0.6161592957046446,
+          "difference": -0.22692374062813186,
+          "low_area_percent": 1.421650172637217,
+          "very_low_area_percent": 0.673667466562547,
+          "high_area_percent": 0.25938433399470967,
+          "very_high_area_percent": 0.1826635004057471
+        }
       }
     },
     "summer": {
@@ -718,6 +797,84 @@
           "very_low_area_percent": 18.312080904427045,
           "high_area_percent": 8.693655246615426,
           "very_high_area_percent": 3.851821597132961
+        }
+      },
+      "snow_depth": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_depth_summer_absolute.png",
+          "unit": "cm",
+          "label": "Schneehöhe"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_depth_summer_anomaly.png",
+          "unit": "cm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_depth_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 12.397701318210883,
+          "reference": 12.94938049517488,
+          "difference": -0.5516791769639973,
+          "low_area_percent": 3.4293179498440214,
+          "very_low_area_percent": 2.3045687686180703,
+          "high_area_percent": 89.72047054428263,
+          "very_high_area_percent": 85.41798225195383
+        }
+      },
+      "snow_water_equivalent": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_summer_absolute.png",
+          "unit": "mm",
+          "label": "Schneewasseräquivalent"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_water_equivalent_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 37.43102007322624,
+          "reference": 39.80098772581752,
+          "difference": -2.369967652591278,
+          "low_area_percent": 95.84389319937662,
+          "very_low_area_percent": 94.28166031399266,
+          "high_area_percent": 1.2424201457528312,
+          "very_high_area_percent": 0.8522279205422028
+        }
+      },
+      "snow_cover": {
+        "absolute": {
+          "file": "era5_land_europe/maps/snow_cover_summer_absolute.png",
+          "unit": "%",
+          "label": "Schneebedeckung"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/snow_cover_summer_anomaly.png",
+          "unit": "Prozentpunkte",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/snow_cover_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 0.7464601924483344,
+          "reference": 1.4338566078856319,
+          "difference": -0.6873964154372975,
+          "low_area_percent": 7.441351564067045,
+          "very_low_area_percent": 4.731514321234691,
+          "high_area_percent": 1.3304574415533166,
+          "very_high_area_percent": 0.9081432993433286
         }
       }
     }
