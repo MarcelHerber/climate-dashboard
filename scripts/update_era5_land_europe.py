@@ -39,6 +39,7 @@ INDEX_PATH = OUT_DIR / "index.json"
 
 TEMP_ALIASES = ("t2m", "2m_temperature", "temperature_2m")
 PRECIP_ALIASES = ("tp", "total_precipitation", "precipitation")
+SOIL1_ALIASES = ("swvl1", "volumetric_soil_water_layer_1", "soil_water_layer_1")
 LAT_ALIASES = ("latitude", "lat")
 LON_ALIASES = ("longitude", "lon")
 
@@ -115,6 +116,23 @@ def request_monthly_file(client: cdsapi.Client, years: list[int], months: list[i
         "area": AREA,
     }
     print(f"CDS request: years {years[0]}–{years[-1]}, months {months}")
+    client.retrieve(DATASET, request, str(target))
+
+
+def request_soil_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
+    """Download only soil moisture layer 1 so the V1 temperature/precipitation cache remains reusable."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": ["volumetric_soil_water_layer_1"],
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    print(f"CDS soil-moisture request: years {years[0]}–{years[-1]}, months {months}")
     client.retrieve(DATASET, request, str(target))
 
 
@@ -210,6 +228,79 @@ def load_current_months(client: cdsapi.Client, year: int, months: list[int], for
         result[month] = (lat, lon, temp_c, precip_mm)
     ds.close()
     return result
+
+
+def load_current_soil_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    cache_file = CACHE_DIR / f"current_soil_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_soil_monthly_file(client, [year], months, cache_file)
+
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    soil_name = variable_name(ds, SOIL1_ALIASES)
+    soil_da = ds[soil_name]
+    sdim = time_dim(soil_da, lat_name, lon_name)
+    if sdim is None:
+        if len(months) != 1:
+            raise RuntimeError("Monatsdimension in ERA5-Land-Bodenfeuchte-Datei nicht erkannt.")
+        soil_slices = [soil_da]
+    else:
+        if soil_da.sizes[sdim] != len(months):
+            raise RuntimeError(f"Unerwartete Anzahl Bodenfeuchtefelder: {soil_da.sizes[sdim]} statt {len(months)}")
+        soil_slices = [soil_da.isel({sdim: idx}) for idx in range(len(months))]
+
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+    result = {}
+    for idx, month in enumerate(months):
+        soil = np.asarray(soil_slices[idx].squeeze().values, dtype=float)
+        result[month] = (lat, lon, soil)
+    ds.close()
+    return result
+
+
+def load_climatology_soil_month(client: cdsapi.Client, month: int, force: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    clim_file = CACHE_DIR / f"climatology_soil_1991_2020_{month:02d}.nc"
+    if force and clim_file.exists():
+        clim_file.unlink()
+    if clim_file.exists():
+        ds = xr.open_dataset(clim_file)
+        lat = np.asarray(ds["latitude"].values, dtype=float)
+        lon = np.asarray(ds["longitude"].values, dtype=float)
+        soil = np.asarray(ds["soil_moisture_m3m3"].values, dtype=float)
+        ds.close()
+        return lat, lon, soil
+
+    raw_file = CACHE_DIR / f"raw_climatology_soil_{month:02d}.nc"
+    if raw_file.exists():
+        raw_file.unlink()
+    request_soil_monthly_file(client, list(range(REFERENCE_START, REFERENCE_END + 1)), [month], raw_file)
+    ds = open_download(raw_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    soil_name = variable_name(ds, SOIL1_ALIASES)
+    soil_da = ds[soil_name]
+    sdim = time_dim(soil_da, lat_name, lon_name)
+    if sdim is None:
+        raise RuntimeError("Zeitdimension für die 30-jährige Bodenfeuchte-Klimatologie fehlt.")
+    soil_clim = soil_da.mean(sdim, skipna=True)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+    out = xr.Dataset(
+        {"soil_moisture_m3m3": (("latitude", "longitude"), np.asarray(soil_clim.squeeze().values, dtype=np.float32))},
+        coords={"latitude": lat, "longitude": lon},
+        attrs={"reference_period": "1991-2020", "month": month, "soil_layer": "0-7 cm"},
+    )
+    out.to_netcdf(clim_file)
+    ds.close()
+    try:
+        raw_file.unlink()
+    except FileNotFoundError:
+        pass
+    return lat, lon, np.asarray(out["soil_moisture_m3m3"].values, dtype=float)
 
 
 def load_climatology_month(client: cdsapi.Client, month: int, force: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -322,6 +413,16 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
         cmap = "BrBG"
         vmax = max(150.0, math.ceil(finite_quantile(data, 0.98) / 25) * 25)
         kwargs.update(norm=TwoSlopeNorm(vmin=0, vcenter=100, vmax=vmax))
+    elif kind == "soil_absolute":
+        cmap = "YlGnBu"
+        lo = max(0.0, math.floor(finite_quantile(data, 0.02) * 20) / 20)
+        hi = min(0.7, math.ceil(finite_quantile(data, 0.98) * 20) / 20)
+        if hi <= lo: hi = lo + 0.05
+        kwargs.update(vmin=lo, vmax=hi)
+    elif kind == "soil_anomaly":
+        cmap = "BrBG"
+        vmax = max(0.02, math.ceil(finite_quantile(np.abs(data), 0.98) * 100) / 100)
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
     else:
         cmap = "viridis"
 
@@ -358,7 +459,13 @@ def combine_precipitation(fields: dict[int, np.ndarray], months: list[int]) -> n
     return np.nansum(np.stack([fields[month] for month in months], axis=0), axis=0)
 
 
-def make_period_maps(period_id: str, period_label: str, year: int, months: list[int], current: dict, climate: dict) -> dict:
+def combine_soil_moisture(fields: dict[int, np.ndarray], year: int, months: list[int]) -> np.ndarray:
+    weights = np.array([calendar.monthrange(year, month)[1] for month in months], dtype=float)
+    stack = np.stack([fields[month] for month in months], axis=0)
+    return np.average(stack, axis=0, weights=weights)
+
+
+def make_period_maps(period_id: str, period_label: str, year: int, months: list[int], current: dict, climate: dict, current_soil: dict, climate_soil: dict) -> dict:
     lat, lon = current[months[0]][0], current[months[0]][1]
     current_temp = combine_temperature({m: current[m][2] for m in months}, year, months)
     climate_temp = combine_temperature({m: climate[m][2] for m in months}, 2001, months)
@@ -367,12 +474,17 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
 
     temp_anom = current_temp - climate_temp
     precip_pct = np.where(climate_precip > 1.0, current_precip / climate_precip * 100.0, np.nan)
+    current_soil_field = combine_soil_moisture({m: current_soil[m][2] for m in months}, year, months)
+    climate_soil_field = combine_soil_moisture({m: climate_soil[m][2] for m in months}, 2001, months)
+    soil_anom = current_soil_field - climate_soil_field
 
     files = {
         "temp_absolute": MAP_DIR / f"temperature_{period_id}_absolute.png",
         "temp_anomaly": MAP_DIR / f"temperature_{period_id}_anomaly.png",
         "precip_absolute": MAP_DIR / f"precipitation_{period_id}_absolute.png",
         "precip_percent": MAP_DIR / f"precipitation_{period_id}_percent.png",
+        "soil_absolute": MAP_DIR / f"soil_moisture_layer1_{period_id}_absolute.png",
+        "soil_anomaly": MAP_DIR / f"soil_moisture_layer1_{period_id}_anomaly.png",
     }
 
     render_map(current_temp, lat, lon,
@@ -387,6 +499,12 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
     render_map(precip_pct, lat, lon,
                title=f"ERA5-Land Europa · Niederschlag · {period_label}",
                subtitle="Prozent vom Mittel 1991–2020 · Landflächen", unit="% vom Mittel", filename=files["precip_percent"], kind="precip_percent")
+    render_map(current_soil_field, lat, lon,
+               title=f"ERA5-Land Europa · Bodenfeuchte 0–7 cm · {period_label}",
+               subtitle="Volumetrischer Bodenwassergehalt · Landflächen", unit="m³/m³", filename=files["soil_absolute"], kind="soil_absolute")
+    render_map(soil_anom, lat, lon,
+               title=f"ERA5-Land Europa · Bodenfeuchteabweichung 0–7 cm · {period_label}",
+               subtitle="gegenüber 1991–2020 · Landflächen", unit="m³/m³", filename=files["soil_anomaly"], kind="soil_anomaly")
 
     def rel(path: Path) -> str:
         return path.relative_to(ROOT).as_posix()
@@ -395,6 +513,8 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
     stats_temp_ref = weighted_mean(climate_temp, lat)
     stats_precip_current = weighted_mean(current_precip, lat)
     stats_precip_ref = weighted_mean(climate_precip, lat)
+    stats_soil_current = weighted_mean(current_soil_field, lat)
+    stats_soil_ref = weighted_mean(climate_soil_field, lat)
 
     return {
         "id": period_id,
@@ -417,6 +537,15 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
                 "current": stats_precip_current,
                 "reference": stats_precip_ref,
                 "percent": None if not stats_precip_ref else stats_precip_current / stats_precip_ref * 100.0,
+            },
+        },
+        "soil_moisture": {
+            "absolute": {"file": rel(files["soil_absolute"]), "unit": "m³/m³", "label": "Bodenfeuchte 0–7 cm"},
+            "anomaly": {"file": rel(files["soil_anomaly"]), "unit": "m³/m³", "label": "Abweichung 1991–2020"},
+            "stats": {
+                "current": stats_soil_current,
+                "reference": stats_soil_ref,
+                "difference": None if stats_soil_current is None or stats_soil_ref is None else stats_soil_current - stats_soil_ref,
             },
         },
     }
@@ -449,6 +578,10 @@ def main() -> int:
                 MAP_DIR / "temperature_summer_anomaly.png",
                 MAP_DIR / "precipitation_summer_absolute.png",
                 MAP_DIR / "precipitation_summer_percent.png",
+                MAP_DIR / "soil_moisture_layer1_latest_month_absolute.png",
+                MAP_DIR / "soil_moisture_layer1_latest_month_anomaly.png",
+                MAP_DIR / "soil_moisture_layer1_summer_absolute.png",
+                MAP_DIR / "soil_moisture_layer1_summer_anomaly.png",
             ]
             if existing.get("ready") and existing.get("latest_month_key") == target_key and all(p.exists() for p in required):
                 print(f"ERA5-Land Europa ist bereits aktuell für {target_key}.")
@@ -462,32 +595,42 @@ def main() -> int:
 
     client = cds_client()
     current_all = {}
+    current_soil_all = {}
     for year, month_set in sorted(needed_by_year.items()):
         month_list = sorted(month_set)
         data = load_current_months(client, year, month_list, args.force)
+        soil_data = load_current_soil_months(client, year, month_list, args.force)
         for month, values in data.items():
             current_all[(year, month)] = values
+        for month, values in soil_data.items():
+            current_soil_all[(year, month)] = values
 
     climate = {}
+    climate_soil = {}
     all_needed_months = sorted({latest_month, *summer_months})
     for month in all_needed_months:
         climate[month] = load_climatology_month(client, month, args.force)
+        climate_soil[month] = load_climatology_soil_month(client, month, args.force)
 
     # All monthly files share the same grid. Convert to month-keyed structures for the two periods.
     latest_current = {latest_month: current_all[(latest_year, latest_month)]}
     latest_climate = {latest_month: climate[latest_month]}
+    latest_current_soil = {latest_month: current_soil_all[(latest_year, latest_month)]}
+    latest_climate_soil = {latest_month: climate_soil[latest_month]}
     latest_label = f"{MONTH_NAMES[latest_month]} {latest_year}"
-    latest_payload = make_period_maps("latest_month", latest_label, latest_year, [latest_month], latest_current, latest_climate)
+    latest_payload = make_period_maps("latest_month", latest_label, latest_year, [latest_month], latest_current, latest_climate, latest_current_soil, latest_climate_soil)
 
     summer_current = {month: current_all[(summer_year, month)] for month in summer_months}
     summer_climate = {month: climate[month] for month in summer_months}
+    summer_current_soil = {month: current_soil_all[(summer_year, month)] for month in summer_months}
+    summer_climate_soil = {month: climate_soil[month] for month in summer_months}
     summer_suffix = "" if summer_months == [6, 7, 8] else " bisher"
     summer_label = f"Sommer {summer_year}{summer_suffix} ({month_range_label(summer_months)})"
-    summer_payload = make_period_maps("summer", summer_label, summer_year, summer_months, summer_current, summer_climate)
+    summer_payload = make_period_maps("summer", summer_label, summer_year, summer_months, summer_current, summer_climate, summer_current_soil, summer_climate_soil)
 
     payload = {
         "ready": True,
-        "payload_version": 1,
+        "payload_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "latest_month_key": f"{latest_year:04d}-{latest_month:02d}",
         "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
@@ -496,8 +639,9 @@ def main() -> int:
         "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
         "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
         "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
-        "availability_note": "V1 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "availability_note": "V2 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
         "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
+        "soil_moisture_note": "Bodenfeuchte ist der volumetrische Bodenwassergehalt der ERA5-Land-Schicht 1 (0–7 cm) in m³/m³; die Abweichung bezieht sich auf 1991–2020.",
         "periods": {
             "latest_month": latest_payload,
             "summer": summer_payload,
