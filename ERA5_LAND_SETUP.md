@@ -1,42 +1,20 @@
-# ERA5-Land Europa – einmalige Einrichtung
+# ERA5-Land Europa – Einrichtung und V3-Update
 
 Die Dateien in diesem Paket sind bereits in der richtigen Repository-Struktur angeordnet.
 
-## 1. Copernicus/ECMWF-Zugang
+## Copernicus/ECMWF-Zugang
 
-1. Im Copernicus Climate Data Store (CDS) anmelden bzw. registrieren.
-2. Die Datensatzseite **ERA5-Land monthly averaged data from 1950 to present** öffnen.
-3. Die Lizenz/Nutzungsbedingungen dieses Datensatzes einmal im CDS akzeptieren.
-4. Unter der CDS-API-Seite den persönlichen **Personal Access Token** kopieren.
+Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet. Wenn V1/V2 bereits funktioniert, ist keine neue CDS-Einrichtung nötig.
 
-## 2. GitHub Secret anlegen
+## V3 starten
 
-Im Repository:
-
-**Settings → Secrets and variables → Actions → New repository secret**
-
-Name:
-
-`CDSAPI_KEY`
-
-Wert: nur der persönliche CDS Personal Access Token.
-
-Der Token gehört niemals in `index.html`, das Python-Skript oder eine öffentliche Datei.
-
-## 3. Ersten Lauf starten
+Nach dem Hochladen der Dateien:
 
 **Actions → ERA5-Land Europa aktualisieren → Run workflow**
 
-Beim ersten Lauf werden die benötigten 1991–2020-Klimatologien für die aktuell benötigten Monate erzeugt und im Actions-Cache abgelegt. Daher dauert der erste Lauf deutlich länger als spätere Aktualisierungen.
+Beim ersten V3-Lauf werden zusätzlich die historischen 1991–2020-Einzeljahre der vier Bodenfeuchteschichten für die aktuell benötigten Monate geladen. Diese Einzeljahre werden benötigt, um echte Gitterpunkt-Perzentile zu berechnen. Der V2-Cache für Temperatur/Niederschlag wird weiterverwendet.
 
-Danach schreibt der Workflow nur die kleinen fertigen Webprodukte nach:
-
-- `era5_land_europe/index.json`
-- `era5_land_europe/maps/*.png`
-
-Die Website lädt diese Dateien direkt aus dem `main`-Branch. Deshalb muss nach einem späteren ERA5-Land-Datenupdate nicht jedes Mal GitHub Pages neu gebaut werden.
-
-## Umfang V2
+## Umfang V3
 
 - Europa, 72°N–34°N und 25°W–45°E
 - ERA5-Land 0,1° CDS-Gitter
@@ -46,17 +24,34 @@ Die Website lädt diese Dateien direkt aus dem `main`-Branch. Deshalb muss nach 
 - Niederschlag
   - Summe in mm
   - Prozent vom Mittel 1991–2020
-- Bodenfeuchte, Schicht 1 (0–7 cm)
+- Bodenfeuchte in allen vier ERA5-Land-Modellschichten
+  - 0–7 cm
+  - 7–28 cm
+  - 28–100 cm
+  - 100–289 cm
+- je Bodenschicht
   - volumetrischer Bodenwassergehalt in m³/m³
   - Abweichung gegenüber 1991–2020
+  - Perzentil / Dürreklasse gegenüber den 30 Einzeljahren 1991–2020
 - jüngster sicher verfügbarer vollständiger Monat
 - Sommer (JJA) bis zum jüngsten vollständig verfügbaren Monat
 
+## Perzentil-Klassen
+
+Die Perzentile werden rasterzellenweise aus den 30 Referenzjahren 1991–2020 berechnet. Für einen laufenden Sommer wird derselbe Teilzeitraum jedes Referenzjahres verwendet (z. B. Juni–Juli gegen Juni–Juli 1991–2020).
+
+- P ≤ 5: extrem trocken
+- P 5–10: sehr trocken
+- P 10–20: trocken
+- P 20–30: eher trocken
+- P 30–70: normal
+- P 70–80: eher feucht
+- P 80–90: feucht
+- P 90–95: sehr feucht
+- P > 95: extrem feucht
+
 Hinweis: ERA5-Land ist ein Landprodukt. Meeresflächen bleiben in den Karten leer.
 
+## Update von V2 auf V3
 
-## Update von V1 auf V2
-
-`era5_land_europe/index.json` und die vorhandenen Karten sind bewusst nicht Teil dieses Update-ZIPs. Sie sind bereits vom V1-Workflow erzeugte Ausgabedateien und sollen beim Hochladen nicht zurückgesetzt werden. Der nächste erfolgreiche V2-Workflow ergänzt/aktualisiert sie automatisch.
-
-Der vorhandene V1-Cache für Temperatur und Niederschlag wird beim ersten V2-Lauf wiederverwendet. Neu heruntergeladen werden im Wesentlichen die Bodenfeuchtefelder und deren 1991–2020-Klimatologien für die aktuell benötigten Monate. Nach dem erfolgreichen V2-Lauf enthält `era5_land_europe/index.json` `payload_version: 2`.
+`era5_land_europe/index.json` und vorhandene Karten sind bewusst nicht Teil dieses ZIPs. Der nächste erfolgreiche Workflow ersetzt/ergänzt sie automatisch und schreibt `payload_version: 3`.

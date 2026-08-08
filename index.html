@@ -487,7 +487,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 </style>
 </head>
 <body>
-<!-- Climate Dashboard build 17.1: ERA5-Land Europa V2 Bodenfeuchte -->
+<!-- Climate Dashboard build 17.2: ERA5-Land Europa V3 Bodenfeuchte-Perzentile -->
 
 <h1>Climate Dashboard Deutschland</h1>
 <div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
@@ -1100,8 +1100,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 <div id="era5Europe" class="tab-content">
   <div class="section-header">
     <h2>ERA5-Land Europa</h2>
-    <p>Hochaufgelöste Europakarten aus der ERA5-Land-Reanalyse: 2-m-Temperatur, Niederschlag und Bodenfeuchte mit Vergleich zum Klimamittel 1991–2020.</p>
-    <span class="section-status">Version 2 · Europa · ERA5-Land 0,1° · Landflächen · Copernicus C3S / ECMWF</span>
+    <p>Hochaufgelöste Europakarten aus der ERA5-Land-Reanalyse: 2-m-Temperatur, Niederschlag und Bodenfeuchte in vier Tiefen inklusive Perzentil- und Dürreeinordnung gegenüber 1991–2020.</p>
+    <span class="section-status">Version 3 · Europa · ERA5-Land 0,1° · Landflächen · Copernicus C3S / ECMWF</span>
   </div>
 
   <div id="era5EuropeStatus" class="era5-europe-status">ERA5-Land-Daten werden beim ersten Öffnen geladen …</div>
@@ -1112,7 +1112,16 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       <select id="era5EuropeParameter">
         <option value="temperature">2-m-Temperatur</option>
         <option value="precipitation">Niederschlag</option>
-        <option value="soil_moisture">Bodenfeuchte 0–7 cm</option>
+        <option value="soil_moisture">Bodenfeuchte</option>
+      </select>
+    </div>
+    <div id="era5EuropeSoilLayerGroup" class="control-group" style="display:none">
+      <label for="era5EuropeSoilLayer">Bodenschicht</label>
+      <select id="era5EuropeSoilLayer">
+        <option value="layer1">0–7 cm</option>
+        <option value="layer2">7–28 cm</option>
+        <option value="layer3">28–100 cm</option>
+        <option value="layer4">100–289 cm</option>
       </select>
     </div>
     <div class="control-group">
@@ -1132,7 +1141,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     <div class="era5-europe-kpi"><div class="label">Zeitraum</div><div id="era5EuropePeriodKpi" class="value">–</div><div id="era5EuropeDataKpi" class="detail">–</div></div>
     <div class="era5-europe-kpi"><div class="label">Europa-Mittel</div><div id="era5EuropeCurrentKpi" class="value">–</div><div class="detail">flächengewichtet über verfügbare Landgitterpunkte</div></div>
     <div class="era5-europe-kpi"><div class="label">Mittel 1991–2020</div><div id="era5EuropeReferenceKpi" class="value">–</div><div class="detail">gleicher Monat / gleiche Sommermonate</div></div>
-    <div class="era5-europe-kpi"><div class="label">Abweichung</div><div id="era5EuropeDifferenceKpi" class="value">–</div><div id="era5EuropeDifferenceDetail" class="detail">gegenüber 1991–2020</div></div>
+    <div class="era5-europe-kpi"><div id="era5EuropeDifferenceLabel" class="label">Abweichung</div><div id="era5EuropeDifferenceKpi" class="value">–</div><div id="era5EuropeDifferenceDetail" class="detail">gegenüber 1991–2020</div></div>
   </div>
 
   <div class="era5-europe-map-card">
@@ -1144,8 +1153,8 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </div>
 
   <div class="era5-europe-info">
-    <div><strong>Was zeigt V2?</strong><br>Der jüngste sicher verfügbare vollständige Monat sowie der meteorologische Sommer. Neben Temperatur und Niederschlag ist jetzt auch die Bodenfeuchte der obersten ERA5-Land-Schicht (0–7 cm) verfügbar.</div>
-    <div><strong>Datenhinweis:</strong><br>ERA5-Land ist ein Landprodukt. Meeresflächen bleiben leer. Die Referenz 1991–2020 wird aus ERA5-Land selbst berechnet. Bodenfeuchte zeigt den volumetrischen Wassergehalt in m³/m³ der Schicht 0–7 cm.</div>
+    <div><strong>Was zeigt V3?</strong><br>Bodenfeuchte steht jetzt in allen vier ERA5-Land-Modellschichten zur Verfügung: 0–7, 7–28, 28–100 und 100–289 cm. Für jede Tiefe gibt es Absolutwert, Abweichung und Perzentil-/Dürreklasse.</div>
+    <div><strong>Perzentile:</strong><br>Die aktuelle Bodenfeuchte wird für jede Rasterzelle mit den 30 Einzeljahren 1991–2020 desselben Zeitraums verglichen. P≤20 = trocken, P≤10 = sehr trocken; P≥80 = feucht, P≥90 = sehr feucht. ERA5-Land ist ein Landprodukt, Meeresflächen bleiben leer.</div>
   </div>
   <p id="era5EuropeSource" class="note" style="margin-top:10px">Quelle: Copernicus Climate Change Service (C3S) / ECMWF, ERA5-Land.</p>
 </div>
@@ -8712,6 +8721,15 @@ function era5EuropeSetStatus(text,state=""){
   const el=document.getElementById("era5EuropeStatus");if(!el)return;
   el.textContent=text;el.className=`era5-europe-status ${state}`.trim();
 }
+function era5EuropeSoilLayerLabel(layer){
+  const fallback={layer1:"0–7 cm",layer2:"7–28 cm",layer3:"28–100 cm",layer4:"100–289 cm"};
+  return era5EuropeIndex?.soil_layers?.[layer]?.label||fallback[layer]||layer;
+}
+function era5EuropeUpdateSoilLayerVisibility(){
+  const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const group=document.getElementById("era5EuropeSoilLayerGroup");
+  if(group)group.style.display=parameter==="soil_moisture"?"":"none";
+}
 function era5EuropeUpdateViewOptions(){
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
   const select=document.getElementById("era5EuropeView");if(!select)return;
@@ -8719,10 +8737,10 @@ function era5EuropeUpdateViewOptions(){
   let entries;
   if(parameter==="temperature") entries=[["absolute","Absolutwert (°C)"],["anomaly","Abweichung 1991–2020 (K)"]];
   else if(parameter==="precipitation") entries=[["absolute","Niederschlagssumme (mm)"],["percent","Prozent vom Mittel 1991–2020"]];
-  else entries=[["absolute","Bodenfeuchte (m³/m³)"],["anomaly","Abweichung 1991–2020 (m³/m³)"]];
+  else entries=[["absolute","Bodenfeuchte (m³/m³)"],["anomaly","Abweichung 1991–2020 (m³/m³)"],["percentile","Perzentil / Dürreklasse 1991–2020"]];
   select.innerHTML=entries.map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
   if(entries.some(([value])=>value===previous))select.value=previous;
-  else select.value=parameter==="precipitation"?"percent":"anomaly";
+  else select.value=parameter==="precipitation"?"percent":parameter==="soil_moisture"?"percentile":"anomaly";
 }
 async function ensureEra5EuropeLoaded(force=false){
   if(era5EuropeIndex && !force){renderEra5Europe();return era5EuropeIndex;}
@@ -8751,38 +8769,47 @@ async function ensureEra5EuropeLoaded(force=false){
 function renderEra5Europe(){
   if(!era5EuropeIndex?.ready)return;
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const soilLayer=document.getElementById("era5EuropeSoilLayer")?.value||"layer1";
   const periodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";
-  const view=document.getElementById("era5EuropeView")?.value||(parameter==="precipitation"?"percent":"anomaly");
+  const view=document.getElementById("era5EuropeView")?.value||(parameter==="precipitation"?"percent":parameter==="soil_moisture"?"percentile":"anomaly");
   const period=era5EuropeIndex.periods?.[periodId];
-  const parameterData=period?.[parameter];
+  let parameterData=period?.[parameter];
+  if(parameter==="soil_moisture"){
+    parameterData=parameterData?.layers?.[soilLayer]||(soilLayer==="layer1"?parameterData:null);
+  }
   const mapInfo=parameterData?.[view];
   if(!period)return;
+  const soilLabel=era5EuropeSoilLayerLabel(soilLayer);
+  const title=parameter==="temperature"?"2-m-Temperatur":parameter==="precipitation"?"Niederschlag":`Bodenfeuchte ${soilLabel}`;
   if(!parameterData||!mapInfo){
     const wrap=document.getElementById("era5EuropeImageWrap");
     if(wrap)wrap.innerHTML='<div class="era5-europe-loading">Dieser ERA5-Land-Parameter wird mit dem nächsten erfolgreichen Europa-Workflow aufgebaut.</div>';
-    document.getElementById("era5EuropeMapTitle").textContent=parameter==="soil_moisture"?`Bodenfeuchte 0–7 cm · ${period.label}`:"ERA5-Land Europakarte";
+    document.getElementById("era5EuropeMapTitle").textContent=`${title} · ${period.label}`;
     document.getElementById("era5EuropeMapSubtitle").textContent="Daten noch nicht erzeugt";
     document.getElementById("era5EuropePeriodKpi").textContent=period.label;
     document.getElementById("era5EuropeDataKpi").textContent=`Datenstand ${era5EuropeIndex.data_through||"–"}`;
     document.getElementById("era5EuropeCurrentKpi").textContent="–";
     document.getElementById("era5EuropeReferenceKpi").textContent="–";
     document.getElementById("era5EuropeDifferenceKpi").textContent="–";
+    document.getElementById("era5EuropeDifferenceLabel").textContent="Abweichung";
     document.getElementById("era5EuropeDifferenceDetail").textContent="Workflow noch ausführen";
     return;
   }
-  const title=parameter==="temperature"?"2-m-Temperatur":parameter==="precipitation"?"Niederschlag":"Bodenfeuchte 0–7 cm";
   const viewLabel=mapInfo.label||view;
   document.getElementById("era5EuropeMapTitle").textContent=`${title} · ${period.label}`;
   document.getElementById("era5EuropeMapSubtitle").textContent=`${viewLabel} · ERA5-Land · Landflächen`;
   document.getElementById("era5EuropePeriodKpi").textContent=period.label;
   document.getElementById("era5EuropeDataKpi").textContent=`Datenstand ${era5EuropeIndex.data_through}`;
   const stats=parameterData.stats||{};
+  const diffLabel=document.getElementById("era5EuropeDifferenceLabel");
   if(parameter==="temperature"){
+    if(diffLabel)diffLabel.textContent="Abweichung";
     document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(stats.current,2," °C");
     document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(stats.reference,2," °C");
     document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.difference,2," K");
     document.getElementById("era5EuropeDifferenceDetail").textContent="Temperaturabweichung zum Mittel";
   }else if(parameter==="precipitation"){
+    if(diffLabel)diffLabel.textContent="Vom Mittel";
     document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(stats.current,1," mm");
     document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(stats.reference,1," mm");
     document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.percent,0," %");
@@ -8790,8 +8817,17 @@ function renderEra5Europe(){
   }else{
     document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(stats.current,3," m³/m³");
     document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(stats.reference,3," m³/m³");
-    document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.difference,3," m³/m³");
-    document.getElementById("era5EuropeDifferenceDetail").textContent="Bodenfeuchteabweichung zum Mittel";
+    if(view==="percentile"){
+      if(diffLabel)diffLabel.textContent="Trockenflächen";
+      document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.dry_area_percent,0," %");
+      const veryDry=era5EuropeFormat(stats.very_dry_area_percent,0," %");
+      const wet=era5EuropeFormat(stats.wet_area_percent,0," %");
+      document.getElementById("era5EuropeDifferenceDetail").textContent=`≤ P20 · davon ≤ P10: ${veryDry} · ≥ P80: ${wet}`;
+    }else{
+      if(diffLabel)diffLabel.textContent="Abweichung";
+      document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.difference,3," m³/m³");
+      document.getElementById("era5EuropeDifferenceDetail").textContent="Bodenfeuchteabweichung zum Mittel";
+    }
   }
   const imageUrl=`${ERA5_EUROPE_RAW_BASE}${mapInfo.file}?v=${encodeURIComponent(era5EuropeIndex.generated_at||Date.now())}`;
   const wrap=document.getElementById("era5EuropeImageWrap");
@@ -8801,14 +8837,20 @@ function renderEra5Europe(){
     img.addEventListener("error",()=>{wrap.innerHTML='<div class="era5-europe-loading">Die Karten-PNG konnte nicht geladen werden.</div>';});
   }
   const source=document.getElementById("era5EuropeSource");
-  if(source)source.textContent=`Quelle: ${era5EuropeIndex.source}. ${era5EuropeIndex.availability_note||""}`;
+  if(source){
+    const extra=parameter==="soil_moisture"&&view==="percentile"?(era5EuropeIndex.percentile_note||""):(era5EuropeIndex.availability_note||"");
+    source.textContent=`Quelle: ${era5EuropeIndex.source}. ${extra}`;
+  }
 }
 async function downloadEra5EuropeMap(){
   if(!era5EuropeIndex?.ready)return;
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const soilLayer=document.getElementById("era5EuropeSoilLayer")?.value||"layer1";
   const periodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";
   const view=document.getElementById("era5EuropeView")?.value||"absolute";
-  const mapInfo=era5EuropeIndex.periods?.[periodId]?.[parameter]?.[view];
+  let parameterData=era5EuropeIndex.periods?.[periodId]?.[parameter];
+  if(parameter==="soil_moisture")parameterData=parameterData?.layers?.[soilLayer]||(soilLayer==="layer1"?parameterData:null);
+  const mapInfo=parameterData?.[view];
   if(!mapInfo)return;
   const button=document.getElementById("era5EuropeDownload");const original=button?.textContent;
   if(button){button.disabled=true;button.textContent="…";}
@@ -8816,15 +8858,18 @@ async function downloadEra5EuropeMap(){
     const response=await fetch(`${ERA5_EUROPE_RAW_BASE}${mapInfo.file}?download=${Date.now()}`,{cache:"no-store"});
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement("a");
-    link.href=url;link.download=`era5_land_europa_${parameter}_${periodId}_${view}.png`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+    const layerPart=parameter==="soil_moisture"?`_${soilLayer}`:"";
+    link.href=url;link.download=`era5_land_europa_${parameter}${layerPart}_${periodId}_${view}.png`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
   }catch(error){console.error(error);alert(`PNG-Download nicht möglich: ${error.message}`);}
   finally{if(button){button.disabled=false;button.textContent=original;}}
 }
 function initEra5EuropeControls(){
-  const parameter=document.getElementById("era5EuropeParameter"),period=document.getElementById("era5EuropePeriod"),view=document.getElementById("era5EuropeView"),download=document.getElementById("era5EuropeDownload");
+  const parameter=document.getElementById("era5EuropeParameter"),soilLayer=document.getElementById("era5EuropeSoilLayer"),period=document.getElementById("era5EuropePeriod"),view=document.getElementById("era5EuropeView"),download=document.getElementById("era5EuropeDownload");
   if(!parameter||!period||!view)return;
+  era5EuropeUpdateSoilLayerVisibility();
   era5EuropeUpdateViewOptions();
-  parameter.addEventListener("change",()=>{era5EuropeUpdateViewOptions();renderEra5Europe();});
+  parameter.addEventListener("change",()=>{era5EuropeUpdateSoilLayerVisibility();era5EuropeUpdateViewOptions();renderEra5Europe();});
+  soilLayer?.addEventListener("change",renderEra5Europe);
   period.addEventListener("change",renderEra5Europe);view.addEventListener("change",renderEra5Europe);download?.addEventListener("click",downloadEra5EuropeMap);
 }
 initEra5EuropeControls();
