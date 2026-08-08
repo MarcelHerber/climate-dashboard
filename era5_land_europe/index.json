@@ -1,6 +1,106 @@
 {
-  "ready": false,
+  "ready": true,
   "payload_version": 1,
-  "message": "ERA5-Land Europa wurde noch nicht erstmals über den GitHub-Workflow aufgebaut.",
-  "reference_period": "1991–2020"
+  "generated_at": "2026-08-08T14:08:43+00:00",
+  "latest_month_key": "2026-07",
+  "data_through": "2026-07-31",
+  "reference_period": "1991–2020",
+  "dataset": "reanalysis-era5-land-monthly-means",
+  "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
+  "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
+  "coverage": {
+    "north": 72.0,
+    "west": -25.0,
+    "south": 34.0,
+    "east": 45.0
+  },
+  "availability_note": "V1 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
+  "periods": {
+    "latest_month": {
+      "id": "latest_month",
+      "label": "Juli 2026",
+      "year": 2026,
+      "months": [
+        7
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_latest_month_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_latest_month_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 20.84005826681465,
+          "reference": 19.946988206740485,
+          "difference": 0.8930700600741659
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_latest_month_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 30.59470217322326,
+          "reference": 32.965835242624586,
+          "percent": 92.80730170508325
+        }
+      }
+    },
+    "summer": {
+      "id": "summer",
+      "label": "Sommer 2026 bisher (Juni–Juli)",
+      "year": 2026,
+      "months": [
+        6,
+        7
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_summer_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_summer_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 19.983326635956228,
+          "reference": 18.64945405826456,
+          "difference": 1.3338725776916682
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_summer_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_summer_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 60.481757098665156,
+          "reference": 66.73753455848049,
+          "percent": 90.6262982275236
+        }
+      }
+    }
+  }
 }
