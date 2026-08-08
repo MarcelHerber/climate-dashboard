@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "ERA5-Land V5 komplett neu aufbauen (normalerweise AUS lassen)"
+        description: "ERA5-Land Karten auch für denselben Monat neu erzeugen"
         required: false
         type: boolean
         default: false
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   update-era5-land:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 360
 
     steps:
       - name: Repository auschecken
