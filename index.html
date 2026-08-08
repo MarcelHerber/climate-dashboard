@@ -468,6 +468,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 </style>
 </head>
 <body>
+<!-- Climate Dashboard build 16.8.3: direct streak index fetch -->
 
 <h1>Climate Dashboard Deutschland</h1>
 <div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
@@ -2550,6 +2551,8 @@ function updateMonthlyAnomalyTable(){
 
 // ================= DATENSTAND =================
 const DASHBOARD_RAW_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
+const STATION_STREAK_INDEX_URL=DASHBOARD_RAW_BASE+"station_climate_days_index.json";
+console.info("Climate Dashboard 16.8.3 · Rekordentwicklung lädt Kenntage-Index direkt aus main");
 const DASHBOARD_RAW_PREFIXES=[
   "station_climate_days_index.json",
   "station_records_years/",
@@ -5851,7 +5854,7 @@ function ensureStationStreaksLoaded(){
   loading.hidden=false;
   loading.style.color="";
   loading.textContent="Kenntage-Serien werden geladen …";
-  stationStreakLoading=dashboardFetch("station_climate_days_index.json",{cache:"no-store"})
+  stationStreakLoading=window.fetch(`${STATION_STREAK_INDEX_URL}?streak16_8_3=${Date.now()}`,{cache:"no-store"})
     .then(response=>{if(!response.ok) throw new Error(`HTTP ${response.status}`); return response.json();})
     .then(data=>{
       if(!data.ready) throw new Error(data.message || "Die Stations-Kenntage wurden noch nicht aufgebaut.");
@@ -6344,10 +6347,13 @@ async function updateStreakRecordProgression(){
   const stationId=document.getElementById("streakProgressionStationSelect")?.value||"";
   const station=stationId?nationalStreakStation(stationId):null;
   const summary=document.getElementById("streakProgressionSummary"),note=document.getElementById("streakProgressionNote");
-  if(Number(stationStreakIndex.current_payload_version||0)<7){
-    if(summary) summary.textContent="Rekordentwicklungs-Daten sind noch nicht aufgebaut. Bitte den aktualisierten DWD-Workflow einmal ausführen.";
+  const progressionData=stationStreakIndex?.national_streak_record_progression;
+  const hasProgressionData=progressionData && typeof progressionData==="object" && Object.keys(progressionData).length>0;
+  if(!hasProgressionData){
+    const loadedVersion=Number(stationStreakIndex?.current_payload_version||0);
+    if(summary) summary.textContent=`Rekordentwicklungs-Daten fehlen in der geladenen Kenntage-Datei (Payload-Version ${loadedVersion||"unbekannt"}).`;
     streakProgressionHero([],scope,metric,station); renderStreakProgressionChart([],scope,metric,station); renderStreakProgressionTable([],scope,station);
-    if(note) note.textContent="Für 16.8 ist einmalig ein historischer Neuaufbau der Stations-Kenntage erforderlich.";
+    if(note) note.textContent=`16.8.3 lädt station_climate_days_index.json direkt aus dem main-Branch. Geladene Payload-Version: ${loadedVersion||"unbekannt"}.`;
     return;
   }
   if(scope==="station"&&!stationId){
