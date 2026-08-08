@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 2,
-  "generated_at": "2026-08-08T14:19:28+00:00",
+  "payload_version": 3,
+  "generated_at": "2026-08-08T15:28:36+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,9 +14,40 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V2 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V3 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
-  "soil_moisture_note": "Bodenfeuchte ist der volumetrische Bodenwassergehalt der ERA5-Land-Schicht 1 (0–7 cm) in m³/m³; die Abweichung bezieht sich auf 1991–2020.",
+  "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
+  "percentile_note": "Bodenfeuchte-Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. P≤20 wird als trocken, P≤10 als sehr trocken, P≥80 als feucht eingeordnet.",
+  "soil_layers": {
+    "layer1": {
+      "label": "0–7 cm",
+      "depth_cm": [
+        0,
+        7
+      ]
+    },
+    "layer2": {
+      "label": "7–28 cm",
+      "depth_cm": [
+        7,
+        28
+      ]
+    },
+    "layer3": {
+      "label": "28–100 cm",
+      "depth_cm": [
+        28,
+        100
+      ]
+    },
+    "layer4": {
+      "label": "100–289 cm",
+      "depth_cm": [
+        100,
+        289
+      ]
+    }
+  },
   "periods": {
     "latest_month": {
       "id": "latest_month",
@@ -60,6 +91,137 @@
         }
       },
       "soil_moisture": {
+        "layers": {
+          "layer1": {
+            "label": "0–7 cm",
+            "depth_cm": [
+              0,
+              7
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 0–7 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.23397359320546848,
+              "reference": 0.25122584335132436,
+              "difference": -0.01725225014585588,
+              "dry_area_percent": 33.060853746805506,
+              "very_dry_area_percent": 23.19197421916225,
+              "wet_area_percent": 10.502636625900184,
+              "very_wet_area_percent": 4.058537383053063
+            }
+          },
+          "layer2": {
+            "label": "7–28 cm",
+            "depth_cm": [
+              7,
+              28
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_latest_month_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 7–28 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_latest_month_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_latest_month_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.23761369294021675,
+              "reference": 0.25770856189495756,
+              "difference": -0.020094868954740802,
+              "dry_area_percent": 35.36754554097424,
+              "very_dry_area_percent": 24.90805936491008,
+              "wet_area_percent": 11.822713240107454,
+              "very_wet_area_percent": 5.255712658768162
+            }
+          },
+          "layer3": {
+            "label": "28–100 cm",
+            "depth_cm": [
+              28,
+              100
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_latest_month_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 28–100 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_latest_month_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_latest_month_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.25291913683636114,
+              "reference": 0.2662093937586513,
+              "difference": -0.013290256922290189,
+              "dry_area_percent": 32.608342682697675,
+              "very_dry_area_percent": 24.553558821915452,
+              "wet_area_percent": 16.122852490269693,
+              "very_wet_area_percent": 9.151505726933504
+            }
+          },
+          "layer4": {
+            "label": "100–289 cm",
+            "depth_cm": [
+              100,
+              289
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_latest_month_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 100–289 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_latest_month_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_latest_month_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.31871501084588166,
+              "reference": 0.32680104390403875,
+              "difference": -0.008086033058157083,
+              "dry_area_percent": 49.36431252970508,
+              "very_dry_area_percent": 33.95017085025096,
+              "wet_area_percent": 11.261558963751742,
+              "very_wet_area_percent": 5.8055777071778305
+            }
+          }
+        },
+        "label": "0–7 cm",
+        "depth_cm": [
+          0,
+          7
+        ],
         "absolute": {
           "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_absolute.png",
           "unit": "m³/m³",
@@ -70,10 +232,19 @@
           "unit": "m³/m³",
           "label": "Abweichung 1991–2020"
         },
+        "percentile": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil / Dürreklasse 1991–2020"
+        },
         "stats": {
           "current": 0.23397359320546848,
-          "reference": 0.2512258433351001,
-          "difference": -0.017252250129631636
+          "reference": 0.25122584335132436,
+          "difference": -0.01725225014585588,
+          "dry_area_percent": 33.060853746805506,
+          "very_dry_area_percent": 23.19197421916225,
+          "wet_area_percent": 10.502636625900184,
+          "very_wet_area_percent": 4.058537383053063
         }
       }
     },
@@ -120,6 +291,137 @@
         }
       },
       "soil_moisture": {
+        "layers": {
+          "layer1": {
+            "label": "0–7 cm",
+            "depth_cm": [
+              0,
+              7
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_summer_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 0–7 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_summer_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer1_summer_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.24599325702829755,
+              "reference": 0.2619574079250614,
+              "difference": -0.01596415089676384,
+              "dry_area_percent": 33.605500670166116,
+              "very_dry_area_percent": 25.658900205308193,
+              "wet_area_percent": 10.486400258096888,
+              "very_wet_area_percent": 4.242996428052659
+            }
+          },
+          "layer2": {
+            "label": "7–28 cm",
+            "depth_cm": [
+              7,
+              28
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_summer_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 7–28 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_summer_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer2_summer_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.25246765133450827,
+              "reference": 0.2689923079957452,
+              "difference": -0.016524656661236925,
+              "dry_area_percent": 33.47345225555782,
+              "very_dry_area_percent": 23.06601820569455,
+              "wet_area_percent": 12.874796154646376,
+              "very_wet_area_percent": 6.610270948356005
+            }
+          },
+          "layer3": {
+            "label": "28–100 cm",
+            "depth_cm": [
+              28,
+              100
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_summer_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 28–100 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_summer_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer3_summer_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.26820019832836145,
+              "reference": 0.27927533615702743,
+              "difference": -0.011075137828665982,
+              "dry_area_percent": 31.564379981918833,
+              "very_dry_area_percent": 23.331830785808148,
+              "wet_area_percent": 15.378614401807155,
+              "very_wet_area_percent": 9.369193502185052
+            }
+          },
+          "layer4": {
+            "label": "100–289 cm",
+            "depth_cm": [
+              100,
+              289
+            ],
+            "absolute": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_summer_absolute.png",
+              "unit": "m³/m³",
+              "label": "Bodenfeuchte 100–289 cm"
+            },
+            "anomaly": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_summer_anomaly.png",
+              "unit": "m³/m³",
+              "label": "Abweichung 1991–2020"
+            },
+            "percentile": {
+              "file": "era5_land_europe/maps/soil_moisture_layer4_summer_percentile.png",
+              "unit": "Perzentil",
+              "label": "Perzentil / Dürreklasse 1991–2020"
+            },
+            "stats": {
+              "current": 0.32305416167074735,
+              "reference": 0.3307977213161485,
+              "difference": -0.007743559645401132,
+              "dry_area_percent": 49.06762437589342,
+              "very_dry_area_percent": 33.017446362963405,
+              "wet_area_percent": 12.032492208476318,
+              "very_wet_area_percent": 6.676896702312762
+            }
+          }
+        },
+        "label": "0–7 cm",
+        "depth_cm": [
+          0,
+          7
+        ],
         "absolute": {
           "file": "era5_land_europe/maps/soil_moisture_layer1_summer_absolute.png",
           "unit": "m³/m³",
@@ -130,10 +432,19 @@
           "unit": "m³/m³",
           "label": "Abweichung 1991–2020"
         },
+        "percentile": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil / Dürreklasse 1991–2020"
+        },
         "stats": {
           "current": 0.24599325702829755,
-          "reference": 0.2619574079239628,
-          "difference": -0.015964150895665274
+          "reference": 0.2619574079250614,
+          "difference": -0.01596415089676384,
+          "dry_area_percent": 33.605500670166116,
+          "very_dry_area_percent": 25.658900205308193,
+          "wet_area_percent": 10.486400258096888,
+          "very_wet_area_percent": 4.242996428052659
         }
       }
     }
