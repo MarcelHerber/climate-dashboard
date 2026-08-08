@@ -8,6 +8,7 @@ import math
 import os
 import shutil
 import tempfile
+import time
 import zipfile
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -132,6 +133,35 @@ def cds_client() -> cdsapi.Client:
     return cdsapi.Client(quiet=False, progress=False)
 
 
+def retrieve_with_retry(client: cdsapi.Client, request: dict, target: Path, label: str, attempts: int = 3) -> None:
+    """Submit a CDS request with bounded retries.
+
+    A CDS job can occasionally fail after being accepted/running. Retrying is safe here
+    because every retry writes to the same cache target and partial files are removed.
+    """
+    delays = (15, 45, 90)
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            if target.exists():
+                target.unlink()
+            client.retrieve(DATASET, request, str(target))
+            return
+        except Exception as exc:
+            last_exc = exc
+            print(f"CDS-Fehler bei {label} (Versuch {attempt}/{attempts}): {exc}")
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+            if attempt < attempts:
+                delay = delays[min(attempt - 1, len(delays) - 1)]
+                print(f"Neuer Versuch in {delay} Sekunden …")
+                time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
+
+
 def request_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     request = {
@@ -144,9 +174,9 @@ def request_monthly_file(client: cdsapi.Client, years: list[int], months: list[i
         "download_format": "unarchived",
         "area": AREA,
     }
+    label = f"T/P years {years[0]}–{years[-1]}, months {months}"
     print(f"CDS request: years {years[0]}–{years[-1]}, months {months}")
-    client.retrieve(DATASET, request, str(target))
-
+    retrieve_with_retry(client, request, target, label)
 
 def request_soil_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
     """Download all four ERA5-Land soil-water layers in one CDS request."""
@@ -161,9 +191,9 @@ def request_soil_monthly_file(client: cdsapi.Client, years: list[int], months: l
         "download_format": "unarchived",
         "area": AREA,
     }
+    label = f"soil years {years[0]}–{years[-1]}, months {months}"
     print(f"CDS soil-moisture request (4 layers): years {years[0]}–{years[-1]}, months {months}")
-    client.retrieve(DATASET, request, str(target))
-
+    retrieve_with_retry(client, request, target, label)
 
 def open_download(path: Path) -> xr.Dataset:
     if zipfile.is_zipfile(path):
@@ -305,15 +335,36 @@ def load_current_soil_months(client: cdsapi.Client, year: int, months: list[int]
     return result
 
 
+def year_chunks(years: Iterable[int], chunk_size: int) -> list[list[int]]:
+    values = [int(y) for y in years]
+    return [values[i:i + chunk_size] for i in range(0, len(values), chunk_size)]
+
+
 def load_soil_reference_month(client: cdsapi.Client, month: int, force: bool) -> dict:
     """Return the 30 individual 1991–2020 monthly fields for every soil layer.
 
-    Keeping the individual years allows true grid-cell percentiles and also permits
-    incomplete-season percentiles (e.g. June–July) to be built year by year.
+    The CDS reference retrieval is deliberately split into five-year jobs. ECMWF
+    recommends smaller requests for reliable queue processing, and a failed chunk can
+    then be retried without losing the already downloaded chunks.
     """
     ref_file = CACHE_DIR / f"soil_reference_v3_1991_2020_{month:02d}.nc"
-    if force and ref_file.exists():
-        ref_file.unlink()
+    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
+    chunks = year_chunks(ref_years.tolist(), 5)
+    chunk_files = [
+        CACHE_DIR / f"raw_soil_reference_v4_{month:02d}_{chunk[0]}_{chunk[-1]}.nc"
+        for chunk in chunks
+    ]
+
+    if force:
+        try:
+            ref_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
+            try:
+                item.unlink()
+            except FileNotFoundError:
+                pass
 
     if ref_file.exists():
         ds = xr.open_dataset(ref_file)
@@ -329,48 +380,58 @@ def load_soil_reference_month(client: cdsapi.Client, month: int, force: bool) ->
         ds.close()
         return result
 
-    raw_file = CACHE_DIR / f"raw_soil_reference_v3_{month:02d}.nc"
-    if raw_file.exists():
-        raw_file.unlink()
-    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
-    request_soil_monthly_file(client, ref_years.tolist(), [month], raw_file)
+    all_years: list[int] = []
+    layer_parts: dict[str, list[np.ndarray]] = {key: [] for key in SOIL_LAYERS}
+    lat: np.ndarray | None = None
+    lon: np.ndarray | None = None
 
-    ds = open_download(raw_file)
-    lat_name, lon_name = spatial_names(ds)
-    ds = normalize_lon(ds, lon_name)
-    lat = np.asarray(ds[lat_name].values, dtype=float)
-    lon = np.asarray(ds[lon_name].values, dtype=float)
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_soil_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError(f"ERA5-Land-Gitter stimmt im Bodenfeuchte-Chunk {chunk[0]}–{chunk[-1]} nicht überein.")
 
-    layer_arrays: dict[str, np.ndarray] = {}
-    detected_years: np.ndarray | None = None
-    for layer_key, meta in SOIL_LAYERS.items():
-        soil_name = variable_name(ds, meta["aliases"])
-        soil_da = ds[soil_name]
-        sdim = time_dim(soil_da, lat_name, lon_name)
-        if sdim is None or soil_da.sizes[sdim] != len(ref_years):
-            raise RuntimeError(
-                f"Zeitdimension der Referenz für {layer_key} hat nicht {len(ref_years)} Felder."
-            )
+        years_here_final: np.ndarray | None = None
+        for layer_key, meta in SOIL_LAYERS.items():
+            soil_name = variable_name(ds, meta["aliases"])
+            soil_da = ds[soil_name]
+            sdim = time_dim(soil_da, lat_name, lon_name)
+            if sdim is None or soil_da.sizes[sdim] != len(chunk):
+                ds.close()
+                raise RuntimeError(
+                    f"Zeitdimension der Referenz für {layer_key}, {chunk[0]}–{chunk[-1]} "
+                    f"hat nicht {len(chunk)} Felder."
+                )
+            soil_da = soil_da.transpose(sdim, lat_name, lon_name)
+            values = np.asarray(soil_da.values, dtype=np.float32)
+            try:
+                years_here = np.asarray(ds[sdim].dt.year.values, dtype=int)
+            except Exception:
+                years_here = np.asarray(chunk, dtype=int)
+            expected = np.asarray(chunk, dtype=int)
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order = [int(np.where(years_here == y)[0][0]) for y in expected]
+                values = values[order]
+                years_here_final = expected
+            else:
+                years_here_final = expected
+            layer_parts[layer_key].append(values)
+        all_years.extend(int(y) for y in years_here_final)
+        ds.close()
 
-        # Put the time axis first, regardless of the NetCDF dimension order.
-        soil_da = soil_da.transpose(sdim, lat_name, lon_name)
-        values = np.asarray(soil_da.values, dtype=np.float32)
-
-        # CDS normally returns the request chronologically. If a datetime coordinate
-        # exists, use it to explicitly sort/reindex to 1991…2020.
-        years_here = None
-        try:
-            coord = ds[sdim]
-            years_here = np.asarray(coord.dt.year.values, dtype=int)
-        except Exception:
-            years_here = None
-        if years_here is not None and years_here.size == ref_years.size and set(years_here.tolist()) == set(ref_years.tolist()):
-            index = [int(np.where(years_here == target_year)[0][0]) for target_year in ref_years]
-            values = values[index, :, :]
-            detected_years = ref_years
-        else:
-            detected_years = ref_years
-        layer_arrays[layer_key] = values
+    assert lat is not None and lon is not None
+    detected_years = np.asarray(all_years, dtype=int)
+    if not np.array_equal(detected_years, ref_years):
+        raise RuntimeError("Bodenfeuchte-Referenzjahre 1991–2020 sind nach dem Chunking nicht vollständig.")
+    layer_arrays = {key: np.concatenate(parts, axis=0) for key, parts in layer_parts.items()}
 
     encoding = {layer_key: {"zlib": True, "complevel": 3, "dtype": "float32"} for layer_key in SOIL_LAYERS}
     out = xr.Dataset(
@@ -380,14 +441,19 @@ def load_soil_reference_month(client: cdsapi.Client, month: int, force: bool) ->
             "reference_period": "1991-2020",
             "month": month,
             "description": "ERA5-Land monthly volumetric soil water; all four model soil layers",
+            "download_strategy": "5-year CDS chunks with retry",
         },
     )
     out.to_netcdf(ref_file, encoding=encoding)
-    ds.close()
-    try:
-        raw_file.unlink()
-    except FileNotFoundError:
-        pass
+    out.close()
+
+    # Keep partial chunks while a run is incomplete; after the consolidated cache is
+    # safely written they are no longer needed and can be removed to save cache space.
+    for raw_file in chunk_files:
+        try:
+            raw_file.unlink()
+        except FileNotFoundError:
+            pass
 
     return {
         "lat": lat,
@@ -396,11 +462,22 @@ def load_soil_reference_month(client: cdsapi.Client, month: int, force: bool) ->
         "layers": {layer_key: np.asarray(layer_arrays[layer_key], dtype=float) for layer_key in SOIL_LAYERS},
     }
 
-
 def load_climatology_month(client: cdsapi.Client, month: int, force: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """1991–2020 monthly climatology, downloaded in ten-year CDS chunks."""
     clim_file = CACHE_DIR / f"climatology_1991_2020_{month:02d}.nc"
-    if force and clim_file.exists():
-        clim_file.unlink()
+    ref_years = list(range(REFERENCE_START, REFERENCE_END + 1))
+    chunks = year_chunks(ref_years, 10)
+    chunk_files = [CACHE_DIR / f"raw_climatology_v4_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        try:
+            clim_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
+            try:
+                item.unlink()
+            except FileNotFoundError:
+                pass
     if clim_file.exists():
         ds = xr.open_dataset(clim_file)
         lat = np.asarray(ds["latitude"].values, dtype=float)
@@ -410,53 +487,85 @@ def load_climatology_month(client: cdsapi.Client, month: int, force: bool) -> tu
         ds.close()
         return lat, lon, temp, precip
 
-    raw_file = CACHE_DIR / f"raw_climatology_{month:02d}.nc"
-    if raw_file.exists():
-        raw_file.unlink()
-    request_monthly_file(client, list(range(REFERENCE_START, REFERENCE_END + 1)), [month], raw_file)
-    ds = open_download(raw_file)
-    lat_name, lon_name = spatial_names(ds)
-    ds = normalize_lon(ds, lon_name)
-    temp_name = variable_name(ds, TEMP_ALIASES)
-    precip_name = variable_name(ds, PRECIP_ALIASES)
-    temp_da = ds[temp_name]
-    precip_da = ds[precip_name]
-    tdim = time_dim(temp_da, lat_name, lon_name)
-    pdim = time_dim(precip_da, lat_name, lon_name)
-    if tdim is None or pdim is None:
-        raise RuntimeError("Zeitdimension für die 30-jährige Klimatologie fehlt.")
+    temp_sum = temp_count = precip_sum = precip_count = None
+    lat = lon = None
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("ERA5-Land-Gitter der Klimatologie-Chunks stimmt nicht überein.")
+        tname = variable_name(ds, TEMP_ALIASES)
+        pname = variable_name(ds, PRECIP_ALIASES)
+        tda, pda = ds[tname], ds[pname]
+        tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
+        if tdim is None or pdim is None:
+            ds.close()
+            raise RuntimeError("Zeitdimension für die Klimatologie fehlt.")
+        tda = tda.transpose(tdim, lat_name, lon_name)
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        temp = np.asarray(tda.values, dtype=float) - 273.15
+        precip = np.asarray(pda.values, dtype=float)
+        try:
+            years_t = np.asarray(ds[tdim].dt.year.values, dtype=int)
+        except Exception:
+            years_t = np.asarray(chunk, dtype=int)
+        try:
+            years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception:
+            years_p = np.asarray(chunk, dtype=int)
+        expected = np.asarray(chunk, dtype=int)
+        if set(years_t.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_t == y)[0][0]) for y in expected]
+            temp = temp[order]
+        if set(years_p.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_p == y)[0][0]) for y in expected]
+            precip = precip[order]
+        days = np.asarray([calendar.monthrange(int(y), month)[1] for y in expected], dtype=float)[:, None, None]
+        precip = precip * days * 1000.0
+        valid_t = np.isfinite(temp)
+        valid_p = np.isfinite(precip)
+        if temp_sum is None:
+            shape = temp.shape[1:]
+            temp_sum = np.zeros(shape, dtype=float)
+            temp_count = np.zeros(shape, dtype=np.int16)
+            precip_sum = np.zeros(shape, dtype=float)
+            precip_count = np.zeros(shape, dtype=np.int16)
+        temp_sum += np.nansum(temp, axis=0)
+        temp_count += np.sum(valid_t, axis=0).astype(np.int16)
+        precip_sum += np.nansum(precip, axis=0)
+        precip_count += np.sum(valid_p, axis=0).astype(np.int16)
+        ds.close()
 
-    temp_c = temp_da - 273.15
-    temp_clim = temp_c.mean(tdim, skipna=True)
-
-    # Convert every year's effective daily accumulation to the actual monthly total before averaging.
-    # February varies by leap year, all other months use a fixed number of days.
-    if month == 2:
-        years = list(range(REFERENCE_START, REFERENCE_END + 1))
-        days = xr.DataArray([calendar.monthrange(y, month)[1] for y in years], dims=[pdim])
-        precip_monthly = precip_da * days * 1000.0
-    else:
-        precip_monthly = precip_da * calendar.monthrange(2001, month)[1] * 1000.0
-    precip_clim = precip_monthly.mean(pdim, skipna=True)
-
-    lat = np.asarray(ds[lat_name].values, dtype=float)
-    lon = np.asarray(ds[lon_name].values, dtype=float)
+    assert lat is not None and lon is not None
+    with np.errstate(invalid="ignore", divide="ignore"):
+        temp_clim = temp_sum / temp_count
+        precip_clim = precip_sum / precip_count
+    temp_clim[temp_count == 0] = np.nan
+    precip_clim[precip_count == 0] = np.nan
     out = xr.Dataset(
         {
-            "temperature_c": (("latitude", "longitude"), np.asarray(temp_clim.squeeze().values, dtype=np.float32)),
-            "precipitation_mm": (("latitude", "longitude"), np.asarray(precip_clim.squeeze().values, dtype=np.float32)),
+            "temperature_c": (("latitude", "longitude"), temp_clim.astype(np.float32)),
+            "precipitation_mm": (("latitude", "longitude"), precip_clim.astype(np.float32)),
         },
         coords={"latitude": lat, "longitude": lon},
-        attrs={"reference_period": "1991-2020", "month": month},
+        attrs={"reference_period": "1991-2020", "month": month, "download_strategy": "10-year CDS chunks with retry"},
     )
     out.to_netcdf(clim_file)
-    ds.close()
-    try:
-        raw_file.unlink()
-    except FileNotFoundError:
-        pass
-    return lat, lon, np.asarray(out["temperature_c"].values, dtype=float), np.asarray(out["precipitation_mm"].values, dtype=float)
-
+    out.close()
+    for raw_file in chunk_files:
+        try:
+            raw_file.unlink()
+        except FileNotFoundError:
+            pass
+    return lat, lon, temp_clim, precip_clim
 
 def weighted_mean(field: np.ndarray, lat: np.ndarray) -> float | None:
     arr = np.asarray(field, dtype=float)
@@ -765,10 +874,25 @@ def sample_1deg(field: np.ndarray) -> np.ndarray:
 
 
 def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, force: bool) -> dict:
-    """Temperature/precipitation history since 1950 sampled to 1° for browser analysis."""
+    """Temperature/precipitation history since 1950 sampled to 1° for browser analysis.
+
+    Historical retrievals are split into ten-year jobs so a single heavy CDS job does
+    not make the complete V4 workflow fail.
+    """
     sampled_file = CACHE_DIR / f"history_tp_v4_{HISTORY_START}_{end_year}_{month:02d}_1deg.nc"
-    if force and sampled_file.exists():
-        sampled_file.unlink()
+    years = np.arange(HISTORY_START, end_year + 1, dtype=int)
+    chunks = year_chunks(years.tolist(), 10)
+    chunk_files = [CACHE_DIR / f"raw_history_tp_v4_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        try:
+            sampled_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
+            try:
+                item.unlink()
+            except FileNotFoundError:
+                pass
     if sampled_file.exists():
         ds = xr.open_dataset(sampled_file)
         out = {
@@ -781,66 +905,85 @@ def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, forc
         ds.close()
         return out
 
-    years = np.arange(HISTORY_START, end_year + 1, dtype=int)
-    raw_file = CACHE_DIR / f"raw_history_tp_v4_{HISTORY_START}_{end_year}_{month:02d}.nc"
-    if raw_file.exists():
-        raw_file.unlink()
-    request_monthly_file(client, years.tolist(), [month], raw_file)
-    ds = open_download(raw_file)
-    lat_name, lon_name = spatial_names(ds)
-    ds = normalize_lon(ds, lon_name)
-    tname = variable_name(ds, TEMP_ALIASES)
-    pname = variable_name(ds, PRECIP_ALIASES)
-    tda, pda = ds[tname], ds[pname]
-    tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
-    if tdim is None or pdim is None:
-        raise RuntimeError("Zeitdimension für ERA5-Land-Historie fehlt.")
-    tda = tda.transpose(tdim, lat_name, lon_name)
-    pda = pda.transpose(pdim, lat_name, lon_name)
-
-    def sorted_values(da: xr.DataArray, dim: str) -> tuple[np.ndarray, np.ndarray]:
-        values = np.asarray(da.values, dtype=np.float32)
-        years_here = None
+    years_parts: list[np.ndarray] = []
+    temp_parts: list[np.ndarray] = []
+    precip_parts: list[np.ndarray] = []
+    lat = lon = None
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        tname = variable_name(ds, TEMP_ALIASES)
+        pname = variable_name(ds, PRECIP_ALIASES)
+        tda, pda = ds[tname], ds[pname]
+        tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
+        if tdim is None or pdim is None:
+            ds.close()
+            raise RuntimeError("Zeitdimension für ERA5-Land-Historie fehlt.")
+        tda = tda.transpose(tdim, lat_name, lon_name)
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        temp = np.asarray(tda.values, dtype=np.float32)
+        precip = np.asarray(pda.values, dtype=np.float32)
+        expected = np.asarray(chunk, dtype=int)
         try:
-            years_here = np.asarray(ds[dim].dt.year.values, dtype=int)
+            years_t = np.asarray(ds[tdim].dt.year.values, dtype=int)
         except Exception:
-            pass
-        if years_here is None or years_here.size != years.size:
-            years_here = years.copy()
-        if set(years_here.tolist()) == set(years.tolist()):
-            idx = [int(np.where(years_here == y)[0][0]) for y in years]
-            values = values[idx]
-            years_here = years.copy()
-        return years_here, values
+            years_t = expected.copy()
+        try:
+            years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception:
+            years_p = expected.copy()
+        if set(years_t.tolist()) == set(expected.tolist()):
+            idx = [int(np.where(years_t == y)[0][0]) for y in expected]
+            temp = temp[idx]
+            years_t = expected.copy()
+        if set(years_p.tolist()) == set(expected.tolist()):
+            idx = [int(np.where(years_p == y)[0][0]) for y in expected]
+            precip = precip[idx]
+            years_p = expected.copy()
+        if not np.array_equal(years_t, years_p):
+            ds.close()
+            raise RuntimeError("Temperatur- und Niederschlagsjahre sind im Historien-Chunk nicht deckungsgleich.")
+        temp = temp - 273.15
+        days = np.asarray([calendar.monthrange(int(y), month)[1] for y in years_t], dtype=np.float32)[:, None, None]
+        precip = precip * days * 1000.0
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("ERA5-Land-Gitter der Historien-Chunks stimmt nicht überein.")
+        years_parts.append(years_t)
+        temp_parts.append(sample_1deg(temp).astype(np.float32))
+        precip_parts.append(sample_1deg(precip).astype(np.float32))
+        ds.close()
 
-    years_t, temp = sorted_values(tda, tdim)
-    years_p, precip = sorted_values(pda, pdim)
-    if not np.array_equal(years_t, years_p):
-        raise RuntimeError("Temperatur- und Niederschlagsjahre sind nicht deckungsgleich.")
-    temp = temp - 273.15
-    days = np.asarray([calendar.monthrange(int(y), month)[1] for y in years_t], dtype=np.float32)[:, None, None]
-    precip = precip * days * 1000.0
-    lat = np.asarray(ds[lat_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
-    lon = np.asarray(ds[lon_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
-    temp = sample_1deg(temp)
-    precip = sample_1deg(precip)
+    years_all = np.concatenate(years_parts)
+    temp_all = np.concatenate(temp_parts, axis=0)
+    precip_all = np.concatenate(precip_parts, axis=0)
+    if not np.array_equal(years_all, years):
+        raise RuntimeError("Historienjahre seit 1950 sind nach dem Chunking nicht vollständig.")
+    assert lat is not None and lon is not None
     out_ds = xr.Dataset(
         {
-            "temperature_c": (("year", "latitude", "longitude"), temp.astype(np.float32)),
-            "precipitation_mm": (("year", "latitude", "longitude"), precip.astype(np.float32)),
+            "temperature_c": (("year", "latitude", "longitude"), temp_all),
+            "precipitation_mm": (("year", "latitude", "longitude"), precip_all),
         },
-        coords={"year": years_t, "latitude": lat, "longitude": lon},
-        attrs={"source": "ERA5-Land monthly means", "analysis_grid": "1 degree", "month": month},
+        coords={"year": years_all, "latitude": lat, "longitude": lon},
+        attrs={"source": "ERA5-Land monthly means", "analysis_grid": "1 degree", "month": month, "download_strategy": "10-year CDS chunks with retry"},
     )
     encoding = {name: {"zlib": True, "complevel": 3, "dtype": "float32"} for name in out_ds.data_vars}
     out_ds.to_netcdf(sampled_file, encoding=encoding)
-    ds.close()
-    try:
-        raw_file.unlink()
-    except FileNotFoundError:
-        pass
-    return {"years": years_t, "lat": lat, "lon": lon, "temperature": temp, "precipitation": precip}
-
+    out_ds.close()
+    for raw_file in chunk_files:
+        try:
+            raw_file.unlink()
+        except FileNotFoundError:
+            pass
+    return {"years": years_all, "lat": lat, "lon": lon, "temperature": temp_all, "precipitation": precip_all}
 
 def combine_history_tp(history_by_month: dict[int, dict], months: list[int]) -> dict:
     years = np.asarray(history_by_month[months[0]]["years"], dtype=int)
