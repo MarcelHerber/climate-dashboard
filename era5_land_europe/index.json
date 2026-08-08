@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 4,
-  "generated_at": "2026-08-08T16:50:11+00:00",
+  "payload_version": 5,
+  "generated_at": "2026-08-08T18:59:33+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,13 +14,15 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V4 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V5 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
   "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
+  "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
   "analysis": {
     "file": "era5_land_europe/analysis.json",
     "grid": "1,0° (nächster verfügbarer Landpunkt)",
-    "history_start": 1950
+    "history_start": 1950,
+    "payload_version": 2
   },
   "click_geometry": {
     "left": 0.07,
@@ -28,7 +30,7 @@
     "right": 0.96,
     "bottom": 0.82
   },
-  "percentile_note": "Bodenfeuchte-Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. P≤20 wird als trocken, P≤10 als sehr trocken, P≥80 als feucht eingeordnet.",
+  "percentile_note": "Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. Bei Bodenfeuchte und Wasserbilanz markieren niedrige Perzentile ungewöhnlich trockene Bedingungen; bei Verdunstung und Abfluss bedeuten sie ungewöhnlich niedrige Werte.",
   "soil_layers": {
     "layer1": {
       "label": "0–7 cm",
@@ -257,6 +259,136 @@
           "wet_area_percent": 10.502636625900184,
           "very_wet_area_percent": 4.058537383053063
         }
+      },
+      "evaporation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/evaporation_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Gesamtverdunstung"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/evaporation_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/evaporation_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 84.57735191528165,
+          "reference": 85.58200065822162,
+          "difference": -1.0046487429399633,
+          "low_area_percent": 20.55266961256156,
+          "very_low_area_percent": 12.937147671943624,
+          "high_area_percent": 24.608004158336342,
+          "very_high_area_percent": 13.984931863500567
+        }
+      },
+      "runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/runoff_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Gesamtabfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/runoff_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/runoff_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 16.456312293431452,
+          "reference": 23.365820455201074,
+          "difference": -6.909508161769622,
+          "low_area_percent": 45.80231934793274,
+          "very_low_area_percent": 31.814437589602097,
+          "high_area_percent": 11.665128924870126,
+          "very_high_area_percent": 6.178096917411818
+        }
+      },
+      "surface_runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/surface_runoff_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Oberflächenabfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/surface_runoff_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/surface_runoff_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 2.0989673077539863,
+          "reference": 3.107018538027902,
+          "difference": -1.0080512302739155,
+          "low_area_percent": 32.3227078615296,
+          "very_low_area_percent": 21.882585057978787,
+          "high_area_percent": 17.506833946436952,
+          "very_high_area_percent": 9.138549492960445
+        }
+      },
+      "sub_surface_runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Unterirdischer Abfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 14.357324751727957,
+          "reference": 20.25878575098521,
+          "difference": -5.901460999257255,
+          "low_area_percent": 48.70485849881517,
+          "very_low_area_percent": 33.10277003897786,
+          "high_area_percent": 10.790092973222585,
+          "very_high_area_percent": 5.657249120064877
+        }
+      },
+      "water_balance": {
+        "absolute": {
+          "file": "era5_land_europe/maps/water_balance_latest_month_absolute.png",
+          "unit": "mm",
+          "label": "Wasserbilanz P − E"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/water_balance_latest_month_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/water_balance_latest_month_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": -21.535028073455738,
+          "reference": -17.653806623262476,
+          "difference": -3.8812214501932623,
+          "low_area_percent": 24.530487321261845,
+          "very_low_area_percent": 14.183746765033803,
+          "high_area_percent": 16.341798408211446,
+          "very_high_area_percent": 8.933788528303847
+        }
       }
     },
     "summer": {
@@ -456,6 +588,136 @@
           "very_dry_area_percent": 25.658900205308193,
           "wet_area_percent": 10.486400258096888,
           "very_wet_area_percent": 4.242996428052659
+        }
+      },
+      "evaporation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/evaporation_summer_absolute.png",
+          "unit": "mm",
+          "label": "Gesamtverdunstung"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/evaporation_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/evaporation_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 176.8630716516948,
+          "reference": 173.97834512461046,
+          "difference": 2.8847265270843536,
+          "low_area_percent": 16.63885462088725,
+          "very_low_area_percent": 9.801666404178523,
+          "high_area_percent": 33.282858740739876,
+          "very_high_area_percent": 21.816570713972993
+        }
+      },
+      "runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/runoff_summer_absolute.png",
+          "unit": "mm",
+          "label": "Gesamtabfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/runoff_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/runoff_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 44.78539678170773,
+          "reference": 60.29723577419874,
+          "difference": -15.511838992491008,
+          "low_area_percent": 46.80857497961432,
+          "very_low_area_percent": 31.38292314156655,
+          "high_area_percent": 10.570826361402476,
+          "very_high_area_percent": 5.624697704111998
+        }
+      },
+      "surface_runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/surface_runoff_summer_absolute.png",
+          "unit": "mm",
+          "label": "Oberflächenabfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/surface_runoff_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/surface_runoff_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 5.739574960224107,
+          "reference": 8.408812346910764,
+          "difference": -2.6692373866866577,
+          "low_area_percent": 33.16483957424567,
+          "very_low_area_percent": 21.31238397775469,
+          "high_area_percent": 11.949086330540473,
+          "very_high_area_percent": 5.469769055149756
+        }
+      },
+      "sub_surface_runoff": {
+        "absolute": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_summer_absolute.png",
+          "unit": "mm",
+          "label": "Unterirdischer Abfluss"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/sub_surface_runoff_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": 39.04579024758815,
+          "reference": 51.88839495723945,
+          "difference": -12.842604709651297,
+          "low_area_percent": 48.1144836347838,
+          "very_low_area_percent": 32.19434879902029,
+          "high_area_percent": 11.753586727806018,
+          "very_high_area_percent": 6.7959785603512
+        }
+      },
+      "water_balance": {
+        "absolute": {
+          "file": "era5_land_europe/maps/water_balance_summer_absolute.png",
+          "unit": "mm",
+          "label": "Wasserbilanz P − E"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/water_balance_summer_anomaly.png",
+          "unit": "mm",
+          "label": "Abweichung 1991–2020"
+        },
+        "percentile": {
+          "file": "era5_land_europe/maps/water_balance_summer_percentile.png",
+          "unit": "Perzentil",
+          "label": "Perzentil 1991–2020"
+        },
+        "stats": {
+          "current": -52.23657599409719,
+          "reference": -36.46142330039633,
+          "difference": -15.775152693700853,
+          "low_area_percent": 30.152150324668714,
+          "very_low_area_percent": 18.312080904427045,
+          "high_area_percent": 8.693655246615426,
+          "very_high_area_percent": 3.851821597132961
         }
       }
     }
