@@ -1,57 +1,45 @@
-# ERA5-Land Europa – Einrichtung und V3-Update
+# ERA5-Land Europa – V4 Gitterpunktanalyse
 
-Die Dateien in diesem Paket sind bereits in der richtigen Repository-Struktur angeordnet.
+Die Dateien im ZIP sind bereits in der richtigen Repository-Struktur angeordnet. Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet.
 
-## Copernicus/ECMWF-Zugang
+## V4 starten
 
-Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet. Wenn V1/V2 bereits funktioniert, ist keine neue CDS-Einrichtung nötig.
-
-## V3 starten
-
-Nach dem Hochladen der Dateien:
+Nach dem Hochladen:
 
 **Actions → ERA5-Land Europa aktualisieren → Run workflow**
 
-Beim ersten V3-Lauf werden zusätzlich die historischen 1991–2020-Einzeljahre der vier Bodenfeuchteschichten für die aktuell benötigten Monate geladen. Diese Einzeljahre werden benötigt, um echte Gitterpunkt-Perzentile zu berechnen. Der V2-Cache für Temperatur/Niederschlag wird weiterverwendet.
+Beim ersten V4-Lauf wird der V3-Cache weiterverwendet. Neu aufgebaut werden die Daten für die interaktive Gitterpunktanalyse. Weil dafür zusätzliche Monatsreferenzen und historische Temperatur-/Niederschlagswerte seit 1950 benötigt werden, kann dieser erste Lauf deutlich länger dauern. Der Workflow hat dafür ein Zeitlimit von 300 Minuten.
 
-## Umfang V3
+## Neu in V4
 
-- Europa, 72°N–34°N und 25°W–45°E
-- ERA5-Land 0,1° CDS-Gitter
-- 2-m-Temperatur
-  - absolut
-  - Abweichung 1991–2020
-- Niederschlag
-  - Summe in mm
-  - Prozent vom Mittel 1991–2020
-- Bodenfeuchte in allen vier ERA5-Land-Modellschichten
-  - 0–7 cm
-  - 7–28 cm
-  - 28–100 cm
-  - 100–289 cm
-- je Bodenschicht
-  - volumetrischer Bodenwassergehalt in m³/m³
-  - Abweichung gegenüber 1991–2020
-  - Perzentil / Dürreklasse gegenüber den 30 Einzeljahren 1991–2020
-- jüngster sicher verfügbarer vollständiger Monat
-- Sommer (JJA) bis zum jüngsten vollständig verfügbaren Monat
+- sichtbare Europakarten weiterhin auf dem ERA5-Land-CDS-Gitter 0,1°
+- Klick direkt auf die Karte wählt den nächstgelegenen Land-Analysepunkt auf einem kompakten 1,0°-Raster
+- Jahresverlauf des aktuellen Jahres gegen 1991–2020
+- Temperatur, Niederschlag und alle vier Bodenfeuchteschichten
+- historischer Rang für den gewählten Kartenzeitraum
+- Temperatur und Niederschlag: Rang und Verlauf seit 1950
+- Bodenfeuchte: Einordnung aus den Einzeljahren 1991–2020 plus aktuellem Jahr
+- frei wählbares Vergleichsjahr
+- aktueller Wert, Klimamittel, Abweichung bzw. Prozent vom Mittel und Perzentil/Rang
+- zwei Punktdiagramme: Monatsverlauf und historische Entwicklung
 
-## Perzentil-Klassen
+## Datenstruktur
 
-Die Perzentile werden rasterzellenweise aus den 30 Referenzjahren 1991–2020 berechnet. Für einen laufenden Sommer wird derselbe Teilzeitraum jedes Referenzjahres verwendet (z. B. Juni–Juli gegen Juni–Juli 1991–2020).
+Der Workflow erzeugt zusätzlich:
 
-- P ≤ 5: extrem trocken
-- P 5–10: sehr trocken
-- P 10–20: trocken
-- P 20–30: eher trocken
-- P 30–70: normal
-- P 70–80: eher feucht
-- P 80–90: feucht
-- P 90–95: sehr feucht
-- P > 95: extrem feucht
+`era5_land_europe/analysis.json`
 
-Hinweis: ERA5-Land ist ein Landprodukt. Meeresflächen bleiben in den Karten leer.
+Die Datei enthält nur ein ausgedünntes 1°-Analyseraster, damit die Website trotz historischer Zeitreihen schnell bleibt. Die Karten-PNGs selbst bleiben hochauflösend.
 
-## Update von V2 auf V3
+## Bodenfeuchteschichten
 
-`era5_land_europe/index.json` und vorhandene Karten sind bewusst nicht Teil dieses ZIPs. Der nächste erfolgreiche Workflow ersetzt/ergänzt sie automatisch und schreibt `payload_version: 3`.
+- Layer 1: 0–7 cm
+- Layer 2: 7–28 cm
+- Layer 3: 28–100 cm
+- Layer 4: 100–289 cm
+
+Die Bodenfeuchte wird als volumetrischer Bodenwassergehalt in m³/m³ dargestellt. Die Kartenperzentile bleiben rasterzellenweise auf Basis 1991–2020.
+
+## Update von V3 auf V4
+
+Die bereits erzeugten Dateien unter `era5_land_europe/` sind bewusst nicht Bestandteil dieses ZIPs. Dadurch werden vorhandene V3-Karten beim Hochladen nicht überschrieben. Der nächste erfolgreiche ERA5-Land-Workflow erzeugt `analysis.json`, aktualisiert die Karten und schreibt `payload_version: 4`.
