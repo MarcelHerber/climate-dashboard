@@ -6146,12 +6146,15 @@ function updateNationalStreakMap(rows,metric){
     marker.addTo(nationalStreakMapLayer);
     bounds.push([Number(station.latitude),Number(station.longitude)]);
   });
-  if(bounds.length){
-    nationalStreakMap.fitBounds(bounds,{padding:[24,24],maxZoom:7});
+  // Die nationale Rekordkarte zeigt immer den vollständigen Deutschland-Ausschnitt.
+  // Das verhindert außerdem Pane-Versatz beim html2canvas-Export nach einem kurzfristigen Zoomwechsel.
+  const germanyBounds=streakExportBounds("Deutschland");
+  if(germanyBounds){
+    nationalStreakMap.fitBounds(germanyBounds,{padding:[18,18],maxZoom:7,animate:false});
   }else{
-    nationalStreakMap.setView([51.15,10.35],6);
+    nationalStreakMap.setView([51.15,10.35],6,{animate:false});
   }
-  setTimeout(()=>nationalStreakMap?.invalidateSize(),50);
+  setTimeout(()=>nationalStreakMap?.invalidateSize(),80);
 }
 
 async function downloadNationalStreakMap(){
@@ -6165,17 +6168,15 @@ async function downloadNationalStreakMap(){
   }
   const metricId=document.getElementById("nationalStreakMetricSelect")?.value || "hot";
   const oldText=button?.textContent;
-  const oldCenter=nationalStreakMap.getCenter();
-  const oldZoom=nationalStreakMap.getZoom();
   const controls=wrap.querySelectorAll(".leaflet-control-container");
   const oldDisplays=[...controls].map(node=>node.style.display);
   if(button){button.disabled=true;button.textContent="Export …";}
   try{
     controls.forEach(node=>{node.style.display="none";});
+    // Exportiert exakt die bereits sichtbare, stabile Kartenansicht.
+    // Kein fitBounds()/setView() unmittelbar vor html2canvas: Leaflet-Panes können sonst versetzt gerendert werden.
     nationalStreakMap.invalidateSize(false);
-    nationalStreakMap.fitBounds(streakExportBounds("Deutschland"),{padding:[28,28],animate:false,maxZoom:7});
-    nationalStreakMap.invalidateSize(false);
-    await waitForLeafletExportTiles(leafletElement,520);
+    await waitForLeafletExportTiles(leafletElement,650);
     const canvas=await html2canvas(wrap,{
       scale:3,backgroundColor:"#ffffff",useCORS:true,allowTaint:false,logging:false,
       scrollX:0,scrollY:-window.scrollY
@@ -6188,7 +6189,6 @@ async function downloadNationalStreakMap(){
     alert(`Kartenexport fehlgeschlagen: ${error.message}`);
   }finally{
     controls.forEach((node,index)=>{node.style.display=oldDisplays[index]||"";});
-    nationalStreakMap.setView(oldCenter,oldZoom,{animate:false});
     nationalStreakMap.invalidateSize(false);
     if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
   }
@@ -6611,9 +6611,18 @@ function updateActiveStreakMap(rows,metric){
     marker.addTo(activeStreakMapLayer);
     bounds.push([Number(station.latitude),Number(station.longitude)]);
   });
-  if(bounds.length) activeStreakMap.fitBounds(bounds,{padding:[24,24],maxZoom:8});
-  else activeStreakMap.setView([51.15,10.35],6);
-  setTimeout(()=>activeStreakMap?.invalidateSize(),50);
+  // Für die Darstellung gilt der gewählte Gebietsausschnitt, nicht die räumliche
+  // Verteilung der gerade aktiven Stationen. So bleibt "Deutschland" wirklich Deutschland.
+  const area=document.getElementById("activeStreakAreaSelect")?.value||"Deutschland";
+  const targetBounds=streakExportBounds(area);
+  if(targetBounds){
+    activeStreakMap.fitBounds(targetBounds,{padding:[18,18],maxZoom:8,animate:false});
+  }else if(bounds.length){
+    activeStreakMap.fitBounds(bounds,{padding:[24,24],maxZoom:8,animate:false});
+  }else{
+    activeStreakMap.setView([51.15,10.35],6,{animate:false});
+  }
+  setTimeout(()=>activeStreakMap?.invalidateSize(),80);
 }
 
 async function downloadActiveStreakMap(){
@@ -6627,20 +6636,15 @@ async function downloadActiveStreakMap(){
   const metricId=document.getElementById("activeStreakMetricSelect")?.value||"hot";
   const area=document.getElementById("activeStreakAreaSelect")?.value||"Deutschland";
   const oldText=button?.textContent;
-  const oldCenter=activeStreakMap.getCenter();
-  const oldZoom=activeStreakMap.getZoom();
   const controls=wrap.querySelectorAll(".leaflet-control-container");
   const oldDisplays=[...controls].map(node=>node.style.display);
   if(button){button.disabled=true;button.textContent="Export …";}
   try{
     controls.forEach(node=>{node.style.display="none";});
+    // Die Kartenansicht wird beim Export nicht mehr verändert. Dadurch bleiben
+    // Tile-, Marker- und Overlay-Panes pixelgenau synchron.
     activeStreakMap.invalidateSize(false);
-    const targetBounds=streakExportBounds(area);
-    if(targetBounds){
-      activeStreakMap.fitBounds(targetBounds,{padding:[28,28],animate:false,maxZoom:8});
-    }
-    activeStreakMap.invalidateSize(false);
-    await waitForLeafletExportTiles(leafletElement,520);
+    await waitForLeafletExportTiles(leafletElement,650);
     const canvas=await html2canvas(wrap,{
       scale:3,backgroundColor:"#ffffff",useCORS:true,allowTaint:false,logging:false,
       scrollX:0,scrollY:-window.scrollY
@@ -6653,7 +6657,6 @@ async function downloadActiveStreakMap(){
     alert(`Kartenexport fehlgeschlagen: ${error.message}`);
   }finally{
     controls.forEach((node,index)=>{node.style.display=oldDisplays[index]||"";});
-    activeStreakMap.setView(oldCenter,oldZoom,{animate:false});
     activeStreakMap.invalidateSize(false);
     if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
   }
