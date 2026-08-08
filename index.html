@@ -465,10 +465,29 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 @media(max-width:900px){.regional-map{height:520px}.regional-map-summary{grid-template-columns:repeat(2,minmax(130px,1fr))}.regional-map-value-label{font-size:9px!important;padding:2px 4px!important}}
 @media(max-width:560px){.regional-map{height:470px}.regional-map-summary{grid-template-columns:1fr 1fr}.regional-map-controls .control-group{width:100%}.regional-map-controls select{width:100%}.regional-map-swap{width:100%}}
 
+
+/* ================= 17.0 ERA5-LAND EUROPA ================= */
+.era5-europe-status{border-left:4px solid #65737c;background:#fff;border-radius:8px;padding:12px 14px;margin:0 0 14px;box-shadow:0 2px 8px rgba(0,0,0,.06);font-size:13px;line-height:1.5}
+.era5-europe-status.ok{border-left-color:#3f7652}.era5-europe-status.warn{border-left-color:#b78323}.era5-europe-status.error{border-left-color:#b54538}
+.era5-europe-map-card{border:1px solid #d8e0e5;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.era5-europe-map-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:14px 16px 10px;flex-wrap:wrap;border-bottom:1px solid #e5e9ec}
+.era5-europe-map-head h3{margin:0 0 4px;font-size:20px}.era5-europe-map-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.era5-europe-map-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.era5-europe-map-actions button{white-space:nowrap}
+.era5-europe-image-wrap{position:relative;background:#eef3f5;min-height:360px;display:flex;align-items:center;justify-content:center}
+.era5-europe-image{display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;background:#fff}
+.era5-europe-loading{padding:80px 20px;text-align:center;color:var(--muted);font-size:14px}
+.era5-europe-kpis{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin:14px 0}
+.era5-europe-kpi{border:1px solid #d8e0e5;border-radius:10px;background:#fff;padding:12px;min-width:0}
+.era5-europe-kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.35px;color:#68737b;font-weight:800}.era5-europe-kpi .value{font-size:20px;font-weight:850;color:#1f2a31;margin:5px 0 2px}.era5-europe-kpi .detail{font-size:11px;color:var(--muted);line-height:1.4}
+.era5-europe-info{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.era5-europe-info>div{border:1px solid #dfe5e9;border-radius:9px;background:#f8fafb;padding:11px 13px;font-size:11px;line-height:1.5;color:#526068}
+.era5-europe-controls .control-group select{min-width:210px}
+@media(max-width:900px){.era5-europe-kpis{grid-template-columns:1fr 1fr}.era5-europe-info{grid-template-columns:1fr}.era5-europe-image-wrap{min-height:280px}}
+@media(max-width:560px){.era5-europe-kpis{grid-template-columns:1fr}.era5-europe-controls .control-group,.era5-europe-controls select{width:100%}.era5-europe-image-wrap{min-height:220px}}
+
 </style>
 </head>
 <body>
-<!-- Climate Dashboard build 16.8.3: direct streak index fetch -->
+<!-- Climate Dashboard build 17.0: ERA5-Land Europa V1 -->
 
 <h1>Climate Dashboard Deutschland</h1>
 <div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
@@ -480,6 +499,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('index')">Klima-Index</button>
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
   <button class="tab-button" onclick="switchTab('hyras')">Flächenkarten</button>
+  <button class="tab-button" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
   <button class="tab-button" onclick="switchTab('current')">Aktuell</button>
   <button class="tab-button" onclick="switchTab('stationProfile')">Stationsprofil</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
@@ -1073,6 +1093,60 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   </div>
   <p class="note" style="margin-top:10px"><strong>Interaktiv:</strong> Maus über die Karte bewegen (auf Touchgeräten tippen), um den Niederschlag der Rasterzelle, das Mittel 1991–2020, Prozent und Abweichung zu sehen.</p>
   <p id="hyrasReferenceNote" class="note" style="margin-top:8px">Quelle: Deutscher Wetterdienst, HYRAS-DE-PR. Das Raster hat 1 km Auflösung. Prozent- und Abweichungskarten werden nur dann gezeigt, wenn für den gewählten Zeitraum ein exakter 1991–2020-Vergleich vorliegt.</p>
+</div>
+
+
+<!-- ================= ERA5-LAND EUROPA ================= -->
+<div id="era5Europe" class="tab-content">
+  <div class="section-header">
+    <h2>ERA5-Land Europa</h2>
+    <p>Hochaufgelöste Europakarten aus der ERA5-Land-Reanalyse: 2-m-Temperatur und Niederschlag mit Vergleich zum Klimamittel 1991–2020.</p>
+    <span class="section-status">Version 1 · Europa · ERA5-Land 0,1° · Landflächen · Copernicus C3S / ECMWF</span>
+  </div>
+
+  <div id="era5EuropeStatus" class="era5-europe-status">ERA5-Land-Daten werden beim ersten Öffnen geladen …</div>
+
+  <div class="controls era5-europe-controls">
+    <div class="control-group">
+      <label for="era5EuropeParameter">Parameter</label>
+      <select id="era5EuropeParameter">
+        <option value="temperature">2-m-Temperatur</option>
+        <option value="precipitation">Niederschlag</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="era5EuropePeriod">Zeitraum</label>
+      <select id="era5EuropePeriod">
+        <option value="latest_month">Jüngster vollständiger Monat</option>
+        <option value="summer">Sommer (JJA)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="era5EuropeView">Darstellung</label>
+      <select id="era5EuropeView"></select>
+    </div>
+  </div>
+
+  <div class="era5-europe-kpis">
+    <div class="era5-europe-kpi"><div class="label">Zeitraum</div><div id="era5EuropePeriodKpi" class="value">–</div><div id="era5EuropeDataKpi" class="detail">–</div></div>
+    <div class="era5-europe-kpi"><div class="label">Europa-Mittel</div><div id="era5EuropeCurrentKpi" class="value">–</div><div class="detail">flächengewichtet über verfügbare Landgitterpunkte</div></div>
+    <div class="era5-europe-kpi"><div class="label">Mittel 1991–2020</div><div id="era5EuropeReferenceKpi" class="value">–</div><div class="detail">gleicher Monat / gleiche Sommermonate</div></div>
+    <div class="era5-europe-kpi"><div class="label">Abweichung</div><div id="era5EuropeDifferenceKpi" class="value">–</div><div id="era5EuropeDifferenceDetail" class="detail">gegenüber 1991–2020</div></div>
+  </div>
+
+  <div class="era5-europe-map-card">
+    <div class="era5-europe-map-head">
+      <div><h3 id="era5EuropeMapTitle">ERA5-Land Europakarte</h3><p id="era5EuropeMapSubtitle">Karte wird geladen …</p></div>
+      <div class="era5-europe-map-actions"><button id="era5EuropeDownload" class="action" type="button">PNG herunterladen</button></div>
+    </div>
+    <div id="era5EuropeImageWrap" class="era5-europe-image-wrap"><div class="era5-europe-loading">Karte wird geladen …</div></div>
+  </div>
+
+  <div class="era5-europe-info">
+    <div><strong>Was zeigt V1?</strong><br>Der jüngste sicher verfügbare vollständige Monat sowie der meteorologische Sommer. Während eines laufenden Sommers werden nur vollständig verfügbare Monate einbezogen – z. B. im August zunächst Juni–Juli.</div>
+    <div><strong>Datenhinweis:</strong><br>ERA5-Land ist ein Landprodukt. Meeresflächen bleiben leer. Die Referenz 1991–2020 wird aus ERA5-Land selbst berechnet. Niederschlag wird aus den monatlich gemittelten täglichen Akkumulationen in echte Monatssummen (mm) umgerechnet.</div>
+  </div>
+  <p id="era5EuropeSource" class="note" style="margin-top:10px">Quelle: Copernicus Climate Change Service (C3S) / ECMWF, ERA5-Land.</p>
 </div>
 
 <!-- ================= AKTUELL / 10-MINUTEN ================= -->
@@ -1951,6 +2025,9 @@ let activeStreakMapLayer=null;
 let streakProgressionChart=null;
 const streakProgressionProfileCache=new Map();
 const stationYearCache=new Map();
+let era5EuropeIndex=null;
+let era5EuropeLoading=null;
+const ERA5_EUROPE_RAW_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
 
 function showError(message){
   const box=document.getElementById("loadError");
@@ -1971,6 +2048,7 @@ function switchTab(tab,{persist=true}={}){
   if(persist) persistDashboardState("tab",tab);
   if(tab==="current") ensureCurrentConditions();
   if(tab==="hyras") ensureHyrasLoaded();
+  if(tab==="era5Europe") ensureEra5EuropeLoaded();
   if(tab==="monthly") window.setTimeout(()=>{if(regionalMap){regionalMap.invalidateSize();updateRegionalMap();}},80);
   if(tab==="stationProfile") ensureStationProfile();
   if(tab==="stationPrecip") ensureStationPrecipLoaded();
@@ -8622,6 +8700,114 @@ function initCurrentControls(){
 }
 initCurrentControls();
 
+
+
+// ================= ERA5-LAND EUROPA =================
+function era5EuropeFormat(value,decimals=1,suffix=""){
+  if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
+  return `${Number(value).toLocaleString("de-DE",{minimumFractionDigits:decimals,maximumFractionDigits:decimals})}${suffix}`;
+}
+function era5EuropeSetStatus(text,state=""){
+  const el=document.getElementById("era5EuropeStatus");if(!el)return;
+  el.textContent=text;el.className=`era5-europe-status ${state}`.trim();
+}
+function era5EuropeUpdateViewOptions(){
+  const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const select=document.getElementById("era5EuropeView");if(!select)return;
+  const previous=select.value;
+  const entries=parameter==="temperature"
+    ?[["absolute","Absolutwert (°C)"],["anomaly","Abweichung 1991–2020 (K)"]]
+    :[["absolute","Niederschlagssumme (mm)"],["percent","Prozent vom Mittel 1991–2020"]];
+  select.innerHTML=entries.map(([value,label])=>`<option value="${value}">${label}</option>`).join("");
+  if(entries.some(([value])=>value===previous))select.value=previous;
+  else select.value=parameter==="temperature"?"anomaly":"percent";
+}
+async function ensureEra5EuropeLoaded(force=false){
+  if(era5EuropeIndex && !force){renderEra5Europe();return era5EuropeIndex;}
+  if(era5EuropeLoading && !force)return era5EuropeLoading;
+  era5EuropeSetStatus("ERA5-Land Europa wird geladen …");
+  const url=`${ERA5_EUROPE_RAW_BASE}era5_land_europe/index.json?ts=${Date.now()}`;
+  era5EuropeLoading=fetch(url,{cache:"no-store"}).then(async response=>{
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    era5EuropeIndex=await response.json();
+    if(!era5EuropeIndex?.ready){
+      era5EuropeSetStatus(era5EuropeIndex?.message||"ERA5-Land Europa wurde noch nicht aufgebaut.","warn");
+      const wrap=document.getElementById("era5EuropeImageWrap");
+      if(wrap)wrap.innerHTML='<div class="era5-europe-loading">Noch keine ERA5-Land-Karten vorhanden. Nach der einmaligen CDS-Einrichtung den Workflow „ERA5-Land Europa aktualisieren“ starten.</div>';
+      return era5EuropeIndex;
+    }
+    era5EuropeSetStatus(`Datenstand ${era5EuropeIndex.data_through} · Referenz ${era5EuropeIndex.reference_period} · ${era5EuropeIndex.spatial_resolution}`,"ok");
+    renderEra5Europe();
+    return era5EuropeIndex;
+  }).catch(error=>{
+    console.error("ERA5-Land Europa konnte nicht geladen werden:",error);
+    era5EuropeSetStatus(`ERA5-Land Europa konnte nicht geladen werden: ${error.message}`,"error");
+    throw error;
+  }).finally(()=>{era5EuropeLoading=null;});
+  return era5EuropeLoading;
+}
+function renderEra5Europe(){
+  if(!era5EuropeIndex?.ready)return;
+  const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const periodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";
+  const view=document.getElementById("era5EuropeView")?.value||(parameter==="temperature"?"anomaly":"percent");
+  const period=era5EuropeIndex.periods?.[periodId];
+  const parameterData=period?.[parameter];
+  const mapInfo=parameterData?.[view];
+  if(!period||!parameterData||!mapInfo)return;
+  const title=parameter==="temperature"?"2-m-Temperatur":"Niederschlag";
+  const viewLabel=mapInfo.label||view;
+  document.getElementById("era5EuropeMapTitle").textContent=`${title} · ${period.label}`;
+  document.getElementById("era5EuropeMapSubtitle").textContent=`${viewLabel} · ERA5-Land · Landflächen`;
+  document.getElementById("era5EuropePeriodKpi").textContent=period.label;
+  document.getElementById("era5EuropeDataKpi").textContent=`Datenstand ${era5EuropeIndex.data_through}`;
+  const stats=parameterData.stats||{};
+  if(parameter==="temperature"){
+    document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(stats.current,2," °C");
+    document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(stats.reference,2," °C");
+    document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.difference,2," K");
+    document.getElementById("era5EuropeDifferenceDetail").textContent="Temperaturabweichung zum Mittel";
+  }else{
+    document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(stats.current,1," mm");
+    document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(stats.reference,1," mm");
+    document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(stats.percent,0," %");
+    document.getElementById("era5EuropeDifferenceDetail").textContent="Prozent des Niederschlagsmittels";
+  }
+  const imageUrl=`${ERA5_EUROPE_RAW_BASE}${mapInfo.file}?v=${encodeURIComponent(era5EuropeIndex.generated_at||Date.now())}`;
+  const wrap=document.getElementById("era5EuropeImageWrap");
+  if(wrap){
+    wrap.innerHTML=`<img id="era5EuropeImage" class="era5-europe-image" alt="${title} ${period.label}" src="${imageUrl}">`;
+    const img=wrap.querySelector("img");
+    img.addEventListener("error",()=>{wrap.innerHTML='<div class="era5-europe-loading">Die Karten-PNG konnte nicht geladen werden.</div>';});
+  }
+  const source=document.getElementById("era5EuropeSource");
+  if(source)source.textContent=`Quelle: ${era5EuropeIndex.source}. ${era5EuropeIndex.availability_note||""}`;
+}
+async function downloadEra5EuropeMap(){
+  if(!era5EuropeIndex?.ready)return;
+  const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
+  const periodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";
+  const view=document.getElementById("era5EuropeView")?.value||"absolute";
+  const mapInfo=era5EuropeIndex.periods?.[periodId]?.[parameter]?.[view];
+  if(!mapInfo)return;
+  const button=document.getElementById("era5EuropeDownload");const original=button?.textContent;
+  if(button){button.disabled=true;button.textContent="…";}
+  try{
+    const response=await fetch(`${ERA5_EUROPE_RAW_BASE}${mapInfo.file}?download=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement("a");
+    link.href=url;link.download=`era5_land_europa_${parameter}_${periodId}_${view}.png`;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  }catch(error){console.error(error);alert(`PNG-Download nicht möglich: ${error.message}`);}
+  finally{if(button){button.disabled=false;button.textContent=original;}}
+}
+function initEra5EuropeControls(){
+  const parameter=document.getElementById("era5EuropeParameter"),period=document.getElementById("era5EuropePeriod"),view=document.getElementById("era5EuropeView"),download=document.getElementById("era5EuropeDownload");
+  if(!parameter||!period||!view)return;
+  era5EuropeUpdateViewOptions();
+  parameter.addEventListener("change",()=>{era5EuropeUpdateViewOptions();renderEra5Europe();});
+  period.addEventListener("change",renderEra5Europe);view.addEventListener("change",renderEra5Europe);download?.addEventListener("click",downloadEra5EuropeMap);
+}
+initEra5EuropeControls();
 
 function persistDashboardState(key,value){
   const normalized=String(value);
