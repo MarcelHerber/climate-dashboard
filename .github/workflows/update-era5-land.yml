@@ -25,7 +25,7 @@ concurrency:
 jobs:
   update-era5-land:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
 
     steps:
       - name: Repository auschecken
@@ -44,8 +44,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .era5_cache
-          key: era5-land-europe-v3-${{ runner.os }}
+          key: era5-land-europe-v4-${{ runner.os }}
           restore-keys: |
+            era5-land-europe-v3-${{ runner.os }}
             era5-land-europe-v2-${{ runner.os }}
             era5-land-europe-v1-${{ runner.os }}
 
