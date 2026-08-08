@@ -6155,31 +6155,41 @@ function updateNationalStreakMap(rows,metric){
 }
 
 async function downloadNationalStreakMap(){
-  const mapElement=document.getElementById("nationalStreakMapWrap");
+  const wrap=document.getElementById("nationalStreakMapWrap");
+  const leafletElement=document.getElementById("nationalStreakMap");
   const button=document.getElementById("nationalStreakMapDownload");
-  if(!mapElement || mapElement.hidden) return;
+  if(!wrap || wrap.hidden || !leafletElement || !nationalStreakMap) return;
   if(typeof html2canvas!=="function"){
     alert("Die Exportbibliothek konnte nicht geladen werden.");
     return;
   }
   const metricId=document.getElementById("nationalStreakMetricSelect")?.value || "hot";
-  const metric=(stationStreakIndex?.climate_days||[]).find(item=>item.id===metricId) || {label:metricId};
   const oldText=button?.textContent;
-  if(button){button.disabled=true;button.textContent="Export …";}
-  const controls=mapElement.querySelectorAll(".leaflet-control-container");
+  const oldCenter=nationalStreakMap.getCenter();
+  const oldZoom=nationalStreakMap.getZoom();
+  const controls=wrap.querySelectorAll(".leaflet-control-container");
   const oldDisplays=[...controls].map(node=>node.style.display);
+  if(button){button.disabled=true;button.textContent="Export …";}
   try{
     controls.forEach(node=>{node.style.display="none";});
-    nationalStreakMap?.invalidateSize();
-    await new Promise(resolve=>setTimeout(resolve,180));
-    const canvas=await html2canvas(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    nationalStreakMap.invalidateSize(false);
+    nationalStreakMap.fitBounds(streakExportBounds("Deutschland"),{padding:[28,28],animate:false,maxZoom:7});
+    nationalStreakMap.invalidateSize(false);
+    await waitForLeafletExportTiles(leafletElement,520);
+    const canvas=await html2canvas(wrap,{
+      scale:3,backgroundColor:"#ffffff",useCORS:true,allowTaint:false,logging:false,
+      scrollX:0,scrollY:-window.scrollY
+    });
     const link=document.createElement("a");
     link.download=`kenntage_serienrekorde_${metricId}_deutschland.png`;
-    link.href=canvas.toDataURL("image/png");
-    link.click();
+    link.href=canvas.toDataURL("image/png",1);
+    document.body.appendChild(link); link.click(); link.remove();
   }catch(error){
     alert(`Kartenexport fehlgeschlagen: ${error.message}`);
   }finally{
+    controls.forEach((node,index)=>{node.style.display=oldDisplays[index]||"";});
+    nationalStreakMap.setView(oldCenter,oldZoom,{animate:false});
+    nationalStreakMap.invalidateSize(false);
     if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
   }
 }
@@ -6397,6 +6407,49 @@ function downloadStreakProgressionChart(){
   const link=document.createElement("a"); link.download=filename; link.href=exportCanvas.toDataURL("image/png",1); document.body.appendChild(link); link.click(); link.remove();
 }
 
+
+
+const STREAK_EXPORT_AREA_BOUNDS={
+  "Deutschland":[[47.15,5.45],[55.10,15.65]],
+  "Baden-Württemberg":[[47.50,7.45],[49.80,10.60]],
+  "Bayern":[[47.20,8.95],[50.65,13.90]],
+  "Berlin":[[52.30,13.05],[52.70,13.80]],
+  "Brandenburg":[[51.35,11.25],[53.60,14.80]],
+  "Bremen":[[52.95,8.45],[53.65,9.05]],
+  "Hamburg":[[53.35,9.65],[53.75,10.35]],
+  "Hessen":[[49.35,7.75],[51.70,10.30]],
+  "Mecklenburg-Vorpommern":[[53.05,10.55],[54.75,14.55]],
+  "Niedersachsen":[[51.25,6.55],[54.05,11.65]],
+  "Nordrhein-Westfalen":[[50.25,5.80],[52.55,9.50]],
+  "Rheinland-Pfalz":[[48.90,6.05],[50.95,8.55]],
+  "Saarland":[[49.05,6.25],[49.70,7.45]],
+  "Sachsen":[[50.15,11.80],[51.75,15.10]],
+  "Sachsen-Anhalt":[[50.85,10.50],[53.10,13.25]],
+  "Schleswig-Holstein":[[53.30,7.75],[55.10,11.45]],
+  "Thüringen":[[50.15,9.80],[51.70,12.75]]
+};
+
+function streakExportBounds(area){
+  const bounds=STREAK_EXPORT_AREA_BOUNDS[area]||STREAK_EXPORT_AREA_BOUNDS.Deutschland;
+  return typeof L!=="undefined"?L.latLngBounds(bounds):null;
+}
+
+async function waitForLeafletExportTiles(mapElement,delay=450){
+  await new Promise(resolve=>setTimeout(resolve,delay));
+  const tiles=[...mapElement.querySelectorAll("img.leaflet-tile")].filter(img=>!img.classList.contains("leaflet-tile-loaded")||!img.complete);
+  if(!tiles.length) return;
+  await Promise.race([
+    Promise.all(tiles.map(img=>new Promise(resolve=>{
+      if(img.complete){resolve();return;}
+      const done=()=>resolve();
+      img.addEventListener("load",done,{once:true});
+      img.addEventListener("error",done,{once:true});
+    }))),
+    new Promise(resolve=>setTimeout(resolve,1800))
+  ]);
+  await new Promise(resolve=>setTimeout(resolve,120));
+}
+
 function activeStreakStatusInfo(row){
   const duration=Number(row?.duration||0);
   const national=row?.national_record_before;
@@ -6564,29 +6617,44 @@ function updateActiveStreakMap(rows,metric){
 }
 
 async function downloadActiveStreakMap(){
-  const mapElement=document.getElementById("activeStreakMapWrap");
+  const wrap=document.getElementById("activeStreakMapWrap");
+  const leafletElement=document.getElementById("activeStreakMap");
   const button=document.getElementById("activeStreakMapDownload");
-  if(!mapElement || mapElement.hidden) return;
+  if(!wrap || wrap.hidden || !leafletElement || !activeStreakMap) return;
   if(typeof html2canvas!=="function"){
     alert("Die Exportbibliothek konnte nicht geladen werden."); return;
   }
   const metricId=document.getElementById("activeStreakMetricSelect")?.value||"hot";
   const area=document.getElementById("activeStreakAreaSelect")?.value||"Deutschland";
   const oldText=button?.textContent;
+  const oldCenter=activeStreakMap.getCenter();
+  const oldZoom=activeStreakMap.getZoom();
+  const controls=wrap.querySelectorAll(".leaflet-control-container");
+  const oldDisplays=[...controls].map(node=>node.style.display);
   if(button){button.disabled=true;button.textContent="Export …";}
-  const controls=mapElement.querySelectorAll(".leaflet-control-container");
   try{
     controls.forEach(node=>{node.style.display="none";});
-    activeStreakMap?.invalidateSize();
-    await new Promise(resolve=>setTimeout(resolve,180));
-    const canvas=await html2canvas(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    activeStreakMap.invalidateSize(false);
+    const targetBounds=streakExportBounds(area);
+    if(targetBounds){
+      activeStreakMap.fitBounds(targetBounds,{padding:[28,28],animate:false,maxZoom:8});
+    }
+    activeStreakMap.invalidateSize(false);
+    await waitForLeafletExportTiles(leafletElement,520);
+    const canvas=await html2canvas(wrap,{
+      scale:3,backgroundColor:"#ffffff",useCORS:true,allowTaint:false,logging:false,
+      scrollX:0,scrollY:-window.scrollY
+    });
     const link=document.createElement("a");
     link.download=`kenntage_rekordjagd_${metricId}_${String(area).toLowerCase().replace(/[^a-z0-9]+/g,"_")}.png`;
-    link.href=canvas.toDataURL("image/png"); link.click();
+    link.href=canvas.toDataURL("image/png",1);
+    document.body.appendChild(link); link.click(); link.remove();
   }catch(error){
     alert(`Kartenexport fehlgeschlagen: ${error.message}`);
   }finally{
-    controls.forEach(node=>{node.style.display="";});
+    controls.forEach((node,index)=>{node.style.display=oldDisplays[index]||"";});
+    activeStreakMap.setView(oldCenter,oldZoom,{animate:false});
+    activeStreakMap.invalidateSize(false);
     if(button){button.disabled=false;button.textContent=oldText||"Karte als PNG";}
   }
 }
