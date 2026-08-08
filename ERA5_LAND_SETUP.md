@@ -10,6 +10,8 @@ Nach dem Hochladen:
 
 Beim ersten V4-Lauf wird der V3-Cache weiterverwendet. Neu aufgebaut werden die Daten für die interaktive Gitterpunktanalyse. Weil dafür zusätzliche Monatsreferenzen und historische Temperatur-/Niederschlagswerte seit 1950 benötigt werden, kann dieser erste Lauf deutlich länger dauern. Der Workflow hat dafür ein Zeitlimit von 300 Minuten.
 
+**V4.1-Stabilitätsfix:** Große historische CDS-Abfragen werden in kleinere Blöcke zerlegt. Bodenfeuchte 1991–2020 wird in 5-Jahres-Blöcken geladen, Temperatur/Niederschlag in 10-Jahres-Blöcken. Fehlgeschlagene CDS-Jobs werden automatisch bis zu dreimal versucht. Erfolgreiche Teilblöcke bleiben während eines unvollständigen Laufs im Cache erhalten, sodass ein einzelner CDS-Fehler nicht wieder den kompletten Aufbau erzwingt.
+
 ## Neu in V4
 
 - sichtbare Europakarten weiterhin auf dem ERA5-Land-CDS-Gitter 0,1°
