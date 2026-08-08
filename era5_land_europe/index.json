@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 1,
-  "generated_at": "2026-08-08T14:08:43+00:00",
+  "payload_version": 2,
+  "generated_at": "2026-08-08T14:19:28+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,8 +14,9 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V1 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V2 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
+  "soil_moisture_note": "Bodenfeuchte ist der volumetrische Bodenwassergehalt der ERA5-Land-Schicht 1 (0–7 cm) in m³/m³; die Abweichung bezieht sich auf 1991–2020.",
   "periods": {
     "latest_month": {
       "id": "latest_month",
@@ -56,6 +57,23 @@
           "current": 30.59470217322326,
           "reference": 32.965835242624586,
           "percent": 92.80730170508325
+        }
+      },
+      "soil_moisture": {
+        "absolute": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_absolute.png",
+          "unit": "m³/m³",
+          "label": "Bodenfeuchte 0–7 cm"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_latest_month_anomaly.png",
+          "unit": "m³/m³",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 0.23397359320546848,
+          "reference": 0.2512258433351001,
+          "difference": -0.017252250129631636
         }
       }
     },
@@ -99,6 +117,23 @@
           "current": 60.481757098665156,
           "reference": 66.73753455848049,
           "percent": 90.6262982275236
+        }
+      },
+      "soil_moisture": {
+        "absolute": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_summer_absolute.png",
+          "unit": "m³/m³",
+          "label": "Bodenfeuchte 0–7 cm"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/soil_moisture_layer1_summer_anomaly.png",
+          "unit": "m³/m³",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 0.24599325702829755,
+          "reference": 0.2619574079239628,
+          "difference": -0.015964150895665274
         }
       }
     }
