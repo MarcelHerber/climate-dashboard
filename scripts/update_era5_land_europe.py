@@ -36,6 +36,10 @@ MAP_DIR = OUT_DIR / "maps"
 CACHE_DIR = ROOT / ".era5_cache"
 CARTOPY_DIR = CACHE_DIR / "cartopy"
 INDEX_PATH = OUT_DIR / "index.json"
+ANALYSIS_PATH = OUT_DIR / "analysis.json"
+ANALYSIS_GRID_STEP = 10  # 0.1° native CDS grid -> 1.0° click-analysis grid
+HISTORY_START = 1950
+MAP_CLICK_GEOMETRY = {"left": 0.07, "top": 0.16, "right": 0.96, "bottom": 0.82}
 
 TEMP_ALIASES = ("t2m", "2m_temperature", "temperature_2m")
 PRECIP_ALIASES = ("tp", "total_precipitation", "precipitation")
@@ -531,7 +535,8 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
     CARTOPY_DIR.mkdir(parents=True, exist_ok=True)
 
     fig = plt.figure(figsize=(13.2, 8.1), dpi=150)
-    ax = plt.axes(projection=ccrs.PlateCarree())
+    # Fixed axes geometry makes the PNG a reliable geographic click target in the dashboard.
+    ax = fig.add_axes([0.07, 0.18, 0.89, 0.66], projection=ccrs.PlateCarree())
     ax.set_extent([AREA[1], AREA[3], AREA[2], AREA[0]], crs=ccrs.PlateCarree())
 
     data = np.ma.masked_invalid(np.asarray(field, dtype=float))
@@ -591,10 +596,11 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
     gl.xlabel_style = {"size": 8, "color": "#59656c"}
     gl.ylabel_style = {"size": 8, "color": "#59656c"}
 
-    cbar_kwargs = {"orientation": "horizontal", "fraction": 0.047, "pad": 0.075, "aspect": 42}
+    cax = fig.add_axes([0.14, 0.085, 0.75, 0.032])
+    cbar_kwargs = {"orientation": "horizontal"}
     if percentile_boundaries is not None:
         cbar_kwargs.update(boundaries=percentile_boundaries, ticks=percentile_ticks, spacing="proportional")
-    cbar = plt.colorbar(mesh, ax=ax, **cbar_kwargs)
+    cbar = plt.colorbar(mesh, cax=cax, **cbar_kwargs)
     cbar.set_label(unit, fontsize=10)
     cbar.ax.tick_params(labelsize=8)
     if percentile_ticklabels is not None:
@@ -604,7 +610,7 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
     fig.text(0.075, 0.925, subtitle, ha="left", va="top", fontsize=10, color="#56636a")
     fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · 0,1° · Landflächen",
              ha="left", va="bottom", fontsize=8, color="#68757c")
-    plt.savefig(filename, bbox_inches="tight", facecolor="white")
+    plt.savefig(filename, facecolor="white")
     plt.close(fig)
 
 
@@ -742,6 +748,237 @@ def make_period_maps(period_id: str, period_label: str, year: int, months: list[
     }
 
 
+
+def round_json(value, digits: int):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return round(value, digits)
+
+
+def sample_1deg(field: np.ndarray) -> np.ndarray:
+    arr = np.asarray(field)
+    return arr[..., ::ANALYSIS_GRID_STEP, ::ANALYSIS_GRID_STEP]
+
+
+def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, force: bool) -> dict:
+    """Temperature/precipitation history since 1950 sampled to 1° for browser analysis."""
+    sampled_file = CACHE_DIR / f"history_tp_v4_{HISTORY_START}_{end_year}_{month:02d}_1deg.nc"
+    if force and sampled_file.exists():
+        sampled_file.unlink()
+    if sampled_file.exists():
+        ds = xr.open_dataset(sampled_file)
+        out = {
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "temperature": np.asarray(ds["temperature_c"].values, dtype=float),
+            "precipitation": np.asarray(ds["precipitation_mm"].values, dtype=float),
+        }
+        ds.close()
+        return out
+
+    years = np.arange(HISTORY_START, end_year + 1, dtype=int)
+    raw_file = CACHE_DIR / f"raw_history_tp_v4_{HISTORY_START}_{end_year}_{month:02d}.nc"
+    if raw_file.exists():
+        raw_file.unlink()
+    request_monthly_file(client, years.tolist(), [month], raw_file)
+    ds = open_download(raw_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    tname = variable_name(ds, TEMP_ALIASES)
+    pname = variable_name(ds, PRECIP_ALIASES)
+    tda, pda = ds[tname], ds[pname]
+    tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
+    if tdim is None or pdim is None:
+        raise RuntimeError("Zeitdimension für ERA5-Land-Historie fehlt.")
+    tda = tda.transpose(tdim, lat_name, lon_name)
+    pda = pda.transpose(pdim, lat_name, lon_name)
+
+    def sorted_values(da: xr.DataArray, dim: str) -> tuple[np.ndarray, np.ndarray]:
+        values = np.asarray(da.values, dtype=np.float32)
+        years_here = None
+        try:
+            years_here = np.asarray(ds[dim].dt.year.values, dtype=int)
+        except Exception:
+            pass
+        if years_here is None or years_here.size != years.size:
+            years_here = years.copy()
+        if set(years_here.tolist()) == set(years.tolist()):
+            idx = [int(np.where(years_here == y)[0][0]) for y in years]
+            values = values[idx]
+            years_here = years.copy()
+        return years_here, values
+
+    years_t, temp = sorted_values(tda, tdim)
+    years_p, precip = sorted_values(pda, pdim)
+    if not np.array_equal(years_t, years_p):
+        raise RuntimeError("Temperatur- und Niederschlagsjahre sind nicht deckungsgleich.")
+    temp = temp - 273.15
+    days = np.asarray([calendar.monthrange(int(y), month)[1] for y in years_t], dtype=np.float32)[:, None, None]
+    precip = precip * days * 1000.0
+    lat = np.asarray(ds[lat_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+    lon = np.asarray(ds[lon_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+    temp = sample_1deg(temp)
+    precip = sample_1deg(precip)
+    out_ds = xr.Dataset(
+        {
+            "temperature_c": (("year", "latitude", "longitude"), temp.astype(np.float32)),
+            "precipitation_mm": (("year", "latitude", "longitude"), precip.astype(np.float32)),
+        },
+        coords={"year": years_t, "latitude": lat, "longitude": lon},
+        attrs={"source": "ERA5-Land monthly means", "analysis_grid": "1 degree", "month": month},
+    )
+    encoding = {name: {"zlib": True, "complevel": 3, "dtype": "float32"} for name in out_ds.data_vars}
+    out_ds.to_netcdf(sampled_file, encoding=encoding)
+    ds.close()
+    try:
+        raw_file.unlink()
+    except FileNotFoundError:
+        pass
+    return {"years": years_t, "lat": lat, "lon": lon, "temperature": temp, "precipitation": precip}
+
+
+def combine_history_tp(history_by_month: dict[int, dict], months: list[int]) -> dict:
+    years = np.asarray(history_by_month[months[0]]["years"], dtype=int)
+    lat = np.asarray(history_by_month[months[0]]["lat"], dtype=float)
+    lon = np.asarray(history_by_month[months[0]]["lon"], dtype=float)
+    temp_num = None
+    temp_den = None
+    precip_total = None
+    for month in months:
+        item = history_by_month[month]
+        if not np.array_equal(np.asarray(item["years"], dtype=int), years):
+            raise RuntimeError(f"Historienjahre für Monat {month} sind nicht deckungsgleich.")
+        t = np.asarray(item["temperature"], dtype=float)
+        p = np.asarray(item["precipitation"], dtype=float)
+        day_weights = np.asarray([calendar.monthrange(int(y), month)[1] for y in years], dtype=float)[:, None, None]
+        valid_t = np.isfinite(t)
+        if temp_num is None:
+            temp_num = np.zeros_like(t, dtype=float)
+            temp_den = np.zeros_like(t, dtype=float)
+            precip_total = np.zeros_like(p, dtype=float)
+        temp_num += np.where(valid_t, t * day_weights, 0.0)
+        temp_den += np.where(valid_t, day_weights, 0.0)
+        precip_total += np.where(np.isfinite(p), p, 0.0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        temp = temp_num / temp_den
+    temp[temp_den == 0] = np.nan
+    return {"years": years, "lat": lat, "lon": lon, "temperature": temp, "precipitation": precip_total}
+
+
+def build_analysis_payload(*, latest_year: int, latest_month: int, summer_year: int, summer_months: list[int],
+                           current_all: dict, current_soil_all: dict, climate: dict, soil_reference: dict,
+                           history_tp: dict[int, dict]) -> dict:
+    months = list(range(1, latest_month + 1))
+    lat = np.asarray(current_all[(latest_year, latest_month)][0], dtype=float)[::ANALYSIS_GRID_STEP]
+    lon = np.asarray(current_all[(latest_year, latest_month)][1], dtype=float)[::ANALYSIS_GRID_STEP]
+
+    temp_current = np.stack([sample_1deg(current_all[(latest_year, m)][2]) for m in months])
+    precip_current = np.stack([sample_1deg(current_all[(latest_year, m)][3]) for m in months])
+    temp_ref = np.stack([sample_1deg(climate[m][2]) for m in months])
+    precip_ref = np.stack([sample_1deg(climate[m][3]) for m in months])
+
+    soil_monthly = {}
+    for layer_key in SOIL_LAYERS:
+        cur = np.stack([sample_1deg(current_soil_all[(latest_year, m)]["layers"][layer_key]) for m in months])
+        ref_mean = []
+        pct = []
+        for m in months:
+            samples = sample_1deg(soil_reference[m]["layers"][layer_key])
+            ref_mean.append(np.nanmean(samples, axis=0))
+            pct.append(soil_percentile_field(cur[months.index(m)], samples))
+        soil_monthly[layer_key] = {
+            "current": cur,
+            "reference": np.stack(ref_mean),
+            "percentile": np.stack(pct),
+        }
+
+    hist_latest = combine_history_tp(history_tp, [latest_month])
+    hist_summer = combine_history_tp(history_tp, summer_months)
+
+    soil_hist_periods = {}
+    for period_id, period_year, period_months in (
+        ("latest_month", latest_year, [latest_month]),
+        ("summer", summer_year, summer_months),
+    ):
+        layers = {}
+        for layer_key in SOIL_LAYERS:
+            reference_values = sample_1deg(combine_reference_soil(soil_reference, layer_key, period_months))
+            current_values = sample_1deg(combine_soil_moisture(
+                {m: current_soil_all[(period_year, m)]["layers"][layer_key] for m in period_months},
+                period_year, period_months,
+            ))
+            layers[layer_key] = {"reference": reference_values, "current": current_values}
+        soil_hist_periods[period_id] = layers
+
+    # Only expose land analysis points. ERA5-Land ocean cells are missing/NaN.
+    land_mask = np.isfinite(temp_current[-1]) & np.isfinite(soil_monthly["layer1"]["current"][-1])
+    points = []
+    reference_years = list(range(REFERENCE_START, REFERENCE_END + 1))
+    hist_periods = {"latest_month": hist_latest, "summer": hist_summer}
+
+    for iy, ix in zip(*np.where(land_mask)):
+        point = {
+            "lat": round(float(lat[iy]), 2),
+            "lon": round(float(lon[ix]), 2),
+            "monthly": {
+                "temperature": {
+                    "current": [round_json(v, 2) for v in temp_current[:, iy, ix]],
+                    "reference": [round_json(v, 2) for v in temp_ref[:, iy, ix]],
+                },
+                "precipitation": {
+                    "current": [round_json(v, 1) for v in precip_current[:, iy, ix]],
+                    "reference": [round_json(v, 1) for v in precip_ref[:, iy, ix]],
+                },
+                "soil_moisture": {"layers": {}},
+            },
+            "history": {},
+        }
+        for layer_key in SOIL_LAYERS:
+            sm = soil_monthly[layer_key]
+            point["monthly"]["soil_moisture"]["layers"][layer_key] = {
+                "current": [round_json(v, 4) for v in sm["current"][:, iy, ix]],
+                "reference": [round_json(v, 4) for v in sm["reference"][:, iy, ix]],
+                "percentile": [round_json(v, 1) for v in sm["percentile"][:, iy, ix]],
+            }
+        for period_id, hist in hist_periods.items():
+            point["history"][period_id] = {
+                "temperature": [round_json(v, 2) for v in hist["temperature"][:, iy, ix]],
+                "precipitation": [round_json(v, 1) for v in hist["precipitation"][:, iy, ix]],
+                "soil_moisture": {"layers": {}},
+            }
+            for layer_key in SOIL_LAYERS:
+                soil_hist = soil_hist_periods[period_id][layer_key]
+                vals = [round_json(v, 4) for v in soil_hist["reference"][:, iy, ix]]
+                vals.append(round_json(soil_hist["current"][iy, ix], 4))
+                point["history"][period_id]["soil_moisture"]["layers"][layer_key] = vals
+        points.append(point)
+
+    payload = {
+        "ready": True,
+        "payload_version": 1,
+        "analysis_grid": "1,0° (nächster verfügbarer Landpunkt)",
+        "analysis_year": latest_year,
+        "months": months,
+        "month_labels": [MONTH_NAMES[m] for m in months],
+        "history_years": {
+            "latest_month": [int(y) for y in hist_latest["years"]],
+            "summer": [int(y) for y in hist_summer["years"]],
+        },
+        "soil_history_years": {
+            "latest_month": reference_years + [latest_year],
+            "summer": reference_years + [summer_year],
+        },
+        "history_note": "Temperatur und Niederschlag: historische Einordnung seit 1950. Bodenfeuchte: Einzeljahre 1991–2020 plus aktuelles Jahr.",
+        "points": points,
+    }
+    atomic_write_json(ANALYSIS_PATH, payload)
+    return payload
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="ERA5-Land Europakarten für das Climate Dashboard erzeugen.")
     parser.add_argument("--force", action="store_true", help="CDS-Daten und Karten auch für denselben Zielmonat neu erzeugen")
@@ -777,17 +1014,18 @@ def main() -> int:
             existing = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
             if (
                 existing.get("ready")
-                and int(existing.get("payload_version", 0)) >= 3
+                and int(existing.get("payload_version", 0)) >= 4
                 and existing.get("latest_month_key") == target_key
                 and all(path.exists() for path in required)
+                and ANALYSIS_PATH.exists()
             ):
-                print(f"ERA5-Land Europa V3 ist bereits aktuell für {target_key}.")
+                print(f"ERA5-Land Europa V4 ist bereits aktuell für {target_key}.")
                 return 0
         except Exception:
             pass
 
     needed_by_year: dict[int, set[int]] = {}
-    needed_by_year.setdefault(latest_year, set()).add(latest_month)
+    needed_by_year.setdefault(latest_year, set()).update(range(1, latest_month + 1))
     needed_by_year.setdefault(summer_year, set()).update(summer_months)
 
     client = cds_client()
@@ -804,7 +1042,7 @@ def main() -> int:
 
     climate: dict[int, tuple] = {}
     soil_reference: dict[int, dict] = {}
-    all_needed_months = sorted({latest_month, *summer_months})
+    all_needed_months = sorted(set(range(1, latest_month + 1)) | set(summer_months))
     for month in all_needed_months:
         climate[month] = load_climatology_month(client, month, args.force)
         soil_reference[month] = load_soil_reference_month(client, month, args.force)
@@ -830,9 +1068,17 @@ def main() -> int:
         summer_current, summer_climate, summer_current_soil, summer_reference_soil,
     )
 
+    history_months = sorted({latest_month, *summer_months})
+    history_tp = {month: load_history_tp_month(client, month, latest_year, args.force) for month in history_months}
+    analysis_payload = build_analysis_payload(
+        latest_year=latest_year, latest_month=latest_month, summer_year=summer_year, summer_months=summer_months,
+        current_all=current_all, current_soil_all=current_soil_all, climate=climate, soil_reference=soil_reference,
+        history_tp=history_tp,
+    )
+
     payload = {
         "ready": True,
-        "payload_version": 3,
+        "payload_version": 4,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "latest_month_key": target_key,
         "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
@@ -841,9 +1087,11 @@ def main() -> int:
         "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
         "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
         "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
-        "availability_note": "V3 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "availability_note": "V4 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
         "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
         "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
+        "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950},
+        "click_geometry": MAP_CLICK_GEOMETRY,
         "percentile_note": "Bodenfeuchte-Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. P≤20 wird als trocken, P≤10 als sehr trocken, P≥80 als feucht eingeordnet.",
         "soil_layers": {key: {"label": meta["label"], "depth_cm": meta["depth_cm"]} for key, meta in SOIL_LAYERS.items()},
         "periods": {
@@ -852,7 +1100,7 @@ def main() -> int:
         },
     }
     atomic_write_json(INDEX_PATH, payload)
-    print(f"ERA5-Land Europa V3 erzeugt: {INDEX_PATH}")
+    print(f"ERA5-Land Europa V4 erzeugt: {INDEX_PATH}")
     print(f"Datenstand: {payload['data_through']}")
     return 0
 
