@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build compact European station-record datasets for the static Climate Dashboard.
 
-Stations-V4 architecture
+Stations-V5 architecture
 ------------------------
 * Germany: DWD CDC daily KL data are authoritative for the dashboard module.
   Historical *_hist.zip files build a cached DWD baseline; *_akt.zip files
@@ -9,14 +9,17 @@ Stations-V4 architecture
 * France: official Météo-France daily climatological CSV.gz resources from
   meteo.data.gouv.fr/data.gouv.fr are authoritative. Both the principal and
   complementary station datasets are read; TX/TN are used.
+* Spain: AEMET OpenData daily climatologies are authoritative. The API key is
+  read only from the AEMET_API_KEY environment variable (GitHub Secret).
+  Historical data are requested in blocks of at most five years.
 * Rest of Europe: NOAA/NCEI GHCN-Daily remains the fallback/base source.
-  Germany and France are deliberately removed from GHCN to avoid duplicates.
+  Germany, France and Spain are deliberately removed from GHCN to avoid duplicates.
 * Frontend contract stays compatible with Stations-V2:
     europe_stations/index.json
     europe_stations/calendar/MM-DD.json.gz
 
 The large GHCN archive is streamed and cached. DWD and Météo-France historical
-files are only needed when their separate baseline caches are missing or explicitly
+files/API blocks are only needed when their separate baseline caches are missing or explicitly
 rebuilt.
 """
 
@@ -27,6 +30,7 @@ import calendar
 import csv
 import datetime as dt
 import gzip
+import hashlib
 import html
 import io
 import json
@@ -61,13 +65,22 @@ MF_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologique
 MF_COMP_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-quotidiennes-stations-complementaires/"
 MF_PUBLIC_BASE = "https://meteo.data.gouv.fr/datasets/donnees-climatologiques-de-base-quotidiennes/"
 
-PAYLOAD_VERSION = 4
+AEMET_API_BASE = "https://opendata.aemet.es/opendata"
+AEMET_PUBLIC_URL = "https://opendata.aemet.es/"
+AEMET_BASELINE_START_YEAR = 1850
+AEMET_MAX_RANGE_YEARS = 5
+
+PAYLOAD_VERSION = 5
 GHCN_BASELINE_FORMAT_VERSION = 2
 DWD_BASELINE_FORMAT_VERSION = 1
-MF_BASELINE_FORMAT_VERSION = 1
+MF_BASELINE_FORMAT_VERSION = 2
+MF_RESOURCE_CACHE_FORMAT_VERSION = 1
+MF_RESOURCE_RETRIES = 3
+AEMET_BASELINE_FORMAT_VERSION = 1
 GHCN_SOURCE = "GHCN-Daily"
 DWD_SOURCE = "DWD CDC"
 MF_SOURCE = "Météo-France"
+AEMET_SOURCE = "AEMET OpenData"
 
 # Metropolitan departments. Department 20 is kept as a compatibility fallback
 # for older Corsica resource naming; current resources normally use 2A/2B.
@@ -105,7 +118,7 @@ def log(message: str) -> None:
 
 
 def http_open(url: str, attempts: int = 5, timeout: int = 180):
-    headers = {"User-Agent": "climate-dashboard-stations/4.0 (+GitHub Actions)"}
+    headers = {"User-Agent": "climate-dashboard-stations/5.0 (+GitHub Actions)"}
     last_error = None
     for attempt in range(1, attempts + 1):
         try:
@@ -166,7 +179,7 @@ def parse_ghcn_stations(text: str, countries: Dict[str, str]) -> Dict[str, Stati
             continue
         sid = raw[0:11].strip()
         code = sid[:2]
-        if code not in EUROPE_CODES or code in {"GM", "FR"}:  # DWD/Météo-France replace Germany/France in V4.
+        if code not in EUROPE_CODES or code in {"GM", "FR", "SP"}:  # DWD/Météo-France/AEMET replace Germany/France/Spain in V5.
             continue
         try:
             lat = float(raw[12:20])
@@ -297,7 +310,7 @@ def parse_dly_station(stream: io.BufferedReader, cutoff_year: int) -> dict:
 
 
 def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_url: str = ARCHIVE_URL) -> dict:
-    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland/Frankreich) bis {cutoff_year} …")
+    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland/Frankreich/Spanien) bis {cutoff_year} …")
     states = {}
     wanted = set(stations)
     seen = 0
@@ -318,7 +331,7 @@ def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, arch
                 seen += 1
                 if seen % 250 == 0:
                     log(f"  {seen:,} europäische GHCN-Stationsdateien verarbeitet …")
-    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland/Frankreich ausgeschlossen).")
+    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland/Frankreich/Spanien ausgeschlossen).")
     return {
         "format_version": GHCN_BASELINE_FORMAT_VERSION,
         "cutoff_year": cutoff_year,
@@ -351,7 +364,7 @@ def load_or_build_ghcn_baseline(cache_file: Path, stations: Dict[str, StationMet
 
 def parse_current_ghcn_year(year: int, stations: Dict[str, StationMeta]) -> dict:
     url = BY_YEAR_URL.format(year=year)
-    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland/Frankreich): {url}")
+    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland/Frankreich/Spanien): {url}")
     current: Dict[str, dict] = {}
     with http_open(url, attempts=6, timeout=240) as response:
         with gzip.GzipFile(fileobj=response) as gz:
@@ -772,8 +785,104 @@ def parse_mf_stream(fileobj, *, cutoff_year: Optional[int] = None, exact_year: O
 
 def fetch_parse_mf(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
     url = resource["url"]
-    with http_open(url, attempts=5, timeout=240) as response:
+    # A fresh HTTP response is deliberately opened for every outer retry.
+    # This matters for Météo-France CSV.gz resources where a connection can
+    # occasionally end cleanly at HTTP level while the gzip stream itself is
+    # truncated. parse_mf_stream then raises and the caller can re-download.
+    with http_open(url, attempts=3, timeout=240) as response:
         return parse_mf_stream(response, cutoff_year=cutoff_year, exact_year=exact_year)
+
+
+def mf_resource_cache_path(cache_dir: Path, resource: dict, cutoff_year: int) -> Path:
+    identity = f"{resource['url']}|{cutoff_year}|v{MF_RESOURCE_CACHE_FORMAT_VERSION}"
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+    return cache_dir / f"{resource['dept']}_{digest}.pkl.gz"
+
+
+def load_mf_resource_cache(path: Path, resource: dict, cutoff_year: int):
+    with gzip.open(path, "rb") as handle:
+        payload = pickle.load(handle)
+    if payload.get("format_version") != MF_RESOURCE_CACHE_FORMAT_VERSION:
+        raise RuntimeError("falsche Resource-Cache-Version")
+    if payload.get("url") != resource["url"] or payload.get("cutoff_year") != cutoff_year:
+        raise RuntimeError("Resource-Cache gehört zu einer anderen Datei/Periode")
+    return payload["partial"], payload["metas"]
+
+
+def save_mf_resource_cache(path: Path, resource: dict, cutoff_year: int, partial: dict, metas: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "format_version": MF_RESOURCE_CACHE_FORMAT_VERSION,
+        "url": resource["url"],
+        "cutoff_year": cutoff_year,
+        "partial": partial,
+        "metas": metas,
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with gzip.open(tmp, "wb", compresslevel=4) as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(path)
+
+
+def process_mf_historical_resource(resource: dict, cutoff_year: int, resource_cache_dir: Path, force: bool):
+    """Return one historical MF resource, re-downloading only if needed.
+
+    Successful resources are stored as small parsed shards.  If a later run is
+    needed after a remaining bad gzip resource, all good shards are reused and
+    only the missing/broken resources are fetched again.
+    """
+    cache_path = mf_resource_cache_path(resource_cache_dir, resource, cutoff_year)
+    if cache_path.exists() and not force:
+        try:
+            partial, metas = load_mf_resource_cache(cache_path, resource, cutoff_year)
+            return partial, metas, "cache", 0
+        except Exception:
+            try:
+                cache_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    last_error = None
+    for attempt in range(1, MF_RESOURCE_RETRIES + 1):
+        try:
+            partial, _current, metas = fetch_parse_mf(resource, cutoff_year=cutoff_year)
+            save_mf_resource_cache(cache_path, resource, cutoff_year, partial, metas)
+            return partial, metas, "download", attempt - 1
+        except Exception as exc:
+            last_error = exc
+            try:
+                cache_path.unlink()
+            except FileNotFoundError:
+                pass
+            if attempt < MF_RESOURCE_RETRIES:
+                name = Path(urllib.parse.urlparse(resource["url"]).path).name
+                wait = 3 * attempt
+                log(
+                    f"RETRY Météo-France historical {resource['dept']} {name}: "
+                    f"gzip/Download fehlgeschlagen ({exc}); frischer Download "
+                    f"{attempt + 1}/{MF_RESOURCE_RETRIES} in {wait}s …"
+                )
+                time.sleep(wait)
+    raise RuntimeError(str(last_error))
+
+
+def fetch_parse_mf_with_retries(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None, label: str = "current"):
+    last_error = None
+    for attempt in range(1, MF_RESOURCE_RETRIES + 1):
+        try:
+            result = fetch_parse_mf(resource, cutoff_year=cutoff_year, exact_year=exact_year)
+            return result, attempt - 1
+        except Exception as exc:
+            last_error = exc
+            if attempt < MF_RESOURCE_RETRIES:
+                name = Path(urllib.parse.urlparse(resource["url"]).path).name
+                wait = 3 * attempt
+                log(
+                    f"RETRY Météo-France {label} {resource['dept']} {name}: "
+                    f"{exc}; frischer Download {attempt + 1}/{MF_RESOURCE_RETRIES} in {wait}s …"
+                )
+                time.sleep(wait)
+    raise RuntimeError(str(last_error))
 
 
 def merge_mf_meta(target: Dict[str, Tuple[StationMeta, int]], incoming: Dict[str, Tuple[StationMeta, int]]) -> None:
@@ -782,31 +891,94 @@ def merge_mf_meta(target: Dict[str, Tuple[StationMeta, int]], incoming: Dict[str
             target[sid] = item
 
 
-def build_mf_baseline(cutoff_year: int, workers: int = 6) -> dict:
+def build_mf_baseline(cutoff_year: int, workers: int = 6, *, resource_cache_dir: Path, force_resources: bool = False) -> dict:
     resources = [r for r in discover_mf_resources() if r["period"][0] <= cutoff_year]
-    log(f"Baue Météo-France-Basisbestand bis {cutoff_year}: {len(resources):,} RR-T-Vent-Dateien; {workers} parallele Downloads …")
+    resource_cache_dir.mkdir(parents=True, exist_ok=True)
+    failure_report = resource_cache_dir.parent / f"meteofrance_failed_resources_through_{cutoff_year}.json"
+    log(
+        f"Baue Météo-France-Basisbestand bis {cutoff_year}: {len(resources):,} RR-T-Vent-Dateien; "
+        f"{workers} parallele Downloads; erfolgreiche Einzeldateien werden gecacht …"
+    )
     partial: Dict[str, dict] = {}
     metas: Dict[str, Tuple[StationMeta, int]] = {}
-    failures: List[Tuple[str, str]] = []
+    failures: List[Tuple[dict, str]] = []
+    cached_count = 0
+    downloaded_count = 0
+    retry_success_count = 0
+
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(fetch_parse_mf, r, cutoff_year=cutoff_year): r for r in resources}
+        futures = {
+            pool.submit(process_mf_historical_resource, r, cutoff_year, resource_cache_dir, force_resources): r
+            for r in resources
+        }
         done = 0
         for future in as_completed(futures):
-            r = futures[future]; done += 1
+            r = futures[future]
+            done += 1
             try:
-                states_part, _current, meta_part = future.result()
+                states_part, meta_part, mode, retries_used = future.result()
                 merge_mf_partial(partial, states_part)
                 merge_mf_meta(metas, meta_part)
+                if mode == "cache":
+                    cached_count += 1
+                else:
+                    downloaded_count += 1
+                    if retries_used:
+                        retry_success_count += 1
+                        log(
+                            f"OK nach Retry Météo-France historical {r['dept']} "
+                            f"{Path(urllib.parse.urlparse(r['url']).path).name} "
+                            f"(nach {retries_used} Wiederholung(en))"
+                        )
             except Exception as exc:
-                failures.append((r["url"], str(exc)))
-                log(f"WARNUNG Météo-France historical {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}")
+                failures.append((r, str(exc)))
+                log(
+                    f"FEHLER nach {MF_RESOURCE_RETRIES} Versuchen Météo-France historical "
+                    f"{r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}"
+                )
             if done % 25 == 0 or done == len(resources):
-                log(f"  Météo-France historical: {done:,}/{len(resources):,} Dateien, {len(partial):,} Stationen …")
-    if failures and len(failures) > max(12, int(len(resources) * 0.06)):
-        raise RuntimeError(f"Zu viele Météo-France-Historical-Fehler: {len(failures)} von {len(resources)}")
+                log(
+                    f"  Météo-France historical: {done:,}/{len(resources):,} Dateien, "
+                    f"{len(partial):,} Stationen … "
+                    f"[Cache {cached_count}, neu {downloaded_count}, final fehlerhaft {len(failures)}]"
+                )
+
+    report_payload = {
+        "cutoff_year": cutoff_year,
+        "resource_count": len(resources),
+        "cached": cached_count,
+        "downloaded": downloaded_count,
+        "retry_success": retry_success_count,
+        "failed": [
+            {
+                "dept": r["dept"],
+                "dataset": r["dataset"],
+                "url": r["url"],
+                "file": Path(urllib.parse.urlparse(r["url"]).path).name,
+                "error": error,
+            }
+            for r, error in failures
+        ],
+    }
+    failure_report.write_text(json.dumps(report_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    log(
+        f"Météo-France-Dateibilanz: {len(resources)} vorgesehen | {cached_count} aus Einzelcache | "
+        f"{downloaded_count} frisch erfolgreich | {retry_success_count} davon erst nach Retry | "
+        f"{len(failures)} endgültig fehlgeschlagen."
+    )
+    if failures:
+        raise RuntimeError(
+            f"Météo-France noch unvollständig: {len(failures)} von {len(resources)} Dateien "
+            f"auch nach {MF_RESOURCE_RETRIES} frischen Downloads fehlerhaft. "
+            f"Alle erfolgreichen Dateien wurden einzeln unter {resource_cache_dir} gecacht; "
+            "beim nächsten Lauf werden nur die fehlenden/problematischen Dateien erneut geladen. "
+            f"Details: {failure_report}"
+        )
+
     states = finalize_mf_states(partial)
     stations = {sid: item[0] for sid, item in metas.items() if sid in states}
-    log(f"Météo-France-Basisbestand fertig: {len(states):,} Stationen; fehlgeschlagene Dateien: {len(failures)}.")
+    log(f"Météo-France-Basisbestand vollständig: {len(states):,} Stationen; 0 fehlgeschlagene Dateien.")
     return {
         "format_version": MF_BASELINE_FORMAT_VERSION,
         "cutoff_year": cutoff_year,
@@ -825,14 +997,21 @@ def load_or_build_mf_baseline(cache_file: Path, cutoff_year: int, force: bool, w
                 log(f"Verwende historischen Météo-France-Cache: {cache_file}")
                 return payload
         except Exception as exc:
-            log(f"Météo-France-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
-    payload = build_mf_baseline(cutoff_year, workers=workers)
+            log(f"Météo-France-Cache konnte nicht gelesen werden ({exc}); Neuaufbau aus Einzeldatei-Cache.")
+
+    resource_cache_dir = cache_file.parent / f"meteofrance_resources_through_{cutoff_year}_v{MF_RESOURCE_CACHE_FORMAT_VERSION}"
+    payload = build_mf_baseline(
+        cutoff_year,
+        workers=workers,
+        resource_cache_dir=resource_cache_dir,
+        force_resources=force,
+    )
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
     with gzip.open(tmp, "wb", compresslevel=5) as handle:
         pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
     tmp.replace(cache_file)
-    log(f"Météo-France-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
+    log(f"Météo-France-Gesamtcache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
     return payload
 
 
@@ -843,12 +1022,14 @@ def parse_current_mf_year(year: int, workers: int = 8):
     metas: Dict[str, Tuple[StationMeta, int]] = {}
     failures: List[Tuple[str, str]] = []
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(fetch_parse_mf, r, exact_year=year): r for r in resources}
+        futures = {pool.submit(fetch_parse_mf_with_retries, r, exact_year=year, label="current"): r for r in resources}
         done = 0
         for future in as_completed(futures):
             r = futures[future]; done += 1
             try:
-                _states_part, current_part, meta_part = future.result()
+                (_states_part, current_part, meta_part), retries_used = future.result()
+                if retries_used:
+                    log(f"OK nach Retry Météo-France current {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name} (nach {retries_used} Wiederholung(en))")
                 for sid, st in current_part.items():
                     dst = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
                     dst["TMAX"].update(st.get("TMAX", {})); dst["TMIN"].update(st.get("TMIN", {}))
@@ -861,6 +1042,312 @@ def parse_current_mf_year(year: int, workers: int = 8):
     if failures and len(failures) > max(12, int(len(resources) * 0.08)):
         raise RuntimeError(f"Zu viele Météo-France-Current-Fehler: {len(failures)} von {len(resources)}")
     return current, {sid: item[0] for sid, item in metas.items()}
+
+
+
+# ------------------------- AEMET OpenData adapter -------------------------
+
+def aemet_api_key() -> str:
+    key = os.environ.get("AEMET_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "AEMET_API_KEY fehlt. In GitHub unter Settings → Secrets and variables → Actions "
+            "als Repository-Secret AEMET_API_KEY anlegen."
+        )
+    return key
+
+
+def aemet_decode_json(data: bytes):
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return json.loads(data.decode(encoding))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+    raise RuntimeError("AEMET-Antwort ist kein lesbares JSON.")
+
+
+def aemet_api_dataset(path: str, api_key: str, *, allow_empty: bool = False, attempts: int = 7):
+    """Call one AEMET OpenData endpoint and immediately download its `datos` URL.
+
+    AEMET OpenData returns a small JSON envelope first. The actual dataset is
+    exposed via the URL in `datos`. The API key is sent as the official
+    `api_key` request header and is never written to output files or logs.
+    """
+    url = AEMET_API_BASE.rstrip("/") + "/" + path.lstrip("/")
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "climate-dashboard-stations/5.0 (+GitHub Actions)",
+                "cache-control": "no-cache",
+                "api_key": api_key,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=180) as response:
+                envelope = aemet_decode_json(response.read())
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+            if exc.code == 404 and allow_empty:
+                return []
+            if exc.code in {429, 500, 502, 503, 504} and attempt < attempts:
+                wait = min(20 * attempt, 120)
+                log(f"AEMET HTTP {exc.code}; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
+                time.sleep(wait)
+                last_error = f"HTTP {exc.code}: {body}"
+                continue
+            if exc.code in {401, 403}:
+                raise RuntimeError("AEMET OpenData lehnt den API-Key ab (HTTP %s). Bitte AEMET_API_KEY prüfen." % exc.code)
+            raise RuntimeError(f"AEMET API HTTP {exc.code}: {body}") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            last_error = exc
+            if attempt < attempts:
+                wait = min(15 * attempt, 90)
+                log(f"AEMET-Verbindungsfehler; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
+                time.sleep(wait)
+                continue
+            raise RuntimeError(f"AEMET API nicht erreichbar: {exc}") from exc
+
+        if not isinstance(envelope, dict):
+            raise RuntimeError("AEMET API lieferte kein JSON-Objekt als Antwortumschlag.")
+        estado = envelope.get("estado")
+        if estado not in (None, 200, "200"):
+            if str(estado) == "404" and allow_empty:
+                return []
+            raise RuntimeError(f"AEMET API estado={estado}: {envelope.get('descripcion', 'unbekannter Fehler')}")
+        data_url = str(envelope.get("datos") or "").strip()
+        if not data_url:
+            if allow_empty:
+                return []
+            raise RuntimeError(f"AEMET API lieferte keine datos-URL: {envelope.get('descripcion', '')}")
+        try:
+            raw = read_url_bytes(data_url, attempts=6, timeout=300)
+            return aemet_decode_json(raw)
+        except Exception as exc:
+            last_error = exc
+            if attempt < attempts:
+                wait = min(15 * attempt, 90)
+                log(f"AEMET-Datendownload fehlgeschlagen; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
+                time.sleep(wait)
+                continue
+            raise RuntimeError(f"AEMET-Datendownload fehlgeschlagen: {last_error}") from exc
+    raise RuntimeError(f"AEMET-Anfrage fehlgeschlagen: {last_error}")
+
+
+def aemet_station_id(raw: str) -> Optional[str]:
+    value = str(raw or "").strip().upper()
+    if not value:
+        return None
+    value = re.sub(r"[^0-9A-Z]", "", value)
+    return f"AEMET:{value}" if value else None
+
+
+def aemet_coord(raw: str, *, is_lat: bool) -> Optional[float]:
+    text = str(raw or "").strip().upper().replace(",", ".")
+    if not text:
+        return None
+    try:
+        number = float(text)
+        if (is_lat and -90 <= number <= 90) or ((not is_lat) and -180 <= number <= 180):
+            return number
+    except ValueError:
+        pass
+    m = re.fullmatch(r"(\d{2,3})(\d{2})(\d{2}(?:\.\d+)?)([NSEW])", text)
+    if not m:
+        return None
+    deg, minute, second = int(m.group(1)), int(m.group(2)), float(m.group(3))
+    value = deg + minute / 60.0 + second / 3600.0
+    if m.group(4) in {"S", "W"}:
+        value = -value
+    if is_lat and not (-90 <= value <= 90):
+        return None
+    if not is_lat and not (-180 <= value <= 180):
+        return None
+    return value
+
+
+def aemet_temp_to_tenths(raw: str) -> Optional[int]:
+    text = str(raw or "").strip().replace(",", ".")
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    if not math.isfinite(value) or value <= -90 or value >= 70:
+        return None
+    return int(round(value * 10.0))
+
+
+def load_aemet_inventory(api_key: str) -> Dict[str, StationMeta]:
+    data = aemet_api_dataset(
+        "/api/valores/climatologicos/inventarioestaciones/todasestaciones",
+        api_key,
+        allow_empty=False,
+    )
+    if isinstance(data, dict):
+        data = data.get("datos") or data.get("data") or data.get("estaciones") or []
+    if not isinstance(data, list):
+        raise RuntimeError("AEMET Stationsinventar hat ein unerwartetes Format.")
+    stations: Dict[str, StationMeta] = {}
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        sid = aemet_station_id(row.get("indicativo"))
+        lat = aemet_coord(row.get("latitud"), is_lat=True)
+        lon = aemet_coord(row.get("longitud"), is_lat=False)
+        if not sid or lat is None or lon is None:
+            continue
+        if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
+            continue
+        elev_raw = str(row.get("altitud") or "").strip().replace(",", ".")
+        try:
+            elev = float(elev_raw) if elev_raw else None
+        except ValueError:
+            elev = None
+        name = str(row.get("nombre") or row.get("nombreEstacion") or sid.split(":", 1)[1]).strip()
+        province = str(row.get("provincia") or "").strip()
+        if province and province.upper() not in name.upper():
+            display_name = name
+        else:
+            display_name = name
+        stations[sid] = StationMeta(
+            sid, float(lat), float(lon), None if elev is None or elev <= -999 else round(elev, 1),
+            display_name, "ES", "Spanien", AEMET_SOURCE,
+            "AEMET OpenData Tagesklimatologie: tmax/tmin wie veröffentlicht; fehlende oder nichtnumerische Werte werden verworfen.",
+        )
+    log(f"AEMET-Stationsinventar Spanien im Kartenfenster: {len(stations):,}")
+    if not stations:
+        raise RuntimeError("Keine AEMET-Stationen im Europa-Kartenfenster gefunden.")
+    return stations
+
+
+def aemet_date_path(date_obj: dt.datetime) -> str:
+    return date_obj.strftime("%Y-%m-%dT%H:%M:%SUTC")
+
+
+def aemet_daily_path(start: dt.datetime, end: dt.datetime) -> str:
+    return (
+        "/api/valores/climatologicos/diarios/datos/fechaini/"
+        f"{aemet_date_path(start)}/fechafin/{aemet_date_path(end)}/todasestaciones"
+    )
+
+
+def parse_aemet_rows(rows, stations: Dict[str, StationMeta], *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
+    partial: Dict[str, dict] = {}
+    current: Dict[str, dict] = {}
+    if isinstance(rows, dict):
+        rows = rows.get("datos") or rows.get("data") or rows.get("valores") or []
+    if not isinstance(rows, list):
+        raise RuntimeError("AEMET Tagesdaten haben ein unerwartetes Format.")
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        sid = aemet_station_id(row.get("indicativo"))
+        if not sid or sid not in stations:
+            continue
+        datestr = str(row.get("fecha") or "").strip()[:10]
+        try:
+            date_obj = dt.datetime.strptime(datestr, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        year = date_obj.year
+        if cutoff_year is not None and year > cutoff_year:
+            continue
+        if exact_year is not None and year != exact_year:
+            continue
+        date_int = int(date_obj.strftime("%Y%m%d"))
+        mmdd = date_obj.strftime("%m-%d")
+        for element, field in (("TMAX", "tmax"), ("TMIN", "tmin")):
+            value = aemet_temp_to_tenths(row.get(field))
+            if value is None:
+                continue
+            if exact_year is None:
+                state = partial.setdefault(sid, mf_empty_partial_state())
+                block = state[element]
+                block["abs"] = update_record(block["abs"], value, date_int, element)
+                block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
+                block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
+                block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
+                block["year_set"].add(year)
+            else:
+                st = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
+                old = st[element].get(mmdd)
+                candidate = (value, date_int)
+                if old is None or better(element, value, old[0]):
+                    st[element][mmdd] = candidate
+    return partial, current
+
+
+def aemet_year_blocks(start_year: int, end_year: int) -> List[Tuple[int, int]]:
+    blocks = []
+    y = start_year
+    while y <= end_year:
+        y2 = min(end_year, y + AEMET_MAX_RANGE_YEARS - 1)
+        blocks.append((y, y2))
+        y = y2 + 1
+    return blocks
+
+
+def build_aemet_baseline(api_key: str, stations: Dict[str, StationMeta], cutoff_year: int) -> dict:
+    start_year = min(AEMET_BASELINE_START_YEAR, cutoff_year)
+    blocks = aemet_year_blocks(start_year, cutoff_year)
+    log(
+        f"Baue AEMET-Spanien-Basisbestand {start_year}–{cutoff_year}: "
+        f"{len(blocks)} Blöcke à maximal {AEMET_MAX_RANGE_YEARS} Jahre …"
+    )
+    partial: Dict[str, dict] = {}
+    for i, (y1, y2) in enumerate(blocks, start=1):
+        start = dt.datetime(y1, 1, 1, 0, 0, 0)
+        end = dt.datetime(y2, 12, 31, 23, 59, 59)
+        rows = aemet_api_dataset(aemet_daily_path(start, end), api_key, allow_empty=True)
+        part, _cur = parse_aemet_rows(rows, stations, cutoff_year=cutoff_year)
+        merge_mf_partial(partial, part)
+        log(f"  AEMET historical: {i}/{len(blocks)} Blöcke ({y1}–{y2}), {len(partial):,} Stationen mit Daten …")
+        # Deliberately gentle to AEMET OpenData; also reduces 429 rate-limit responses.
+        time.sleep(0.8)
+    states = finalize_mf_states(partial)
+    log(f"AEMET-Basisbestand fertig: {len(states):,} Stationen bis {cutoff_year}.")
+    if not states:
+        raise RuntimeError("AEMET-Basisbestand enthält keine TMAX/TMIN-Daten.")
+    return {
+        "format_version": AEMET_BASELINE_FORMAT_VERSION,
+        "cutoff_year": cutoff_year,
+        "start_year": start_year,
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "states": states,
+    }
+
+
+def load_or_build_aemet_baseline(cache_file: Path, api_key: str, stations: Dict[str, StationMeta], cutoff_year: int, force: bool) -> dict:
+    if cache_file.exists() and not force:
+        try:
+            with gzip.open(cache_file, "rb") as handle:
+                payload = pickle.load(handle)
+            if payload.get("format_version") == AEMET_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
+                log(f"Verwende historischen AEMET-Cache: {cache_file}")
+                return payload
+        except Exception as exc:
+            log(f"AEMET-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
+    payload = build_aemet_baseline(api_key, stations, cutoff_year)
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+    with gzip.open(tmp, "wb", compresslevel=5) as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(cache_file)
+    log(f"AEMET-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
+    return payload
+
+
+def parse_current_aemet_year(year: int, api_key: str, stations: Dict[str, StationMeta]) -> dict:
+    start = dt.datetime(year, 1, 1, 0, 0, 0)
+    end = dt.datetime(year, 12, 31, 23, 59, 59)
+    log(f"Lade AEMET Spanien {year} über OpenData …")
+    rows = aemet_api_dataset(aemet_daily_path(start, end), api_key, allow_empty=True)
+    _partial, current = parse_aemet_rows(rows, stations, exact_year=year)
+    log(f"AEMET {year}: {len(current):,} Stationen mit TMAX/TMIN-Daten.")
+    return current
 
 def date_str(date_int: Optional[int]) -> Optional[str]:
     if not date_int:
@@ -985,15 +1472,16 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], states: 
         "payload_version": PAYLOAD_VERSION,
         "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "current_year": current_year, "historical_through": current_year - 1,
-        "source": "DWD CDC (Deutschland) + Météo-France (Frankreich) + GHCN-Daily (übriges Europa)",
+        "source": "DWD CDC (Deutschland) + Météo-France (Frankreich) + AEMET OpenData (Spanien) + GHCN-Daily (übriges Europa)",
         "source_url": MF_PUBLIC_BASE,
         "sources": [
             {"name": DWD_SOURCE, "scope": "Deutschland", "url": DWD_BASE, "stations": source_counts.get(DWD_SOURCE, 0)},
             {"name": MF_SOURCE, "scope": "Frankreich", "url": MF_PUBLIC_BASE, "stations": source_counts.get(MF_SOURCE, 0)},
+            {"name": AEMET_SOURCE, "scope": "Spanien", "url": AEMET_PUBLIC_URL, "stations": source_counts.get(AEMET_SOURCE, 0)},
             {"name": GHCN_SOURCE, "scope": "übriges Europa", "url": GHCN_BASE, "stations": source_counts.get(GHCN_SOURCE, 0)},
         ],
-        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
-        "history_scope": "DWD-KL für Deutschland; Météo-France tägliche Klimadaten (Haupt- und Ergänzungsstationen) für Frankreich; GHCN-Daily für das übrige Europa. Das laufende Jahr wird separat aktualisiert.",
+        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. Spanien: AEMET OpenData Tagesklimatologie tmax/tmin wie veröffentlicht; fehlende/nichtnumerische Werte verworfen. Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
+        "history_scope": "DWD-KL für Deutschland; Météo-France tägliche Klimadaten (Haupt- und Ergänzungsstationen) für Frankreich; AEMET OpenData tägliche Klimatologien für Spanien (historisch in maximal 5-Jahres-Blöcken); GHCN-Daily für das übrige Europa. Das laufende Jahr wird separat aktualisiert.",
         "station_count": len(station_rows), "country_count": len(countries), "countries": countries,
         "calendar_url_pattern": "europe_stations/calendar/{mmdd}.json.gz",
         "calendar_schema": ["station_index", "record_tenths_c", "record_date_yyyymmdd", "previous_tenths_c", "previous_date_yyyymmdd", "current_tenths_c", "current_date_yyyymmdd", "strict_new_record", "difference_tenths_c"],
@@ -1044,6 +1532,20 @@ def self_test() -> None:
     assert mf_state["TMAX"]["abs"][0] == 123 and mf_state["TMIN"]["abs"][0] == -45
     assert "MF:75114001" in mf_meta
 
+    assert abs(aemet_coord("404708N", is_lat=True) - (40 + 47/60 + 8/3600)) < 1e-6
+    assert abs(aemet_coord("0034021W", is_lat=False) - (-(3 + 40/60 + 21/3600))) < 1e-6
+    aemet_meta = {
+        "AEMET:3195": StationMeta("AEMET:3195", 40.47, -3.58, 609.0, "MADRID, RETIRO", "ES", "Spanien", AEMET_SOURCE, "test")
+    }
+    aemet_rows = [
+        {"fecha":"2025-01-01", "indicativo":"3195", "tmax":"12,3", "tmin":"-4,5"},
+        {"fecha":"2025-01-02", "indicativo":"3195", "tmax":"11.0", "tmin":"-2.0"},
+    ]
+    a_part, _a_cur = parse_aemet_rows(aemet_rows, aemet_meta, cutoff_year=2025)
+    a_state = finalize_mf_states(a_part)["AEMET:3195"]
+    assert a_state["TMAX"]["abs"][0] == 123 and a_state["TMIN"]["abs"][0] == -45
+    assert aemet_year_blocks(2000, 2011) == [(2000,2004),(2005,2009),(2010,2011)]
+
     final, new, delta = combine_record((123, 20250101, 1), (130, 20260101), "TMAX")
     assert new and final[0] == 130 and abs(delta - 0.7) < 1e-9
     final, new, delta = combine_record((-50, 20250101, 1), (-60, 20260101), "TMIN")
@@ -1055,9 +1557,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="europe_stations")
     parser.add_argument("--cache-dir", default=".cache/europe-stations")
-    parser.add_argument("--force-baseline", action="store_true", help="GHCN, DWD und Météo-France historische Baselines neu aufbauen")
+    parser.add_argument("--force-baseline", action="store_true", help="GHCN, DWD, Météo-France und AEMET historische Baselines neu aufbauen")
     parser.add_argument("--force-dwd-baseline", action="store_true", help="Nur DWD-Baseline neu aufbauen")
     parser.add_argument("--force-mf-baseline", action="store_true", help="Nur Météo-France-Baseline neu aufbauen")
+    parser.add_argument("--force-aemet-baseline", action="store_true", help="Nur AEMET-Spanien-Baseline neu aufbauen")
     parser.add_argument("--dwd-workers", type=int, default=6)
     parser.add_argument("--mf-workers", type=int, default=6)
     parser.add_argument("--year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
@@ -1068,10 +1571,11 @@ def main() -> int:
         self_test(); return 0
 
     current_year = args.year; cutoff_year = current_year - 1
+    aemet_key = aemet_api_key()
 
     countries = parse_countries(read_url_text(COUNTRIES_URL))
     ghcn_stations = parse_ghcn_stations(read_url_text(STATIONS_URL), countries)
-    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland/Frankreich ausgeschlossen): {len(ghcn_stations):,}")
+    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland/Frankreich/Spanien ausgeschlossen): {len(ghcn_stations):,}")
     if not ghcn_stations:
         raise RuntimeError("Keine europäischen GHCN-Stationen gefunden.")
 
@@ -1086,25 +1590,30 @@ def main() -> int:
     ghcn_cache = cache_dir / f"ghcn_europe_baseline_through_{cutoff_year}_v{GHCN_BASELINE_FORMAT_VERSION}.pkl.gz"
     dwd_cache = cache_dir / f"dwd_germany_kl_baseline_through_{cutoff_year}_v{DWD_BASELINE_FORMAT_VERSION}.pkl.gz"
     mf_cache = cache_dir / f"meteofrance_daily_baseline_through_{cutoff_year}_v{MF_BASELINE_FORMAT_VERSION}.pkl.gz"
+    aemet_cache = cache_dir / f"aemet_spain_daily_baseline_through_{cutoff_year}_v{AEMET_BASELINE_FORMAT_VERSION}.pkl.gz"
+
+    aemet_stations = load_aemet_inventory(aemet_key)
 
     ghcn_baseline = load_or_build_ghcn_baseline(ghcn_cache, ghcn_stations, cutoff_year, args.force_baseline)
     dwd_baseline = load_or_build_dwd_baseline(dwd_cache, dwd_stations, cutoff_year, args.force_baseline or args.force_dwd_baseline, args.dwd_workers)
     mf_baseline = load_or_build_mf_baseline(mf_cache, cutoff_year, args.force_baseline or args.force_mf_baseline, args.mf_workers)
+    aemet_baseline = load_or_build_aemet_baseline(aemet_cache, aemet_key, aemet_stations, cutoff_year, args.force_baseline or args.force_aemet_baseline)
 
     ghcn_current = parse_current_ghcn_year(current_year, ghcn_stations)
     dwd_current = parse_current_dwd_year(current_year, dwd_stations, workers=max(4, args.dwd_workers))
     mf_current, mf_current_stations = parse_current_mf_year(current_year, workers=max(4, args.mf_workers))
+    aemet_current = parse_current_aemet_year(current_year, aemet_key, aemet_stations)
 
     mf_stations = dict(mf_baseline.get("stations", {})); mf_stations.update(mf_current_stations)
     log(f"Météo-France-Stationsmetadaten Frankreich: {len(mf_stations):,}")
     if not mf_stations:
         raise RuntimeError("Keine Météo-France-Stationen gefunden.")
 
-    stations = dict(ghcn_stations); stations.update(dwd_stations); stations.update(mf_stations)
-    # Filter older GHCN caches to the V4 fallback metadata set, then add national sources.
+    stations = dict(ghcn_stations); stations.update(dwd_stations); stations.update(mf_stations); stations.update(aemet_stations)
+    # Filter older GHCN caches to the V5 fallback metadata set, then add national sources.
     states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
-    states.update(dwd_baseline.get("states", {})); states.update(mf_baseline.get("states", {}))
-    current = dict(ghcn_current); current.update(dwd_current); current.update(mf_current)
+    states.update(dwd_baseline.get("states", {})); states.update(mf_baseline.get("states", {})); states.update(aemet_baseline.get("states", {}))
+    current = dict(ghcn_current); current.update(dwd_current); current.update(mf_current); current.update(aemet_current)
 
     merge_and_write(Path(args.output), stations, states, current, current_year)
     return 0
