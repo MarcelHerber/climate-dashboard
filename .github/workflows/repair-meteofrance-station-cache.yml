@@ -1,0 +1,88 @@
+name: Repair Météo-France station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "Parallele Problemdateien (empfohlen: 4)"
+        required: false
+        default: "4"
+        type: choice
+        options:
+          - "2"
+          - "4"
+          - "6"
+      chunk_mib:
+        description: "Range-Blockgröße in MiB (empfohlen: 2)"
+        required: false
+        default: "2"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-meteofrance-station-cache
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Jahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: Besten Météo-France-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: meteofrance-repair-v4-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            meteofrance-repair-v4-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v4-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Reparaturskript prüfen
+        shell: bash
+        run: |
+          test -s scripts/repair_meteofrance_station_cache.py
+          test -s scripts/update_europe_station_records.py
+          python scripts/repair_meteofrance_station_cache.py --self-test
+          echo "Vorhandene Frankreich-Shards vor Repair:"
+          find .cache/europe-stations -maxdepth 2 -type f -path '*meteofrance_resources*/*.pkl.gz' | wc -l
+
+      - name: Nur fehlende Météo-France-Ressourcen reparieren
+        shell: bash
+        run: |
+          python scripts/repair_meteofrance_station_cache.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            --cache-dir .cache/europe-stations \
+            --workers "${{ github.event.inputs.workers || '4' }}" \
+            --chunk-mib "${{ github.event.inputs.chunk_mib || '2' }}" \
+            --chunk-retries 5 \
+            --timeout 120
+
+      # This step is reached normally because unresolved source files are warnings,
+      # not a Python exit-code failure. That is intentional: every repaired shard
+      # must survive into the next workflow run.
+      - name: Reparierten Frankreich-Cache sichern
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: meteofrance-repair-v4-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
