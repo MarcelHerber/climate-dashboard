@@ -143,6 +143,16 @@ jobs:
               raise SystemExit('Spanien muss bis AEMET über GHCN enthalten bleiben.')
           if at and any(x.get('source')=='GeoSphere Austria' for x in at) and not all(x.get('source')=='GeoSphere Austria' for x in at):
               raise SystemExit('Österreich enthält nach nationaler Umstellung noch gemischte Quellen.')
+          cov=p.get('coverage',{})
+          rest=cov.get('Rest-Europa',{})
+          austria_cov=cov.get('Österreich',{})
+          print('Spanien current via GHCN:', rest.get('spain_current_year_station_count'))
+          if rest.get('current_year_refresh_ok') and int(rest.get('spain_current_year_station_count') or 0) <= 0:
+              raise SystemExit('GHCN-current wurde als erfolgreich markiert, enthält aber keine spanischen Stationen.')
+          if austria_cov:
+              print('Österreich current via GeoSphere:', austria_cov.get('current_year_station_count'))
+              if austria_cov.get('current_year_refresh_ok') and int(austria_cov.get('current_year_station_count') or 0) <= 0:
+                  raise SystemExit('GeoSphere-current wurde als erfolgreich markiert, enthält aber keine österreichischen Stationen.')
           if len(countries) < 10:
               raise SystemExit(f'Zu wenige Länder im Europa-Publish: {len(countries)}')
           print('Europa Publish-Prüfung OK.')
