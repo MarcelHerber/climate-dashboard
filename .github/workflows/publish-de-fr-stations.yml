@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           test -s scripts/update_europe_station_records.py
-          test -s scripts/publish_europe_station_records.py
+          test -s scripts/build_europe_station_records.py
           test -s scripts/update_geosphere_austria_station_cache.py
           echo "Gefundene GHCN-Caches:"
           find .cache/europe-stations -maxdepth 1 -type f -name 'ghcn_europe_baseline_*.pkl.gz' -print || true
@@ -90,7 +90,7 @@ jobs:
           find .cache/europe-stations -maxdepth 2 -type f -path '*meteofrance_resources*/*.pkl.gz' | wc -l
           echo "Gefundener GeoSphere-Austria-Cache:"
           find .cache/europe-stations -maxdepth 1 -type f -name 'geosphere_austria_daily_baseline_*.pkl.gz' -print || true
-          python scripts/publish_europe_station_records.py --self-test
+          python scripts/build_europe_station_records.py --self-test
 
       - name: Vollständige Europa-Frontend-Daten erzeugen
         shell: bash
@@ -101,7 +101,7 @@ jobs:
           if [[ "$INCLUDE_CURRENT" != "true" ]]; then
             EXTRA_ARGS="--no-current"
           fi
-          python scripts/publish_europe_station_records.py \
+          python scripts/build_europe_station_records.py \
             --year "${{ steps.dates.outputs.year }}" \
             --cache-dir .cache/europe-stations \
             --output europe_stations \
