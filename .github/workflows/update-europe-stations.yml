@@ -81,7 +81,7 @@ jobs:
           p=json.loads(Path('europe_stations/index.json').read_text(encoding='utf-8'))
           assert p.get('payload_version') == 1
           assert p.get('station_count',0) > 0
-          print('Stations-V1 OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern')
+          print('Stations-Daten OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern')
           PY
 
       - name: Daten committen
