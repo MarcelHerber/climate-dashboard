@@ -45,6 +45,15 @@ jobs:
             europe-stations-v4-${{ steps.dates.outputs.base_year }}-
             europe-stations-v3-${{ steps.dates.outputs.base_year }}-
 
+      - name: DWD-Skripte prüfen
+        shell: bash
+        run: |
+          echo "Prüfe benötigte Dateien im Checkout …"
+          ls -la scripts/
+          test -f scripts/update_dwd_station_cache.py || { echo "FEHLER: scripts/update_dwd_station_cache.py fehlt im GitHub-Repository."; exit 1; }
+          test -f scripts/update_europe_station_records.py || { echo "FEHLER: scripts/update_europe_station_records.py fehlt im GitHub-Repository."; exit 1; }
+          echo "DWD-Split-Skripte vorhanden."
+
       - name: Nur DWD-Historie bearbeiten
         shell: bash
         env:
