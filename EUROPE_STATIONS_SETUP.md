@@ -93,17 +93,17 @@ Der Workflow prüft am Ende automatisch:
 
 Die 366 Tagesarchive bleiben unter `europe_stations/calendar/MM-DD.json.gz` kompatibel mit der bisherigen Kartenlogik.
 
-## Météo-France Retry-Cache (V5.1)
+## Météo-France Schnellpass-Cache (V5.2)
 
-Météo-France liefert einzelne große `csv.gz`-Ressourcen gelegentlich mit einem vorzeitig beendeten gzip-Stream. V5.1 behandelt das gezielt:
+Die historische Frankreich-Baseline arbeitet jetzt bewusst ohne dreifache Wiederholung innerhalb desselben Laufs:
 
-- jede historische Météo-France-Ressource wird nach erfolgreichem Parsen als eigener Cache-Shard gespeichert;
-- bei einem unvollständigen gzip-Stream wird nur diese Datei frisch erneut heruntergeladen (bis zu 3 Versuche);
-- bleiben nach 3 Versuchen Dateien fehlerhaft, stoppt der Workflow bewusst, speichert aber die bereits erfolgreichen Shards trotzdem im GitHub-Actions-Cache;
-- beim nächsten Lauf werden die erfolgreichen Dateien aus dem Shard-Cache übernommen und nur noch die fehlenden/problematischen Ressourcen erneut geladen;
-- Details zu verbliebenen Fehlern stehen im Cache als `meteofrance_failed_resources_through_<JAHR>.json`.
+- jede noch fehlende Météo-France-Ressource wird pro Workflow-Lauf genau **einmal** heruntergeladen und gelesen;
+- erfolgreiche Ressourcen werden sofort als eigener Cache-Shard gespeichert;
+- fehlerhafte/trunkierte gzip-Ressourcen werden nur im Fehlerbericht notiert;
+- der Job darf bei verbleibenden Fehlern rot enden, der Cache wird mit `if: always()` trotzdem gesichert;
+- beim nächsten Lauf werden alle vorhandenen Shards übersprungen und damit automatisch nur die noch fehlenden/problematischen Ressourcen erneut einmal versucht.
 
-Wichtig nach einem fehlgeschlagenen alten V4-Lauf: Da V4 die erfolgreichen Einzeldateien noch nicht persistent gespeichert hat, ist beim ersten Lauf mit V5.1 leider noch einmal ein vollständiger Frankreich-Durchlauf nötig. Ab diesem V5.1-Lauf sind Wiederholungen dann inkrementell.
+Beispiel: Sind nach dem ersten Schnellpass 383/423 Ressourcen sauber, werden beim nächsten Lauf nur noch die 40 fehlenden Ressourcen geladen. Dadurch kostet eine reproduzierbar defekte Datei nicht drei Downloads im selben langen Erstlauf. Für die laufenden Jahresdaten bleibt die separate Retry-Logik erhalten.
 
 ## Getrennte Baseline-Workflows (empfohlen)
 
