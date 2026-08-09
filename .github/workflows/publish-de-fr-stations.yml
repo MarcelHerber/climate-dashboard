@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       include_current_year:
-        description: "Laufendes Jahr für GHCN + DWD + Météo-France + GeoSphere Austria aktualisieren"
+        description: "Laufendes Jahr für GHCN + DWD + Météo-France + GeoSphere Austria + IMGW Polen aktualisieren"
         required: false
         default: true
         type: boolean
@@ -76,12 +76,21 @@ jobs:
           restore-keys: |
             geosphere-austria-v1-${{ steps.dates.outputs.base_year }}-
 
+      - name: IMGW-Polen-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: publish-pl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
+
       - name: Caches und Skripte prüfen
         shell: bash
         run: |
           test -s scripts/update_europe_station_records.py
           test -s scripts/build_europe_station_records.py
           test -s scripts/update_geosphere_austria_station_cache.py
+          test -s scripts/update_imgw_poland_station_cache.py
           echo "Gefundene GHCN-Caches:"
           find .cache/europe-stations -maxdepth 1 -type f -name 'ghcn_europe_baseline_*.pkl.gz' -print || true
           echo "Gefundene DWD-Caches:"
@@ -90,6 +99,8 @@ jobs:
           find .cache/europe-stations -maxdepth 2 -type f -path '*meteofrance_resources*/*.pkl.gz' | wc -l
           echo "Gefundener GeoSphere-Austria-Cache:"
           find .cache/europe-stations -maxdepth 1 -type f -name 'geosphere_austria_daily_baseline_*.pkl.gz' -print || true
+          echo "Gefundener IMGW-Polen-Cache:"
+          find .cache/europe-stations -maxdepth 1 -type f -name 'imgw_poland_daily_baseline_*.pkl.gz' -print || true
           python scripts/build_europe_station_records.py --self-test
 
       - name: Vollständige Europa-Frontend-Daten erzeugen
@@ -124,6 +135,7 @@ jobs:
           fr=[x for x in rows if x.get('country')=='Frankreich']
           es=[x for x in rows if x.get('country')=='Spanien']
           at=[x for x in rows if x.get('country')=='Österreich']
+          pl=[x for x in rows if x.get('country')=='Polen']
           ghcn=[x for x in rows if x.get('source')=='GHCN-Daily']
           countries={x.get('country') for x in rows}
           print('Payload:', p.get('payload_version'))
@@ -132,6 +144,7 @@ jobs:
           print('Frankreich/Météo-France:', len(fr))
           print('Spanien/GHCN:', len(es))
           print('Österreich:', len(at), 'Quelle(n):', sorted({x.get('source') for x in at}))
+          print('Polen:', len(pl), 'Quelle(n):', sorted({x.get('source') for x in pl}))
           print('GHCN Rest-Europa gesamt:', len(ghcn))
           if not de or not fr or not es or not ghcn:
               raise SystemExit('Europa-Publish unvollständig: DE/FR/ES/GHCN darf nicht fehlen.')
@@ -143,9 +156,12 @@ jobs:
               raise SystemExit('Spanien muss bis AEMET über GHCN enthalten bleiben.')
           if at and any(x.get('source')=='GeoSphere Austria' for x in at) and not all(x.get('source')=='GeoSphere Austria' for x in at):
               raise SystemExit('Österreich enthält nach nationaler Umstellung noch gemischte Quellen.')
+          if pl and any(x.get('source')=='IMGW-PIB' for x in pl) and not all(x.get('source')=='IMGW-PIB' for x in pl):
+              raise SystemExit('Polen enthält nach nationaler Umstellung noch gemischte Quellen.')
           cov=p.get('coverage',{})
           rest=cov.get('Rest-Europa',{})
           austria_cov=cov.get('Österreich',{})
+          poland_cov=cov.get('Polen',{})
           print('Spanien current via GHCN:', rest.get('spain_current_year_station_count'))
           if rest.get('current_year_refresh_ok') and int(rest.get('spain_current_year_station_count') or 0) <= 0:
               raise SystemExit('GHCN-current wurde als erfolgreich markiert, enthält aber keine spanischen Stationen.')
@@ -153,6 +169,10 @@ jobs:
               print('Österreich current via GeoSphere:', austria_cov.get('current_year_station_count'))
               if austria_cov.get('current_year_refresh_ok') and int(austria_cov.get('current_year_station_count') or 0) <= 0:
                   raise SystemExit('GeoSphere-current wurde als erfolgreich markiert, enthält aber keine österreichischen Stationen.')
+          if poland_cov:
+              print('Polen current via IMGW:', poland_cov.get('current_year_station_count'), 'bis Monat', poland_cov.get('current_year_latest_published_month'))
+              if poland_cov.get('current_year_refresh_ok') and int(poland_cov.get('current_year_station_count') or 0) <= 0:
+                  raise SystemExit('IMGW-current wurde als erfolgreich markiert, enthält aber keine polnischen Stationen.')
           if len(countries) < 10:
               raise SystemExit(f'Zu wenige Länder im Europa-Publish: {len(countries)}')
           print('Europa Publish-Prüfung OK.')
