@@ -134,3 +134,14 @@ Workflow: **Publish Germany + France station records** (`.github/workflows/publi
 Dieser Workflow baut **keine historischen Baselines neu auf**. Er stellt den vorhandenen DWD-Historical-Cache und den letzten erfolgreich gespeicherten Météo-France-Einzelcache wieder her, setzt daraus `europe_stations/` zusammen und committet die Frontend-Daten. Ein unvollständiger Frankreich-Zwischenstand blockiert die Veröffentlichung nicht; die Abdeckung wird in `europe_stations/index.json` unter `coverage` dokumentiert.
 
 Standardmäßig werden vor dem Publish die Daten des laufenden Jahres aus DWD recent und Météo-France current aktualisiert. Für einen besonders schnellen reinen Historical-Publish kann `include_current_year=false` gewählt werden.
+
+## Permanente Publish-Regel
+
+Die Europa-Karte bleibt bei jeder Zwischenveröffentlichung vollständig. Nationale Datenquellen ersetzen GHCN-Daily immer nur für das jeweilige Land:
+
+- Deutschland: DWD CDC statt GHCN-Daily
+- Frankreich: Météo-France statt GHCN-Daily
+- Spanien: vorerst GHCN-Daily; erst nach fertigem AEMET-Cache wird Spanien auf AEMET OpenData umgestellt
+- übriges Europa: GHCN-Daily
+
+Der Workflow `Publish Europe station records` baut keine historischen Archive neu auf, sondern setzt die vorhandenen GHCN-, DWD- und Météo-France-Caches zusammen. Er bricht ab, falls GHCN-Rest-Europa oder Spanien versehentlich fehlen würden.
