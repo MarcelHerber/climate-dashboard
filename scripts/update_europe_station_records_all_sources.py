@@ -15,8 +15,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import gzip
 import json
 import os
+import pickle
+import shutil
+import time
 from pathlib import Path
 
 import update_europe_station_records as core
@@ -26,6 +30,277 @@ import update_imgw_poland_station_cache as poland
 
 def log(message: str) -> None:
     core.log(message)
+
+
+
+
+# AEMET OpenData daily climatology requests must stay small.  The all-stations
+# daily endpoint is handled in 14-day windows (below the 15-calendar-day
+# ceiling used by our validated AEMET tooling).  Historical windows are cached
+# individually so a long bootstrap survives timeouts/network interruptions.
+AEMET_SAFE_START_YEAR = 1920
+AEMET_WINDOW_DAYS = 14
+AEMET_RESOURCE_FORMAT_VERSION = 2
+AEMET_BASELINE_FORMAT_VERSION = 2
+AEMET_REQUEST_PAUSE_SECONDS = 3.3
+
+
+def _aemet_windows(start: dt.date, end: dt.date, days: int = AEMET_WINDOW_DAYS):
+    if days < 1 or days > 15:
+        raise ValueError("AEMET-Zeitfenster muss zwischen 1 und 15 Kalendertagen liegen.")
+    if end < start:
+        return []
+    result = []
+    cursor = start
+    delta = dt.timedelta(days=days - 1)
+    while cursor <= end:
+        stop = min(end, cursor + delta)
+        result.append((cursor, stop))
+        cursor = stop + dt.timedelta(days=1)
+    return result
+
+
+def _aemet_resource_dir(cache_dir: Path, cutoff_year: int) -> Path:
+    return cache_dir / (
+        f"aemet_spain_resources_through_{cutoff_year}_v{AEMET_RESOURCE_FORMAT_VERSION}"
+    )
+
+
+def _aemet_resource_path(resource_dir: Path, start: dt.date, end: dt.date) -> Path:
+    return resource_dir / f"{start:%Y%m%d}_{end:%Y%m%d}.pkl.gz"
+
+
+def _read_pickle_gz(path: Path):
+    with gzip.open(path, "rb") as handle:
+        return pickle.load(handle)
+
+
+def _write_pickle_gz(path: Path, payload) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with gzip.open(tmp, "wb", compresslevel=5) as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(path)
+
+
+def _fetch_aemet_partial(
+    api_key: str,
+    stations: dict,
+    start: dt.date,
+    end: dt.date,
+    *,
+    cutoff_year: int,
+):
+    start_dt = dt.datetime.combine(start, dt.time.min)
+    end_dt = dt.datetime.combine(end, dt.time(23, 59, 59))
+    rows = core.aemet_api_dataset(
+        core.aemet_daily_path(start_dt, end_dt),
+        api_key,
+        allow_empty=True,
+    )
+    part, _current = core.parse_aemet_rows(
+        rows, stations, cutoff_year=cutoff_year
+    )
+    return part
+
+
+def load_or_build_aemet_baseline_safe(
+    cache_dir: Path,
+    api_key: str,
+    stations: dict,
+    cutoff_year: int,
+    *,
+    force: bool = False,
+) -> dict:
+    cache_file = cache_dir / (
+        f"aemet_spain_daily_baseline_through_{cutoff_year}_v"
+        f"{AEMET_BASELINE_FORMAT_VERSION}.pkl.gz"
+    )
+    if cache_file.exists() and not force:
+        try:
+            payload = _read_pickle_gz(cache_file)
+            if (
+                payload.get("format_version") == AEMET_BASELINE_FORMAT_VERSION
+                and payload.get("cutoff_year") == cutoff_year
+            ):
+                log(f"Verwende historischen AEMET-Cache: {cache_file}")
+                return payload
+        except Exception as exc:
+            log(f"AEMET-Gesamtcache konnte nicht gelesen werden ({exc}); Neuaufbau aus Einzelcache.")
+
+    start_year = max(AEMET_SAFE_START_YEAR, min(core.AEMET_BASELINE_START_YEAR, cutoff_year))
+    start_date = dt.date(start_year, 1, 1)
+    end_date = dt.date(cutoff_year, 12, 31)
+    windows = _aemet_windows(start_date, end_date)
+    resource_dir = _aemet_resource_dir(cache_dir, cutoff_year)
+    if force and resource_dir.exists():
+        shutil.rmtree(resource_dir)
+    resource_dir.mkdir(parents=True, exist_ok=True)
+
+    log(
+        f"AEMET Spanien Baseline {start_year}–{cutoff_year}: {len(windows):,} "
+        f"Zeitfenster à maximal {AEMET_WINDOW_DAYS} Tage; Einzelcache aktiv."
+    )
+    partial = {}
+    cached = 0
+    downloaded = 0
+    failures = []
+
+    for i, (start, end) in enumerate(windows, start=1):
+        path = _aemet_resource_path(resource_dir, start, end)
+        part = None
+        if path.exists() and not force:
+            try:
+                saved = _read_pickle_gz(path)
+                if (
+                    saved.get("format_version") == AEMET_RESOURCE_FORMAT_VERSION
+                    and saved.get("start") == start.isoformat()
+                    and saved.get("end") == end.isoformat()
+                ):
+                    part = saved.get("partial", {})
+                    cached += 1
+            except Exception as exc:
+                log(f"WARNUNG AEMET Einzelcache {path.name} unlesbar ({exc}); lade neu.")
+
+        if part is None:
+            try:
+                part = _fetch_aemet_partial(
+                    api_key, stations, start, end, cutoff_year=cutoff_year
+                )
+                _write_pickle_gz(
+                    path,
+                    {
+                        "format_version": AEMET_RESOURCE_FORMAT_VERSION,
+                        "start": start.isoformat(),
+                        "end": end.isoformat(),
+                        "partial": part,
+                    },
+                )
+                downloaded += 1
+            except Exception as exc:
+                failures.append((start, end, str(exc)))
+                log(f"FEHLER AEMET {start}–{end}: {exc}")
+                continue
+            finally:
+                # A dataset call means two HTTP connections (envelope + datos).
+                # Stay deliberately gentle to AEMET OpenData.
+                time.sleep(AEMET_REQUEST_PAUSE_SECONDS)
+
+        core.merge_mf_partial(partial, part)
+        if i == 1 or i % 100 == 0 or i == len(windows):
+            log(
+                f"  AEMET historical: {i:,}/{len(windows):,} Fenster | "
+                f"Cache {cached:,} | neu {downloaded:,} | Fehler {len(failures):,} | "
+                f"{len(partial):,} Stationscodes …"
+            )
+
+    if failures:
+        status = {
+            "source": core.AEMET_SOURCE,
+            "cutoff_year": cutoff_year,
+            "start_year": start_year,
+            "window_days": AEMET_WINDOW_DAYS,
+            "resource_count": len(windows),
+            "cached": cached,
+            "downloaded": downloaded,
+            "missing": len(failures),
+            "complete": False,
+            "failures": [
+                {"start": a.isoformat(), "end": b.isoformat(), "error": err}
+                for a, b, err in failures[:50]
+            ],
+        }
+        status_path = cache_dir / f"aemet_spain_status_through_{cutoff_year}.json"
+        status_path.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+        raise RuntimeError(
+            f"AEMET-Baseline noch unvollständig: {len(failures)} von {len(windows)} "
+            "14-Tage-Fenstern fehlen. Erfolgreiche Fenster sind einzeln gecacht; "
+            "mit force=false erneut starten."
+        )
+
+    states = core.finalize_mf_states(partial)
+    if not states:
+        raise RuntimeError("AEMET-Basisbestand enthält trotz gültiger 14-Tage-Abfragen keine TMAX/TMIN-Daten.")
+
+    payload = {
+        "format_version": AEMET_BASELINE_FORMAT_VERSION,
+        "cutoff_year": cutoff_year,
+        "start_year": start_year,
+        "window_days": AEMET_WINDOW_DAYS,
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "states": states,
+    }
+    _write_pickle_gz(cache_file, payload)
+    status_path = cache_dir / f"aemet_spain_status_through_{cutoff_year}.json"
+    status_path.write_text(
+        json.dumps(
+            {
+                "source": core.AEMET_SOURCE,
+                "cutoff_year": cutoff_year,
+                "start_year": start_year,
+                "window_days": AEMET_WINDOW_DAYS,
+                "resource_count": len(windows),
+                "cached": cached,
+                "downloaded": downloaded,
+                "missing": 0,
+                "complete": True,
+                "station_count": len(states),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    log(
+        f"AEMET Spanien Baseline OK: {len(states):,} Stationen bis {cutoff_year}; "
+        f"{len(windows):,}/{len(windows):,} Zeitfenster vollständig."
+    )
+    return payload
+
+
+def parse_current_aemet_year_safe(year: int, api_key: str, stations: dict) -> dict:
+    today = dt.datetime.now(dt.timezone.utc).date()
+    start = dt.date(year, 1, 1)
+    end = min(today, dt.date(year, 12, 31))
+    if end < start:
+        return {}
+    windows = _aemet_windows(start, end)
+    log(
+        f"Lade AEMET Spanien {year}: {len(windows)} Zeitfenster à maximal "
+        f"{AEMET_WINDOW_DAYS} Tage …"
+    )
+    current = {}
+    failures = []
+    for i, (a, b) in enumerate(windows, start=1):
+        a_dt = dt.datetime.combine(a, dt.time.min)
+        b_dt = dt.datetime.combine(b, dt.time(23, 59, 59))
+        try:
+            rows = core.aemet_api_dataset(
+                core.aemet_daily_path(a_dt, b_dt), api_key, allow_empty=True
+            )
+            _partial, part = core.parse_aemet_rows(rows, stations, exact_year=year)
+            for sid, state in part.items():
+                dst = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
+                dst["TMAX"].update(state.get("TMAX", {}))
+                dst["TMIN"].update(state.get("TMIN", {}))
+        except Exception as exc:
+            failures.append((a, b, str(exc)))
+            log(f"WARNUNG AEMET current {a}–{b}: {exc}")
+        finally:
+            time.sleep(AEMET_REQUEST_PAUSE_SECONDS)
+        if i % 10 == 0 or i == len(windows):
+            log(
+                f"  AEMET {year}: {i}/{len(windows)} Fenster, "
+                f"{len(current):,} Stationen, Fehler {len(failures)} …"
+            )
+    if failures and len(failures) > max(2, int(len(windows) * 0.15)):
+        raise RuntimeError(
+            f"Zu viele AEMET-Current-Fehler: {len(failures)} von {len(windows)} Zeitfenstern."
+        )
+    if not current:
+        raise RuntimeError(f"AEMET lieferte für {year} keine aktuellen TMAX/TMIN-Daten.")
+    log(f"AEMET {year}: {len(current):,} Stationen mit TMAX/TMIN-Daten.")
+    return current
 
 
 def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, workers: int) -> dict:
@@ -134,7 +409,8 @@ def patch_index_metadata(
     )
     payload["history_scope"] = (
         f"Historische Baselines bis {current_year - 1}: DWD Deutschland, "
-        "Météo-France Frankreich, AEMET Spanien, GeoSphere Austria Österreich, "
+        f"Météo-France Frankreich, AEMET Spanien ab {AEMET_SAFE_START_YEAR}, "
+        "GeoSphere Austria Österreich, "
         "IMGW-PIB Polen und GHCN-Daily für das übrige Europa. "
         f"Das laufende Jahr {current_year} wird bei jedem täglichen Workflow-Lauf separat aktualisiert."
     )
@@ -146,7 +422,11 @@ def patch_index_metadata(
     payload["coverage"] = {
         "Deutschland": {"source": core.DWD_SOURCE, "historical_complete": True},
         "Frankreich": {"source": core.MF_SOURCE, "historical_complete": True},
-        "Spanien": {"source": core.AEMET_SOURCE, "historical_complete": True},
+        "Spanien": {
+            "source": core.AEMET_SOURCE,
+            "historical_complete": True,
+            "historical_start_year": AEMET_SAFE_START_YEAR,
+        },
         "Österreich": {
             "source": austria.SOURCE,
             "historical_complete": True,
@@ -242,6 +522,10 @@ def self_test() -> None:
         assert poland.SOURCE in sources
         assert core.AEMET_SOURCE in sources
         assert patched["coverage"]["Polen"]["current_year_latest_published_month"] == 8
+        test_windows = _aemet_windows(dt.date(2026, 1, 1), dt.date(2026, 2, 1))
+        assert test_windows[0] == (dt.date(2026, 1, 1), dt.date(2026, 1, 14))
+        assert test_windows[-1][1] == dt.date(2026, 2, 1)
+        assert all((b - a).days + 1 <= 14 for a, b in test_windows)
     print("Unified Europe updater self-test OK")
 
 
@@ -320,10 +604,6 @@ def main() -> int:
         f"meteofrance_daily_baseline_through_{cutoff_year}_v"
         f"{core.MF_BASELINE_FORMAT_VERSION}.pkl.gz"
     )
-    aemet_cache = cache_dir / (
-        f"aemet_spain_daily_baseline_through_{cutoff_year}_v"
-        f"{core.AEMET_BASELINE_FORMAT_VERSION}.pkl.gz"
-    )
 
     force_all = args.force_baseline
     ghcn_baseline = core.load_or_build_ghcn_baseline(
@@ -342,12 +622,12 @@ def main() -> int:
         force_all or args.force_mf_baseline,
         args.mf_workers,
     )
-    aemet_baseline = core.load_or_build_aemet_baseline(
-        aemet_cache,
+    aemet_baseline = load_or_build_aemet_baseline_safe(
+        cache_dir,
         aemet_key,
         aemet_stations,
         cutoff_year,
-        force_all or args.force_aemet_baseline,
+        force=force_all or args.force_aemet_baseline,
     )
     austria_baseline = austria.load_or_build_baseline(
         cache_dir,
@@ -369,7 +649,7 @@ def main() -> int:
     mf_current, mf_current_stations = core.parse_current_mf_year(
         current_year, workers=max(4, args.mf_workers)
     )
-    aemet_current = core.parse_current_aemet_year(
+    aemet_current = parse_current_aemet_year_safe(
         current_year, aemet_key, aemet_stations
     )
     austria_current = austria.parse_current_year(
