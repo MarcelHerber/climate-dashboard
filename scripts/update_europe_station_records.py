@@ -825,11 +825,14 @@ def save_mf_resource_cache(path: Path, resource: dict, cutoff_year: int, partial
 
 
 def process_mf_historical_resource(resource: dict, cutoff_year: int, resource_cache_dir: Path, force: bool):
-    """Return one historical MF resource, re-downloading only if needed.
+    """Return one historical MF resource using FAST-PASS semantics.
 
-    Successful resources are stored as small parsed shards.  If a later run is
-    needed after a remaining bad gzip resource, all good shards are reused and
-    only the missing/broken resources are fetched again.
+    Every workflow run gets exactly ONE fresh attempt for each resource that is
+    not already present as a valid shard. Successful resources are persisted
+    immediately. Failed resources are simply listed in the failure report and
+    are therefore the only resources attempted again on the next workflow run.
+    This deliberately avoids three slow downloads of the same reproducibly
+    truncated gzip file during the initial baseline pass.
     """
     cache_path = mf_resource_cache_path(resource_cache_dir, resource, cutoff_year)
     if cache_path.exists() and not force:
@@ -842,28 +845,19 @@ def process_mf_historical_resource(resource: dict, cutoff_year: int, resource_ca
             except FileNotFoundError:
                 pass
 
-    last_error = None
-    for attempt in range(1, MF_RESOURCE_RETRIES + 1):
+    try:
+        # One HTTP attempt and one parse attempt only. If this resource is bad,
+        # the next workflow run will retry just this missing shard.
+        with http_open(resource["url"], attempts=1, timeout=240) as response:
+            partial, _current, metas = parse_mf_stream(response, cutoff_year=cutoff_year)
+        save_mf_resource_cache(cache_path, resource, cutoff_year, partial, metas)
+        return partial, metas, "download", 0
+    except Exception as exc:
         try:
-            partial, _current, metas = fetch_parse_mf(resource, cutoff_year=cutoff_year)
-            save_mf_resource_cache(cache_path, resource, cutoff_year, partial, metas)
-            return partial, metas, "download", attempt - 1
-        except Exception as exc:
-            last_error = exc
-            try:
-                cache_path.unlink()
-            except FileNotFoundError:
-                pass
-            if attempt < MF_RESOURCE_RETRIES:
-                name = Path(urllib.parse.urlparse(resource["url"]).path).name
-                wait = 3 * attempt
-                log(
-                    f"RETRY Météo-France historical {resource['dept']} {name}: "
-                    f"gzip/Download fehlgeschlagen ({exc}); frischer Download "
-                    f"{attempt + 1}/{MF_RESOURCE_RETRIES} in {wait}s …"
-                )
-                time.sleep(wait)
-    raise RuntimeError(str(last_error))
+            cache_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise RuntimeError(str(exc))
 
 
 def fetch_parse_mf_with_retries(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None, label: str = "current"):
@@ -904,7 +898,7 @@ def build_mf_baseline(cutoff_year: int, workers: int = 6, *, resource_cache_dir:
     failures: List[Tuple[dict, str]] = []
     cached_count = 0
     downloaded_count = 0
-    retry_success_count = 0
+    retry_success_count = 0  # historical fast-pass keeps this at zero; retained for report compatibility
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         futures = {
@@ -923,17 +917,11 @@ def build_mf_baseline(cutoff_year: int, workers: int = 6, *, resource_cache_dir:
                     cached_count += 1
                 else:
                     downloaded_count += 1
-                    if retries_used:
-                        retry_success_count += 1
-                        log(
-                            f"OK nach Retry Météo-France historical {r['dept']} "
-                            f"{Path(urllib.parse.urlparse(r['url']).path).name} "
-                            f"(nach {retries_used} Wiederholung(en))"
-                        )
+                    # Historical baseline uses one attempt per missing resource per workflow run.
             except Exception as exc:
                 failures.append((r, str(exc)))
                 log(
-                    f"FEHLER nach {MF_RESOURCE_RETRIES} Versuchen Météo-France historical "
+                    f"FEHLER Météo-France historical (Schnellpass, 1 Versuch) "
                     f"{r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}"
                 )
             if done % 25 == 0 or done == len(resources):
@@ -964,15 +952,14 @@ def build_mf_baseline(cutoff_year: int, workers: int = 6, *, resource_cache_dir:
 
     log(
         f"Météo-France-Dateibilanz: {len(resources)} vorgesehen | {cached_count} aus Einzelcache | "
-        f"{downloaded_count} frisch erfolgreich | {retry_success_count} davon erst nach Retry | "
-        f"{len(failures)} endgültig fehlgeschlagen."
+        f"{downloaded_count} frisch erfolgreich | {len(failures)} in diesem Schnellpass fehlgeschlagen."
     )
     if failures:
         raise RuntimeError(
-            f"Météo-France noch unvollständig: {len(failures)} von {len(resources)} Dateien "
-            f"auch nach {MF_RESOURCE_RETRIES} frischen Downloads fehlerhaft. "
+            f"Météo-France Schnellpass noch unvollständig: {len(failures)} von {len(resources)} Dateien "
+            "sind beim einmaligen Download/Lesen fehlgeschlagen. "
             f"Alle erfolgreichen Dateien wurden einzeln unter {resource_cache_dir} gecacht; "
-            "beim nächsten Lauf werden nur die fehlenden/problematischen Dateien erneut geladen. "
+            "beim nächsten Lauf werden automatisch nur die fehlenden/problematischen Dateien einmal erneut geladen. "
             f"Details: {failure_report}"
         )
 

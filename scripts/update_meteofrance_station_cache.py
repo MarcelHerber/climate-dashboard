@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build ONLY the French Météo-France historical station baseline cache.
 
-Successful source resources are cached individually. A failed French resource
-therefore never causes DWD/GHCN/AEMET to run and never discards already-good
-French resource shards.
+Successful source resources are cached individually. Historical baseline resources
+use a FAST PASS: one attempt per missing resource and workflow run, no in-run retry.
+A failed French resource therefore never causes DWD/GHCN/AEMET to run and never
+discards already-good French resource shards. The next run only retries missing shards.
 """
 from __future__ import annotations
 
@@ -54,7 +55,7 @@ def main() -> int:
     core.log("=== METEO-FRANCE-ONLY BASELINE ===")
     core.log(
         f"Ziel: Météo-France daily historical bis {cutoff_year}; "
-        "DWD, GHCN und AEMET werden nicht aufgerufen."
+        "DWD, GHCN und AEMET werden nicht aufgerufen. Schnellpass: pro fehlender Ressource genau 1 Versuch."
     )
     if shard_dir.exists() and not args.force:
         cached_shards = len(list(shard_dir.glob("*.pkl.gz")))
