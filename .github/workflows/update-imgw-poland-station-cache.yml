@@ -79,25 +79,48 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import datetime as dt, gzip, json, pickle
+          import datetime as dt, json, sys
           from pathlib import Path
-          year=dt.datetime.now(dt.timezone.utc).year
-          cutoff=year-1
-          status=Path(f'.cache/europe-stations/imgw_poland_status_through_{cutoff}.json')
+
+          scripts_dir = Path('scripts').resolve()
+          sys.path.insert(0, str(scripts_dir))
+          import update_imgw_poland_station_cache as imgw
+
+          year = dt.datetime.now(dt.timezone.utc).year
+          cutoff = year - 1
+          cache_dir = Path('.cache/europe-stations')
+
+          status = cache_dir / f'imgw_poland_status_through_{cutoff}.json'
           if not status.exists():
               raise SystemExit('IMGW-Polen-Statusdatei fehlt.')
-          s=json.loads(status.read_text(encoding='utf-8'))
-          print(json.dumps(s,ensure_ascii=False,indent=2))
+
+          s = json.loads(status.read_text(encoding='utf-8'))
+          print(json.dumps(s, ensure_ascii=False, indent=2))
           if not s.get('complete'):
-              raise SystemExit('Polen-Baseline noch unvollständig. Erfolgreiche ZIPs wurden gesichert; mit force=false erneut starten.')
-          path=Path(f'.cache/europe-stations/imgw_poland_daily_baseline_through_{cutoff}_v1.pkl.gz')
+              raise SystemExit(
+                  'Polen-Baseline noch unvollständig. Erfolgreiche ZIPs wurden gesichert; '
+                  'mit force=false erneut starten.'
+              )
+
+          # Nicht mehr auf _v1 fest verdrahten: Pfad und Formatversion kommen
+          # direkt aus dem aktuellen IMGW-Builder.
+          path = imgw.baseline_path(cache_dir, cutoff)
           if not path.exists():
               raise SystemExit(f'IMGW-Polen-Gesamtcache fehlt: {path}')
-          with gzip.open(path,'rb') as h:
-              p=pickle.load(h)
-          states=p.get('states',{}); stations=p.get('stations',{})
-          print('Polen Stationsreihen:',len(states))
-          if not states or len(states)!=len(stations):
+
+          try:
+              p = imgw.load_baseline(cache_dir, cutoff)
+          except RuntimeError as exc:
+              raise SystemExit(str(exc)) from exc
+
+          states = p.get('states', {})
+          stations = p.get('stations', {})
+          print('Polen Gesamtcache:', path)
+          print('Polen Baseline-Formatversion:', imgw.BASELINE_FORMAT_VERSION)
+          print('Polen Stationsreihen:', len(states))
+
+          if not states or len(states) != len(stations):
               raise SystemExit('IMGW-Polen-Cache leer oder Stationsmetadaten unvollständig.')
+
           print('IMGW Poland Baseline-Prüfung OK.')
           PY
