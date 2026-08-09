@@ -186,3 +186,8 @@ Beim `Publish Europe station records` gilt auch für das laufende Jahr dieselbe 
 - übriges Europa: GHCN-Daily
 
 Der Publish loggt die Zahl der spanischen GHCN-Stationen im laufenden Jahr ausdrücklich. Sobald GeoSphere Austria aktiv ist, wird Österreich aus dem GHCN-Publish-Metadatensatz entfernt und das laufende Jahr separat über GeoSphere geladen. Die Abschlussprüfung kontrolliert beide Pfade, damit Spanien nicht versehentlich aus dem GHCN-Current verschwindet und Österreich nicht mit GHCN/GeoSphere gemischt wird.
+
+
+## Polen – IMGW-PIB
+
+Polen wird separat über `Update IMGW Poland station cache` aufgebaut. Quelle sind die offiziellen täglichen Klimadaten (`dobowe/klimat`) von IMGW-PIB. Historische ZIPs werden einzeln gecacht; bei einem unterbrochenen Lauf werden erfolgreiche Dateien beim nächsten Lauf mit `force=false` wiederverwendet. Nach vollständigem Polen-Cache ersetzt IMGW nur Polen im Europa-Publish; alle übrigen Länderquellen bleiben unverändert.
