@@ -126,3 +126,11 @@ Der Job ruft ausschließlich die Météo-France-Ressourcen auf. Erfolgreiche Fra
 Erst wenn die gewünschten Länderbaselines vorliegen, **Update Europe station records** starten. Der Gesamtworkflow kann die getrennten DWD-/Frankreich-Caches wiederverwenden und erzeugt daraus die Dateien unter `europe_stations/`.
 
 **Wichtig:** `force=true` bei den Länder-Workflows nur verwenden, wenn absichtlich alles neu geladen werden soll. Normal immer `false`.
+
+## Zwischenveröffentlichung Deutschland + Frankreich
+
+Workflow: **Publish Germany + France station records** (`.github/workflows/publish-de-fr-stations.yml`).
+
+Dieser Workflow baut **keine historischen Baselines neu auf**. Er stellt den vorhandenen DWD-Historical-Cache und den letzten erfolgreich gespeicherten Météo-France-Einzelcache wieder her, setzt daraus `europe_stations/` zusammen und committet die Frontend-Daten. Ein unvollständiger Frankreich-Zwischenstand blockiert die Veröffentlichung nicht; die Abdeckung wird in `europe_stations/index.json` unter `coverage` dokumentiert.
+
+Standardmäßig werden vor dem Publish die Daten des laufenden Jahres aus DWD recent und Météo-France current aktualisiert. Für einen besonders schnellen reinen Historical-Publish kann `include_current_year=false` gewählt werden.
