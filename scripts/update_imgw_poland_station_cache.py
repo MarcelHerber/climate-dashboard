@@ -26,8 +26,10 @@ import json
 import math
 import pickle
 import re
+import struct
 import time
 import unicodedata
+import zlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -414,6 +416,75 @@ def _daily_members(zf: zipfile.ZipFile) -> List[str]:
     return members
 
 
+def _read_zip_member_with_crc_fallback(archive_bytes: bytes, zf: zipfile.ZipFile, member: str) -> bytes:
+    """Read a ZIP member normally, but recover a structurally intact DEFLATE stream on CRC mismatch.
+
+    IMGW currently serves at least one archive (2024_07_k.zip) whose k_d CSV
+    reproducibly triggers Python's ``Bad CRC-32`` check.  We must not silently
+    skip that month.  For CRC errors only, read the member's compressed payload
+    directly from the local ZIP header, decompress it, and require the exact
+    uncompressed size recorded in the central directory.  All other ZIP errors
+    remain fatal.
+    """
+    try:
+        return zf.read(member)
+    except zipfile.BadZipFile as exc:
+        if "Bad CRC-32" not in str(exc):
+            raise
+
+        info = zf.getinfo(member)
+        if info.flag_bits & 0x1:
+            raise RuntimeError(f"IMGW ZIP CRC-Fehler bei verschlüsselter Datei {member}") from exc
+
+        offset = info.header_offset
+        if offset < 0 or offset + 30 > len(archive_bytes):
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: ungültiger Local-Header für {member}") from exc
+
+        try:
+            (
+                signature, _version, _flags, _compression, _mtime, _mdate,
+                _crc, _compressed_size, _file_size, filename_length, extra_length,
+            ) = struct.unpack_from("<IHHHHHIIIHH", archive_bytes, offset)
+        except struct.error as unpack_exc:
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: Local-Header nicht lesbar für {member}") from unpack_exc
+
+        if signature != 0x04034B50:
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: falsche Local-Header-Signatur für {member}") from exc
+
+        payload_start = offset + 30 + filename_length + extra_length
+        payload_end = payload_start + info.compress_size
+        if payload_start < 0 or payload_end > len(archive_bytes):
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: komprimierter Datenblock unvollständig für {member}") from exc
+
+        compressed = archive_bytes[payload_start:payload_end]
+        try:
+            if info.compress_type == zipfile.ZIP_STORED:
+                raw = compressed
+            elif info.compress_type == zipfile.ZIP_DEFLATED:
+                raw = zlib.decompress(compressed, -zlib.MAX_WBITS)
+            else:
+                raise RuntimeError(
+                    f"IMGW ZIP CRC-Fallback unterstützt Kompressionsmethode "
+                    f"{info.compress_type} für {member} nicht"
+                )
+        except zlib.error as decompress_exc:
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: DEFLATE-Daten beschädigt für {member}") from decompress_exc
+
+        if len(raw) != info.file_size:
+            raise RuntimeError(
+                f"IMGW ZIP CRC-Fallback: entpackte Größe für {member} stimmt nicht "
+                f"({len(raw)} statt {info.file_size} Bytes)"
+            )
+
+        actual_crc = zlib.crc32(raw) & 0xFFFFFFFF
+        log(
+            f"WARNUNG IMGW: CRC-Fehler in {member}; Datenstrom vollständig entpackt "
+            f"({len(raw):,} Bytes, CRC gespeichert {info.CRC:08x}, tatsächlich {actual_crc:08x}). "
+            "CSV wird nach Größen- und Strukturprüfung weiterverarbeitet."
+        )
+        return raw
+
+
 def parse_zip(
     data: bytes,
     schema: dict,
@@ -438,7 +509,8 @@ def parse_zip(
     max_index = max(index for index in indexes if index is not None)
 
     for member in members:
-        text = decode_polish(zf.read(member))
+        raw_member = _read_zip_member_with_crc_fallback(data, zf, member)
+        text = decode_polish(raw_member)
         delimiter = detect_delimiter(text)
         for row in csv.reader(io.StringIO(text), delimiter=delimiter):
             if len(row) <= max_index:
