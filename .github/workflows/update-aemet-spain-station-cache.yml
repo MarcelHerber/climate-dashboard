@@ -1,0 +1,119 @@
+name: Build AEMET Spain station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "AEMET-Spanien-Cache komplett neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aemet-spain-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 270
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Jahreswerte bestimmen
+        id: dates
+        shell: bash
+        run: |
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: AEMET-Spanien-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: aemet-spain-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            aemet-spain-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Offline-Selbsttest
+        run: python scripts/update_aemet_spain_station_cache.py --self-test
+
+      - name: Historischen AEMET-Cache bauen oder fortsetzen
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+        shell: bash
+        run: |
+          if [[ -z "$AEMET_API_KEY" ]]; then
+            echo "AEMET_API_KEY fehlt als Repository-Secret."
+            exit 1
+          fi
+
+          EXTRA_ARGS=""
+          if [[ "$FORCE" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_aemet_spain_station_cache.py \
+            --cache-dir .cache/europe-stations \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --max-runtime-minutes 235 \
+            $EXTRA_ARGS
+
+      - name: AEMET-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: aemet-spain-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: Baseline-Status prüfen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          cutoff = int("${{ steps.dates.outputs.base_year }}")
+          status_path = Path(
+              f".cache/europe-stations/aemet_spain_status_through_{cutoff}.json"
+          )
+          if not status_path.exists():
+              raise SystemExit("AEMET-Statusdatei fehlt.")
+
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+          print(json.dumps(status, ensure_ascii=False, indent=2))
+
+          baseline = Path(
+              f".cache/europe-stations/"
+              f"aemet_spain_daily_baseline_through_{cutoff}_v1.pkl.gz"
+          )
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "\nAEMET-Baseline ist noch nicht vollständig. "
+                  "Der Zwischenstand wurde vorher im GitHub-Actions-Cache gesichert. "
+                  "Workflow einfach erneut mit force=false starten."
+              )
+
+          if not baseline.exists():
+              raise SystemExit(f"Vollständiger AEMET-Gesamtcache fehlt: {baseline}")
+
+          if int(status.get("station_count") or 0) <= 0:
+              raise SystemExit("AEMET-Baseline enthält keine Stationsreihen.")
+
+          print("AEMET Spain Baseline-Prüfung OK.")
+          PY
