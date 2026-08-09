@@ -4,26 +4,37 @@ on:
   workflow_dispatch:
     inputs:
       force_baseline:
-        description: "GHCN + DWD + Météo-France + AEMET historische Baselines trotz Cache neu aufbauen"
+        description: "ALLE historischen Baselines neu aufbauen (normal: false)"
         required: false
         default: false
         type: boolean
       force_dwd_baseline:
-        description: "Nur DWD-Deutschland-Baseline neu aufbauen"
+        description: "Nur DWD Deutschland neu aufbauen"
         required: false
         default: false
         type: boolean
       force_mf_baseline:
-        description: "Nur Météo-France-Frankreich-Baseline neu aufbauen"
+        description: "Nur Météo-France Frankreich neu aufbauen"
         required: false
         default: false
         type: boolean
       force_aemet_baseline:
-        description: "Nur AEMET-Spanien-Baseline neu aufbauen"
+        description: "Nur AEMET Spanien neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_austria_baseline:
+        description: "Nur GeoSphere Österreich neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_poland_baseline:
+        description: "Nur IMGW Polen neu aufbauen"
         required: false
         default: false
         type: boolean
   schedule:
+    # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
 
 permissions:
@@ -36,7 +47,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 300
 
     steps:
       - name: Repository auschecken
@@ -55,65 +66,58 @@ jobs:
           echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
           echo "year_month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
 
-      - name: Stations-Cache laden
-        id: station-cache
+      # Hauptcache: GHCN + DWD + Météo-France + AEMET.
+      # Nach dem ersten neuen Lauf enthält er zusätzlich Österreich und Polen.
+      - name: Europa-Hauptcache laden
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
-            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
-            meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
-            dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v6-${{ steps.dates.outputs.base_year }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v5-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
             europe-stations-v5-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
-            europe-stations-v4-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v3-${{ steps.dates.outputs.base_year }}-
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
-      - name: Versionscheck, AEMET-Secret prüfen und alte Ausgabe entfernen
+      # Beim ersten gemeinsamen Lauf holen wir die bereits erfolgreich aufgebauten
+      # nationalen Caches aus ihren bisherigen Cache-Namensräumen.
+      - name: GeoSphere-Österreich-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-at-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            geosphere-austria-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: IMGW-Polen-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-pl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Skripte und AEMET-Key prüfen
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
         run: |
           if [[ -z "$AEMET_API_KEY" ]]; then
-            echo "AEMET_API_KEY fehlt. Bitte als Repository-Secret unter Settings → Secrets and variables → Actions anlegen."
+            echo "AEMET_API_KEY fehlt. Repository-Secret unter Settings → Secrets and variables → Actions prüfen."
             exit 1
           fi
-          python - <<'PY'
-          import ast
-          from pathlib import Path
+          test -s scripts/update_europe_station_records.py
+          test -s scripts/update_europe_station_records_all_sources.py
+          test -s scripts/update_geosphere_austria_station_cache.py
+          test -s scripts/update_imgw_poland_station_cache.py
+          python scripts/update_europe_station_records.py --self-test
+          python scripts/update_geosphere_austria_station_cache.py --self-test
+          python scripts/update_imgw_poland_station_cache.py --self-test
+          python scripts/update_europe_station_records_all_sources.py --self-test
 
-          script = Path("scripts/update_europe_station_records.py")
-          tree = ast.parse(script.read_text(encoding="utf-8"), filename=str(script))
-          actual = None
-          for node in tree.body:
-              if isinstance(node, (ast.Assign, ast.AnnAssign)):
-                  targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                  for target in targets:
-                      if isinstance(target, ast.Name) and target.id == "PAYLOAD_VERSION":
-                          try:
-                              actual = ast.literal_eval(node.value)
-                          except Exception:
-                              actual = None
-                          break
-              if actual is not None:
-                  break
-
-          expected = 5
-          if actual != expected:
-              raise SystemExit(
-                  f"Versionsfehler: Workflow erwartet Stations-Payload V{expected}, "
-                  f"Skript liefert V{actual}. Bitte alle Dateien aus index.zip gemeinsam hochladen."
-              )
-          print(f"Versionscheck OK: Stations-Payload V{actual}")
-          PY
-          rm -rf europe_stations
-
-      - name: Europa-Stationsrekorde berechnen
+      - name: Alle Europa-Stationsquellen aktualisieren
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
@@ -121,83 +125,93 @@ jobs:
           FORCE_DWD_BASELINE: ${{ github.event.inputs.force_dwd_baseline || 'false' }}
           FORCE_MF_BASELINE: ${{ github.event.inputs.force_mf_baseline || 'false' }}
           FORCE_AEMET_BASELINE: ${{ github.event.inputs.force_aemet_baseline || 'false' }}
+          FORCE_AUSTRIA_BASELINE: ${{ github.event.inputs.force_austria_baseline || 'false' }}
+          FORCE_POLAND_BASELINE: ${{ github.event.inputs.force_poland_baseline || 'false' }}
         run: |
           EXTRA_ARGS=""
-          if [[ "$FORCE_BASELINE" == "true" ]]; then
-            EXTRA_ARGS="$EXTRA_ARGS --force-baseline"
-          fi
-          if [[ "$FORCE_DWD_BASELINE" == "true" ]]; then
-            EXTRA_ARGS="$EXTRA_ARGS --force-dwd-baseline"
-          fi
-          if [[ "$FORCE_MF_BASELINE" == "true" ]]; then
-            EXTRA_ARGS="$EXTRA_ARGS --force-mf-baseline"
-          fi
-          if [[ "$FORCE_AEMET_BASELINE" == "true" ]]; then
-            EXTRA_ARGS="$EXTRA_ARGS --force-aemet-baseline"
-          fi
-          python scripts/update_europe_station_records.py \
+          [[ "$FORCE_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-baseline"
+          [[ "$FORCE_DWD_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-dwd-baseline"
+          [[ "$FORCE_MF_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-mf-baseline"
+          [[ "$FORCE_AEMET_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-aemet-baseline"
+          [[ "$FORCE_AUSTRIA_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-austria-baseline"
+          [[ "$FORCE_POLAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-poland-baseline"
+
+          python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
             --output europe_stations \
             --cache-dir .cache/europe-stations \
             --dwd-workers 6 \
             --mf-workers 6 \
+            --poland-workers 8 \
             $EXTRA_ARGS
 
-      - name: Stations-Cache sichern (auch nach Datenfehlern)
+      - name: Stations-Cache sichern
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
-      - name: Ergebnis prüfen
+      - name: Ergebnis vollständig prüfen
         shell: bash
         run: |
           test -s europe_stations/index.json
           test -s europe_stations/calendar/01-01.json.gz
           test -s europe_stations/calendar/12-31.json.gz
+
           python - <<'PY'
           import json
           from pathlib import Path
-          p=json.loads(Path('europe_stations/index.json').read_text(encoding='utf-8'))
-          version=p.get('payload_version')
-          sources={x.get('name'):x.get('stations',0) for x in p.get('sources',[])}
-          print('Erzeugte Payload-Version:', version)
-          print('Stationsquellen:', sources)
-          print('Gesamtstationen:', p.get('station_count',0), 'Länder:', p.get('country_count',0))
-          if version != 5:
-              raise SystemExit(f"Falsche Payload-Version: erwartet V5, erzeugt wurde V{version}.")
-          if p.get('station_count',0) <= 0:
-              raise SystemExit('Keine Stationen in index.json erzeugt.')
-          for source in ('DWD CDC','Météo-France','AEMET OpenData','GHCN-Daily'):
-              if sources.get(source,0) <= 0:
-                  raise SystemExit(f"Keine Stationen für Quelle {source} erzeugt. Quellen: {sources}")
-          checks = {
-              'Deutschland':'DWD CDC',
-              'Frankreich':'Météo-France',
-              'Spanien':'AEMET OpenData',
+
+          p=json.loads(Path("europe_stations/index.json").read_text(encoding="utf-8"))
+          rows=p.get("stations",[])
+          sources={x.get("name"):x.get("stations",0) for x in p.get("sources",[])}
+
+          print("Payload-Version:", p.get("payload_version"))
+          print("Gesamtstationen:", p.get("station_count"), "Länder:", p.get("country_count"))
+          print("Quellen:", sources)
+
+          expected={
+              "Deutschland":"DWD CDC",
+              "Frankreich":"Météo-France",
+              "Spanien":"AEMET OpenData",
+              "Österreich":"GeoSphere Austria",
+              "Polen":"IMGW-PIB",
           }
-          for country, source in checks.items():
-              rows=[s for s in p.get('stations',[]) if s.get('country')==country]
-              if not rows:
-                  raise SystemExit(f'Keine Stationen für {country} in index.json.')
-              if not all(s.get('source')==source for s in rows):
-                  raise SystemExit(f'Mindestens eine Station in {country} stammt nicht aus {source}.')
-          if any(s.get('source')=='GHCN-Daily' and s.get('country') in checks for s in p.get('stations',[])):
-              raise SystemExit('GHCN-Doppelstationen für Deutschland, Frankreich oder Spanien gefunden.')
-          print('Stations-V5 OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern', sources)
+
+          if p.get("payload_version") != 5:
+              raise SystemExit(f"Falsche Payload-Version: {p.get('payload_version')}")
+
+          for country, source in expected.items():
+              country_rows=[x for x in rows if x.get("country")==country]
+              if not country_rows:
+                  raise SystemExit(f"{country} fehlt.")
+              actual={x.get("source") for x in country_rows}
+              if actual != {source}:
+                  raise SystemExit(f"{country}: falsche/gemischte Quellen {actual}; erwartet {source}.")
+
+          for source in ("DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria","IMGW-PIB","GHCN-Daily"):
+              if int(sources.get(source,0) or 0) <= 0:
+                  raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
+
+          if int(p.get("country_count",0) or 0) < 10:
+              raise SystemExit("Zu wenige Länder in der Europa-Ausgabe.")
+
+          print("Europa-Gesamtprüfung OK.")
           PY
 
-      - name: Daten committen
+      - name: Europa-Stationsdaten committen
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add europe_stations
+
           if git diff --cached --quiet; then
             echo "Keine Änderungen an den Europa-Stationsdaten."
             exit 0
           fi
-          git commit -m "Update Europe station records V5"
+
+          git commit -m "Update Europe station records all sources"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
