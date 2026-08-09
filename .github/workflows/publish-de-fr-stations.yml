@@ -1,0 +1,130 @@
+name: Publish Germany + France station records
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_current_year:
+        description: "Laufendes Jahr (DWD recent + Météo-France current) vor Veröffentlichung aktualisieren"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-de-fr-stations
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Jahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: DWD-Historical-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: publish-dwd-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Météo-France-Zwischencache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: publish-mf-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Cache und Skripte prüfen
+        shell: bash
+        run: |
+          test -s scripts/update_europe_station_records.py
+          test -s scripts/publish_de_fr_station_records.py
+          echo "Gefundene DWD-Caches:"
+          find .cache/europe-stations -maxdepth 1 -type f -name 'dwd_germany_kl_baseline_*.pkl.gz' -print || true
+          echo "Gefundene Frankreich-Shards:"
+          find .cache/europe-stations -maxdepth 2 -type f -path '*meteofrance_resources*/*.pkl.gz' | wc -l
+          python scripts/publish_de_fr_station_records.py --self-test
+
+      - name: Deutschland + Frankreich Frontend-Daten erzeugen
+        shell: bash
+        env:
+          INCLUDE_CURRENT: ${{ github.event.inputs.include_current_year || 'true' }}
+        run: |
+          EXTRA_ARGS=""
+          if [[ "$INCLUDE_CURRENT" != "true" ]]; then
+            EXTRA_ARGS="--no-current"
+          fi
+          python scripts/publish_de_fr_station_records.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            --cache-dir .cache/europe-stations \
+            --output europe_stations \
+            --workers 8 \
+            $EXTRA_ARGS
+
+      - name: Veröffentlichung prüfen
+        shell: bash
+        run: |
+          test -s europe_stations/index.json
+          test -s europe_stations/calendar/01-01.json.gz
+          test -s europe_stations/calendar/12-31.json.gz
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p=json.loads(Path('europe_stations/index.json').read_text(encoding='utf-8'))
+          rows=p.get('stations',[])
+          de=[x for x in rows if x.get('country')=='Deutschland']
+          fr=[x for x in rows if x.get('country')=='Frankreich']
+          other=[x for x in rows if x.get('country') not in {'Deutschland','Frankreich'}]
+          cov=p.get('coverage',{}).get('Frankreich',{})
+          print('Payload:', p.get('payload_version'))
+          print('Deutschland:', len(de), 'Stationen')
+          print('Frankreich:', len(fr), 'Stationen')
+          print('Frankreich-Ressourcen:', cov.get('resources_available'), '/', cov.get('resources_total'))
+          if not de:
+              raise SystemExit('Keine DWD-Stationen erzeugt.')
+          if not fr:
+              raise SystemExit('Keine Météo-France-Stationen erzeugt.')
+          if other:
+              raise SystemExit(f'Unerwartete Länder in DE+FR-Publish: {sorted({x.get("country") for x in other})}')
+          if not all(x.get('source')=='DWD CDC' for x in de):
+              raise SystemExit('Deutschland enthält eine Nicht-DWD-Quelle.')
+          if not all(x.get('source')=='Météo-France' for x in fr):
+              raise SystemExit('Frankreich enthält eine Nicht-Météo-France-Quelle.')
+          print('DE+FR Publish-Prüfung OK.')
+          PY
+
+      - name: Deutschland + Frankreich Daten committen
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add europe_stations
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen an den Deutschland-/Frankreich-Stationsdaten."
+            exit 0
+          fi
+          git commit -m "Publish Germany and France station records"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
