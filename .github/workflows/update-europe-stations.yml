@@ -62,6 +62,7 @@ jobs:
           path: .cache/europe-stations
           key: europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
+            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
             meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
             dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-

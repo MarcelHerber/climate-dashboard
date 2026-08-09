@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Frankreich-Gesamtcache und alle Einzelressourcen vollständig neu laden"
+        description: "Frankreich-Cache vollständig neu laden (Schnellpass: 1 Versuch je Ressource)"
         required: false
         default: false
         type: boolean
@@ -37,8 +37,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          key: meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
           restore-keys: |
+            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
             meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
             dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
@@ -63,4 +64,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          key: meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
