@@ -1,38 +1,55 @@
-# Europa-Stationen · Stations-V2
+# Europa-Stationen · Stations-V3
 
-## Was diese Version zeigt
+## Neu in V3
 
-Der Haupt-Tab **Europa-Stationen** nutzt die in Stations-V1 erzeugten GHCN-Daily-Daten weiter. Für V2 ist **kein neuer historischer Basisaufbau** nötig.
+Deutschland wird nicht mehr aus GHCN-Daily dargestellt, sondern direkt aus den täglichen **DWD-CDC-KL-Daten**. Für alle übrigen europäischen Länder bleibt GHCN-Daily zunächst die gemeinsame Basis. Dadurch entstehen auf der Deutschlandkarte keine parallelen DWD-/GHCN-Doppelstationen.
 
-Neu im Frontend:
+Die V2-Oberfläche bleibt erhalten:
 
-- Top-20-Ranking für die aktuell gewählte Rekordansicht
-- Rekordjagd für einen frei gewählten Kalendertag: aktueller Jahreswert gegen bisherigen Tagesrekord
-- Anzeige des Abstands zum Rekord, eingestellter Rekorde und gebrochener Rekorde
-- Stationssuche nach Name, Stations-ID oder Land
-- Klick auf einen Ranking-Eintrag springt direkt zur Station und öffnet das Popup
-- neue Rekorde des laufenden Jahres mit Länder-Ranking
-- europäischer Extremwert des gewählten Kalendertags sowie Extremwert des laufenden Jahres, sofern für diesen Tag bereits Daten vorliegen
-- weiterhin Länderfilter und Mindestlänge der Messreihe
+- TMAX/TMIN
+- absolute Stationsrekorde
+- Kalendertagsrekorde
+- Rekordjagd im laufenden Jahr
+- neue Rekorde im laufenden Jahr
+- Top 20
+- Länderfilter, Mindest-Messjahre und Stationssuche
 
-Die helle Karte verwendet OpenStreetMap-Daten im CARTO-Light-Stil. Die Stationsdaten liegen unter `europe_stations/`; die 366 Kalendertage werden platzsparend als gzip-Dateien unter `europe_stations/calendar/` gespeichert.
+Im Stations-Popup steht jetzt die jeweilige Quelle und die dazugehörige Qualitätsregel.
 
-## Datenworkflow
+## Datenquellen
 
-Der bestehende Workflow **Update Europe station records** bleibt kompatibel. Er erzeugt weiterhin den Stations-Payload und die 366 Tagesarchive, die Stations-V2 direkt lesen kann.
+### Deutschland
 
-Beim ersten Datenlauf:
+DWD Climate Data Center, tägliche Klimadaten `daily/kl/`:
 
-1. GitHub → **Actions** → **Update Europe station records**.
-2. **Run workflow** starten.
-3. `force_baseline = false` lassen.
+- `historical/` für die historische Basis
+- `recent/` für das laufende Jahr
+- ausgewertet werden `TXK` (Tagesmaximum) und `TNK` (Tagesminimum)
+- DWD-Fehlwerte werden verworfen
 
-Nach einem bereits erfolgreichen Stations-V1-Erstlauf muss für die neuen V2-Oberflächenfunktionen kein historischer Neuaufbau erzwungen werden. Der vorhandene Cache kann weiterverwendet werden.
+Die DWD-Stations-ID wird intern als `DWD:xxxxx` gespeichert.
 
-## Qualitätsregel
+### Übriges Europa
 
-Für die Rekordberechnung werden nur TMAX/TMIN-Werte mit **leerem GHCN Q-FLAG** verwendet. Werte, die eine GHCN-Qualitätsprüfung nicht bestanden haben, werden nicht für Rekorde verwendet.
+NOAA/NCEI GHCN-Daily bleibt der Fallback. Deutschland (`GM`) wird bereits beim Einlesen aus dem GHCN-Stationssatz entfernt. Für GHCN werden nur TMAX/TMIN mit leerem Q-FLAG für Rekorde verwendet.
 
-## Datenquelle / späterer Ausbau
+## Erster V3-Lauf
 
-GHCN-Daily bleibt zunächst die einheitliche Europa-Basis. Das Frontend-Schema enthält pro Station ein `source`-Feld. Dadurch können später Deutschland, Frankreich oder Spanien mit DWD-, Météo-France- bzw. AEMET-Daten überschrieben werden, ohne die Karten- und Rankinglogik neu zu bauen.
+GitHub → **Actions** → **Update Europe station records** → **Run workflow**.
+
+Beide Schalter zunächst auf `false` lassen:
+
+- `force_baseline = false`
+- `force_dwd_baseline = false`
+
+Der Workflow versucht zuerst, den vorhandenen Stations-V2-GHCN-Cache wiederzuverwenden. Wenn dieser vorhanden ist, muss GHCN nicht erneut komplett aufgebaut werden. Neu aufgebaut wird beim ersten V3-Lauf lediglich der historische DWD-Deutschland-Cache. Dieser wird anschließend zusammen mit dem GHCN-Cache unter einem V3-Cache-Schlüssel gespeichert.
+
+## Spätere tägliche Läufe
+
+Nach erfolgreichem ersten V3-Lauf werden beide historischen Baselines wiederverwendet. Der Workflow liest dann nur noch das laufende GHCN-Jahr und die DWD-`recent`-Dateien neu ein und schreibt `europe_stations/index.json` sowie die 366 Tagesarchive neu.
+
+`force_dwd_baseline = true` ist nur nötig, wenn der historische DWD-Bestand bewusst vollständig neu aufgebaut werden soll. `force_baseline = true` erzwingt sowohl GHCN als auch DWD neu und sollte im Normalbetrieb ausgeschaltet bleiben.
+
+## Payload
+
+`europe_stations/index.json` hat in Stations-V3 `payload_version: 3` und enthält zusätzlich eine `sources`-Übersicht. Der Workflow prüft nach dem Lauf automatisch, dass deutsche Stationen ausschließlich mit `source: "DWD CDC"` enthalten sind.

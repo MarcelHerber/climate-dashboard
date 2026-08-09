@@ -489,7 +489,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 
 
-/* Europa-Stationen · Stations-V2 */
+/* Europa-Stationen · Stations-V3 */
 .europe-station-map-shell{position:relative;width:100%;height:calc(100vh - 175px);min-height:650px;border:1px solid #c7d0d7;border-radius:12px;overflow:hidden;background:#f7f8f8;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .europe-station-map{position:absolute;inset:0;width:100%;height:100%;background:#f7f8f8}
 .europe-station-map .leaflet-container{background:#f7f8f8}.europe-station-map .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.83)}
@@ -507,7 +507,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 </style>
 </head>
 <body>
-<!-- Climate Dashboard build 18.1: ERA5-Land V8.1 + Stations-V2 Europa-Rekordkarte -->
+<!-- Climate Dashboard build 18.2: ERA5-Land V8.1 + Stations-V3 Europa-Rekordkarte -->
 
 <h1>Climate Dashboard Deutschland</h1>
 <div id="dataStatus" class="data-status">Datenstand wird geladen …</div>
@@ -1234,13 +1234,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p id="era5EuropeSource" class="note" style="margin-top:10px">Quelle: Copernicus Climate Change Service (C3S) / ECMWF, ERA5-Land.</p>
 </div>
 
-<!-- ================= EUROPA-STATIONEN · STATIONS-V2 ================= -->
+<!-- ================= EUROPA-STATIONEN · STATIONS-V3 ================= -->
 <div id="europeStations" class="tab-content">
   <div class="europe-station-map-shell">
     <div id="europeStationMap" class="europe-station-map" role="img" aria-label="Europakarte der Stationsrekorde"></div>
     <div class="europe-station-panel">
       <h2>Europa · Stationsrekorde</h2>
-      <p class="subtitle">Stations-V2 · GHCN-Daily · TMAX/TMIN · Top-20, Rekordjagd, Stationssuche und Rekorde im laufenden Jahr</p>
+      <p class="subtitle">Stations-V3 · Deutschland: DWD CDC · übriges Europa: GHCN-Daily · TMAX/TMIN · Top-20 & Rekordjagd</p>
       <div class="europe-station-panel-grid">
         <div class="control-group"><label for="europeStationParameter">Parameter</label><select id="europeStationParameter"><option value="tmax">TMAX · höchste Maxima</option><option value="tmin">TMIN · tiefste Minima</option></select></div>
         <div class="control-group"><label for="europeStationMode">Rekordansicht</label><select id="europeStationMode"><option value="absolute">Absoluter Stationsrekord</option><option value="calendar">Kalendertag-Rekord</option><option value="newCurrent">Neue Rekorde im laufenden Jahr</option><option value="recordChase">Rekordjagd am Kalendertag</option></select></div>
@@ -1269,7 +1269,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
       </div>
     </div>
     <div id="europeStationLegend" class="europe-station-legend"></div>
-    <div id="europeStationStatus" class="europe-station-status">Stations-V2 wird geladen …</div>
+    <div id="europeStationStatus" class="europe-station-status">Stations-V3 wird geladen …</div>
   </div>
 </div>
 
@@ -9556,7 +9556,7 @@ function europeStationPopup(station,param,mode,view,mmdd){
     }
   }
   const period=[block.start?europeStationIsoToText(block.start):null,block.end?europeStationIsoToText(block.end):null].filter(Boolean).join(" – ");
-  return `<div class="europe-station-popup"><strong>${europeStationEscapeHtml(String(station.name||station.id))}</strong><div class="muted">${europeStationEscapeHtml(String(station.country||station.country_code||""))} · ${europeStationEscapeHtml(paramLabel)}</div>${recordHtml}<div class="record-detail" style="margin-top:7px">Messreihe: ${europeStationEscapeHtml(period||"–")} · ${Number(block.years||0).toLocaleString("de-DE")} Messjahre${Number.isFinite(Number(station.elevation))?`<br>Höhe: ${Math.round(Number(station.elevation))} m`:""}<br>Stations-ID: ${europeStationEscapeHtml(String(station.id||"–"))}</div><div class="source">Quelle: ${europeStationEscapeHtml(String(station.source||europeStationData?.source||"GHCN-Daily"))} · Rekordauswertung nur aus Werten ohne gesetzten GHCN-Q-Flag.</div></div>`;
+  return `<div class="europe-station-popup"><strong>${europeStationEscapeHtml(String(station.name||station.id))}</strong><div class="muted">${europeStationEscapeHtml(String(station.country||station.country_code||""))} · ${europeStationEscapeHtml(paramLabel)}</div>${recordHtml}<div class="record-detail" style="margin-top:7px">Messreihe: ${europeStationEscapeHtml(period||"–")} · ${Number(block.years||0).toLocaleString("de-DE")} Messjahre${Number.isFinite(Number(station.elevation))?`<br>Höhe: ${Math.round(Number(station.elevation))} m`:""}<br>Stations-ID: ${europeStationEscapeHtml(String(station.source_id||station.id||"–"))}</div><div class="source">Quelle: ${europeStationEscapeHtml(String(station.source||europeStationData?.source||"GHCN-Daily"))} · ${europeStationEscapeHtml(String(station.quality_rule||europeStationData?.quality_rule||"Qualitätsregeln der jeweiligen Datenquelle werden angewendet."))}</div></div>`;
 }
 function europeStationUpdateLegend(param,mode){
   const el=document.getElementById("europeStationLegend");if(!el)return;
@@ -9575,7 +9575,7 @@ function europeStationUpdateControls(){
   const mode=document.getElementById("europeStationMode")?.value||"absolute";const dateGroup=document.getElementById("europeStationDateGroup");if(dateGroup)dateGroup.hidden=!(mode==="calendar"||mode==="recordChase");
 }
 function europeStationSearchMatches(station,query){
-  if(!query)return true;const hay=europeStationNormalize(`${station?.name||""} ${station?.id||""} ${station?.country||""} ${station?.country_code||""}`);return hay.includes(query);
+  if(!query)return true;const hay=europeStationNormalize(`${station?.name||""} ${station?.id||""} ${station?.source_id||""} ${station?.country||""} ${station?.country_code||""}`);return hay.includes(query);
 }
 function europeStationRankSort(rows,param,mode){
   const copy=[...rows];
@@ -9687,7 +9687,7 @@ async function ensureEuropeStationMap(){
   initEuropeStationMap();window.setTimeout(()=>europeStationMap?.invalidateSize(),80);if(europeStationLoaded){renderEuropeStations();return;}if(europeStationLoading)return europeStationLoading;
   europeStationLoading=(async()=>{
     try{
-      const response=await fetch(`${EUROPE_STATION_DATA_URL}?v=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();if(![1,2].includes(Number(payload?.payload_version)))console.warn("Unerwartete Stations-Payload-Version",payload?.payload_version);europeStationData=payload;populateEuropeStationCountries();initEuropeStationControls();europeStationLoaded=true;await renderEuropeStations();
+      const response=await fetch(`${EUROPE_STATION_DATA_URL}?v=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();if(![1,2,3].includes(Number(payload?.payload_version)))console.warn("Unerwartete Stations-Payload-Version",payload?.payload_version);europeStationData=payload;populateEuropeStationCountries();initEuropeStationControls();europeStationLoaded=true;await renderEuropeStations();
     }catch(error){console.warn("Europa-Stationskarte: Daten nicht verfügbar",error);setEuropeStationStatus("Stationsdaten fehlen noch. Bitte zuerst den GitHub-Workflow ‘Update Europe station records’ ausführen.","warn");}
     finally{europeStationLoading=null;}
   })();return europeStationLoading;
