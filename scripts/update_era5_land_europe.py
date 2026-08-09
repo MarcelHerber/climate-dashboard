@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import gzip
 import json
 import math
 import os
@@ -38,6 +39,11 @@ CACHE_DIR = ROOT / ".era5_cache"
 CARTOPY_DIR = CACHE_DIR / "cartopy"
 INDEX_PATH = OUT_DIR / "index.json"
 ANALYSIS_PATH = OUT_DIR / "analysis.json"
+HISTORY_HIRES_DIR = OUT_DIR / "history_0p1"
+HISTORY_HIRES_INDEX = HISTORY_HIRES_DIR / "index.json"
+HISTORY_HIRES_ARCHIVE_VERSION = 2
+HISTORY_HIRES_MISSING = 255
+HISTORY_HIRES_LEVELS = 254
 ANALYSIS_GRID_STEP = 10  # 0.1° native CDS grid -> 1.0° click-analysis grid
 HISTORY_START = 1950
 MAP_CLICK_GEOMETRY = {"left": 0.07, "top": 0.16, "right": 0.96, "bottom": 0.82}
@@ -268,6 +274,36 @@ def request_hydro_monthly_file(client: cdsapi.Client, years: list[int], months: 
     }
     label = f"water budget years {years[0]}–{years[-1]}, months {months}"
     print(f"CDS water-budget request: years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
+
+
+def request_hires_history_file(client: cdsapi.Client, years: list[int], month: int, target: Path) -> None:
+    """Download all non-soil variables needed by the visible 0.1° history map in one job.
+
+    Ten-year chunks keep individual CDS jobs bounded while avoiding three separate
+    historical downloads for temperature/precipitation, water budget and snow.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    variables = [
+        "2m_temperature",
+        "total_precipitation",
+        *[meta["variable"] for meta in HYDRO_VARS.values()],
+        *[meta["variable"] for meta in SNOW_VARS.values()],
+    ]
+    # Preserve order while removing accidental duplicates.
+    variables = list(dict.fromkeys(variables))
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": variables,
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}"],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"0.1 degree history years {years[0]}–{years[-1]}, month {month:02d}"
+    print(f"CDS 0.1° history request: years {years[0]}–{years[-1]}, month {month:02d}")
     retrieve_with_retry(client, request, target, label)
 
 
@@ -1122,7 +1158,7 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
 
 
 def render_history_base_map(filename: Path) -> None:
-    """Neutral geographic background for the browser-rendered 1° historical archive."""
+    """Neutral geographic background for the browser-rendered 0.1° historical archive."""
     filename.parent.mkdir(parents=True, exist_ok=True)
     cartopy.config["data_dir"] = str(CARTOPY_DIR)
     CARTOPY_DIR.mkdir(parents=True, exist_ok=True)
@@ -1142,7 +1178,7 @@ def render_history_base_map(filename: Path) -> None:
     gl.ylabel_style = {"size": 8, "color": "#59656c"}
 
     fig.suptitle("ERA5-Land Europa · Historisches Kartenarchiv", x=0.075, y=0.97, ha="left", va="top", fontsize=17, fontweight="bold")
-    fig.text(0.075, 0.925, "Browserdarstellung auf 1,0°-Analyseraster · historische Jahre seit 1950", ha="left", va="top", fontsize=10, color="#56636a")
+    fig.text(0.075, 0.925, "Sichtbare historische Rasterdaten auf 0,1° · Analyse und Rankings separat auf 1,0°", ha="left", va="top", fontsize=10, color="#56636a")
     fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · Landflächen", ha="left", va="bottom", fontsize=8, color="#68757c")
     plt.savefig(filename, facecolor="white")
     plt.close(fig)
@@ -1375,6 +1411,356 @@ def round_json(value, digits: int):
 def sample_1deg(field: np.ndarray) -> np.ndarray:
     arr = np.asarray(field)
     return arr[..., ::ANALYSIS_GRID_STEP, ::ANALYSIS_GRID_STEP]
+
+
+
+def _hires_ordered_values(ds: xr.Dataset, aliases: tuple[str, ...], expected: np.ndarray,
+                           lat_name: str, lon_name: str) -> np.ndarray:
+    name = variable_name(ds, aliases)
+    da = ds[name]
+    tdim = time_dim(da, lat_name, lon_name)
+    if tdim is None or da.sizes[tdim] != len(expected):
+        raise RuntimeError(f"Zeitdimension für 0,1°-Historienvariable {name} ist unvollständig.")
+    da = da.transpose(tdim, lat_name, lon_name)
+    values = np.asarray(da.values, dtype=np.float32)
+    try:
+        years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+    except Exception:
+        years_here = expected.copy()
+    if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+        order = [int(np.where(years_here == year)[0][0]) for year in expected]
+        values = values[order]
+    return values
+
+
+def _hires_core_fields(ds: xr.Dataset, expected: np.ndarray, month: int) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+    """Decode one full-resolution historical CDS chunk into display units."""
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+
+    temp = _hires_ordered_values(ds, TEMP_ALIASES, expected, lat_name, lon_name) - 273.15
+    precip = _hires_ordered_values(ds, PRECIP_ALIASES, expected, lat_name, lon_name)
+    days = np.asarray([calendar.monthrange(int(y), month)[1] for y in expected], dtype=np.float32)[:, None, None]
+    precip = precip * days * 1000.0
+
+    fields: dict[str, np.ndarray] = {
+        "temperature": temp.astype(np.float32),
+        "precipitation": precip.astype(np.float32),
+    }
+    for key, meta in HYDRO_VARS.items():
+        values = _hires_ordered_values(ds, tuple(meta["aliases"]), expected, lat_name, lon_name)
+        fields[key] = _monthly_accum_to_mm(
+            values, expected, month, invert_sign=bool(meta.get("positive_evaporation"))
+        ).astype(np.float32)
+    fields["water_balance"] = (fields["precipitation"] - fields["evaporation"]).astype(np.float32)
+    for key, meta in SNOW_VARS.items():
+        values = _hires_ordered_values(ds, tuple(meta["aliases"]), expected, lat_name, lon_name)
+        fields[key] = _snow_to_display(key, values).astype(np.float32)
+    return lat, lon, fields
+
+
+def _hires_pack_meta_ready(meta: dict | None, year_start: int, year_end: int) -> bool:
+    if not meta:
+        return False
+    if int(meta.get("archive_version", 0)) != HISTORY_HIRES_ARCHIVE_VERSION:
+        return False
+    if int(meta.get("year_start", -1)) != int(year_start) or int(meta.get("year_end", -1)) != int(year_end):
+        return False
+    rel_file = meta.get("file")
+    return bool(rel_file) and (ROOT / str(rel_file)).exists()
+
+
+def _hires_quant_params(vmin: float, vmax: float) -> tuple[float, float]:
+    if not (math.isfinite(vmin) and math.isfinite(vmax)):
+        return 0.0, 1.0
+    if vmax <= vmin:
+        return float(vmin), 1.0e-6
+    return float(vmin), float((vmax - vmin) / HISTORY_HIRES_LEVELS)
+
+
+def _hires_quantize(values: np.ndarray, offset: float, step: float) -> np.ndarray:
+    arr = np.asarray(values, dtype=np.float32)
+    valid = np.isfinite(arr)
+    out = np.full(arr.shape, HISTORY_HIRES_MISSING, dtype=np.uint8)
+    if np.any(valid):
+        q = np.rint((arr[valid] - offset) / step)
+        out[valid] = np.clip(q, 0, HISTORY_HIRES_LEVELS).astype(np.uint8)
+    return out
+
+
+def _hires_delta_x(values: np.ndarray) -> np.ndarray:
+    """Reversible left-neighbour predictor to make smooth 0.1° fields gzip-friendly."""
+    q = np.asarray(values, dtype=np.uint8)
+    out = q.copy()
+    if q.shape[-1] > 1:
+        diff = q[..., 1:].astype(np.int16) - q[..., :-1].astype(np.int16)
+        out[..., 1:] = np.mod(diff, 256).astype(np.uint8)
+    return out
+
+
+def _hires_meta(path: Path, *, month: int, year_start: int, year_end: int,
+                lat: np.ndarray, lon: np.ndarray, offset: float, step: float) -> dict:
+    lat_step = float(lat[1] - lat[0]) if len(lat) > 1 else 0.0
+    lon_step = float(lon[1] - lon[0]) if len(lon) > 1 else 0.0
+    return {
+        "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+        "file": path.relative_to(ROOT).as_posix(),
+        "codec": "gzip",
+        "dtype": "uint8",
+        "predictor": "delta-x-u8-v1",
+        "missing": HISTORY_HIRES_MISSING,
+        "levels": HISTORY_HIRES_LEVELS,
+        "offset": round(float(offset), 9),
+        "step": round(float(step), 12),
+        "year_start": int(year_start),
+        "year_end": int(year_end),
+        "n_years": int(year_end - year_start + 1),
+        "month": int(month),
+        "nlat": int(len(lat)),
+        "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(lat_step, 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(lon_step, 6),
+        "file_bytes": int(path.stat().st_size),
+    }
+
+
+def _build_hires_core_month(client: cdsapi.Client, month: int, year_end: int, force: bool) -> tuple[dict[str, dict], dict]:
+    """Build compact 0.1° uint8+gzip archives for all non-soil parameters of one month."""
+    year_start = HISTORY_START
+    years = list(range(year_start, year_end + 1))
+    chunks = year_chunks(years, 5)
+    raw_files = [CACHE_DIR / f"raw_history_0p1_v8_m{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for raw in raw_files:
+            try:
+                raw.unlink()
+            except FileNotFoundError:
+                pass
+
+    mins = {key: math.inf for key in ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)}
+    maxs = {key: -math.inf for key in mins}
+    lat: np.ndarray | None = None
+    lon: np.ndarray | None = None
+
+    # First pass: download/check chunks and determine one stable quantization range per parameter/month.
+    for chunk, raw_file in zip(chunks, raw_files):
+        if not raw_file.exists():
+            request_hires_history_file(client, chunk, month, raw_file)
+        ds = open_download(raw_file)
+        expected = np.asarray(chunk, dtype=int)
+        lat_here, lon_here, fields = _hires_core_fields(ds, expected, month)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("0,1°-Historiengitter stimmt zwischen CDS-Chunks nicht überein.")
+        for key, values in fields.items():
+            finite = values[np.isfinite(values)]
+            if finite.size:
+                mins[key] = min(mins[key], float(np.min(finite)))
+                maxs[key] = max(maxs[key], float(np.max(finite)))
+        ds.close()
+
+    assert lat is not None and lon is not None
+    HISTORY_HIRES_DIR.mkdir(parents=True, exist_ok=True)
+    offsets_steps = {key: _hires_quant_params(mins[key], maxs[key]) for key in mins}
+    final_paths = {key: HISTORY_HIRES_DIR / f"{key}_m{month:02d}.u8.gz" for key in mins}
+    temp_paths = {key: path.with_suffix(path.suffix + ".tmp") for key, path in final_paths.items()}
+    handles = {}
+    try:
+        for key, tmp in temp_paths.items():
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+            handles[key] = gzip.open(tmp, "wb", compresslevel=6)
+        # Second pass: year-major byte layout. The browser can jump directly to one year after decompression.
+        for chunk, raw_file in zip(chunks, raw_files):
+            ds = open_download(raw_file)
+            expected = np.asarray(chunk, dtype=int)
+            lat_here, lon_here, fields = _hires_core_fields(ds, expected, month)
+            for key, values in fields.items():
+                offset, step = offsets_steps[key]
+                handles[key].write(_hires_delta_x(_hires_quantize(values, offset, step)).tobytes(order="C"))
+            ds.close()
+        for handle in handles.values():
+            handle.close()
+        handles.clear()
+        for key, final in final_paths.items():
+            os.replace(temp_paths[key], final)
+    except Exception:
+        for handle in handles.values():
+            try:
+                handle.close()
+            except Exception:
+                pass
+        for tmp in temp_paths.values():
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+        raise
+
+    # The compressed browser archives are now the durable high-resolution representation.
+    # Raw CDS chunks are intentionally removed so the Actions cache remains bounded.
+    for raw in raw_files:
+        try:
+            raw.unlink()
+        except FileNotFoundError:
+            pass
+
+    metas = {
+        key: _hires_meta(
+            final_paths[key], month=month, year_start=year_start, year_end=year_end,
+            lat=lat, lon=lon, offset=offsets_steps[key][0], step=offsets_steps[key][1]
+        )
+        for key in final_paths
+    }
+    grid = {
+        "nlat": int(len(lat)), "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(float(lat[1] - lat[0]), 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(float(lon[1] - lon[0]), 6),
+    }
+    return metas, grid
+
+
+def _build_hires_soil_month(month: int, reference_month: dict, force: bool, existing: dict) -> tuple[dict[str, dict], dict]:
+    """Quantize the existing full-grid 1991–2020 soil reference fields; no extra CDS job is needed."""
+    lat = np.asarray(reference_month["lat"], dtype=float)
+    lon = np.asarray(reference_month["lon"], dtype=float)
+    years = np.asarray(reference_month["years"], dtype=int)
+    year_start, year_end = int(years[0]), int(years[-1])
+    result: dict[str, dict] = {}
+    HISTORY_HIRES_DIR.mkdir(parents=True, exist_ok=True)
+    for layer_key in SOIL_LAYERS:
+        key = f"soil_moisture_{layer_key}"
+        old = existing.get(key, {}).get(f"{month:02d}") if isinstance(existing.get(key), dict) else None
+        if not force and _hires_pack_meta_ready(old, year_start, year_end):
+            result[key] = old
+            continue
+        values = np.asarray(reference_month["layers"][layer_key], dtype=np.float32)
+        finite = values[np.isfinite(values)]
+        vmin = float(np.min(finite)) if finite.size else 0.0
+        vmax = float(np.max(finite)) if finite.size else 1.0
+        offset, step = _hires_quant_params(vmin, vmax)
+        final = HISTORY_HIRES_DIR / f"{key}_m{month:02d}.u8.gz"
+        tmp = final.with_suffix(final.suffix + ".tmp")
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        with gzip.open(tmp, "wb", compresslevel=6) as fh:
+            fh.write(_hires_delta_x(_hires_quantize(values, offset, step)).tobytes(order="C"))
+        os.replace(tmp, final)
+        result[key] = _hires_meta(
+            final, month=month, year_start=year_start, year_end=year_end,
+            lat=lat, lon=lon, offset=offset, step=step
+        )
+    grid = {
+        "nlat": int(len(lat)), "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(float(lat[1] - lat[0]), 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(float(lon[1] - lon[0]), 6),
+    }
+    return result, grid
+
+
+def highres_archive_is_ready(months: list[int], history_end_year: int) -> bool:
+    if not HISTORY_HIRES_INDEX.exists():
+        return False
+    try:
+        archive = json.loads(HISTORY_HIRES_INDEX.read_text(encoding="utf-8"))
+        if int(archive.get("archive_version", 0)) < HISTORY_HIRES_ARCHIVE_VERSION:
+            return False
+        variables = archive.get("variables") or {}
+        core_keys = ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)
+        soil_keys = tuple(f"soil_moisture_{layer}" for layer in SOIL_LAYERS)
+        for month in months:
+            mk = f"{int(month):02d}"
+            for key in core_keys:
+                if not _hires_pack_meta_ready((variables.get(key) or {}).get(mk), HISTORY_START, history_end_year):
+                    return False
+            for key in soil_keys:
+                if not _hires_pack_meta_ready((variables.get(key) or {}).get(mk), REFERENCE_START, REFERENCE_END):
+                    return False
+        return True
+    except Exception:
+        return False
+
+
+def build_highres_history_archive(client: cdsapi.Client, months: list[int], history_end_year: int,
+                                   soil_reference: dict[int, dict], force: bool) -> dict:
+    """Create the visible historical 0.1° archive used by the static GitHub Pages frontend.
+
+    Values are quantized to 255 codes (255 = missing) and gzip-compressed. The exact
+    1° analysis remains untouched for rankings and point time series; this archive is
+    exclusively the high-resolution visual map layer.
+    """
+    existing: dict = {}
+    if HISTORY_HIRES_INDEX.exists() and not force:
+        try:
+            existing = json.loads(HISTORY_HIRES_INDEX.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+    existing_vars = existing.get("variables") if isinstance(existing.get("variables"), dict) else {}
+    variables: dict = {key: dict(value) for key, value in existing_vars.items() if isinstance(value, dict)}
+    grid = existing.get("grid") if isinstance(existing.get("grid"), dict) else None
+    core_keys = ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)
+
+    for month in sorted(set(int(m) for m in months)):
+        month_key = f"{month:02d}"
+        core_ready = (
+            not force and all(
+                _hires_pack_meta_ready(variables.get(key, {}).get(month_key), HISTORY_START, history_end_year)
+                for key in core_keys
+            )
+        )
+        if not core_ready:
+            print(f"Baue sichtbares 0,1°-Historienarchiv für {MONTH_NAMES[month]} {HISTORY_START}–{history_end_year} …")
+            built, built_grid = _build_hires_core_month(client, month, history_end_year, force)
+            grid = built_grid
+            for key, meta in built.items():
+                variables.setdefault(key, {})[month_key] = meta
+        else:
+            print(f"0,1°-Historienarchiv {MONTH_NAMES[month]}: vorhandene Browser-Packs werden wiederverwendet.")
+
+        soil_built, soil_grid = _build_hires_soil_month(month, soil_reference[month], force, variables)
+        grid = grid or soil_grid
+        for key, meta in soil_built.items():
+            variables.setdefault(key, {})[month_key] = meta
+
+    if not grid:
+        raise RuntimeError("0,1°-Historienarchiv konnte kein gültiges ERA5-Land-Gitter bestimmen.")
+
+    archive = {
+        "ready": True,
+        "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "grid_label": "0,1° ERA5-Land",
+        "grid": grid,
+        "year_start": HISTORY_START,
+        "year_end": int(history_end_year),
+        "soil_year_start": REFERENCE_START,
+        "soil_year_end": REFERENCE_END,
+        "reference_period": "1991–2020",
+        "format": "uint8 + delta-x predictor + gzip; 255 = fehlend; Wert = offset + code × step",
+        "quantization_note": (
+            "Die sichtbare historische Karte nutzt das echte 0,1°-ERA5-Land-Raster. "
+            "Für kompakte Browserdateien werden die Rasterwerte verlustarm auf 255 Stufen quantisiert; "
+            "Rankings, KPIs und Gitterpunkt-Zeitreihen bleiben auf dem separaten 1,0°-Analysedatensatz."
+        ),
+        "available_months": sorted({int(m) for group in variables.values() for m in group.keys() if str(m).isdigit()}),
+        "variables": variables,
+    }
+    atomic_write_json(HISTORY_HIRES_INDEX, archive)
+    return archive
 
 
 def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, force: bool) -> dict:
@@ -1820,15 +2206,25 @@ def main() -> int:
     if INDEX_PATH.exists() and not args.force:
         try:
             existing = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
-            if (
+            existing_version = int(existing.get("payload_version", 0))
+            same_ready_target = (
                 existing.get("ready")
-                and int(existing.get("payload_version", 0)) >= 7
                 and existing.get("latest_month_key") == target_key
                 and all(path.exists() for path in required)
                 and ANALYSIS_PATH.exists()
-            ):
-                print(f"ERA5-Land Europa V7 ist bereits aktuell für {target_key}.")
+            )
+            history_meta = existing.get("history_map") or {}
+            expected_history_months = sorted({latest_month, *summer_months})
+            hires_ready = (
+                int(history_meta.get("archive_version", 0)) >= HISTORY_HIRES_ARCHIVE_VERSION
+                and str(history_meta.get("grid", "")).startswith("0,1")
+                and highres_archive_is_ready(expected_history_months, latest_year - 1)
+            )
+            if same_ready_target and existing_version >= 8 and hires_ready:
+                print(f"ERA5-Land Europa V8 mit sichtbarem 0,1°-Historienarchiv ist bereits aktuell für {target_key}.")
                 return 0
+            if same_ready_target and existing_version >= 7:
+                print("Vorhandene V7/V8-Daten werden wiederverwendet; das neue sichtbare 0,1°-Historienarchiv wird ergänzt.")
         except Exception:
             pass
 
@@ -1905,12 +2301,19 @@ def main() -> int:
         history_tp=history_tp, history_hydro=history_hydro, history_snow=history_snow,
     )
 
+    # Visible historical maps use the native CDS 0.1° grid. The current year remains
+    # on the pre-rendered current-data path, so the archive only needs completed years.
+    history_end_year = latest_year - 1
+    highres_archive = build_highres_history_archive(
+        client, history_months, history_end_year, soil_reference, args.force
+    )
+
     if args.force or not history_base_file.exists():
         render_history_base_map(history_base_file)
 
     payload = {
         "ready": True,
-        "payload_version": 7,
+        "payload_version": 8,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "latest_month_key": target_key,
         "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
@@ -1919,21 +2322,35 @@ def main() -> int:
         "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
         "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
         "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
-        "availability_note": "V7 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "availability_note": "V8 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
         "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
         "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
         "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
         "snow_note": "Schnee: Schneehöhe wird in cm, Schneewasseräquivalent in mm Wasseräquivalent und Schneebedeckung in % dargestellt. Monats- und Saisonwerte sind zeitgewichtete Mittel der monatlichen ERA5-Land-Zustandsgrößen.",
         "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950, "payload_version": 3},
+        "ranking": {
+            "ready": True,
+            "grid": analysis_payload["analysis_grid"],
+            "top_n": 10,
+            "history_start": 1950,
+            "note": "V8 berechnet Europa-Top/Bottom-10 und lokale historische Ränge weiterhin aus der 1,0°-Gitterpunktanalyse; die sichtbare historische Karte selbst wird unabhängig davon in 0,1° dargestellt."
+        },
         "history_map": {
             "ready": True,
             "base_file": "era5_land_europe/maps/historical_base.png",
-            "grid": "1,0°",
+            "archive_file": HISTORY_HIRES_INDEX.relative_to(ROOT).as_posix(),
+            "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+            "grid": "0,1°",
             "year_start": HISTORY_START,
-            "year_end": latest_year,
+            "year_end": history_end_year,
             "soil_year_start": REFERENCE_START,
+            "soil_year_end": REFERENCE_END,
             "periods": ["latest_month", "summer"],
-            "note": "Historische Karten werden im Browser aus der 1,0°-Gitterpunktanalyse gezeichnet. Dadurch sind die bereits berechneten historischen Jahre ohne Tausende zusätzliche PNG-Dateien auswählbar."
+            "note": (
+                "Sichtbare historische Karten werden aus echten 0,1°-ERA5-Land-Rasterfeldern aufgebaut. "
+                "Das 1,0°-Raster bleibt ausschließlich für Rankings, KPIs und Gitterpunkt-Zeitreihen im Hintergrund."
+            ),
+            "quantization_note": highres_archive.get("quantization_note"),
         },
         "click_geometry": MAP_CLICK_GEOMETRY,
         "percentile_note": "Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. Bei Bodenfeuchte und Wasserbilanz markieren niedrige Perzentile ungewöhnlich trockene Bedingungen; bei Verdunstung und Abfluss bedeuten sie ungewöhnlich niedrige Werte.",
@@ -1944,7 +2361,7 @@ def main() -> int:
         },
     }
     atomic_write_json(INDEX_PATH, payload)
-    print(f"ERA5-Land Europa V7 erzeugt: {INDEX_PATH}")
+    print(f"ERA5-Land Europa V8 erzeugt: {INDEX_PATH}")
     print(f"Datenstand: {payload['data_through']}")
     return 0
 
