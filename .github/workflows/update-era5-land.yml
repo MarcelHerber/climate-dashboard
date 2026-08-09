@@ -49,8 +49,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .era5_cache
-          key: era5-land-europe-v7-${{ runner.os }}-${{ steps.cache-month.outputs.month }}
+          key: era5-land-europe-v8-hires-${{ runner.os }}-${{ steps.cache-month.outputs.month }}
           restore-keys: |
+            era5-land-europe-v8-hires-${{ runner.os }}-
+            era5-land-europe-v8-${{ runner.os }}-
             era5-land-europe-v7-${{ runner.os }}-
             era5-land-europe-v6-${{ runner.os }}-
             era5-land-europe-v5-${{ runner.os }}-
