@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """Build compact European station-record datasets for the static Climate Dashboard.
 
-Primary source for the Europe station module: NOAA/NCEI GHCN-Daily.
-
-Architecture
-------------
-* Historical baseline: all quality-passed TMAX/TMIN observations before the
-  current calendar year, streamed from ghcnd_all.tar.gz and cached by GitHub
-  Actions. The large archive is never written to disk.
-* Daily update: only the current YYYY.csv.gz by-year file is downloaded.
-* Frontend output:
+Stations-V3 architecture
+------------------------
+* Germany: DWD CDC daily KL data are authoritative for the dashboard module.
+  Historical *_hist.zip files build a cached DWD baseline; *_akt.zip files
+  supply the current calendar year.
+* Rest of Europe: NOAA/NCEI GHCN-Daily remains the fallback/base source.
+  Germany is deliberately removed from the GHCN station set to avoid duplicates.
+* Frontend contract stays compatible with Stations-V2:
     europe_stations/index.json
-    europe_stations/calendar/MM-DD.json.gz  (366 compact day packs)
+    europe_stations/calendar/MM-DD.json.gz
 
-The JSON schema deliberately contains a ``source`` field so national providers
-(DWD, Meteo-France, AEMET, ...) can replace GHCN country-by-country later without
-changing the frontend contract.
+The large GHCN archive is streamed and cached. DWD historical files are only
+needed when the separate DWD baseline cache is missing or explicitly rebuilt.
 """
 
 from __future__ import annotations
@@ -25,32 +23,44 @@ import calendar
 import csv
 import datetime as dt
 import gzip
+import html
 import io
 import json
 import math
 import os
 import pickle
+import re
 import sys
 import tarfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
-BASE = "https://www.ncei.noaa.gov/pub/data/ghcn/daily"
-STATIONS_URL = f"{BASE}/ghcnd-stations.txt"
-COUNTRIES_URL = f"{BASE}/ghcnd-countries.txt"
-ARCHIVE_URL = f"{BASE}/ghcnd_all.tar.gz"
-BY_YEAR_URL = f"{BASE}/by_year/{{year}}.csv.gz"
+GHCN_BASE = "https://www.ncei.noaa.gov/pub/data/ghcn/daily"
+STATIONS_URL = f"{GHCN_BASE}/ghcnd-stations.txt"
+COUNTRIES_URL = f"{GHCN_BASE}/ghcnd-countries.txt"
+ARCHIVE_URL = f"{GHCN_BASE}/ghcnd_all.tar.gz"
+BY_YEAR_URL = f"{GHCN_BASE}/by_year/{{year}}.csv.gz"
 
-PAYLOAD_VERSION = 1
-BASELINE_FORMAT_VERSION = 2
-SOURCE_NAME = "GHCN-Daily"
+DWD_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl"
+DWD_HIST = f"{DWD_BASE}/historical/"
+DWD_RECENT = f"{DWD_BASE}/recent/"
+DWD_STATIONS_URL = f"{DWD_HIST}KL_Tageswerte_Beschreibung_Stationen.txt"
 
-# GHCN FIPS country codes. Russia/Turkey/Caucasus are additionally clipped to
-# the dashboard's Europe map extent below.
+PAYLOAD_VERSION = 3
+GHCN_BASELINE_FORMAT_VERSION = 2
+DWD_BASELINE_FORMAT_VERSION = 1
+GHCN_SOURCE = "GHCN-Daily"
+DWD_SOURCE = "DWD CDC"
+
+# GHCN FIPS country codes. Germany (GM) is intentionally still listed for
+# parsing compatibility, but is removed before baseline/current processing.
 EUROPE_CODES = {
     "AL", "AU", "BE", "BK", "BO", "BU", "CY", "DA", "EI", "EN", "EZ",
     "FI", "FR", "GG", "GI", "GM", "GR", "HR", "HU", "IC", "IT", "JN",
@@ -72,8 +82,6 @@ COUNTRY_NAME_DE = {
     "UP":"Ukraine", "AM":"Armenien", "AJ":"Aserbaidschan", "KZ":"Kasachstan",
 }
 
-# Broad Europe display extent used by the dashboard. Country-code filtering
-# prevents North African/Middle Eastern stations from entering the set.
 LAT_MIN, LAT_MAX = 34.0, 72.5
 LON_MIN, LON_MAX = -25.5, 45.5
 
@@ -83,7 +91,7 @@ def log(message: str) -> None:
 
 
 def http_open(url: str, attempts: int = 5, timeout: int = 180):
-    headers = {"User-Agent": "climate-dashboard-ghcn/1.0 (+GitHub Actions)"}
+    headers = {"User-Agent": "climate-dashboard-stations/3.0 (+GitHub Actions)"}
     last_error = None
     for attempt in range(1, attempts + 1):
         try:
@@ -93,15 +101,27 @@ def http_open(url: str, attempts: int = 5, timeout: int = 180):
             last_error = exc
             if attempt >= attempts:
                 break
-            wait = min(15 * attempt, 60)
+            wait = min(10 * attempt, 45)
             log(f"HTTP-Fehler für {url} (Versuch {attempt}/{attempts}): {exc}; neuer Versuch in {wait}s")
             time.sleep(wait)
     raise RuntimeError(f"Download fehlgeschlagen: {url}: {last_error}")
 
 
-def read_url_text(url: str) -> str:
-    with http_open(url) as response:
-        return response.read().decode("utf-8", errors="replace")
+def read_url_bytes(url: str, attempts: int = 5, timeout: int = 180) -> bytes:
+    with http_open(url, attempts=attempts, timeout=timeout) as response:
+        return response.read()
+
+
+def read_url_text(url: str, encoding: str = "utf-8") -> str:
+    return read_url_bytes(url).decode(encoding, errors="replace")
+
+
+def decode_text_smart(data: bytes) -> str:
+    """Prefer UTF-8, fall back to Latin-1 for older DWD metadata files."""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("latin-1", errors="replace")
 
 
 def parse_countries(text: str) -> Dict[str, str]:
@@ -121,16 +141,18 @@ class StationMeta:
     name: str
     country_code: str
     country: str
+    source: str
+    quality_rule: str
 
 
-def parse_stations(text: str, countries: Dict[str, str]) -> Dict[str, StationMeta]:
+def parse_ghcn_stations(text: str, countries: Dict[str, str]) -> Dict[str, StationMeta]:
     stations: Dict[str, StationMeta] = {}
     for raw in text.splitlines():
         if len(raw) < 42:
             continue
         sid = raw[0:11].strip()
         code = sid[:2]
-        if code not in EUROPE_CODES:
+        if code not in EUROPE_CODES or code == "GM":  # DWD replaces Germany in V3.
             continue
         try:
             lat = float(raw[12:20])
@@ -143,7 +165,52 @@ def parse_stations(text: str, countries: Dict[str, str]) -> Dict[str, StationMet
         elev = None if elev_raw <= -999 else round(elev_raw, 1)
         name = raw[41:71].strip() or sid
         country = COUNTRY_NAME_DE.get(code, countries.get(code, code))
-        stations[sid] = StationMeta(sid, lat, lon, elev, name, code, country)
+        stations[sid] = StationMeta(
+            sid, lat, lon, elev, name, code, country, GHCN_SOURCE,
+            "GHCN-Daily: nur TMAX/TMIN mit leerem Q-FLAG; Werte mit gesetztem Qualitätsflag werden verworfen.",
+        )
+    return stations
+
+
+def parse_dwd_stations(text: str) -> Dict[str, StationMeta]:
+    """Parse DWD KL_Tageswerte_Beschreibung_Stationen.txt.
+
+    The file is fixed-width-ish but station names contain spaces. Splitting into
+    at most 8 columns is robust across the current DWD station list layout:
+    Stations_id von_datum bis_datum Stationshoehe geoBreite geoLaenge Stationsname Bundesland
+    """
+    stations: Dict[str, StationMeta] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.lower().startswith("stations") or set(line) <= {"-", " "}:
+            continue
+        m = re.match(r"^(\d+)\s+(\d{8})\s+(\d{8})\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(.+)$", line)
+        if not m:
+            continue
+        sid_raw = m.group(1).zfill(5)
+        try:
+            elev = float(m.group(4).replace(",", "."))
+            lat = float(m.group(5).replace(",", "."))
+            lon = float(m.group(6).replace(",", "."))
+        except ValueError:
+            continue
+        remainder = m.group(7).strip()
+        # Station name and Bundesland are separated by a wide whitespace field.
+        # If that spacing was normalized upstream, strip a known Bundesland suffix.
+        name = re.split(r"\s{2,}", remainder, maxsplit=1)[0].strip()
+        if name == remainder:
+            states = ["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen"]
+            for state_name in states:
+                suffix = " " + state_name
+                if name.endswith(suffix):
+                    name = name[:-len(suffix)].rstrip(); break
+        name = name or f"DWD {sid_raw}"
+        sid = f"DWD:{sid_raw}"
+        stations[sid] = StationMeta(
+            sid, lat, lon, None if elev <= -999 else round(elev, 1), name,
+            "DE", "Deutschland", DWD_SOURCE,
+            "DWD CDC Tageswerte KL: TXK/TNK; DWD-Fehlwerte (-999) werden verworfen.",
+        )
     return stations
 
 
@@ -151,10 +218,6 @@ def better(element: str, new_value: int, old_value: Optional[int]) -> bool:
     if old_value is None:
         return True
     return new_value > old_value if element == "TMAX" else new_value < old_value
-
-
-def equal_record(new_value: int, old_value: Optional[int]) -> bool:
-    return old_value is not None and new_value == old_value
 
 
 def empty_state() -> dict:
@@ -165,7 +228,6 @@ def empty_state() -> dict:
 
 
 def update_record(record: Optional[Tuple[int, int, int]], value: int, date_int: int, element: str) -> Tuple[int, int, int]:
-    """record = (value, first_date, tie_count)."""
     if record is None or better(element, value, record[0]):
         return (value, date_int, 1)
     if value == record[0]:
@@ -220,8 +282,8 @@ def parse_dly_station(stream: io.BufferedReader, cutoff_year: int) -> dict:
     return state
 
 
-def build_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_url: str = ARCHIVE_URL) -> dict:
-    log(f"Baue historischen GHCN-Basisbestand bis {cutoff_year} …")
+def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_url: str = ARCHIVE_URL) -> dict:
+    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland) bis {cutoff_year} …")
     states = {}
     wanted = set(stations)
     seen = 0
@@ -241,48 +303,47 @@ def build_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_u
                     states[sid] = state
                 seen += 1
                 if seen % 250 == 0:
-                    log(f"  {seen:,} europäische Stationsdateien verarbeitet …")
-    log(f"Historischer Basisbestand fertig: {len(states):,} Stationen mit TMAX/TMIN.")
+                    log(f"  {seen:,} europäische GHCN-Stationsdateien verarbeitet …")
+    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland ausgeschlossen).")
     return {
-        "format_version": BASELINE_FORMAT_VERSION,
+        "format_version": GHCN_BASELINE_FORMAT_VERSION,
         "cutoff_year": cutoff_year,
         "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "states": states,
     }
 
 
-def load_or_build_baseline(cache_file: Path, stations: Dict[str, StationMeta], cutoff_year: int, force: bool) -> dict:
+def load_or_build_ghcn_baseline(cache_file: Path, stations: Dict[str, StationMeta], cutoff_year: int, force: bool) -> dict:
     if cache_file.exists() and not force:
         try:
             with gzip.open(cache_file, "rb") as handle:
                 payload = pickle.load(handle)
-            if payload.get("format_version") == BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
-                log(f"Verwende historischen Cache: {cache_file}")
+            if payload.get("format_version") == GHCN_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
+                # A V2 cache may still contain German states. That is harmless:
+                # only IDs present in the V3 GHCN metadata set are used later.
+                log(f"Verwende historischen GHCN-Cache: {cache_file}")
                 return payload
-            log("Historischer Cache hat eine andere Version/Jahresgrenze und wird neu gebaut.")
         except Exception as exc:
-            log(f"Historischer Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
-    payload = build_baseline(stations, cutoff_year)
+            log(f"GHCN-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
+    payload = build_ghcn_baseline(stations, cutoff_year)
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
     with gzip.open(tmp, "wb", compresslevel=5) as handle:
         pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
     tmp.replace(cache_file)
-    log(f"Historischer Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
+    log(f"GHCN-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
     return payload
 
 
-def parse_current_year(year: int, stations: Dict[str, StationMeta]) -> dict:
-    """Return current-year observations as station -> element -> mmdd -> (value,date)."""
+def parse_current_ghcn_year(year: int, stations: Dict[str, StationMeta]) -> dict:
     url = BY_YEAR_URL.format(year=year)
-    log(f"Lade laufendes GHCN-Jahr {year}: {url}")
+    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland): {url}")
     current: Dict[str, dict] = {}
     with http_open(url, attempts=6, timeout=240) as response:
         with gzip.GzipFile(fileobj=response) as gz:
             text = io.TextIOWrapper(gz, encoding="utf-8", errors="replace", newline="")
             reader = csv.reader(text)
-            rows = 0
-            kept = 0
+            rows = kept = 0
             for row in reader:
                 rows += 1
                 if len(row) < 7:
@@ -290,7 +351,7 @@ def parse_current_year(year: int, stations: Dict[str, StationMeta]) -> dict:
                 sid, datestr, element = row[0], row[1], row[2]
                 if sid not in stations or element not in ("TMAX", "TMIN"):
                     continue
-                if row[5].strip():  # Q-FLAG: reject values that failed QA.
+                if row[5].strip():
                     continue
                 try:
                     value = int(row[3]); date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
@@ -299,14 +360,183 @@ def parse_current_year(year: int, stations: Dict[str, StationMeta]) -> dict:
                 if value == -9999:
                     continue
                 mmdd = date_obj.strftime("%m-%d")
-                date_int = int(datestr)
                 station = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
-                # There should normally be one blended GHCN value per station/day/element.
-                station[element][mmdd] = (value, date_int)
+                station[element][mmdd] = (value, int(datestr))
                 kept += 1
                 if rows % 1_000_000 == 0:
-                    log(f"  {rows:,} Jahreszeilen gelesen, {kept:,} europäische TMAX/TMIN-Werte behalten …")
-    log(f"Laufendes Jahr eingelesen: {len(current):,} europäische Stationen mit TMAX/TMIN.")
+                    log(f"  {rows:,} GHCN-Jahreszeilen gelesen, {kept:,} Europa-TMAX/TMIN-Werte behalten …")
+    log(f"GHCN {year}: {len(current):,} Stationen außerhalb Deutschlands mit TMAX/TMIN.")
+    return current
+
+
+# ----------------------------- DWD adapter -----------------------------
+
+def list_directory_files(base_url: str, pattern: str) -> List[str]:
+    text = read_url_text(base_url, encoding="utf-8")
+    names = sorted(set(re.findall(pattern, text)))
+    return [urllib.parse.urljoin(base_url, html.unescape(name)) for name in names]
+
+
+def dwd_float_to_tenths(raw: str) -> Optional[int]:
+    value = str(raw or "").strip().replace(",", ".")
+    if not value:
+        return None
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    if not math.isfinite(number) or number <= -998.0:
+        return None
+    return int(round(number * 10.0))
+
+
+def parse_dwd_product_bytes(data: bytes, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None) -> dict:
+    """Parse one DWD KL zip and return the common record state/current format."""
+    historical = exact_year is None
+    state = empty_state() if historical else {"TMAX": {}, "TMIN": {}}
+    observed_years = {"TMAX": set(), "TMIN": set()}
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        candidates = [n for n in zf.namelist() if re.search(r"produkt_klima_tag_.*\.txt$", n, re.I)]
+        if not candidates:
+            candidates = [n for n in zf.namelist() if n.lower().endswith(".txt") and "produkt" in n.lower()]
+        for member in candidates:
+            with zf.open(member) as raw:
+                text = io.TextIOWrapper(raw, encoding="latin-1", errors="replace", newline="")
+                reader = csv.DictReader(text, delimiter=";")
+                if not reader.fieldnames:
+                    continue
+                # DWD headers often contain surrounding spaces.
+                field_map = {str(k).strip(): k for k in reader.fieldnames if k is not None}
+                date_key = field_map.get("MESS_DATUM")
+                tx_key = field_map.get("TXK")
+                tn_key = field_map.get("TNK")
+                if not date_key or (not tx_key and not tn_key):
+                    continue
+                for row in reader:
+                    datestr = str(row.get(date_key, "")).strip()
+                    if not re.fullmatch(r"\d{8}", datestr):
+                        continue
+                    year = int(datestr[:4])
+                    if cutoff_year is not None and year > cutoff_year:
+                        continue
+                    if exact_year is not None and year != exact_year:
+                        continue
+                    try:
+                        date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
+                    except ValueError:
+                        continue
+                    date_int = int(datestr); mmdd = date_obj.strftime("%m-%d")
+                    for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
+                        if not key:
+                            continue
+                        value = dwd_float_to_tenths(row.get(key, ""))
+                        if value is None:
+                            continue
+                        if historical:
+                            block = state[element]
+                            block["abs"] = update_record(block["abs"], value, date_int, element)
+                            block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
+                            block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
+                            block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
+                            observed_years[element].add(year)
+                        else:
+                            state[element][mmdd] = (value, date_int)
+    if historical:
+        for element in ("TMAX", "TMIN"):
+            state[element]["years"] = len(observed_years[element])
+    return state
+
+
+def dwd_station_id_from_url(url: str) -> Optional[str]:
+    name = Path(urllib.parse.urlparse(url).path).name
+    m = re.search(r"tageswerte_KL_(\d{5})_", name, re.I)
+    return f"DWD:{m.group(1)}" if m else None
+
+
+def fetch_parse_dwd(url: str, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
+    sid = dwd_station_id_from_url(url)
+    if not sid:
+        return None, None
+    data = read_url_bytes(url, attempts=5, timeout=180)
+    return sid, parse_dwd_product_bytes(data, cutoff_year=cutoff_year, exact_year=exact_year)
+
+
+def build_dwd_baseline(stations: Dict[str, StationMeta], cutoff_year: int, workers: int = 6) -> dict:
+    log(f"Baue DWD-Deutschland-Basisbestand bis {cutoff_year} …")
+    urls = list_directory_files(DWD_HIST, r'href="(tageswerte_KL_\d{5}_\d{8}_\d{8}_hist\.zip)"')
+    wanted = set(stations)
+    urls = [u for u in urls if dwd_station_id_from_url(u) in wanted]
+    log(f"DWD historical: {len(urls):,} Stations-ZIP-Dateien gefunden; {workers} parallele Downloads.")
+    states: Dict[str, dict] = {}
+    failures: List[Tuple[str, str]] = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(fetch_parse_dwd, u, cutoff_year=cutoff_year): u for u in urls}
+        done = 0
+        for future in as_completed(futures):
+            url = futures[future]; done += 1
+            try:
+                sid, state = future.result()
+                if sid and state and (state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None):
+                    states[sid] = state
+            except Exception as exc:
+                failures.append((url, str(exc)))
+                log(f"WARNUNG DWD historical: {Path(urllib.parse.urlparse(url).path).name}: {exc}")
+            if done % 100 == 0 or done == len(urls):
+                log(f"  DWD historical: {done:,}/{len(urls):,} ZIPs verarbeitet, {len(states):,} Stationen mit Daten …")
+    if failures and len(failures) > max(10, int(len(urls) * 0.03)):
+        raise RuntimeError(f"Zu viele DWD-Historical-Fehler: {len(failures)} von {len(urls)}")
+    log(f"DWD-Basisbestand fertig: {len(states):,} Stationen; fehlgeschlagene Dateien: {len(failures)}.")
+    return {
+        "format_version": DWD_BASELINE_FORMAT_VERSION,
+        "cutoff_year": cutoff_year,
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "states": states,
+    }
+
+
+def load_or_build_dwd_baseline(cache_file: Path, stations: Dict[str, StationMeta], cutoff_year: int, force: bool, workers: int) -> dict:
+    if cache_file.exists() and not force:
+        try:
+            with gzip.open(cache_file, "rb") as handle:
+                payload = pickle.load(handle)
+            if payload.get("format_version") == DWD_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
+                log(f"Verwende historischen DWD-Cache: {cache_file}")
+                return payload
+        except Exception as exc:
+            log(f"DWD-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
+    payload = build_dwd_baseline(stations, cutoff_year, workers=workers)
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+    with gzip.open(tmp, "wb", compresslevel=5) as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(cache_file)
+    log(f"DWD-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
+    return payload
+
+
+def parse_current_dwd_year(year: int, stations: Dict[str, StationMeta], workers: int = 8) -> dict:
+    urls = list_directory_files(DWD_RECENT, r'href="(tageswerte_KL_\d{5}_akt\.zip)"')
+    wanted = set(stations)
+    urls = [u for u in urls if dwd_station_id_from_url(u) in wanted]
+    log(f"Lade DWD recent für {year}: {len(urls):,} aktive Stations-ZIPs; {workers} parallele Downloads.")
+    current: Dict[str, dict] = {}
+    failures = 0
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(fetch_parse_dwd, u, exact_year=year): u for u in urls}
+        done = 0
+        for future in as_completed(futures):
+            done += 1
+            try:
+                sid, state = future.result()
+                if sid and state and (state["TMAX"] or state["TMIN"]):
+                    current[sid] = state
+            except Exception as exc:
+                failures += 1
+                log(f"WARNUNG DWD recent: {Path(urllib.parse.urlparse(futures[future]).path).name}: {exc}")
+            if done % 100 == 0 or done == len(urls):
+                log(f"  DWD recent: {done:,}/{len(urls):,} ZIPs verarbeitet, {len(current):,} Stationen mit {year}-Daten …")
+    if failures > max(10, int(len(urls) * 0.05)):
+        raise RuntimeError(f"Zu viele DWD-Recent-Fehler: {failures} von {len(urls)}")
     return current
 
 
@@ -326,12 +556,11 @@ def record_json(record: Optional[Tuple[int, int, int]]) -> Optional[dict]:
 
 
 def combine_record(base: Optional[Tuple[int, int, int]], current: Optional[Tuple[int, int]], element: str):
-    """Return final record, strict-new flag and delta versus pre-current baseline."""
     if current is None:
         return base, False, None
     value, date_int = current
     if base is None:
-        return (value, date_int, 1), False, None  # no meaningful previous record
+        return (value, date_int, 1), False, None
     if better(element, value, base[0]):
         delta = (value - base[0]) / 10.0 if element == "TMAX" else (base[0] - value) / 10.0
         return (value, date_int, 1), True, delta
@@ -345,8 +574,7 @@ def all_mmdd() -> List[str]:
     return [(dt.date(leap, 1, 1) + dt.timedelta(days=i)).strftime("%m-%d") for i in range(366)]
 
 
-def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline: dict, current: dict, current_year: int) -> None:
-    states: Dict[str, dict] = baseline["states"]
+def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], states: Dict[str, dict], current: dict, current_year: int) -> None:
     eligible_ids = sorted(set(states) | set(current))
     station_rows = []
 
@@ -360,17 +588,16 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline
         new_counts = {}
         last_new = {}
 
-        for element, pack_key in (("TMAX", "tmax"), ("TMIN", "tmin")):
+        for element in ("TMAX", "TMIN"):
             base_block = base_state[element]
             cur_values = cur_state.get(element, {})
             cur_abs = None
-            for mmdd, obs in cur_values.items():
+            for obs in cur_values.values():
                 if cur_abs is None or better(element, obs[0], cur_abs[0]):
                     cur_abs = obs
             final_abs, new_abs, abs_delta = combine_record(base_block.get("abs"), cur_abs, element)
             years = int(base_block.get("years", 0)) + (1 if cur_values else 0)
-            start = base_block.get("start")
-            end = base_block.get("end")
+            start = base_block.get("start"); end = base_block.get("end")
             if cur_values:
                 cur_dates = [d for _, d in cur_values.values()]
                 start = min([x for x in [start, min(cur_dates)] if x is not None])
@@ -380,17 +607,13 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline
                 "previous": record_json(base_block.get("abs")) if new_abs else None,
                 "new_absolute_current_year": bool(new_abs),
                 "new_absolute_delta": round(abs_delta, 1) if new_abs and abs_delta is not None else None,
-                "start": date_str(start),
-                "end": date_str(end),
-                "years": years,
+                "start": date_str(start), "end": date_str(end), "years": years,
             }
 
-            new_count = 0
-            last_new_date = None
+            new_count = 0; last_new_date = None
             cal_base = base_block.get("cal", {})
             for mmdd in set(cal_base) | set(cur_values):
-                b = cal_base.get(mmdd)
-                c = cur_values.get(mmdd)
+                b = cal_base.get(mmdd); c = cur_values.get(mmdd)
                 _final, is_new, _delta = combine_record(b, c, element)
                 if is_new:
                     new_count += 1
@@ -401,63 +624,54 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline
         if not element_summary["TMAX"]["record"] and not element_summary["TMIN"]["record"]:
             continue
         station_rows.append({
-            "id": meta.id,
-            "name": meta.name,
-            "country_code": meta.country_code,
-            "country": meta.country,
-            "lat": round(meta.lat, 4),
-            "lon": round(meta.lon, 4),
-            "elevation": meta.elev,
-            "source": SOURCE_NAME,
-            "tmax": element_summary["TMAX"],
-            "tmin": element_summary["TMIN"],
+            "id": meta.id, "source_id": meta.id.split(":",1)[1] if meta.id.startswith("DWD:") else meta.id,
+            "name": meta.name, "country_code": meta.country_code, "country": meta.country,
+            "lat": round(meta.lat, 4), "lon": round(meta.lon, 4), "elevation": meta.elev,
+            "source": meta.source, "quality_rule": meta.quality_rule,
+            "tmax": element_summary["TMAX"], "tmin": element_summary["TMIN"],
             "new_current_year": {
-                "tmax_calendar": new_counts["TMAX"],
-                "tmin_calendar": new_counts["TMIN"],
-                "tmax_last": last_new["TMAX"],
-                "tmin_last": last_new["TMIN"],
+                "tmax_calendar": new_counts["TMAX"], "tmin_calendar": new_counts["TMIN"],
+                "tmax_last": last_new["TMAX"], "tmin_last": last_new["TMIN"],
             },
         })
 
-    # Build compact day packs after the final station order is known.
     daypacks = {mmdd: {"tmax": [], "tmin": []} for mmdd in all_mmdd()}
     for idx, row in enumerate(station_rows):
         sid = row["id"]
         base_state = states.get(sid, empty_state())
         cur_state = current.get(sid, {"TMAX": {}, "TMIN": {}})
         for element, pack_key in (("TMAX", "tmax"), ("TMIN", "tmin")):
-            bcal = base_state[element].get("cal", {})
-            ccal = cur_state.get(element, {})
+            bcal = base_state[element].get("cal", {}); ccal = cur_state.get(element, {})
             for mmdd in set(bcal) | set(ccal):
                 b = bcal.get(mmdd); c = ccal.get(mmdd)
                 final, is_new, delta = combine_record(b, c, element)
                 if final is None:
                     continue
                 daypacks[mmdd][pack_key].append([
-                    idx, final[0], final[1],
-                    b[0] if b else None, b[1] if b else None,
-                    c[0] if c else None, c[1] if c else None,
-                    1 if is_new else 0,
+                    idx, final[0], final[1], b[0] if b else None, b[1] if b else None,
+                    c[0] if c else None, c[1] if c else None, 1 if is_new else 0,
                     int(round(delta * 10)) if delta is not None else None,
                 ])
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    cal_dir = output_dir / "calendar"
-    cal_dir.mkdir(parents=True, exist_ok=True)
-
+    cal_dir = output_dir / "calendar"; cal_dir.mkdir(parents=True, exist_ok=True)
     countries = sorted({row["country"] for row in station_rows})
+    source_counts: Dict[str, int] = {}
+    for row in station_rows:
+        source_counts[row["source"]] = source_counts.get(row["source"], 0) + 1
     payload = {
         "payload_version": PAYLOAD_VERSION,
         "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        "current_year": current_year,
-        "historical_through": current_year - 1,
-        "source": SOURCE_NAME,
-        "source_url": BASE,
-        "quality_rule": "Nur TMAX/TMIN mit leerem GHCN Q-FLAG; Werte in 0,1 °C eingelesen.",
-        "history_scope": "vollständige verfügbare GHCN-Daily-Messreihe vor dem laufenden Jahr + laufendes Jahr separat",
-        "station_count": len(station_rows),
-        "country_count": len(countries),
-        "countries": countries,
+        "current_year": current_year, "historical_through": current_year - 1,
+        "source": "DWD CDC (Deutschland) + GHCN-Daily (übriges Europa)",
+        "source_url": DWD_BASE,
+        "sources": [
+            {"name": DWD_SOURCE, "scope": "Deutschland", "url": DWD_BASE, "stations": source_counts.get(DWD_SOURCE, 0)},
+            {"name": GHCN_SOURCE, "scope": "übriges Europa", "url": GHCN_BASE, "stations": source_counts.get(GHCN_SOURCE, 0)},
+        ],
+        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
+        "history_scope": "DWD vollständige verfügbare KL-Tagesreihen für Deutschland; GHCN-Daily für das übrige Europa; laufendes Jahr separat aktualisiert.",
+        "station_count": len(station_rows), "country_count": len(countries), "countries": countries,
         "calendar_url_pattern": "europe_stations/calendar/{mmdd}.json.gz",
         "calendar_schema": ["station_index", "record_tenths_c", "record_date_yyyymmdd", "previous_tenths_c", "previous_date_yyyymmdd", "current_tenths_c", "current_date_yyyymmdd", "strict_new_record", "difference_tenths_c"],
         "stations": station_rows,
@@ -465,32 +679,31 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline
     (output_dir / "index.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     for mmdd, pack in daypacks.items():
-        obj = {
-            "payload_version": PAYLOAD_VERSION,
-            "mmdd": mmdd,
-            "current_year": current_year,
-            "tmax": pack["tmax"],
-            "tmin": pack["tmin"],
-        }
-        target = cal_dir / f"{mmdd}.json.gz"
-        with gzip.open(target, "wt", encoding="utf-8", compresslevel=7) as handle:
+        obj = {"payload_version": PAYLOAD_VERSION, "mmdd": mmdd, "current_year": current_year, "tmax": pack["tmax"], "tmin": pack["tmin"]}
+        with gzip.open(cal_dir / f"{mmdd}.json.gz", "wt", encoding="utf-8", compresslevel=7) as handle:
             json.dump(obj, handle, ensure_ascii=False, separators=(",", ":"))
 
     total_gz = sum(p.stat().st_size for p in cal_dir.glob("*.json.gz"))
-    log(f"Frontend-Daten geschrieben: {len(station_rows):,} Stationen, 366 Tagesarchive, {total_gz/1024/1024:.1f} MB Tagesarchive komprimiert.")
+    log(f"Frontend-Daten geschrieben: {len(station_rows):,} Stationen ({source_counts}), 366 Tagesarchive, {total_gz/1024/1024:.1f} MB komprimiert.")
 
 
 def self_test() -> None:
-    # Minimal DLY line: verifies fixed-width value/QFLAG parsing and record comparison.
-    sid = "GM000001234"
+    sid = "FR000001234"
     prefix = f"{sid}202501TMAX"
-    chars = list(prefix + ("-9999   " * 31))
-    # day 1 = 123 tenths C, blank qflag
-    chars[21:29] = list("  123   ")
-    line = "".join(chars)
-    state = parse_dly_station(io.BytesIO((line + "\n").encode("ascii")), 2025)
+    chars = list(prefix + ("-9999   " * 31)); chars[21:29] = list("  123   ")
+    state = parse_dly_station(io.BytesIO(("".join(chars) + "\n").encode("ascii")), 2025)
     assert state["TMAX"]["abs"][0] == 123
-    assert state["TMAX"]["cal"]["01-01"][0] == 123
+
+    sample = (
+        "STATIONS_ID;MESS_DATUM;QN_3;FX;FM;QN_4;RSK;RSKF;SDK;SHK_TAG;NM;VPM;PM;TMK;UPM;TXK;TNK;TGK;eor\n"
+        "44;20250101;3;-999;-999;3;0.0;0;-999;-999;7.0;8.0;1000;2.0;90;12.3;-4.5;-6.0;eor\n"
+    ).encode("latin-1")
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("produkt_klima_tag_20250101_20250101_00044.txt", sample)
+    dwd = parse_dwd_product_bytes(bio.getvalue(), cutoff_year=2025)
+    assert dwd["TMAX"]["abs"][0] == 123 and dwd["TMIN"]["abs"][0] == -45
+
     final, new, delta = combine_record((123, 20250101, 1), (130, 20260101), "TMAX")
     assert new and final[0] == 130 and abs(delta - 0.7) < 1e-9
     final, new, delta = combine_record((-50, 20250101, 1), (-60, 20260101), "TMIN")
@@ -500,9 +713,11 @@ def self_test() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="europe_stations", help="Frontend output directory")
-    parser.add_argument("--cache-dir", default=".cache/europe-stations", help="Historical baseline cache")
-    parser.add_argument("--force-baseline", action="store_true", help="Ignore an existing historical cache")
+    parser.add_argument("--output", default="europe_stations")
+    parser.add_argument("--cache-dir", default=".cache/europe-stations")
+    parser.add_argument("--force-baseline", action="store_true", help="GHCN und DWD historische Baselines neu aufbauen")
+    parser.add_argument("--force-dwd-baseline", action="store_true", help="Nur DWD-Baseline neu aufbauen")
+    parser.add_argument("--dwd-workers", type=int, default=6)
     parser.add_argument("--year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -510,18 +725,38 @@ def main() -> int:
     if args.self_test:
         self_test(); return 0
 
-    current_year = args.year
-    cutoff_year = current_year - 1
+    current_year = args.year; cutoff_year = current_year - 1
+
     countries = parse_countries(read_url_text(COUNTRIES_URL))
-    stations = parse_stations(read_url_text(STATIONS_URL), countries)
-    log(f"Europäische Stationsmetadaten im Kartenfenster: {len(stations):,}")
-    if not stations:
+    ghcn_stations = parse_ghcn_stations(read_url_text(STATIONS_URL), countries)
+    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland ausgeschlossen): {len(ghcn_stations):,}")
+    if not ghcn_stations:
         raise RuntimeError("Keine europäischen GHCN-Stationen gefunden.")
 
-    cache_file = Path(args.cache_dir) / f"ghcn_europe_baseline_through_{cutoff_year}_v{BASELINE_FORMAT_VERSION}.pkl.gz"
-    baseline = load_or_build_baseline(cache_file, stations, cutoff_year, args.force_baseline)
-    current = parse_current_year(current_year, stations)
-    merge_and_write(Path(args.output), stations, baseline, current, current_year)
+    # DWD station metadata is Latin-1/Windows-compatible text on CDC.
+    dwd_text = decode_text_smart(read_url_bytes(DWD_STATIONS_URL))
+    dwd_stations = parse_dwd_stations(dwd_text)
+    log(f"DWD-KL-Stationsmetadaten Deutschland: {len(dwd_stations):,}")
+    if not dwd_stations:
+        raise RuntimeError("Keine DWD-KL-Stationen gefunden.")
+
+    cache_dir = Path(args.cache_dir)
+    ghcn_cache = cache_dir / f"ghcn_europe_baseline_through_{cutoff_year}_v{GHCN_BASELINE_FORMAT_VERSION}.pkl.gz"
+    dwd_cache = cache_dir / f"dwd_germany_kl_baseline_through_{cutoff_year}_v{DWD_BASELINE_FORMAT_VERSION}.pkl.gz"
+
+    ghcn_baseline = load_or_build_ghcn_baseline(ghcn_cache, ghcn_stations, cutoff_year, args.force_baseline)
+    dwd_baseline = load_or_build_dwd_baseline(dwd_cache, dwd_stations, cutoff_year, args.force_baseline or args.force_dwd_baseline, args.dwd_workers)
+
+    ghcn_current = parse_current_ghcn_year(current_year, ghcn_stations)
+    dwd_current = parse_current_dwd_year(current_year, dwd_stations, workers=max(4, args.dwd_workers))
+
+    stations = dict(ghcn_stations); stations.update(dwd_stations)
+    # Filter cached V2 GHCN states to the V3 non-Germany metadata set, then add DWD.
+    states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
+    states.update(dwd_baseline.get("states", {}))
+    current = dict(ghcn_current); current.update(dwd_current)
+
+    merge_and_write(Path(args.output), stations, states, current, current_year)
     return 0
 
 
