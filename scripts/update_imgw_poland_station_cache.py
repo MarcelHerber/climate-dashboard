@@ -59,8 +59,9 @@ HEADER_URL = DAILY + "/" + urllib.parse.quote(HEADER_NAME)
 PUBLIC_URL = "https://danepubliczne.imgw.pl/"
 SOURCE = "IMGW-PIB"
 
-# V3 invalidates the earlier baseline because station metadata handling changed;
-# resource shards stay compatible with the corrected k_d parser.
+# Baseline v3 reflects corrected station metadata. Resource format deliberately
+# remains v2 so the 349 already valid historical shards stay reusable; v4 only
+# changes recovery of a not-yet-cached malformed IMGW ZIP.
 BASELINE_FORMAT_VERSION = 3
 RESOURCE_FORMAT_VERSION = 2
 START_YEAR = 1951
@@ -416,15 +417,115 @@ def _daily_members(zf: zipfile.ZipFile) -> List[str]:
     return members
 
 
-def _read_zip_member_with_crc_fallback(archive_bytes: bytes, zf: zipfile.ZipFile, member: str) -> bytes:
-    """Read a ZIP member normally, but recover a structurally intact DEFLATE stream on CRC mismatch.
+def _validate_recovered_daily_csv(raw: bytes, member: str, schema: dict) -> dict:
+    """Strong semantic checks for a CSV recovered from inconsistent ZIP metadata.
 
-    IMGW currently serves at least one archive (2024_07_k.zip) whose k_d CSV
-    reproducibly triggers Python's ``Bad CRC-32`` check.  We must not silently
-    skip that month.  For CRC errors only, read the member's compressed payload
-    directly from the local ZIP header, decompress it, and require the exact
-    uncompressed size recorded in the central directory.  All other ZIP errors
-    remain fatal.
+    We deliberately do *not* trust the central-directory uncompressed size or CRC
+    after a confirmed CRC failure.  Instead the recovered DEFLATE stream must be
+    complete and the CSV itself must look like one complete IMGW k_d month/year.
+    """
+    if not raw:
+        raise RuntimeError(f"IMGW ZIP CRC-Fallback: leere CSV {member}")
+
+    # A cut-off text member usually ends in the middle of a record.  Requiring a
+    # line terminator is a cheap first guard before parsing the complete structure.
+    if not raw.endswith((b"\n", b"\r")):
+        raise RuntimeError(f"IMGW ZIP CRC-Fallback: CSV {member} endet nicht an einer vollständigen Zeile")
+
+    text = decode_polish(raw)
+    delimiter = detect_delimiter(text)
+    indexes = [schema[key] for key in ("station", "name", "year", "month", "day", "tmax", "tmin")]
+    max_index = max(index for index in indexes if index is not None)
+
+    filename = Path(member).name.lower()
+    match = re.search(r"k_d_(\d{2})_(\d{4})\.csv$", filename)
+    expected_month = int(match.group(1)) if match else None
+    expected_year = int(match.group(2)) if match else None
+
+    valid_rows = 0
+    malformed_rows = 0
+    station_ids = set()
+    dates = set()
+    foreign_dates = 0
+
+    for row in csv.reader(io.StringIO(text), delimiter=delimiter):
+        if not row or not any(str(value).strip() for value in row):
+            continue
+        if len(row) <= max_index:
+            malformed_rows += 1
+            continue
+        try:
+            year = int(float(row[schema["year"]]))
+            month = int(float(row[schema["month"]]))
+            day = int(float(row[schema["day"]]))
+            date = dt.date(year, month, day)
+        except (ValueError, TypeError):
+            malformed_rows += 1
+            continue
+
+        if expected_year is not None and (year != expected_year or month != expected_month):
+            foreign_dates += 1
+            continue
+
+        station = row[schema["station"]].strip().replace(".0", "")
+        if not station:
+            malformed_rows += 1
+            continue
+
+        valid_rows += 1
+        station_ids.add(station)
+        dates.add(date)
+
+    if valid_rows < 100 or len(station_ids) < 10:
+        raise RuntimeError(
+            f"IMGW ZIP CRC-Fallback: CSV {member} enthält zu wenig verwertbare Daten "
+            f"({valid_rows} Zeilen, {len(station_ids)} Stationen)"
+        )
+    if malformed_rows:
+        raise RuntimeError(
+            f"IMGW ZIP CRC-Fallback: CSV {member} enthält {malformed_rows} strukturell unvollständige Zeilen"
+        )
+    if foreign_dates:
+        raise RuntimeError(
+            f"IMGW ZIP CRC-Fallback: CSV {member} enthält {foreign_dates} Zeilen aus einem falschen Monat/Jahr"
+        )
+
+    if expected_year is not None and expected_month is not None:
+        import calendar
+        expected_days = {
+            dt.date(expected_year, expected_month, day)
+            for day in range(1, calendar.monthrange(expected_year, expected_month)[1] + 1)
+        }
+        missing_days = sorted(expected_days - dates)
+        if missing_days:
+            preview = ", ".join(value.isoformat() for value in missing_days[:5])
+            raise RuntimeError(
+                f"IMGW ZIP CRC-Fallback: CSV {member} ist kalendarisch unvollständig; "
+                f"fehlende Tage: {preview}{' …' if len(missing_days) > 5 else ''}"
+            )
+
+    return {
+        "rows": valid_rows,
+        "stations": len(station_ids),
+        "days": len(dates),
+        "expected_year": expected_year,
+        "expected_month": expected_month,
+    }
+
+
+def _read_zip_member_with_crc_fallback(
+    archive_bytes: bytes,
+    zf: zipfile.ZipFile,
+    member: str,
+    schema: dict,
+) -> bytes:
+    """Read a ZIP member and safely recover a complete stream on CRC mismatch.
+
+    IMGW's 2024_07_k.zip currently has inconsistent central-directory metadata.
+    Normal ``zipfile`` reading therefore fails.  Only after a confirmed CRC error
+    do we decode the raw local DEFLATE stream.  A metadata size mismatch is *not*
+    accepted by itself: the stream must reach DEFLATE EOF and the recovered k_d
+    CSV must pass strict row/date/calendar validation.
     """
     try:
         return zf.read(member)
@@ -460,8 +561,11 @@ def _read_zip_member_with_crc_fallback(archive_bytes: bytes, zf: zipfile.ZipFile
         try:
             if info.compress_type == zipfile.ZIP_STORED:
                 raw = compressed
+                stream_eof = True
             elif info.compress_type == zipfile.ZIP_DEFLATED:
-                raw = zlib.decompress(compressed, -zlib.MAX_WBITS)
+                decoder = zlib.decompressobj(-zlib.MAX_WBITS)
+                raw = decoder.decompress(compressed) + decoder.flush()
+                stream_eof = decoder.eof
             else:
                 raise RuntimeError(
                     f"IMGW ZIP CRC-Fallback unterstützt Kompressionsmethode "
@@ -470,17 +574,21 @@ def _read_zip_member_with_crc_fallback(archive_bytes: bytes, zf: zipfile.ZipFile
         except zlib.error as decompress_exc:
             raise RuntimeError(f"IMGW ZIP CRC-Fallback: DEFLATE-Daten beschädigt für {member}") from decompress_exc
 
-        if len(raw) != info.file_size:
-            raise RuntimeError(
-                f"IMGW ZIP CRC-Fallback: entpackte Größe für {member} stimmt nicht "
-                f"({len(raw)} statt {info.file_size} Bytes)"
-            )
+        if not stream_eof:
+            raise RuntimeError(f"IMGW ZIP CRC-Fallback: DEFLATE-Stream für {member} endet nicht sauber")
 
+        validation = _validate_recovered_daily_csv(raw, member, schema)
         actual_crc = zlib.crc32(raw) & 0xFFFFFFFF
+        size_note = (
+            f"Größe gespeichert {info.file_size:,}, tatsächlich {len(raw):,} Bytes; "
+            if len(raw) != info.file_size else f"Größe {len(raw):,} Bytes; "
+        )
         log(
-            f"WARNUNG IMGW: CRC-Fehler in {member}; Datenstrom vollständig entpackt "
-            f"({len(raw):,} Bytes, CRC gespeichert {info.CRC:08x}, tatsächlich {actual_crc:08x}). "
-            "CSV wird nach Größen- und Strukturprüfung weiterverarbeitet."
+            f"WARNUNG IMGW: inkonsistente ZIP-Metadaten in {member}; "
+            f"DEFLATE-Stream endet sauber, {size_note}"
+            f"CRC gespeichert {info.CRC:08x}, tatsächlich {actual_crc:08x}; "
+            f"CSV geprüft: {validation['rows']:,} Zeilen, {validation['stations']} Stationen, "
+            f"{validation['days']} Kalendertage. Datei wird verwendet."
         )
         return raw
 
@@ -509,7 +617,7 @@ def parse_zip(
     max_index = max(index for index in indexes if index is not None)
 
     for member in members:
-        raw_member = _read_zip_member_with_crc_fallback(data, zf, member)
+        raw_member = _read_zip_member_with_crc_fallback(data, zf, member, schema)
         text = decode_polish(raw_member)
         delimiter = detect_delimiter(text)
         for row in csv.reader(io.StringIO(text), delimiter=delimiter):
@@ -854,6 +962,29 @@ def self_test() -> None:
     assert partial[sid]["TMAX"]["abs"][0] == 364
     assert partial[sid]["TMIN"]["abs"][0] == 175
     assert names[sid] == "TEST" and not current
+
+    # Synthetic reproduction of the IMGW July-2024 failure: the compressed
+    # member is complete, but central-directory CRC and uncompressed size are
+    # stale/wrong. The fallback may accept it only after semantic validation.
+    rows = []
+    for station_nr in range(10):
+        station_code = str(900000000 + station_nr)
+        for day in range(1, 32):
+            rows.append(
+                f'{station_code},"TEST{station_nr}",2024,7,{day},30.0,,15.0,,,,,,,,,,\n'
+            )
+    broken_csv = "".join(rows).encode("cp1250")
+    broken_buffer = io.BytesIO()
+    with zipfile.ZipFile(broken_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("k_d_07_2024.csv", broken_csv)
+    broken = bytearray(broken_buffer.getvalue())
+    cd = broken.find(b"PK\x01\x02")
+    assert cd >= 0
+    # Central-directory layout: CRC32 +16, compressed size +20, file size +24.
+    struct.pack_into("<I", broken, cd + 16, 0x12345678)
+    struct.pack_into("<I", broken, cd + 24, len(broken_csv) + 40000)
+    recovered_partial, _, _ = parse_zip(bytes(broken), schema, cutoff_year=2025)
+    assert "IMGW:900000000" in recovered_partial
 
     official_catalog = (
         '"250180460","ADAMOWICE","95414"\n'
