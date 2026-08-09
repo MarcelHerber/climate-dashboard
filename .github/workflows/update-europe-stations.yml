@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force_baseline:
-        description: "GHCN + DWD + Météo-France historische Baselines trotz Cache neu aufbauen"
+        description: "GHCN + DWD + Météo-France + AEMET historische Baselines trotz Cache neu aufbauen"
         required: false
         default: false
         type: boolean
@@ -15,6 +15,11 @@ on:
         type: boolean
       force_mf_baseline:
         description: "Nur Météo-France-Frankreich-Baseline neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_aemet_baseline:
+        description: "Nur AEMET-Spanien-Baseline neu aufbauen"
         required: false
         default: false
         type: boolean
@@ -31,7 +36,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Repository auschecken
@@ -55,17 +60,26 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+          key: europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+            europe-stations-v5-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
             europe-stations-v4-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v3-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
             europe-stations-v3-${{ steps.dates.outputs.base_year }}-
-            ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
-      - name: Versionscheck und alte Ausgabe entfernen
+      - name: Versionscheck, AEMET-Secret prüfen und alte Ausgabe entfernen
         shell: bash
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
         run: |
+          if [[ -z "$AEMET_API_KEY" ]]; then
+            echo "AEMET_API_KEY fehlt. Bitte als Repository-Secret unter Settings → Secrets and variables → Actions anlegen."
+            exit 1
+          fi
           python - <<'PY'
           import ast
           from pathlib import Path
@@ -86,7 +100,7 @@ jobs:
               if actual is not None:
                   break
 
-          expected = 4
+          expected = 5
           if actual != expected:
               raise SystemExit(
                   f"Versionsfehler: Workflow erwartet Stations-Payload V{expected}, "
@@ -99,9 +113,11 @@ jobs:
       - name: Europa-Stationsrekorde berechnen
         shell: bash
         env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
           FORCE_BASELINE: ${{ github.event.inputs.force_baseline || 'false' }}
           FORCE_DWD_BASELINE: ${{ github.event.inputs.force_dwd_baseline || 'false' }}
           FORCE_MF_BASELINE: ${{ github.event.inputs.force_mf_baseline || 'false' }}
+          FORCE_AEMET_BASELINE: ${{ github.event.inputs.force_aemet_baseline || 'false' }}
         run: |
           EXTRA_ARGS=""
           if [[ "$FORCE_BASELINE" == "true" ]]; then
@@ -113,6 +129,9 @@ jobs:
           if [[ "$FORCE_MF_BASELINE" == "true" ]]; then
             EXTRA_ARGS="$EXTRA_ARGS --force-mf-baseline"
           fi
+          if [[ "$FORCE_AEMET_BASELINE" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --force-aemet-baseline"
+          fi
           python scripts/update_europe_station_records.py \
             --year "${{ steps.dates.outputs.year }}" \
             --output europe_stations \
@@ -121,12 +140,12 @@ jobs:
             --mf-workers 6 \
             $EXTRA_ARGS
 
-      - name: Stations-Cache sichern
-        if: steps.station-cache.outputs.cache-hit != 'true' && github.event.inputs.force_baseline != 'true' && github.event.inputs.force_dwd_baseline != 'true' && github.event.inputs.force_mf_baseline != 'true'
+      - name: Stations-Cache sichern (auch nach Datenfehlern)
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+          key: europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
       - name: Ergebnis prüfen
         shell: bash
@@ -143,29 +162,27 @@ jobs:
           print('Erzeugte Payload-Version:', version)
           print('Stationsquellen:', sources)
           print('Gesamtstationen:', p.get('station_count',0), 'Länder:', p.get('country_count',0))
-          if version != 4:
-              raise SystemExit(f"Falsche Payload-Version: erwartet V4, erzeugt wurde V{version}. Vermutlich wurden Workflow und Python-Skript nicht gemeinsam aktualisiert.")
+          if version != 5:
+              raise SystemExit(f"Falsche Payload-Version: erwartet V5, erzeugt wurde V{version}.")
           if p.get('station_count',0) <= 0:
               raise SystemExit('Keine Stationen in index.json erzeugt.')
-          if sources.get('DWD CDC',0) <= 0:
-              raise SystemExit(f"Keine DWD-Stationen erzeugt. Quellen: {sources}")
-          if sources.get('Météo-France',0) <= 0:
-              raise SystemExit(f"Keine Météo-France-Stationen erzeugt. Quellen: {sources}")
-          if sources.get('GHCN-Daily',0) <= 0:
-              raise SystemExit(f"Keine GHCN-Fallbackstationen erzeugt. Quellen: {sources}")
-          german=[s for s in p.get('stations',[]) if s.get('country')=='Deutschland']
-          france=[s for s in p.get('stations',[]) if s.get('country')=='Frankreich']
-          if not german:
-              raise SystemExit('Keine deutschen Stationen in index.json.')
-          if not all(s.get('source')=='DWD CDC' for s in german):
-              raise SystemExit('Mindestens eine deutsche Station stammt nicht aus DWD CDC.')
-          if not france:
-              raise SystemExit('Keine französischen Stationen in index.json.')
-          if not all(s.get('source')=='Météo-France' for s in france):
-              raise SystemExit('Mindestens eine französische Station stammt nicht aus Météo-France.')
-          if any(s.get('source')=='GHCN-Daily' and s.get('country') in {'Deutschland','Frankreich'} for s in p.get('stations',[])):
-              raise SystemExit('GHCN-Doppelstationen für Deutschland oder Frankreich gefunden.')
-          print('Stations-V4.1 OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern', sources)
+          for source in ('DWD CDC','Météo-France','AEMET OpenData','GHCN-Daily'):
+              if sources.get(source,0) <= 0:
+                  raise SystemExit(f"Keine Stationen für Quelle {source} erzeugt. Quellen: {sources}")
+          checks = {
+              'Deutschland':'DWD CDC',
+              'Frankreich':'Météo-France',
+              'Spanien':'AEMET OpenData',
+          }
+          for country, source in checks.items():
+              rows=[s for s in p.get('stations',[]) if s.get('country')==country]
+              if not rows:
+                  raise SystemExit(f'Keine Stationen für {country} in index.json.')
+              if not all(s.get('source')==source for s in rows):
+                  raise SystemExit(f'Mindestens eine Station in {country} stammt nicht aus {source}.')
+          if any(s.get('source')=='GHCN-Daily' and s.get('country') in checks for s in p.get('stations',[])):
+              raise SystemExit('GHCN-Doppelstationen für Deutschland, Frankreich oder Spanien gefunden.')
+          print('Stations-V5 OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern', sources)
           PY
 
       - name: Daten committen
@@ -178,6 +195,6 @@ jobs:
             echo "Keine Änderungen an den Europa-Stationsdaten."
             exit 0
           fi
-          git commit -m "Update Europe station records V4.2"
+          git commit -m "Update Europe station records V5"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
