@@ -48,6 +48,7 @@ jobs:
           test -s scripts/update_europe_station_records.py
           test -s scripts/update_geosphere_austria_station_cache.py
           python scripts/update_geosphere_austria_station_cache.py --self-test
+          mkdir -p .cache/europe-stations
           echo "Vorhandene Österreich-Blockcaches:"
           find .cache/europe-stations -maxdepth 2 -type f -path '*geosphere_austria_blocks*/*.pkl.gz' 2>/dev/null | wc -l
 
