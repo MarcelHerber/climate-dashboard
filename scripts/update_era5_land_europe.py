@@ -1121,6 +1121,33 @@ def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: st
     plt.close(fig)
 
 
+def render_history_base_map(filename: Path) -> None:
+    """Neutral geographic background for the browser-rendered 1° historical archive."""
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    cartopy.config["data_dir"] = str(CARTOPY_DIR)
+    CARTOPY_DIR.mkdir(parents=True, exist_ok=True)
+
+    fig = plt.figure(figsize=(13.2, 8.1), dpi=150)
+    ax = fig.add_axes([0.07, 0.18, 0.89, 0.66], projection=ccrs.PlateCarree())
+    ax.set_extent([AREA[1], AREA[3], AREA[2], AREA[0]], crs=ccrs.PlateCarree())
+    ax.set_facecolor("#eef3f5")
+    ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f8fafb", edgecolor="none", zorder=0)
+    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a", zorder=3)
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a", zorder=3)
+    ax.add_feature(cfeature.LAKES.with_scale("50m"), facecolor="#eef3f5", edgecolor="#89949a", linewidth=0.25, zorder=3)
+    gl = ax.gridlines(draw_labels=True, linewidth=0.25, color="#7f8c92", alpha=0.45, linestyle="--")
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {"size": 8, "color": "#59656c"}
+    gl.ylabel_style = {"size": 8, "color": "#59656c"}
+
+    fig.suptitle("ERA5-Land Europa · Historisches Kartenarchiv", x=0.075, y=0.97, ha="left", va="top", fontsize=17, fontweight="bold")
+    fig.text(0.075, 0.925, "Browserdarstellung auf 1,0°-Analyseraster · historische Jahre seit 1950", ha="left", va="top", fontsize=10, color="#56636a")
+    fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · Landflächen", ha="left", va="bottom", fontsize=8, color="#68757c")
+    plt.savefig(filename, facecolor="white")
+    plt.close(fig)
+
+
 def combine_temperature(fields: dict[int, np.ndarray], year: int, months: list[int]) -> np.ndarray:
     weights = np.array([calendar.monthrange(year, month)[1] for month in months], dtype=float)
     stack = np.stack([fields[month] for month in months], axis=0)
@@ -1787,18 +1814,20 @@ def main() -> int:
         for period_id in ("latest_month", "summer"):
             for view in ("absolute", "anomaly", "percentile"):
                 required.append(MAP_DIR / f"{key}_{period_id}_{view}.png")
+    history_base_file = MAP_DIR / "historical_base.png"
+    required.append(history_base_file)
 
     if INDEX_PATH.exists() and not args.force:
         try:
             existing = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
             if (
                 existing.get("ready")
-                and int(existing.get("payload_version", 0)) >= 6
+                and int(existing.get("payload_version", 0)) >= 7
                 and existing.get("latest_month_key") == target_key
                 and all(path.exists() for path in required)
                 and ANALYSIS_PATH.exists()
             ):
-                print(f"ERA5-Land Europa V6 ist bereits aktuell für {target_key}.")
+                print(f"ERA5-Land Europa V7 ist bereits aktuell für {target_key}.")
                 return 0
         except Exception:
             pass
@@ -1876,9 +1905,12 @@ def main() -> int:
         history_tp=history_tp, history_hydro=history_hydro, history_snow=history_snow,
     )
 
+    if args.force or not history_base_file.exists():
+        render_history_base_map(history_base_file)
+
     payload = {
         "ready": True,
-        "payload_version": 6,
+        "payload_version": 7,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "latest_month_key": target_key,
         "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
@@ -1887,12 +1919,22 @@ def main() -> int:
         "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
         "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
         "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
-        "availability_note": "V6 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "availability_note": "V7 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
         "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
         "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
         "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
         "snow_note": "Schnee: Schneehöhe wird in cm, Schneewasseräquivalent in mm Wasseräquivalent und Schneebedeckung in % dargestellt. Monats- und Saisonwerte sind zeitgewichtete Mittel der monatlichen ERA5-Land-Zustandsgrößen.",
         "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950, "payload_version": 3},
+        "history_map": {
+            "ready": True,
+            "base_file": "era5_land_europe/maps/historical_base.png",
+            "grid": "1,0°",
+            "year_start": HISTORY_START,
+            "year_end": latest_year,
+            "soil_year_start": REFERENCE_START,
+            "periods": ["latest_month", "summer"],
+            "note": "Historische Karten werden im Browser aus der 1,0°-Gitterpunktanalyse gezeichnet. Dadurch sind die bereits berechneten historischen Jahre ohne Tausende zusätzliche PNG-Dateien auswählbar."
+        },
         "click_geometry": MAP_CLICK_GEOMETRY,
         "percentile_note": "Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. Bei Bodenfeuchte und Wasserbilanz markieren niedrige Perzentile ungewöhnlich trockene Bedingungen; bei Verdunstung und Abfluss bedeuten sie ungewöhnlich niedrige Werte.",
         "soil_layers": {key: {"label": meta["label"], "depth_cm": meta["depth_cm"]} for key, meta in SOIL_LAYERS.items()},
@@ -1902,7 +1944,7 @@ def main() -> int:
         },
     }
     atomic_write_json(INDEX_PATH, payload)
-    print(f"ERA5-Land Europa V6 erzeugt: {INDEX_PATH}")
+    print(f"ERA5-Land Europa V7 erzeugt: {INDEX_PATH}")
     print(f"Datenstand: {payload['data_through']}")
     return 0
 
