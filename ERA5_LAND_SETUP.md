@@ -1,40 +1,35 @@
-# ERA5-Land Europa – V6 Schnee & Schneewasser
+# ERA5-Land Europa – V7 Historische Karten
 
-Die Dateien liegen bereits in der richtigen Repository-Struktur. Der vorhandene GitHub-Secret `CDSAPI_KEY` wird unverändert weiterverwendet.
+Die Dateien liegen bereits in der richtigen Repository-Struktur. Der vorhandene GitHub-Secret `CDSAPI_KEY` bleibt unverändert.
 
-## V6 starten
+## Neu in V7
+
+- neuer Regler **Kartenjahr** im ERA5-Land-Tab
+- aktueller Datenstand weiterhin als hochaufgelöste 0,1°-PNG-Karte
+- historische Europakarten auf dem bereits vorhandenen 1,0°-Analyseraster
+- Temperatur, Niederschlag, Wasserhaushalt und Schnee: Kartenjahre ab 1950
+- Bodenfeuchte: Einzeljahre 1991–2020 plus aktueller Datenstand
+- Absolutwert sowie je nach Parameter Abweichung, Prozent vom Mittel oder Perzentil 1991–2020
+- Europa-KPIs werden auch für das gewählte historische Kartenjahr neu berechnet
+- Klick auf historische Karte öffnet dieselbe Gitterpunktanalyse und markiert das gewählte Kartenjahr im historischen Diagramm
+- PNG-Export funktioniert auch für historische Karten
+
+Die historischen Karten werden im Browser aus `analysis.json` gezeichnet. Dadurch müssen **nicht tausende historische PNG-Dateien** ins Repository geschrieben werden und V7 benötigt keine zusätzliche komplette ERA5-Land-Historie gegenüber V6.
+
+## V7 starten
 
 Nach dem Hochladen:
 
 **Actions → ERA5-Land Europa aktualisieren → Run workflow**
 
-`force` beim ersten V6-Lauf **nicht aktivieren**. Der Workflow stellt zunächst den vorhandenen V5-Cache wieder her und ergänzt nur die neuen Schnee-Bausteine. Temporäre CDS-Fehler werden weiterhin automatisch wiederholt.
-
-## Neu in V6
-
-- Schneehöhe (`snow_depth`) in cm
-- Schneewasseräquivalent (`snow_depth_water_equivalent`) in mm Wasseräquivalent
-- Schneebedeckung (`snow_cover`) in %
-- für alle drei Größen: Absolutwert, Abweichung 1991–2020 und Perzentil 1991–2020
-- jüngster vollständiger Monat und Sommer JJA/bisher
-- 0,1°-Europakarten
-- 1°-Gitterpunktanalyse mit Jahresverlauf, Klimamittel, Vergleichsjahr und historischem Rang seit 1950
-
-Schneehöhe, Schneewasseräquivalent und Schneebedeckung sind Zustandsgrößen. Bei Zeiträumen mit mehreren Monaten wird deshalb ein nach Kalendertagen gewichtetes Mittel gebildet und **keine Summe**.
-
-## Bestehende V5-Funktionen bleiben erhalten
-
-Temperatur, Niederschlag, vier Bodenfeuchteschichten, Verdunstung, Gesamt-/Oberflächen-/Untergrundabfluss und Wasserbilanz P − E bleiben vollständig enthalten.
-
-## Cache
-
-Der Workflow verwendet nun einen V6-Cache mit Fallback auf V5/V4/V3/V2/V1. Dadurch müssen die bereits erfolgreich aufgebauten V5-Referenzen nicht erneut heruntergeladen werden. `--force` sollte nur zur gezielten Fehlerbehebung verwendet werden.
+`force` **nicht aktivieren**. Der Workflow verwendet den V7-Cache mit Fallback auf den vorhandenen V6-Cache. Wenn V6 bereits erfolgreich aufgebaut wurde, sollten die historischen Daten weitgehend aus dem Cache kommen.
 
 ## Ergebnis
 
 Nach erfolgreichem Lauf schreibt:
 
-- `era5_land_europe/index.json` → `payload_version: 6`
-- `era5_land_europe/analysis.json` → `payload_version: 3`
+- `era5_land_europe/index.json` → `payload_version: 7`
+- `era5_land_europe/analysis.json` → weiterhin `payload_version: 3`
+- `era5_land_europe/maps/historical_base.png` → neutrale Basiskarte für das historische 1°-Raster
 
-Danach wie gewohnt **Update and Deploy** ausführen, damit die neue Oberfläche auf GitHub Pages veröffentlicht wird.
+Danach wie gewohnt **Update and Deploy** ausführen.
