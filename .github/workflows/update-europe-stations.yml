@@ -83,6 +83,20 @@ jobs:
 
       # Beim ersten gemeinsamen Lauf holen wir die bereits erfolgreich aufgebauten
       # nationalen Caches aus ihren bisherigen Cache-Namensräumen.
+      # Wichtig: Der Météo-France-Bestand lag bislang in einem eigenen Cache-Key.
+      # Er wird hier zusätzlich in denselben Arbeitsordner entpackt, damit die
+      # große Frankreich-Historie nicht unnötig neu heruntergeladen wird.
+      - name: Météo-France-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-mf-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            meteofrance-repair-v4-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v4-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v3-${{ steps.dates.outputs.base_year }}-
+            meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
+
       - name: GeoSphere-Österreich-Cache ergänzen
         uses: actions/cache/restore@v4
         with:
@@ -98,6 +112,17 @@ jobs:
           key: europe-merge-pl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
           restore-keys: |
             imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Cache-Bestand anzeigen
+        shell: bash
+        run: |
+          echo "=== Vorhandene historische Gesamtcaches ==="
+          find .cache/europe-stations -maxdepth 1 -type f \
+            \( -name '*baseline*.pkl.gz' -o -name '*status*.json' \) \
+            -printf '%f\n' 2>/dev/null | sort || true
+          echo "=== Météo-France-Einzelcaches ==="
+          find .cache/europe-stations -maxdepth 2 -type f \
+            -path '*meteofrance_resources*/*.pkl.gz' 2>/dev/null | wc -l
 
       - name: Skripte und AEMET-Key prüfen
         shell: bash
