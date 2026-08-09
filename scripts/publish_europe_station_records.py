@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import update_europe_station_records as core
+import update_geosphere_austria_station_cache as austria
 
 
 def load_dwd_cache(cache_dir: Path, cutoff_year: int) -> dict:
@@ -67,7 +68,7 @@ def load_ghcn_cache(cache_dir: Path, cutoff_year: int) -> dict:
     return payload
 
 
-def parse_ghcn_publish_stations(text: str, countries: Dict[str, str]) -> Dict[str, core.StationMeta]:
+def parse_ghcn_publish_stations(text: str, countries: Dict[str, str], exclude_austria: bool = False) -> Dict[str, core.StationMeta]:
     """GHCN fallback for all mapped European countries except DE/FR.
 
     Spain intentionally remains included until AEMET is ready. Germany and
@@ -80,7 +81,7 @@ def parse_ghcn_publish_stations(text: str, countries: Dict[str, str]) -> Dict[st
             continue
         sid = raw[0:11].strip()
         code = sid[:2]
-        if code not in core.EUROPE_CODES or code in {"GM", "FR"}:
+        if code not in core.EUROPE_CODES or code in {"GM", "FR"} or (exclude_austria and code == "AU"):
             continue
         try:
             lat = float(raw[12:20])
@@ -164,6 +165,9 @@ def patch_index_metadata(
     current_ghcn_ok: bool,
     current_dwd_ok: bool,
     current_mf_ok: bool,
+    austria_enabled: bool,
+    austria_station_count: int,
+    current_austria_ok: bool,
 ) -> dict:
     path = output_dir / "index.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -174,7 +178,7 @@ def patch_index_metadata(
         counts[source] = counts.get(source, 0) + 1
 
     missing = max(0, mf_total - mf_available)
-    payload["source"] = "DWD CDC (Deutschland) + Météo-France (Frankreich) + GHCN-Daily (übriges Europa inkl. Spanien)"
+    payload["source"] = "DWD CDC (Deutschland) + Météo-France (Frankreich) + " + ("GeoSphere Austria (Österreich) + " if austria_enabled else "") + "GHCN-Daily (übriges Europa inkl. Spanien)"
     payload["source_url"] = core.GHCN_BASE
     payload["sources"] = [
         {
@@ -194,9 +198,18 @@ def patch_index_metadata(
             "resources_total": mf_total,
             "resources_missing": missing,
         },
+        *([
+            {
+                "name": austria.SOURCE,
+                "scope": "Österreich",
+                "url": austria.PUBLIC_URL,
+                "stations": austria_station_count,
+                "historical_complete": True,
+            }
+        ] if austria_enabled else []),
         {
             "name": core.GHCN_SOURCE,
-            "scope": "übriges Europa einschließlich Spanien (bis AEMET übernimmt)",
+            "scope": "übriges Europa einschließlich Spanien" + ("; Österreich durch GeoSphere Austria ersetzt" if austria_enabled else " (Österreich noch GHCN)"),
             "url": core.GHCN_BASE,
             "stations": counts.get(core.GHCN_SOURCE, 0),
             "historical_complete": True,
@@ -204,16 +217,18 @@ def patch_index_metadata(
     ]
     payload["quality_rule"] = (
         "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). "
-        "Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. "
-        "Übriges Europa einschließlich Spanien: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
+        + "Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. "
+        + ("Österreich: GeoSphere Austria klima-v2-1d, qualitätsgeprüfte tägliche tlmax/tlmin. " if austria_enabled else "")
+        + "Übriges Europa einschließlich Spanien: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
         f"Deutschland vollständig aus dem DWD-KL-Historical-Cache bis {current_year - 1}. "
         f"Frankreich als Zwischenstand aus {mf_available} von {mf_total} Météo-France-Historical-Ressourcen. "
-        "Alle übrigen europäischen Länder einschließlich Spanien bleiben aus dem bestehenden GHCN-Daily-Historical-Cache enthalten. "
-        "Spanien wird erst nach fertigem AEMET-Cache von GHCN auf AEMET umgestellt."
+        + ("Österreich wird aus GeoSphere Austria klima-v2-1d bereitgestellt; " if austria_enabled else "Österreich bleibt vorerst GHCN-Daily; ")
+        + "alle übrigen europäischen Länder einschließlich Spanien bleiben aus dem bestehenden GHCN-Daily-Historical-Cache enthalten. "
+        + "Spanien wird erst nach fertigem AEMET-Cache von GHCN auf AEMET umgestellt."
     )
-    payload["publication_scope"] = "Europa vollständig: DWD Deutschland + Météo-France Frankreich + GHCN-Daily Rest-Europa"
+    payload["publication_scope"] = "Europa vollständig: DWD Deutschland + Météo-France Frankreich + " + ("GeoSphere Austria Österreich + " if austria_enabled else "") + "GHCN-Daily Rest-Europa"
     payload["publication_partial"] = missing > 0 or mf_bad_shards > 0
     payload["coverage"] = {
         "Deutschland": {
@@ -230,10 +245,18 @@ def patch_index_metadata(
             "unreadable_cached_shards": mf_bad_shards,
             "current_year_refresh_ok": current_mf_ok,
         },
+        **({
+            "Österreich": {
+                "source": austria.SOURCE,
+                "historical_complete": True,
+                "current_year_refresh_ok": current_austria_ok,
+            }
+        } if austria_enabled else {}),
         "Rest-Europa": {
             "source": core.GHCN_SOURCE,
             "historical_complete": True,
             "includes_spain": True,
+            "austria_replaced_by_national_source": austria_enabled,
             "current_year_refresh_ok": current_ghcn_ok,
         },
     }
@@ -314,7 +337,7 @@ def main() -> int:
     output_dir = Path(args.output)
 
     core.log("=== PUBLISH EUROPA-STATIONEN ===")
-    core.log("DWD Deutschland + Météo-France Frankreich + GHCN-Daily übriges Europa inkl. Spanien.")
+    core.log("DWD Deutschland + Météo-France Frankreich + optional GeoSphere Austria + GHCN-Daily übriges Europa inkl. Spanien.")
     core.log("Historische Archive werden NICHT neu aufgebaut; vorhandene Caches werden zusammengesetzt.")
 
     ghcn_baseline = load_ghcn_cache(cache_dir, cutoff_year)
@@ -322,9 +345,17 @@ def main() -> int:
     mf_states, mf_stations, mf_available, mf_bad = load_mf_shards(cache_dir, cutoff_year)
     mf_total = read_mf_resource_total(cache_dir, cutoff_year, mf_available)
 
+    austria_baseline = None
+    austria_path = austria.baseline_path(cache_dir, cutoff_year)
+    if austria_path.exists():
+        austria_baseline = austria.load_baseline(cache_dir, cutoff_year)
+        core.log(f"GeoSphere-Austria-Historical aus Cache: {len(austria_baseline.get('states', {})):,} Stationsreihen.")
+    else:
+        core.log("GeoSphere-Austria-Cache noch nicht vorhanden: Österreich bleibt für diesen Publish vollständig über GHCN-Daily enthalten.")
+
     # Small metadata files are refreshed so every cached state can be placed on the map.
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
-    ghcn_meta_all = parse_ghcn_publish_stations(core.read_url_text(core.STATIONS_URL), countries)
+    ghcn_meta_all = parse_ghcn_publish_stations(core.read_url_text(core.STATIONS_URL), countries, exclude_austria=bool(austria_baseline))
     ghcn_states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_meta_all}
     ghcn_stations = {sid: meta for sid, meta in ghcn_meta_all.items() if sid in ghcn_states}
     if not ghcn_stations:
@@ -354,7 +385,8 @@ def main() -> int:
     ghcn_current: Dict[str, dict] = {}
     dwd_current: Dict[str, dict] = {}
     mf_current: Dict[str, dict] = {}
-    ghcn_current_ok = dwd_current_ok = mf_current_ok = False
+    austria_current: Dict[str, dict] = {}
+    ghcn_current_ok = dwd_current_ok = mf_current_ok = austria_current_ok = False
 
     if not args.no_current:
         try:
@@ -375,6 +407,13 @@ def main() -> int:
             mf_current_ok = True
         except Exception as exc:
             core.log(f"WARNUNG: Météo-France {current_year} konnte nicht vollständig aktualisiert werden; Historical-Zwischenstand bleibt online: {exc}")
+
+        if austria_baseline:
+            try:
+                austria_current = austria.parse_current_year(current_year, austria_baseline.get("stations", {}))
+                austria_current_ok = True
+            except Exception as exc:
+                core.log(f"WARNUNG: GeoSphere Austria {current_year} konnte nicht aktualisiert werden; Historical-Stand bleibt online: {exc}")
     else:
         core.log("Laufendes Jahr wurde per --no-current übersprungen.")
 
@@ -388,6 +427,10 @@ def main() -> int:
     current = dict(ghcn_current)
     current.update(dwd_current)
     current.update(mf_current)
+    if austria_baseline:
+        stations.update(austria_baseline.get("stations", {}))
+        states.update(austria_baseline.get("states", {}))
+        current.update(austria_current)
 
     if output_dir.exists():
         import shutil
@@ -403,12 +446,16 @@ def main() -> int:
         current_ghcn_ok=ghcn_current_ok,
         current_dwd_ok=dwd_current_ok,
         current_mf_ok=mf_current_ok,
+        austria_enabled=bool(austria_baseline),
+        austria_station_count=len(austria_baseline.get("states", {})) if austria_baseline else 0,
+        current_austria_ok=austria_current_ok,
     )
 
     rows = payload.get("stations", [])
     de = [x for x in rows if x.get("country") == "Deutschland"]
     fr = [x for x in rows if x.get("country") == "Frankreich"]
     es = [x for x in rows if x.get("country") == "Spanien"]
+    at = [x for x in rows if x.get("country") == "Österreich"]
     ghcn = [x for x in rows if x.get("source") == core.GHCN_SOURCE]
     if not de or not fr or not es or not ghcn:
         raise RuntimeError(
@@ -420,11 +467,15 @@ def main() -> int:
         raise RuntimeError("Frankreich enthält noch eine Nicht-Météo-France-Quelle.")
     if not all(x.get("source") == core.GHCN_SOURCE for x in es):
         raise RuntimeError("Spanien soll bis zur AEMET-Umstellung vollständig über GHCN kommen.")
+    if austria_baseline:
+        if not at or not all(x.get("source") == austria.SOURCE for x in at):
+            raise RuntimeError("Österreich-Cache ist vorhanden, aber Österreich wurde nicht vollständig durch GeoSphere Austria ersetzt.")
 
     core.log(
         f"PUBLISH EUROPA OK: {payload.get('station_count', 0):,} Stationen in {payload.get('country_count', 0)} Ländern | "
-        f"DWD {len(de):,} | Météo-France {len(fr):,} | GHCN {len(ghcn):,} (inkl. Spanien {len(es):,}) | "
-        f"Frankreich {mf_available}/{mf_total} Historical-Ressourcen."
+        f"DWD {len(de):,} | Météo-France {len(fr):,} | "
+        + (f"GeoSphere Austria {len(at):,} | " if austria_baseline else f"Österreich GHCN {len(at):,} | ")
+        + f"GHCN {len(ghcn):,} (inkl. Spanien {len(es):,}) | Frankreich {mf_available}/{mf_total} Historical-Ressourcen."
     )
     return 0
 
