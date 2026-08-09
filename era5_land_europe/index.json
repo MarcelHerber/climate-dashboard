@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 7,
-  "generated_at": "2026-08-09T03:54:14+00:00",
+  "payload_version": 8,
+  "generated_at": "2026-08-09T06:34:54+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -14,7 +14,7 @@
     "south": 34.0,
     "east": 45.0
   },
-  "availability_note": "V7 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+  "availability_note": "V8 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
   "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
   "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
   "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
@@ -25,18 +25,29 @@
     "history_start": 1950,
     "payload_version": 3
   },
+  "ranking": {
+    "ready": true,
+    "grid": "1,0° (nächster verfügbarer Landpunkt)",
+    "top_n": 10,
+    "history_start": 1950,
+    "note": "V8 berechnet Europa-Top/Bottom-10 und lokale historische Ränge weiterhin aus der 1,0°-Gitterpunktanalyse; die sichtbare historische Karte selbst wird unabhängig davon in 0,1° dargestellt."
+  },
   "history_map": {
     "ready": true,
     "base_file": "era5_land_europe/maps/historical_base.png",
-    "grid": "1,0°",
+    "archive_file": "era5_land_europe/history_0p1/index.json",
+    "archive_version": 2,
+    "grid": "0,1°",
     "year_start": 1950,
-    "year_end": 2026,
+    "year_end": 2025,
     "soil_year_start": 1991,
+    "soil_year_end": 2020,
     "periods": [
       "latest_month",
       "summer"
     ],
-    "note": "Historische Karten werden im Browser aus der 1,0°-Gitterpunktanalyse gezeichnet. Dadurch sind die bereits berechneten historischen Jahre ohne Tausende zusätzliche PNG-Dateien auswählbar."
+    "note": "Sichtbare historische Karten werden aus echten 0,1°-ERA5-Land-Rasterfeldern aufgebaut. Das 1,0°-Raster bleibt ausschließlich für Rankings, KPIs und Gitterpunkt-Zeitreihen im Hintergrund.",
+    "quantization_note": "Die sichtbare historische Karte nutzt das echte 0,1°-ERA5-Land-Raster. Für kompakte Browserdateien werden die Rasterwerte verlustarm auf 255 Stufen quantisiert; Rankings, KPIs und Gitterpunkt-Zeitreihen bleiben auf dem separaten 1,0°-Analysedatensatz."
   },
   "click_geometry": {
     "left": 0.07,
