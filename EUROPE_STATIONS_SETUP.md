@@ -152,3 +152,25 @@ Der Workflow `Publish Europe station records` baut keine historischen Archive ne
 Workflow: **Repair Météo-France station cache**. Er baut Frankreich nicht neu auf, sondern prüft die vorhandenen Einzelcaches und bearbeitet ausschließlich fehlende/ungültige Ressourcen. Große `.csv.gz` werden über kleine HTTP-Range-Blöcke vom offiziellen Météo-France-Objektspeicher geladen; nur ein fehlerhafter Block wird erneut angefordert. Bereits gültige Shards bleiben unangetastet.
 
 Empfohlene Einstellungen: `workers=4`, `chunk_mib=2`. Der Repair-Job endet bei verbleibenden Problemressourcen absichtlich mit Exit Code 0, damit `actions/cache/save` den verbesserten Zwischenstand zuverlässig sichern kann. Ein weiterer Repair-Lauf fasst dann automatisch nur noch die verbleibenden Ressourcen an. Sind alle Ressourcen vorhanden, wird zusätzlich der kombinierte Météo-France-Gesamtcache aus den Einzelcaches erzeugt, ohne die Historie erneut herunterzuladen.
+
+## Österreich – GeoSphere Austria
+
+Österreich wird über den offiziellen GeoSphere-Austria-Datensatz `klima-v2-1d`
+(Qualitätsgeprüfte Stationsdaten in täglicher Auflösung) integriert. Für das
+Stationsrekord-Modul werden `tlmax` und `tlmin` verwendet.
+
+GitHub Actions:
+
+1. `Update GeoSphere Austria station cache` starten (`force=false`).
+2. Der Erstlauf lädt die Historie in dynamischen API-Zeitblöcken und cached
+   jeden erfolgreichen Block sofort unter `.cache/europe-stations/`.
+3. Falls einzelne Blöcke fehlschlagen, wird der Cache **vor** der abschließenden
+   Vollständigkeitsprüfung gespeichert. Ein weiterer Lauf mit `force=false`
+   setzt nur die fehlenden Blöcke fort.
+4. Nach grünem Österreich-Cache `Publish Europe station records` starten. Der
+   Publish ersetzt dann ausschließlich die österreichischen GHCN-Stationen durch
+   GeoSphere Austria. Alle anderen Länder bleiben erhalten.
+
+Der Publish ist rückwärts-sicher: Solange noch kein vollständiger
+GeoSphere-Austria-Gesamtcache vorhanden ist, bleibt Österreich über GHCN-Daily
+auf der Europa-Karte und verschwindet nicht.
