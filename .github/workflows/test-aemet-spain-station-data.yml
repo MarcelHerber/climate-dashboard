@@ -1,0 +1,34 @@
+name: Test AEMET Spain station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Offline-Selbsttest
+        run: python scripts/test_aemet_spain_station_data.py --self-test
+
+      - name: AEMET Live-Probe
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+        run: |
+          if [[ -z "$AEMET_API_KEY" ]]; then
+            echo "AEMET_API_KEY fehlt als Repository-Secret."
+            exit 1
+          fi
+          python scripts/test_aemet_spain_station_data.py
