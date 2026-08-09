@@ -1,0 +1,66 @@
+name: Update DWD station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "DWD-Historie trotz vorhandenem Cache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-dwd-station-cache
+  cancel-in-progress: false
+
+jobs:
+  dwd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Jahreswerte bestimmen
+        id: dates
+        shell: bash
+        run: |
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: DWD-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: dwd-stations-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v4-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v3-${{ steps.dates.outputs.base_year }}-
+
+      - name: Nur DWD-Historie bearbeiten
+        shell: bash
+        env:
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+        run: |
+          EXTRA_ARGS=""
+          if [[ "$FORCE" == "true" ]]; then EXTRA_ARGS="--force"; fi
+          python scripts/update_dwd_station_cache.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            --cache-dir .cache/europe-stations \
+            --workers 8 \
+            $EXTRA_ARGS
+
+      - name: DWD-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: dwd-stations-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}

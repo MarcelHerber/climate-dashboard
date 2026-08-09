@@ -1,0 +1,66 @@
+name: Update Météo-France station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Frankreich-Gesamtcache und alle Einzelressourcen vollständig neu laden"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-meteofrance-station-cache
+  cancel-in-progress: false
+
+jobs:
+  france:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Jahreswerte bestimmen
+        id: dates
+        shell: bash
+        run: |
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: Météo-France-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
+            dwd-stations-v1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v5-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v4-${{ steps.dates.outputs.base_year }}-
+
+      - name: Nur Frankreich-Historie bearbeiten
+        shell: bash
+        env:
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+        run: |
+          EXTRA_ARGS=""
+          if [[ "$FORCE" == "true" ]]; then EXTRA_ARGS="--force"; fi
+          python scripts/update_meteofrance_station_cache.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            --cache-dir .cache/europe-stations \
+            --workers 6 \
+            $EXTRA_ARGS
+
+      - name: Météo-France-Cache sichern – auch bei Fehler
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
