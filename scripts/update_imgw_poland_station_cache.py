@@ -41,6 +41,13 @@ import update_europe_station_records as core
 BASE = "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologiczne"
 DAILY = f"{BASE}/dobowe/klimat"
 STATION_CATALOG_URL = f"{BASE}/wykaz_stacji.csv"
+# IMGW publishes station names/codes in wykaz_stacji.csv but no coordinates.
+# This compact coordinate table is maintained by the open-source climate R package
+# from IMGW-PIB station metadata and uses the same 9-digit IMGW station IDs.
+STATION_COORDS_URL = (
+    "https://raw.githubusercontent.com/bczernecki/climate/refs/heads/master/"
+    "data-raw/meteo_stations.csv"
+)
 
 # IMPORTANT: k_d is the full daily climate product. k_d_t only contains TEMP
 # and does not provide TMAX/TMIN.
@@ -50,9 +57,9 @@ HEADER_URL = DAILY + "/" + urllib.parse.quote(HEADER_NAME)
 PUBLIC_URL = "https://danepubliczne.imgw.pl/"
 SOURCE = "IMGW-PIB"
 
-# V2 deliberately invalidates shards/baselines created with the former k_d_t
-# parser so they cannot be mixed with correctly parsed k_d data.
-BASELINE_FORMAT_VERSION = 2
+# V3 invalidates the earlier baseline because station metadata handling changed;
+# resource shards stay compatible with the corrected k_d parser.
+BASELINE_FORMAT_VERSION = 3
 RESOURCE_FORMAT_VERSION = 2
 START_YEAR = 1951
 
@@ -228,62 +235,119 @@ def load_temperature_schema() -> dict:
     return schema
 
 
-def parse_station_catalog() -> Dict[str, core.StationMeta]:
-    text = decode_polish(read_bytes(STATION_CATALOG_URL))
+def parse_station_catalog_rows(text: str) -> Dict[str, dict]:
+    """Parse IMGW's headerless ``wykaz_stacji.csv``.
+
+    The official file contains exactly the pieces advertised by IMGW:
+    9-digit station code, station name, and a five-character station/rank code.
+    It does *not* contain coordinates.
+    """
+    delimiter = detect_delimiter(text)
+    output: Dict[str, dict] = {}
+    for row in csv.reader(io.StringIO(text), delimiter=delimiter):
+        if len(row) < 2:
+            continue
+        raw = row[0].strip().replace(".0", "")
+        if not re.fullmatch(r"\d{9}", raw):
+            # Also makes the parser harmless if IMGW ever adds a header row.
+            continue
+        name = row[1].strip() or raw
+        id2 = row[2].strip() if len(row) > 2 else ""
+        previous = output.get(raw)
+        if previous is None:
+            output[raw] = {"name": name, "id2": id2}
+        else:
+            # One 9-digit station can occur with several historical/rank codes.
+            # Keep the useful station name and retain all auxiliary codes only
+            # for diagnostics; the 9-digit ID is the actual join key.
+            if previous.get("name") in ("", raw) and name:
+                previous["name"] = name
+            if id2 and id2 not in previous.get("id2", "").split("|"):
+                previous["id2"] = "|".join(filter(None, [previous.get("id2", ""), id2]))
+    return output
+
+
+def parse_station_coordinate_rows(text: str) -> Dict[str, Tuple[float, float]]:
+    """Parse the compact coordinate metadata mirror (id,X,Y) keyed by IMGW ID."""
     delimiter = detect_delimiter(text)
     rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
     if not rows:
-        raise RuntimeError("IMGW Stationsverzeichnis ist leer.")
+        raise RuntimeError("IMGW Koordinaten-Metadaten sind leer.")
 
-    headers = [value.strip() for value in rows[0]]
-    normalized = [norm(value) for value in headers]
+    header = [norm(value) for value in rows[0]]
+    try:
+        i_id = header.index("id")
+        i_lon = header.index("x")
+        i_lat = header.index("y")
+        data_rows = rows[1:]
+    except ValueError:
+        # Defensive fallback for a possible headerless mirror.
+        i_id, i_lon, i_lat = 0, 1, 2
+        data_rows = rows
 
-    def find_any(groups: List[Tuple[str, ...]]) -> Optional[int]:
-        for group in groups:
-            for index, header in enumerate(normalized):
-                if all(word in header for word in group):
-                    return index
-        return None
+    output: Dict[str, Tuple[float, float]] = {}
+    for row in data_rows:
+        if len(row) <= max(i_id, i_lon, i_lat):
+            continue
+        raw = row[i_id].strip().replace(".0", "")
+        if not re.fullmatch(r"\d{9}", raw):
+            continue
+        lon = parse_coord(row[i_lon], False)
+        lat = parse_coord(row[i_lat], True)
+        if lat is None or lon is None:
+            continue
+        if not (48.5 <= lat <= 55.5 and 13.5 <= lon <= 24.5):
+            continue
+        output[raw] = (lat, lon)
+    return output
 
-    i_code = find_any([("kod", "stacji"), ("kod",), ("id",)])
-    i_name = find_any([("nazwa", "stacji"), ("nazwa",), ("station", "name")])
-    i_lat = find_any([("szerokosc",), ("latitude",), ("lat",)])
-    i_lon = find_any([("dlugosc",), ("longitude",), ("lon",)])
-    i_elev = find_any([("wysokosc",), ("elevation",), ("altitude",)])
 
-    if i_code is None or i_name is None or i_lat is None or i_lon is None:
-        raise RuntimeError(
-            f"IMGW wykaz_stacji.csv ohne erkennbare Code/Name/Koordinaten-Spalten: {headers}"
-        )
+def build_station_catalog_from_texts(
+    official_catalog_text: str,
+    coordinate_text: str,
+) -> Dict[str, core.StationMeta]:
+    names = parse_station_catalog_rows(official_catalog_text)
+    coords = parse_station_coordinate_rows(coordinate_text)
 
     output: Dict[str, core.StationMeta] = {}
-    for row in rows[1:]:
-        if max(i_code, i_name, i_lat, i_lon) >= len(row):
-            continue
-        raw = row[i_code].strip().replace(".0", "")
-        if not raw:
-            continue
-        lat = parse_coord(row[i_lat], True)
-        lon = parse_coord(row[i_lon], False)
-        if lat is None or lon is None or not (48.5 <= lat <= 55.5 and 13.5 <= lon <= 24.5):
-            continue
-        elev = parse_float(row[i_elev]) if i_elev is not None and i_elev < len(row) else None
-        name = row[i_name].strip() or raw
+    for raw, (lat, lon) in coords.items():
+        info = names.get(raw, {})
+        name = str(info.get("name") or raw).strip() or raw
         sid = f"IMGW:{raw}"
         output[sid] = core.StationMeta(
             sid,
             lat,
             lon,
-            None if elev is None or elev < -100 else round(elev, 1),
+            None,
             name,
             "PL",
             "Polen",
             SOURCE,
-            "IMGW-PIB tägliche Klimadaten k_d: veröffentlichte TMAX/TMIN-Werte; nichtnumerische/fehlende Werte werden verworfen.",
+            "IMGW-PIB tägliche Klimadaten k_d: veröffentlichte TMAX/TMIN-Werte; "
+            "nichtnumerische/fehlende Werte werden verworfen.",
         )
 
     if not output:
-        raise RuntimeError("Keine polnischen IMGW-Stationen mit Koordinaten aus wykaz_stacji.csv gelesen.")
+        raise RuntimeError("Keine polnischen IMGW-Stationen mit Koordinaten gelesen.")
+    return output
+
+
+def parse_station_catalog() -> Dict[str, core.StationMeta]:
+    # IMGW's own station list is intentionally parsed as headerless 3-column CSV.
+    # Coordinates are joined via the same 9-digit IMGW station ID from the
+    # climate-package station metadata mirror.
+    official_text = decode_polish(read_bytes(STATION_CATALOG_URL))
+    coordinate_text = decode_polish(read_bytes(STATION_COORDS_URL))
+
+    names = parse_station_catalog_rows(official_text)
+    coords = parse_station_coordinate_rows(coordinate_text)
+    output = build_station_catalog_from_texts(official_text, coordinate_text)
+
+    matched_names = sum(1 for raw in coords if raw in names)
+    log(
+        f"IMGW Stationsmetadaten: {len(names):,} offizielle Stationscodes/Namen, "
+        f"{len(coords):,} Koordinaten, {matched_names:,} direkte ID-Treffer."
+    )
     return output
 
 
@@ -718,6 +782,21 @@ def self_test() -> None:
     assert partial[sid]["TMAX"]["abs"][0] == 364
     assert partial[sid]["TMIN"]["abs"][0] == 175
     assert names[sid] == "TEST" and not current
+
+    official_catalog = (
+        '"250180460","ADAMOWICE","95414"\n'
+        '"252150270","BABIMOST"," 3152"\n'
+    )
+    coordinate_catalog = (
+        'id,X,Y\n'
+        '250180460,18.335556285515732,50.12988570741049\n'
+        '252150270,15.786,52.140\n'
+    )
+    station_catalog = build_station_catalog_from_texts(official_catalog, coordinate_catalog)
+    adamowice = station_catalog["IMGW:250180460"]
+    assert adamowice.name == "ADAMOWICE"
+    assert abs(adamowice.lon - 18.335556285515732) < 1e-9
+    assert abs(adamowice.lat - 50.12988570741049) < 1e-9
 
     urls = resource_urls(2001)
     assert urls[0]["url"].endswith("1951_1955/1951_k.zip")
