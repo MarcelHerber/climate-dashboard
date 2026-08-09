@@ -1,1616 +1,2370 @@
 #!/usr/bin/env python3
-"""Build compact European station-record datasets for the static Climate Dashboard.
-
-Stations-V5 architecture
-------------------------
-* Germany: DWD CDC daily KL data are authoritative for the dashboard module.
-  Historical *_hist.zip files build a cached DWD baseline; *_akt.zip files
-  supply the current calendar year.
-* France: official Météo-France daily climatological CSV.gz resources from
-  meteo.data.gouv.fr/data.gouv.fr are authoritative. Both the principal and
-  complementary station datasets are read; TX/TN are used.
-* Spain: AEMET OpenData daily climatologies are authoritative. The API key is
-  read only from the AEMET_API_KEY environment variable (GitHub Secret).
-  Historical data are requested in blocks of at most five years.
-* Rest of Europe: NOAA/NCEI GHCN-Daily remains the fallback/base source.
-  Germany, France and Spain are deliberately removed from GHCN to avoid duplicates.
-* Frontend contract stays compatible with Stations-V2:
-    europe_stations/index.json
-    europe_stations/calendar/MM-DD.json.gz
-
-The large GHCN archive is streamed and cached. DWD and Météo-France historical
-files/API blocks are only needed when their separate baseline caches are missing or explicitly
-rebuilt.
-"""
-
 from __future__ import annotations
 
 import argparse
 import calendar
-import csv
-import datetime as dt
 import gzip
-import hashlib
-import html
-import io
 import json
 import math
 import os
-import pickle
-import re
-import sys
-import tarfile
+import shutil
+import tempfile
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Iterable
 
-GHCN_BASE = "https://www.ncei.noaa.gov/pub/data/ghcn/daily"
-STATIONS_URL = f"{GHCN_BASE}/ghcnd-stations.txt"
-COUNTRIES_URL = f"{GHCN_BASE}/ghcnd-countries.txt"
-ARCHIVE_URL = f"{GHCN_BASE}/ghcnd_all.tar.gz"
-BY_YEAR_URL = f"{GHCN_BASE}/by_year/{{year}}.csv.gz"
+import cdsapi
+import numpy as np
+import xarray as xr
 
-DWD_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl"
-DWD_HIST = f"{DWD_BASE}/historical/"
-DWD_RECENT = f"{DWD_BASE}/recent/"
-DWD_STATIONS_URL = f"{DWD_HIST}KL_Tageswerte_Beschreibung_Stationen.txt"
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.colors import BoundaryNorm, TwoSlopeNorm
 
-MF_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-quotidiennes/"
-MF_COMP_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-quotidiennes-stations-complementaires/"
-MF_PUBLIC_BASE = "https://meteo.data.gouv.fr/datasets/donnees-climatologiques-de-base-quotidiennes/"
+import cartopy
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
-AEMET_API_BASE = "https://opendata.aemet.es/opendata"
-AEMET_PUBLIC_URL = "https://opendata.aemet.es/"
-AEMET_BASELINE_START_YEAR = 1850
-AEMET_MAX_RANGE_YEARS = 5
+DATASET = "reanalysis-era5-land-monthly-means"
+REFERENCE_START = 1991
+REFERENCE_END = 2020
+AREA = [72.0, -25.0, 34.0, 45.0]  # N, W, S, E
+ROOT = Path(__file__).resolve().parents[1]
+OUT_DIR = ROOT / "era5_land_europe"
+MAP_DIR = OUT_DIR / "maps"
+CACHE_DIR = ROOT / ".era5_cache"
+CARTOPY_DIR = CACHE_DIR / "cartopy"
+INDEX_PATH = OUT_DIR / "index.json"
+ANALYSIS_PATH = OUT_DIR / "analysis.json"
+HISTORY_HIRES_DIR = OUT_DIR / "history_0p1"
+HISTORY_HIRES_INDEX = HISTORY_HIRES_DIR / "index.json"
+HISTORY_HIRES_ARCHIVE_VERSION = 2
+HISTORY_HIRES_MISSING = 255
+HISTORY_HIRES_LEVELS = 254
+ANALYSIS_GRID_STEP = 10  # 0.1° native CDS grid -> 1.0° click-analysis grid
+HISTORY_START = 1950
+MAP_CLICK_GEOMETRY = {"left": 0.07, "top": 0.16, "right": 0.96, "bottom": 0.82}
 
-PAYLOAD_VERSION = 5
-GHCN_BASELINE_FORMAT_VERSION = 2
-DWD_BASELINE_FORMAT_VERSION = 1
-MF_BASELINE_FORMAT_VERSION = 2
-MF_RESOURCE_CACHE_FORMAT_VERSION = 1
-MF_RESOURCE_RETRIES = 3
-AEMET_BASELINE_FORMAT_VERSION = 1
-GHCN_SOURCE = "GHCN-Daily"
-DWD_SOURCE = "DWD CDC"
-MF_SOURCE = "Météo-France"
-AEMET_SOURCE = "AEMET OpenData"
+TEMP_ALIASES = ("t2m", "2m_temperature", "temperature_2m")
+PRECIP_ALIASES = ("tp", "total_precipitation", "precipitation")
+SOIL_LAYERS = {
+    "layer1": {
+        "variable": "volumetric_soil_water_layer_1",
+        "aliases": ("swvl1", "volumetric_soil_water_layer_1", "soil_water_layer_1"),
+        "label": "0–7 cm",
+        "depth_cm": [0, 7],
+    },
+    "layer2": {
+        "variable": "volumetric_soil_water_layer_2",
+        "aliases": ("swvl2", "volumetric_soil_water_layer_2", "soil_water_layer_2"),
+        "label": "7–28 cm",
+        "depth_cm": [7, 28],
+    },
+    "layer3": {
+        "variable": "volumetric_soil_water_layer_3",
+        "aliases": ("swvl3", "volumetric_soil_water_layer_3", "soil_water_layer_3"),
+        "label": "28–100 cm",
+        "depth_cm": [28, 100],
+    },
+    "layer4": {
+        "variable": "volumetric_soil_water_layer_4",
+        "aliases": ("swvl4", "volumetric_soil_water_layer_4", "soil_water_layer_4"),
+        "label": "100–289 cm",
+        "depth_cm": [100, 289],
+    },
+}
+HYDRO_VARS = {
+    "evaporation": {
+        "variable": "total_evaporation",
+        "aliases": ("e", "total_evaporation", "evaporation"),
+        "label": "Gesamtverdunstung",
+        "positive_evaporation": True,
+    },
+    "runoff": {
+        "variable": "runoff",
+        "aliases": ("ro", "runoff", "total_runoff"),
+        "label": "Gesamtabfluss",
+    },
+    "surface_runoff": {
+        "variable": "surface_runoff",
+        "aliases": ("sro", "surface_runoff"),
+        "label": "Oberflächenabfluss",
+    },
+    "sub_surface_runoff": {
+        "variable": "sub_surface_runoff",
+        "aliases": ("ssro", "sub_surface_runoff", "subsurface_runoff"),
+        "label": "Unterirdischer Abfluss",
+    },
+}
+HYDRO_DERIVED = {
+    "water_balance": {"label": "Wasserbilanz P − E"},
+}
+HYDRO_ALL_KEYS = tuple(HYDRO_VARS) + tuple(HYDRO_DERIVED)
 
-# Metropolitan departments. Department 20 is kept as a compatibility fallback
-# for older Corsica resource naming; current resources normally use 2A/2B.
-MF_METRO_DEPTS = ({f"{i:02d}" for i in range(1, 96) if i != 20} | {"20", "2A", "2B"})
+SNOW_VARS = {
+    "snow_depth": {
+        "variable": "snow_depth",
+        "aliases": ("sde", "snow_depth"),
+        "label": "Schneehöhe",
+        "unit": "cm",
+    },
+    "snow_water_equivalent": {
+        "variable": "snow_depth_water_equivalent",
+        "aliases": ("sd", "snow_depth_water_equivalent", "snow_water_equivalent"),
+        "label": "Schneewasseräquivalent",
+        "unit": "mm",
+    },
+    "snow_cover": {
+        "variable": "snow_cover",
+        "aliases": ("snowc", "snow_cover"),
+        "label": "Schneebedeckung",
+        "unit": "%",
+    },
+}
+SNOW_KEYS = tuple(SNOW_VARS)
 
-# GHCN FIPS country codes. Germany (GM) and France (FR) remain listed for
-# parsing compatibility, but are removed before baseline/current processing.
-EUROPE_CODES = {
-    "AL", "AU", "BE", "BK", "BO", "BU", "CY", "DA", "EI", "EN", "EZ",
-    "FI", "FR", "GG", "GI", "GM", "GR", "HR", "HU", "IC", "IT", "JN",
-    "LG", "LH", "LO", "LU", "MD", "MJ", "MK", "MT", "NL", "NO", "PL",
-    "PO", "RI", "RO", "RS", "SI", "SP", "SV", "SW", "SZ", "TU", "UK",
-    "UP", "AM", "AJ", "KZ",
+LAT_ALIASES = ("latitude", "lat")
+LON_ALIASES = ("longitude", "lon")
+
+MONTH_NAMES = {
+    1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
+    7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember",
 }
 
-COUNTRY_NAME_DE = {
-    "AL":"Albanien", "AU":"Österreich", "BE":"Belgien", "BK":"Bosnien und Herzegowina",
-    "BO":"Belarus", "BU":"Bulgarien", "CY":"Zypern", "DA":"Dänemark", "EI":"Irland",
-    "EN":"Estland", "EZ":"Tschechien", "FI":"Finnland", "FR":"Frankreich", "GG":"Georgien",
-    "GI":"Gibraltar", "GM":"Deutschland", "GR":"Griechenland", "HR":"Kroatien", "HU":"Ungarn",
-    "IC":"Island", "IT":"Italien", "JN":"Jan Mayen", "LG":"Lettland", "LH":"Litauen",
-    "LO":"Slowakei", "LU":"Luxemburg", "MD":"Moldau", "MJ":"Montenegro", "MK":"Nordmazedonien",
-    "MT":"Malta", "NL":"Niederlande", "NO":"Norwegen", "PL":"Polen", "PO":"Portugal",
-    "RI":"Serbien", "RO":"Rumänien", "RS":"Russland", "SI":"Slowenien", "SP":"Spanien",
-    "SV":"Svalbard", "SW":"Schweden", "SZ":"Schweiz", "TU":"Türkei", "UK":"Vereinigtes Königreich",
-    "UP":"Ukraine", "AM":"Armenien", "AJ":"Aserbaidschan", "KZ":"Kasachstan",
-}
 
-LAT_MIN, LAT_MAX = 34.0, 72.5
-LON_MIN, LON_MAX = -25.5, 45.5
-
-
-def log(message: str) -> None:
-    print(message, flush=True)
+def atomic_write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=2, allow_nan=False)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
 
 
-def http_open(url: str, attempts: int = 5, timeout: int = 180):
-    headers = {"User-Agent": "climate-dashboard-stations/5.0 (+GitHub Actions)"}
-    last_error = None
+def previous_month(year: int, month: int, offset: int = 1) -> tuple[int, int]:
+    value = year * 12 + (month - 1) - offset
+    return value // 12, value % 12 + 1
+
+
+def target_latest_complete_month(today: date) -> tuple[int, int]:
+    # ERA5-Land monthly means are normally available about five days after month-end.
+    # We use an extra safety margin so scheduled jobs do not hammer the CDS queue.
+    offset = 1 if today.day >= 8 else 2
+    return previous_month(today.year, today.month, offset)
+
+
+def summer_selection(latest_year: int, latest_month: int) -> tuple[int, list[int]]:
+    if latest_month < 6:
+        return latest_year - 1, [6, 7, 8]
+    if latest_month == 6:
+        return latest_year, [6]
+    if latest_month == 7:
+        return latest_year, [6, 7]
+    return latest_year, [6, 7, 8]
+
+
+def month_range_label(months: Iterable[int]) -> str:
+    months = list(months)
+    if len(months) == 1:
+        return MONTH_NAMES[months[0]]
+    if months == [6, 7, 8]:
+        return "Juni–August"
+    return f"{MONTH_NAMES[months[0]]}–{MONTH_NAMES[months[-1]]}"
+
+
+def cds_client() -> cdsapi.Client:
+    # Authentication is normally provided through ~/.cdsapirc by the workflow.
+    return cdsapi.Client(quiet=False, progress=False)
+
+
+def retrieve_with_retry(client: cdsapi.Client, request: dict, target: Path, label: str, attempts: int = 3) -> None:
+    """Submit a CDS request with bounded retries.
+
+    A CDS job can occasionally fail after being accepted/running. Retrying is safe here
+    because every retry writes to the same cache target and partial files are removed.
+    """
+    delays = (15, 45, 90)
+    last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            req = urllib.request.Request(url, headers=headers)
-            return urllib.request.urlopen(req, timeout=timeout)
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
-            last_error = exc
-            if attempt >= attempts:
-                break
-            wait = min(10 * attempt, 45)
-            log(f"HTTP-Fehler für {url} (Versuch {attempt}/{attempts}): {exc}; neuer Versuch in {wait}s")
-            time.sleep(wait)
-    raise RuntimeError(f"Download fehlgeschlagen: {url}: {last_error}")
+            if target.exists():
+                target.unlink()
+            client.retrieve(DATASET, request, str(target))
+            return
+        except Exception as exc:
+            last_exc = exc
+            print(f"CDS-Fehler bei {label} (Versuch {attempt}/{attempts}): {exc}")
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+            if attempt < attempts:
+                delay = delays[min(attempt - 1, len(delays) - 1)]
+                print(f"Neuer Versuch in {delay} Sekunden …")
+                time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
-def read_url_bytes(url: str, attempts: int = 5, timeout: int = 180) -> bytes:
-    with http_open(url, attempts=attempts, timeout=timeout) as response:
-        return response.read()
+def request_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": ["2m_temperature", "total_precipitation"],
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"T/P years {years[0]}–{years[-1]}, months {months}"
+    print(f"CDS request: years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
+
+def request_soil_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
+    """Download all four ERA5-Land soil-water layers in one CDS request."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": [meta["variable"] for meta in SOIL_LAYERS.values()],
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"soil years {years[0]}–{years[-1]}, months {months}"
+    print(f"CDS soil-moisture request (4 layers): years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
+
+def request_hydro_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path, *, include_precipitation: bool = False) -> None:
+    """Download ERA5-Land water-budget variables.
+
+    Monthly averaged accumulated hydrological fields are returned by the CDS as
+    effective metres per day and are converted after reading. Total precipitation
+    is optionally included so the derived P-E water balance can be ranked per year.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    variables = [meta["variable"] for meta in HYDRO_VARS.values()]
+    if include_precipitation:
+        variables.append("total_precipitation")
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": variables,
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"water budget years {years[0]}–{years[-1]}, months {months}"
+    print(f"CDS water-budget request: years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
 
 
-def read_url_text(url: str, encoding: str = "utf-8") -> str:
-    return read_url_bytes(url).decode(encoding, errors="replace")
+def request_hires_history_file(client: cdsapi.Client, years: list[int], month: int, target: Path) -> None:
+    """Download all non-soil variables needed by the visible 0.1° history map in one job.
+
+    Ten-year chunks keep individual CDS jobs bounded while avoiding three separate
+    historical downloads for temperature/precipitation, water budget and snow.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    variables = [
+        "2m_temperature",
+        "total_precipitation",
+        *[meta["variable"] for meta in HYDRO_VARS.values()],
+        *[meta["variable"] for meta in SNOW_VARS.values()],
+    ]
+    # Preserve order while removing accidental duplicates.
+    variables = list(dict.fromkeys(variables))
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": variables,
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}"],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"0.1 degree history years {years[0]}–{years[-1]}, month {month:02d}"
+    print(f"CDS 0.1° history request: years {years[0]}–{years[-1]}, month {month:02d}")
+    retrieve_with_retry(client, request, target, label)
 
 
-def decode_text_smart(data: bytes) -> str:
-    """Prefer UTF-8, fall back to Latin-1 for older DWD metadata files."""
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode("latin-1", errors="replace")
+def request_snow_monthly_file(client: cdsapi.Client, years: list[int], months: list[int], target: Path) -> None:
+    """Download ERA5-Land monthly snow state variables."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": [meta["variable"] for meta in SNOW_VARS.values()],
+        "year": [f"{year:04d}" for year in years],
+        "month": [f"{month:02d}" for month in months],
+        "time": ["00:00"],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+        "area": AREA,
+    }
+    label = f"snow years {years[0]}–{years[-1]}, months {months}"
+    print(f"CDS snow request: years {years[0]}–{years[-1]}, months {months}")
+    retrieve_with_retry(client, request, target, label)
 
 
-def parse_countries(text: str) -> Dict[str, str]:
+def open_download(path: Path) -> xr.Dataset:
+    if zipfile.is_zipfile(path):
+        extract_dir = path.with_suffix("")
+        if extract_dir.exists():
+            shutil.rmtree(extract_dir)
+        extract_dir.mkdir(parents=True)
+        with zipfile.ZipFile(path) as archive:
+            archive.extractall(extract_dir)
+        nc_files = sorted(extract_dir.rglob("*.nc"))
+        if not nc_files:
+            raise RuntimeError(f"CDS ZIP enthält keine NetCDF-Datei: {path}")
+        datasets = [xr.open_dataset(item) for item in nc_files]
+        return xr.merge(datasets, compat="override") if len(datasets) > 1 else datasets[0]
+    return xr.open_dataset(path)
+
+
+def find_name(container, aliases: tuple[str, ...]) -> str:
+    names = list(container)
+    lower = {name.lower(): name for name in names}
+    for alias in aliases:
+        if alias.lower() in lower:
+            return lower[alias.lower()]
+    for name in names:
+        lname = name.lower()
+        if any(alias.lower() in lname for alias in aliases):
+            return name
+    raise KeyError(f"Keine passende Variable gefunden. Vorhanden: {names}")
+
+
+def spatial_names(ds: xr.Dataset) -> tuple[str, str]:
+    lat = find_name(ds.coords, LAT_ALIASES)
+    lon = find_name(ds.coords, LON_ALIASES)
+    return lat, lon
+
+
+def variable_name(ds: xr.Dataset, aliases: tuple[str, ...]) -> str:
+    return find_name(ds.data_vars, aliases)
+
+
+def normalize_lon(ds: xr.Dataset, lon_name: str) -> xr.Dataset:
+    lon = ds[lon_name]
+    if float(lon.max()) > 180:
+        new_lon = ((lon + 180) % 360) - 180
+        ds = ds.assign_coords({lon_name: new_lon}).sortby(lon_name)
+    return ds
+
+
+def time_dim(da: xr.DataArray, lat_name: str, lon_name: str) -> str | None:
+    dims = [dim for dim in da.dims if dim not in {lat_name, lon_name}]
+    if not dims:
+        return None
+    # ERA5-Land monthly files normally have one temporal dimension.
+    return dims[0]
+
+
+def load_current_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+    cache_file = CACHE_DIR / f"current_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_monthly_file(client, [year], months, cache_file)
+
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    temp_name = variable_name(ds, TEMP_ALIASES)
+    precip_name = variable_name(ds, PRECIP_ALIASES)
+    temp_da = ds[temp_name]
+    precip_da = ds[precip_name]
+    tdim = time_dim(temp_da, lat_name, lon_name)
+    pdim = time_dim(precip_da, lat_name, lon_name)
+    if tdim is None or pdim is None:
+        if len(months) != 1:
+            raise RuntimeError("Monatsdimension in ERA5-Land-Datei nicht erkannt.")
+        temp_slices = [temp_da]
+        precip_slices = [precip_da]
+    else:
+        if temp_da.sizes[tdim] != len(months):
+            raise RuntimeError(f"Unerwartete Anzahl Temperaturfelder: {temp_da.sizes[tdim]} statt {len(months)}")
+        temp_slices = [temp_da.isel({tdim: idx}) for idx in range(len(months))]
+        precip_slices = [precip_da.isel({pdim: idx}) for idx in range(len(months))]
+
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
     result = {}
-    for raw in text.splitlines():
-        if len(raw) >= 4:
-            result[raw[:2]] = raw[3:].strip()
+    for idx, month in enumerate(months):
+        temp_c = np.asarray(temp_slices[idx].squeeze().values, dtype=float) - 273.15
+        # ERA5-Land moda accumulated hydrological fields are effective metres/day.
+        precip_mm = np.asarray(precip_slices[idx].squeeze().values, dtype=float) * 1000.0 * calendar.monthrange(year, month)[1]
+        result[month] = (lat, lon, temp_c, precip_mm)
+    ds.close()
     return result
 
 
-@dataclass(frozen=True)
-class StationMeta:
-    id: str
-    lat: float
-    lon: float
-    elev: Optional[float]
-    name: str
-    country_code: str
-    country: str
-    source: str
-    quality_rule: str
+def load_current_soil_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, dict]:
+    # V3 uses a new cache name because V2 files contained layer 1 only.
+    cache_file = CACHE_DIR / f"current_soil_v3_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_soil_monthly_file(client, [year], months, cache_file)
 
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
 
-def parse_ghcn_stations(text: str, countries: Dict[str, str]) -> Dict[str, StationMeta]:
-    stations: Dict[str, StationMeta] = {}
-    for raw in text.splitlines():
-        if len(raw) < 42:
-            continue
-        sid = raw[0:11].strip()
-        code = sid[:2]
-        if code not in EUROPE_CODES or code in {"GM", "FR", "SP"}:  # DWD/Météo-France/AEMET replace Germany/France/Spain in V5.
-            continue
-        try:
-            lat = float(raw[12:20])
-            lon = float(raw[21:30])
-            elev_raw = float(raw[31:37])
-        except ValueError:
-            continue
-        if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
-            continue
-        elev = None if elev_raw <= -999 else round(elev_raw, 1)
-        name = raw[41:71].strip() or sid
-        country = COUNTRY_NAME_DE.get(code, countries.get(code, code))
-        stations[sid] = StationMeta(
-            sid, lat, lon, elev, name, code, country, GHCN_SOURCE,
-            "GHCN-Daily: nur TMAX/TMIN mit leerem Q-FLAG; Werte mit gesetztem Qualitätsflag werden verworfen.",
-        )
-    return stations
+    layer_slices: dict[str, list[xr.DataArray]] = {}
+    for layer_key, meta in SOIL_LAYERS.items():
+        soil_name = variable_name(ds, meta["aliases"])
+        soil_da = ds[soil_name]
+        sdim = time_dim(soil_da, lat_name, lon_name)
+        if sdim is None:
+            if len(months) != 1:
+                raise RuntimeError(f"Monatsdimension für {layer_key} nicht erkannt.")
+            slices = [soil_da]
+        else:
+            if soil_da.sizes[sdim] != len(months):
+                raise RuntimeError(
+                    f"Unerwartete Anzahl Bodenfeuchtefelder für {layer_key}: "
+                    f"{soil_da.sizes[sdim]} statt {len(months)}"
+                )
+            slices = [soil_da.isel({sdim: idx}) for idx in range(len(months))]
+        layer_slices[layer_key] = slices
 
-
-def parse_dwd_stations(text: str) -> Dict[str, StationMeta]:
-    """Parse DWD KL_Tageswerte_Beschreibung_Stationen.txt.
-
-    The file is fixed-width-ish but station names contain spaces. Splitting into
-    at most 8 columns is robust across the current DWD station list layout:
-    Stations_id von_datum bis_datum Stationshoehe geoBreite geoLaenge Stationsname Bundesland
-    """
-    stations: Dict[str, StationMeta] = {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.lower().startswith("stations") or set(line) <= {"-", " "}:
-            continue
-        m = re.match(r"^(\d+)\s+(\d{8})\s+(\d{8})\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(.+)$", line)
-        if not m:
-            continue
-        sid_raw = m.group(1).zfill(5)
-        try:
-            elev = float(m.group(4).replace(",", "."))
-            lat = float(m.group(5).replace(",", "."))
-            lon = float(m.group(6).replace(",", "."))
-        except ValueError:
-            continue
-        remainder = m.group(7).strip()
-        # Station name and Bundesland are separated by a wide whitespace field.
-        # If that spacing was normalized upstream, strip a known Bundesland suffix.
-        name = re.split(r"\s{2,}", remainder, maxsplit=1)[0].strip()
-        if name == remainder:
-            states = ["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen","Sachsen-Anhalt","Schleswig-Holstein","Thüringen"]
-            for state_name in states:
-                suffix = " " + state_name
-                if name.endswith(suffix):
-                    name = name[:-len(suffix)].rstrip(); break
-        name = name or f"DWD {sid_raw}"
-        sid = f"DWD:{sid_raw}"
-        stations[sid] = StationMeta(
-            sid, lat, lon, None if elev <= -999 else round(elev, 1), name,
-            "DE", "Deutschland", DWD_SOURCE,
-            "DWD CDC Tageswerte KL: TXK/TNK; DWD-Fehlwerte (-999) werden verworfen.",
-        )
-    return stations
-
-
-def better(element: str, new_value: int, old_value: Optional[int]) -> bool:
-    if old_value is None:
-        return True
-    return new_value > old_value if element == "TMAX" else new_value < old_value
-
-
-def empty_state() -> dict:
-    return {
-        "TMAX": {"abs": None, "cal": {}, "start": None, "end": None, "years": 0},
-        "TMIN": {"abs": None, "cal": {}, "start": None, "end": None, "years": 0},
-    }
-
-
-def update_record(record: Optional[Tuple[int, int, int]], value: int, date_int: int, element: str) -> Tuple[int, int, int]:
-    if record is None or better(element, value, record[0]):
-        return (value, date_int, 1)
-    if value == record[0]:
-        return (record[0], record[1], record[2] + 1)
-    return record
-
-
-def parse_dly_station(stream: io.BufferedReader, cutoff_year: int) -> dict:
-    state = empty_state()
-    observed_years = {"TMAX": set(), "TMIN": set()}
-    for raw in stream:
-        if not raw:
-            continue
-        if isinstance(raw, bytes):
-            raw = raw.decode("ascii", errors="ignore")
-        if len(raw) < 21:
-            continue
-        try:
-            year = int(raw[11:15]); month = int(raw[15:17])
-        except ValueError:
-            continue
-        if year > cutoff_year:
-            continue
-        element = raw[17:21]
-        if element not in ("TMAX", "TMIN"):
-            continue
-        max_day = calendar.monthrange(year, month)[1]
-        for day in range(1, max_day + 1):
-            pos = 21 + (day - 1) * 8
-            if pos + 8 > len(raw):
-                break
-            try:
-                value = int(raw[pos:pos+5])
-            except ValueError:
-                continue
-            if value == -9999:
-                continue
-            qflag = raw[pos+6:pos+7]
-            if qflag.strip():
-                continue
-            date_obj = dt.date(year, month, day)
-            date_int = int(date_obj.strftime("%Y%m%d"))
-            mmdd = date_obj.strftime("%m-%d")
-            block = state[element]
-            block["abs"] = update_record(block["abs"], value, date_int, element)
-            block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
-            block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
-            block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
-            observed_years[element].add(year)
-    for element in ("TMAX", "TMIN"):
-        state[element]["years"] = len(observed_years[element])
-    return state
-
-
-def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_url: str = ARCHIVE_URL) -> dict:
-    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland/Frankreich/Spanien) bis {cutoff_year} …")
-    states = {}
-    wanted = set(stations)
-    seen = 0
-    with http_open(archive_url, attempts=6, timeout=300) as response:
-        with tarfile.open(fileobj=response, mode="r|gz") as tar:
-            for member in tar:
-                if not member.isfile() or not member.name.endswith(".dly"):
-                    continue
-                sid = Path(member.name).stem
-                if sid not in wanted:
-                    continue
-                extracted = tar.extractfile(member)
-                if extracted is None:
-                    continue
-                state = parse_dly_station(extracted, cutoff_year)
-                if state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None:
-                    states[sid] = state
-                seen += 1
-                if seen % 250 == 0:
-                    log(f"  {seen:,} europäische GHCN-Stationsdateien verarbeitet …")
-    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland/Frankreich/Spanien ausgeschlossen).")
-    return {
-        "format_version": GHCN_BASELINE_FORMAT_VERSION,
-        "cutoff_year": cutoff_year,
-        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "states": states,
-    }
-
-
-def load_or_build_ghcn_baseline(cache_file: Path, stations: Dict[str, StationMeta], cutoff_year: int, force: bool) -> dict:
-    if cache_file.exists() and not force:
-        try:
-            with gzip.open(cache_file, "rb") as handle:
-                payload = pickle.load(handle)
-            if payload.get("format_version") == GHCN_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
-                # A V2 cache may still contain German states. That is harmless:
-                # only IDs present in the V3 GHCN metadata set are used later.
-                log(f"Verwende historischen GHCN-Cache: {cache_file}")
-                return payload
-        except Exception as exc:
-            log(f"GHCN-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
-    payload = build_ghcn_baseline(stations, cutoff_year)
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
-    with gzip.open(tmp, "wb", compresslevel=5) as handle:
-        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    tmp.replace(cache_file)
-    log(f"GHCN-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
-    return payload
-
-
-def parse_current_ghcn_year(year: int, stations: Dict[str, StationMeta]) -> dict:
-    url = BY_YEAR_URL.format(year=year)
-    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland/Frankreich/Spanien): {url}")
-    current: Dict[str, dict] = {}
-    with http_open(url, attempts=6, timeout=240) as response:
-        with gzip.GzipFile(fileobj=response) as gz:
-            text = io.TextIOWrapper(gz, encoding="utf-8", errors="replace", newline="")
-            reader = csv.reader(text)
-            rows = kept = 0
-            for row in reader:
-                rows += 1
-                if len(row) < 7:
-                    continue
-                sid, datestr, element = row[0], row[1], row[2]
-                if sid not in stations or element not in ("TMAX", "TMIN"):
-                    continue
-                if row[5].strip():
-                    continue
-                try:
-                    value = int(row[3]); date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
-                except (ValueError, TypeError):
-                    continue
-                if value == -9999:
-                    continue
-                mmdd = date_obj.strftime("%m-%d")
-                station = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
-                station[element][mmdd] = (value, int(datestr))
-                kept += 1
-                if rows % 1_000_000 == 0:
-                    log(f"  {rows:,} GHCN-Jahreszeilen gelesen, {kept:,} Europa-TMAX/TMIN-Werte behalten …")
-    log(f"GHCN {year}: {len(current):,} Stationen außerhalb Deutschlands/Frankreichs mit TMAX/TMIN.")
-    return current
-
-
-# ----------------------------- DWD adapter -----------------------------
-
-def list_directory_files(base_url: str, pattern: str) -> List[str]:
-    text = read_url_text(base_url, encoding="utf-8")
-    names = sorted(set(re.findall(pattern, text)))
-    return [urllib.parse.urljoin(base_url, html.unescape(name)) for name in names]
-
-
-def dwd_float_to_tenths(raw: str) -> Optional[int]:
-    value = str(raw or "").strip().replace(",", ".")
-    if not value:
-        return None
-    try:
-        number = float(value)
-    except ValueError:
-        return None
-    if not math.isfinite(number) or number <= -998.0:
-        return None
-    return int(round(number * 10.0))
-
-
-def parse_dwd_product_bytes(data: bytes, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None) -> dict:
-    """Parse one DWD KL zip and return the common record state/current format."""
-    historical = exact_year is None
-    state = empty_state() if historical else {"TMAX": {}, "TMIN": {}}
-    observed_years = {"TMAX": set(), "TMIN": set()}
-    with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        candidates = [n for n in zf.namelist() if re.search(r"produkt_klima_tag_.*\.txt$", n, re.I)]
-        if not candidates:
-            candidates = [n for n in zf.namelist() if n.lower().endswith(".txt") and "produkt" in n.lower()]
-        for member in candidates:
-            with zf.open(member) as raw:
-                text = io.TextIOWrapper(raw, encoding="latin-1", errors="replace", newline="")
-                reader = csv.DictReader(text, delimiter=";")
-                if not reader.fieldnames:
-                    continue
-                # DWD headers often contain surrounding spaces.
-                field_map = {str(k).strip(): k for k in reader.fieldnames if k is not None}
-                date_key = field_map.get("MESS_DATUM")
-                tx_key = field_map.get("TXK")
-                tn_key = field_map.get("TNK")
-                if not date_key or (not tx_key and not tn_key):
-                    continue
-                for row in reader:
-                    datestr = str(row.get(date_key, "")).strip()
-                    if not re.fullmatch(r"\d{8}", datestr):
-                        continue
-                    year = int(datestr[:4])
-                    if cutoff_year is not None and year > cutoff_year:
-                        continue
-                    if exact_year is not None and year != exact_year:
-                        continue
-                    try:
-                        date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
-                    except ValueError:
-                        continue
-                    date_int = int(datestr); mmdd = date_obj.strftime("%m-%d")
-                    for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
-                        if not key:
-                            continue
-                        value = dwd_float_to_tenths(row.get(key, ""))
-                        if value is None:
-                            continue
-                        if historical:
-                            block = state[element]
-                            block["abs"] = update_record(block["abs"], value, date_int, element)
-                            block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
-                            block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
-                            block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
-                            observed_years[element].add(year)
-                        else:
-                            state[element][mmdd] = (value, date_int)
-    if historical:
-        for element in ("TMAX", "TMIN"):
-            state[element]["years"] = len(observed_years[element])
-    return state
-
-
-def dwd_station_id_from_url(url: str) -> Optional[str]:
-    name = Path(urllib.parse.urlparse(url).path).name
-    m = re.search(r"tageswerte_KL_(\d{5})_", name, re.I)
-    return f"DWD:{m.group(1)}" if m else None
-
-
-def fetch_parse_dwd(url: str, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
-    sid = dwd_station_id_from_url(url)
-    if not sid:
-        return None, None
-    data = read_url_bytes(url, attempts=5, timeout=180)
-    return sid, parse_dwd_product_bytes(data, cutoff_year=cutoff_year, exact_year=exact_year)
-
-
-def build_dwd_baseline(stations: Dict[str, StationMeta], cutoff_year: int, workers: int = 6) -> dict:
-    log(f"Baue DWD-Deutschland-Basisbestand bis {cutoff_year} …")
-    urls = list_directory_files(DWD_HIST, r'href="(tageswerte_KL_\d{5}_\d{8}_\d{8}_hist\.zip)"')
-    wanted = set(stations)
-    urls = [u for u in urls if dwd_station_id_from_url(u) in wanted]
-    log(f"DWD historical: {len(urls):,} Stations-ZIP-Dateien gefunden; {workers} parallele Downloads.")
-    states: Dict[str, dict] = {}
-    failures: List[Tuple[str, str]] = []
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(fetch_parse_dwd, u, cutoff_year=cutoff_year): u for u in urls}
-        done = 0
-        for future in as_completed(futures):
-            url = futures[future]; done += 1
-            try:
-                sid, state = future.result()
-                if sid and state and (state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None):
-                    states[sid] = state
-            except Exception as exc:
-                failures.append((url, str(exc)))
-                log(f"WARNUNG DWD historical: {Path(urllib.parse.urlparse(url).path).name}: {exc}")
-            if done % 100 == 0 or done == len(urls):
-                log(f"  DWD historical: {done:,}/{len(urls):,} ZIPs verarbeitet, {len(states):,} Stationen mit Daten …")
-    if failures and len(failures) > max(10, int(len(urls) * 0.03)):
-        raise RuntimeError(f"Zu viele DWD-Historical-Fehler: {len(failures)} von {len(urls)}")
-    log(f"DWD-Basisbestand fertig: {len(states):,} Stationen; fehlgeschlagene Dateien: {len(failures)}.")
-    return {
-        "format_version": DWD_BASELINE_FORMAT_VERSION,
-        "cutoff_year": cutoff_year,
-        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "states": states,
-    }
-
-
-def load_or_build_dwd_baseline(cache_file: Path, stations: Dict[str, StationMeta], cutoff_year: int, force: bool, workers: int) -> dict:
-    if cache_file.exists() and not force:
-        try:
-            with gzip.open(cache_file, "rb") as handle:
-                payload = pickle.load(handle)
-            if payload.get("format_version") == DWD_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
-                log(f"Verwende historischen DWD-Cache: {cache_file}")
-                return payload
-        except Exception as exc:
-            log(f"DWD-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
-    payload = build_dwd_baseline(stations, cutoff_year, workers=workers)
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
-    with gzip.open(tmp, "wb", compresslevel=5) as handle:
-        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    tmp.replace(cache_file)
-    log(f"DWD-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
-    return payload
-
-
-def parse_current_dwd_year(year: int, stations: Dict[str, StationMeta], workers: int = 8) -> dict:
-    urls = list_directory_files(DWD_RECENT, r'href="(tageswerte_KL_\d{5}_akt\.zip)"')
-    wanted = set(stations)
-    urls = [u for u in urls if dwd_station_id_from_url(u) in wanted]
-    log(f"Lade DWD recent für {year}: {len(urls):,} aktive Stations-ZIPs; {workers} parallele Downloads.")
-    current: Dict[str, dict] = {}
-    failures = 0
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(fetch_parse_dwd, u, exact_year=year): u for u in urls}
-        done = 0
-        for future in as_completed(futures):
-            done += 1
-            try:
-                sid, state = future.result()
-                if sid and state and (state["TMAX"] or state["TMIN"]):
-                    current[sid] = state
-            except Exception as exc:
-                failures += 1
-                log(f"WARNUNG DWD recent: {Path(urllib.parse.urlparse(futures[future]).path).name}: {exc}")
-            if done % 100 == 0 or done == len(urls):
-                log(f"  DWD recent: {done:,}/{len(urls):,} ZIPs verarbeitet, {len(current):,} Stationen mit {year}-Daten …")
-    if failures > max(10, int(len(urls) * 0.05)):
-        raise RuntimeError(f"Zu viele DWD-Recent-Fehler: {failures} von {len(urls)}")
-    return current
-
-
-
-# ------------------------- Météo-France adapter -------------------------
-
-def read_url_json(url: str) -> dict:
-    return json.loads(read_url_text(url, encoding="utf-8"))
-
-
-def mf_station_id(raw: str) -> Optional[str]:
-    value = str(raw or "").strip()
-    if value.endswith(".0"):
-        value = value[:-2]
-    value = re.sub(r"\D", "", value)
-    if not value:
-        return None
-    return f"MF:{value.zfill(8)}"
-
-
-def mf_float(raw: str) -> Optional[float]:
-    value = str(raw or "").strip().replace(",", ".")
-    if not value:
-        return None
-    try:
-        number = float(value)
-    except ValueError:
-        return None
-    return number if math.isfinite(number) else None
-
-
-def mf_temp_to_tenths(raw: str) -> Optional[int]:
-    number = mf_float(raw)
-    if number is None or number <= -90 or number >= 70:
-        return None
-    return int(round(number * 10.0))
-
-
-def mf_quality_ok(raw: str) -> bool:
-    """Keep Météo-France values that are filtered/validated/protected.
-
-    In Météo-France climatological files, 9 = filtered, 1 = validated,
-    0 = protected/final. Code 2 denotes a doubtful value under review and is
-    excluded from records. Blank quality is tolerated for older rows where the
-    value exists but a quality code was not supplied.
-    """
-    value = str(raw or "").strip()
-    if value.endswith(".0"):
-        value = value[:-2]
-    return value in {"", "0", "1", "9"}
-
-
-def mf_resource_period(text: str) -> Optional[Tuple[int, int]]:
-    low = text.lower()
-    if "avant-1949" in low:
-        return (1800, 1949)
-    m = re.search(r"(?:previous|latest)-(\d{4})-(\d{4})", low)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    return None
-
-
-def mf_resource_department(text: str) -> Optional[str]:
-    name = Path(urllib.parse.urlparse(text).path).name
-    m = re.search(r"(?:^|/)(?:Q|Q-COMP)_([0-9]{2,3}|2A|2B)_", name, re.I)
-    if not m:
-        m = re.search(r"(?:Q|Q-COMP)_([0-9]{2,3}|2A|2B)_", text, re.I)
-    return m.group(1).upper() if m else None
-
-
-def discover_mf_resources() -> List[dict]:
-    """Read official data.gouv.fr resource metadata for both MF daily datasets."""
-    resources: List[dict] = []
-    for label, api_url in (("principal", MF_DATASET_API), ("complementary", MF_COMP_DATASET_API)):
-        payload = read_url_json(api_url)
-        found = payload.get("resources", [])
-        if not isinstance(found, list):
-            raise RuntimeError(f"Météo-France Ressourcenliste unerwartet für {label}: {api_url}")
-        for res in found:
-            if not isinstance(res, dict):
-                continue
-            url = str(res.get("url") or res.get("latest") or "")
-            title = str(res.get("title") or res.get("name") or "")
-            hay = f"{title} {url}"
-            if not url.lower().endswith(".csv.gz"):
-                continue
-            if "rr-t-vent" not in hay.lower() or "autres-parametres" in hay.lower():
-                continue
-            dept = mf_resource_department(url or title)
-            if dept not in MF_METRO_DEPTS:
-                continue
-            period = mf_resource_period(hay)
-            if period is None:
-                continue
-            resources.append({"url": url, "title": title, "dataset": label, "dept": dept, "period": period})
-    # URL de-duplication while preserving deterministic order.
-    unique = {}
-    for res in resources:
-        unique[res["url"]] = res
-    result = sorted(unique.values(), key=lambda r: (r["dept"], r["period"][0], r["dataset"], r["url"]))
-    if not result:
-        raise RuntimeError("Keine Météo-France RR-T-Vent-Tagesressourcen gefunden.")
+    result: dict[int, dict] = {}
+    for idx, month in enumerate(months):
+        result[month] = {
+            "lat": lat,
+            "lon": lon,
+            "layers": {
+                layer_key: np.asarray(layer_slices[layer_key][idx].squeeze().values, dtype=float)
+                for layer_key in SOIL_LAYERS
+            },
+        }
+    ds.close()
     return result
 
 
-def mf_empty_partial_state() -> dict:
-    return {
-        "TMAX": {"abs": None, "cal": {}, "start": None, "end": None, "year_set": set()},
-        "TMIN": {"abs": None, "cal": {}, "start": None, "end": None, "year_set": set()},
-    }
+def _monthly_accum_to_mm(values: np.ndarray, years: np.ndarray, month: int, *, invert_sign: bool = False) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    days = np.asarray([calendar.monthrange(int(y), int(month))[1] for y in years], dtype=float)
+    while days.ndim < values.ndim:
+        days = days[..., None]
+    result = values * days * 1000.0
+    if invert_sign:
+        result = -result
+    return result
 
 
-def merge_record_tuples(a: Optional[Tuple[int, int, int]], b: Optional[Tuple[int, int, int]], element: str):
-    if a is None:
-        return b
-    if b is None:
-        return a
-    if better(element, b[0], a[0]):
-        return b
-    if better(element, a[0], b[0]):
-        return a
-    return (a[0], min(a[1], b[1]), int(a[2]) + int(b[2]))
+def load_current_hydro_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, dict]:
+    cache_file = CACHE_DIR / f"current_water_v5_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_hydro_monthly_file(client, [year], months, cache_file)
+
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+    slices: dict[str, list[xr.DataArray]] = {}
+    for key, meta in HYDRO_VARS.items():
+        name = variable_name(ds, meta["aliases"])
+        da = ds[name]
+        tdim = time_dim(da, lat_name, lon_name)
+        if tdim is None:
+            if len(months) != 1:
+                ds.close()
+                raise RuntimeError(f"Monatsdimension für {key} nicht erkannt.")
+            parts = [da]
+        else:
+            if da.sizes[tdim] != len(months):
+                ds.close()
+                raise RuntimeError(f"Unerwartete Anzahl Wasserhaushaltsfelder für {key}: {da.sizes[tdim]} statt {len(months)}")
+            parts = [da.isel({tdim: idx}) for idx in range(len(months))]
+        slices[key] = parts
+
+    result: dict[int, dict] = {}
+    for idx, month in enumerate(months):
+        values = {}
+        for key, meta in HYDRO_VARS.items():
+            raw = np.asarray(slices[key][idx].squeeze().values, dtype=float)
+            mm = _monthly_accum_to_mm(raw[None, ...], np.asarray([year]), month, invert_sign=bool(meta.get("positive_evaporation")))[0]
+            values[key] = mm
+        result[month] = {"lat": lat, "lon": lon, **values}
+    ds.close()
+    return result
 
 
-def merge_mf_partial(target: dict, incoming: dict) -> None:
-    for sid, src_state in incoming.items():
-        dst_state = target.setdefault(sid, mf_empty_partial_state())
-        for element in ("TMAX", "TMIN"):
-            src = src_state[element]; dst = dst_state[element]
-            dst["abs"] = merge_record_tuples(dst.get("abs"), src.get("abs"), element)
-            for mmdd, rec in src.get("cal", {}).items():
-                dst["cal"][mmdd] = merge_record_tuples(dst["cal"].get(mmdd), rec, element)
-            vals = [x for x in (dst.get("start"), src.get("start")) if x is not None]
-            dst["start"] = min(vals) if vals else None
-            vals = [x for x in (dst.get("end"), src.get("end")) if x is not None]
-            dst["end"] = max(vals) if vals else None
-            dst.setdefault("year_set", set()).update(src.get("year_set", set()))
+def load_hydro_reference_month(client: cdsapi.Client, month: int, force: bool) -> dict:
+    """Thirty individual 1991–2020 water-budget fields on the full 0.1° map grid."""
+    ref_file = CACHE_DIR / f"water_reference_v5_1991_2020_{month:02d}.nc"
+    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
+    chunks = year_chunks(ref_years.tolist(), 10)
+    chunk_files = [CACHE_DIR / f"raw_water_reference_v5_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for item in [ref_file, *chunk_files]:
+            try: item.unlink()
+            except FileNotFoundError: pass
+    if ref_file.exists():
+        ds = xr.open_dataset(ref_file)
+        result = {
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "fields": {key: np.asarray(ds[key].values, dtype=float) for key in HYDRO_ALL_KEYS},
+        }
+        ds.close()
+        return result
+
+    lat = lon = None
+    years_parts: list[np.ndarray] = []
+    field_parts: dict[str, list[np.ndarray]] = {key: [] for key in HYDRO_VARS}
+    precip_parts: list[np.ndarray] = []
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_hydro_monthly_file(client, chunk, [month], raw_file, include_precipitation=True)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close(); raise RuntimeError("ERA5-Land-Gitter der Wasserhaushalts-Referenz stimmt nicht überein.")
+
+        expected = np.asarray(chunk, dtype=int)
+        years_here_final = expected
+        for key, meta in HYDRO_VARS.items():
+            name = variable_name(ds, meta["aliases"])
+            da = ds[name]
+            tdim = time_dim(da, lat_name, lon_name)
+            if tdim is None or da.sizes[tdim] != len(chunk):
+                ds.close(); raise RuntimeError(f"Zeitdimension Wasserhaushalt {key} {chunk[0]}–{chunk[-1]} unvollständig.")
+            da = da.transpose(tdim, lat_name, lon_name)
+            vals = np.asarray(da.values, dtype=float)
+            try: years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+            except Exception: years_here = expected.copy()
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order = [int(np.where(years_here == y)[0][0]) for y in expected]
+                vals = vals[order]
+                years_here_final = expected
+            vals = _monthly_accum_to_mm(vals, expected, month, invert_sign=bool(meta.get("positive_evaporation")))
+            field_parts[key].append(vals.astype(np.float32))
+
+        pname = variable_name(ds, PRECIP_ALIASES)
+        pda = ds[pname]
+        pdim = time_dim(pda, lat_name, lon_name)
+        if pdim is None or pda.sizes[pdim] != len(chunk):
+            ds.close(); raise RuntimeError("Zeitdimension Niederschlag in Wasserbilanz-Referenz unvollständig.")
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        pvals = np.asarray(pda.values, dtype=float)
+        try: years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception: years_p = expected.copy()
+        if years_p.size == expected.size and set(years_p.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_p == y)[0][0]) for y in expected]
+            pvals = pvals[order]
+        precip_parts.append(_monthly_accum_to_mm(pvals, expected, month).astype(np.float32))
+        years_parts.append(years_here_final)
+        ds.close()
+
+    assert lat is not None and lon is not None
+    years_all = np.concatenate(years_parts)
+    if not np.array_equal(years_all, ref_years):
+        raise RuntimeError("Wasserhaushalts-Referenzjahre 1991–2020 sind nicht vollständig.")
+    fields = {key: np.concatenate(parts, axis=0) for key, parts in field_parts.items()}
+    precipitation = np.concatenate(precip_parts, axis=0)
+    fields["water_balance"] = precipitation - fields["evaporation"]
+    out = xr.Dataset(
+        {key: (("year", "latitude", "longitude"), np.asarray(values, dtype=np.float32)) for key, values in fields.items()},
+        coords={"year": years_all, "latitude": lat, "longitude": lon},
+        attrs={"reference_period": "1991-2020", "month": month, "description": "ERA5-Land water budget monthly totals in mm", "download_strategy": "10-year CDS chunks with retry"},
+    )
+    encoding = {key: {"zlib": True, "complevel": 3, "dtype": "float32"} for key in out.data_vars}
+    out.to_netcdf(ref_file, encoding=encoding)
+    out.close()
+    for raw_file in chunk_files:
+        try: raw_file.unlink()
+        except FileNotFoundError: pass
+    return {"lat": lat, "lon": lon, "years": years_all, "fields": {k: np.asarray(v, dtype=float) for k, v in fields.items()}}
 
 
-def finalize_mf_states(partial: dict) -> dict:
-    out = {}
-    for sid, state in partial.items():
-        dst = empty_state()
-        for element in ("TMAX", "TMIN"):
-            src = state[element]
-            dst[element]["abs"] = src.get("abs")
-            dst[element]["cal"] = src.get("cal", {})
-            dst[element]["start"] = src.get("start")
-            dst[element]["end"] = src.get("end")
-            dst[element]["years"] = len(src.get("year_set", set()))
-        out[sid] = dst
+def _snow_to_display(key: str, values: np.ndarray) -> np.ndarray:
+    out = np.asarray(values, dtype=float)
+    if key == "snow_depth":
+        return out * 100.0  # m -> cm
+    if key == "snow_water_equivalent":
+        return out * 1000.0  # m water equivalent -> mm
+    if key == "snow_cover":
+        finite = out[np.isfinite(out)]
+        # CDS/NetCDF may expose snow cover as fraction even though the catalogue labels it %.
+        if finite.size and float(np.nanmax(np.abs(finite))) <= 1.5:
+            return out * 100.0
+        return out
     return out
 
 
-def parse_mf_stream(fileobj, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
-    """Parse one official Météo-France Q_*_RR-T-Vent.csv.gz resource."""
-    partial: Dict[str, dict] = {}
-    current: Dict[str, dict] = {}
-    metas: Dict[str, Tuple[StationMeta, int]] = {}
-    with gzip.GzipFile(fileobj=fileobj) as gz:
-        text = io.TextIOWrapper(gz, encoding="utf-8-sig", errors="replace", newline="")
-        reader = csv.DictReader(text, delimiter=";")
-        if not reader.fieldnames:
-            return partial, current, metas
-        fmap = {str(k).strip().upper(): k for k in reader.fieldnames if k is not None}
-        required = ["NUM_POSTE", "AAAAMMJJ"]
-        if any(k not in fmap for k in required) or not ({"TX", "TN"} & set(fmap)):
-            raise RuntimeError(f"Météo-France CSV ohne erwartete Spalten: {list(fmap)[:20]}")
-        for row in reader:
-            sid = mf_station_id(row.get(fmap["NUM_POSTE"], ""))
-            datestr = str(row.get(fmap["AAAAMMJJ"], "")).strip().replace(".0", "")
-            if not sid or not re.fullmatch(r"\d{8}", datestr):
-                continue
-            year = int(datestr[:4])
-            if cutoff_year is not None and year > cutoff_year:
-                continue
-            if exact_year is not None and year != exact_year:
-                continue
-            try:
-                date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
-            except ValueError:
-                continue
-            lat = mf_float(row.get(fmap.get("LAT", ""), "")) if "LAT" in fmap else None
-            lon = mf_float(row.get(fmap.get("LON", ""), "")) if "LON" in fmap else None
-            if lat is None or lon is None or not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
-                continue
-            elev = mf_float(row.get(fmap.get("ALTI", ""), "")) if "ALTI" in fmap else None
-            name = str(row.get(fmap.get("NOM_USUEL", ""), "")).strip() if "NOM_USUEL" in fmap else ""
-            meta = StationMeta(
-                sid, float(lat), float(lon), None if elev is None or elev <= -999 else round(float(elev), 1),
-                name or sid.split(":", 1)[1], "FR", "Frankreich", MF_SOURCE,
-                "Météo-France Tagesklima: TX/TN; Qualitätscodes 0/1/9 (sowie ältere leere Codes) akzeptiert, Code 2 (douteuse) verworfen.",
-            )
-            date_int = int(datestr)
-            old_meta = metas.get(sid)
-            if old_meta is None or date_int >= old_meta[1]:
-                metas[sid] = (meta, date_int)
-            mmdd = date_obj.strftime("%m-%d")
-            for element, value_col, quality_col in (("TMAX", "TX", "QTX"), ("TMIN", "TN", "QTN")):
-                if value_col not in fmap:
-                    continue
-                value = mf_temp_to_tenths(row.get(fmap[value_col], ""))
-                qraw = row.get(fmap[quality_col], "") if quality_col in fmap else ""
-                if value is None or not mf_quality_ok(qraw):
-                    continue
-                if exact_year is None:
-                    state = partial.setdefault(sid, mf_empty_partial_state())
-                    block = state[element]
-                    block["abs"] = update_record(block["abs"], value, date_int, element)
-                    block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
-                    block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
-                    block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
-                    block["year_set"].add(year)
-                else:
-                    station = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
-                    station[element][mmdd] = (value, date_int)
-    return partial, current, metas
+def load_current_snow_months(client: cdsapi.Client, year: int, months: list[int], force: bool) -> dict[int, dict]:
+    cache_file = CACHE_DIR / f"current_snow_v6_{year}_{'_'.join(f'{m:02d}' for m in months)}.nc"
+    if force and cache_file.exists():
+        cache_file.unlink()
+    if not cache_file.exists():
+        request_snow_monthly_file(client, [year], months, cache_file)
+    ds = open_download(cache_file)
+    lat_name, lon_name = spatial_names(ds); ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float); lon = np.asarray(ds[lon_name].values, dtype=float)
+    parts: dict[str, list[xr.DataArray]] = {}
+    for key, meta in SNOW_VARS.items():
+        da = ds[variable_name(ds, meta["aliases"])]
+        tdim = time_dim(da, lat_name, lon_name)
+        if tdim is None:
+            if len(months) != 1:
+                ds.close(); raise RuntimeError(f"Monatsdimension für Schneeparameter {key} nicht erkannt.")
+            seq = [da]
+        else:
+            if da.sizes[tdim] != len(months):
+                ds.close(); raise RuntimeError(f"Unerwartete Anzahl Schneefelder für {key}: {da.sizes[tdim]} statt {len(months)}")
+            seq = [da.isel({tdim:i}) for i in range(len(months))]
+        parts[key] = seq
+    result = {}
+    for i, month in enumerate(months):
+        result[month] = {"lat":lat, "lon":lon, **{key:_snow_to_display(key, np.asarray(parts[key][i].squeeze().values,dtype=float)) for key in SNOW_KEYS}}
+    ds.close(); return result
 
 
-def fetch_parse_mf(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
-    url = resource["url"]
-    # A fresh HTTP response is deliberately opened for every outer retry.
-    # This matters for Météo-France CSV.gz resources where a connection can
-    # occasionally end cleanly at HTTP level while the gzip stream itself is
-    # truncated. parse_mf_stream then raises and the caller can re-download.
-    with http_open(url, attempts=3, timeout=240) as response:
-        return parse_mf_stream(response, cutoff_year=cutoff_year, exact_year=exact_year)
+def load_snow_reference_month(client: cdsapi.Client, month: int, force: bool) -> dict:
+    ref_file = CACHE_DIR / f"snow_reference_v6_1991_2020_{month:02d}.nc"
+    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
+    chunks = year_chunks(ref_years.tolist(), 10)
+    chunk_files = [CACHE_DIR / f"raw_snow_reference_v6_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for item in [ref_file,*chunk_files]:
+            try:item.unlink()
+            except FileNotFoundError:pass
+    if ref_file.exists():
+        ds=xr.open_dataset(ref_file); result={"lat":np.asarray(ds["latitude"].values,dtype=float),"lon":np.asarray(ds["longitude"].values,dtype=float),"years":np.asarray(ds["year"].values,dtype=int),"fields":{k:np.asarray(ds[k].values,dtype=float) for k in SNOW_KEYS}}; ds.close(); return result
+    lat=lon=None; years_parts=[]; field_parts={k:[] for k in SNOW_KEYS}
+    for chunk,raw_file in zip(chunks,chunk_files):
+        if not raw_file.exists(): request_snow_monthly_file(client,chunk,[month],raw_file)
+        ds=open_download(raw_file); lat_name,lon_name=spatial_names(ds); ds=normalize_lon(ds,lon_name)
+        lat_here=np.asarray(ds[lat_name].values,dtype=float); lon_here=np.asarray(ds[lon_name].values,dtype=float)
+        if lat is None: lat,lon=lat_here,lon_here
+        elif not (np.array_equal(lat,lat_here) and np.array_equal(lon,lon_here)):
+            ds.close(); raise RuntimeError("ERA5-Land-Gitter der Schneereferenz stimmt nicht überein.")
+        expected=np.asarray(chunk,dtype=int); years_here_final=expected
+        for key,meta in SNOW_VARS.items():
+            da=ds[variable_name(ds,meta["aliases"])]; tdim=time_dim(da,lat_name,lon_name)
+            if tdim is None or da.sizes[tdim] != len(chunk):
+                ds.close(); raise RuntimeError(f"Zeitdimension Schnee {key} {chunk[0]}–{chunk[-1]} unvollständig.")
+            da=da.transpose(tdim,lat_name,lon_name); vals=np.asarray(da.values,dtype=float)
+            try: years_here=np.asarray(ds[tdim].dt.year.values,dtype=int)
+            except Exception: years_here=expected.copy()
+            if years_here.size==expected.size and set(years_here.tolist())==set(expected.tolist()):
+                order=[int(np.where(years_here==y)[0][0]) for y in expected]; vals=vals[order]; years_here_final=expected
+            field_parts[key].append(_snow_to_display(key,vals).astype(np.float32))
+        years_parts.append(years_here_final); ds.close()
+    assert lat is not None and lon is not None
+    years_all=np.concatenate(years_parts)
+    if not np.array_equal(years_all,ref_years): raise RuntimeError("Schneereferenzjahre 1991–2020 sind nicht vollständig.")
+    fields={k:np.concatenate(v,axis=0) for k,v in field_parts.items()}
+    out=xr.Dataset({k:(("year","latitude","longitude"),np.asarray(v,dtype=np.float32)) for k,v in fields.items()},coords={"year":years_all,"latitude":lat,"longitude":lon},attrs={"reference_period":"1991-2020","month":month,"description":"ERA5-Land monthly snow state variables","download_strategy":"10-year CDS chunks with retry"})
+    out.to_netcdf(ref_file,encoding={k:{"zlib":True,"complevel":3,"dtype":"float32"} for k in out.data_vars}); out.close()
+    for raw_file in chunk_files:
+        try:raw_file.unlink()
+        except FileNotFoundError:pass
+    return {"lat":lat,"lon":lon,"years":years_all,"fields":{k:np.asarray(v,dtype=float) for k,v in fields.items()}}
 
 
-def mf_resource_cache_path(cache_dir: Path, resource: dict, cutoff_year: int) -> Path:
-    identity = f"{resource['url']}|{cutoff_year}|v{MF_RESOURCE_CACHE_FORMAT_VERSION}"
-    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
-    return cache_dir / f"{resource['dept']}_{digest}.pkl.gz"
+def year_chunks(years: Iterable[int], chunk_size: int) -> list[list[int]]:
+    values = [int(y) for y in years]
+    return [values[i:i + chunk_size] for i in range(0, len(values), chunk_size)]
 
 
-def load_mf_resource_cache(path: Path, resource: dict, cutoff_year: int):
-    with gzip.open(path, "rb") as handle:
-        payload = pickle.load(handle)
-    if payload.get("format_version") != MF_RESOURCE_CACHE_FORMAT_VERSION:
-        raise RuntimeError("falsche Resource-Cache-Version")
-    if payload.get("url") != resource["url"] or payload.get("cutoff_year") != cutoff_year:
-        raise RuntimeError("Resource-Cache gehört zu einer anderen Datei/Periode")
-    return payload["partial"], payload["metas"]
+def load_soil_reference_month(client: cdsapi.Client, month: int, force: bool) -> dict:
+    """Return the 30 individual 1991–2020 monthly fields for every soil layer.
 
-
-def save_mf_resource_cache(path: Path, resource: dict, cutoff_year: int, partial: dict, metas: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "format_version": MF_RESOURCE_CACHE_FORMAT_VERSION,
-        "url": resource["url"],
-        "cutoff_year": cutoff_year,
-        "partial": partial,
-        "metas": metas,
-    }
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with gzip.open(tmp, "wb", compresslevel=4) as handle:
-        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    tmp.replace(path)
-
-
-def process_mf_historical_resource(resource: dict, cutoff_year: int, resource_cache_dir: Path, force: bool):
-    """Return one historical MF resource using FAST-PASS semantics.
-
-    Every workflow run gets exactly ONE fresh attempt for each resource that is
-    not already present as a valid shard. Successful resources are persisted
-    immediately. Failed resources are simply listed in the failure report and
-    are therefore the only resources attempted again on the next workflow run.
-    This deliberately avoids three slow downloads of the same reproducibly
-    truncated gzip file during the initial baseline pass.
+    The CDS reference retrieval is deliberately split into five-year jobs. ECMWF
+    recommends smaller requests for reliable queue processing, and a failed chunk can
+    then be retried without losing the already downloaded chunks.
     """
-    cache_path = mf_resource_cache_path(resource_cache_dir, resource, cutoff_year)
-    if cache_path.exists() and not force:
+    ref_file = CACHE_DIR / f"soil_reference_v3_1991_2020_{month:02d}.nc"
+    ref_years = np.arange(REFERENCE_START, REFERENCE_END + 1, dtype=int)
+    chunks = year_chunks(ref_years.tolist(), 5)
+    chunk_files = [
+        CACHE_DIR / f"raw_soil_reference_v4_{month:02d}_{chunk[0]}_{chunk[-1]}.nc"
+        for chunk in chunks
+    ]
+
+    if force:
         try:
-            partial, metas = load_mf_resource_cache(cache_path, resource, cutoff_year)
-            return partial, metas, "cache", 0
-        except Exception:
+            ref_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
             try:
-                cache_path.unlink()
+                item.unlink()
             except FileNotFoundError:
                 pass
 
-    try:
-        # One HTTP attempt and one parse attempt only. If this resource is bad,
-        # the next workflow run will retry just this missing shard.
-        with http_open(resource["url"], attempts=1, timeout=240) as response:
-            partial, _current, metas = parse_mf_stream(response, cutoff_year=cutoff_year)
-        save_mf_resource_cache(cache_path, resource, cutoff_year, partial, metas)
-        return partial, metas, "download", 0
-    except Exception as exc:
+    if ref_file.exists():
+        ds = xr.open_dataset(ref_file)
+        result = {
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "layers": {
+                layer_key: np.asarray(ds[layer_key].values, dtype=float)
+                for layer_key in SOIL_LAYERS
+            },
+        }
+        ds.close()
+        return result
+
+    all_years: list[int] = []
+    layer_parts: dict[str, list[np.ndarray]] = {key: [] for key in SOIL_LAYERS}
+    lat: np.ndarray | None = None
+    lon: np.ndarray | None = None
+
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_soil_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError(f"ERA5-Land-Gitter stimmt im Bodenfeuchte-Chunk {chunk[0]}–{chunk[-1]} nicht überein.")
+
+        years_here_final: np.ndarray | None = None
+        for layer_key, meta in SOIL_LAYERS.items():
+            soil_name = variable_name(ds, meta["aliases"])
+            soil_da = ds[soil_name]
+            sdim = time_dim(soil_da, lat_name, lon_name)
+            if sdim is None or soil_da.sizes[sdim] != len(chunk):
+                ds.close()
+                raise RuntimeError(
+                    f"Zeitdimension der Referenz für {layer_key}, {chunk[0]}–{chunk[-1]} "
+                    f"hat nicht {len(chunk)} Felder."
+                )
+            soil_da = soil_da.transpose(sdim, lat_name, lon_name)
+            values = np.asarray(soil_da.values, dtype=np.float32)
+            try:
+                years_here = np.asarray(ds[sdim].dt.year.values, dtype=int)
+            except Exception:
+                years_here = np.asarray(chunk, dtype=int)
+            expected = np.asarray(chunk, dtype=int)
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order = [int(np.where(years_here == y)[0][0]) for y in expected]
+                values = values[order]
+                years_here_final = expected
+            else:
+                years_here_final = expected
+            layer_parts[layer_key].append(values)
+        all_years.extend(int(y) for y in years_here_final)
+        ds.close()
+
+    assert lat is not None and lon is not None
+    detected_years = np.asarray(all_years, dtype=int)
+    if not np.array_equal(detected_years, ref_years):
+        raise RuntimeError("Bodenfeuchte-Referenzjahre 1991–2020 sind nach dem Chunking nicht vollständig.")
+    layer_arrays = {key: np.concatenate(parts, axis=0) for key, parts in layer_parts.items()}
+
+    encoding = {layer_key: {"zlib": True, "complevel": 3, "dtype": "float32"} for layer_key in SOIL_LAYERS}
+    out = xr.Dataset(
+        {layer_key: (("year", "latitude", "longitude"), layer_arrays[layer_key]) for layer_key in SOIL_LAYERS},
+        coords={"year": detected_years, "latitude": lat, "longitude": lon},
+        attrs={
+            "reference_period": "1991-2020",
+            "month": month,
+            "description": "ERA5-Land monthly volumetric soil water; all four model soil layers",
+            "download_strategy": "5-year CDS chunks with retry",
+        },
+    )
+    out.to_netcdf(ref_file, encoding=encoding)
+    out.close()
+
+    # Keep partial chunks while a run is incomplete; after the consolidated cache is
+    # safely written they are no longer needed and can be removed to save cache space.
+    for raw_file in chunk_files:
         try:
-            cache_path.unlink()
+            raw_file.unlink()
         except FileNotFoundError:
             pass
-        raise RuntimeError(str(exc))
 
+    return {
+        "lat": lat,
+        "lon": lon,
+        "years": detected_years,
+        "layers": {layer_key: np.asarray(layer_arrays[layer_key], dtype=float) for layer_key in SOIL_LAYERS},
+    }
 
-def fetch_parse_mf_with_retries(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None, label: str = "current"):
-    last_error = None
-    for attempt in range(1, MF_RESOURCE_RETRIES + 1):
+def load_climatology_month(client: cdsapi.Client, month: int, force: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """1991–2020 monthly climatology, downloaded in ten-year CDS chunks."""
+    clim_file = CACHE_DIR / f"climatology_1991_2020_{month:02d}.nc"
+    ref_years = list(range(REFERENCE_START, REFERENCE_END + 1))
+    chunks = year_chunks(ref_years, 10)
+    chunk_files = [CACHE_DIR / f"raw_climatology_v4_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
         try:
-            result = fetch_parse_mf(resource, cutoff_year=cutoff_year, exact_year=exact_year)
-            return result, attempt - 1
-        except Exception as exc:
-            last_error = exc
-            if attempt < MF_RESOURCE_RETRIES:
-                name = Path(urllib.parse.urlparse(resource["url"]).path).name
-                wait = 3 * attempt
-                log(
-                    f"RETRY Météo-France {label} {resource['dept']} {name}: "
-                    f"{exc}; frischer Download {attempt + 1}/{MF_RESOURCE_RETRIES} in {wait}s …"
-                )
-                time.sleep(wait)
-    raise RuntimeError(str(last_error))
+            clim_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
+            try:
+                item.unlink()
+            except FileNotFoundError:
+                pass
+    if clim_file.exists():
+        ds = xr.open_dataset(clim_file)
+        lat = np.asarray(ds["latitude"].values, dtype=float)
+        lon = np.asarray(ds["longitude"].values, dtype=float)
+        temp = np.asarray(ds["temperature_c"].values, dtype=float)
+        precip = np.asarray(ds["precipitation_mm"].values, dtype=float)
+        ds.close()
+        return lat, lon, temp, precip
 
+    temp_sum = temp_count = precip_sum = precip_count = None
+    lat = lon = None
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("ERA5-Land-Gitter der Klimatologie-Chunks stimmt nicht überein.")
+        tname = variable_name(ds, TEMP_ALIASES)
+        pname = variable_name(ds, PRECIP_ALIASES)
+        tda, pda = ds[tname], ds[pname]
+        tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
+        if tdim is None or pdim is None:
+            ds.close()
+            raise RuntimeError("Zeitdimension für die Klimatologie fehlt.")
+        tda = tda.transpose(tdim, lat_name, lon_name)
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        temp = np.asarray(tda.values, dtype=float) - 273.15
+        precip = np.asarray(pda.values, dtype=float)
+        try:
+            years_t = np.asarray(ds[tdim].dt.year.values, dtype=int)
+        except Exception:
+            years_t = np.asarray(chunk, dtype=int)
+        try:
+            years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception:
+            years_p = np.asarray(chunk, dtype=int)
+        expected = np.asarray(chunk, dtype=int)
+        if set(years_t.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_t == y)[0][0]) for y in expected]
+            temp = temp[order]
+        if set(years_p.tolist()) == set(expected.tolist()):
+            order = [int(np.where(years_p == y)[0][0]) for y in expected]
+            precip = precip[order]
+        days = np.asarray([calendar.monthrange(int(y), month)[1] for y in expected], dtype=float)[:, None, None]
+        precip = precip * days * 1000.0
+        valid_t = np.isfinite(temp)
+        valid_p = np.isfinite(precip)
+        if temp_sum is None:
+            shape = temp.shape[1:]
+            temp_sum = np.zeros(shape, dtype=float)
+            temp_count = np.zeros(shape, dtype=np.int16)
+            precip_sum = np.zeros(shape, dtype=float)
+            precip_count = np.zeros(shape, dtype=np.int16)
+        temp_sum += np.nansum(temp, axis=0)
+        temp_count += np.sum(valid_t, axis=0).astype(np.int16)
+        precip_sum += np.nansum(precip, axis=0)
+        precip_count += np.sum(valid_p, axis=0).astype(np.int16)
+        ds.close()
 
-def merge_mf_meta(target: Dict[str, Tuple[StationMeta, int]], incoming: Dict[str, Tuple[StationMeta, int]]) -> None:
-    for sid, item in incoming.items():
-        if sid not in target or item[1] >= target[sid][1]:
-            target[sid] = item
-
-
-def build_mf_baseline(cutoff_year: int, workers: int = 6, *, resource_cache_dir: Path, force_resources: bool = False) -> dict:
-    resources = [r for r in discover_mf_resources() if r["period"][0] <= cutoff_year]
-    resource_cache_dir.mkdir(parents=True, exist_ok=True)
-    failure_report = resource_cache_dir.parent / f"meteofrance_failed_resources_through_{cutoff_year}.json"
-    log(
-        f"Baue Météo-France-Basisbestand bis {cutoff_year}: {len(resources):,} RR-T-Vent-Dateien; "
-        f"{workers} parallele Downloads; erfolgreiche Einzeldateien werden gecacht …"
+    assert lat is not None and lon is not None
+    with np.errstate(invalid="ignore", divide="ignore"):
+        temp_clim = temp_sum / temp_count
+        precip_clim = precip_sum / precip_count
+    temp_clim[temp_count == 0] = np.nan
+    precip_clim[precip_count == 0] = np.nan
+    out = xr.Dataset(
+        {
+            "temperature_c": (("latitude", "longitude"), temp_clim.astype(np.float32)),
+            "precipitation_mm": (("latitude", "longitude"), precip_clim.astype(np.float32)),
+        },
+        coords={"latitude": lat, "longitude": lon},
+        attrs={"reference_period": "1991-2020", "month": month, "download_strategy": "10-year CDS chunks with retry"},
     )
-    partial: Dict[str, dict] = {}
-    metas: Dict[str, Tuple[StationMeta, int]] = {}
-    failures: List[Tuple[dict, str]] = []
-    cached_count = 0
-    downloaded_count = 0
-    retry_success_count = 0  # historical fast-pass keeps this at zero; retained for report compatibility
+    out.to_netcdf(clim_file)
+    out.close()
+    for raw_file in chunk_files:
+        try:
+            raw_file.unlink()
+        except FileNotFoundError:
+            pass
+    return lat, lon, temp_clim, precip_clim
 
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {
-            pool.submit(process_mf_historical_resource, r, cutoff_year, resource_cache_dir, force_resources): r
-            for r in resources
+def weighted_mean(field: np.ndarray, lat: np.ndarray) -> float | None:
+    arr = np.asarray(field, dtype=float)
+    weights = np.cos(np.deg2rad(np.asarray(lat, dtype=float)))[:, None]
+    mask = np.isfinite(arr)
+    if not np.any(mask):
+        return None
+    w = np.broadcast_to(weights, arr.shape)
+    return float(np.sum(arr[mask] * w[mask]) / np.sum(w[mask]))
+
+
+def weighted_fraction(mask: np.ndarray, valid: np.ndarray, lat: np.ndarray) -> float | None:
+    mask = np.asarray(mask, dtype=bool)
+    valid = np.asarray(valid, dtype=bool)
+    if not np.any(valid):
+        return None
+    weights = np.cos(np.deg2rad(np.asarray(lat, dtype=float)))[:, None]
+    w = np.broadcast_to(weights, valid.shape)
+    denominator = np.sum(w[valid])
+    if denominator <= 0:
+        return None
+    return float(np.sum(w[valid & mask]) / denominator * 100.0)
+
+
+def soil_percentile_field(current: np.ndarray, reference_samples: np.ndarray) -> np.ndarray:
+    """Empirical percentile rank of the current field against 30 reference years."""
+    current = np.asarray(current, dtype=float)
+    reference = np.asarray(reference_samples, dtype=float)
+    valid_ref = np.isfinite(reference)
+    valid_count = valid_ref.sum(axis=0)
+    current3 = current[None, :, :]
+    less = ((reference < current3) & valid_ref).sum(axis=0)
+    equal = ((reference == current3) & valid_ref).sum(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        percentile = (less + 0.5 * equal) / valid_count * 100.0
+    percentile[(valid_count == 0) | ~np.isfinite(current)] = np.nan
+    return percentile
+
+
+def combine_reference_soil(reference_by_month: dict[int, dict], layer_key: str, months: list[int]) -> np.ndarray:
+    """Build one reference-period field per year for the selected month/season."""
+    years = np.asarray(reference_by_month[months[0]]["years"], dtype=int)
+    first = np.asarray(reference_by_month[months[0]]["layers"][layer_key], dtype=float)
+    numerator = np.zeros_like(first, dtype=float)
+    denominator = np.zeros_like(first, dtype=float)
+
+    for month in months:
+        item = reference_by_month[month]
+        item_years = np.asarray(item["years"], dtype=int)
+        if not np.array_equal(item_years, years):
+            raise RuntimeError(f"Referenzjahre für Bodenfeuchte-Monat {month} sind nicht deckungsgleich.")
+        values = np.asarray(item["layers"][layer_key], dtype=float)
+        day_weights = np.asarray([calendar.monthrange(int(y), month)[1] for y in years], dtype=float)[:, None, None]
+        valid = np.isfinite(values)
+        numerator += np.where(valid, values * day_weights, 0.0)
+        denominator += np.where(valid, day_weights, 0.0)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        combined = numerator / denominator
+    combined[denominator == 0] = np.nan
+    return combined
+
+
+def percentile_field(current: np.ndarray, reference_samples: np.ndarray) -> np.ndarray:
+    return soil_percentile_field(current, reference_samples)
+
+
+def combine_reference_hydro(reference_by_month: dict[int, dict], key: str, months: list[int]) -> np.ndarray:
+    years = np.asarray(reference_by_month[months[0]]["years"], dtype=int)
+    arrays = []
+    for month in months:
+        item = reference_by_month[month]
+        if not np.array_equal(np.asarray(item["years"], dtype=int), years):
+            raise RuntimeError(f"Referenzjahre für Wasserhaushalt Monat {month} sind nicht deckungsgleich.")
+        arrays.append(np.asarray(item["fields"][key], dtype=float))
+    stack = np.stack(arrays, axis=0)
+    valid = np.isfinite(stack)
+    total = np.nansum(stack, axis=0)
+    total[~np.any(valid, axis=0)] = np.nan
+    return total
+
+
+def combine_hydro(fields: dict[int, np.ndarray], months: list[int]) -> np.ndarray:
+    stack = np.stack([fields[m] for m in months], axis=0)
+    valid = np.isfinite(stack)
+    total = np.nansum(stack, axis=0)
+    total[~np.any(valid, axis=0)] = np.nan
+    return total
+
+
+def combine_snow(fields: dict[int, np.ndarray], year: int, months: list[int]) -> np.ndarray:
+    arrays=[]; weights=[]
+    for m in months:
+        arrays.append(np.asarray(fields[m],dtype=float)); weights.append(float(calendar.monthrange(year,m)[1]))
+    stack=np.stack(arrays,axis=0); w=np.asarray(weights,dtype=float)[:,None,None]; valid=np.isfinite(stack)
+    num=np.nansum(np.where(valid,stack*w,0.0),axis=0); den=np.sum(np.where(valid,w,0.0),axis=0)
+    with np.errstate(invalid="ignore",divide="ignore"): out=num/den
+    out[den==0]=np.nan; return out
+
+
+def combine_reference_snow(reference_by_month: dict[int, dict], key: str, months: list[int]) -> np.ndarray:
+    years=np.asarray(reference_by_month[months[0]]["years"],dtype=int)
+    arrays=[]; weights=[]
+    for m in months:
+        item=reference_by_month[m]
+        if not np.array_equal(np.asarray(item["years"],dtype=int),years): raise RuntimeError("Schneereferenzjahre nicht deckungsgleich.")
+        arrays.append(np.asarray(item["fields"][key],dtype=float))
+        weights.append(np.asarray([calendar.monthrange(int(y),m)[1] for y in years],dtype=float)[:,None,None])
+    stack=np.stack(arrays,axis=0); w=np.stack(weights,axis=0); valid=np.isfinite(stack)
+    num=np.nansum(np.where(valid,stack*w,0.0),axis=0); den=np.sum(np.where(valid,w,0.0),axis=0)
+    with np.errstate(invalid="ignore",divide="ignore"): out=num/den
+    out[den==0]=np.nan; return out
+
+
+def finite_quantile(field: np.ndarray, q: float) -> float:
+    vals = np.asarray(field, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return 1.0
+    return float(np.quantile(vals, q))
+
+
+def render_map(field: np.ndarray, lat: np.ndarray, lon: np.ndarray, *, title: str, subtitle: str,
+               unit: str, filename: Path, kind: str) -> None:
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    cartopy.config["data_dir"] = str(CARTOPY_DIR)
+    CARTOPY_DIR.mkdir(parents=True, exist_ok=True)
+
+    fig = plt.figure(figsize=(13.2, 8.1), dpi=150)
+    # Fixed axes geometry makes the PNG a reliable geographic click target in the dashboard.
+    ax = fig.add_axes([0.07, 0.18, 0.89, 0.66], projection=ccrs.PlateCarree())
+    ax.set_extent([AREA[1], AREA[3], AREA[2], AREA[0]], crs=ccrs.PlateCarree())
+
+    data = np.ma.masked_invalid(np.asarray(field, dtype=float))
+    kwargs = {}
+    percentile_boundaries = None
+    percentile_ticks = None
+    percentile_ticklabels = None
+    if kind == "temp_absolute":
+        cmap = "turbo"
+        lo = math.floor(finite_quantile(data, 0.02) / 2) * 2
+        hi = math.ceil(finite_quantile(data, 0.98) / 2) * 2
+        if hi <= lo:
+            hi = lo + 2
+        kwargs.update(vmin=lo, vmax=hi)
+    elif kind == "temp_anomaly":
+        cmap = "RdBu_r"
+        vmax = max(1.0, math.ceil(finite_quantile(np.abs(data), 0.98) * 2) / 2)
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
+    elif kind == "precip_absolute":
+        cmap = "YlGnBu"
+        lo = 0.0
+        hi = max(10.0, math.ceil(finite_quantile(data, 0.98) / 10) * 10)
+        kwargs.update(vmin=lo, vmax=hi)
+    elif kind == "precip_percent":
+        cmap = "BrBG"
+        vmax = max(150.0, math.ceil(finite_quantile(data, 0.98) / 25) * 25)
+        kwargs.update(norm=TwoSlopeNorm(vmin=0, vcenter=100, vmax=vmax))
+    elif kind == "soil_absolute":
+        cmap = "YlGnBu"
+        lo = max(0.0, math.floor(finite_quantile(data, 0.02) * 20) / 20)
+        hi = min(0.7, math.ceil(finite_quantile(data, 0.98) * 20) / 20)
+        if hi <= lo:
+            hi = lo + 0.05
+        kwargs.update(vmin=lo, vmax=hi)
+    elif kind == "soil_anomaly":
+        cmap = "BrBG"
+        vmax = max(0.02, math.ceil(finite_quantile(np.abs(data), 0.98) * 100) / 100)
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
+    elif kind in {"soil_percentile", "hydro_percentile"}:
+        percentile_boundaries = [0, 5, 10, 20, 30, 70, 80, 90, 95, 100.0001]
+        percentile_ticks = [2.5, 7.5, 15, 25, 50, 75, 85, 92.5, 97.5]
+        percentile_ticklabels = ["≤5", "5–10", "10–20", "20–30", "30–70", "70–80", "80–90", "90–95", ">95"]
+        cmap = plt.get_cmap("BrBG", len(percentile_boundaries) - 1)
+        kwargs.update(norm=BoundaryNorm(percentile_boundaries, cmap.N, clip=True))
+    elif kind == "hydro_absolute":
+        cmap = "YlGnBu"
+        hi = max(5.0, math.ceil(finite_quantile(data, 0.98) / 10) * 10)
+        kwargs.update(vmin=0.0, vmax=hi)
+    elif kind in {"hydro_anomaly", "water_balance_absolute"}:
+        cmap = "BrBG"
+        vmax = max(5.0, math.ceil(finite_quantile(np.abs(data), 0.98) / 10) * 10)
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
+    elif kind == "snow_absolute":
+        cmap = "Blues"
+        hi = max(1.0, finite_quantile(data, 0.98))
+        kwargs.update(vmin=0.0, vmax=hi)
+    elif kind == "snow_anomaly":
+        cmap = "RdBu"
+        vmax = max(1.0, finite_quantile(np.abs(data), 0.98))
+        kwargs.update(norm=TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax))
+    elif kind == "snow_percentile":
+        percentile_boundaries = [0, 5, 10, 20, 30, 70, 80, 90, 95, 100.0001]
+        percentile_ticks = [2.5, 7.5, 15, 25, 50, 75, 85, 92.5, 97.5]
+        percentile_ticklabels = ["≤5", "5–10", "10–20", "20–30", "30–70", "70–80", "80–90", "90–95", ">95"]
+        cmap = plt.get_cmap("PuBu", len(percentile_boundaries)-1)
+        kwargs.update(norm=BoundaryNorm(percentile_boundaries, cmap.N, clip=True))
+    else:
+        cmap = "viridis"
+
+    mesh = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(), cmap=cmap, shading="auto", **kwargs)
+    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a")
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a")
+    ax.add_feature(cfeature.LAKES.with_scale("50m"), facecolor="#f4f7f8", edgecolor="#89949a", linewidth=0.25, zorder=3)
+    ax.set_facecolor("#eef3f5")
+    gl = ax.gridlines(draw_labels=True, linewidth=0.25, color="#7f8c92", alpha=0.45, linestyle="--")
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {"size": 8, "color": "#59656c"}
+    gl.ylabel_style = {"size": 8, "color": "#59656c"}
+
+    cax = fig.add_axes([0.14, 0.085, 0.75, 0.032])
+    cbar_kwargs = {"orientation": "horizontal"}
+    if percentile_boundaries is not None:
+        cbar_kwargs.update(boundaries=percentile_boundaries, ticks=percentile_ticks, spacing="proportional")
+    cbar = plt.colorbar(mesh, cax=cax, **cbar_kwargs)
+    cbar.set_label(unit, fontsize=10)
+    cbar.ax.tick_params(labelsize=8)
+    if percentile_ticklabels is not None:
+        cbar.ax.set_xticklabels(percentile_ticklabels)
+
+    fig.suptitle(title, x=0.075, y=0.97, ha="left", va="top", fontsize=17, fontweight="bold")
+    fig.text(0.075, 0.925, subtitle, ha="left", va="top", fontsize=10, color="#56636a")
+    fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · 0,1° · Landflächen",
+             ha="left", va="bottom", fontsize=8, color="#68757c")
+    plt.savefig(filename, facecolor="white")
+    plt.close(fig)
+
+
+def render_history_base_map(filename: Path) -> None:
+    """Neutral geographic background for the browser-rendered 0.1° historical archive."""
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    cartopy.config["data_dir"] = str(CARTOPY_DIR)
+    CARTOPY_DIR.mkdir(parents=True, exist_ok=True)
+
+    fig = plt.figure(figsize=(13.2, 8.1), dpi=150)
+    ax = fig.add_axes([0.07, 0.18, 0.89, 0.66], projection=ccrs.PlateCarree())
+    ax.set_extent([AREA[1], AREA[3], AREA[2], AREA[0]], crs=ccrs.PlateCarree())
+    ax.set_facecolor("#eef3f5")
+    ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f8fafb", edgecolor="none", zorder=0)
+    ax.add_feature(cfeature.COASTLINE.with_scale("50m"), linewidth=0.55, edgecolor="#39434a", zorder=3)
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.4, edgecolor="#66727a", zorder=3)
+    ax.add_feature(cfeature.LAKES.with_scale("50m"), facecolor="#eef3f5", edgecolor="#89949a", linewidth=0.25, zorder=3)
+    gl = ax.gridlines(draw_labels=True, linewidth=0.25, color="#7f8c92", alpha=0.45, linestyle="--")
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {"size": 8, "color": "#59656c"}
+    gl.ylabel_style = {"size": 8, "color": "#59656c"}
+
+    fig.suptitle("ERA5-Land Europa · Historisches Kartenarchiv", x=0.075, y=0.97, ha="left", va="top", fontsize=17, fontweight="bold")
+    fig.text(0.075, 0.925, "Sichtbare historische Rasterdaten auf 0,1° · Analyse und Rankings separat auf 1,0°", ha="left", va="top", fontsize=10, color="#56636a")
+    fig.text(0.075, 0.025, "Quelle: Copernicus Climate Change Service / ECMWF · ERA5-Land · Landflächen", ha="left", va="bottom", fontsize=8, color="#68757c")
+    plt.savefig(filename, facecolor="white")
+    plt.close(fig)
+
+
+def combine_temperature(fields: dict[int, np.ndarray], year: int, months: list[int]) -> np.ndarray:
+    weights = np.array([calendar.monthrange(year, month)[1] for month in months], dtype=float)
+    stack = np.stack([fields[month] for month in months], axis=0)
+    return np.average(stack, axis=0, weights=weights)
+
+
+def combine_precipitation(fields: dict[int, np.ndarray], months: list[int]) -> np.ndarray:
+    return np.nansum(np.stack([fields[month] for month in months], axis=0), axis=0)
+
+
+def combine_soil_moisture(fields: dict[int, np.ndarray], year: int, months: list[int]) -> np.ndarray:
+    weights = np.array([calendar.monthrange(year, month)[1] for month in months], dtype=float)
+    stack = np.stack([fields[month] for month in months], axis=0)
+    return np.average(stack, axis=0, weights=weights)
+
+
+def make_period_maps(period_id: str, period_label: str, year: int, months: list[int], current: dict,
+                     climate: dict, current_soil: dict, reference_soil: dict,
+                     current_hydro: dict, reference_hydro: dict,
+                     current_snow: dict, reference_snow: dict) -> dict:
+    lat, lon = current[months[0]][0], current[months[0]][1]
+    current_temp = combine_temperature({m: current[m][2] for m in months}, year, months)
+    climate_temp = combine_temperature({m: climate[m][2] for m in months}, 2001, months)
+    current_precip = combine_precipitation({m: current[m][3] for m in months}, months)
+    climate_precip = combine_precipitation({m: climate[m][3] for m in months}, months)
+
+    temp_anom = current_temp - climate_temp
+    with np.errstate(invalid="ignore", divide="ignore"):
+        precip_pct = np.where(climate_precip > 1.0, current_precip / climate_precip * 100.0, np.nan)
+
+    files = {
+        "temp_absolute": MAP_DIR / f"temperature_{period_id}_absolute.png",
+        "temp_anomaly": MAP_DIR / f"temperature_{period_id}_anomaly.png",
+        "precip_absolute": MAP_DIR / f"precipitation_{period_id}_absolute.png",
+        "precip_percent": MAP_DIR / f"precipitation_{period_id}_percent.png",
+    }
+
+    render_map(current_temp, lat, lon,
+               title=f"ERA5-Land Europa · 2-m-Temperatur · {period_label}",
+               subtitle="Absolutwert · Landflächen", unit="°C", filename=files["temp_absolute"], kind="temp_absolute")
+    render_map(temp_anom, lat, lon,
+               title=f"ERA5-Land Europa · Temperaturabweichung · {period_label}",
+               subtitle="gegenüber 1991–2020 · Landflächen", unit="K", filename=files["temp_anomaly"], kind="temp_anomaly")
+    render_map(current_precip, lat, lon,
+               title=f"ERA5-Land Europa · Niederschlag · {period_label}",
+               subtitle="Niederschlagssumme · Landflächen", unit="mm", filename=files["precip_absolute"], kind="precip_absolute")
+    render_map(precip_pct, lat, lon,
+               title=f"ERA5-Land Europa · Niederschlag · {period_label}",
+               subtitle="Prozent vom Mittel 1991–2020 · Landflächen", unit="% vom Mittel", filename=files["precip_percent"], kind="precip_percent")
+
+    def rel(path: Path) -> str:
+        return path.relative_to(ROOT).as_posix()
+
+    stats_temp_current = weighted_mean(current_temp, lat)
+    stats_temp_ref = weighted_mean(climate_temp, lat)
+    stats_precip_current = weighted_mean(current_precip, lat)
+    stats_precip_ref = weighted_mean(climate_precip, lat)
+
+    soil_layers_payload: dict[str, dict] = {}
+    for layer_key, meta in SOIL_LAYERS.items():
+        current_soil_field = combine_soil_moisture(
+            {m: current_soil[m]["layers"][layer_key] for m in months}, year, months
+        )
+        reference_samples = combine_reference_soil(reference_soil, layer_key, months)
+        with np.errstate(invalid="ignore"):
+            climate_soil_field = np.nanmean(reference_samples, axis=0)
+        soil_anom = current_soil_field - climate_soil_field
+        soil_percentile = soil_percentile_field(current_soil_field, reference_samples)
+
+        layer_files = {
+            "absolute": MAP_DIR / f"soil_moisture_{layer_key}_{period_id}_absolute.png",
+            "anomaly": MAP_DIR / f"soil_moisture_{layer_key}_{period_id}_anomaly.png",
+            "percentile": MAP_DIR / f"soil_moisture_{layer_key}_{period_id}_percentile.png",
         }
-        done = 0
-        for future in as_completed(futures):
-            r = futures[future]
-            done += 1
-            try:
-                states_part, meta_part, mode, retries_used = future.result()
-                merge_mf_partial(partial, states_part)
-                merge_mf_meta(metas, meta_part)
-                if mode == "cache":
-                    cached_count += 1
-                else:
-                    downloaded_count += 1
-                    # Historical baseline uses one attempt per missing resource per workflow run.
-            except Exception as exc:
-                failures.append((r, str(exc)))
-                log(
-                    f"FEHLER Météo-France historical (Schnellpass, 1 Versuch) "
-                    f"{r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}"
-                )
-            if done % 25 == 0 or done == len(resources):
-                log(
-                    f"  Météo-France historical: {done:,}/{len(resources):,} Dateien, "
-                    f"{len(partial):,} Stationen … "
-                    f"[Cache {cached_count}, neu {downloaded_count}, final fehlerhaft {len(failures)}]"
-                )
+        render_map(current_soil_field, lat, lon,
+                   title=f"ERA5-Land Europa · Bodenfeuchte {meta['label']} · {period_label}",
+                   subtitle="Volumetrischer Bodenwassergehalt · Landflächen", unit="m³/m³",
+                   filename=layer_files["absolute"], kind="soil_absolute")
+        render_map(soil_anom, lat, lon,
+                   title=f"ERA5-Land Europa · Bodenfeuchteabweichung {meta['label']} · {period_label}",
+                   subtitle="gegenüber 1991–2020 · Landflächen", unit="m³/m³",
+                   filename=layer_files["anomaly"], kind="soil_anomaly")
+        render_map(soil_percentile, lat, lon,
+                   title=f"ERA5-Land Europa · Bodenfeuchte-Perzentil {meta['label']} · {period_label}",
+                   subtitle="Einordnung 1991–2020 · P≤20 trocken · P≥80 feucht", unit="Perzentilklasse 1991–2020",
+                   filename=layer_files["percentile"], kind="soil_percentile")
 
-    report_payload = {
-        "cutoff_year": cutoff_year,
-        "resource_count": len(resources),
-        "cached": cached_count,
-        "downloaded": downloaded_count,
-        "retry_success": retry_success_count,
-        "failed": [
-            {
-                "dept": r["dept"],
-                "dataset": r["dataset"],
-                "url": r["url"],
-                "file": Path(urllib.parse.urlparse(r["url"]).path).name,
-                "error": error,
-            }
-            for r, error in failures
-        ],
+        stats_current = weighted_mean(current_soil_field, lat)
+        stats_reference = weighted_mean(climate_soil_field, lat)
+        valid_pct = np.isfinite(soil_percentile)
+        soil_layers_payload[layer_key] = {
+            "label": meta["label"],
+            "depth_cm": meta["depth_cm"],
+            "absolute": {"file": rel(layer_files["absolute"]), "unit": "m³/m³", "label": f"Bodenfeuchte {meta['label']}"},
+            "anomaly": {"file": rel(layer_files["anomaly"]), "unit": "m³/m³", "label": "Abweichung 1991–2020"},
+            "percentile": {"file": rel(layer_files["percentile"]), "unit": "Perzentil", "label": "Perzentil / Dürreklasse 1991–2020"},
+            "stats": {
+                "current": stats_current,
+                "reference": stats_reference,
+                "difference": None if stats_current is None or stats_reference is None else stats_current - stats_reference,
+                "dry_area_percent": weighted_fraction(soil_percentile <= 20.0, valid_pct, lat),
+                "very_dry_area_percent": weighted_fraction(soil_percentile <= 10.0, valid_pct, lat),
+                "wet_area_percent": weighted_fraction(soil_percentile >= 80.0, valid_pct, lat),
+                "very_wet_area_percent": weighted_fraction(soil_percentile >= 90.0, valid_pct, lat),
+            },
+        }
+
+    soil_payload = {"layers": soil_layers_payload, **soil_layers_payload["layer1"]}
+
+    # Water budget: current monthly totals have already been converted to mm.
+    current_hydro_fields = {
+        key: combine_hydro({m: current_hydro[m][key] for m in months}, months)
+        for key in HYDRO_VARS
     }
-    failure_report.write_text(json.dumps(report_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    current_hydro_fields["water_balance"] = current_precip - current_hydro_fields["evaporation"]
+    hydro_payload: dict[str, dict] = {}
+    for key in HYDRO_ALL_KEYS:
+        label = HYDRO_VARS.get(key, HYDRO_DERIVED.get(key, {})).get("label", key)
+        reference_samples = combine_reference_hydro(reference_hydro, key, months)
+        with np.errstate(invalid="ignore"):
+            reference_field = np.nanmean(reference_samples, axis=0)
+        current_field = current_hydro_fields[key]
+        anomaly = current_field - reference_field
+        pct = percentile_field(current_field, reference_samples)
+        hydro_files = {
+            "absolute": MAP_DIR / f"{key}_{period_id}_absolute.png",
+            "anomaly": MAP_DIR / f"{key}_{period_id}_anomaly.png",
+            "percentile": MAP_DIR / f"{key}_{period_id}_percentile.png",
+        }
+        absolute_kind = "water_balance_absolute" if key == "water_balance" else "hydro_absolute"
+        absolute_subtitle = "Niederschlag minus Gesamtverdunstung · Landflächen" if key == "water_balance" else "Monatssumme / Periodensumme · Landflächen"
+        render_map(current_field, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle=absolute_subtitle, unit="mm", filename=hydro_files["absolute"], kind=absolute_kind)
+        render_map(anomaly, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle="Abweichung gegenüber 1991–2020 · Landflächen", unit="mm",
+                   filename=hydro_files["anomaly"], kind="hydro_anomaly")
+        render_map(pct, lat, lon,
+                   title=f"ERA5-Land Europa · {label} · {period_label}",
+                   subtitle="Empirisches Perzentil gegenüber 1991–2020 · Landflächen", unit="Perzentilklasse 1991–2020",
+                   filename=hydro_files["percentile"], kind="hydro_percentile")
+        cur_mean = weighted_mean(current_field, lat)
+        ref_mean = weighted_mean(reference_field, lat)
+        valid_pct = np.isfinite(pct)
+        hydro_payload[key] = {
+            "absolute": {"file": rel(hydro_files["absolute"]), "unit": "mm", "label": label},
+            "anomaly": {"file": rel(hydro_files["anomaly"]), "unit": "mm", "label": "Abweichung 1991–2020"},
+            "percentile": {"file": rel(hydro_files["percentile"]), "unit": "Perzentil", "label": "Perzentil 1991–2020"},
+            "stats": {
+                "current": cur_mean,
+                "reference": ref_mean,
+                "difference": None if cur_mean is None or ref_mean is None else cur_mean - ref_mean,
+                "low_area_percent": weighted_fraction(pct <= 20.0, valid_pct, lat),
+                "very_low_area_percent": weighted_fraction(pct <= 10.0, valid_pct, lat),
+                "high_area_percent": weighted_fraction(pct >= 80.0, valid_pct, lat),
+                "very_high_area_percent": weighted_fraction(pct >= 90.0, valid_pct, lat),
+            },
+        }
 
-    log(
-        f"Météo-France-Dateibilanz: {len(resources)} vorgesehen | {cached_count} aus Einzelcache | "
-        f"{downloaded_count} frisch erfolgreich | {len(failures)} in diesem Schnellpass fehlgeschlagen."
-    )
-    if failures:
-        raise RuntimeError(
-            f"Météo-France Schnellpass noch unvollständig: {len(failures)} von {len(resources)} Dateien "
-            "sind beim einmaligen Download/Lesen fehlgeschlagen. "
-            f"Alle erfolgreichen Dateien wurden einzeln unter {resource_cache_dir} gecacht; "
-            "beim nächsten Lauf werden automatisch nur die fehlenden/problematischen Dateien einmal erneut geladen. "
-            f"Details: {failure_report}"
-        )
+    snow_payload: dict[str, dict] = {}
+    for key, meta in SNOW_VARS.items():
+        current_field = combine_snow({m: current_snow[m][key] for m in months}, year, months)
+        reference_samples = combine_reference_snow(reference_snow, key, months)
+        with np.errstate(invalid="ignore"):
+            reference_field = np.nanmean(reference_samples, axis=0)
+        anomaly = current_field - reference_field
+        pct = percentile_field(current_field, reference_samples)
+        anomaly_unit = "Prozentpunkte" if key == "snow_cover" else meta["unit"]
+        snow_files = {
+            "absolute": MAP_DIR / f"{key}_{period_id}_absolute.png",
+            "anomaly": MAP_DIR / f"{key}_{period_id}_anomaly.png",
+            "percentile": MAP_DIR / f"{key}_{period_id}_percentile.png",
+        }
+        render_map(current_field, lat, lon, title=f"ERA5-Land Europa · {meta['label']} · {period_label}",
+                   subtitle="Monats-/Periodenmittel · Landflächen", unit=meta["unit"], filename=snow_files["absolute"], kind="snow_absolute")
+        render_map(anomaly, lat, lon, title=f"ERA5-Land Europa · {meta['label']} · {period_label}",
+                   subtitle="Abweichung gegenüber 1991–2020 · Landflächen", unit=anomaly_unit, filename=snow_files["anomaly"], kind="snow_anomaly")
+        render_map(pct, lat, lon, title=f"ERA5-Land Europa · {meta['label']} · {period_label}",
+                   subtitle="Empirisches Perzentil gegenüber 1991–2020 · Landflächen", unit="Perzentilklasse 1991–2020", filename=snow_files["percentile"], kind="snow_percentile")
+        cur_mean=weighted_mean(current_field,lat); ref_mean=weighted_mean(reference_field,lat); valid_pct=np.isfinite(pct)
+        snow_payload[key]={
+            "absolute":{"file":rel(snow_files["absolute"]),"unit":meta["unit"],"label":meta["label"]},
+            "anomaly":{"file":rel(snow_files["anomaly"]),"unit":anomaly_unit,"label":"Abweichung 1991–2020"},
+            "percentile":{"file":rel(snow_files["percentile"]),"unit":"Perzentil","label":"Perzentil 1991–2020"},
+            "stats":{"current":cur_mean,"reference":ref_mean,"difference":None if cur_mean is None or ref_mean is None else cur_mean-ref_mean,
+                     "low_area_percent":weighted_fraction(pct<=20.0,valid_pct,lat),"very_low_area_percent":weighted_fraction(pct<=10.0,valid_pct,lat),
+                     "high_area_percent":weighted_fraction(pct>=80.0,valid_pct,lat),"very_high_area_percent":weighted_fraction(pct>=90.0,valid_pct,lat)},
+        }
 
-    states = finalize_mf_states(partial)
-    stations = {sid: item[0] for sid, item in metas.items() if sid in states}
-    log(f"Météo-France-Basisbestand vollständig: {len(states):,} Stationen; 0 fehlgeschlagene Dateien.")
     return {
-        "format_version": MF_BASELINE_FORMAT_VERSION,
-        "cutoff_year": cutoff_year,
-        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "states": states,
-        "stations": stations,
+        "id": period_id,
+        "label": period_label,
+        "year": year,
+        "months": months,
+        "temperature": {
+            "absolute": {"file": rel(files["temp_absolute"]), "unit": "°C", "label": "Temperatur"},
+            "anomaly": {"file": rel(files["temp_anomaly"]), "unit": "K", "label": "Abweichung 1991–2020"},
+            "stats": {"current": stats_temp_current, "reference": stats_temp_ref,
+                      "difference": None if stats_temp_current is None or stats_temp_ref is None else stats_temp_current - stats_temp_ref},
+        },
+        "precipitation": {
+            "absolute": {"file": rel(files["precip_absolute"]), "unit": "mm", "label": "Niederschlag"},
+            "percent": {"file": rel(files["precip_percent"]), "unit": "%", "label": "Prozent vom Mittel 1991–2020"},
+            "stats": {"current": stats_precip_current, "reference": stats_precip_ref,
+                      "percent": None if not stats_precip_ref else stats_precip_current / stats_precip_ref * 100.0},
+        },
+        "soil_moisture": soil_payload,
+        **hydro_payload,
+        **snow_payload,
     }
 
 
-def load_or_build_mf_baseline(cache_file: Path, cutoff_year: int, force: bool, workers: int) -> dict:
-    if cache_file.exists() and not force:
-        try:
-            with gzip.open(cache_file, "rb") as handle:
-                payload = pickle.load(handle)
-            if payload.get("format_version") == MF_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
-                log(f"Verwende historischen Météo-France-Cache: {cache_file}")
-                return payload
-        except Exception as exc:
-            log(f"Météo-France-Cache konnte nicht gelesen werden ({exc}); Neuaufbau aus Einzeldatei-Cache.")
 
-    resource_cache_dir = cache_file.parent / f"meteofrance_resources_through_{cutoff_year}_v{MF_RESOURCE_CACHE_FORMAT_VERSION}"
-    payload = build_mf_baseline(
-        cutoff_year,
-        workers=workers,
-        resource_cache_dir=resource_cache_dir,
-        force_resources=force,
-    )
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
-    with gzip.open(tmp, "wb", compresslevel=5) as handle:
-        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    tmp.replace(cache_file)
-    log(f"Météo-France-Gesamtcache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
-    return payload
+def round_json(value, digits: int):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return round(value, digits)
 
 
-def parse_current_mf_year(year: int, workers: int = 8):
-    resources = [r for r in discover_mf_resources() if r["period"][0] <= year <= r["period"][1]]
-    log(f"Lade Météo-France {year}: {len(resources):,} RR-T-Vent-Dateien; {workers} parallele Downloads …")
-    current: Dict[str, dict] = {}
-    metas: Dict[str, Tuple[StationMeta, int]] = {}
-    failures: List[Tuple[str, str]] = []
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(fetch_parse_mf_with_retries, r, exact_year=year, label="current"): r for r in resources}
-        done = 0
-        for future in as_completed(futures):
-            r = futures[future]; done += 1
+def sample_1deg(field: np.ndarray) -> np.ndarray:
+    arr = np.asarray(field)
+    return arr[..., ::ANALYSIS_GRID_STEP, ::ANALYSIS_GRID_STEP]
+
+
+
+def _hires_ordered_values(ds: xr.Dataset, aliases: tuple[str, ...], expected: np.ndarray,
+                           lat_name: str, lon_name: str) -> np.ndarray:
+    name = variable_name(ds, aliases)
+    da = ds[name]
+    tdim = time_dim(da, lat_name, lon_name)
+    if tdim is None or da.sizes[tdim] != len(expected):
+        raise RuntimeError(f"Zeitdimension für 0,1°-Historienvariable {name} ist unvollständig.")
+    da = da.transpose(tdim, lat_name, lon_name)
+    values = np.asarray(da.values, dtype=np.float32)
+    try:
+        years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+    except Exception:
+        years_here = expected.copy()
+    if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+        order = [int(np.where(years_here == year)[0][0]) for year in expected]
+        values = values[order]
+    return values
+
+
+def _hires_core_fields(ds: xr.Dataset, expected: np.ndarray, month: int) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+    """Decode one full-resolution historical CDS chunk into display units."""
+    lat_name, lon_name = spatial_names(ds)
+    ds = normalize_lon(ds, lon_name)
+    lat = np.asarray(ds[lat_name].values, dtype=float)
+    lon = np.asarray(ds[lon_name].values, dtype=float)
+
+    temp = _hires_ordered_values(ds, TEMP_ALIASES, expected, lat_name, lon_name) - 273.15
+    precip = _hires_ordered_values(ds, PRECIP_ALIASES, expected, lat_name, lon_name)
+    days = np.asarray([calendar.monthrange(int(y), month)[1] for y in expected], dtype=np.float32)[:, None, None]
+    precip = precip * days * 1000.0
+
+    fields: dict[str, np.ndarray] = {
+        "temperature": temp.astype(np.float32),
+        "precipitation": precip.astype(np.float32),
+    }
+    for key, meta in HYDRO_VARS.items():
+        values = _hires_ordered_values(ds, tuple(meta["aliases"]), expected, lat_name, lon_name)
+        fields[key] = _monthly_accum_to_mm(
+            values, expected, month, invert_sign=bool(meta.get("positive_evaporation"))
+        ).astype(np.float32)
+    fields["water_balance"] = (fields["precipitation"] - fields["evaporation"]).astype(np.float32)
+    for key, meta in SNOW_VARS.items():
+        values = _hires_ordered_values(ds, tuple(meta["aliases"]), expected, lat_name, lon_name)
+        fields[key] = _snow_to_display(key, values).astype(np.float32)
+    return lat, lon, fields
+
+
+def _hires_pack_meta_ready(meta: dict | None, year_start: int, year_end: int) -> bool:
+    if not meta:
+        return False
+    if int(meta.get("archive_version", 0)) != HISTORY_HIRES_ARCHIVE_VERSION:
+        return False
+    if int(meta.get("year_start", -1)) != int(year_start) or int(meta.get("year_end", -1)) != int(year_end):
+        return False
+    rel_file = meta.get("file")
+    return bool(rel_file) and (ROOT / str(rel_file)).exists()
+
+
+def _hires_quant_params(vmin: float, vmax: float) -> tuple[float, float]:
+    if not (math.isfinite(vmin) and math.isfinite(vmax)):
+        return 0.0, 1.0
+    if vmax <= vmin:
+        return float(vmin), 1.0e-6
+    return float(vmin), float((vmax - vmin) / HISTORY_HIRES_LEVELS)
+
+
+def _hires_quantize(values: np.ndarray, offset: float, step: float) -> np.ndarray:
+    arr = np.asarray(values, dtype=np.float32)
+    valid = np.isfinite(arr)
+    out = np.full(arr.shape, HISTORY_HIRES_MISSING, dtype=np.uint8)
+    if np.any(valid):
+        q = np.rint((arr[valid] - offset) / step)
+        out[valid] = np.clip(q, 0, HISTORY_HIRES_LEVELS).astype(np.uint8)
+    return out
+
+
+def _hires_delta_x(values: np.ndarray) -> np.ndarray:
+    """Reversible left-neighbour predictor to make smooth 0.1° fields gzip-friendly."""
+    q = np.asarray(values, dtype=np.uint8)
+    out = q.copy()
+    if q.shape[-1] > 1:
+        diff = q[..., 1:].astype(np.int16) - q[..., :-1].astype(np.int16)
+        out[..., 1:] = np.mod(diff, 256).astype(np.uint8)
+    return out
+
+
+def _hires_meta(path: Path, *, month: int, year_start: int, year_end: int,
+                lat: np.ndarray, lon: np.ndarray, offset: float, step: float) -> dict:
+    lat_step = float(lat[1] - lat[0]) if len(lat) > 1 else 0.0
+    lon_step = float(lon[1] - lon[0]) if len(lon) > 1 else 0.0
+    return {
+        "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+        "file": path.relative_to(ROOT).as_posix(),
+        "codec": "gzip",
+        "dtype": "uint8",
+        "predictor": "delta-x-u8-v1",
+        "missing": HISTORY_HIRES_MISSING,
+        "levels": HISTORY_HIRES_LEVELS,
+        "offset": round(float(offset), 9),
+        "step": round(float(step), 12),
+        "year_start": int(year_start),
+        "year_end": int(year_end),
+        "n_years": int(year_end - year_start + 1),
+        "month": int(month),
+        "nlat": int(len(lat)),
+        "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(lat_step, 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(lon_step, 6),
+        "file_bytes": int(path.stat().st_size),
+    }
+
+
+def _build_hires_core_month(client: cdsapi.Client, month: int, year_end: int, force: bool) -> tuple[dict[str, dict], dict]:
+    """Build compact 0.1° uint8+gzip archives for all non-soil parameters of one month."""
+    year_start = HISTORY_START
+    years = list(range(year_start, year_end + 1))
+    chunks = year_chunks(years, 5)
+    raw_files = [CACHE_DIR / f"raw_history_0p1_v8_m{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for raw in raw_files:
             try:
-                (_states_part, current_part, meta_part), retries_used = future.result()
-                if retries_used:
-                    log(f"OK nach Retry Météo-France current {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name} (nach {retries_used} Wiederholung(en))")
-                for sid, st in current_part.items():
-                    dst = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
-                    dst["TMAX"].update(st.get("TMAX", {})); dst["TMIN"].update(st.get("TMIN", {}))
-                merge_mf_meta(metas, meta_part)
-            except Exception as exc:
-                failures.append((r["url"], str(exc)))
-                log(f"WARNUNG Météo-France current {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}")
-            if done % 25 == 0 or done == len(resources):
-                log(f"  Météo-France current: {done:,}/{len(resources):,} Dateien, {len(current):,} Stationen mit {year}-Daten …")
-    if failures and len(failures) > max(12, int(len(resources) * 0.08)):
-        raise RuntimeError(f"Zu viele Météo-France-Current-Fehler: {len(failures)} von {len(resources)}")
-    return current, {sid: item[0] for sid, item in metas.items()}
+                raw.unlink()
+            except FileNotFoundError:
+                pass
 
+    mins = {key: math.inf for key in ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)}
+    maxs = {key: -math.inf for key in mins}
+    lat: np.ndarray | None = None
+    lon: np.ndarray | None = None
 
+    # First pass: download/check chunks and determine one stable quantization range per parameter/month.
+    for chunk, raw_file in zip(chunks, raw_files):
+        if not raw_file.exists():
+            request_hires_history_file(client, chunk, month, raw_file)
+        ds = open_download(raw_file)
+        expected = np.asarray(chunk, dtype=int)
+        lat_here, lon_here, fields = _hires_core_fields(ds, expected, month)
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("0,1°-Historiengitter stimmt zwischen CDS-Chunks nicht überein.")
+        for key, values in fields.items():
+            finite = values[np.isfinite(values)]
+            if finite.size:
+                mins[key] = min(mins[key], float(np.min(finite)))
+                maxs[key] = max(maxs[key], float(np.max(finite)))
+        ds.close()
 
-# ------------------------- AEMET OpenData adapter -------------------------
+    assert lat is not None and lon is not None
+    HISTORY_HIRES_DIR.mkdir(parents=True, exist_ok=True)
+    offsets_steps = {key: _hires_quant_params(mins[key], maxs[key]) for key in mins}
+    final_paths = {key: HISTORY_HIRES_DIR / f"{key}_m{month:02d}.u8.gz" for key in mins}
+    temp_paths = {key: path.with_suffix(path.suffix + ".tmp") for key, path in final_paths.items()}
+    handles = {}
+    try:
+        for key, tmp in temp_paths.items():
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+            handles[key] = gzip.open(tmp, "wb", compresslevel=6)
+        # Second pass: year-major byte layout. The browser can jump directly to one year after decompression.
+        for chunk, raw_file in zip(chunks, raw_files):
+            ds = open_download(raw_file)
+            expected = np.asarray(chunk, dtype=int)
+            lat_here, lon_here, fields = _hires_core_fields(ds, expected, month)
+            for key, values in fields.items():
+                offset, step = offsets_steps[key]
+                handles[key].write(_hires_delta_x(_hires_quantize(values, offset, step)).tobytes(order="C"))
+            ds.close()
+        for handle in handles.values():
+            handle.close()
+        handles.clear()
+        for key, final in final_paths.items():
+            os.replace(temp_paths[key], final)
+    except Exception:
+        for handle in handles.values():
+            try:
+                handle.close()
+            except Exception:
+                pass
+        for tmp in temp_paths.values():
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+        raise
 
-def aemet_api_key() -> str:
-    key = os.environ.get("AEMET_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError(
-            "AEMET_API_KEY fehlt. In GitHub unter Settings → Secrets and variables → Actions "
-            "als Repository-Secret AEMET_API_KEY anlegen."
-        )
-    return key
-
-
-def aemet_decode_json(data: bytes):
-    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+    # The compressed browser archives are now the durable high-resolution representation.
+    # Raw CDS chunks are intentionally removed so the Actions cache remains bounded.
+    for raw in raw_files:
         try:
-            return json.loads(data.decode(encoding))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+            raw.unlink()
+        except FileNotFoundError:
+            pass
+
+    metas = {
+        key: _hires_meta(
+            final_paths[key], month=month, year_start=year_start, year_end=year_end,
+            lat=lat, lon=lon, offset=offsets_steps[key][0], step=offsets_steps[key][1]
+        )
+        for key in final_paths
+    }
+    grid = {
+        "nlat": int(len(lat)), "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(float(lat[1] - lat[0]), 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(float(lon[1] - lon[0]), 6),
+    }
+    return metas, grid
+
+
+def _build_hires_soil_month(month: int, reference_month: dict, force: bool, existing: dict) -> tuple[dict[str, dict], dict]:
+    """Quantize the existing full-grid 1991–2020 soil reference fields; no extra CDS job is needed."""
+    lat = np.asarray(reference_month["lat"], dtype=float)
+    lon = np.asarray(reference_month["lon"], dtype=float)
+    years = np.asarray(reference_month["years"], dtype=int)
+    year_start, year_end = int(years[0]), int(years[-1])
+    result: dict[str, dict] = {}
+    HISTORY_HIRES_DIR.mkdir(parents=True, exist_ok=True)
+    for layer_key in SOIL_LAYERS:
+        key = f"soil_moisture_{layer_key}"
+        old = existing.get(key, {}).get(f"{month:02d}") if isinstance(existing.get(key), dict) else None
+        if not force and _hires_pack_meta_ready(old, year_start, year_end):
+            result[key] = old
             continue
-    raise RuntimeError("AEMET-Antwort ist kein lesbares JSON.")
+        values = np.asarray(reference_month["layers"][layer_key], dtype=np.float32)
+        finite = values[np.isfinite(values)]
+        vmin = float(np.min(finite)) if finite.size else 0.0
+        vmax = float(np.max(finite)) if finite.size else 1.0
+        offset, step = _hires_quant_params(vmin, vmax)
+        final = HISTORY_HIRES_DIR / f"{key}_m{month:02d}.u8.gz"
+        tmp = final.with_suffix(final.suffix + ".tmp")
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        with gzip.open(tmp, "wb", compresslevel=6) as fh:
+            fh.write(_hires_delta_x(_hires_quantize(values, offset, step)).tobytes(order="C"))
+        os.replace(tmp, final)
+        result[key] = _hires_meta(
+            final, month=month, year_start=year_start, year_end=year_end,
+            lat=lat, lon=lon, offset=offset, step=step
+        )
+    grid = {
+        "nlat": int(len(lat)), "nlon": int(len(lon)),
+        "lat_start": round(float(lat[0]), 6),
+        "lat_step": round(float(lat[1] - lat[0]), 6),
+        "lon_start": round(float(lon[0]), 6),
+        "lon_step": round(float(lon[1] - lon[0]), 6),
+    }
+    return result, grid
 
 
-def aemet_api_dataset(path: str, api_key: str, *, allow_empty: bool = False, attempts: int = 7):
-    """Call one AEMET OpenData endpoint and immediately download its `datos` URL.
+def highres_archive_is_ready(months: list[int], history_end_year: int) -> bool:
+    if not HISTORY_HIRES_INDEX.exists():
+        return False
+    try:
+        archive = json.loads(HISTORY_HIRES_INDEX.read_text(encoding="utf-8"))
+        if int(archive.get("archive_version", 0)) < HISTORY_HIRES_ARCHIVE_VERSION:
+            return False
+        variables = archive.get("variables") or {}
+        core_keys = ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)
+        soil_keys = tuple(f"soil_moisture_{layer}" for layer in SOIL_LAYERS)
+        for month in months:
+            mk = f"{int(month):02d}"
+            for key in core_keys:
+                if not _hires_pack_meta_ready((variables.get(key) or {}).get(mk), HISTORY_START, history_end_year):
+                    return False
+            for key in soil_keys:
+                if not _hires_pack_meta_ready((variables.get(key) or {}).get(mk), REFERENCE_START, REFERENCE_END):
+                    return False
+        return True
+    except Exception:
+        return False
 
-    AEMET OpenData returns a small JSON envelope first. The actual dataset is
-    exposed via the URL in `datos`. The API key is sent as the official
-    `api_key` request header and is never written to output files or logs.
+
+def build_highres_history_archive(client: cdsapi.Client, months: list[int], history_end_year: int,
+                                   soil_reference: dict[int, dict], force: bool) -> dict:
+    """Create the visible historical 0.1° archive used by the static GitHub Pages frontend.
+
+    Values are quantized to 255 codes (255 = missing) and gzip-compressed. The exact
+    1° analysis remains untouched for rankings and point time series; this archive is
+    exclusively the high-resolution visual map layer.
     """
-    url = AEMET_API_BASE.rstrip("/") + "/" + path.lstrip("/")
-    last_error = None
-    for attempt in range(1, attempts + 1):
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "climate-dashboard-stations/5.0 (+GitHub Actions)",
-                "cache-control": "no-cache",
-                "api_key": api_key,
-            },
+    existing: dict = {}
+    if HISTORY_HIRES_INDEX.exists() and not force:
+        try:
+            existing = json.loads(HISTORY_HIRES_INDEX.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+    existing_vars = existing.get("variables") if isinstance(existing.get("variables"), dict) else {}
+    variables: dict = {key: dict(value) for key, value in existing_vars.items() if isinstance(value, dict)}
+    grid = existing.get("grid") if isinstance(existing.get("grid"), dict) else None
+    core_keys = ("temperature", "precipitation", *HYDRO_ALL_KEYS, *SNOW_KEYS)
+
+    for month in sorted(set(int(m) for m in months)):
+        month_key = f"{month:02d}"
+        core_ready = (
+            not force and all(
+                _hires_pack_meta_ready(variables.get(key, {}).get(month_key), HISTORY_START, history_end_year)
+                for key in core_keys
+            )
         )
-        try:
-            with urllib.request.urlopen(req, timeout=180) as response:
-                envelope = aemet_decode_json(response.read())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")[:500]
-            if exc.code == 404 and allow_empty:
-                return []
-            if exc.code in {429, 500, 502, 503, 504} and attempt < attempts:
-                wait = min(20 * attempt, 120)
-                log(f"AEMET HTTP {exc.code}; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
-                time.sleep(wait)
-                last_error = f"HTTP {exc.code}: {body}"
-                continue
-            if exc.code in {401, 403}:
-                raise RuntimeError("AEMET OpenData lehnt den API-Key ab (HTTP %s). Bitte AEMET_API_KEY prüfen." % exc.code)
-            raise RuntimeError(f"AEMET API HTTP {exc.code}: {body}") from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            last_error = exc
-            if attempt < attempts:
-                wait = min(15 * attempt, 90)
-                log(f"AEMET-Verbindungsfehler; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
-                time.sleep(wait)
-                continue
-            raise RuntimeError(f"AEMET API nicht erreichbar: {exc}") from exc
-
-        if not isinstance(envelope, dict):
-            raise RuntimeError("AEMET API lieferte kein JSON-Objekt als Antwortumschlag.")
-        estado = envelope.get("estado")
-        if estado not in (None, 200, "200"):
-            if str(estado) == "404" and allow_empty:
-                return []
-            raise RuntimeError(f"AEMET API estado={estado}: {envelope.get('descripcion', 'unbekannter Fehler')}")
-        data_url = str(envelope.get("datos") or "").strip()
-        if not data_url:
-            if allow_empty:
-                return []
-            raise RuntimeError(f"AEMET API lieferte keine datos-URL: {envelope.get('descripcion', '')}")
-        try:
-            raw = read_url_bytes(data_url, attempts=6, timeout=300)
-            return aemet_decode_json(raw)
-        except Exception as exc:
-            last_error = exc
-            if attempt < attempts:
-                wait = min(15 * attempt, 90)
-                log(f"AEMET-Datendownload fehlgeschlagen; neuer Versuch {attempt + 1}/{attempts} in {wait}s …")
-                time.sleep(wait)
-                continue
-            raise RuntimeError(f"AEMET-Datendownload fehlgeschlagen: {last_error}") from exc
-    raise RuntimeError(f"AEMET-Anfrage fehlgeschlagen: {last_error}")
-
-
-def aemet_station_id(raw: str) -> Optional[str]:
-    value = str(raw or "").strip().upper()
-    if not value:
-        return None
-    value = re.sub(r"[^0-9A-Z]", "", value)
-    return f"AEMET:{value}" if value else None
-
-
-def aemet_coord(raw: str, *, is_lat: bool) -> Optional[float]:
-    text = str(raw or "").strip().upper().replace(",", ".")
-    if not text:
-        return None
-    try:
-        number = float(text)
-        if (is_lat and -90 <= number <= 90) or ((not is_lat) and -180 <= number <= 180):
-            return number
-    except ValueError:
-        pass
-    m = re.fullmatch(r"(\d{2,3})(\d{2})(\d{2}(?:\.\d+)?)([NSEW])", text)
-    if not m:
-        return None
-    deg, minute, second = int(m.group(1)), int(m.group(2)), float(m.group(3))
-    value = deg + minute / 60.0 + second / 3600.0
-    if m.group(4) in {"S", "W"}:
-        value = -value
-    if is_lat and not (-90 <= value <= 90):
-        return None
-    if not is_lat and not (-180 <= value <= 180):
-        return None
-    return value
-
-
-def aemet_temp_to_tenths(raw: str) -> Optional[int]:
-    text = str(raw or "").strip().replace(",", ".")
-    if not text:
-        return None
-    try:
-        value = float(text)
-    except ValueError:
-        return None
-    if not math.isfinite(value) or value <= -90 or value >= 70:
-        return None
-    return int(round(value * 10.0))
-
-
-def load_aemet_inventory(api_key: str) -> Dict[str, StationMeta]:
-    data = aemet_api_dataset(
-        "/api/valores/climatologicos/inventarioestaciones/todasestaciones",
-        api_key,
-        allow_empty=False,
-    )
-    if isinstance(data, dict):
-        data = data.get("datos") or data.get("data") or data.get("estaciones") or []
-    if not isinstance(data, list):
-        raise RuntimeError("AEMET Stationsinventar hat ein unerwartetes Format.")
-    stations: Dict[str, StationMeta] = {}
-    for row in data:
-        if not isinstance(row, dict):
-            continue
-        sid = aemet_station_id(row.get("indicativo"))
-        lat = aemet_coord(row.get("latitud"), is_lat=True)
-        lon = aemet_coord(row.get("longitud"), is_lat=False)
-        if not sid or lat is None or lon is None:
-            continue
-        if not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
-            continue
-        elev_raw = str(row.get("altitud") or "").strip().replace(",", ".")
-        try:
-            elev = float(elev_raw) if elev_raw else None
-        except ValueError:
-            elev = None
-        name = str(row.get("nombre") or row.get("nombreEstacion") or sid.split(":", 1)[1]).strip()
-        province = str(row.get("provincia") or "").strip()
-        if province and province.upper() not in name.upper():
-            display_name = name
+        if not core_ready:
+            print(f"Baue sichtbares 0,1°-Historienarchiv für {MONTH_NAMES[month]} {HISTORY_START}–{history_end_year} …")
+            built, built_grid = _build_hires_core_month(client, month, history_end_year, force)
+            grid = built_grid
+            for key, meta in built.items():
+                variables.setdefault(key, {})[month_key] = meta
         else:
-            display_name = name
-        stations[sid] = StationMeta(
-            sid, float(lat), float(lon), None if elev is None or elev <= -999 else round(elev, 1),
-            display_name, "ES", "Spanien", AEMET_SOURCE,
-            "AEMET OpenData Tagesklimatologie: tmax/tmin wie veröffentlicht; fehlende oder nichtnumerische Werte werden verworfen.",
-        )
-    log(f"AEMET-Stationsinventar Spanien im Kartenfenster: {len(stations):,}")
-    if not stations:
-        raise RuntimeError("Keine AEMET-Stationen im Europa-Kartenfenster gefunden.")
-    return stations
+            print(f"0,1°-Historienarchiv {MONTH_NAMES[month]}: vorhandene Browser-Packs werden wiederverwendet.")
 
+        soil_built, soil_grid = _build_hires_soil_month(month, soil_reference[month], force, variables)
+        grid = grid or soil_grid
+        for key, meta in soil_built.items():
+            variables.setdefault(key, {})[month_key] = meta
 
-def aemet_date_path(date_obj: dt.datetime) -> str:
-    return date_obj.strftime("%Y-%m-%dT%H:%M:%SUTC")
+    if not grid:
+        raise RuntimeError("0,1°-Historienarchiv konnte kein gültiges ERA5-Land-Gitter bestimmen.")
 
-
-def aemet_daily_path(start: dt.datetime, end: dt.datetime) -> str:
-    return (
-        "/api/valores/climatologicos/diarios/datos/fechaini/"
-        f"{aemet_date_path(start)}/fechafin/{aemet_date_path(end)}/todasestaciones"
-    )
-
-
-def parse_aemet_rows(rows, stations: Dict[str, StationMeta], *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
-    partial: Dict[str, dict] = {}
-    current: Dict[str, dict] = {}
-    if isinstance(rows, dict):
-        rows = rows.get("datos") or rows.get("data") or rows.get("valores") or []
-    if not isinstance(rows, list):
-        raise RuntimeError("AEMET Tagesdaten haben ein unerwartetes Format.")
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        sid = aemet_station_id(row.get("indicativo"))
-        if not sid or sid not in stations:
-            continue
-        datestr = str(row.get("fecha") or "").strip()[:10]
-        try:
-            date_obj = dt.datetime.strptime(datestr, "%Y-%m-%d").date()
-        except ValueError:
-            continue
-        year = date_obj.year
-        if cutoff_year is not None and year > cutoff_year:
-            continue
-        if exact_year is not None and year != exact_year:
-            continue
-        date_int = int(date_obj.strftime("%Y%m%d"))
-        mmdd = date_obj.strftime("%m-%d")
-        for element, field in (("TMAX", "tmax"), ("TMIN", "tmin")):
-            value = aemet_temp_to_tenths(row.get(field))
-            if value is None:
-                continue
-            if exact_year is None:
-                state = partial.setdefault(sid, mf_empty_partial_state())
-                block = state[element]
-                block["abs"] = update_record(block["abs"], value, date_int, element)
-                block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
-                block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
-                block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
-                block["year_set"].add(year)
-            else:
-                st = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
-                old = st[element].get(mmdd)
-                candidate = (value, date_int)
-                if old is None or better(element, value, old[0]):
-                    st[element][mmdd] = candidate
-    return partial, current
-
-
-def aemet_year_blocks(start_year: int, end_year: int) -> List[Tuple[int, int]]:
-    blocks = []
-    y = start_year
-    while y <= end_year:
-        y2 = min(end_year, y + AEMET_MAX_RANGE_YEARS - 1)
-        blocks.append((y, y2))
-        y = y2 + 1
-    return blocks
-
-
-def build_aemet_baseline(api_key: str, stations: Dict[str, StationMeta], cutoff_year: int) -> dict:
-    start_year = min(AEMET_BASELINE_START_YEAR, cutoff_year)
-    blocks = aemet_year_blocks(start_year, cutoff_year)
-    log(
-        f"Baue AEMET-Spanien-Basisbestand {start_year}–{cutoff_year}: "
-        f"{len(blocks)} Blöcke à maximal {AEMET_MAX_RANGE_YEARS} Jahre …"
-    )
-    partial: Dict[str, dict] = {}
-    for i, (y1, y2) in enumerate(blocks, start=1):
-        start = dt.datetime(y1, 1, 1, 0, 0, 0)
-        end = dt.datetime(y2, 12, 31, 23, 59, 59)
-        rows = aemet_api_dataset(aemet_daily_path(start, end), api_key, allow_empty=True)
-        part, _cur = parse_aemet_rows(rows, stations, cutoff_year=cutoff_year)
-        merge_mf_partial(partial, part)
-        log(f"  AEMET historical: {i}/{len(blocks)} Blöcke ({y1}–{y2}), {len(partial):,} Stationen mit Daten …")
-        # Deliberately gentle to AEMET OpenData; also reduces 429 rate-limit responses.
-        time.sleep(0.8)
-    states = finalize_mf_states(partial)
-    log(f"AEMET-Basisbestand fertig: {len(states):,} Stationen bis {cutoff_year}.")
-    if not states:
-        raise RuntimeError("AEMET-Basisbestand enthält keine TMAX/TMIN-Daten.")
-    return {
-        "format_version": AEMET_BASELINE_FORMAT_VERSION,
-        "cutoff_year": cutoff_year,
-        "start_year": start_year,
-        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "states": states,
+    archive = {
+        "ready": True,
+        "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "grid_label": "0,1° ERA5-Land",
+        "grid": grid,
+        "year_start": HISTORY_START,
+        "year_end": int(history_end_year),
+        "soil_year_start": REFERENCE_START,
+        "soil_year_end": REFERENCE_END,
+        "reference_period": "1991–2020",
+        "format": "uint8 + delta-x predictor + gzip; 255 = fehlend; Wert = offset + code × step",
+        "quantization_note": (
+            "Die sichtbare historische Karte nutzt das echte 0,1°-ERA5-Land-Raster. "
+            "Für kompakte Browserdateien werden die Rasterwerte verlustarm auf 255 Stufen quantisiert; "
+            "Rankings, KPIs und Gitterpunkt-Zeitreihen bleiben auf dem separaten 1,0°-Analysedatensatz."
+        ),
+        "available_months": sorted({int(m) for group in variables.values() for m in group.keys() if str(m).isdigit()}),
+        "variables": variables,
     }
+    atomic_write_json(HISTORY_HIRES_INDEX, archive)
+    return archive
 
 
-def load_or_build_aemet_baseline(cache_file: Path, api_key: str, stations: Dict[str, StationMeta], cutoff_year: int, force: bool) -> dict:
-    if cache_file.exists() and not force:
+def load_history_tp_month(client: cdsapi.Client, month: int, end_year: int, force: bool) -> dict:
+    """Temperature/precipitation history since 1950 sampled to 1° for browser analysis.
+
+    Historical retrievals are split into ten-year jobs so a single heavy CDS job does
+    not make the complete V4 workflow fail.
+    """
+    sampled_file = CACHE_DIR / f"history_tp_v4_{HISTORY_START}_{end_year}_{month:02d}_1deg.nc"
+    years = np.arange(HISTORY_START, end_year + 1, dtype=int)
+    chunks = year_chunks(years.tolist(), 10)
+    chunk_files = [CACHE_DIR / f"raw_history_tp_v4_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
         try:
-            with gzip.open(cache_file, "rb") as handle:
-                payload = pickle.load(handle)
-            if payload.get("format_version") == AEMET_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
-                log(f"Verwende historischen AEMET-Cache: {cache_file}")
-                return payload
-        except Exception as exc:
-            log(f"AEMET-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
-    payload = build_aemet_baseline(api_key, stations, cutoff_year)
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
-    with gzip.open(tmp, "wb", compresslevel=5) as handle:
-        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    tmp.replace(cache_file)
-    log(f"AEMET-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
-    return payload
+            sampled_file.unlink()
+        except FileNotFoundError:
+            pass
+        for item in chunk_files:
+            try:
+                item.unlink()
+            except FileNotFoundError:
+                pass
+    if sampled_file.exists():
+        ds = xr.open_dataset(sampled_file)
+        out = {
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "temperature": np.asarray(ds["temperature_c"].values, dtype=float),
+            "precipitation": np.asarray(ds["precipitation_mm"].values, dtype=float),
+        }
+        ds.close()
+        return out
+
+    years_parts: list[np.ndarray] = []
+    temp_parts: list[np.ndarray] = []
+    precip_parts: list[np.ndarray] = []
+    lat = lon = None
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds)
+        ds = normalize_lon(ds, lon_name)
+        tname = variable_name(ds, TEMP_ALIASES)
+        pname = variable_name(ds, PRECIP_ALIASES)
+        tda, pda = ds[tname], ds[pname]
+        tdim, pdim = time_dim(tda, lat_name, lon_name), time_dim(pda, lat_name, lon_name)
+        if tdim is None or pdim is None:
+            ds.close()
+            raise RuntimeError("Zeitdimension für ERA5-Land-Historie fehlt.")
+        tda = tda.transpose(tdim, lat_name, lon_name)
+        pda = pda.transpose(pdim, lat_name, lon_name)
+        temp = np.asarray(tda.values, dtype=np.float32)
+        precip = np.asarray(pda.values, dtype=np.float32)
+        expected = np.asarray(chunk, dtype=int)
+        try:
+            years_t = np.asarray(ds[tdim].dt.year.values, dtype=int)
+        except Exception:
+            years_t = expected.copy()
+        try:
+            years_p = np.asarray(ds[pdim].dt.year.values, dtype=int)
+        except Exception:
+            years_p = expected.copy()
+        if set(years_t.tolist()) == set(expected.tolist()):
+            idx = [int(np.where(years_t == y)[0][0]) for y in expected]
+            temp = temp[idx]
+            years_t = expected.copy()
+        if set(years_p.tolist()) == set(expected.tolist()):
+            idx = [int(np.where(years_p == y)[0][0]) for y in expected]
+            precip = precip[idx]
+            years_p = expected.copy()
+        if not np.array_equal(years_t, years_p):
+            ds.close()
+            raise RuntimeError("Temperatur- und Niederschlagsjahre sind im Historien-Chunk nicht deckungsgleich.")
+        temp = temp - 273.15
+        days = np.asarray([calendar.monthrange(int(y), month)[1] for y in years_t], dtype=np.float32)[:, None, None]
+        precip = precip * days * 1000.0
+        lat_here = np.asarray(ds[lat_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+        lon_here = np.asarray(ds[lon_name].values, dtype=float)[::ANALYSIS_GRID_STEP]
+        if lat is None:
+            lat, lon = lat_here, lon_here
+        elif not (np.array_equal(lat, lat_here) and np.array_equal(lon, lon_here)):
+            ds.close()
+            raise RuntimeError("ERA5-Land-Gitter der Historien-Chunks stimmt nicht überein.")
+        years_parts.append(years_t)
+        temp_parts.append(sample_1deg(temp).astype(np.float32))
+        precip_parts.append(sample_1deg(precip).astype(np.float32))
+        ds.close()
+
+    years_all = np.concatenate(years_parts)
+    temp_all = np.concatenate(temp_parts, axis=0)
+    precip_all = np.concatenate(precip_parts, axis=0)
+    if not np.array_equal(years_all, years):
+        raise RuntimeError("Historienjahre seit 1950 sind nach dem Chunking nicht vollständig.")
+    assert lat is not None and lon is not None
+    out_ds = xr.Dataset(
+        {
+            "temperature_c": (("year", "latitude", "longitude"), temp_all),
+            "precipitation_mm": (("year", "latitude", "longitude"), precip_all),
+        },
+        coords={"year": years_all, "latitude": lat, "longitude": lon},
+        attrs={"source": "ERA5-Land monthly means", "analysis_grid": "1 degree", "month": month, "download_strategy": "10-year CDS chunks with retry"},
+    )
+    encoding = {name: {"zlib": True, "complevel": 3, "dtype": "float32"} for name in out_ds.data_vars}
+    out_ds.to_netcdf(sampled_file, encoding=encoding)
+    out_ds.close()
+    for raw_file in chunk_files:
+        try:
+            raw_file.unlink()
+        except FileNotFoundError:
+            pass
+    return {"years": years_all, "lat": lat, "lon": lon, "temperature": temp_all, "precipitation": precip_all}
+
+def load_history_hydro_month(client: cdsapi.Client, month: int, end_year: int, force: bool, reference_month: dict) -> dict:
+    """Water-budget history since 1950 sampled to 1°; 1991–2020 reuses the full-grid reference cache."""
+    sampled_file = CACHE_DIR / f"history_water_v5_{month:02d}_{HISTORY_START}_{end_year}_1deg.nc"
+    if force:
+        try: sampled_file.unlink()
+        except FileNotFoundError: pass
+    if sampled_file.exists():
+        ds = xr.open_dataset(sampled_file)
+        result = {
+            "years": np.asarray(ds["year"].values, dtype=int),
+            "lat": np.asarray(ds["latitude"].values, dtype=float),
+            "lon": np.asarray(ds["longitude"].values, dtype=float),
+            "fields": {key: np.asarray(ds[key].values, dtype=float) for key in HYDRO_VARS},
+        }
+        ds.close(); return result
+
+    early_years = list(range(HISTORY_START, REFERENCE_START))
+    late_years = list(range(REFERENCE_END + 1, end_year + 1))
+    chunks = year_chunks(early_years, 10) + year_chunks(late_years, 10)
+    chunk_files = [CACHE_DIR / f"raw_history_water_v5_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    if force:
+        for f in chunk_files:
+            try: f.unlink()
+            except FileNotFoundError: pass
+
+    pieces: list[tuple[np.ndarray, dict[str, np.ndarray], np.ndarray, np.ndarray]] = []
+    for chunk, raw_file in zip(chunks, chunk_files):
+        if not raw_file.exists():
+            request_hydro_monthly_file(client, chunk, [month], raw_file)
+        ds = open_download(raw_file)
+        lat_name, lon_name = spatial_names(ds); ds = normalize_lon(ds, lon_name)
+        expected = np.asarray(chunk, dtype=int)
+        fields = {}
+        years_final = expected.copy()
+        for key, meta in HYDRO_VARS.items():
+            name = variable_name(ds, meta["aliases"]); da = ds[name]; tdim = time_dim(da, lat_name, lon_name)
+            if tdim is None or da.sizes[tdim] != len(chunk):
+                ds.close(); raise RuntimeError(f"Historien-Zeitdimension Wasserhaushalt {key} unvollständig.")
+            da = da.transpose(tdim, lat_name, lon_name); vals = np.asarray(da.values, dtype=float)
+            try: years_here = np.asarray(ds[tdim].dt.year.values, dtype=int)
+            except Exception: years_here = expected.copy()
+            if years_here.size == expected.size and set(years_here.tolist()) == set(expected.tolist()):
+                order=[int(np.where(years_here==y)[0][0]) for y in expected]; vals=vals[order]
+            vals=_monthly_accum_to_mm(vals, expected, month, invert_sign=bool(meta.get("positive_evaporation")))
+            fields[key]=sample_1deg(vals).astype(np.float32)
+        lat_here=np.asarray(ds[lat_name].values,dtype=float)[::ANALYSIS_GRID_STEP]
+        lon_here=np.asarray(ds[lon_name].values,dtype=float)[::ANALYSIS_GRID_STEP]
+        pieces.append((years_final,fields,lat_here,lon_here)); ds.close()
+
+    ref_years=np.asarray(reference_month["years"],dtype=int)
+    ref_fields={key: sample_1deg(reference_month["fields"][key]).astype(np.float32) for key in HYDRO_VARS}
+    ref_lat=np.asarray(reference_month["lat"],dtype=float)[::ANALYSIS_GRID_STEP]
+    ref_lon=np.asarray(reference_month["lon"],dtype=float)[::ANALYSIS_GRID_STEP]
+    pieces.append((ref_years,ref_fields,ref_lat,ref_lon))
+    pieces.sort(key=lambda item:int(item[0][0]))
+    years_all=np.concatenate([item[0] for item in pieces])
+    expected_all=np.arange(HISTORY_START,end_year+1,dtype=int)
+    if not np.array_equal(years_all,expected_all):
+        raise RuntimeError("Wasserhaushalts-Historienjahre seit 1950 sind nicht vollständig.")
+    lat=pieces[0][2]; lon=pieces[0][3]
+    for item in pieces[1:]:
+        if not (np.array_equal(lat,item[2]) and np.array_equal(lon,item[3])):
+            raise RuntimeError("1°-Wasserhaushaltsgitter stimmt zwischen Historienblöcken nicht überein.")
+    fields_all={key:np.concatenate([item[1][key] for item in pieces],axis=0) for key in HYDRO_VARS}
+    out=xr.Dataset({key:(("year","latitude","longitude"),fields_all[key]) for key in HYDRO_VARS},
+                   coords={"year":years_all,"latitude":lat,"longitude":lon},
+                   attrs={"source":"ERA5-Land monthly means","analysis_grid":"1 degree","month":month,"download_strategy":"historical chunks + reuse 1991-2020 reference"})
+    encoding={key:{"zlib":True,"complevel":3,"dtype":"float32"} for key in out.data_vars}; out.to_netcdf(sampled_file,encoding=encoding); out.close()
+    for raw_file in chunk_files:
+        try: raw_file.unlink()
+        except FileNotFoundError: pass
+    return {"years":years_all,"lat":lat,"lon":lon,"fields":{k:np.asarray(v,dtype=float) for k,v in fields_all.items()}}
 
 
-def parse_current_aemet_year(year: int, api_key: str, stations: Dict[str, StationMeta]) -> dict:
-    start = dt.datetime(year, 1, 1, 0, 0, 0)
-    end = dt.datetime(year, 12, 31, 23, 59, 59)
-    log(f"Lade AEMET Spanien {year} über OpenData …")
-    rows = aemet_api_dataset(aemet_daily_path(start, end), api_key, allow_empty=True)
-    _partial, current = parse_aemet_rows(rows, stations, exact_year=year)
-    log(f"AEMET {year}: {len(current):,} Stationen mit TMAX/TMIN-Daten.")
-    return current
-
-def date_str(date_int: Optional[int]) -> Optional[str]:
-    if not date_int:
-        return None
-    s = str(int(date_int))
-    if len(s) != 8:
-        return None
-    return f"{s[:4]}-{s[4:6]}-{s[6:]}"
-
-
-def record_json(record: Optional[Tuple[int, int, int]]) -> Optional[dict]:
-    if record is None:
-        return None
-    return {"value": record[0] / 10.0, "date": date_str(record[1]), "ties": int(record[2])}
-
-
-def combine_record(base: Optional[Tuple[int, int, int]], current: Optional[Tuple[int, int]], element: str):
-    if current is None:
-        return base, False, None
-    value, date_int = current
-    if base is None:
-        return (value, date_int, 1), False, None
-    if better(element, value, base[0]):
-        delta = (value - base[0]) / 10.0 if element == "TMAX" else (base[0] - value) / 10.0
-        return (value, date_int, 1), True, delta
-    if value == base[0]:
-        return (base[0], base[1], base[2] + 1), False, 0.0
-    return base, False, ((value - base[0]) / 10.0 if element == "TMAX" else (base[0] - value) / 10.0)
+def load_history_snow_month(client: cdsapi.Client, month: int, end_year: int, force: bool) -> dict:
+    sampled_file=CACHE_DIR / f"history_snow_v6_{HISTORY_START}_{end_year}_{month:02d}_1deg.nc"
+    if force and sampled_file.exists(): sampled_file.unlink()
+    if sampled_file.exists():
+        ds=xr.open_dataset(sampled_file); result={"years":np.asarray(ds["year"].values,dtype=int),"lat":np.asarray(ds["latitude"].values,dtype=float),"lon":np.asarray(ds["longitude"].values,dtype=float),"fields":{k:np.asarray(ds[k].values,dtype=float) for k in SNOW_KEYS}}; ds.close(); return result
+    years=list(range(HISTORY_START,end_year+1)); chunks=year_chunks(years,10); chunk_files=[CACHE_DIR/f"raw_history_snow_v6_{month:02d}_{c[0]}_{c[-1]}.nc" for c in chunks]
+    years_parts=[]; field_parts={k:[] for k in SNOW_KEYS}; lat=lon=None
+    for chunk,raw_file in zip(chunks,chunk_files):
+        if not raw_file.exists(): request_snow_monthly_file(client,chunk,[month],raw_file)
+        ds=open_download(raw_file); lat_name,lon_name=spatial_names(ds); ds=normalize_lon(ds,lon_name); expected=np.asarray(chunk,dtype=int)
+        lat_full=np.asarray(ds[lat_name].values,dtype=float); lon_full=np.asarray(ds[lon_name].values,dtype=float); lat_here=lat_full[::ANALYSIS_GRID_STEP]; lon_here=lon_full[::ANALYSIS_GRID_STEP]
+        if lat is None: lat,lon=lat_here,lon_here
+        for key,meta in SNOW_VARS.items():
+            da=ds[variable_name(ds,meta["aliases"])]; tdim=time_dim(da,lat_name,lon_name)
+            if tdim is None or da.sizes[tdim]!=len(chunk): ds.close(); raise RuntimeError(f"Schneehistorie {key} {chunk[0]}–{chunk[-1]} unvollständig.")
+            da=da.transpose(tdim,lat_name,lon_name); vals=np.asarray(da.values,dtype=float)
+            try: years_here=np.asarray(ds[tdim].dt.year.values,dtype=int)
+            except Exception: years_here=expected.copy()
+            if years_here.size==expected.size and set(years_here.tolist())==set(expected.tolist()): vals=vals[[int(np.where(years_here==y)[0][0]) for y in expected]]
+            vals=_snow_to_display(key,vals)[:,::ANALYSIS_GRID_STEP,::ANALYSIS_GRID_STEP]; field_parts[key].append(vals.astype(np.float32))
+        years_parts.append(expected); ds.close()
+    years_all=np.concatenate(years_parts); fields={k:np.concatenate(v,axis=0) for k,v in field_parts.items()}
+    out=xr.Dataset({k:(("year","latitude","longitude"),v) for k,v in fields.items()},coords={"year":years_all,"latitude":lat,"longitude":lon},attrs={"source":"ERA5-Land monthly means","analysis_grid":"1 degree","month":month})
+    out.to_netcdf(sampled_file,encoding={k:{"zlib":True,"complevel":3,"dtype":"float32"} for k in out.data_vars}); out.close()
+    for raw_file in chunk_files:
+        try:raw_file.unlink()
+        except FileNotFoundError:pass
+    return {"years":years_all,"lat":lat,"lon":lon,"fields":{k:np.asarray(v,dtype=float) for k,v in fields.items()}}
 
 
-def all_mmdd() -> List[str]:
-    leap = 2024
-    return [(dt.date(leap, 1, 1) + dt.timedelta(days=i)).strftime("%m-%d") for i in range(366)]
+def combine_history_snow(history_by_month: dict[int, dict], months: list[int]) -> dict:
+    years=np.asarray(history_by_month[months[0]]["years"],dtype=int); lat=np.asarray(history_by_month[months[0]]["lat"],dtype=float); lon=np.asarray(history_by_month[months[0]]["lon"],dtype=float)
+    fields={}
+    for key in SNOW_KEYS:
+        arrays=[]; weights=[]
+        for m in months:
+            item=history_by_month[m]
+            if not np.array_equal(np.asarray(item["years"],dtype=int),years): raise RuntimeError("Schneehistorienjahre nicht deckungsgleich.")
+            arrays.append(np.asarray(item["fields"][key],dtype=float)); weights.append(np.asarray([calendar.monthrange(int(y),m)[1] for y in years],dtype=float)[:,None,None])
+        stack=np.stack(arrays,axis=0); w=np.stack(weights,axis=0); valid=np.isfinite(stack); num=np.nansum(np.where(valid,stack*w,0.0),axis=0); den=np.sum(np.where(valid,w,0.0),axis=0)
+        with np.errstate(invalid="ignore",divide="ignore"): value=num/den
+        value[den==0]=np.nan; fields[key]=value
+    return {"years":years,"lat":lat,"lon":lon,"fields":fields}
 
 
-def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], states: Dict[str, dict], current: dict, current_year: int) -> None:
-    eligible_ids = sorted(set(states) | set(current))
-    station_rows = []
+def combine_history_hydro(history_by_month: dict[int, dict], history_tp_by_month: dict[int, dict], months: list[int]) -> dict:
+    years=np.asarray(history_by_month[months[0]]["years"],dtype=int)
+    lat=np.asarray(history_by_month[months[0]]["lat"],dtype=float); lon=np.asarray(history_by_month[months[0]]["lon"],dtype=float)
+    fields={}
+    for key in HYDRO_VARS:
+        arrays=[]
+        for m in months:
+            item=history_by_month[m]
+            if not np.array_equal(np.asarray(item["years"],dtype=int),years): raise RuntimeError("Wasserhaushalts-Historienjahre nicht deckungsgleich.")
+            arrays.append(np.asarray(item["fields"][key],dtype=float))
+        stack=np.stack(arrays,axis=0); valid=np.isfinite(stack); total=np.nansum(stack,axis=0); total[~np.any(valid,axis=0)]=np.nan; fields[key]=total
+    precip=combine_history_tp(history_tp_by_month,months)["precipitation"]
+    fields["water_balance"]=precip-fields["evaporation"]
+    return {"years":years,"lat":lat,"lon":lon,"fields":fields}
 
-    for sid in eligible_ids:
-        meta = stations.get(sid)
-        if meta is None:
-            continue
-        base_state = states.get(sid, empty_state())
-        cur_state = current.get(sid, {"TMAX": {}, "TMIN": {}})
-        element_summary = {}
-        new_counts = {}
-        last_new = {}
 
-        for element in ("TMAX", "TMIN"):
-            base_block = base_state[element]
-            cur_values = cur_state.get(element, {})
-            cur_abs = None
-            for obs in cur_values.values():
-                if cur_abs is None or better(element, obs[0], cur_abs[0]):
-                    cur_abs = obs
-            final_abs, new_abs, abs_delta = combine_record(base_block.get("abs"), cur_abs, element)
-            years = int(base_block.get("years", 0)) + (1 if cur_values else 0)
-            start = base_block.get("start"); end = base_block.get("end")
-            if cur_values:
-                cur_dates = [d for _, d in cur_values.values()]
-                start = min([x for x in [start, min(cur_dates)] if x is not None])
-                end = max([x for x in [end, max(cur_dates)] if x is not None])
-            element_summary[element] = {
-                "record": record_json(final_abs),
-                "previous": record_json(base_block.get("abs")) if new_abs else None,
-                "new_absolute_current_year": bool(new_abs),
-                "new_absolute_delta": round(abs_delta, 1) if new_abs and abs_delta is not None else None,
-                "start": date_str(start), "end": date_str(end), "years": years,
-            }
+def combine_history_tp(history_by_month: dict[int, dict], months: list[int]) -> dict:
+    years = np.asarray(history_by_month[months[0]]["years"], dtype=int)
+    lat = np.asarray(history_by_month[months[0]]["lat"], dtype=float)
+    lon = np.asarray(history_by_month[months[0]]["lon"], dtype=float)
+    temp_num = None
+    temp_den = None
+    precip_total = None
+    for month in months:
+        item = history_by_month[month]
+        if not np.array_equal(np.asarray(item["years"], dtype=int), years):
+            raise RuntimeError(f"Historienjahre für Monat {month} sind nicht deckungsgleich.")
+        t = np.asarray(item["temperature"], dtype=float)
+        p = np.asarray(item["precipitation"], dtype=float)
+        day_weights = np.asarray([calendar.monthrange(int(y), month)[1] for y in years], dtype=float)[:, None, None]
+        valid_t = np.isfinite(t)
+        if temp_num is None:
+            temp_num = np.zeros_like(t, dtype=float)
+            temp_den = np.zeros_like(t, dtype=float)
+            precip_total = np.zeros_like(p, dtype=float)
+        temp_num += np.where(valid_t, t * day_weights, 0.0)
+        temp_den += np.where(valid_t, day_weights, 0.0)
+        precip_total += np.where(np.isfinite(p), p, 0.0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        temp = temp_num / temp_den
+    temp[temp_den == 0] = np.nan
+    return {"years": years, "lat": lat, "lon": lon, "temperature": temp, "precipitation": precip_total}
 
-            new_count = 0; last_new_date = None
-            cal_base = base_block.get("cal", {})
-            for mmdd in set(cal_base) | set(cur_values):
-                b = cal_base.get(mmdd); c = cur_values.get(mmdd)
-                _final, is_new, _delta = combine_record(b, c, element)
-                if is_new:
-                    new_count += 1
-                    last_new_date = c[1] if last_new_date is None else max(last_new_date, c[1])
-            new_counts[element] = new_count
-            last_new[element] = date_str(last_new_date)
 
-        if not element_summary["TMAX"]["record"] and not element_summary["TMIN"]["record"]:
-            continue
-        station_rows.append({
-            "id": meta.id, "source_id": meta.id.split(":",1)[1] if ":" in meta.id else meta.id,
-            "name": meta.name, "country_code": meta.country_code, "country": meta.country,
-            "lat": round(meta.lat, 4), "lon": round(meta.lon, 4), "elevation": meta.elev,
-            "source": meta.source, "quality_rule": meta.quality_rule,
-            "tmax": element_summary["TMAX"], "tmin": element_summary["TMIN"],
-            "new_current_year": {
-                "tmax_calendar": new_counts["TMAX"], "tmin_calendar": new_counts["TMIN"],
-                "tmax_last": last_new["TMAX"], "tmin_last": last_new["TMIN"],
+def build_analysis_payload(*, latest_year: int, latest_month: int, summer_year: int, summer_months: list[int],
+                           current_all: dict, current_soil_all: dict, current_hydro_all: dict, current_snow_all: dict,
+                           climate: dict, soil_reference: dict, hydro_reference: dict, snow_reference: dict,
+                           history_tp: dict[int, dict], history_hydro: dict[int, dict], history_snow: dict[int, dict]) -> dict:
+    months = list(range(1, latest_month + 1))
+    lat = np.asarray(current_all[(latest_year, latest_month)][0], dtype=float)[::ANALYSIS_GRID_STEP]
+    lon = np.asarray(current_all[(latest_year, latest_month)][1], dtype=float)[::ANALYSIS_GRID_STEP]
+
+    temp_current = np.stack([sample_1deg(current_all[(latest_year, m)][2]) for m in months])
+    precip_current = np.stack([sample_1deg(current_all[(latest_year, m)][3]) for m in months])
+    temp_ref = np.stack([sample_1deg(climate[m][2]) for m in months])
+    precip_ref = np.stack([sample_1deg(climate[m][3]) for m in months])
+
+    soil_monthly = {}
+    for layer_key in SOIL_LAYERS:
+        cur = np.stack([sample_1deg(current_soil_all[(latest_year, m)]["layers"][layer_key]) for m in months])
+        ref_mean, pct = [], []
+        for idx, m in enumerate(months):
+            samples = sample_1deg(soil_reference[m]["layers"][layer_key])
+            with np.errstate(invalid="ignore"): ref_mean.append(np.nanmean(samples, axis=0))
+            pct.append(soil_percentile_field(cur[idx], samples))
+        soil_monthly[layer_key] = {"current": cur, "reference": np.stack(ref_mean), "percentile": np.stack(pct)}
+
+    hydro_monthly = {}
+    for key in HYDRO_VARS:
+        cur=np.stack([sample_1deg(current_hydro_all[(latest_year,m)][key]) for m in months])
+        refs=[]; pcts=[]
+        for idx,m in enumerate(months):
+            samples=sample_1deg(hydro_reference[m]["fields"][key])
+            with np.errstate(invalid="ignore"): refs.append(np.nanmean(samples,axis=0))
+            pcts.append(percentile_field(cur[idx],samples))
+        hydro_monthly[key]={"current":cur,"reference":np.stack(refs),"percentile":np.stack(pcts)}
+    wb_current=precip_current-hydro_monthly["evaporation"]["current"]
+    wb_refs=[]; wb_pcts=[]
+    for idx,m in enumerate(months):
+        samples=sample_1deg(hydro_reference[m]["fields"]["water_balance"])
+        with np.errstate(invalid="ignore"): wb_refs.append(np.nanmean(samples,axis=0))
+        wb_pcts.append(percentile_field(wb_current[idx],samples))
+    hydro_monthly["water_balance"]={"current":wb_current,"reference":np.stack(wb_refs),"percentile":np.stack(wb_pcts)}
+
+    snow_monthly={}
+    for key in SNOW_KEYS:
+        cur=np.stack([sample_1deg(current_snow_all[(latest_year,m)][key]) for m in months])
+        refs=[]; pcts=[]
+        for idx,m in enumerate(months):
+            samples=sample_1deg(snow_reference[m]["fields"][key])
+            with np.errstate(invalid="ignore"): refs.append(np.nanmean(samples,axis=0))
+            pcts.append(percentile_field(cur[idx],samples))
+        snow_monthly[key]={"current":cur,"reference":np.stack(refs),"percentile":np.stack(pcts)}
+
+    hist_latest = combine_history_tp(history_tp, [latest_month])
+    hist_summer = combine_history_tp(history_tp, summer_months)
+    hydro_hist_latest = combine_history_hydro(history_hydro, history_tp, [latest_month])
+    hydro_hist_summer = combine_history_hydro(history_hydro, history_tp, summer_months)
+    snow_hist_latest = combine_history_snow(history_snow, [latest_month])
+    snow_hist_summer = combine_history_snow(history_snow, summer_months)
+
+    soil_hist_periods = {}
+    for period_id, period_year, period_months in (("latest_month", latest_year, [latest_month]), ("summer", summer_year, summer_months)):
+        layers = {}
+        for layer_key in SOIL_LAYERS:
+            reference_values = sample_1deg(combine_reference_soil(soil_reference, layer_key, period_months))
+            current_values = sample_1deg(combine_soil_moisture({m: current_soil_all[(period_year, m)]["layers"][layer_key] for m in period_months}, period_year, period_months))
+            layers[layer_key] = {"reference": reference_values, "current": current_values}
+        soil_hist_periods[period_id] = layers
+
+    land_mask = np.isfinite(temp_current[-1]) & np.isfinite(soil_monthly["layer1"]["current"][-1])
+    points = []
+    reference_years = list(range(REFERENCE_START, REFERENCE_END + 1))
+    hist_periods = {"latest_month": hist_latest, "summer": hist_summer}
+    hydro_hist_periods = {"latest_month": hydro_hist_latest, "summer": hydro_hist_summer}
+    snow_hist_periods = {"latest_month": snow_hist_latest, "summer": snow_hist_summer}
+
+    for iy, ix in zip(*np.where(land_mask)):
+        point = {
+            "lat": round(float(lat[iy]), 2), "lon": round(float(lon[ix]), 2),
+            "monthly": {
+                "temperature": {"current": [round_json(v, 2) for v in temp_current[:, iy, ix]], "reference": [round_json(v, 2) for v in temp_ref[:, iy, ix]]},
+                "precipitation": {"current": [round_json(v, 1) for v in precip_current[:, iy, ix]], "reference": [round_json(v, 1) for v in precip_ref[:, iy, ix]]},
+                "soil_moisture": {"layers": {}},
             },
-        })
+            "history": {},
+        }
+        for key in HYDRO_ALL_KEYS:
+            hm=hydro_monthly[key]
+            point["monthly"][key]={"current":[round_json(v,1) for v in hm["current"][:,iy,ix]],"reference":[round_json(v,1) for v in hm["reference"][:,iy,ix]],"percentile":[round_json(v,1) for v in hm["percentile"][:,iy,ix]]}
+        for key in SNOW_KEYS:
+            sm=snow_monthly[key]
+            digits=1
+            point["monthly"][key]={"current":[round_json(v,digits) for v in sm["current"][:,iy,ix]],"reference":[round_json(v,digits) for v in sm["reference"][:,iy,ix]],"percentile":[round_json(v,1) for v in sm["percentile"][:,iy,ix]]}
+        for layer_key in SOIL_LAYERS:
+            sm = soil_monthly[layer_key]
+            point["monthly"]["soil_moisture"]["layers"][layer_key] = {"current": [round_json(v, 4) for v in sm["current"][:, iy, ix]], "reference": [round_json(v, 4) for v in sm["reference"][:, iy, ix]], "percentile": [round_json(v, 1) for v in sm["percentile"][:, iy, ix]]}
+        for period_id, hist in hist_periods.items():
+            point["history"][period_id] = {
+                "temperature": [round_json(v, 2) for v in hist["temperature"][:, iy, ix]],
+                "precipitation": [round_json(v, 1) for v in hist["precipitation"][:, iy, ix]],
+                "soil_moisture": {"layers": {}},
+            }
+            hh=hydro_hist_periods[period_id]
+            for key in HYDRO_ALL_KEYS:
+                point["history"][period_id][key]=[round_json(v,1) for v in hh["fields"][key][:,iy,ix]]
+            sh=snow_hist_periods[period_id]
+            for key in SNOW_KEYS:
+                point["history"][period_id][key]=[round_json(v,1) for v in sh["fields"][key][:,iy,ix]]
+            for layer_key in SOIL_LAYERS:
+                soil_hist = soil_hist_periods[period_id][layer_key]
+                vals = [round_json(v, 4) for v in soil_hist["reference"][:, iy, ix]]
+                vals.append(round_json(soil_hist["current"][iy, ix], 4))
+                point["history"][period_id]["soil_moisture"]["layers"][layer_key] = vals
+        points.append(point)
 
-    daypacks = {mmdd: {"tmax": [], "tmin": []} for mmdd in all_mmdd()}
-    for idx, row in enumerate(station_rows):
-        sid = row["id"]
-        base_state = states.get(sid, empty_state())
-        cur_state = current.get(sid, {"TMAX": {}, "TMIN": {}})
-        for element, pack_key in (("TMAX", "tmax"), ("TMIN", "tmin")):
-            bcal = base_state[element].get("cal", {}); ccal = cur_state.get(element, {})
-            for mmdd in set(bcal) | set(ccal):
-                b = bcal.get(mmdd); c = ccal.get(mmdd)
-                final, is_new, delta = combine_record(b, c, element)
-                if final is None:
-                    continue
-                daypacks[mmdd][pack_key].append([
-                    idx, final[0], final[1], b[0] if b else None, b[1] if b else None,
-                    c[0] if c else None, c[1] if c else None, 1 if is_new else 0,
-                    int(round(delta * 10)) if delta is not None else None,
-                ])
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    cal_dir = output_dir / "calendar"; cal_dir.mkdir(parents=True, exist_ok=True)
-    countries = sorted({row["country"] for row in station_rows})
-    source_counts: Dict[str, int] = {}
-    for row in station_rows:
-        source_counts[row["source"]] = source_counts.get(row["source"], 0) + 1
     payload = {
-        "payload_version": PAYLOAD_VERSION,
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
-        "current_year": current_year, "historical_through": current_year - 1,
-        "source": "DWD CDC (Deutschland) + Météo-France (Frankreich) + AEMET OpenData (Spanien) + GHCN-Daily (übriges Europa)",
-        "source_url": MF_PUBLIC_BASE,
-        "sources": [
-            {"name": DWD_SOURCE, "scope": "Deutschland", "url": DWD_BASE, "stations": source_counts.get(DWD_SOURCE, 0)},
-            {"name": MF_SOURCE, "scope": "Frankreich", "url": MF_PUBLIC_BASE, "stations": source_counts.get(MF_SOURCE, 0)},
-            {"name": AEMET_SOURCE, "scope": "Spanien", "url": AEMET_PUBLIC_URL, "stations": source_counts.get(AEMET_SOURCE, 0)},
-            {"name": GHCN_SOURCE, "scope": "übriges Europa", "url": GHCN_BASE, "stations": source_counts.get(GHCN_SOURCE, 0)},
-        ],
-        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. Spanien: AEMET OpenData Tagesklimatologie tmax/tmin wie veröffentlicht; fehlende/nichtnumerische Werte verworfen. Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
-        "history_scope": "DWD-KL für Deutschland; Météo-France tägliche Klimadaten (Haupt- und Ergänzungsstationen) für Frankreich; AEMET OpenData tägliche Klimatologien für Spanien (historisch in maximal 5-Jahres-Blöcken); GHCN-Daily für das übrige Europa. Das laufende Jahr wird separat aktualisiert.",
-        "station_count": len(station_rows), "country_count": len(countries), "countries": countries,
-        "calendar_url_pattern": "europe_stations/calendar/{mmdd}.json.gz",
-        "calendar_schema": ["station_index", "record_tenths_c", "record_date_yyyymmdd", "previous_tenths_c", "previous_date_yyyymmdd", "current_tenths_c", "current_date_yyyymmdd", "strict_new_record", "difference_tenths_c"],
-        "stations": station_rows,
+        "ready": True, "payload_version": 3,
+        "analysis_grid": "1,0° (nächster verfügbarer Landpunkt)", "analysis_year": latest_year,
+        "months": months, "month_labels": [MONTH_NAMES[m] for m in months],
+        "history_years": {"latest_month": [int(y) for y in hist_latest["years"]], "summer": [int(y) for y in hist_summer["years"]]},
+        "soil_history_years": {"latest_month": reference_years + [latest_year], "summer": reference_years + [summer_year]},
+        "history_note": "Temperatur, Niederschlag, Wasserhaushalt und Schnee: historische Einordnung seit 1950. Bodenfeuchte: Einzeljahre 1991–2020 plus aktuelles Jahr.",
+        "points": points,
     }
-    (output_dir / "index.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-
-    for mmdd, pack in daypacks.items():
-        obj = {"payload_version": PAYLOAD_VERSION, "mmdd": mmdd, "current_year": current_year, "tmax": pack["tmax"], "tmin": pack["tmin"]}
-        with gzip.open(cal_dir / f"{mmdd}.json.gz", "wt", encoding="utf-8", compresslevel=7) as handle:
-            json.dump(obj, handle, ensure_ascii=False, separators=(",", ":"))
-
-    total_gz = sum(p.stat().st_size for p in cal_dir.glob("*.json.gz"))
-    log(f"Frontend-Daten geschrieben: {len(station_rows):,} Stationen ({source_counts}), 366 Tagesarchive, {total_gz/1024/1024:.1f} MB komprimiert.")
-
-
-def self_test() -> None:
-    sid = "FR000001234"
-    prefix = f"{sid}202501TMAX"
-    chars = list(prefix + ("-9999   " * 31)); chars[21:29] = list("  123   ")
-    state = parse_dly_station(io.BytesIO(("".join(chars) + "\n").encode("ascii")), 2025)
-    assert state["TMAX"]["abs"][0] == 123
-
-    sample = (
-        "STATIONS_ID;MESS_DATUM;QN_3;FX;FM;QN_4;RSK;RSKF;SDK;SHK_TAG;NM;VPM;PM;TMK;UPM;TXK;TNK;TGK;eor\n"
-        "44;20250101;3;-999;-999;3;0.0;0;-999;-999;7.0;8.0;1000;2.0;90;12.3;-4.5;-6.0;eor\n"
-    ).encode("latin-1")
-    bio = io.BytesIO()
-    with zipfile.ZipFile(bio, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("produkt_klima_tag_20250101_20250101_00044.txt", sample)
-    dwd = parse_dwd_product_bytes(bio.getvalue(), cutoff_year=2025)
-    assert dwd["TMAX"]["abs"][0] == 123 and dwd["TMIN"]["abs"][0] == -45
-
-    mf_csv = (
-        "NUM_POSTE;NOM_USUEL;LAT;LON;ALTI;AAAAMMJJ;TN;QTN;TX;QTX\n"
-        "75114001;PARIS-MONTSOURIS;48.8217;2.3378;75;20250101;-4.5;1;12.3;1\n"
-        "75114001;PARIS-MONTSOURIS;48.8217;2.3378;75;20250102;-9.9;2;99.0;2\n"
-    ).encode("utf-8")
-    mf_gz = io.BytesIO()
-    with gzip.GzipFile(fileobj=mf_gz, mode="wb") as gz:
-        gz.write(mf_csv)
-    assert mf_resource_department("https://host/BASE/QUOT/Q_01_latest-2025-2026_RR-T-Vent.csv.gz") == "01"
-    assert mf_resource_department("https://host/BASE/QUOT_COMP/Q-COMP_45_avant-1949_RR-T-Vent.csv.gz") == "45"
-    assert mf_resource_period("Q_75_latest-2025-2026_RR-T-Vent.csv.gz") == (2025, 2026)
-    mf_gz.seek(0)
-    mf_partial, _mf_cur, mf_meta = parse_mf_stream(mf_gz, cutoff_year=2025)
-    mf_state = finalize_mf_states(mf_partial)["MF:75114001"]
-    assert mf_state["TMAX"]["abs"][0] == 123 and mf_state["TMIN"]["abs"][0] == -45
-    assert "MF:75114001" in mf_meta
-
-    assert abs(aemet_coord("404708N", is_lat=True) - (40 + 47/60 + 8/3600)) < 1e-6
-    assert abs(aemet_coord("0034021W", is_lat=False) - (-(3 + 40/60 + 21/3600))) < 1e-6
-    aemet_meta = {
-        "AEMET:3195": StationMeta("AEMET:3195", 40.47, -3.58, 609.0, "MADRID, RETIRO", "ES", "Spanien", AEMET_SOURCE, "test")
-    }
-    aemet_rows = [
-        {"fecha":"2025-01-01", "indicativo":"3195", "tmax":"12,3", "tmin":"-4,5"},
-        {"fecha":"2025-01-02", "indicativo":"3195", "tmax":"11.0", "tmin":"-2.0"},
-    ]
-    a_part, _a_cur = parse_aemet_rows(aemet_rows, aemet_meta, cutoff_year=2025)
-    a_state = finalize_mf_states(a_part)["AEMET:3195"]
-    assert a_state["TMAX"]["abs"][0] == 123 and a_state["TMIN"]["abs"][0] == -45
-    assert aemet_year_blocks(2000, 2011) == [(2000,2004),(2005,2009),(2010,2011)]
-
-    final, new, delta = combine_record((123, 20250101, 1), (130, 20260101), "TMAX")
-    assert new and final[0] == 130 and abs(delta - 0.7) < 1e-9
-    final, new, delta = combine_record((-50, 20250101, 1), (-60, 20260101), "TMIN")
-    assert new and final[0] == -60 and abs(delta - 1.0) < 1e-9
-    print("Self-test OK")
+    atomic_write_json(ANALYSIS_PATH, payload)
+    return payload
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="europe_stations")
-    parser.add_argument("--cache-dir", default=".cache/europe-stations")
-    parser.add_argument("--force-baseline", action="store_true", help="GHCN, DWD, Météo-France und AEMET historische Baselines neu aufbauen")
-    parser.add_argument("--force-dwd-baseline", action="store_true", help="Nur DWD-Baseline neu aufbauen")
-    parser.add_argument("--force-mf-baseline", action="store_true", help="Nur Météo-France-Baseline neu aufbauen")
-    parser.add_argument("--force-aemet-baseline", action="store_true", help="Nur AEMET-Spanien-Baseline neu aufbauen")
-    parser.add_argument("--dwd-workers", type=int, default=6)
-    parser.add_argument("--mf-workers", type=int, default=6)
-    parser.add_argument("--year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
-    parser.add_argument("--self-test", action="store_true")
+    parser = argparse.ArgumentParser(description="ERA5-Land Europakarten für das Climate Dashboard erzeugen.")
+    parser.add_argument("--force", action="store_true", help="CDS-Daten und Karten auch für denselben Zielmonat neu erzeugen")
+    parser.add_argument("--today", help="Testdatum YYYY-MM-DD")
     args = parser.parse_args()
 
-    if args.self_test:
-        self_test(); return 0
+    today = date.fromisoformat(args.today) if args.today else date.today()
+    latest_year, latest_month = target_latest_complete_month(today)
+    summer_year, summer_months = summer_selection(latest_year, latest_month)
 
-    current_year = args.year; cutoff_year = current_year - 1
-    aemet_key = aemet_api_key()
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    MAP_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    countries = parse_countries(read_url_text(COUNTRIES_URL))
-    ghcn_stations = parse_ghcn_stations(read_url_text(STATIONS_URL), countries)
-    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland/Frankreich/Spanien ausgeschlossen): {len(ghcn_stations):,}")
-    if not ghcn_stations:
-        raise RuntimeError("Keine europäischen GHCN-Stationen gefunden.")
+    target_key = f"{latest_year:04d}-{latest_month:02d}"
+    required = [
+        MAP_DIR / "temperature_latest_month_absolute.png",
+        MAP_DIR / "temperature_latest_month_anomaly.png",
+        MAP_DIR / "precipitation_latest_month_absolute.png",
+        MAP_DIR / "precipitation_latest_month_percent.png",
+        MAP_DIR / "temperature_summer_absolute.png",
+        MAP_DIR / "temperature_summer_anomaly.png",
+        MAP_DIR / "precipitation_summer_absolute.png",
+        MAP_DIR / "precipitation_summer_percent.png",
+    ]
+    for layer_key in SOIL_LAYERS:
+        for period_id in ("latest_month", "summer"):
+            for view in ("absolute", "anomaly", "percentile"):
+                required.append(MAP_DIR / f"soil_moisture_{layer_key}_{period_id}_{view}.png")
+    for key in HYDRO_ALL_KEYS:
+        for period_id in ("latest_month", "summer"):
+            for view in ("absolute", "anomaly", "percentile"):
+                required.append(MAP_DIR / f"{key}_{period_id}_{view}.png")
+    for key in SNOW_KEYS:
+        for period_id in ("latest_month", "summer"):
+            for view in ("absolute", "anomaly", "percentile"):
+                required.append(MAP_DIR / f"{key}_{period_id}_{view}.png")
+    history_base_file = MAP_DIR / "historical_base.png"
+    required.append(history_base_file)
 
-    # DWD station metadata is Latin-1/Windows-compatible text on CDC.
-    dwd_text = decode_text_smart(read_url_bytes(DWD_STATIONS_URL))
-    dwd_stations = parse_dwd_stations(dwd_text)
-    log(f"DWD-KL-Stationsmetadaten Deutschland: {len(dwd_stations):,}")
-    if not dwd_stations:
-        raise RuntimeError("Keine DWD-KL-Stationen gefunden.")
+    if INDEX_PATH.exists() and not args.force:
+        try:
+            existing = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+            existing_version = int(existing.get("payload_version", 0))
+            same_ready_target = (
+                existing.get("ready")
+                and existing.get("latest_month_key") == target_key
+                and all(path.exists() for path in required)
+                and ANALYSIS_PATH.exists()
+            )
+            history_meta = existing.get("history_map") or {}
+            expected_history_months = sorted({latest_month, *summer_months})
+            hires_ready = (
+                int(history_meta.get("archive_version", 0)) >= HISTORY_HIRES_ARCHIVE_VERSION
+                and str(history_meta.get("grid", "")).startswith("0,1")
+                and highres_archive_is_ready(expected_history_months, latest_year - 1)
+            )
+            if same_ready_target and existing_version >= 8 and hires_ready:
+                print(f"ERA5-Land Europa V8 mit sichtbarem 0,1°-Historienarchiv ist bereits aktuell für {target_key}.")
+                return 0
+            if same_ready_target and existing_version >= 7:
+                print("Vorhandene V7/V8-Daten werden wiederverwendet; das neue sichtbare 0,1°-Historienarchiv wird ergänzt.")
+        except Exception:
+            pass
 
-    cache_dir = Path(args.cache_dir)
-    ghcn_cache = cache_dir / f"ghcn_europe_baseline_through_{cutoff_year}_v{GHCN_BASELINE_FORMAT_VERSION}.pkl.gz"
-    dwd_cache = cache_dir / f"dwd_germany_kl_baseline_through_{cutoff_year}_v{DWD_BASELINE_FORMAT_VERSION}.pkl.gz"
-    mf_cache = cache_dir / f"meteofrance_daily_baseline_through_{cutoff_year}_v{MF_BASELINE_FORMAT_VERSION}.pkl.gz"
-    aemet_cache = cache_dir / f"aemet_spain_daily_baseline_through_{cutoff_year}_v{AEMET_BASELINE_FORMAT_VERSION}.pkl.gz"
+    needed_by_year: dict[int, set[int]] = {}
+    needed_by_year.setdefault(latest_year, set()).update(range(1, latest_month + 1))
+    needed_by_year.setdefault(summer_year, set()).update(summer_months)
 
-    aemet_stations = load_aemet_inventory(aemet_key)
+    client = cds_client()
+    current_all: dict[tuple[int, int], tuple] = {}
+    current_soil_all: dict[tuple[int, int], dict] = {}
+    current_hydro_all: dict[tuple[int, int], dict] = {}
+    current_snow_all: dict[tuple[int, int], dict] = {}
+    for year, month_set in sorted(needed_by_year.items()):
+        month_list = sorted(month_set)
+        data = load_current_months(client, year, month_list, args.force)
+        soil_data = load_current_soil_months(client, year, month_list, args.force)
+        hydro_data = load_current_hydro_months(client, year, month_list, args.force)
+        snow_data = load_current_snow_months(client, year, month_list, args.force)
+        for month, values in data.items(): current_all[(year, month)] = values
+        for month, values in soil_data.items(): current_soil_all[(year, month)] = values
+        for month, values in hydro_data.items(): current_hydro_all[(year, month)] = values
+        for month, values in snow_data.items(): current_snow_all[(year, month)] = values
 
-    ghcn_baseline = load_or_build_ghcn_baseline(ghcn_cache, ghcn_stations, cutoff_year, args.force_baseline)
-    dwd_baseline = load_or_build_dwd_baseline(dwd_cache, dwd_stations, cutoff_year, args.force_baseline or args.force_dwd_baseline, args.dwd_workers)
-    mf_baseline = load_or_build_mf_baseline(mf_cache, cutoff_year, args.force_baseline or args.force_mf_baseline, args.mf_workers)
-    aemet_baseline = load_or_build_aemet_baseline(aemet_cache, aemet_key, aemet_stations, cutoff_year, args.force_baseline or args.force_aemet_baseline)
+    climate: dict[int, tuple] = {}
+    soil_reference: dict[int, dict] = {}
+    hydro_reference: dict[int, dict] = {}
+    snow_reference: dict[int, dict] = {}
+    all_needed_months = sorted(set(range(1, latest_month + 1)) | set(summer_months))
+    for month in all_needed_months:
+        climate[month] = load_climatology_month(client, month, args.force)
+        soil_reference[month] = load_soil_reference_month(client, month, args.force)
+        hydro_reference[month] = load_hydro_reference_month(client, month, args.force)
+        snow_reference[month] = load_snow_reference_month(client, month, args.force)
 
-    ghcn_current = parse_current_ghcn_year(current_year, ghcn_stations)
-    dwd_current = parse_current_dwd_year(current_year, dwd_stations, workers=max(4, args.dwd_workers))
-    mf_current, mf_current_stations = parse_current_mf_year(current_year, workers=max(4, args.mf_workers))
-    aemet_current = parse_current_aemet_year(current_year, aemet_key, aemet_stations)
+    latest_current = {latest_month: current_all[(latest_year, latest_month)]}
+    latest_climate = {latest_month: climate[latest_month]}
+    latest_current_soil = {latest_month: current_soil_all[(latest_year, latest_month)]}
+    latest_reference_soil = {latest_month: soil_reference[latest_month]}
+    latest_current_hydro = {latest_month: current_hydro_all[(latest_year, latest_month)]}
+    latest_reference_hydro = {latest_month: hydro_reference[latest_month]}
+    latest_current_snow = {latest_month: current_snow_all[(latest_year, latest_month)]}
+    latest_reference_snow = {latest_month: snow_reference[latest_month]}
+    latest_label = f"{MONTH_NAMES[latest_month]} {latest_year}"
+    latest_payload = make_period_maps(
+        "latest_month", latest_label, latest_year, [latest_month],
+        latest_current, latest_climate, latest_current_soil, latest_reference_soil,
+        latest_current_hydro, latest_reference_hydro, latest_current_snow, latest_reference_snow,
+    )
 
-    mf_stations = dict(mf_baseline.get("stations", {})); mf_stations.update(mf_current_stations)
-    log(f"Météo-France-Stationsmetadaten Frankreich: {len(mf_stations):,}")
-    if not mf_stations:
-        raise RuntimeError("Keine Météo-France-Stationen gefunden.")
+    summer_current = {month: current_all[(summer_year, month)] for month in summer_months}
+    summer_climate = {month: climate[month] for month in summer_months}
+    summer_current_soil = {month: current_soil_all[(summer_year, month)] for month in summer_months}
+    summer_reference_soil = {month: soil_reference[month] for month in summer_months}
+    summer_current_hydro = {month: current_hydro_all[(summer_year, month)] for month in summer_months}
+    summer_reference_hydro = {month: hydro_reference[month] for month in summer_months}
+    summer_current_snow = {month: current_snow_all[(summer_year, month)] for month in summer_months}
+    summer_reference_snow = {month: snow_reference[month] for month in summer_months}
+    summer_suffix = "" if summer_months == [6, 7, 8] else " bisher"
+    summer_label = f"Sommer {summer_year}{summer_suffix} ({month_range_label(summer_months)})"
+    summer_payload = make_period_maps(
+        "summer", summer_label, summer_year, summer_months,
+        summer_current, summer_climate, summer_current_soil, summer_reference_soil,
+        summer_current_hydro, summer_reference_hydro, summer_current_snow, summer_reference_snow,
+    )
 
-    stations = dict(ghcn_stations); stations.update(dwd_stations); stations.update(mf_stations); stations.update(aemet_stations)
-    # Filter older GHCN caches to the V5 fallback metadata set, then add national sources.
-    states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
-    states.update(dwd_baseline.get("states", {})); states.update(mf_baseline.get("states", {})); states.update(aemet_baseline.get("states", {}))
-    current = dict(ghcn_current); current.update(dwd_current); current.update(mf_current); current.update(aemet_current)
+    history_months = sorted({latest_month, *summer_months})
+    history_tp = {month: load_history_tp_month(client, month, latest_year, args.force) for month in history_months}
+    history_hydro = {month: load_history_hydro_month(client, month, latest_year, args.force, hydro_reference[month]) for month in history_months}
+    history_snow = {month: load_history_snow_month(client, month, latest_year, args.force) for month in history_months}
+    analysis_payload = build_analysis_payload(
+        latest_year=latest_year, latest_month=latest_month, summer_year=summer_year, summer_months=summer_months,
+        current_all=current_all, current_soil_all=current_soil_all, current_hydro_all=current_hydro_all, current_snow_all=current_snow_all,
+        climate=climate, soil_reference=soil_reference, hydro_reference=hydro_reference, snow_reference=snow_reference,
+        history_tp=history_tp, history_hydro=history_hydro, history_snow=history_snow,
+    )
 
-    merge_and_write(Path(args.output), stations, states, current, current_year)
+    # Visible historical maps use the native CDS 0.1° grid. The current year remains
+    # on the pre-rendered current-data path, so the archive only needs completed years.
+    history_end_year = latest_year - 1
+    highres_archive = build_highres_history_archive(
+        client, history_months, history_end_year, soil_reference, args.force
+    )
+
+    if args.force or not history_base_file.exists():
+        render_history_base_map(history_base_file)
+
+    payload = {
+        "ready": True,
+        "payload_version": 8,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "latest_month_key": target_key,
+        "data_through": f"{latest_year:04d}-{latest_month:02d}-{calendar.monthrange(latest_year, latest_month)[1]:02d}",
+        "reference_period": "1991–2020",
+        "dataset": DATASET,
+        "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
+        "spatial_resolution": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",
+        "coverage": {"north": AREA[0], "west": AREA[1], "south": AREA[2], "east": AREA[3]},
+        "availability_note": "V8 verwendet den jüngsten sicher verfügbaren vollständigen Monatsmittel-Datensatz. Ein laufender Sommer umfasst daher nur vollständig verfügbare Monate.",
+        "precipitation_note": "ERA5-Land Monatsmittel akkumulierte hydrologische Größen werden als effektive m/Tag bereitgestellt; für die Kartensummen wurde mit der Zahl der Kalendertage multipliziert und in mm umgerechnet.",
+        "soil_moisture_note": "Bodenfeuchte ist volumetrischer Bodenwassergehalt in m³/m³. Verfügbar sind die vier ERA5-Land-Modellschichten 0–7, 7–28, 28–100 und 100–289 cm.",
+        "water_budget_note": "Wasserhaushalt in mm: ERA5-Land Gesamtverdunstung wird für eine intuitive Darstellung mit positivem Vorzeichen ausgegeben. Wasserbilanz P − E = Niederschlag minus positive Gesamtverdunstung. Abfluss umfasst Gesamt-, Oberflächen- und unterirdischen Abfluss.",
+        "snow_note": "Schnee: Schneehöhe wird in cm, Schneewasseräquivalent in mm Wasseräquivalent und Schneebedeckung in % dargestellt. Monats- und Saisonwerte sind zeitgewichtete Mittel der monatlichen ERA5-Land-Zustandsgrößen.",
+        "analysis": {"file": "era5_land_europe/analysis.json", "grid": analysis_payload["analysis_grid"], "history_start": 1950, "payload_version": 3},
+        "ranking": {
+            "ready": True,
+            "grid": analysis_payload["analysis_grid"],
+            "top_n": 10,
+            "history_start": 1950,
+            "note": "V8 berechnet Europa-Top/Bottom-10 und lokale historische Ränge weiterhin aus der 1,0°-Gitterpunktanalyse; die sichtbare historische Karte selbst wird unabhängig davon in 0,1° dargestellt."
+        },
+        "history_map": {
+            "ready": True,
+            "base_file": "era5_land_europe/maps/historical_base.png",
+            "archive_file": HISTORY_HIRES_INDEX.relative_to(ROOT).as_posix(),
+            "archive_version": HISTORY_HIRES_ARCHIVE_VERSION,
+            "grid": "0,1°",
+            "year_start": HISTORY_START,
+            "year_end": history_end_year,
+            "soil_year_start": REFERENCE_START,
+            "soil_year_end": REFERENCE_END,
+            "periods": ["latest_month", "summer"],
+            "note": (
+                "Sichtbare historische Karten werden aus echten 0,1°-ERA5-Land-Rasterfeldern aufgebaut. "
+                "Das 1,0°-Raster bleibt ausschließlich für Rankings, KPIs und Gitterpunkt-Zeitreihen im Hintergrund."
+            ),
+            "quantization_note": highres_archive.get("quantization_note"),
+        },
+        "click_geometry": MAP_CLICK_GEOMETRY,
+        "percentile_note": "Perzentile sind empirische Gitterpunkt-Ränge gegenüber den 30 Einzeljahren 1991–2020 für denselben Monat bzw. dieselben Sommermonate. Bei Bodenfeuchte und Wasserbilanz markieren niedrige Perzentile ungewöhnlich trockene Bedingungen; bei Verdunstung und Abfluss bedeuten sie ungewöhnlich niedrige Werte.",
+        "soil_layers": {key: {"label": meta["label"], "depth_cm": meta["depth_cm"]} for key, meta in SOIL_LAYERS.items()},
+        "periods": {
+            "latest_month": latest_payload,
+            "summer": summer_payload,
+        },
+    }
+    atomic_write_json(INDEX_PATH, payload)
+    print(f"ERA5-Land Europa V8 erzeugt: {INDEX_PATH}")
+    print(f"Datenstand: {payload['data_through']}")
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        raise
-    except Exception as exc:
-        print(f"FEHLER: {exc}", file=sys.stderr)
-        raise
+    raise SystemExit(main())
