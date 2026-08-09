@@ -1,80 +1,106 @@
-# Europa-Stationen · Stations-V4
+# Europa-Stationen · Stations-V5
 
-## Neu in V4
+## Quellenarchitektur
 
-Frankreich wird im Europa-Stationsmodul nicht mehr aus GHCN-Daily dargestellt, sondern direkt aus den offenen täglichen Klimadaten von **Météo-France**. Deutschland bleibt bei **DWD CDC**, für alle übrigen europäischen Länder bleibt **GHCN-Daily** der Fallback.
+Stations-V5 erweitert die bestehende Europa-Rekordkarte um **AEMET OpenData für Spanien**. Die nationalen Originalquellen haben Vorrang vor GHCN-Daily:
 
-Damit gilt jetzt:
+- Deutschland → **DWD CDC**
+- Frankreich → **Météo-France**
+- Spanien → **AEMET OpenData**
+- übriges Europa → **NOAA GHCN-Daily** als Fallback
 
-- Deutschland → DWD CDC
-- Frankreich → Météo-France
-- übriges Europa → GHCN-Daily
+Deutschland, Frankreich und Spanien werden bereits beim GHCN-Metadatenimport ausgeschlossen. Dadurch gibt es in diesen Ländern keine parallelen GHCN-/Originalquellen-Doppelstationen.
 
-Deutsche und französische GHCN-Stationen werden bereits beim GHCN-Metadatenimport ausgeschlossen. Dadurch entstehen keine parallelen GHCN-/Originalquellen-Doppelstationen in diesen beiden Ländern.
+Die Oberfläche bleibt kompatibel mit Stations-V2/V3/V4: TMAX/TMIN, absolute Stationsrekorde, Kalendertagsrekorde, Rekordjagd im laufenden Jahr, neue Rekorde, Top 20, Länderfilter, Mindest-Messjahre und Stationssuche.
 
-Die komplette Stations-V2/V3-Oberfläche bleibt erhalten: TMAX/TMIN, absolute Stationsrekorde, Kalendertagsrekorde, Rekordjagd im laufenden Jahr, neue Rekorde, Top 20, Länderfilter, Mindest-Messjahre und Stationssuche.
+## AEMET API-Key
 
-## Datenquelle Frankreich
+AEMET OpenData benötigt einen API-Key. Er wird **nicht** in den Code geschrieben, sondern ausschließlich aus dem GitHub Repository Secret gelesen:
 
-Verwendet werden die offiziellen offenen Datensätze von Météo-France auf meteo.data.gouv.fr / data.gouv.fr:
+`AEMET_API_KEY`
 
-- `Données climatologiques de base - quotidiennes`
-- `Données climatologiques de base - quotidiennes - stations complémentaires`
+GitHub: **Settings → Secrets and variables → Actions → Repository secrets**.
 
-Der Workflow liest die Ressourcenlisten dynamisch über die data.gouv.fr-Dataset-API und wählt nur die täglichen `RR-T-Vent.csv.gz`-Dateien für das französische Mutterland einschließlich Korsika aus. Damit ist kein Météo-France-API-Key nötig.
+Der Workflow bricht mit einer klaren Meldung ab, wenn das Secret fehlt. Der Key wird nicht in die erzeugten JSON-Dateien geschrieben und nicht im Log ausgegeben.
 
-Ausgewertet werden:
+## Offizielle AEMET-Endpunkte
 
-- `TX` → Tagesmaximum → Dashboard `TMAX`
-- `TN` → Tagesminimum → Dashboard `TMIN`
-- `NUM_POSTE` → 8-stellige Météo-France-Stations-ID
-- `NOM_USUEL`, `LAT`, `LON`, `ALTI` → Stationsmetadaten
+V5 verwendet die AEMET-OpenData-Endpunkte:
 
-Die Météo-France-ID wird intern als `MF:xxxxxxxx` gespeichert, im Popup aber ohne Präfix angezeigt.
+- Stationsinventar: `valores/climatologicos/inventarioestaciones/todasestaciones`
+- tägliche Klimatologien aller Stationen für einen Datumsbereich: `valores/climatologicos/diarios/.../todasestaciones`
 
-### Qualitätsregel Frankreich
+AEMET liefert zunächst einen JSON-Antwortumschlag mit einer URL im Feld `datos`; der Workflow lädt anschließend unmittelbar den eigentlichen Datensatz von dieser URL.
 
-Für TX/TN werden Météo-France-Qualitätscodes 0, 1 und 9 akzeptiert. Code 2 (`donnée douteuse en cours de vérification`) wird nicht für Rekorde verwendet. Bei älteren vorhandenen Werten ohne Qualitätscode wird der Wert akzeptiert.
+Verwendete Felder der Tagesdaten:
 
-## Historischer Aufbau
+- `indicativo` → Stations-ID
+- `fecha` → Datum
+- `tmax` → Tagesmaximum → Dashboard `TMAX`
+- `tmin` → Tagesminimum → Dashboard `TMIN`
 
-Der historische Frankreich-Bestand wird einmalig aus den nach Département und Zeitraum getrennten Météo-France-Dateien aufgebaut. Die Ressourcen umfassen je nach Station die historischen Blöcke vor 1950, ab 1950 sowie den aktuellen Zweijahresblock. Beim Basisaufbau werden nur Daten bis zum Ende des Vorjahres übernommen.
+Stationsname, Koordinaten und Höhe kommen aus dem AEMET-Stationsinventar. Die AEMET-ID wird intern mit `AEMET:` präfixiert, im Popup aber ohne Präfix angezeigt.
+
+## Historischer Aufbau Spanien
+
+AEMET unterstützt bei den täglichen Klimatologien Zeiträume von bis zu **fünf Jahren pro Anfrage**. Deshalb baut V5 die historische Spanien-Baseline in maximal 5-jährigen Blöcken auf. Der Start ist 1850, der historische Endpunkt ist jeweils das Ende des Vorjahres.
+
+Beispiel für 2026:
+
+`1850–1854`, `1855–1859`, …, `2020–2024`, `2025–2025`
+
+Blöcke ohne Daten werden übersprungen. Bei HTTP 429 oder temporären Serverfehlern arbeitet der Adapter mit Backoff und Wiederholungsversuchen, damit AEMET nicht unnötig aggressiv abgefragt wird.
 
 Der fertige Cache heißt sinngemäß:
 
-`meteofrance_daily_baseline_through_2025_v1.pkl.gz`
+`aemet_spain_daily_baseline_through_2025_v1.pkl.gz`
 
-Beim täglichen Lauf wird anschließend nur noch der Ressourcenblock gelesen, der das aktuelle Jahr enthält.
+Danach wird das laufende Jahr separat über eine einzelne AEMET-Anfrage aktualisiert. Ein normaler Folgelauf verwendet die historische AEMET-Baseline wieder.
 
-## Erster V4-Lauf
+## Qualitätsregel Spanien
 
-GitHub → **Actions** → **Update Europe station records** → **Run workflow**.
+Für Rekorde werden nur numerisch lesbare `tmax`- und `tmin`-Werte aus der veröffentlichten AEMET-Tagesklimatologie verwendet. Fehlende, nichtnumerische oder offensichtlich ungültige Temperaturwerte werden verworfen. Im von diesem Endpoint gelieferten Tagesdatensatz wird kein mit GHCN vergleichbarer Q-FLAG vorausgesetzt.
+
+## Erster V5-Lauf
+
+Erst den laufenden V4-Frankreich-Lauf vollständig beenden lassen, damit dessen DWD-/Météo-France-/GHCN-Caches gespeichert sind. Danach die V5-Dateien hochladen und starten:
+
+**Actions → Update Europe station records → Run workflow**
 
 Alle Schalter zunächst auf `false` lassen:
 
 - `force_baseline = false`
 - `force_dwd_baseline = false`
 - `force_mf_baseline = false`
+- `force_aemet_baseline = false`
 
-Der V4-Workflow versucht zuerst, den vorhandenen V3-Cache wiederzuverwenden. Dadurch sollten GHCN und DWD nicht erneut historisch aufgebaut werden. Neu ist beim ersten V4-Lauf hauptsächlich die Météo-France-Baseline.
+V5 versucht zuerst, den V4-Cache wiederherzustellen. Damit sollten GHCN, DWD und Météo-France nicht erneut historisch aufgebaut werden. Neu ist beim ersten V5-Lauf hauptsächlich die AEMET-Baseline.
 
-`force_mf_baseline = true` ist nur nötig, wenn Frankreich bewusst vollständig neu aufgebaut werden soll. `force_baseline = true` erzwingt alle drei historischen Baselines und sollte im Normalbetrieb ausgeschaltet bleiben.
+`force_aemet_baseline = true` ist nur sinnvoll, wenn Spanien bewusst komplett neu aufgebaut werden soll. `force_baseline = true` erzwingt alle historischen Baselines und sollte im Normalbetrieb ausgeschaltet bleiben.
 
-## Payload und Prüfung
+## Payload und automatische Prüfung
 
-`europe_stations/index.json` hat in Stations-V4 `payload_version: 4`.
+`europe_stations/index.json` verwendet in Stations-V5 `payload_version: 5`.
 
-Der Workflow prüft automatisch:
+Der Workflow prüft am Ende automatisch:
 
-- DWD-Stationen sind vorhanden
-- Météo-France-Stationen sind vorhanden
-- GHCN-Stationen sind vorhanden
-- alle deutschen Stationen haben `source: "DWD CDC"`
-- alle französischen Stationen haben `source: "Météo-France"`
-- Deutschland und Frankreich enthalten keine GHCN-Fallbackstationen mehr
+- DWD-Stationen vorhanden und Deutschland ausschließlich DWD
+- Météo-France-Stationen vorhanden und Frankreich ausschließlich Météo-France
+- AEMET-Stationen vorhanden und Spanien ausschließlich AEMET OpenData
+- GHCN-Fallbackstationen vorhanden
+- keine GHCN-Doppelstationen in Deutschland, Frankreich oder Spanien
+- Tagesarchive `01-01` und `12-31` vorhanden
 
-Die Frontend-Tagesarchive bleiben unter `europe_stations/calendar/MM-DD.json.gz` kompatibel mit der bisherigen Kartenlogik.
+Die 366 Tagesarchive bleiben unter `europe_stations/calendar/MM-DD.json.gz` kompatibel mit der bisherigen Kartenlogik.
 
-## V4.1 – Versionssicherer Workflow
+## Météo-France Retry-Cache (V5.1)
 
-Der Workflow prüft vor dem Datenlauf, ob `update-europe-station-records.yml` und `scripts/update_europe_station_records.py` dieselbe Payload-Version verwenden. Der alte Ordner `europe_stations/` wird vor der Neuberechnung entfernt, damit keine veraltete `index.json` einen neuen Lauf verfälschen kann. Am Ende werden Payload-Version und Stationszahlen je Quelle ausdrücklich ausgegeben.
+Météo-France liefert einzelne große `csv.gz`-Ressourcen gelegentlich mit einem vorzeitig beendeten gzip-Stream. V5.1 behandelt das gezielt:
+
+- jede historische Météo-France-Ressource wird nach erfolgreichem Parsen als eigener Cache-Shard gespeichert;
+- bei einem unvollständigen gzip-Stream wird nur diese Datei frisch erneut heruntergeladen (bis zu 3 Versuche);
+- bleiben nach 3 Versuchen Dateien fehlerhaft, stoppt der Workflow bewusst, speichert aber die bereits erfolgreichen Shards trotzdem im GitHub-Actions-Cache;
+- beim nächsten Lauf werden die erfolgreichen Dateien aus dem Shard-Cache übernommen und nur noch die fehlenden/problematischen Ressourcen erneut geladen;
+- Details zu verbliebenen Fehlern stehen im Cache als `meteofrance_failed_resources_through_<JAHR>.json`.
+
+Wichtig nach einem fehlgeschlagenen alten V4-Lauf: Da V4 die erfolgreichen Einzeldateien noch nicht persistent gespeichert hat, ist beim ersten Lauf mit V5.1 leider noch einmal ein vollständiger Frankreich-Durchlauf nötig. Ab diesem V5.1-Lauf sind Wiederholungen dann inkrementell.
