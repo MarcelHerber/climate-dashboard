@@ -1,55 +1,80 @@
-# Europa-Stationen · Stations-V3
+# Europa-Stationen · Stations-V4
 
-## Neu in V3
+## Neu in V4
 
-Deutschland wird nicht mehr aus GHCN-Daily dargestellt, sondern direkt aus den täglichen **DWD-CDC-KL-Daten**. Für alle übrigen europäischen Länder bleibt GHCN-Daily zunächst die gemeinsame Basis. Dadurch entstehen auf der Deutschlandkarte keine parallelen DWD-/GHCN-Doppelstationen.
+Frankreich wird im Europa-Stationsmodul nicht mehr aus GHCN-Daily dargestellt, sondern direkt aus den offenen täglichen Klimadaten von **Météo-France**. Deutschland bleibt bei **DWD CDC**, für alle übrigen europäischen Länder bleibt **GHCN-Daily** der Fallback.
 
-Die V2-Oberfläche bleibt erhalten:
+Damit gilt jetzt:
 
-- TMAX/TMIN
-- absolute Stationsrekorde
-- Kalendertagsrekorde
-- Rekordjagd im laufenden Jahr
-- neue Rekorde im laufenden Jahr
-- Top 20
-- Länderfilter, Mindest-Messjahre und Stationssuche
+- Deutschland → DWD CDC
+- Frankreich → Météo-France
+- übriges Europa → GHCN-Daily
 
-Im Stations-Popup steht jetzt die jeweilige Quelle und die dazugehörige Qualitätsregel.
+Deutsche und französische GHCN-Stationen werden bereits beim GHCN-Metadatenimport ausgeschlossen. Dadurch entstehen keine parallelen GHCN-/Originalquellen-Doppelstationen in diesen beiden Ländern.
 
-## Datenquellen
+Die komplette Stations-V2/V3-Oberfläche bleibt erhalten: TMAX/TMIN, absolute Stationsrekorde, Kalendertagsrekorde, Rekordjagd im laufenden Jahr, neue Rekorde, Top 20, Länderfilter, Mindest-Messjahre und Stationssuche.
 
-### Deutschland
+## Datenquelle Frankreich
 
-DWD Climate Data Center, tägliche Klimadaten `daily/kl/`:
+Verwendet werden die offiziellen offenen Datensätze von Météo-France auf meteo.data.gouv.fr / data.gouv.fr:
 
-- `historical/` für die historische Basis
-- `recent/` für das laufende Jahr
-- ausgewertet werden `TXK` (Tagesmaximum) und `TNK` (Tagesminimum)
-- DWD-Fehlwerte werden verworfen
+- `Données climatologiques de base - quotidiennes`
+- `Données climatologiques de base - quotidiennes - stations complémentaires`
 
-Die DWD-Stations-ID wird intern als `DWD:xxxxx` gespeichert.
+Der Workflow liest die Ressourcenlisten dynamisch über die data.gouv.fr-Dataset-API und wählt nur die täglichen `RR-T-Vent.csv.gz`-Dateien für das französische Mutterland einschließlich Korsika aus. Damit ist kein Météo-France-API-Key nötig.
 
-### Übriges Europa
+Ausgewertet werden:
 
-NOAA/NCEI GHCN-Daily bleibt der Fallback. Deutschland (`GM`) wird bereits beim Einlesen aus dem GHCN-Stationssatz entfernt. Für GHCN werden nur TMAX/TMIN mit leerem Q-FLAG für Rekorde verwendet.
+- `TX` → Tagesmaximum → Dashboard `TMAX`
+- `TN` → Tagesminimum → Dashboard `TMIN`
+- `NUM_POSTE` → 8-stellige Météo-France-Stations-ID
+- `NOM_USUEL`, `LAT`, `LON`, `ALTI` → Stationsmetadaten
 
-## Erster V3-Lauf
+Die Météo-France-ID wird intern als `MF:xxxxxxxx` gespeichert, im Popup aber ohne Präfix angezeigt.
+
+### Qualitätsregel Frankreich
+
+Für TX/TN werden Météo-France-Qualitätscodes 0, 1 und 9 akzeptiert. Code 2 (`donnée douteuse en cours de vérification`) wird nicht für Rekorde verwendet. Bei älteren vorhandenen Werten ohne Qualitätscode wird der Wert akzeptiert.
+
+## Historischer Aufbau
+
+Der historische Frankreich-Bestand wird einmalig aus den nach Département und Zeitraum getrennten Météo-France-Dateien aufgebaut. Die Ressourcen umfassen je nach Station die historischen Blöcke vor 1950, ab 1950 sowie den aktuellen Zweijahresblock. Beim Basisaufbau werden nur Daten bis zum Ende des Vorjahres übernommen.
+
+Der fertige Cache heißt sinngemäß:
+
+`meteofrance_daily_baseline_through_2025_v1.pkl.gz`
+
+Beim täglichen Lauf wird anschließend nur noch der Ressourcenblock gelesen, der das aktuelle Jahr enthält.
+
+## Erster V4-Lauf
 
 GitHub → **Actions** → **Update Europe station records** → **Run workflow**.
 
-Beide Schalter zunächst auf `false` lassen:
+Alle Schalter zunächst auf `false` lassen:
 
 - `force_baseline = false`
 - `force_dwd_baseline = false`
+- `force_mf_baseline = false`
 
-Der Workflow versucht zuerst, den vorhandenen Stations-V2-GHCN-Cache wiederzuverwenden. Wenn dieser vorhanden ist, muss GHCN nicht erneut komplett aufgebaut werden. Neu aufgebaut wird beim ersten V3-Lauf lediglich der historische DWD-Deutschland-Cache. Dieser wird anschließend zusammen mit dem GHCN-Cache unter einem V3-Cache-Schlüssel gespeichert.
+Der V4-Workflow versucht zuerst, den vorhandenen V3-Cache wiederzuverwenden. Dadurch sollten GHCN und DWD nicht erneut historisch aufgebaut werden. Neu ist beim ersten V4-Lauf hauptsächlich die Météo-France-Baseline.
 
-## Spätere tägliche Läufe
+`force_mf_baseline = true` ist nur nötig, wenn Frankreich bewusst vollständig neu aufgebaut werden soll. `force_baseline = true` erzwingt alle drei historischen Baselines und sollte im Normalbetrieb ausgeschaltet bleiben.
 
-Nach erfolgreichem ersten V3-Lauf werden beide historischen Baselines wiederverwendet. Der Workflow liest dann nur noch das laufende GHCN-Jahr und die DWD-`recent`-Dateien neu ein und schreibt `europe_stations/index.json` sowie die 366 Tagesarchive neu.
+## Payload und Prüfung
 
-`force_dwd_baseline = true` ist nur nötig, wenn der historische DWD-Bestand bewusst vollständig neu aufgebaut werden soll. `force_baseline = true` erzwingt sowohl GHCN als auch DWD neu und sollte im Normalbetrieb ausgeschaltet bleiben.
+`europe_stations/index.json` hat in Stations-V4 `payload_version: 4`.
 
-## Payload
+Der Workflow prüft automatisch:
 
-`europe_stations/index.json` hat in Stations-V3 `payload_version: 3` und enthält zusätzlich eine `sources`-Übersicht. Der Workflow prüft nach dem Lauf automatisch, dass deutsche Stationen ausschließlich mit `source: "DWD CDC"` enthalten sind.
+- DWD-Stationen sind vorhanden
+- Météo-France-Stationen sind vorhanden
+- GHCN-Stationen sind vorhanden
+- alle deutschen Stationen haben `source: "DWD CDC"`
+- alle französischen Stationen haben `source: "Météo-France"`
+- Deutschland und Frankreich enthalten keine GHCN-Fallbackstationen mehr
+
+Die Frontend-Tagesarchive bleiben unter `europe_stations/calendar/MM-DD.json.gz` kompatibel mit der bisherigen Kartenlogik.
+
+## V4.1 – Versionssicherer Workflow
+
+Der Workflow prüft vor dem Datenlauf, ob `update-europe-station-records.yml` und `scripts/update_europe_station_records.py` dieselbe Payload-Version verwenden. Der alte Ordner `europe_stations/` wird vor der Neuberechnung entfernt, damit keine veraltete `index.json` einen neuen Lauf verfälschen kann. Am Ende werden Payload-Version und Stationszahlen je Quelle ausdrücklich ausgegeben.
