@@ -104,3 +104,25 @@ Météo-France liefert einzelne große `csv.gz`-Ressourcen gelegentlich mit eine
 - Details zu verbliebenen Fehlern stehen im Cache als `meteofrance_failed_resources_through_<JAHR>.json`.
 
 Wichtig nach einem fehlgeschlagenen alten V4-Lauf: Da V4 die erfolgreichen Einzeldateien noch nicht persistent gespeichert hat, ist beim ersten Lauf mit V5.1 leider noch einmal ein vollständiger Frankreich-Durchlauf nötig. Ab diesem V5.1-Lauf sind Wiederholungen dann inkrementell.
+
+## Getrennte Baseline-Workflows (empfohlen)
+
+Damit ein Fehler eines nationalen Dienstes keine bereits berechnete Historie eines anderen Landes wiederholt, sind DWD und Météo-France getrennt.
+
+### 1. Nur DWD
+
+GitHub Actions → **Update DWD station cache** → Run workflow → `force=false`.
+
+Der Job ruft ausschließlich DWD CDC auf. Er verarbeitet die historischen KL-ZIPs bis zum Vorjahr und erzeugt/prüft den DWD-Baseline-Cache. GHCN, Météo-France, AEMET und die Website-Ausgabe werden dabei nicht berechnet.
+
+### 2. Nur Météo-France
+
+Danach GitHub Actions → **Update Météo-France station cache** → Run workflow → `force=false`.
+
+Der Job ruft ausschließlich die Météo-France-Ressourcen auf. Erfolgreiche Frankreich-Ressourcen werden einzeln gecacht. Scheitert der Job an einzelnen Ressourcen, wird der Cache trotzdem gespeichert; beim nächsten Lauf werden vorhandene Einzelcaches wiederverwendet und nur fehlende/problematische Dateien neu versucht.
+
+### 3. Europa-Daten zusammenführen
+
+Erst wenn die gewünschten Länderbaselines vorliegen, **Update Europe station records** starten. Der Gesamtworkflow kann die getrennten DWD-/Frankreich-Caches wiederverwenden und erzeugt daraus die Dateien unter `europe_stations/`.
+
+**Wichtig:** `force=true` bei den Länder-Workflows nur verwenden, wenn absichtlich alles neu geladen werden soll. Normal immer `false`.
