@@ -67,16 +67,31 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import importlib.util
+          import ast
           from pathlib import Path
+
           script = Path("scripts/update_europe_station_records.py")
-          spec = importlib.util.spec_from_file_location("station_records", script)
-          mod = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(mod)
+          tree = ast.parse(script.read_text(encoding="utf-8"), filename=str(script))
+          actual = None
+          for node in tree.body:
+              if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                  targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                  for target in targets:
+                      if isinstance(target, ast.Name) and target.id == "PAYLOAD_VERSION":
+                          try:
+                              actual = ast.literal_eval(node.value)
+                          except Exception:
+                              actual = None
+                          break
+              if actual is not None:
+                  break
+
           expected = 4
-          actual = getattr(mod, "PAYLOAD_VERSION", None)
           if actual != expected:
-              raise SystemExit(f"Versionsfehler: Workflow erwartet Stations-Payload V{expected}, Skript liefert V{actual}. Bitte alle Dateien aus index.zip gemeinsam hochladen.")
+              raise SystemExit(
+                  f"Versionsfehler: Workflow erwartet Stations-Payload V{expected}, "
+                  f"Skript liefert V{actual}. Bitte alle Dateien aus index.zip gemeinsam hochladen."
+              )
           print(f"Versionscheck OK: Stations-Payload V{actual}")
           PY
           rm -rf europe_stations
@@ -163,6 +178,6 @@ jobs:
             echo "Keine Änderungen an den Europa-Stationsdaten."
             exit 0
           fi
-          git commit -m "Update Europe station records V4.1"
+          git commit -m "Update Europe station records V4.2"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
