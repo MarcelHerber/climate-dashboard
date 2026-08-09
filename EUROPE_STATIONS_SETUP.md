@@ -145,3 +145,10 @@ Die Europa-Karte bleibt bei jeder Zwischenveröffentlichung vollständig. Nation
 - übriges Europa: GHCN-Daily
 
 Der Workflow `Publish Europe station records` baut keine historischen Archive neu auf, sondern setzt die vorhandenen GHCN-, DWD- und Météo-France-Caches zusammen. Er bricht ab, falls GHCN-Rest-Europa oder Spanien versehentlich fehlen würden.
+
+
+## Météo-France Repair (fehlende/trunkierte historische Dateien)
+
+Workflow: **Repair Météo-France station cache**. Er baut Frankreich nicht neu auf, sondern prüft die vorhandenen Einzelcaches und bearbeitet ausschließlich fehlende/ungültige Ressourcen. Große `.csv.gz` werden über kleine HTTP-Range-Blöcke vom offiziellen Météo-France-Objektspeicher geladen; nur ein fehlerhafter Block wird erneut angefordert. Bereits gültige Shards bleiben unangetastet.
+
+Empfohlene Einstellungen: `workers=4`, `chunk_mib=2`. Der Repair-Job endet bei verbleibenden Problemressourcen absichtlich mit Exit Code 0, damit `actions/cache/save` den verbesserten Zwischenstand zuverlässig sichern kann. Ein weiterer Repair-Lauf fasst dann automatisch nur noch die verbleibenden Ressourcen an. Sind alle Ressourcen vorhanden, wird zusätzlich der kombinierte Météo-France-Gesamtcache aus den Einzelcaches erzeugt, ohne die Historie erneut herunterzuladen.
