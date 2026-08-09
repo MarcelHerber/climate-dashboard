@@ -25,7 +25,7 @@ concurrency:
 jobs:
   update-era5-land:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
 
     steps:
       - name: Repository auschecken
@@ -40,11 +40,26 @@ jobs:
           python-version: "3.13"
           cache: "pip"
 
+      - name: Cache-Monat bestimmen
+        id: cache-month
+        shell: bash
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
       - name: ERA5-Land Cache wiederherstellen
         uses: actions/cache@v4
         with:
           path: .era5_cache
-          key: era5-land-europe-v1-${{ runner.os }}
+          key: era5-land-europe-v8-hires-${{ runner.os }}-${{ steps.cache-month.outputs.month }}
+          restore-keys: |
+            era5-land-europe-v8-hires-${{ runner.os }}-
+            era5-land-europe-v8-${{ runner.os }}-
+            era5-land-europe-v7-${{ runner.os }}-
+            era5-land-europe-v6-${{ runner.os }}-
+            era5-land-europe-v5-${{ runner.os }}-
+            era5-land-europe-v4-${{ runner.os }}-
+            era5-land-europe-v3-${{ runner.os }}
+            era5-land-europe-v2-${{ runner.os }}
+            era5-land-europe-v1-${{ runner.os }}
 
       - name: Python-Pakete installieren
         run: |
