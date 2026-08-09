@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """Build compact European station-record datasets for the static Climate Dashboard.
 
-Stations-V3 architecture
+Stations-V4 architecture
 ------------------------
 * Germany: DWD CDC daily KL data are authoritative for the dashboard module.
   Historical *_hist.zip files build a cached DWD baseline; *_akt.zip files
   supply the current calendar year.
+* France: official Météo-France daily climatological CSV.gz resources from
+  meteo.data.gouv.fr/data.gouv.fr are authoritative. Both the principal and
+  complementary station datasets are read; TX/TN are used.
 * Rest of Europe: NOAA/NCEI GHCN-Daily remains the fallback/base source.
-  Germany is deliberately removed from the GHCN station set to avoid duplicates.
+  Germany and France are deliberately removed from GHCN to avoid duplicates.
 * Frontend contract stays compatible with Stations-V2:
     europe_stations/index.json
     europe_stations/calendar/MM-DD.json.gz
 
-The large GHCN archive is streamed and cached. DWD historical files are only
-needed when the separate DWD baseline cache is missing or explicitly rebuilt.
+The large GHCN archive is streamed and cached. DWD and Météo-France historical
+files are only needed when their separate baseline caches are missing or explicitly
+rebuilt.
 """
 
 from __future__ import annotations
@@ -53,14 +57,24 @@ DWD_HIST = f"{DWD_BASE}/historical/"
 DWD_RECENT = f"{DWD_BASE}/recent/"
 DWD_STATIONS_URL = f"{DWD_HIST}KL_Tageswerte_Beschreibung_Stationen.txt"
 
-PAYLOAD_VERSION = 3
+MF_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-quotidiennes/"
+MF_COMP_DATASET_API = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-quotidiennes-stations-complementaires/"
+MF_PUBLIC_BASE = "https://meteo.data.gouv.fr/datasets/donnees-climatologiques-de-base-quotidiennes/"
+
+PAYLOAD_VERSION = 4
 GHCN_BASELINE_FORMAT_VERSION = 2
 DWD_BASELINE_FORMAT_VERSION = 1
+MF_BASELINE_FORMAT_VERSION = 1
 GHCN_SOURCE = "GHCN-Daily"
 DWD_SOURCE = "DWD CDC"
+MF_SOURCE = "Météo-France"
 
-# GHCN FIPS country codes. Germany (GM) is intentionally still listed for
-# parsing compatibility, but is removed before baseline/current processing.
+# Metropolitan departments. Department 20 is kept as a compatibility fallback
+# for older Corsica resource naming; current resources normally use 2A/2B.
+MF_METRO_DEPTS = ({f"{i:02d}" for i in range(1, 96) if i != 20} | {"20", "2A", "2B"})
+
+# GHCN FIPS country codes. Germany (GM) and France (FR) remain listed for
+# parsing compatibility, but are removed before baseline/current processing.
 EUROPE_CODES = {
     "AL", "AU", "BE", "BK", "BO", "BU", "CY", "DA", "EI", "EN", "EZ",
     "FI", "FR", "GG", "GI", "GM", "GR", "HR", "HU", "IC", "IT", "JN",
@@ -91,7 +105,7 @@ def log(message: str) -> None:
 
 
 def http_open(url: str, attempts: int = 5, timeout: int = 180):
-    headers = {"User-Agent": "climate-dashboard-stations/3.0 (+GitHub Actions)"}
+    headers = {"User-Agent": "climate-dashboard-stations/4.0 (+GitHub Actions)"}
     last_error = None
     for attempt in range(1, attempts + 1):
         try:
@@ -152,7 +166,7 @@ def parse_ghcn_stations(text: str, countries: Dict[str, str]) -> Dict[str, Stati
             continue
         sid = raw[0:11].strip()
         code = sid[:2]
-        if code not in EUROPE_CODES or code == "GM":  # DWD replaces Germany in V3.
+        if code not in EUROPE_CODES or code in {"GM", "FR"}:  # DWD/Météo-France replace Germany/France in V4.
             continue
         try:
             lat = float(raw[12:20])
@@ -283,7 +297,7 @@ def parse_dly_station(stream: io.BufferedReader, cutoff_year: int) -> dict:
 
 
 def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, archive_url: str = ARCHIVE_URL) -> dict:
-    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland) bis {cutoff_year} …")
+    log(f"Baue historischen GHCN-Basisbestand (ohne Deutschland/Frankreich) bis {cutoff_year} …")
     states = {}
     wanted = set(stations)
     seen = 0
@@ -304,7 +318,7 @@ def build_ghcn_baseline(stations: Dict[str, StationMeta], cutoff_year: int, arch
                 seen += 1
                 if seen % 250 == 0:
                     log(f"  {seen:,} europäische GHCN-Stationsdateien verarbeitet …")
-    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland ausgeschlossen).")
+    log(f"GHCN-Basisbestand fertig: {len(states):,} Stationen (Deutschland/Frankreich ausgeschlossen).")
     return {
         "format_version": GHCN_BASELINE_FORMAT_VERSION,
         "cutoff_year": cutoff_year,
@@ -337,7 +351,7 @@ def load_or_build_ghcn_baseline(cache_file: Path, stations: Dict[str, StationMet
 
 def parse_current_ghcn_year(year: int, stations: Dict[str, StationMeta]) -> dict:
     url = BY_YEAR_URL.format(year=year)
-    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland): {url}")
+    log(f"Lade laufendes GHCN-Jahr {year} (ohne Deutschland/Frankreich): {url}")
     current: Dict[str, dict] = {}
     with http_open(url, attempts=6, timeout=240) as response:
         with gzip.GzipFile(fileobj=response) as gz:
@@ -365,7 +379,7 @@ def parse_current_ghcn_year(year: int, stations: Dict[str, StationMeta]) -> dict
                 kept += 1
                 if rows % 1_000_000 == 0:
                     log(f"  {rows:,} GHCN-Jahreszeilen gelesen, {kept:,} Europa-TMAX/TMIN-Werte behalten …")
-    log(f"GHCN {year}: {len(current):,} Stationen außerhalb Deutschlands mit TMAX/TMIN.")
+    log(f"GHCN {year}: {len(current):,} Stationen außerhalb Deutschlands/Frankreichs mit TMAX/TMIN.")
     return current
 
 
@@ -540,6 +554,314 @@ def parse_current_dwd_year(year: int, stations: Dict[str, StationMeta], workers:
     return current
 
 
+
+# ------------------------- Météo-France adapter -------------------------
+
+def read_url_json(url: str) -> dict:
+    return json.loads(read_url_text(url, encoding="utf-8"))
+
+
+def mf_station_id(raw: str) -> Optional[str]:
+    value = str(raw or "").strip()
+    if value.endswith(".0"):
+        value = value[:-2]
+    value = re.sub(r"\D", "", value)
+    if not value:
+        return None
+    return f"MF:{value.zfill(8)}"
+
+
+def mf_float(raw: str) -> Optional[float]:
+    value = str(raw or "").strip().replace(",", ".")
+    if not value:
+        return None
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    return number if math.isfinite(number) else None
+
+
+def mf_temp_to_tenths(raw: str) -> Optional[int]:
+    number = mf_float(raw)
+    if number is None or number <= -90 or number >= 70:
+        return None
+    return int(round(number * 10.0))
+
+
+def mf_quality_ok(raw: str) -> bool:
+    """Keep Météo-France values that are filtered/validated/protected.
+
+    In Météo-France climatological files, 9 = filtered, 1 = validated,
+    0 = protected/final. Code 2 denotes a doubtful value under review and is
+    excluded from records. Blank quality is tolerated for older rows where the
+    value exists but a quality code was not supplied.
+    """
+    value = str(raw or "").strip()
+    if value.endswith(".0"):
+        value = value[:-2]
+    return value in {"", "0", "1", "9"}
+
+
+def mf_resource_period(text: str) -> Optional[Tuple[int, int]]:
+    low = text.lower()
+    if "avant-1949" in low:
+        return (1800, 1949)
+    m = re.search(r"(?:previous|latest)-(\d{4})-(\d{4})", low)
+    if m:
+        return (int(m.group(1)), int(m.group(2)))
+    return None
+
+
+def mf_resource_department(text: str) -> Optional[str]:
+    name = Path(urllib.parse.urlparse(text).path).name
+    m = re.search(r"(?:^|/)(?:Q|Q-COMP)_([0-9]{2,3}|2A|2B)_", name, re.I)
+    if not m:
+        m = re.search(r"(?:Q|Q-COMP)_([0-9]{2,3}|2A|2B)_", text, re.I)
+    return m.group(1).upper() if m else None
+
+
+def discover_mf_resources() -> List[dict]:
+    """Read official data.gouv.fr resource metadata for both MF daily datasets."""
+    resources: List[dict] = []
+    for label, api_url in (("principal", MF_DATASET_API), ("complementary", MF_COMP_DATASET_API)):
+        payload = read_url_json(api_url)
+        found = payload.get("resources", [])
+        if not isinstance(found, list):
+            raise RuntimeError(f"Météo-France Ressourcenliste unerwartet für {label}: {api_url}")
+        for res in found:
+            if not isinstance(res, dict):
+                continue
+            url = str(res.get("url") or res.get("latest") or "")
+            title = str(res.get("title") or res.get("name") or "")
+            hay = f"{title} {url}"
+            if not url.lower().endswith(".csv.gz"):
+                continue
+            if "rr-t-vent" not in hay.lower() or "autres-parametres" in hay.lower():
+                continue
+            dept = mf_resource_department(url or title)
+            if dept not in MF_METRO_DEPTS:
+                continue
+            period = mf_resource_period(hay)
+            if period is None:
+                continue
+            resources.append({"url": url, "title": title, "dataset": label, "dept": dept, "period": period})
+    # URL de-duplication while preserving deterministic order.
+    unique = {}
+    for res in resources:
+        unique[res["url"]] = res
+    result = sorted(unique.values(), key=lambda r: (r["dept"], r["period"][0], r["dataset"], r["url"]))
+    if not result:
+        raise RuntimeError("Keine Météo-France RR-T-Vent-Tagesressourcen gefunden.")
+    return result
+
+
+def mf_empty_partial_state() -> dict:
+    return {
+        "TMAX": {"abs": None, "cal": {}, "start": None, "end": None, "year_set": set()},
+        "TMIN": {"abs": None, "cal": {}, "start": None, "end": None, "year_set": set()},
+    }
+
+
+def merge_record_tuples(a: Optional[Tuple[int, int, int]], b: Optional[Tuple[int, int, int]], element: str):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if better(element, b[0], a[0]):
+        return b
+    if better(element, a[0], b[0]):
+        return a
+    return (a[0], min(a[1], b[1]), int(a[2]) + int(b[2]))
+
+
+def merge_mf_partial(target: dict, incoming: dict) -> None:
+    for sid, src_state in incoming.items():
+        dst_state = target.setdefault(sid, mf_empty_partial_state())
+        for element in ("TMAX", "TMIN"):
+            src = src_state[element]; dst = dst_state[element]
+            dst["abs"] = merge_record_tuples(dst.get("abs"), src.get("abs"), element)
+            for mmdd, rec in src.get("cal", {}).items():
+                dst["cal"][mmdd] = merge_record_tuples(dst["cal"].get(mmdd), rec, element)
+            vals = [x for x in (dst.get("start"), src.get("start")) if x is not None]
+            dst["start"] = min(vals) if vals else None
+            vals = [x for x in (dst.get("end"), src.get("end")) if x is not None]
+            dst["end"] = max(vals) if vals else None
+            dst.setdefault("year_set", set()).update(src.get("year_set", set()))
+
+
+def finalize_mf_states(partial: dict) -> dict:
+    out = {}
+    for sid, state in partial.items():
+        dst = empty_state()
+        for element in ("TMAX", "TMIN"):
+            src = state[element]
+            dst[element]["abs"] = src.get("abs")
+            dst[element]["cal"] = src.get("cal", {})
+            dst[element]["start"] = src.get("start")
+            dst[element]["end"] = src.get("end")
+            dst[element]["years"] = len(src.get("year_set", set()))
+        out[sid] = dst
+    return out
+
+
+def parse_mf_stream(fileobj, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
+    """Parse one official Météo-France Q_*_RR-T-Vent.csv.gz resource."""
+    partial: Dict[str, dict] = {}
+    current: Dict[str, dict] = {}
+    metas: Dict[str, Tuple[StationMeta, int]] = {}
+    with gzip.GzipFile(fileobj=fileobj) as gz:
+        text = io.TextIOWrapper(gz, encoding="utf-8-sig", errors="replace", newline="")
+        reader = csv.DictReader(text, delimiter=";")
+        if not reader.fieldnames:
+            return partial, current, metas
+        fmap = {str(k).strip().upper(): k for k in reader.fieldnames if k is not None}
+        required = ["NUM_POSTE", "AAAAMMJJ"]
+        if any(k not in fmap for k in required) or not ({"TX", "TN"} & set(fmap)):
+            raise RuntimeError(f"Météo-France CSV ohne erwartete Spalten: {list(fmap)[:20]}")
+        for row in reader:
+            sid = mf_station_id(row.get(fmap["NUM_POSTE"], ""))
+            datestr = str(row.get(fmap["AAAAMMJJ"], "")).strip().replace(".0", "")
+            if not sid or not re.fullmatch(r"\d{8}", datestr):
+                continue
+            year = int(datestr[:4])
+            if cutoff_year is not None and year > cutoff_year:
+                continue
+            if exact_year is not None and year != exact_year:
+                continue
+            try:
+                date_obj = dt.datetime.strptime(datestr, "%Y%m%d").date()
+            except ValueError:
+                continue
+            lat = mf_float(row.get(fmap.get("LAT", ""), "")) if "LAT" in fmap else None
+            lon = mf_float(row.get(fmap.get("LON", ""), "")) if "LON" in fmap else None
+            if lat is None or lon is None or not (LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX):
+                continue
+            elev = mf_float(row.get(fmap.get("ALTI", ""), "")) if "ALTI" in fmap else None
+            name = str(row.get(fmap.get("NOM_USUEL", ""), "")).strip() if "NOM_USUEL" in fmap else ""
+            meta = StationMeta(
+                sid, float(lat), float(lon), None if elev is None or elev <= -999 else round(float(elev), 1),
+                name or sid.split(":", 1)[1], "FR", "Frankreich", MF_SOURCE,
+                "Météo-France Tagesklima: TX/TN; Qualitätscodes 0/1/9 (sowie ältere leere Codes) akzeptiert, Code 2 (douteuse) verworfen.",
+            )
+            date_int = int(datestr)
+            old_meta = metas.get(sid)
+            if old_meta is None or date_int >= old_meta[1]:
+                metas[sid] = (meta, date_int)
+            mmdd = date_obj.strftime("%m-%d")
+            for element, value_col, quality_col in (("TMAX", "TX", "QTX"), ("TMIN", "TN", "QTN")):
+                if value_col not in fmap:
+                    continue
+                value = mf_temp_to_tenths(row.get(fmap[value_col], ""))
+                qraw = row.get(fmap[quality_col], "") if quality_col in fmap else ""
+                if value is None or not mf_quality_ok(qraw):
+                    continue
+                if exact_year is None:
+                    state = partial.setdefault(sid, mf_empty_partial_state())
+                    block = state[element]
+                    block["abs"] = update_record(block["abs"], value, date_int, element)
+                    block["cal"][mmdd] = update_record(block["cal"].get(mmdd), value, date_int, element)
+                    block["start"] = date_int if block["start"] is None else min(block["start"], date_int)
+                    block["end"] = date_int if block["end"] is None else max(block["end"], date_int)
+                    block["year_set"].add(year)
+                else:
+                    station = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
+                    station[element][mmdd] = (value, date_int)
+    return partial, current, metas
+
+
+def fetch_parse_mf(resource: dict, *, cutoff_year: Optional[int] = None, exact_year: Optional[int] = None):
+    url = resource["url"]
+    with http_open(url, attempts=5, timeout=240) as response:
+        return parse_mf_stream(response, cutoff_year=cutoff_year, exact_year=exact_year)
+
+
+def merge_mf_meta(target: Dict[str, Tuple[StationMeta, int]], incoming: Dict[str, Tuple[StationMeta, int]]) -> None:
+    for sid, item in incoming.items():
+        if sid not in target or item[1] >= target[sid][1]:
+            target[sid] = item
+
+
+def build_mf_baseline(cutoff_year: int, workers: int = 6) -> dict:
+    resources = [r for r in discover_mf_resources() if r["period"][0] <= cutoff_year]
+    log(f"Baue Météo-France-Basisbestand bis {cutoff_year}: {len(resources):,} RR-T-Vent-Dateien; {workers} parallele Downloads …")
+    partial: Dict[str, dict] = {}
+    metas: Dict[str, Tuple[StationMeta, int]] = {}
+    failures: List[Tuple[str, str]] = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(fetch_parse_mf, r, cutoff_year=cutoff_year): r for r in resources}
+        done = 0
+        for future in as_completed(futures):
+            r = futures[future]; done += 1
+            try:
+                states_part, _current, meta_part = future.result()
+                merge_mf_partial(partial, states_part)
+                merge_mf_meta(metas, meta_part)
+            except Exception as exc:
+                failures.append((r["url"], str(exc)))
+                log(f"WARNUNG Météo-France historical {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}")
+            if done % 25 == 0 or done == len(resources):
+                log(f"  Météo-France historical: {done:,}/{len(resources):,} Dateien, {len(partial):,} Stationen …")
+    if failures and len(failures) > max(12, int(len(resources) * 0.06)):
+        raise RuntimeError(f"Zu viele Météo-France-Historical-Fehler: {len(failures)} von {len(resources)}")
+    states = finalize_mf_states(partial)
+    stations = {sid: item[0] for sid, item in metas.items() if sid in states}
+    log(f"Météo-France-Basisbestand fertig: {len(states):,} Stationen; fehlgeschlagene Dateien: {len(failures)}.")
+    return {
+        "format_version": MF_BASELINE_FORMAT_VERSION,
+        "cutoff_year": cutoff_year,
+        "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "states": states,
+        "stations": stations,
+    }
+
+
+def load_or_build_mf_baseline(cache_file: Path, cutoff_year: int, force: bool, workers: int) -> dict:
+    if cache_file.exists() and not force:
+        try:
+            with gzip.open(cache_file, "rb") as handle:
+                payload = pickle.load(handle)
+            if payload.get("format_version") == MF_BASELINE_FORMAT_VERSION and payload.get("cutoff_year") == cutoff_year:
+                log(f"Verwende historischen Météo-France-Cache: {cache_file}")
+                return payload
+        except Exception as exc:
+            log(f"Météo-France-Cache konnte nicht gelesen werden ({exc}); Neuaufbau.")
+    payload = build_mf_baseline(cutoff_year, workers=workers)
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+    with gzip.open(tmp, "wb", compresslevel=5) as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(cache_file)
+    log(f"Météo-France-Cache gespeichert: {cache_file} ({cache_file.stat().st_size/1024/1024:.1f} MB)")
+    return payload
+
+
+def parse_current_mf_year(year: int, workers: int = 8):
+    resources = [r for r in discover_mf_resources() if r["period"][0] <= year <= r["period"][1]]
+    log(f"Lade Météo-France {year}: {len(resources):,} RR-T-Vent-Dateien; {workers} parallele Downloads …")
+    current: Dict[str, dict] = {}
+    metas: Dict[str, Tuple[StationMeta, int]] = {}
+    failures: List[Tuple[str, str]] = []
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = {pool.submit(fetch_parse_mf, r, exact_year=year): r for r in resources}
+        done = 0
+        for future in as_completed(futures):
+            r = futures[future]; done += 1
+            try:
+                _states_part, current_part, meta_part = future.result()
+                for sid, st in current_part.items():
+                    dst = current.setdefault(sid, {"TMAX": {}, "TMIN": {}})
+                    dst["TMAX"].update(st.get("TMAX", {})); dst["TMIN"].update(st.get("TMIN", {}))
+                merge_mf_meta(metas, meta_part)
+            except Exception as exc:
+                failures.append((r["url"], str(exc)))
+                log(f"WARNUNG Météo-France current {r['dept']} {Path(urllib.parse.urlparse(r['url']).path).name}: {exc}")
+            if done % 25 == 0 or done == len(resources):
+                log(f"  Météo-France current: {done:,}/{len(resources):,} Dateien, {len(current):,} Stationen mit {year}-Daten …")
+    if failures and len(failures) > max(12, int(len(resources) * 0.08)):
+        raise RuntimeError(f"Zu viele Météo-France-Current-Fehler: {len(failures)} von {len(resources)}")
+    return current, {sid: item[0] for sid, item in metas.items()}
+
 def date_str(date_int: Optional[int]) -> Optional[str]:
     if not date_int:
         return None
@@ -624,7 +946,7 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], states: 
         if not element_summary["TMAX"]["record"] and not element_summary["TMIN"]["record"]:
             continue
         station_rows.append({
-            "id": meta.id, "source_id": meta.id.split(":",1)[1] if meta.id.startswith("DWD:") else meta.id,
+            "id": meta.id, "source_id": meta.id.split(":",1)[1] if ":" in meta.id else meta.id,
             "name": meta.name, "country_code": meta.country_code, "country": meta.country,
             "lat": round(meta.lat, 4), "lon": round(meta.lon, 4), "elevation": meta.elev,
             "source": meta.source, "quality_rule": meta.quality_rule,
@@ -663,14 +985,15 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], states: 
         "payload_version": PAYLOAD_VERSION,
         "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "current_year": current_year, "historical_through": current_year - 1,
-        "source": "DWD CDC (Deutschland) + GHCN-Daily (übriges Europa)",
-        "source_url": DWD_BASE,
+        "source": "DWD CDC (Deutschland) + Météo-France (Frankreich) + GHCN-Daily (übriges Europa)",
+        "source_url": MF_PUBLIC_BASE,
         "sources": [
             {"name": DWD_SOURCE, "scope": "Deutschland", "url": DWD_BASE, "stations": source_counts.get(DWD_SOURCE, 0)},
+            {"name": MF_SOURCE, "scope": "Frankreich", "url": MF_PUBLIC_BASE, "stations": source_counts.get(MF_SOURCE, 0)},
             {"name": GHCN_SOURCE, "scope": "übriges Europa", "url": GHCN_BASE, "stations": source_counts.get(GHCN_SOURCE, 0)},
         ],
-        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
-        "history_scope": "DWD vollständige verfügbare KL-Tagesreihen für Deutschland; GHCN-Daily für das übrige Europa; laufendes Jahr separat aktualisiert.",
+        "quality_rule": "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. Übriges Europa: GHCN TMAX/TMIN nur mit leerem Q-FLAG.",
+        "history_scope": "DWD-KL für Deutschland; Météo-France tägliche Klimadaten (Haupt- und Ergänzungsstationen) für Frankreich; GHCN-Daily für das übrige Europa. Das laufende Jahr wird separat aktualisiert.",
         "station_count": len(station_rows), "country_count": len(countries), "countries": countries,
         "calendar_url_pattern": "europe_stations/calendar/{mmdd}.json.gz",
         "calendar_schema": ["station_index", "record_tenths_c", "record_date_yyyymmdd", "previous_tenths_c", "previous_date_yyyymmdd", "current_tenths_c", "current_date_yyyymmdd", "strict_new_record", "difference_tenths_c"],
@@ -704,6 +1027,23 @@ def self_test() -> None:
     dwd = parse_dwd_product_bytes(bio.getvalue(), cutoff_year=2025)
     assert dwd["TMAX"]["abs"][0] == 123 and dwd["TMIN"]["abs"][0] == -45
 
+    mf_csv = (
+        "NUM_POSTE;NOM_USUEL;LAT;LON;ALTI;AAAAMMJJ;TN;QTN;TX;QTX\n"
+        "75114001;PARIS-MONTSOURIS;48.8217;2.3378;75;20250101;-4.5;1;12.3;1\n"
+        "75114001;PARIS-MONTSOURIS;48.8217;2.3378;75;20250102;-9.9;2;99.0;2\n"
+    ).encode("utf-8")
+    mf_gz = io.BytesIO()
+    with gzip.GzipFile(fileobj=mf_gz, mode="wb") as gz:
+        gz.write(mf_csv)
+    assert mf_resource_department("https://host/BASE/QUOT/Q_01_latest-2025-2026_RR-T-Vent.csv.gz") == "01"
+    assert mf_resource_department("https://host/BASE/QUOT_COMP/Q-COMP_45_avant-1949_RR-T-Vent.csv.gz") == "45"
+    assert mf_resource_period("Q_75_latest-2025-2026_RR-T-Vent.csv.gz") == (2025, 2026)
+    mf_gz.seek(0)
+    mf_partial, _mf_cur, mf_meta = parse_mf_stream(mf_gz, cutoff_year=2025)
+    mf_state = finalize_mf_states(mf_partial)["MF:75114001"]
+    assert mf_state["TMAX"]["abs"][0] == 123 and mf_state["TMIN"]["abs"][0] == -45
+    assert "MF:75114001" in mf_meta
+
     final, new, delta = combine_record((123, 20250101, 1), (130, 20260101), "TMAX")
     assert new and final[0] == 130 and abs(delta - 0.7) < 1e-9
     final, new, delta = combine_record((-50, 20250101, 1), (-60, 20260101), "TMIN")
@@ -715,9 +1055,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="europe_stations")
     parser.add_argument("--cache-dir", default=".cache/europe-stations")
-    parser.add_argument("--force-baseline", action="store_true", help="GHCN und DWD historische Baselines neu aufbauen")
+    parser.add_argument("--force-baseline", action="store_true", help="GHCN, DWD und Météo-France historische Baselines neu aufbauen")
     parser.add_argument("--force-dwd-baseline", action="store_true", help="Nur DWD-Baseline neu aufbauen")
+    parser.add_argument("--force-mf-baseline", action="store_true", help="Nur Météo-France-Baseline neu aufbauen")
     parser.add_argument("--dwd-workers", type=int, default=6)
+    parser.add_argument("--mf-workers", type=int, default=6)
     parser.add_argument("--year", type=int, default=dt.datetime.now(dt.timezone.utc).year)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -729,7 +1071,7 @@ def main() -> int:
 
     countries = parse_countries(read_url_text(COUNTRIES_URL))
     ghcn_stations = parse_ghcn_stations(read_url_text(STATIONS_URL), countries)
-    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland ausgeschlossen): {len(ghcn_stations):,}")
+    log(f"GHCN-Metadaten im Europa-Kartenfenster (Deutschland/Frankreich ausgeschlossen): {len(ghcn_stations):,}")
     if not ghcn_stations:
         raise RuntimeError("Keine europäischen GHCN-Stationen gefunden.")
 
@@ -743,18 +1085,26 @@ def main() -> int:
     cache_dir = Path(args.cache_dir)
     ghcn_cache = cache_dir / f"ghcn_europe_baseline_through_{cutoff_year}_v{GHCN_BASELINE_FORMAT_VERSION}.pkl.gz"
     dwd_cache = cache_dir / f"dwd_germany_kl_baseline_through_{cutoff_year}_v{DWD_BASELINE_FORMAT_VERSION}.pkl.gz"
+    mf_cache = cache_dir / f"meteofrance_daily_baseline_through_{cutoff_year}_v{MF_BASELINE_FORMAT_VERSION}.pkl.gz"
 
     ghcn_baseline = load_or_build_ghcn_baseline(ghcn_cache, ghcn_stations, cutoff_year, args.force_baseline)
     dwd_baseline = load_or_build_dwd_baseline(dwd_cache, dwd_stations, cutoff_year, args.force_baseline or args.force_dwd_baseline, args.dwd_workers)
+    mf_baseline = load_or_build_mf_baseline(mf_cache, cutoff_year, args.force_baseline or args.force_mf_baseline, args.mf_workers)
 
     ghcn_current = parse_current_ghcn_year(current_year, ghcn_stations)
     dwd_current = parse_current_dwd_year(current_year, dwd_stations, workers=max(4, args.dwd_workers))
+    mf_current, mf_current_stations = parse_current_mf_year(current_year, workers=max(4, args.mf_workers))
 
-    stations = dict(ghcn_stations); stations.update(dwd_stations)
-    # Filter cached V2 GHCN states to the V3 non-Germany metadata set, then add DWD.
+    mf_stations = dict(mf_baseline.get("stations", {})); mf_stations.update(mf_current_stations)
+    log(f"Météo-France-Stationsmetadaten Frankreich: {len(mf_stations):,}")
+    if not mf_stations:
+        raise RuntimeError("Keine Météo-France-Stationen gefunden.")
+
+    stations = dict(ghcn_stations); stations.update(dwd_stations); stations.update(mf_stations)
+    # Filter older GHCN caches to the V4 fallback metadata set, then add national sources.
     states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
-    states.update(dwd_baseline.get("states", {}))
-    current = dict(ghcn_current); current.update(dwd_current)
+    states.update(dwd_baseline.get("states", {})); states.update(mf_baseline.get("states", {}))
+    current = dict(ghcn_current); current.update(dwd_current); current.update(mf_current)
 
     merge_and_write(Path(args.output), stations, states, current, current_year)
     return 0
