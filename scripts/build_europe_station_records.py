@@ -5,6 +5,7 @@ Source hierarchy for this transition release
 --------------------------------------------
 * Germany: DWD CDC (replaces GHCN)
 * France: Météo-France (replaces GHCN; partial historical shard coverage allowed)
+* Poland: IMGW-PIB daily climate data when its cache is ready
 * Spain: GHCN-Daily until the AEMET historical cache is ready
 * Rest of Europe: GHCN-Daily
 
@@ -26,6 +27,7 @@ from typing import Dict, Tuple
 
 import update_europe_station_records as core
 import update_geosphere_austria_station_cache as austria
+import update_imgw_poland_station_cache as poland
 
 
 def load_dwd_cache(cache_dir: Path, cutoff_year: int) -> dict:
@@ -68,7 +70,7 @@ def load_ghcn_cache(cache_dir: Path, cutoff_year: int) -> dict:
     return payload
 
 
-def parse_ghcn_publish_stations(text: str, countries: Dict[str, str], exclude_austria: bool = False) -> Dict[str, core.StationMeta]:
+def parse_ghcn_publish_stations(text: str, countries: Dict[str, str], exclude_austria: bool = False, exclude_poland: bool = False) -> Dict[str, core.StationMeta]:
     """GHCN fallback for all mapped European countries except DE/FR.
 
     Spain intentionally remains included until AEMET is ready. Germany and
@@ -81,7 +83,7 @@ def parse_ghcn_publish_stations(text: str, countries: Dict[str, str], exclude_au
             continue
         sid = raw[0:11].strip()
         code = sid[:2]
-        if code not in core.EUROPE_CODES or code in {"GM", "FR"} or (exclude_austria and code == "AU"):
+        if code not in core.EUROPE_CODES or code in {"GM", "FR"} or (exclude_austria and code == "AU") or (exclude_poland and code == "PL"):
             continue
         try:
             lat = float(raw[12:20])
@@ -170,6 +172,11 @@ def patch_index_metadata(
     current_austria_ok: bool,
     current_ghcn_spain_count: int,
     current_austria_count: int,
+    poland_enabled: bool,
+    poland_station_count: int,
+    current_poland_ok: bool,
+    current_poland_count: int,
+    current_poland_latest_month: int,
 ) -> dict:
     path = output_dir / "index.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -180,7 +187,7 @@ def patch_index_metadata(
         counts[source] = counts.get(source, 0) + 1
 
     missing = max(0, mf_total - mf_available)
-    payload["source"] = "DWD CDC (Deutschland) + Météo-France (Frankreich) + " + ("GeoSphere Austria (Österreich) + " if austria_enabled else "") + "GHCN-Daily (übriges Europa inkl. Spanien)"
+    payload["source"] = "DWD CDC (Deutschland) + Météo-France (Frankreich) + " + ("GeoSphere Austria (Österreich) + " if austria_enabled else "") + ("IMGW-PIB (Polen) + " if poland_enabled else "") + "GHCN-Daily (übriges Europa inkl. Spanien)"
     payload["source_url"] = core.GHCN_BASE
     payload["sources"] = [
         {
@@ -209,9 +216,18 @@ def patch_index_metadata(
                 "historical_complete": True,
             }
         ] if austria_enabled else []),
+        *([
+            {
+                "name": poland.SOURCE,
+                "scope": "Polen",
+                "url": poland.PUBLIC_URL,
+                "stations": poland_station_count,
+                "historical_complete": True,
+            }
+        ] if poland_enabled else []),
         {
             "name": core.GHCN_SOURCE,
-            "scope": "übriges Europa einschließlich Spanien" + ("; Österreich durch GeoSphere Austria ersetzt" if austria_enabled else " (Österreich noch GHCN)"),
+            "scope": "übriges Europa einschließlich Spanien" + ("; Österreich durch GeoSphere Austria ersetzt" if austria_enabled else " (Österreich noch GHCN)") + ("; Polen durch IMGW-PIB ersetzt" if poland_enabled else " (Polen noch GHCN)"),
             "url": core.GHCN_BASE,
             "stations": counts.get(core.GHCN_SOURCE, 0),
             "historical_complete": True,
@@ -221,16 +237,18 @@ def patch_index_metadata(
         "Deutschland: DWD CDC Tageswerte KL (TXK/TNK, Fehlwerte verworfen). "
         + "Frankreich: Météo-France TX/TN aus den täglichen Klimadateien; Qualitätscodes 0/1/9 bzw. ältere leere Codes akzeptiert, Code 2 verworfen. "
         + ("Österreich: GeoSphere Austria klima-v2-1d, qualitätsgeprüfte tägliche tlmax/tlmin. " if austria_enabled else "")
+        + ("Polen: IMGW-PIB tägliche Klimadaten k_d_t mit Tmax/Tmin. " if poland_enabled else "")
         + "Übriges Europa einschließlich Spanien: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
         f"Deutschland vollständig aus dem DWD-KL-Historical-Cache bis {current_year - 1}. "
         f"Frankreich als Zwischenstand aus {mf_available} von {mf_total} Météo-France-Historical-Ressourcen. "
         + ("Österreich wird aus GeoSphere Austria klima-v2-1d bereitgestellt; " if austria_enabled else "Österreich bleibt vorerst GHCN-Daily; ")
+        + ("Polen wird aus IMGW-PIB Tagesdaten bereitgestellt; " if poland_enabled else "Polen bleibt vorerst GHCN-Daily; ")
         + "alle übrigen europäischen Länder einschließlich Spanien bleiben aus dem bestehenden GHCN-Daily-Historical-Cache enthalten. "
         + "Spanien wird erst nach fertigem AEMET-Cache von GHCN auf AEMET umgestellt."
     )
-    payload["publication_scope"] = "Europa vollständig: DWD Deutschland + Météo-France Frankreich + " + ("GeoSphere Austria Österreich + " if austria_enabled else "") + "GHCN-Daily Rest-Europa"
+    payload["publication_scope"] = "Europa vollständig: DWD Deutschland + Météo-France Frankreich + " + ("GeoSphere Austria Österreich + " if austria_enabled else "") + ("IMGW-PIB Polen + " if poland_enabled else "") + "GHCN-Daily Rest-Europa"
     payload["publication_partial"] = missing > 0 or mf_bad_shards > 0
     payload["coverage"] = {
         "Deutschland": {
@@ -255,12 +273,22 @@ def patch_index_metadata(
                 "current_year_station_count": current_austria_count,
             }
         } if austria_enabled else {}),
+        **({
+            "Polen": {
+                "source": poland.SOURCE,
+                "historical_complete": True,
+                "current_year_refresh_ok": current_poland_ok,
+                "current_year_station_count": current_poland_count,
+                "current_year_latest_published_month": current_poland_latest_month,
+            }
+        } if poland_enabled else {}),
         "Rest-Europa": {
             "source": core.GHCN_SOURCE,
             "historical_complete": True,
             "includes_spain": True,
             "spain_current_year_station_count": current_ghcn_spain_count,
             "austria_replaced_by_national_source": austria_enabled,
+            "poland_replaced_by_national_source": poland_enabled,
             "current_year_refresh_ok": current_ghcn_ok,
         },
     }
@@ -279,6 +307,7 @@ def self_test() -> None:
         ghcn_line("FR000000001", 48.0, 2.0, 100.0, "FRANCE TEST"),
         ghcn_line("IT000000001", 42.0, 12.0, 100.0, "ITALY TEST"),
         ghcn_line("AU000000001", 47.5, 14.0, 500.0, "AUSTRIA TEST"),
+        ghcn_line("PL000000001", 52.0, 19.0, 100.0, "POLAND TEST"),
     ])
     parsed = parse_ghcn_publish_stations(sample, {})
     assert "SP000000001" in parsed
@@ -286,10 +315,14 @@ def self_test() -> None:
     assert "GM000000001" not in parsed
     assert "FR000000001" not in parsed
     assert "AU000000001" in parsed
+    assert "PL000000001" in parsed
     parsed_with_austria_national = parse_ghcn_publish_stations(sample, {}, exclude_austria=True)
     assert "SP000000001" in parsed_with_austria_national
     assert "IT000000001" in parsed_with_austria_national
     assert "AU000000001" not in parsed_with_austria_national
+    parsed_with_poland_national = parse_ghcn_publish_stations(sample, {}, exclude_poland=True)
+    assert "PL000000001" not in parsed_with_poland_national
+    assert "SP000000001" in parsed_with_poland_national
 
     with tempfile.TemporaryDirectory() as tmpname:
         tmp = Path(tmpname)
@@ -347,7 +380,7 @@ def main() -> int:
     output_dir = Path(args.output)
 
     core.log("=== PUBLISH EUROPA-STATIONEN ===")
-    core.log("DWD Deutschland + Météo-France Frankreich + optional GeoSphere Austria + GHCN-Daily übriges Europa inkl. Spanien.")
+    core.log("DWD Deutschland + Météo-France Frankreich + optional GeoSphere Austria + optional IMGW Polen + GHCN-Daily übriges Europa inkl. Spanien.")
     core.log("Historische Archive werden NICHT neu aufgebaut; vorhandene Caches werden zusammengesetzt.")
 
     ghcn_baseline = load_ghcn_cache(cache_dir, cutoff_year)
@@ -363,9 +396,17 @@ def main() -> int:
     else:
         core.log("GeoSphere-Austria-Cache noch nicht vorhanden: Österreich bleibt für diesen Publish vollständig über GHCN-Daily enthalten.")
 
+    poland_baseline = None
+    poland_path = poland.baseline_path(cache_dir, cutoff_year)
+    if poland_path.exists():
+        poland_baseline = poland.load_baseline(cache_dir, cutoff_year)
+        core.log(f"IMGW-Poland-Historical aus Cache: {len(poland_baseline.get('states', {})):,} Stationsreihen.")
+    else:
+        core.log("IMGW-Polen-Cache noch nicht vorhanden: Polen bleibt für diesen Publish vollständig über GHCN-Daily enthalten.")
+
     # Small metadata files are refreshed so every cached state can be placed on the map.
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
-    ghcn_meta_all = parse_ghcn_publish_stations(core.read_url_text(core.STATIONS_URL), countries, exclude_austria=bool(austria_baseline))
+    ghcn_meta_all = parse_ghcn_publish_stations(core.read_url_text(core.STATIONS_URL), countries, exclude_austria=bool(austria_baseline), exclude_poland=bool(poland_baseline))
     ghcn_states = {sid: st for sid, st in ghcn_baseline.get("states", {}).items() if sid in ghcn_meta_all}
     ghcn_stations = {sid: meta for sid, meta in ghcn_meta_all.items() if sid in ghcn_states}
     if not ghcn_stations:
@@ -396,10 +437,14 @@ def main() -> int:
     dwd_current: Dict[str, dict] = {}
     mf_current: Dict[str, dict] = {}
     austria_current: Dict[str, dict] = {}
-    ghcn_current_ok = dwd_current_ok = mf_current_ok = austria_current_ok = False
+    poland_current: Dict[str, dict] = {}
+    ghcn_current_ok = dwd_current_ok = mf_current_ok = austria_current_ok = poland_current_ok = False
     ghcn_spain_current_count = 0
     ghcn_austria_current_count = 0
+    ghcn_poland_current_count = 0
     austria_current_count = 0
+    poland_current_count = 0
+    poland_latest_month = 0
 
     if not args.no_current:
         try:
@@ -413,12 +458,21 @@ def main() -> int:
                 1 for sid in ghcn_current
                 if sid in ghcn_stations and ghcn_stations[sid].country_code == "AU"
             )
+            ghcn_poland_current_count = sum(
+                1 for sid in ghcn_current
+                if sid in ghcn_stations and ghcn_stations[sid].country_code == "PL"
+            )
             core.log(
                 f"GHCN {current_year} Publish-Kontrolle: Spanien {ghcn_spain_current_count:,} Stationen mit laufenden Daten; "
                 + (
                     f"Österreich {ghcn_austria_current_count:,} via GHCN (kein GeoSphere-Cache)."
                     if not austria_baseline else
                     f"Österreich {ghcn_austria_current_count:,} via GHCN (muss 0 sein, da GeoSphere aktiv)."
+                )
+                + (
+                    f" Polen {ghcn_poland_current_count:,} via GHCN (kein IMGW-Cache)."
+                    if not poland_baseline else
+                    f" Polen {ghcn_poland_current_count:,} via GHCN (muss 0 sein, da IMGW aktiv)."
                 )
             )
             if spanish_ghcn > 0 and ghcn_spain_current_count == 0:
@@ -429,6 +483,11 @@ def main() -> int:
             if austria_baseline and ghcn_austria_current_count != 0:
                 raise RuntimeError(
                     "GeoSphere Austria ist aktiv, aber GHCN-current enthält noch Österreich. "
+                    "Publish wird gestoppt, um gemischte Quellen zu verhindern."
+                )
+            if poland_baseline and ghcn_poland_current_count != 0:
+                raise RuntimeError(
+                    "IMGW Polen ist aktiv, aber GHCN-current enthält noch Polen. "
                     "Publish wird gestoppt, um gemischte Quellen zu verhindern."
                 )
         except Exception as exc:
@@ -461,6 +520,18 @@ def main() -> int:
             except Exception as exc:
                 austria_current_ok = False
                 core.log(f"WARNUNG: GeoSphere Austria {current_year} konnte nicht aktualisiert werden; Historical-Stand bleibt online: {exc}")
+
+        if poland_baseline:
+            try:
+                poland_current, poland_latest_month = poland.parse_current_year(current_year, poland_baseline.get("stations", {}), workers=max(4, args.workers))
+                poland_current_count = len(poland_current)
+                if poland_current_count == 0:
+                    raise RuntimeError(f"IMGW Polen lieferte für {current_year} 0 Stationen mit TMAX/TMIN.")
+                poland_current_ok = True
+                core.log(f"IMGW Polen {current_year} Publish-Kontrolle: {poland_current_count:,} Stationen; veröffentlichte Monatsdaten bis {poland_latest_month:02d}.")
+            except Exception as exc:
+                poland_current_ok = False
+                core.log(f"WARNUNG: IMGW Polen {current_year} konnte nicht aktualisiert werden; Historical-Stand bleibt online: {exc}")
     else:
         core.log("Laufendes Jahr wurde per --no-current übersprungen.")
 
@@ -478,6 +549,10 @@ def main() -> int:
         stations.update(austria_baseline.get("stations", {}))
         states.update(austria_baseline.get("states", {}))
         current.update(austria_current)
+    if poland_baseline:
+        stations.update(poland_baseline.get("stations", {}))
+        states.update(poland_baseline.get("states", {}))
+        current.update(poland_current)
 
     if output_dir.exists():
         import shutil
@@ -498,6 +573,11 @@ def main() -> int:
         current_austria_ok=austria_current_ok,
         current_ghcn_spain_count=ghcn_spain_current_count,
         current_austria_count=austria_current_count,
+        poland_enabled=bool(poland_baseline),
+        poland_station_count=len(poland_baseline.get("states", {})) if poland_baseline else 0,
+        current_poland_ok=poland_current_ok,
+        current_poland_count=poland_current_count,
+        current_poland_latest_month=poland_latest_month,
     )
 
     rows = payload.get("stations", [])
@@ -505,6 +585,7 @@ def main() -> int:
     fr = [x for x in rows if x.get("country") == "Frankreich"]
     es = [x for x in rows if x.get("country") == "Spanien"]
     at = [x for x in rows if x.get("country") == "Österreich"]
+    pl = [x for x in rows if x.get("country") == "Polen"]
     ghcn = [x for x in rows if x.get("source") == core.GHCN_SOURCE]
     if not de or not fr or not es or not ghcn:
         raise RuntimeError(
@@ -519,11 +600,17 @@ def main() -> int:
     if austria_baseline:
         if not at or not all(x.get("source") == austria.SOURCE for x in at):
             raise RuntimeError("Österreich-Cache ist vorhanden, aber Österreich wurde nicht vollständig durch GeoSphere Austria ersetzt.")
+    if poland_baseline:
+        if not pl or not all(x.get("source") == poland.SOURCE for x in pl):
+            raise RuntimeError("IMGW-Polen-Cache ist vorhanden, aber Polen wurde nicht vollständig durch IMGW-PIB ersetzt.")
+    elif pl and not all(x.get("source") == core.GHCN_SOURCE for x in pl):
+        raise RuntimeError("Polen soll ohne IMGW-Cache vollständig über GHCN kommen.")
 
     core.log(
         f"PUBLISH EUROPA OK: {payload.get('station_count', 0):,} Stationen in {payload.get('country_count', 0)} Ländern | "
         f"DWD {len(de):,} | Météo-France {len(fr):,} | "
         + (f"GeoSphere Austria {len(at):,} | " if austria_baseline else f"Österreich GHCN {len(at):,} | ")
+        + (f"IMGW Polen {len(pl):,} | " if poland_baseline else f"Polen GHCN {len(pl):,} | ")
         + f"GHCN {len(ghcn):,} (inkl. Spanien {len(es):,}) | Frankreich {mf_available}/{mf_total} Historical-Ressourcen."
     )
     return 0
