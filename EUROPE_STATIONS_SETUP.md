@@ -174,3 +174,15 @@ GitHub Actions:
 Der Publish ist rückwärts-sicher: Solange noch kein vollständiger
 GeoSphere-Austria-Gesamtcache vorhanden ist, bleibt Österreich über GHCN-Daily
 auf der Europa-Karte und verschwindet nicht.
+
+### Laufendes Jahr – feste Quellenhierarchie
+
+Beim `Publish Europe station records` gilt auch für das laufende Jahr dieselbe Quellenhierarchie wie historisch:
+
+- Deutschland: DWD CDC
+- Frankreich: Météo-France
+- Österreich: GeoSphere Austria, sobald der GeoSphere-Gesamtcache vorhanden ist
+- Spanien: GHCN-Daily, bis AEMET vollständig umgestellt ist
+- übriges Europa: GHCN-Daily
+
+Der Publish loggt die Zahl der spanischen GHCN-Stationen im laufenden Jahr ausdrücklich. Sobald GeoSphere Austria aktiv ist, wird Österreich aus dem GHCN-Publish-Metadatensatz entfernt und das laufende Jahr separat über GeoSphere geladen. Die Abschlussprüfung kontrolliert beide Pfade, damit Spanien nicht versehentlich aus dem GHCN-Current verschwindet und Österreich nicht mit GHCN/GeoSphere gemischt wird.
