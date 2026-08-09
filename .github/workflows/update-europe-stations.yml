@@ -4,7 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       force_baseline:
-        description: "Historischen GHCN-Basisbestand trotz Cache neu aufbauen"
+        description: "GHCN + DWD + Météo-France historische Baselines trotz Cache neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_dwd_baseline:
+        description: "Nur DWD-Deutschland-Baseline neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_mf_baseline:
+        description: "Nur Météo-France-Frankreich-Baseline neu aufbauen"
         required: false
         default: false
         type: boolean
@@ -40,34 +50,68 @@ jobs:
           echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
           echo "year_month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
 
-      - name: Historischen GHCN-Cache laden
+      - name: Stations-Cache laden
         id: station-cache
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+          key: europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+          restore-keys: |
+            europe-stations-v4-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v3-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+            europe-stations-v3-${{ steps.dates.outputs.base_year }}-
+            ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+            ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
+
+      - name: Versionscheck und alte Ausgabe entfernen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          script = Path("scripts/update_europe_station_records.py")
+          spec = importlib.util.spec_from_file_location("station_records", script)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          expected = 4
+          actual = getattr(mod, "PAYLOAD_VERSION", None)
+          if actual != expected:
+              raise SystemExit(f"Versionsfehler: Workflow erwartet Stations-Payload V{expected}, Skript liefert V{actual}. Bitte alle Dateien aus index.zip gemeinsam hochladen.")
+          print(f"Versionscheck OK: Stations-Payload V{actual}")
+          PY
+          rm -rf europe_stations
 
       - name: Europa-Stationsrekorde berechnen
         shell: bash
         env:
           FORCE_BASELINE: ${{ github.event.inputs.force_baseline || 'false' }}
+          FORCE_DWD_BASELINE: ${{ github.event.inputs.force_dwd_baseline || 'false' }}
+          FORCE_MF_BASELINE: ${{ github.event.inputs.force_mf_baseline || 'false' }}
         run: |
           EXTRA_ARGS=""
           if [[ "$FORCE_BASELINE" == "true" ]]; then
-            EXTRA_ARGS="--force-baseline"
+            EXTRA_ARGS="$EXTRA_ARGS --force-baseline"
+          fi
+          if [[ "$FORCE_DWD_BASELINE" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --force-dwd-baseline"
+          fi
+          if [[ "$FORCE_MF_BASELINE" == "true" ]]; then
+            EXTRA_ARGS="$EXTRA_ARGS --force-mf-baseline"
           fi
           python scripts/update_europe_station_records.py \
             --year "${{ steps.dates.outputs.year }}" \
             --output europe_stations \
             --cache-dir .cache/europe-stations \
+            --dwd-workers 6 \
+            --mf-workers 6 \
             $EXTRA_ARGS
 
-      - name: Historischen GHCN-Cache sichern
-        if: steps.station-cache.outputs.cache-hit != 'true' && github.event.inputs.force_baseline != 'true'
+      - name: Stations-Cache sichern
+        if: steps.station-cache.outputs.cache-hit != 'true' && github.event.inputs.force_baseline != 'true' && github.event.inputs.force_dwd_baseline != 'true' && github.event.inputs.force_mf_baseline != 'true'
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
+          key: europe-stations-v4-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}
 
       - name: Ergebnis prüfen
         shell: bash
@@ -79,9 +123,34 @@ jobs:
           import json
           from pathlib import Path
           p=json.loads(Path('europe_stations/index.json').read_text(encoding='utf-8'))
-          assert p.get('payload_version') == 1
-          assert p.get('station_count',0) > 0
-          print('Stations-Daten OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern')
+          version=p.get('payload_version')
+          sources={x.get('name'):x.get('stations',0) for x in p.get('sources',[])}
+          print('Erzeugte Payload-Version:', version)
+          print('Stationsquellen:', sources)
+          print('Gesamtstationen:', p.get('station_count',0), 'Länder:', p.get('country_count',0))
+          if version != 4:
+              raise SystemExit(f"Falsche Payload-Version: erwartet V4, erzeugt wurde V{version}. Vermutlich wurden Workflow und Python-Skript nicht gemeinsam aktualisiert.")
+          if p.get('station_count',0) <= 0:
+              raise SystemExit('Keine Stationen in index.json erzeugt.')
+          if sources.get('DWD CDC',0) <= 0:
+              raise SystemExit(f"Keine DWD-Stationen erzeugt. Quellen: {sources}")
+          if sources.get('Météo-France',0) <= 0:
+              raise SystemExit(f"Keine Météo-France-Stationen erzeugt. Quellen: {sources}")
+          if sources.get('GHCN-Daily',0) <= 0:
+              raise SystemExit(f"Keine GHCN-Fallbackstationen erzeugt. Quellen: {sources}")
+          german=[s for s in p.get('stations',[]) if s.get('country')=='Deutschland']
+          france=[s for s in p.get('stations',[]) if s.get('country')=='Frankreich']
+          if not german:
+              raise SystemExit('Keine deutschen Stationen in index.json.')
+          if not all(s.get('source')=='DWD CDC' for s in german):
+              raise SystemExit('Mindestens eine deutsche Station stammt nicht aus DWD CDC.')
+          if not france:
+              raise SystemExit('Keine französischen Stationen in index.json.')
+          if not all(s.get('source')=='Météo-France' for s in france):
+              raise SystemExit('Mindestens eine französische Station stammt nicht aus Météo-France.')
+          if any(s.get('source')=='GHCN-Daily' and s.get('country') in {'Deutschland','Frankreich'} for s in p.get('stations',[])):
+              raise SystemExit('GHCN-Doppelstationen für Deutschland oder Frankreich gefunden.')
+          print('Stations-V4.1 OK:', p['station_count'], 'Stationen in', p['country_count'], 'Ländern', sources)
           PY
 
       - name: Daten committen
@@ -94,6 +163,6 @@ jobs:
             echo "Keine Änderungen an den Europa-Stationsdaten."
             exit 0
           fi
-          git commit -m "Update Europe station records"
+          git commit -m "Update Europe station records V4.1"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
