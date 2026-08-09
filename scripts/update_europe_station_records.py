@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build compact European station-record datasets for the static Climate Dashboard.
 
-Primary source in Stations-V1: NOAA/NCEI GHCN-Daily.
+Primary source for the Europe station module: NOAA/NCEI GHCN-Daily.
 
 Architecture
 ------------
@@ -394,7 +394,7 @@ def merge_and_write(output_dir: Path, stations: Dict[str, StationMeta], baseline
                 _final, is_new, _delta = combine_record(b, c, element)
                 if is_new:
                     new_count += 1
-                    last_new_date = c[1]
+                    last_new_date = c[1] if last_new_date is None else max(last_new_date, c[1])
             new_counts[element] = new_count
             last_new[element] = date_str(last_new_date)
 
