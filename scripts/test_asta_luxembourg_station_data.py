@@ -17,7 +17,12 @@ from typing import Any
 WFS_URL = "https://wms.inspire.geoportail.lu/geoserver/mf/wfs"
 ASTA_METEOROLOGY_PAGE = "https://agriculture.public.lu/de/betrieb/meteorologie.html"
 AGRIMETEO_HOME = "https://www.agrimeteo.lu/"
-UA = "climate-dashboard-asta-luxembourg-probe/1.0"
+UA = "climate-dashboard-asta-luxembourg-probe/1.1"
+
+ASTA_TMAX_LAYER_SUFFIX = "MF.PointTimeSeriesObservation_Daily_ASTA_max_ta200max"
+ASTA_TMIN_LAYER_SUFFIX = "MF.PointTimeSeriesObservation_Daily_ASTA_min_ta200min"
+ASTA_TMAX_VALUE_FIELD = "max_ta200max"
+ASTA_TMIN_VALUE_FIELD = "min_ta200min"
 TIMEOUT = 120
 TRIES = 5
 
@@ -119,6 +124,18 @@ def daily_asta_layers(layers: list[dict[str, str]]) -> list[dict[str, str]]:
             out.append(layer)
     out.sort(key=lambda x: x["name"].lower())
     return out
+
+
+def exact_layer(
+    layers: list[dict[str, str]],
+    suffix: str,
+) -> dict[str, str] | None:
+    wanted = suffix.lower()
+    for layer in layers:
+        name = str(layer.get("name", "")).lower()
+        if name == wanted or name.endswith(":" + wanted) or name.endswith(wanted):
+            return layer
+    return None
 
 
 def score_temperature_layer(layer: dict[str, str], kind: str) -> int:
@@ -280,6 +297,8 @@ def geometry_lon_lat(
 def summarize_geojson(
     typename: str,
     obj: dict[str, Any],
+    *,
+    expected_value_field: str | None = None,
 ) -> dict[str, Any]:
     rows = feature_properties(obj)
     name_key = detect_key(
@@ -291,9 +310,36 @@ def summarize_geojson(
     date_key = detect_key(
         rows, ("datetime", "date", "phenomenon_time", "time")
     )
-    value_key = detect_key(
-        rows, ("result", "value", "observation", "measurement", "val")
-    )
+    value_key = None
+    if expected_value_field:
+        available = {
+            str(key).lower(): str(key)
+            for row in rows
+            for key in row["properties"].keys()
+        }
+        value_key = available.get(expected_value_field.lower())
+
+    if value_key is None:
+        value_key = detect_key(
+            rows, ("result", "value", "observation", "measurement", "val")
+        )
+
+    if value_key is None:
+        # ASTA layers expose the measurement using the parameter code itself
+        # (e.g. max_ta200max / min_ta200min), not a generic "value" field.
+        ignored = {
+            "datetime", "gml_identifier", "featureofinterest_xlink_href",
+            "name_descr", "day", "geometry"
+        }
+        numeric_candidates = []
+        for row in rows:
+            for key, raw_value in row["properties"].items():
+                if str(key).lower() in ignored:
+                    continue
+                if parse_float(raw_value) is not None:
+                    numeric_candidates.append(str(key))
+        if numeric_candidates:
+            value_key = Counter(numeric_candidates).most_common(1)[0][0]
 
     stations, station_ids, coords = set(), set(), set()
     dates, values = [], []
@@ -395,7 +441,11 @@ def archive_links(url: str) -> list[tuple[str, str]]:
     return wanted
 
 
-def probe_layer(typename: str, label: str) -> dict[str, Any]:
+def probe_layer(
+    typename: str,
+    label: str,
+    expected_value_field: str,
+) -> dict[str, Any]:
     today = datetime.now(timezone.utc).date()
     recent_end = today
     recent_start = today - timedelta(days=45)
@@ -405,7 +455,11 @@ def probe_layer(typename: str, label: str) -> dict[str, Any]:
     log(f"Aktueller Probezeitraum: {recent_start} bis {recent_end}")
 
     current = get_geojson(typename, start=recent_start, end=recent_end)
-    summary = summarize_geojson(typename, current)
+    summary = summarize_geojson(
+        typename,
+        current,
+        expected_value_field=expected_value_field,
+    )
 
     log(f"Features: {summary['feature_count']:,}")
     log(
@@ -441,7 +495,11 @@ def probe_layer(typename: str, label: str) -> dict[str, Any]:
 
     try:
         old_obj = get_geojson(typename, start=old_start, end=old_end)
-        old_summary = summarize_geojson(typename, old_obj)
+        old_summary = summarize_geojson(
+            typename,
+            old_obj,
+            expected_value_field=expected_value_field,
+        )
         log(
             f"Historischer Probe: {old_summary['feature_count']:,} Features | "
             f"{old_summary['first_date']} bis {old_summary['last_date']}"
@@ -465,11 +523,11 @@ def self_test() -> None:
    <wfs:Title>Daily average air temperature</wfs:Title>
   </wfs:FeatureType>
   <wfs:FeatureType>
-   <wfs:Name>mf:MF.PointTimeSeriesObservation_Daily_ASTA_max_ta200</wfs:Name>
+   <wfs:Name>mf:MF.PointTimeSeriesObservation_Daily_ASTA_max_ta200max</wfs:Name>
    <wfs:Title>Daily maximum air temperature</wfs:Title>
   </wfs:FeatureType>
   <wfs:FeatureType>
-   <wfs:Name>mf:MF.PointTimeSeriesObservation_Daily_ASTA_min_ta200</wfs:Name>
+   <wfs:Name>mf:MF.PointTimeSeriesObservation_Daily_ASTA_min_ta200min</wfs:Name>
    <wfs:Title>Daily minimum air temperature</wfs:Title>
   </wfs:FeatureType>
  </wfs:FeatureTypeList>
@@ -477,8 +535,12 @@ def self_test() -> None:
 
     layers = daily_asta_layers(parse_capabilities(capabilities))
     assert len(layers) == 3
-    assert "max_ta200" in candidate_layers(layers, "max")[0][1]["name"]
-    assert "min_ta200" in candidate_layers(layers, "min")[0][1]["name"]
+    assert exact_layer(
+        layers, ASTA_TMAX_LAYER_SUFFIX
+    ) is not None
+    assert exact_layer(
+        layers, ASTA_TMIN_LAYER_SUFFIX
+    ) is not None
 
     sample = {
         "type": "FeatureCollection",
@@ -488,7 +550,7 @@ def self_test() -> None:
                 "properties": {
                     "name_descr": "Arsdorf",
                     "datetime": "2026-08-01T00:00:00Z",
-                    "value": 29.4,
+                    "max_ta200max": 29.4,
                 },
                 "geometry": {
                     "type": "Point",
@@ -500,7 +562,7 @@ def self_test() -> None:
                 "properties": {
                     "name_descr": "Remich",
                     "datetime": "2026-08-01T00:00:00Z",
-                    "value": 31.2,
+                    "max_ta200max": 31.2,
                 },
                 "geometry": {
                     "type": "Point",
@@ -510,11 +572,15 @@ def self_test() -> None:
         ],
     }
 
-    summary = summarize_geojson("test", sample)
+    summary = summarize_geojson(
+        "test",
+        sample,
+        expected_value_field="max_ta200max",
+    )
     assert summary["feature_count"] == 2
     assert summary["name_key"] == "name_descr"
     assert summary["date_key"] == "datetime"
-    assert summary["value_key"] == "value"
+    assert summary["value_key"] == "max_ta200max"
     assert len(summary["station_names"]) == 2
     assert summary["max_value"] == 31.2
     print("ASTA Luxembourg probe self-test OK")
@@ -551,29 +617,41 @@ def probe() -> None:
     min_candidates = candidate_layers(asta_daily, "min")
 
     log()
-    log("TMAX-Kandidaten:")
+    log("TMAX-Kandidaten (nur Diagnose):")
     for score, layer in max_candidates[:8]:
         log(f"  Score {score:>3}: {layer['name']} | {layer['title']}")
 
-    log("TMIN-Kandidaten:")
+    log("TMIN-Kandidaten (nur Diagnose):")
     for score, layer in min_candidates[:8]:
         log(f"  Score {score:>3}: {layer['name']} | {layer['title']}")
 
-    if not max_candidates:
-        raise RuntimeError("Kein plausibler täglicher ASTA-TMAX-Layer erkannt.")
-    if not min_candidates:
-        raise RuntimeError("Kein plausibler täglicher ASTA-TMIN-Layer erkannt.")
+    tmax_exact = exact_layer(asta_daily, ASTA_TMAX_LAYER_SUFFIX)
+    tmin_exact = exact_layer(asta_daily, ASTA_TMIN_LAYER_SUFFIX)
 
-    tmax_layer = max_candidates[0][1]["name"]
-    tmin_layer = min_candidates[0][1]["name"]
-
-    if tmax_layer == tmin_layer:
+    if tmax_exact is None:
         raise RuntimeError(
-            f"TMAX und TMIN würden denselben Layer verwenden: {tmax_layer}"
+            "Offizieller ASTA-TMAX-2m-Layer fehlt: "
+            + ASTA_TMAX_LAYER_SUFFIX
+        )
+    if tmin_exact is None:
+        raise RuntimeError(
+            "Offizieller ASTA-TMIN-2m-Layer fehlt: "
+            + ASTA_TMIN_LAYER_SUFFIX
         )
 
-    tmax_summary = probe_layer(tmax_layer, "TMAX")
-    tmin_summary = probe_layer(tmin_layer, "TMIN")
+    tmax_layer = tmax_exact["name"]
+    tmin_layer = tmin_exact["name"]
+
+    log()
+    log(f"Verwende TMAX fest: {tmax_layer} -> {ASTA_TMAX_VALUE_FIELD}")
+    log(f"Verwende TMIN fest: {tmin_layer} -> {ASTA_TMIN_VALUE_FIELD}")
+
+    tmax_summary = probe_layer(
+        tmax_layer, "TMAX", ASTA_TMAX_VALUE_FIELD
+    )
+    tmin_summary = probe_layer(
+        tmin_layer, "TMIN", ASTA_TMIN_VALUE_FIELD
+    )
 
     log()
     log("=== OFFIZIELLE ASTA-ARCHIVSEITE ===")
