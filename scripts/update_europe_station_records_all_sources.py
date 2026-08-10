@@ -9,6 +9,7 @@ National sources:
 - Poland: IMGW-PIB
 - Netherlands: KNMI
 - Norway: MET Norway Frost (MET.NO station holders)
+- Denmark: DMI Open Data (DMI yearbooks + transition bridge + climateData)
 - remaining Europe: GHCN-Daily
 
 The core Stations-V5 writer remains unchanged. Dedicated compact national
@@ -34,10 +35,12 @@ import update_knmi_netherlands_station_cache as knmi_hist
 import update_knmi_netherlands_current as knmi_current_mod
 import update_frost_norway_station_cache as frost_hist
 import update_frost_norway_current as frost_current_mod
+import update_dmi_denmark_station_cache as dmi_hist
+import update_dmi_denmark_current as dmi_current_mod
 
 
 ACTIVE_GRACE_DAYS = 45
-NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO"}
+NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA"}
 
 
 def log(message: str) -> None:
@@ -384,6 +387,126 @@ def frost_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, c
     return out
 
 
+
+def _dmi_ghcn_metadata_fallback(
+    raw_id: str,
+    raw_meta: dict[str, Any] | None,
+    ghcn_dk_stations: dict[str, core.StationMeta],
+) -> core.StationMeta | None:
+    """Use GHCN/WMO only as a metadata fallback for a DMI station.
+
+    Temperature observations and records remain DMI/its documented historical
+    transition cache. This fallback supplies only map coordinates/name where a
+    historical DMI inventory row has no usable geometry.
+    """
+    raw_meta = raw_meta if isinstance(raw_meta, dict) else {}
+    candidates: list[str] = []
+
+    wmo = str(raw_meta.get("wmo_station_id") or "").strip()
+    if wmo.isdigit():
+        candidates.append(wmo.zfill(5)[-5:])
+
+    code = str(raw_id).strip()
+    if code.isdigit():
+        candidates.append(code.zfill(5)[-5:])
+
+    candidates = list(dict.fromkeys(candidates))
+    candidate: core.StationMeta | None = None
+
+    for suffix in candidates:
+        for ghcn_id in (f"DAM000{suffix}", f"DAW000{suffix}"):
+            if ghcn_id in ghcn_dk_stations:
+                candidate = ghcn_dk_stations[ghcn_id]
+                break
+        if candidate is not None:
+            break
+
+        matches = [
+            meta
+            for ghcn_id, meta in ghcn_dk_stations.items()
+            if ghcn_id.endswith(suffix)
+        ]
+        if len(matches) == 1:
+            candidate = matches[0]
+            break
+        if matches:
+            matches.sort(key=lambda meta: ("M000" not in meta.id, meta.id))
+            candidate = matches[0]
+            break
+
+    if candidate is None:
+        return None
+
+    sid = f"DMI:{raw_id}"
+    return core.StationMeta(
+        sid,
+        candidate.lat,
+        candidate.lon,
+        candidate.elev,
+        str(raw_meta.get("name") or candidate.name or raw_id).strip(),
+        "DK",
+        "Dänemark",
+        dmi_hist.SOURCE,
+        (
+            "DMI Open Data: historische Jahrbuch-Tageswerte tmax/tmin; "
+            "dokumentierte GHCN-Daily-Übergangsbrücke für fehlende Jahrbuchjahre "
+            "und 1984–2010; ab 2011 DMI climateData max_temp_w_date/min_temp "
+            "für den dänischen lokalen Kalendertag. GHCN wird hier nur als "
+            "Metadatenfallback für Koordinaten/Stationsname verwendet."
+        ),
+    )
+
+
+def dmi_inventory_to_meta(
+    inventory: dict[str, dict[str, Any]],
+    *,
+    record_ids: set[str] | None = None,
+    ghcn_dk_stations: dict[str, core.StationMeta] | None = None,
+) -> dict[str, core.StationMeta]:
+    out: dict[str, core.StationMeta] = {}
+    ghcn_dk_stations = ghcn_dk_stations or {}
+
+    raw_ids = set(str(x) for x in inventory)
+    if record_ids:
+        raw_ids.update(str(x) for x in record_ids)
+
+    for raw_id in sorted(raw_ids):
+        raw_meta = inventory.get(raw_id)
+        if not isinstance(raw_meta, dict):
+            raw_meta = {}
+
+        station = _make_station_meta(
+            sid=f"DMI:{raw_id}",
+            raw_meta=raw_meta,
+            lat_keys=("lat", "latitude"),
+            lon_keys=("lon", "longitude"),
+            elev_keys=("elevation_m", "elevation", "height"),
+            name_keys=("name",),
+            country_code="DK",
+            country="Dänemark",
+            source=dmi_hist.SOURCE,
+            quality_rule=(
+                "DMI Open Data: 1867–1983 digitalisierte Meteorological Yearbooks "
+                "(direkte tmax/tmin; offiziell fehlende Jahrbücher 1971–1975, "
+                "1977–1978 über die dokumentierte GHCN-Daily-Brücke), 1984–2010 "
+                "GHCN-Daily-Übergangsbrücke, ab 2011 qualitätskontrollierte "
+                "DMI climateData max_temp_w_date/min_temp nach dänischem Lokaltag."
+            ),
+        )
+
+        if station is None:
+            station = _dmi_ghcn_metadata_fallback(
+                raw_id,
+                raw_meta,
+                ghcn_dk_stations,
+            )
+
+        if station is not None:
+            out[station.id] = station
+
+    return out
+
+
 def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, workers: int) -> dict:
     cutoff_year = current_year - 1
     path = poland.baseline_path(cache_dir, cutoff_year)
@@ -421,7 +544,8 @@ def _load_compact_national_sources(
     force_aemet: bool,
     force_knmi: bool,
     force_frost: bool,
-) -> tuple[dict, dict, dict, dict, dict, dict]:
+    force_dmi: bool,
+) -> tuple[dict, dict, dict, dict, dict, dict, dict, dict]:
     cutoff_year = current_year - 1
     aemet_key = os.environ.get("AEMET_API_KEY", "").strip()
     frost_client_id = os.environ.get("FROST_CLIENT_ID", "").strip()
@@ -455,6 +579,14 @@ def _load_compact_national_sources(
         raise RuntimeError(f"Frost-Baseline unvollständig: {frost_base_path}")
     frost_base = frost_hist.load_pickle_gzip(frost_base_path)
 
+    dmi_hist.build_baseline(
+        cache_dir,
+        cutoff_year,
+        force=force_dmi,
+        max_runtime_minutes=300.0,
+    )
+    dmi_base = dmi_hist.load_baseline(cache_dir, cutoff_year)
+
     # Running year is deliberately refreshed on every unified run.
     aemet_current_path = aemet_current_mod.build_current(
         api_key=aemet_key,
@@ -473,7 +605,22 @@ def _load_compact_national_sources(
     )
     frost_cur = frost_hist.load_pickle_gzip(frost_current_path)
 
-    return aemet_base, aemet_cur, knmi_base, knmi_cur, frost_base, frost_cur
+    dmi_current_path = dmi_current_mod.build_current(
+        cache_dir,
+        current_year,
+    )
+    dmi_cur = dmi_hist.load_pickle_gzip(dmi_current_path)
+
+    return (
+        aemet_base,
+        aemet_cur,
+        knmi_base,
+        knmi_cur,
+        frost_base,
+        frost_cur,
+        dmi_base,
+        dmi_cur,
+    )
 
 
 def _source_counts(index_payload: dict) -> dict[str, int]:
@@ -586,6 +733,7 @@ def patch_index_metadata(
     aemet_current_count: int,
     knmi_current_count: int,
     frost_current_count: int,
+    dmi_current_count: int,
 ) -> dict:
     path = output_dir / "index.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -596,7 +744,7 @@ def patch_index_metadata(
         "DWD CDC (Deutschland) + Météo-France (Frankreich) + "
         "AEMET OpenData (Spanien) + GeoSphere Austria (Österreich) + "
         "IMGW-PIB (Polen) + KNMI (Niederlande) + MET Norway Frost (Norwegen) + "
-        "GHCN-Daily (übriges Europa)"
+        "DMI Open Data (Dänemark) + GHCN-Daily (übriges Europa)"
     )
     payload["sources"] = [
         {"name": core.DWD_SOURCE, "scope": "Deutschland", "url": core.DWD_BASE, "stations": counts.get(core.DWD_SOURCE, 0)},
@@ -606,6 +754,7 @@ def patch_index_metadata(
         {"name": poland.SOURCE, "scope": "Polen", "url": poland.PUBLIC_URL, "stations": counts.get(poland.SOURCE, 0)},
         {"name": knmi_hist.SOURCE, "scope": "Niederlande", "url": knmi_hist.PUBLIC_URL, "stations": counts.get(knmi_hist.SOURCE, 0)},
         {"name": frost_hist.SOURCE, "scope": "Norwegen", "url": frost_hist.PUBLIC_URL, "stations": counts.get(frost_hist.SOURCE, 0)},
+        {"name": dmi_hist.SOURCE, "scope": "Dänemark", "url": dmi_hist.PUBLIC_URL, "stations": counts.get(dmi_hist.SOURCE, 0)},
         {"name": core.GHCN_SOURCE, "scope": "übriges Europa", "url": core.GHCN_BASE, "stations": counts.get(core.GHCN_SOURCE, 0)},
     ]
     payload["quality_rule"] = (
@@ -616,18 +765,19 @@ def patch_index_metadata(
         "Polen: IMGW-PIB tägliche Klimadaten k_d mit TMAX/TMIN. "
         "Niederlande: KNMI Daggegevens TX/TN. "
         "Norwegen: MET Norway Frost tägliche max/min(air_temperature P1D), MET.NO-Stationshalter, Standard-Zeitreihe/-Level, Quality 0–4. "
+        "Dänemark: DMI-Jahrbücher 1867–1983 mit tmax/tmin, dokumentierte GHCN-Daily-Übergangsbrücke für fehlende Jahrbücher und 1984–2010, ab 2011 DMI climateData. "
         "Übriges Europa: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
         f"Historische Baselines bis {current_year - 1}: DWD Deutschland, Météo-France Frankreich, "
         "AEMET Spanien ab 1920, GeoSphere Austria Österreich, IMGW-PIB Polen, "
-        "KNMI Niederlande ab 1901, MET Norway Frost für MET.NO-Stationen sowie "
-        "GHCN-Daily für das übrige Europa. "
+        "KNMI Niederlande ab 1901, MET Norway Frost für MET.NO-Stationen, "
+        "DMI Dänemark ab 1867 mit dokumentierter Übergangsbrücke sowie GHCN-Daily für das übrige Europa. "
         f"Das laufende Jahr {current_year} wird bei jedem Workflow-Lauf separat aktualisiert."
     )
     payload["publication_scope"] = (
         "Europa vollständig: nationale Quellen für Deutschland, Frankreich, Spanien, Österreich, Polen, "
-        "Niederlande und Norwegen; GHCN-Daily für Rest-Europa"
+        "Niederlande, Norwegen und Dänemark; GHCN-Daily für Rest-Europa"
     )
     payload["coverage"] = {
         "Deutschland": {"source": core.DWD_SOURCE, "historical_complete": True},
@@ -637,6 +787,15 @@ def patch_index_metadata(
         "Polen": {"source": poland.SOURCE, "historical_complete": True, "current_year_station_count": poland_current_count, "current_year_latest_published_month": poland_latest_month},
         "Niederlande": {"source": knmi_hist.SOURCE, "historical_complete": True, "current_year_station_count": knmi_current_count},
         "Norwegen": {"source": frost_hist.SOURCE, "historical_complete": True, "current_year_station_count": frost_current_count},
+        "Dänemark": {
+            "source": dmi_hist.SOURCE,
+            "historical_complete": True,
+            "current_year_station_count": dmi_current_count,
+            "history_note": (
+                "DMI-Jahrbücher 1867–1983; GHCN-Daily nur als dokumentierte "
+                "Übergangs-/Lückenbrücke; DMI climateData ab 2011."
+            ),
+        },
         "Rest-Europa": {"source": core.GHCN_SOURCE, "historical_complete": True},
     }
 
@@ -654,6 +813,7 @@ def validate_payload(payload: dict) -> None:
         "Polen": poland.SOURCE,
         "Niederlande": knmi_hist.SOURCE,
         "Norwegen": frost_hist.SOURCE,
+        "Dänemark": dmi_hist.SOURCE,
     }
     for country, source in expected.items():
         country_rows = [row for row in rows if row.get("country") == country]
@@ -684,6 +844,7 @@ def validate_payload(payload: dict) -> None:
         poland.SOURCE,
         knmi_hist.SOURCE,
         frost_hist.SOURCE,
+        dmi_hist.SOURCE,
         core.GHCN_SOURCE,
     ):
         if counts.get(source, 0) <= 0:
@@ -715,6 +876,28 @@ def self_test() -> None:
     assert "KNMI:260" in knmi_meta_test
     assert abs(knmi_meta_test["KNMI:260"].lat - 52.101) < 1e-9
     assert knmi_meta_test["KNMI:260"].source == knmi_hist.SOURCE
+
+    fake_dk_ghcn = {
+        "DAM00006030": core.StationMeta(
+            "DAM00006030", 57.736, 10.631, 5.0, "SKAGEN",
+            "DA", "Dänemark", core.GHCN_SOURCE, "test"
+        )
+    }
+    dmi_meta_test = dmi_inventory_to_meta(
+        {
+            "06030": {
+                "name": "SKAGEN",
+                "wmo_station_id": "06030",
+                "lat": None,
+                "lon": None,
+            }
+        },
+        record_ids={"06030"},
+        ghcn_dk_stations=fake_dk_ghcn,
+    )
+    assert "DMI:06030" in dmi_meta_test
+    assert dmi_meta_test["DMI:06030"].source == dmi_hist.SOURCE
+    assert dmi_meta_test["DMI:06030"].country == "Dänemark"
 
     sample_records = {
         "X": {
@@ -760,6 +943,7 @@ def main() -> int:
     parser.add_argument("--force-poland-baseline", action="store_true")
     parser.add_argument("--force-knmi-baseline", action="store_true")
     parser.add_argument("--force-frost-baseline", action="store_true")
+    parser.add_argument("--force-dmi-baseline", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -781,26 +965,35 @@ def main() -> int:
     log("=== EUROPA-STATIONSREKORDE · ALLE NATIONALEN QUELLEN ===")
     log(
         "DWD Deutschland + Météo-France Frankreich + AEMET Spanien + GeoSphere Austria + "
-        "IMGW Polen + KNMI Niederlande + MET Norway Frost + GHCN-Daily Rest-Europa."
+        "IMGW Polen + KNMI Niederlande + MET Norway Frost + DMI Dänemark + GHCN-Daily Rest-Europa."
     )
 
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
     ghcn_all_stations = core.parse_ghcn_stations(core.read_url_text(core.STATIONS_URL), countries)
 
-    # Keep Dutch GHCN/WMO metadata only as a coordinate/name lookup for KNMI.
-    # NL observations themselves remain excluded from GHCN below.
+    # Keep national GHCN/WMO metadata only as coordinate/name lookups where
+    # an authoritative national inventory has no usable geometry.
+    # Their observations remain excluded from GHCN below.
     ghcn_nl_metadata = {
         sid: meta
         for sid, meta in ghcn_all_stations.items()
         if meta.country_code == "NL"
     }
+    ghcn_dk_metadata = {
+        sid: meta
+        for sid, meta in ghcn_all_stations.items()
+        if meta.country_code == "DA"
+    }
 
     ghcn_stations = {
         sid: meta
         for sid, meta in ghcn_all_stations.items()
-        if meta.country_code not in {"AU", "PL", "NL", "NO"}
+        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA"}
     }
-    log(f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO: {len(ghcn_stations):,}")
+    log(
+        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK: "
+        f"{len(ghcn_stations):,}"
+    )
     if not ghcn_stations:
         raise RuntimeError("Keine GHCN-Stationen für Rest-Europa gefunden.")
 
@@ -831,12 +1024,22 @@ def main() -> int:
         workers=args.poland_workers,
     )
 
-    aemet_base, aemet_cur_payload, knmi_base, knmi_cur_payload, frost_base, frost_cur_payload = _load_compact_national_sources(
+    (
+        aemet_base,
+        aemet_cur_payload,
+        knmi_base,
+        knmi_cur_payload,
+        frost_base,
+        frost_cur_payload,
+        dmi_base,
+        dmi_cur_payload,
+    ) = _load_compact_national_sources(
         cache_dir,
         current_year,
         force_aemet=force_all or args.force_aemet_baseline,
         force_knmi=force_all or args.force_knmi_baseline,
         force_frost=force_all or args.force_frost_baseline,
+        force_dmi=force_all or args.force_dmi_baseline,
     )
 
     ghcn_current = core.parse_current_ghcn_year(current_year, ghcn_stations)
@@ -850,6 +1053,7 @@ def main() -> int:
     aemet_current = compact_records_to_core_current(aemet_cur_payload.get("records", {}), prefix="AEMET")
     knmi_current = compact_records_to_core_current(knmi_cur_payload.get("records", {}), prefix="KNMI")
     frost_current = compact_records_to_core_current(frost_cur_payload.get("records", {}), prefix="FROST")
+    dmi_current = compact_records_to_core_current(dmi_cur_payload.get("records", {}), prefix="DMI")
 
     for label, data in (
         ("GeoSphere Austria", austria_current),
@@ -857,6 +1061,7 @@ def main() -> int:
         ("AEMET Spanien", aemet_current),
         ("KNMI Niederlande", knmi_current),
         ("Frost Norwegen", frost_current),
+        ("DMI Dänemark", dmi_current),
     ):
         if not data:
             raise RuntimeError(f"{label} lieferte für {current_year} keine aktuellen Stationsdaten.")
@@ -872,6 +1077,8 @@ def main() -> int:
     knmi_inventory.update(knmi_cur_payload.get("inventory", {}))
     frost_inventory = dict(frost_base.get("inventory", {}))
     frost_inventory.update(frost_cur_payload.get("inventory", {}))
+    dmi_inventory = dict(dmi_base.get("inventory", {}))
+    dmi_inventory.update(dmi_cur_payload.get("inventory", {}))
 
     aemet_stations = aemet_inventory_to_meta(aemet_inventory)
 
@@ -888,9 +1095,24 @@ def main() -> int:
     )
 
     frost_stations = frost_inventory_to_meta(frost_inventory)
-    if not aemet_stations or not knmi_stations or not frost_stations:
+
+    dmi_record_ids = set(str(x) for x in dmi_base.get("records", {}))
+    dmi_record_ids.update(str(x) for x in dmi_cur_payload.get("records", {}))
+    dmi_stations = dmi_inventory_to_meta(
+        dmi_inventory,
+        record_ids=dmi_record_ids,
+        ghcn_dk_stations=ghcn_dk_metadata,
+    )
+    log(
+        f"DMI Metadaten: {len(dmi_stations)} von {len(dmi_record_ids)} "
+        "Stationsreihen kartierbar (DMI-Metadaten bzw. WMO/GHCN-Metadatenfallback)."
+    )
+
+    if not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations:
         raise RuntimeError(
-            f"Nationale Metadaten unvollständig: AEMET={len(aemet_stations)}, KNMI={len(knmi_stations)}, Frost={len(frost_stations)}"
+            "Nationale Metadaten unvollständig: "
+            f"AEMET={len(aemet_stations)}, KNMI={len(knmi_stations)}, "
+            f"Frost={len(frost_stations)}, DMI={len(dmi_stations)}"
         )
 
     stations = dict(ghcn_stations)
@@ -901,6 +1123,7 @@ def main() -> int:
     stations.update(aemet_stations)
     stations.update(knmi_stations)
     stations.update(frost_stations)
+    stations.update(dmi_stations)
 
     states = {sid: state for sid, state in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
     states.update(dwd_baseline.get("states", {}))
@@ -910,6 +1133,7 @@ def main() -> int:
     states.update(compact_records_to_core_states(aemet_base.get("records", {}), prefix="AEMET"))
     states.update(compact_records_to_core_states(knmi_base.get("records", {}), prefix="KNMI"))
     states.update(compact_records_to_core_states(frost_base.get("records", {}), prefix="FROST"))
+    states.update(compact_records_to_core_states(dmi_base.get("records", {}), prefix="DMI"))
 
     current = dict(ghcn_current)
     current.update(dwd_current)
@@ -919,6 +1143,7 @@ def main() -> int:
     current.update(aemet_current)
     current.update(knmi_current)
     current.update(frost_current)
+    current.update(dmi_current)
 
     if output_dir.exists():
         import shutil
@@ -937,6 +1162,7 @@ def main() -> int:
         aemet_current_count=len(aemet_current),
         knmi_current_count=len(knmi_current),
         frost_current_count=len(frost_current),
+        dmi_current_count=len(dmi_current),
     )
     validate_payload(payload)
 
