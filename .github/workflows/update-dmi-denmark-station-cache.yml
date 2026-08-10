@@ -1,0 +1,117 @@
+name: Build DMI Denmark station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen DMI-Dänemark-Cache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dmi-denmark-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Basisjahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_YEAR=$(( $(date -u +%Y) - 1 ))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+          echo "Historischer DMI-Dänemark-Cutoff: ${BASE_YEAR}"
+
+      - name: DMI-Dänemark-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: DMI-Dänemark-Skript prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/update_dmi_denmark_station_cache.py
+          python scripts/update_dmi_denmark_station_cache.py --self-test
+
+      - name: DMI Dänemark Historie bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_dmi_denmark_station_cache.py \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --max-runtime-minutes 140 \
+            $EXTRA_ARGS
+
+      - name: DMI-Dänemark-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: DMI-Dänemark-Baseline prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          base_year = datetime.datetime.now(datetime.UTC).year - 1
+          p = pathlib.Path(
+              f".cache/europe-stations/dmi_denmark_status_through_{base_year}.json"
+          )
+          if not p.exists():
+              raise SystemExit(f"Status fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "DMI-Dänemark-Baseline ist noch nicht vollständig. "
+                  "Der Zwischenstand wurde gespeichert; Workflow mit force=false erneut starten."
+              )
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("DMI-Dänemark-Baseline enthält keine Stationsreihen.")
+          if int(status.get("yearbook_rows_with_temperature", 0)) <= 0:
+              raise SystemExit("DMI-Jahrbuchsegment enthält keine Temperaturdaten.")
+          if int(status.get("ghcn_rows_with_temperature", 0)) <= 0:
+              raise SystemExit("Dänemark-GHCN-Brückensegment enthält keine Temperaturdaten.")
+          if int(status.get("climate_rows_with_temperature", 0)) <= 0:
+              raise SystemExit("DMI-climateData-Segment enthält keine Temperaturdaten.")
+
+          baseline = pathlib.Path(status["baseline_file"])
+          if not baseline.exists():
+              raise SystemExit(f"Finaler Baselinecache fehlt: {baseline}")
+
+          print("DMI Denmark Baseline-Prüfung OK.")
+          PY
