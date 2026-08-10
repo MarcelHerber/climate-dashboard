@@ -41,7 +41,7 @@ DATASET_PAGE = (
     "https://data.public.lu/en/datasets/"
     "agrometeorological-measurement-network-luxemburg/"
 )
-UA = "climate-dashboard-asta-luxembourg-archive-probe/1.0"
+UA = "climate-dashboard-asta-luxembourg-archive-probe/1.1"
 TIMEOUT = 120
 TRIES = 4
 
@@ -138,9 +138,16 @@ class PageParser(html.parser.HTMLParser):
         self.links: list[dict[str, Any]] = []
         self.forms: list[dict[str, Any]] = []
         self.scripts: list[str] = []
-        self.iframes: list[str] = []
+        self.inline_scripts: list[str] = []
+        self.iframes: list[dict[str, str]] = []
+        self.event_handlers: list[dict[str, str]] = []
+
         self._active_link: dict[str, Any] | None = None
         self._current_form: dict[str, Any] | None = None
+        self._current_select: dict[str, Any] | None = None
+        self._current_option: dict[str, Any] | None = None
+        self._in_inline_script = False
+        self._inline_script_parts: list[str] = []
 
     def handle_starttag(
         self,
@@ -149,6 +156,13 @@ class PageParser(html.parser.HTMLParser):
     ) -> None:
         ad = {str(k): ("" if v is None else str(v)) for k, v in attrs}
         low = tag.lower()
+
+        # Capture inline JS handlers from any element.
+        for key, value in ad.items():
+            if key.lower().startswith("on") and value:
+                self.event_handlers.append(
+                    {"tag": low, "event": key, "code": value}
+                )
 
         if low == "a" and ad.get("href"):
             self._active_link = {
@@ -163,6 +177,9 @@ class PageParser(html.parser.HTMLParser):
                 "method": ad.get("method", "GET").upper(),
                 "name": ad.get("name", ""),
                 "id": ad.get("id", ""),
+                "enctype": ad.get("enctype", ""),
+                "onsubmit": ad.get("onsubmit", ""),
+                "attrs": ad,
                 "inputs": [],
                 "selects": [],
                 "buttons": [],
@@ -177,29 +194,68 @@ class PageParser(html.parser.HTMLParser):
                     "type": ad.get("type", ""),
                     "value": ad.get("value", ""),
                     "id": ad.get("id", ""),
+                    "onclick": ad.get("onclick", ""),
+                    "checked": "checked" in ad,
+                    "attrs": ad,
                 }
             )
 
         elif low == "select" and self._current_form is not None:
-            self._current_form["selects"].append(
+            select = {
+                "name": ad.get("name", ""),
+                "id": ad.get("id", ""),
+                "multiple": "multiple" in ad,
+                "onchange": ad.get("onchange", ""),
+                "options": [],
+                "attrs": ad,
+            }
+            self._current_form["selects"].append(select)
+            self._current_select = select
+
+        elif low == "option" and self._current_select is not None:
+            option = {
+                "value": ad.get("value", ""),
+                "selected": "selected" in ad,
+                "text": [],
+            }
+            self._current_select["options"].append(option)
+            self._current_option = option
+
+        elif low == "button" and self._current_form is not None:
+            self._current_form["buttons"].append(
                 {
+                    "type": ad.get("type", ""),
+                    "name": ad.get("name", ""),
+                    "value": ad.get("value", ""),
+                    "id": ad.get("id", ""),
+                    "onclick": ad.get("onclick", ""),
+                    "attrs": ad,
+                }
+            )
+
+        elif low == "script":
+            if ad.get("src"):
+                self.scripts.append(ad["src"])
+            else:
+                self._in_inline_script = True
+                self._inline_script_parts = []
+
+        elif low == "iframe" and ad.get("src"):
+            self.iframes.append(
+                {
+                    "src": ad["src"],
                     "name": ad.get("name", ""),
                     "id": ad.get("id", ""),
                 }
             )
 
-        elif low == "button" and self._current_form is not None:
-            self._current_form["buttons"].append(ad)
-
-        elif low == "script" and ad.get("src"):
-            self.scripts.append(ad["src"])
-
-        elif low == "iframe" and ad.get("src"):
-            self.iframes.append(ad["src"])
-
     def handle_data(self, data: str) -> None:
         if self._active_link is not None:
             self._active_link["text"].append(data)
+        if self._current_option is not None:
+            self._current_option["text"].append(data)
+        if self._in_inline_script:
+            self._inline_script_parts.append(data)
 
     def handle_endtag(self, tag: str) -> None:
         low = tag.lower()
@@ -212,8 +268,26 @@ class PageParser(html.parser.HTMLParser):
             self.links.append(item)
             self._active_link = None
 
+        elif low == "option" and self._current_option is not None:
+            self._current_option["text"] = " ".join(
+                " ".join(self._current_option["text"]).split()
+            )
+            self._current_option = None
+
+        elif low == "select":
+            self._current_select = None
+
         elif low == "form":
             self._current_form = None
+            self._current_select = None
+            self._current_option = None
+
+        elif low == "script" and self._in_inline_script:
+            text = "\n".join(self._inline_script_parts).strip()
+            if text:
+                self.inline_scripts.append(text)
+            self._in_inline_script = False
+            self._inline_script_parts = []
 
 
 def parse_page(raw: bytes) -> tuple[str, PageParser]:
@@ -357,18 +431,33 @@ def inspect_url(
             log(
                 f"  Form {i}: method={form['method']} "
                 f"action={form['action']!r} "
-                f"name={form['name']!r} id={form['id']!r}"
+                f"name={form['name']!r} id={form['id']!r} "
+                f"enctype={form['enctype']!r} "
+                f"onsubmit={form['onsubmit']!r}"
             )
-            for inp in form["inputs"][:80]:
+            for inp in form["inputs"][:120]:
                 log(
                     f"    input name={inp['name']!r} "
                     f"type={inp['type']!r} value={inp['value']!r} "
-                    f"id={inp['id']!r}"
+                    f"id={inp['id']!r} onclick={inp['onclick']!r}"
                 )
-            for sel in form["selects"][:50]:
+            for sel in form["selects"][:80]:
                 log(
                     f"    select name={sel['name']!r} "
-                    f"id={sel['id']!r}"
+                    f"id={sel['id']!r} onchange={sel['onchange']!r} "
+                    f"options={len(sel['options'])}"
+                )
+                for opt in sel["options"][:60]:
+                    log(
+                        f"      option value={opt['value']!r} "
+                        f"selected={opt['selected']} "
+                        f"text={opt['text']!r}"
+                    )
+            for btn in form["buttons"][:50]:
+                log(
+                    f"    button type={btn['type']!r} "
+                    f"name={btn['name']!r} value={btn['value']!r} "
+                    f"id={btn['id']!r} onclick={btn['onclick']!r}"
                 )
 
     rel_links = []
@@ -386,13 +475,37 @@ def inspect_url(
 
     if parser.iframes:
         log("IFRAMES:")
-        for src in parser.iframes[:50]:
-            log(f"  {urllib.parse.urljoin(final_url, src)}")
+        for item in parser.iframes[:50]:
+            absolute = urllib.parse.urljoin(final_url, item["src"])
+            log(
+                f"  src={absolute} | name={item['name']!r} "
+                f"id={item['id']!r}"
+            )
 
     if parser.scripts:
         log("EXTERNE SCRIPTS:")
         for src in parser.scripts[:50]:
             log(f"  {urllib.parse.urljoin(final_url, src)}")
+
+    if parser.event_handlers:
+        log("INLINE EVENT-HANDLER:")
+        for item in parser.event_handlers[:100]:
+            if relevant(item["code"]) or any(
+                token in item["code"].lower()
+                for token in ("submit", "location", "window", "form")
+            ):
+                log(
+                    f"  <{item['tag']}> {item['event']}="
+                    f"{item['code']!r}"
+                )
+
+    if parser.inline_scripts:
+        log("RELEVANTE INLINE-SCRIPTS:")
+        for js in parser.inline_scripts[:30]:
+            snippets = extract_strings(js)
+            if snippets or relevant(js):
+                compact = " ".join(js.split())
+                log(f"  {compact[:1800]}")
 
     strings = extract_strings(text) if print_html_strings else []
     if strings:
@@ -448,6 +561,126 @@ def inspect_external_scripts(
     return hits
 
 
+def inspect_iframe_tree(
+    parent: dict[str, Any],
+    *,
+    label_prefix: str,
+    max_iframes: int = 4,
+) -> list[dict[str, Any]]:
+    results = []
+    for idx, item in enumerate(parent["parser"].iframes[:max_iframes], 1):
+        url = urllib.parse.urljoin(
+            parent["final_url"],
+            item["src"],
+        )
+        try:
+            child = inspect_url(
+                url,
+                label=f"{label_prefix} IFRAME {idx}",
+            )
+        except Exception as exc:
+            log(f"Iframe konnte nicht geladen werden: {url} -> {exc}")
+            continue
+        results.append(child)
+    return results
+
+
+def form_endpoint_score(
+    form: dict[str, Any],
+    base_url: str,
+) -> tuple[int, str]:
+    action = urllib.parse.urljoin(base_url, form.get("action", ""))
+    hay = (
+        action + " " +
+        str(form.get("name", "")) + " " +
+        str(form.get("id", "")) + " " +
+        str(form.get("onsubmit", ""))
+    ).lower()
+
+    for inp in form.get("inputs", []):
+        hay += " " + " ".join(
+            str(inp.get(k, "")) for k in ("name", "value", "onclick")
+        ).lower()
+
+    for sel in form.get("selects", []):
+        hay += " " + str(sel.get("name", "")).lower()
+        for opt in sel.get("options", []):
+            hay += " " + str(opt.get("value", "")).lower()
+
+    score = 0
+    for token in (
+        "download", "export", "csv", "xls", "txt",
+        "openagent", "webquerysaveagent", "query", "grafik",
+        "station", "date", "datum", "from", "to", "von", "bis",
+    ):
+        if token in hay:
+            score += 5
+    if form.get("method", "GET").upper() == "POST":
+        score += 2
+    if form.get("action"):
+        score += 2
+    return score, action
+
+
+def print_compact_form_candidates(
+    pages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    candidates = []
+    for page in pages:
+        for form in page["parser"].forms:
+            score, action = form_endpoint_score(
+                form,
+                page["final_url"],
+            )
+            candidates.append(
+                {
+                    "score": score,
+                    "page": page["final_url"],
+                    "action": action,
+                    "method": form.get("method"),
+                    "name": form.get("name"),
+                    "id": form.get("id"),
+                    "inputs": form.get("inputs", []),
+                    "selects": form.get("selects", []),
+                    "buttons": form.get("buttons", []),
+                    "onsubmit": form.get("onsubmit", ""),
+                }
+            )
+
+    candidates.sort(key=lambda x: (-x["score"], x["action"]))
+    log()
+    log("=== KOMPAKTE FORM-/EXPORT-KANDIDATEN ===")
+    for cand in candidates[:30]:
+        log(
+            f"Score {cand['score']:>3} | {cand['method']} | "
+            f"action={cand['action']}"
+        )
+        log(
+            f"  page={cand['page']} | name={cand['name']!r} "
+            f"id={cand['id']!r} onsubmit={cand['onsubmit']!r}"
+        )
+        for inp in cand["inputs"][:40]:
+            log(
+                f"  INPUT {inp['name']} type={inp['type']} "
+                f"value={inp['value']!r} onclick={inp['onclick']!r}"
+            )
+        for sel in cand["selects"][:30]:
+            opts = [
+                f"{o['value']}:{o['text']}"
+                for o in sel.get("options", [])[:30]
+            ]
+            log(
+                f"  SELECT {sel['name']} -> "
+                + " | ".join(opts)
+            )
+        for btn in cand["buttons"][:20]:
+            log(
+                f"  BUTTON {btn['name']} value={btn['value']!r} "
+                f"onclick={btn['onclick']!r}"
+            )
+    return candidates
+
+
 def safe_probe_candidate(
     url: str,
 ) -> dict[str, Any]:
@@ -480,7 +713,7 @@ def self_test() -> None:
     <html>
       <form method="post" action="/db/export?OpenAgent">
         <input name="station" value="AGM_001">
-        <select name="format"></select>
+        <select name="format"><option value="csv">CSV</option><option value="xls">Excel</option></select>
       </form>
       <a href="/data/export.csv">Download CSV</a>
       <script src="/js/station.js"></script>
@@ -499,6 +732,8 @@ def self_test() -> None:
     assert len(parser.links) == 1
     assert len(parser.scripts) == 1
     assert len(parser.iframes) == 1
+    assert parser.iframes[0]["src"] == "/chart?OpenForm"
+    assert parser.forms[0]["selects"][0]["options"][0]["value"] == "csv"
 
     strings = extract_strings(sample)
     assert any("OpenAgent" in x for x in strings)
@@ -538,6 +773,7 @@ def probe(station_limit: int) -> None:
         )
 
     all_candidates: list[str] = []
+    form_pages: list[dict[str, Any]] = []
     form_count = 0
     script_hit_count = 0
     iframe_count = 0
@@ -561,8 +797,18 @@ def probe(station_limit: int) -> None:
             label="Download / Grafik Tab",
         )
 
+        form_pages.append(download)
         form_count += len(download["parser"].forms)
         iframe_count += len(download["parser"].iframes)
+
+        iframe_pages = inspect_iframe_tree(
+            download,
+            label_prefix=f"STATION {index} DOWNLOAD",
+        )
+        form_pages.extend(iframe_pages)
+        form_count += sum(
+            len(page["parser"].forms) for page in iframe_pages
+        )
 
         for href, _ in download["relevant_links"]:
             if href not in all_candidates:
@@ -589,10 +835,23 @@ def probe(station_limit: int) -> None:
         for iframe in download["parser"].iframes:
             absolute = urllib.parse.urljoin(
                 download["final_url"],
-                iframe,
+                iframe["src"],
             )
             if absolute not in all_candidates:
                 all_candidates.append(absolute)
+
+        for page in iframe_pages:
+            for href, _ in page["relevant_links"]:
+                if href not in all_candidates:
+                    all_candidates.append(href)
+            for value in page["strings"]:
+                absolute = urllib.parse.urljoin(
+                    page["final_url"], value
+                )
+                if relevant(absolute) and absolute not in all_candidates:
+                    all_candidates.append(absolute)
+
+    compact_forms = print_compact_form_candidates(form_pages)
 
     log()
     log("=" * 72)
@@ -644,8 +903,9 @@ def probe(station_limit: int) -> None:
     log("=" * 72)
     log(f"Stationsseiten im Open-Data-Inventar: {len(station_urls)}")
     log(f"Untersuchte Stationen: {len(selected)}")
-    log(f"Formulare auf Download-Tabs: {form_count}")
+    log(f"Formulare inkl. Iframe-Seiten: {form_count}")
     log(f"Iframes auf Download-Tabs: {iframe_count}")
+    log(f"Kompakte Form-/Export-Kandidaten: {len(compact_forms)}")
     log(f"Relevante JavaScript-Endpunkttreffer: {script_hit_count}")
     log(f"Download-/Export-Kandidaten: {len(ranked)}")
     log(f"Sichere GET-Probes: {len(probe_results)}")
