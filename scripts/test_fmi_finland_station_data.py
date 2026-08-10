@@ -407,6 +407,187 @@ def daily_mpc(
     )
 
 
+def element_codespace_text(
+    node: ET.Element,
+    wanted_local_name: str,
+) -> list[dict[str, str]]:
+    out = []
+    for element in node.iter():
+        if local(element.tag) != wanted_local_name:
+            continue
+        text = (element.text or "").strip()
+        if not text:
+            continue
+        codespace = next(
+            (
+                str(v)
+                for k, v in element.attrib.items()
+                if local(k).lower() == "codespace"
+            ),
+            "",
+        )
+        out.append({"text": text, "codespace": codespace})
+    return out
+
+
+def parse_mpc_locations(raw: bytes) -> list[dict[str, Any]]:
+    """
+    Extract FMI Location objects embedded directly in the observation
+    response. These identifiers are authoritative for the returned daily
+    dataset and avoid cross-walking through fmi::ef::stations.
+    """
+    root = parse_xml(raw)
+    out = []
+
+    for node in root.iter():
+        if local(node.tag) != "Location":
+            continue
+
+        identifiers = element_codespace_text(node, "identifier")
+        names = element_codespace_text(node, "name")
+        pos = parse_pos(child_text(node, "pos"))
+
+        if not identifiers and not names and pos is None:
+            continue
+
+        out.append(
+            {
+                "identifiers": identifiers,
+                "names": names,
+                "pos": pos,
+                "fmisid": next(
+                    (
+                        x["text"]
+                        for x in identifiers
+                        if "fmisid" in x["codespace"].lower()
+                    ),
+                    None,
+                ),
+                "wmo": next(
+                    (
+                        x["text"]
+                        for x in identifiers
+                        if "wmo" in x["codespace"].lower()
+                    ),
+                    None,
+                ),
+                "name": next(
+                    (
+                        x["text"]
+                        for x in names
+                        if "name" in x["codespace"].lower()
+                    ),
+                    names[0]["text"] if names else None,
+                ),
+            }
+        )
+
+    # Deduplicate identical Location representations.
+    unique = {}
+    for loc in out:
+        key = (
+            loc.get("fmisid"),
+            loc.get("wmo"),
+            loc.get("name"),
+            loc.get("pos"),
+        )
+        unique[key] = loc
+    return list(unique.values())
+
+
+def parse_mpc_coverage(raw: bytes) -> dict[str, Any]:
+    """
+    Parse positions (lat lon epoch) and tuple values from FMI daily
+    multipointcoverage. Field order is read from swe:DataRecord fields.
+    """
+    root = parse_xml(raw)
+
+    fields = []
+    for node in root.iter():
+        if local(node.tag) == "field":
+            name_attr = next(
+                (str(v) for k, v in node.attrib.items() if local(k) == "name"),
+                None,
+            )
+            if name_attr:
+                fields.append(name_attr)
+
+    positions_text = None
+    tuple_text = None
+
+    for node in root.iter():
+        lname = local(node.tag)
+        if lname in {"positions", "posList"} and node.text and positions_text is None:
+            positions_text = " ".join(node.text.split())
+        if lname in {"doubleOrNilReasonTupleList", "tupleList"} and node.text and tuple_text is None:
+            tuple_text = " ".join(node.text.split())
+
+    points = []
+    if positions_text:
+        nums = [float(x) for x in positions_text.split()]
+        if len(nums) % 3 != 0:
+            raise RuntimeError(
+                f"FMI positions enthält {len(nums)} Zahlen, nicht durch 3 teilbar."
+            )
+        for i in range(0, len(nums), 3):
+            lat, lon, epoch = nums[i:i+3]
+            points.append((lat, lon, int(epoch)))
+
+    values = []
+    if tuple_text:
+        tokens = tuple_text.split()
+        width = len(fields)
+        if width <= 0:
+            raise RuntimeError("FMI Coverage enthält keine Felddefinitionen.")
+        if len(tokens) % width != 0:
+            raise RuntimeError(
+                f"FMI Tuple-Liste: {len(tokens)} Werte passen nicht zu {width} Feldern."
+            )
+        for i in range(0, len(tokens), width):
+            row = {}
+            for field, token in zip(fields, tokens[i:i+width]):
+                if token.lower() == "nan":
+                    row[field] = None
+                else:
+                    try:
+                        value = float(token)
+                    except ValueError:
+                        value = None
+                    row[field] = value
+            values.append(row)
+
+    return {
+        "fields": fields,
+        "points": points,
+        "values": values,
+        "locations": parse_mpc_locations(raw),
+    }
+
+
+def try_daily_mpc(
+    *,
+    starttime: str,
+    endtime: str,
+    bbox: str,
+) -> tuple[bytes | None, str | None]:
+    try:
+        return daily_mpc(
+            starttime=starttime,
+            endtime=endtime,
+            bbox=bbox,
+        ), None
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        detail = f"HTTP {exc.code}"
+        if body:
+            detail += ": " + " ".join(body.split())[:700]
+        return None, detail
+
+
 def xml_structure_summary(raw: bytes) -> dict[str, Any]:
     root = parse_xml(raw)
     tags = Counter(local(node.tag) for node in root.iter())
@@ -575,46 +756,76 @@ def probe() -> None:
     )
 
     log()
-    log("=== LANGZEIT-SAMPLE TMIN/TMAX ===")
+    log("=== HISTORISCHE BBOX-REICHWEITE · MULTIPOINTCOVERAGE ===")
+    historical_probe_years = [
+        1844, 1850, 1900, 1950, 1959, 1960, 1961,
+        1970, 1991, 2025, 2026
+    ]
     successful_years = []
     earliest_value_date = None
+    historical_year_results = {}
 
-    for year in sample_years_for_station(long_station):
+    for year in historical_probe_years:
         start = f"{year}-01-01T00:00:00Z"
         end_day = date(year, 1, 1) + timedelta(days=6)
         end = end_day.isoformat() + "T23:59:59Z"
 
-        rows, query_error = try_daily_simple(
+        raw, query_error = try_daily_mpc(
             starttime=start,
             endtime=end,
-            fmisid=long_station["fmisid"],
+            bbox=FINLAND_BBOX,
         )
 
-        if query_error:
-            log(
-                f"  {year}: FMI-Abfrage abgelehnt ({query_error}) | "
-                f"FMISID={long_station['fmisid']}"
-            )
+        if query_error or raw is None:
+            historical_year_results[year] = {
+                "ok": False,
+                "error": query_error,
+            }
+            log(f"  {year}: abgelehnt | {query_error}")
             continue
 
-        valid = [
-            r for r in rows
-            if r.get("parameter") in {"tmin", "tmax"}
-            and r.get("value") is not None
-        ]
+        parsed = parse_mpc_coverage(raw)
+        fields = parsed["fields"]
+        points = parsed["points"]
+        values = parsed["values"]
+        locations = parsed["locations"]
 
-        dates = [r["date"] for r in valid if r.get("date")]
-        params = Counter(r["parameter"] for r in valid)
+        finite_rows = 0
+        for value_row in values:
+            if (
+                value_row.get("tmin") is not None
+                or value_row.get("tmax") is not None
+            ):
+                finite_rows += 1
+
+        dates = []
+        for _, _, epoch in points:
+            try:
+                dates.append(datetime.utcfromtimestamp(epoch).date())
+            except (OverflowError, OSError, ValueError):
+                pass
+
+        historical_year_results[year] = {
+            "ok": True,
+            "fields": fields,
+            "point_count": len(points),
+            "value_row_count": len(values),
+            "finite_rows": finite_rows,
+            "location_count": len(locations),
+            "first_date": min(dates) if dates else None,
+            "last_date": max(dates) if dates else None,
+        }
 
         log(
-            f"  {year}: {len(valid)} Werte | "
-            f"tmin={params.get('tmin',0)} | "
-            f"tmax={params.get('tmax',0)} | "
-            f"{min(dates) if dates else 'keine Daten'}"
+            f"  {year}: Felder={fields} | "
+            f"Locations={len(locations)} | "
+            f"Positionen={len(points)} | Wertezeilen={len(values)} | "
+            f"mit Tmin/Tmax={finite_rows} | "
+            f"{min(dates) if dates else 'kein Datum'}"
             f"{' bis ' + str(max(dates)) if dates else ''}"
         )
 
-        if valid:
+        if finite_rows > 0:
             successful_years.append(year)
             if dates and (
                 earliest_value_date is None
@@ -667,6 +878,7 @@ def probe() -> None:
         bbox=FINLAND_BBOX,
     )
     structure = xml_structure_summary(mpc_raw)
+    coverage = parse_mpc_coverage(mpc_raw)
 
     log(f"MultipointCoverage XML-Größe: {structure['bytes']:,} Bytes")
     log(f"Häufigste XML-Tags: {structure['top_tags']}")
@@ -681,6 +893,20 @@ def probe() -> None:
     log(f"Tuple-Listen: {len(structure['tuple_lists'])}")
     for text in structure["tuple_lists"][:2]:
         log(f"  tuple: {text[:900]}")
+
+    log(
+        f"Geparste Coverage: Felder={coverage['fields']} | "
+        f"Positionen={len(coverage['points'])} | "
+        f"Wertezeilen={len(coverage['values'])} | "
+        f"Location-Metadaten={len(coverage['locations'])}"
+    )
+    log("Location-Samples direkt aus dem FMI-Tagesdatensatz:")
+    for loc in coverage["locations"][:12]:
+        log(
+            f"  fmisid={loc.get('fmisid')} | wmo={loc.get('wmo')} | "
+            f"name={loc.get('name')} | pos={loc.get('pos')} | "
+            f"ids={loc.get('identifiers')}"
+        )
 
     log()
     log("=" * 72)
@@ -700,15 +926,15 @@ def probe() -> None:
         f"{min(starts) if starts else None}"
     )
     log(
-        f"Langzeit-Sample: {long_station['name']} "
-        f"(FMISID {long_station['fmisid']})"
+        f"EF-Inventar-Langzeit-Sample nur diagnostisch: "
+        f"{long_station['name']} (Identifier {long_station['fmisid']})"
     )
     log(
-        f"Sample-Jahre mit tatsächlichem tmin/tmax: "
+        f"BBOX-MultipointCoverage-Jahre mit tatsächlichem tmin/tmax: "
         f"{successful_years}"
     )
     log(
-        f"Frühestes tatsächlich gefundenes Sample-Datum: "
+        f"Frühestes tatsächlich gefundenes BBOX-Sample-Datum: "
         f"{earliest_value_date}"
     )
     log(
@@ -716,12 +942,14 @@ def probe() -> None:
         f"{len(valid_rows)} Tmin/Tmax-Werte"
     )
     log(
-        f"MultipointCoverage: {structure['bytes']:,} Bytes | "
-        f"Felder={structure['field_names']}"
+        f"MultipointCoverage 2026: {structure['bytes']:,} Bytes | "
+        f"Felder={coverage['fields']} | "
+        f"Location-Metadaten={len(coverage['locations'])}"
     )
     log(
-        "Hinweis: HTTP-400 bei einzelnen sehr alten Testjahren ist im Probe "
-        "nur eine Reichweiten-Diagnose und kein Abbruchgrund."
+        "Builder-Strategie: historische und aktuelle Tageswerte national "
+        "per BBOX/MultipointCoverage laden; Stationsidentität direkt aus "
+        "den Location-Metadaten der Beobachtungsantwort übernehmen."
     )
     log("FMI Finland Probe OK.")
 
@@ -786,6 +1014,28 @@ def self_test() -> None:
     assert stations[0]["pos"] == (60.18, 24.94)
     assert stations[0]["start"] == "1844-01-01"
     assert is_weather_station(stations[0])
+
+    mpc_xml = b'''<?xml version="1.0"?>
+<root xmlns:gml="http://www.opengis.net/gml/3.2"
+      xmlns:swe="http://www.opengis.net/swe/2.0">
+ <Location>
+   <gml:identifier codeSpace="http://xml.fmi.fi/namespace/stationcode/fmisid">100971</gml:identifier>
+   <gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/name">Helsinki Kaisaniemi</gml:name>
+   <gml:Point><gml:pos>60.18 24.94</gml:pos></gml:Point>
+ </Location>
+ <swe:DataRecord>
+   <swe:field name="tmin"/>
+   <swe:field name="tmax"/>
+ </swe:DataRecord>
+ <positions>60.18 24.94 1785542400 60.18 24.94 1785628800</positions>
+ <swe:doubleOrNilReasonTupleList>15.0 22.4 15.4 21.3</swe:doubleOrNilReasonTupleList>
+</root>'''
+    cov = parse_mpc_coverage(mpc_xml)
+    assert cov["fields"] == ["tmin", "tmax"]
+    assert len(cov["points"]) == 2
+    assert cov["values"][0]["tmin"] == 15.0
+    assert cov["values"][0]["tmax"] == 22.4
+    assert cov["locations"][0]["fmisid"] == "100971"
 
     print("FMI Finland probe self-test OK")
 
