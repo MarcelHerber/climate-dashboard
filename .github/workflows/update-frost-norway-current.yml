@@ -1,0 +1,106 @@
+name: Update MET Norway Frost current year
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frost-norway-current-year
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Jahre bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$(( YEAR - 1 ))
+          echo "year=${YEAR}" >> "$GITHUB_OUTPUT"
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: Frost-Norwegen-Historiencache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: frost-norway-current-${{ github.run_id }}
+          restore-keys: |
+            frost-norway-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Frost-Dateien und Historiencache prüfen
+        shell: bash
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          test -f scripts/update_frost_norway_station_cache.py
+          test -f scripts/update_frost_norway_current.py
+
+          if [[ -z "$FROST_CLIENT_ID" ]]; then
+            echo "FROST_CLIENT_ID fehlt."
+            exit 1
+          fi
+
+          BASE=".cache/europe-stations/frost_norway_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v1.pkl.gz"
+          test -f "$BASE"
+          echo "Historienbaseline vorhanden: $BASE"
+
+      - name: Offline-Selbsttests
+        run: |
+          set -euo pipefail
+          python scripts/update_frost_norway_station_cache.py --self-test
+          python scripts/update_frost_norway_current.py --self-test
+
+      - name: Frost-Norwegen aktuelles Jahr laden
+        shell: bash
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          python scripts/update_frost_norway_current.py \
+            --year "${{ steps.dates.outputs.year }}"
+
+      - name: Frost-Norwegen Current prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          year = datetime.datetime.now(datetime.UTC).year
+          p = pathlib.Path(
+              f".cache/europe-stations/"
+              f"frost_norway_current_{year}_status.json"
+          )
+          if not p.exists():
+              raise SystemExit(f"Statusdatei fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("Frost current enthält keine Stationsreihen.")
+          if int(status.get("rows_with_temperature", 0)) <= 0:
+              raise SystemExit("Frost current enthält keine Temperaturdaten.")
+          if not status.get("data_last"):
+              raise SystemExit("Frost current hat keinen letzten Datentag.")
+
+          print("Frost Norway Current-Prüfung OK.")
+          PY
