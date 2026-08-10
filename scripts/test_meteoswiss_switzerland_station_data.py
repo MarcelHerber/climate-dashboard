@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MeteoSwiss Switzerland probe for climate-dashboard station records.
+MeteoSwiss Switzerland probe v1.1 for climate-dashboard station records.
 
 Official Open Data collections inspected:
 1) SwissMetNet raw/quality-controlled station measurements
@@ -57,6 +57,22 @@ COLLECTIONS = {
         "homogeneous": True,
     },
 }
+
+TARGET_DAILY_PARAMETERS = {
+    "SMN": {
+        "TMIN": ("tre200dn",),
+        "TMAX": ("tre200dx",),
+        # If MeteoSwiss later exposes local-calendar variants in SMN metadata,
+        # the probe prints them separately but does not silently substitute them.
+        "LOCAL_TMIN_CANDIDATES": ("tre200pn",),
+        "LOCAL_TMAX_CANDIDATES": ("tre200px",),
+    },
+    "NBCN": {
+        "TMIN": ("ths200dn",),
+        "TMAX": ("ths200dx",),
+    },
+}
+
 
 
 def log(msg: str = "") -> None:
@@ -381,23 +397,88 @@ def parse_date_loose(value: Any) -> date | None:
     return None
 
 
+def discover_date_columns(
+    rows: list[dict[str, str]],
+    fields: list[str],
+) -> list[dict[str, Any]]:
+    """Discover date columns by actual values, not only by header names."""
+    candidates = []
+
+    for field in fields:
+        parsed = []
+        nonempty = 0
+
+        for row in rows[:500]:
+            raw = str(row.get(field, "") or "").strip()
+            if not raw:
+                continue
+            nonempty += 1
+            d = parse_date_loose(raw)
+            if d:
+                parsed.append(d)
+
+        if not nonempty or not parsed:
+            continue
+
+        ratio = len(parsed) / nonempty
+        if ratio < 0.50:
+            continue
+
+        name = norm(field)
+        score = ratio
+        if any(token in name for token in (
+            "date", "datum", "start", "end", "from", "to",
+            "since", "until", "begin", "fin", "debut"
+        )):
+            score += 1.0
+
+        candidates.append({
+            "field": field,
+            "parsed_ratio": ratio,
+            "score": score,
+            "min": min(parsed),
+            "max": max(parsed),
+        })
+
+    candidates.sort(key=lambda x: (-x["score"], x["field"]))
+    return candidates
+
+
+def inventory_date_span(
+    rows: list[dict[str, str]],
+    fields: list[str],
+) -> tuple[date | None, date | None, list[dict[str, Any]]]:
+    candidates = discover_date_columns(rows, fields)
+    values = []
+
+    for candidate in candidates:
+        field = candidate["field"]
+        for row in rows:
+            d = parse_date_loose(row.get(field))
+            if d:
+                values.append(d)
+
+    return (
+        min(values) if values else None,
+        max(values) if values else None,
+        candidates,
+    )
+
+
 def inventory_for_parameters(
     rows: list[dict[str, str]],
+    fields: list[str],
     columns: dict[str, str | None],
     parameter_ids: set[str],
 ) -> dict[str, Any]:
     station_col = columns["station"]
     parameter_col = columns["parameter"]
-    start_col = columns["start"]
-    end_col = columns["end"]
 
     if not station_col or not parameter_col:
         raise RuntimeError("Inventar: Stations-/Parameterspalte nicht erkannt.")
 
     selected = []
     stations = set()
-    starts = []
-    ends = []
     by_param: dict[str, set[str]] = defaultdict(set)
 
     for row in rows:
@@ -413,22 +494,17 @@ def inventory_for_parameters(
         stations.add(station)
         by_param[pid].add(station)
 
-        if start_col:
-            d = parse_date_loose(row.get(start_col))
-            if d:
-                starts.append(d)
-        if end_col:
-            d = parse_date_loose(row.get(end_col))
-            if d:
-                ends.append(d)
+    earliest, latest, date_candidates = inventory_date_span(selected, fields)
 
     return {
         "rows": selected,
         "stations": stations,
         "by_param": by_param,
-        "earliest": min(starts) if starts else None,
-        "latest": max(ends) if ends else None,
+        "earliest": earliest,
+        "latest": latest,
+        "date_candidates": date_candidates,
     }
+
 
 
 def station_info(
@@ -587,6 +663,68 @@ def inspect_sample_daily_csv(
     }
 
 
+def exact_target_parameter_rows(
+    key: str,
+    rows: list[dict[str, str]],
+    columns: dict[str, str | None],
+) -> dict[str, list[dict[str, str]]]:
+    pid_col = columns["id"]
+    if not pid_col:
+        raise RuntimeError("Parameter-ID-Spalte wurde nicht erkannt.")
+
+    by_id = {
+        str(row.get(pid_col, "") or "").strip(): row
+        for row in rows
+        if str(row.get(pid_col, "") or "").strip()
+    }
+
+    targets = TARGET_DAILY_PARAMETERS[key]
+    out = {"TMIN": [], "TMAX": []}
+
+    for kind in ("TMIN", "TMAX"):
+        for pid in targets[kind]:
+            if pid in by_id:
+                out[kind].append(by_id[pid])
+
+    return out
+
+
+def print_optional_local_candidates(
+    key: str,
+    rows: list[dict[str, str]],
+    columns: dict[str, str | None],
+) -> None:
+    if key != "SMN":
+        return
+
+    pid_col = columns["id"]
+    desc_col = columns["description"]
+    if not pid_col:
+        return
+
+    by_id = {
+        str(row.get(pid_col, "") or "").strip(): row
+        for row in rows
+    }
+
+    found = []
+    for label in ("LOCAL_TMIN_CANDIDATES", "LOCAL_TMAX_CANDIDATES"):
+        for pid in TARGET_DAILY_PARAMETERS["SMN"].get(label, ()):
+            if pid in by_id:
+                desc = (
+                    str(by_id[pid].get(desc_col, "") or "")
+                    if desc_col else ""
+                )
+                found.append((pid, desc))
+
+    if found:
+        log("Zusätzliche lokale Kalendertag-Parameter im Live-Metadatenbestand:")
+        for pid, desc in found:
+            log(f"  {pid}: {desc}")
+    else:
+        log("Keine tre200pn/tre200px-Parameter im SMN-Live-Metadatenbestand erkannt.")
+
+
 def summarize_parameter_rows(
     found: dict[str, list[dict[str, str]]],
     columns: dict[str, str | None],
@@ -649,8 +787,16 @@ def inspect_collection(key: str) -> dict[str, Any]:
     log(f"Erkannte Stationsfelder: {s_cols}")
     log(f"Erkannte Inventarfelder: {i_cols}")
 
-    found = discover_daily_temperature_parameters(p_rows, p_cols)
+    # First show the broad live discovery for diagnostics, then deliberately
+    # use only the exact 2-m daily Tmin/Tmax parameters for the record system.
+    broad_found = discover_daily_temperature_parameters(p_rows, p_cols)
+    log("Breite Parametererkennung (nur Diagnose):")
+    summarize_parameter_rows(broad_found, p_cols)
+
+    found = exact_target_parameter_rows(key, p_rows, p_cols)
+    log("Exakte Zielparameter für Stationsrekorde:")
     summarize_parameter_rows(found, p_cols)
+    print_optional_local_candidates(key, p_rows, p_cols)
 
     tmin_ids = {
         str(row.get(p_cols["id"], "")).strip()
@@ -669,12 +815,24 @@ def inspect_collection(key: str) -> dict[str, Any]:
         )
 
     all_temp_ids = tmin_ids | tmax_ids
-    inv = inventory_for_parameters(i_rows, i_cols, all_temp_ids)
+    inv = inventory_for_parameters(i_rows, i_fields, i_cols, all_temp_ids)
 
     station_meta = station_info(s_rows, s_cols)
 
     log()
     log("=== DATENINVENTAR TAGES-TEMPERATUR ===")
+    if inv["rows"]:
+        log(
+            "Beispiel-Inventarzeile: "
+            + json.dumps(inv["rows"][0], ensure_ascii=False)
+        )
+    log("Automatisch erkannte Datumsspalten:")
+    for candidate in inv["date_candidates"]:
+        log(
+            f"  {candidate['field']}: Trefferquote "
+            f"{100*candidate['parsed_ratio']:.1f}% | "
+            f"{candidate['min']} bis {candidate['max']}"
+        )
     log(f"Stationen mit Tmin/Tmax-Inventareinträgen: {len(inv['stations'])}")
     log(f"Frühester Inventarbeginn: {inv['earliest']}")
     log(f"Neuester Inventarstand: {inv['latest']}")
@@ -836,9 +994,12 @@ def self_test() -> None:
     f, r, d = read_csv_bytes(csv_raw)
     assert d == ";"
     ic = inventory_columns(f)
-    inv = inventory_for_parameters(r, ic, {"tre200dn", "tre200dx"})
+    inv = inventory_for_parameters(r, f, ic, {"tre200dn", "tre200dx"})
     assert inv["stations"] == {"BER"}
     assert inv["earliest"] == date(1864, 1, 1)
+    exact = exact_target_parameter_rows("SMN", rows, cols)
+    assert exact["TMIN"][0]["parameter"] == "tre200dn"
+    assert exact["TMAX"][0]["parameter"] == "tre200dx"
 
     item = {
         "id": "ogd-smn_ber",
