@@ -41,7 +41,7 @@ DATASET_PAGE = (
     "https://data.public.lu/en/datasets/"
     "agrometeorological-measurement-network-luxemburg/"
 )
-UA = "climate-dashboard-asta-luxembourg-archive-probe/1.1"
+UA = "climate-dashboard-asta-luxembourg-archive-probe/1.2"
 TIMEOUT = 120
 TRIES = 4
 
@@ -622,6 +622,57 @@ def form_endpoint_score(
     return score, action
 
 
+def compact_field_summary(
+    cand: dict[str, Any],
+) -> dict[str, str]:
+    input_parts = []
+    for inp in cand.get("inputs", []):
+        name = str(inp.get("name", "")).strip()
+        if not name:
+            continue
+        typ = str(inp.get("type", "")).strip()
+        value = str(inp.get("value", "")).strip()
+        part = name
+        if typ:
+            part += f"[{typ}]"
+        if value:
+            part += f"={value}"
+        input_parts.append(part)
+
+    select_parts = []
+    for sel in cand.get("selects", []):
+        name = str(sel.get("name", "")).strip() or "(ohne name)"
+        opts = []
+        for opt in sel.get("options", []):
+            value = str(opt.get("value", "")).strip()
+            text = str(opt.get("text", "")).strip()
+            if value or text:
+                opts.append(
+                    f"{value}:{text}" if value != text else value
+                )
+        select_parts.append(
+            f"{name}=[{' | '.join(opts[:20])}]"
+        )
+
+    button_parts = []
+    for btn in cand.get("buttons", []):
+        name = str(btn.get("name", "")).strip()
+        value = str(btn.get("value", "")).strip()
+        onclick = str(btn.get("onclick", "")).strip()
+        part = name or "(button)"
+        if value:
+            part += f"={value}"
+        if onclick:
+            part += f" onclick={onclick}"
+        button_parts.append(part)
+
+    return {
+        "inputs": ", ".join(input_parts[:40]) or "(keine)",
+        "selects": "; ".join(select_parts[:20]) or "(keine)",
+        "buttons": "; ".join(button_parts[:20]) or "(keine)",
+    }
+
+
 def print_compact_form_candidates(
     pages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -632,20 +683,20 @@ def print_compact_form_candidates(
                 form,
                 page["final_url"],
             )
-            candidates.append(
-                {
-                    "score": score,
-                    "page": page["final_url"],
-                    "action": action,
-                    "method": form.get("method"),
-                    "name": form.get("name"),
-                    "id": form.get("id"),
-                    "inputs": form.get("inputs", []),
-                    "selects": form.get("selects", []),
-                    "buttons": form.get("buttons", []),
-                    "onsubmit": form.get("onsubmit", ""),
-                }
-            )
+            candidate = {
+                "score": score,
+                "page": page["final_url"],
+                "action": action,
+                "method": form.get("method"),
+                "name": form.get("name"),
+                "id": form.get("id"),
+                "inputs": form.get("inputs", []),
+                "selects": form.get("selects", []),
+                "buttons": form.get("buttons", []),
+                "onsubmit": form.get("onsubmit", ""),
+            }
+            candidate["compact"] = compact_field_summary(candidate)
+            candidates.append(candidate)
 
     candidates.sort(key=lambda x: (-x["score"], x["action"]))
     log()
@@ -910,10 +961,26 @@ def probe(station_limit: int) -> None:
     log(f"Download-/Export-Kandidaten: {len(ranked)}")
     log(f"Sichere GET-Probes: {len(probe_results)}")
     log()
+    log("=== ENTSCHEIDENDE FORMULARE · KURZFASSUNG ===")
+
+    # The first six normally correspond to one form per inspected station.
+    for idx, cand in enumerate(compact_forms[:12], 1):
+        compact = cand.get("compact", {})
+        log(
+            f"FORM {idx}: score={cand['score']} | "
+            f"{cand['method']} | action={cand['action']}"
+        )
+        log(f"  page={cand['page']}")
+        log(f"  inputs: {compact.get('inputs', '(keine)')}")
+        log(f"  selects: {compact.get('selects', '(keine)')}")
+        log(f"  buttons: {compact.get('buttons', '(keine)')}")
+        if cand.get("onsubmit"):
+            log(f"  onsubmit: {cand['onsubmit']}")
+
+    log()
     log(
-        "Bitte insbesondere FORMULARE, JAVASCRIPT-TREFFER, "
-        "ENTDECKTE DOWNLOAD-/EXPORT-KANDIDATEN und diesen Summary-Block "
-        "zurückschicken."
+        "Zum Weiterbauen reicht jetzt der Block "
+        "'ENTSCHEIDENDE FORMULARE · KURZFASSUNG' aus diesem Lauf."
     )
     log("ASTA Luxembourg archive probe OK.")
 
