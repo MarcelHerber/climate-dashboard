@@ -1,0 +1,35 @@
+name: Test DMI Denmark station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dmi-denmark-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: DMI-Probe Selbsttest
+        run: |
+          set -euo pipefail
+          python scripts/test_dmi_denmark_station_data.py --self-test
+
+      - name: DMI Dänemark API und Historie testen
+        run: |
+          set -euo pipefail
+          python scripts/test_dmi_denmark_station_data.py
