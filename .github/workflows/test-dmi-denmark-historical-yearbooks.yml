@@ -1,0 +1,35 @@
+name: Test DMI Denmark historical yearbooks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dmi-denmark-historical-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Offline-Selbsttest
+        run: |
+          set -euo pipefail
+          python scripts/test_dmi_denmark_historical_yearbooks.py --self-test
+
+      - name: Historische DMI-Jahrbuchdaten testen
+        run: |
+          set -euo pipefail
+          python scripts/test_dmi_denmark_historical_yearbooks.py
