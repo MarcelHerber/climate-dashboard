@@ -1,0 +1,39 @@
+name: Test ASTA Luxembourg WDAA endpoint v3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asta-luxembourg-wdaa-endpoint-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Playwright installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: ASTA WDAA Backend-Endpunkt untersuchen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_asta_luxembourg_wdaa_endpoint.py
