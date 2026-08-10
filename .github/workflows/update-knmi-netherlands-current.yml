@@ -1,0 +1,97 @@
+name: Update KNMI Netherlands current year
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: knmi-netherlands-current-year
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Jahre bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR="$(date -u +%Y)"
+          BASE_YEAR=$(( YEAR - 1 ))
+          echo "year=${YEAR}" >> "$GITHUB_OUTPUT"
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: KNMI-Historiencache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: knmi-current-restore-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Benötigte KNMI-Dateien prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/update_knmi_netherlands_station_cache.py
+          test -f scripts/update_knmi_netherlands_current.py
+          test -f ".cache/europe-stations/knmi_netherlands_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v1.pkl.gz"
+          echo "Historischer KNMI-Cache und beide Skripte vorhanden."
+
+      - name: Offline-Selbsttests
+        run: |
+          set -euo pipefail
+          python scripts/update_knmi_netherlands_station_cache.py --self-test
+          python scripts/update_knmi_netherlands_current.py --self-test
+
+      - name: KNMI aktuelles Jahr laden und vergleichen
+        run: |
+          set -euo pipefail
+          python scripts/update_knmi_netherlands_current.py \
+            --year "${{ steps.dates.outputs.year }}"
+
+      - name: KNMI-2026-Status prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          year = datetime.datetime.now(datetime.UTC).year
+          p = pathlib.Path(
+              f".cache/europe-stations/knmi_netherlands_current_{year}_status.json"
+          )
+          if not p.exists():
+              raise SystemExit(f"Status fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit("KNMI-Aktuellcache ist unvollständig.")
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("KNMI-Aktuellcache enthält keine Stationsreihen.")
+          if int(status.get("rows_with_temperature", 0)) <= 0:
+              raise SystemExit("KNMI-Aktuellcache enthält keine Temperaturzeilen.")
+
+          current_file = pathlib.Path(status["current_file"])
+          if not current_file.exists():
+              raise SystemExit(f"KNMI-Aktuellcache fehlt: {current_file}")
+
+          print("KNMI Netherlands Current-Year-Prüfung OK.")
+          PY
