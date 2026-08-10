@@ -1,0 +1,37 @@
+name: Test FMI Finland station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmi-finland-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: FMI Probe Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_fmi_finland_station_data.py --self-test
+
+      - name: FMI Finnland Live-Daten prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_fmi_finland_station_data.py
