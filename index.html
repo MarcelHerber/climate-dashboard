@@ -1240,12 +1240,13 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
     <div id="europeStationMap" class="europe-station-map" role="img" aria-label="Europakarte der Stationsrekorde"></div>
     <div class="europe-station-panel">
       <h2>Europa · Stationsrekorde</h2>
-      <p class="subtitle">Stations-V5 · Deutschland: DWD CDC · Frankreich: Météo-France · Österreich: GeoSphere Austria · Polen: IMGW-PIB · übriges Europa inkl. Spanien: GHCN-Daily · TMAX/TMIN · Top-20 & Rekordjagd</p>
+      <p class="subtitle">Stations-V5 · Deutschland: DWD CDC · Frankreich: Météo-France · Spanien: AEMET OpenData · Österreich: GeoSphere Austria · Polen: IMGW-PIB · Niederlande: KNMI · Norwegen: MET Norway Frost · übriges Europa: GHCN-Daily · TMAX/TMIN · Top-20 & Rekordjagd</p>
       <div class="europe-station-panel-grid">
         <div class="control-group"><label for="europeStationParameter">Parameter</label><select id="europeStationParameter"><option value="tmax">TMAX · höchste Maxima</option><option value="tmin">TMIN · tiefste Minima</option></select></div>
         <div class="control-group"><label for="europeStationMode">Rekordansicht</label><select id="europeStationMode"><option value="absolute">Absoluter Stationsrekord</option><option value="calendar">Kalendertag-Rekord</option><option value="newCurrent">Neue Rekorde im laufenden Jahr</option><option value="recordChase">Rekordjagd am Kalendertag</option></select></div>
         <div class="control-group"><label for="europeStationCountry">Land</label><select id="europeStationCountry"><option value="">Alle Länder</option></select></div>
         <div class="control-group"><label for="europeStationMinYears">Mind. Messjahre</label><select id="europeStationMinYears"><option value="0">keine Begrenzung</option><option value="10">10 Jahre</option><option value="30" selected>30 Jahre</option><option value="50">50 Jahre</option><option value="75">75 Jahre</option></select></div>
+        <div class="control-group inline-check"><input id="europeStationActiveOnly" type="checkbox"><label for="europeStationActiveOnly">Nur aktive Stationen</label></div>
         <div id="europeStationDateGroup" class="control-group europe-station-date-row" hidden><label for="europeStationDate">Kalendertag</label><input id="europeStationDate" type="date"></div>
         <div class="control-group europe-station-search-row"><label for="europeStationSearch">Stationssuche</label><input id="europeStationSearch" type="search" autocomplete="off" placeholder="Name, Stations-ID oder Land …"></div>
       </div>
@@ -9556,7 +9557,9 @@ function europeStationPopup(station,param,mode,view,mmdd){
     }
   }
   const period=[block.start?europeStationIsoToText(block.start):null,block.end?europeStationIsoToText(block.end):null].filter(Boolean).join(" – ");
-  return `<div class="europe-station-popup"><strong>${europeStationEscapeHtml(String(station.name||station.id))}</strong><div class="muted">${europeStationEscapeHtml(String(station.country||station.country_code||""))} · ${europeStationEscapeHtml(paramLabel)}</div>${recordHtml}<div class="record-detail" style="margin-top:7px">Messreihe: ${europeStationEscapeHtml(period||"–")} · ${Number(block.years||0).toLocaleString("de-DE")} Messjahre${Number.isFinite(Number(station.elevation))?`<br>Höhe: ${Math.round(Number(station.elevation))} m`:""}<br>Stations-ID: ${europeStationEscapeHtml(String(station.source_id||station.id||"–"))}</div><div class="source">Quelle: ${europeStationEscapeHtml(String(station.source||europeStationData?.source||"GHCN-Daily"))} · ${europeStationEscapeHtml(String(station.quality_rule||europeStationData?.quality_rule||"Qualitätsregeln der jeweiligen Datenquelle werden angewendet."))}</div></div>`;
+  const statusLabel=station.active===true?"aktiv":"historisch / derzeit nicht aktiv";
+  const lastObservation=station.last_observation?europeStationIsoToText(station.last_observation):"–";
+  return `<div class="europe-station-popup"><strong>${europeStationEscapeHtml(String(station.name||station.id))}</strong><div class="muted">${europeStationEscapeHtml(String(station.country||station.country_code||""))} · ${europeStationEscapeHtml(paramLabel)}</div>${recordHtml}<div class="record-detail" style="margin-top:7px">Messreihe: ${europeStationEscapeHtml(period||"–")} · ${Number(block.years||0).toLocaleString("de-DE")} Messjahre<br>Status: ${europeStationEscapeHtml(statusLabel)} · letzter Wert ${europeStationEscapeHtml(lastObservation)}${Number.isFinite(Number(station.elevation))?`<br>Höhe: ${Math.round(Number(station.elevation))} m`:""}<br>Stations-ID: ${europeStationEscapeHtml(String(station.source_id||station.id||"–"))}</div><div class="source">Quelle: ${europeStationEscapeHtml(String(station.source||europeStationData?.source||"GHCN-Daily"))} · ${europeStationEscapeHtml(String(station.quality_rule||europeStationData?.quality_rule||"Qualitätsregeln der jeweiligen Datenquelle werden angewendet."))}</div></div>`;
 }
 function europeStationUpdateLegend(param,mode){
   const el=document.getElementById("europeStationLegend");if(!el)return;
@@ -9626,7 +9629,7 @@ function renderEuropeStationRanking(rows,param,mode,mmdd){
 }
 async function renderEuropeStations(){
   initEuropeStationMap();if(!europeStationMap||!europeStationLayer||!europeStationData)return;
-  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
+  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const activeOnly=Boolean(document.getElementById("europeStationActiveOnly")?.checked);const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
   europeStationUpdateControls();setEuropeStationStatus((mode==="calendar"||mode==="recordChase")?`Tagesdaten für ${europeStationMmddLabel(mmdd)} werden geladen …`:"Stationsrekorde werden dargestellt …");
   let calendarMap=null;
   if(mode==="calendar"||mode==="recordChase"){
@@ -9634,7 +9637,7 @@ async function renderEuropeStations(){
   }
   europeStationLayer.clearLayers();europeStationMarkerById=new Map();const stations=Array.isArray(europeStationData.stations)?europeStationData.stations:[];let shown=0,newCount=0,extreme=null,extremeStation=null,currentExtreme=null,currentExtremeStation=null,nearRecordCount=0;const bounds=[],rows=[],visibleCountries=new Set();
   stations.forEach((station,index)=>{
-    if(country&&station.country!==country)return;if(!europeStationSearchMatches(station,search))return;
+    if(activeOnly&&station.active!==true)return;if(country&&station.country!==country)return;if(!europeStationSearchMatches(station,search))return;
     const block=europeStationElementBlock(station,param);if((Number(block?.years)||0)<minYears)return;const coords=europeStationCoordinates(station);if(!coords)return;const view=europeStationValueForView(station,index,param,mode,calendarMap);if(!view)return;
     shown++;visibleCountries.add(station.country||station.country_code||"–");if(view.isNew)newCount+=mode==="newCurrent"?Number(view.count||0):1;
     if(mode!=="newCurrent"&&mode!=="recordChase"&&Number.isFinite(Number(view.value))){
@@ -9668,13 +9671,13 @@ async function renderEuropeStations(){
   europeStationUpdateLegend(param,mode);renderEuropeStationRanking(rows,param,mode,mmdd);
   if((country||search)&&bounds.length){if(bounds.length===1)europeStationMap.flyTo(bounds[0],8,{duration:.4});else europeStationMap.fitBounds(L.latLngBounds(bounds).pad(.08),{maxZoom:7});}
   const modeText=mode==="absolute"?"absolute Rekorde":mode==="calendar"?`Kalendertag ${europeStationMmddLabel(mmdd)}`:mode==="recordChase"?`Rekordjagd ${europeStationMmddLabel(mmdd)}`:`neue Rekorde ${europeStationCurrentYear()}`;
-  setEuropeStationStatus(`${shown.toLocaleString("de-DE")} Stationen · ${param==="tmin"?"TMIN":"TMAX"} · ${modeText}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`,"ready");
+  setEuropeStationStatus(`${shown.toLocaleString("de-DE")} Stationen${activeOnly?" · nur aktive":""} · ${param==="tmin"?"TMIN":"TMAX"} · ${modeText}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`,"ready");
 }
 function initEuropeStationControls(){
-  const param=document.getElementById("europeStationParameter"),mode=document.getElementById("europeStationMode"),country=document.getElementById("europeStationCountry"),years=document.getElementById("europeStationMinYears"),date=document.getElementById("europeStationDate"),search=document.getElementById("europeStationSearch"),toggle=document.getElementById("europeStationRankingToggle"),body=document.getElementById("europeStationRankingBody");
+  const param=document.getElementById("europeStationParameter"),mode=document.getElementById("europeStationMode"),country=document.getElementById("europeStationCountry"),years=document.getElementById("europeStationMinYears"),activeOnly=document.getElementById("europeStationActiveOnly"),date=document.getElementById("europeStationDate"),search=document.getElementById("europeStationSearch"),toggle=document.getElementById("europeStationRankingToggle"),body=document.getElementById("europeStationRankingBody");
   const today=new Date(),yyyy=europeStationCurrentYear();if(date&&!date.value){const mm=String(today.getMonth()+1).padStart(2,"0"),dd=String(today.getDate()).padStart(2,"0");date.value=`${yyyy}-${mm}-${dd}`;}
   if(param?.dataset.stationV2Bound==="1")return;
-  [param,mode,country,years,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode)europeStationUpdateControls();renderEuropeStations();}));
+  [param,mode,country,years,activeOnly,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode)europeStationUpdateControls();renderEuropeStations();}));
   search?.addEventListener("input",()=>{window.clearTimeout(europeStationSearchTimer);europeStationSearchTimer=window.setTimeout(()=>renderEuropeStations(),140);});
   search?.addEventListener("keydown",event=>{if(event.key!=="Enter")return;event.preventDefault();renderEuropeStations().then(()=>{if(europeStationLastRows.length)europeStationFocusById(europeStationLastRows[0].station.id);});});
   toggle?.addEventListener("click",()=>{if(!body)return;body.hidden=!body.hidden;toggle.textContent=body.hidden?"Ausklappen":"Einklappen";toggle.setAttribute("aria-expanded",body.hidden?"false":"true");});
