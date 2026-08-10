@@ -245,29 +245,116 @@ def aemet_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, c
     return out
 
 
-def knmi_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, core.StationMeta]:
+def _knmi_ghcn_fallback(
+    raw_id: str,
+    ghcn_nl_stations: dict[str, core.StationMeta],
+) -> core.StationMeta | None:
+    """Resolve KNMI's three-digit station number through its WMO/GHCN id.
+
+    KNMI station 260 corresponds to WMO 06260 and therefore normally to
+    GHCN-Daily id NLM00006260.  We use GHCN here only as a coordinate/name
+    metadata fallback; all temperature observations and records remain KNMI.
+    """
+    code = str(raw_id).strip()
+    if not code.isdigit():
+        return None
+    code3 = code.zfill(3)[-3:]
+
+    preferred_ids = (
+        f"NLM00006{code3}",
+        f"NLW00006{code3}",
+    )
+    candidate = None
+    for ghcn_id in preferred_ids:
+        if ghcn_id in ghcn_nl_stations:
+            candidate = ghcn_nl_stations[ghcn_id]
+            break
+
+    if candidate is None:
+        # Defensive fallback for any alternative GHCN identifier carrying
+        # the same Dutch/WMO station suffix.
+        matches = [
+            meta
+            for ghcn_id, meta in ghcn_nl_stations.items()
+            if ghcn_id.endswith(code3)
+        ]
+        if len(matches) == 1:
+            candidate = matches[0]
+        elif matches:
+            # Prefer IDs containing the Dutch WMO block 06xxx.
+            matches.sort(
+                key=lambda meta: (
+                    "00006" not in meta.id,
+                    meta.id,
+                )
+            )
+            candidate = matches[0]
+
+    if candidate is None:
+        return None
+
+    sid = f"KNMI:{code}"
+    return core.StationMeta(
+        sid,
+        candidate.lat,
+        candidate.lon,
+        candidate.elev,
+        candidate.name or f"KNMI {code}",
+        "NL",
+        "Niederlande",
+        knmi_hist.SOURCE,
+        (
+            "KNMI Daggegevens: tägliche TX/TN; veröffentlichte Werte in 0,1 °C "
+            "werden in °C umgerechnet, Fehlwerte verworfen. "
+            "Stationskoordinaten/-name bei fehlenden KNMI-Antwortmetadaten "
+            "über die zugehörige niederländische WMO/GHCN-Stationskennung."
+        ),
+    )
+
+
+def knmi_inventory_to_meta(
+    inventory: dict[str, dict[str, Any]],
+    *,
+    record_ids: set[str] | None = None,
+    ghcn_nl_stations: dict[str, core.StationMeta] | None = None,
+) -> dict[str, core.StationMeta]:
     out: dict[str, core.StationMeta] = {}
-    for raw_id, meta in inventory.items():
+    ghcn_nl_stations = ghcn_nl_stations or {}
+
+    raw_ids = set(str(x) for x in inventory)
+    if record_ids:
+        raw_ids.update(str(x) for x in record_ids)
+
+    for raw_id in sorted(raw_ids):
+        meta = inventory.get(raw_id)
         if not isinstance(meta, dict):
-            continue
-        sid = f"KNMI:{raw_id}"
-        station = _make_station_meta(
-            sid=sid,
-            raw_meta=meta,
-            lat_keys=("lat", "latitude"),
-            lon_keys=("lon", "longitude"),
-            elev_keys=("elevation_m", "elevation", "height"),
-            name_keys=("name",),
-            country_code="NL",
-            country="Niederlande",
-            source=knmi_hist.SOURCE,
-            quality_rule=(
-                "KNMI Daggegevens: tägliche TX/TN; veröffentlichte Werte in 0,1 °C "
-                "werden in °C umgerechnet, Fehlwerte verworfen."
-            ),
-        )
+            # Some dicts may use a numeric-looking key object; be defensive.
+            meta = inventory.get(str(raw_id))
+
+        station = None
+        if isinstance(meta, dict):
+            station = _make_station_meta(
+                sid=f"KNMI:{raw_id}",
+                raw_meta=meta,
+                lat_keys=("lat", "latitude"),
+                lon_keys=("lon", "longitude"),
+                elev_keys=("elevation_m", "elevation", "height"),
+                name_keys=("name",),
+                country_code="NL",
+                country="Niederlande",
+                source=knmi_hist.SOURCE,
+                quality_rule=(
+                    "KNMI Daggegevens: tägliche TX/TN; veröffentlichte Werte in 0,1 °C "
+                    "werden in °C umgerechnet, Fehlwerte verworfen."
+                ),
+            )
+
+        if station is None:
+            station = _knmi_ghcn_fallback(raw_id, ghcn_nl_stations)
+
         if station is not None:
-            out[sid] = station
+            out[station.id] = station
+
     return out
 
 
@@ -612,6 +699,23 @@ def validate_payload(payload: dict) -> None:
 
 
 def self_test() -> None:
+    # KNMI station metadata may be absent from Daggegevens responses.
+    # Verify WMO/GHCN fallback: KNMI 260 -> NLM00006260 (De Bilt).
+    fake_ghcn = {
+        "NLM00006260": core.StationMeta(
+            "NLM00006260", 52.101, 5.177, 2.0, "DE BILT",
+            "NL", "Niederlande", core.GHCN_SOURCE, "test"
+        )
+    }
+    knmi_meta_test = knmi_inventory_to_meta(
+        {},
+        record_ids={"260"},
+        ghcn_nl_stations=fake_ghcn,
+    )
+    assert "KNMI:260" in knmi_meta_test
+    assert abs(knmi_meta_test["KNMI:260"].lat - 52.101) < 1e-9
+    assert knmi_meta_test["KNMI:260"].source == knmi_hist.SOURCE
+
     sample_records = {
         "X": {
             "first_date": "1901-01-01",
@@ -681,10 +785,19 @@ def main() -> int:
     )
 
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
-    ghcn_stations = core.parse_ghcn_stations(core.read_url_text(core.STATIONS_URL), countries)
+    ghcn_all_stations = core.parse_ghcn_stations(core.read_url_text(core.STATIONS_URL), countries)
+
+    # Keep Dutch GHCN/WMO metadata only as a coordinate/name lookup for KNMI.
+    # NL observations themselves remain excluded from GHCN below.
+    ghcn_nl_metadata = {
+        sid: meta
+        for sid, meta in ghcn_all_stations.items()
+        if meta.country_code == "NL"
+    }
+
     ghcn_stations = {
         sid: meta
-        for sid, meta in ghcn_stations.items()
+        for sid, meta in ghcn_all_stations.items()
         if meta.country_code not in {"AU", "PL", "NL", "NO"}
     }
     log(f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO: {len(ghcn_stations):,}")
@@ -761,7 +874,19 @@ def main() -> int:
     frost_inventory.update(frost_cur_payload.get("inventory", {}))
 
     aemet_stations = aemet_inventory_to_meta(aemet_inventory)
-    knmi_stations = knmi_inventory_to_meta(knmi_inventory)
+
+    knmi_record_ids = set(str(x) for x in knmi_base.get("records", {}))
+    knmi_record_ids.update(str(x) for x in knmi_cur_payload.get("records", {}))
+    knmi_stations = knmi_inventory_to_meta(
+        knmi_inventory,
+        record_ids=knmi_record_ids,
+        ghcn_nl_stations=ghcn_nl_metadata,
+    )
+    log(
+        f"KNMI Metadaten: {len(knmi_stations)} von {len(knmi_record_ids)} "
+        "Stationsreihen kartierbar (KNMI-Metadaten bzw. WMO/GHCN-Fallback)."
+    )
+
     frost_stations = frost_inventory_to_meta(frost_inventory)
     if not aemet_stations or not knmi_stations or not frost_stations:
         raise RuntimeError(
