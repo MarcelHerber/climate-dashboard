@@ -205,6 +205,38 @@ def parse_simple_members(raw: bytes) -> list[dict[str, Any]]:
     return rows
 
 
+def identifier_by_codespace(
+    node: ET.Element,
+    wanted_fragment: str,
+) -> str | None:
+    wanted = wanted_fragment.lower()
+    for element in node.iter():
+        if local(element.tag) != "identifier":
+            continue
+        code_space = next(
+            (
+                str(v)
+                for k, v in element.attrib.items()
+                if local(k).lower() == "codespace"
+            ),
+            "",
+        ).lower()
+        if wanted in code_space and element.text and element.text.strip():
+            return element.text.strip()
+    return None
+
+
+def first_numeric_identifier(node: ET.Element) -> str | None:
+    for element in node.iter():
+        if local(element.tag) != "identifier":
+            continue
+        if element.text:
+            text = element.text.strip()
+            if text.isdigit():
+                return text
+    return None
+
+
 def parse_station_members(raw: bytes) -> list[dict[str, Any]]:
     root = parse_xml(raw)
     stations = []
@@ -213,8 +245,14 @@ def parse_station_members(raw: bytes) -> list[dict[str, Any]]:
         if local(member.tag) != "EnvironmentalMonitoringFacility":
             continue
 
-        fmisid = child_text(member, "identifier")
-        name = child_text(member, "name")
+        fmisid = (
+            identifier_by_codespace(member, "stationcode/fmisid")
+            or first_numeric_identifier(member)
+        )
+        name = (
+            identifier_by_codespace(member, "locationcode/name")
+            or child_text(member, "name")
+        )
         pos = parse_pos(child_text(member, "pos"))
         begin = child_text(member, "beginPosition")
 
@@ -316,6 +354,38 @@ def daily_simple(
         params["bbox"] = bbox
 
     return parse_simple_members(request_bytes(params))
+
+
+def try_daily_simple(
+    *,
+    starttime: str,
+    endtime: str,
+    fmisid: str | None = None,
+    bbox: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """
+    Historical FMI requests can reject unsupported dates/station periods
+    with HTTP 400. For probing, record that diagnostic instead of aborting.
+    """
+    try:
+        rows = daily_simple(
+            starttime=starttime,
+            endtime=endtime,
+            fmisid=fmisid,
+            bbox=bbox,
+        )
+        return rows, None
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        detail = f"HTTP {exc.code}"
+        if body:
+            compact = " ".join(body.split())
+            detail += ": " + compact[:700]
+        return [], detail
 
 
 def daily_mpc(
@@ -425,7 +495,9 @@ def sample_years_for_station(station: dict[str, Any]) -> list[int]:
             ]
         )
 
-    years.extend([2025, 2026])
+    # Explicit boundary years help distinguish "station started early"
+    # from "this WFS path only accepts later dates".
+    years.extend([1844, 1850, 1900, 1959, 1960, 1961, 1970, 1991, 2025, 2026])
     return sorted(set(y for y in years if 1844 <= y <= 2026))
 
 
@@ -449,7 +521,7 @@ def probe() -> None:
 
     for station in finland_stations[:8]:
         log(
-            f"  FMISID {station['fmisid']} | {station['name']} | "
+            f"  FMISID {station['fmisid'] or 'NICHT ERKANNT'} | {station['name']} | "
             f"{station['type']} | pos={station['pos']} | "
             f"{station['start']} bis {station['end']}"
         )
@@ -490,6 +562,12 @@ def probe() -> None:
             "Keine historische FMI-Station im Finnland-BBOX erkannt."
         )
 
+    if not str(long_station.get("fmisid") or "").isdigit():
+        raise RuntimeError(
+            "Langzeit-Sample besitzt keine numerische FMI-Stations-ID. "
+            f"Erkannt wurde: {long_station.get('fmisid')!r}"
+        )
+
     log(
         f"Langzeit-Sample: FMISID {long_station['fmisid']} | "
         f"{long_station['name']} | {long_station['start']} bis "
@@ -506,11 +584,18 @@ def probe() -> None:
         end_day = date(year, 1, 1) + timedelta(days=6)
         end = end_day.isoformat() + "T23:59:59Z"
 
-        rows = daily_simple(
+        rows, query_error = try_daily_simple(
             starttime=start,
             endtime=end,
             fmisid=long_station["fmisid"],
         )
+
+        if query_error:
+            log(
+                f"  {year}: FMI-Abfrage abgelehnt ({query_error}) | "
+                f"FMISID={long_station['fmisid']}"
+            )
+            continue
 
         valid = [
             r for r in rows
@@ -539,11 +624,13 @@ def probe() -> None:
 
     log()
     log("=== FINNLAND-BBOX SIMPLE SAMPLE ===")
-    national_rows = daily_simple(
+    national_rows, national_error = try_daily_simple(
         starttime="2026-08-01T00:00:00Z",
         endtime="2026-08-02T23:59:59Z",
         bbox=FINLAND_BBOX,
     )
+    if national_error:
+        log(f"Simple-BBOX-Abfrage abgelehnt: {national_error}")
 
     valid_rows = [
         r for r in national_rows
@@ -632,6 +719,10 @@ def probe() -> None:
         f"MultipointCoverage: {structure['bytes']:,} Bytes | "
         f"Felder={structure['field_names']}"
     )
+    log(
+        "Hinweis: HTTP-400 bei einzelnen sehr alten Testjahren ist im Probe "
+        "nur eine Reichweiten-Diagnose und kein Abbruchgrund."
+    )
     log("FMI Finland Probe OK.")
 
 
@@ -668,8 +759,8 @@ def self_test() -> None:
  xmlns:xlink="http://www.w3.org/1999/xlink">
  <wfs:member>
   <ef:EnvironmentalMonitoringFacility>
-   <gml:identifier>100971</gml:identifier>
-   <gml:name>Helsinki Kaisaniemi</gml:name>
+   <gml:identifier codeSpace="http://xml.fmi.fi/namespace/stationcode/fmisid">100971</gml:identifier>
+   <gml:name codeSpace="http://xml.fmi.fi/namespace/locationcode/name">Helsinki Kaisaniemi</gml:name>
    <ef:belongsTo xlink:title="weather"/>
    <ef:representativePoint>
     <gml:Point><gml:pos>60.18 24.94</gml:pos></gml:Point>
