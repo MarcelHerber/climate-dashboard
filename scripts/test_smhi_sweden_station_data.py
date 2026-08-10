@@ -85,6 +85,10 @@ def parameter_url(parameter: int) -> str:
     return f"{BASE}/parameter/{parameter}.json?measuringStations=core"
 
 
+def station_detail_url(parameter: int, station: str) -> str:
+    return f"{BASE}/parameter/{parameter}/station/{station}.json"
+
+
 def station_data_url(parameter: int, station: str, period: str, ext: str) -> str:
     return (
         f"{BASE}/parameter/{parameter}/station/{station}/"
@@ -96,14 +100,34 @@ def station_key(st: dict[str, Any]) -> str:
     return str(st.get("key", "")).strip()
 
 
-def period_keys(st: dict[str, Any]) -> set[str]:
-    periods = st.get("period") or []
+def period_keys(payload: dict[str, Any]) -> set[str]:
+    """Extract period keys from a SMHI station-detail response.
+
+    Periods are NOT present in the station rows returned by the parameter
+    endpoint. They are returned by:
+      /parameter/{parameter}/station/{station}.json
+    """
+    periods = payload.get("period") or []
     result = set()
     if isinstance(periods, list):
         for item in periods:
             if isinstance(item, dict) and item.get("key") is not None:
                 result.add(str(item["key"]))
     return result
+
+
+def station_detail(parameter: int, station: str) -> dict[str, Any]:
+    return request_json(station_detail_url(parameter, station))
+
+
+def station_has_periods(
+    parameter: int,
+    station: str,
+    required: set[str],
+) -> tuple[bool, set[str]]:
+    detail = station_detail(parameter, station)
+    periods = period_keys(detail)
+    return required <= periods, periods
 
 
 def station_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -305,14 +329,13 @@ def parse_corrected_archive(
     }
 
 
-def best_sample_station(
+def candidate_order(
     common: set[str],
     tmin: dict[str, dict[str, Any]],
     tmax: dict[str, dict[str, Any]],
     *,
     require_active: bool,
-    require_periods: set[str],
-) -> str | None:
+) -> list[str]:
     candidates = []
     for sid in common:
         a = tmin[sid]
@@ -320,21 +343,80 @@ def best_sample_station(
         active = bool(a.get("active")) and bool(b.get("active"))
         if require_active and not active:
             continue
-        if not require_periods <= period_keys(a):
-            continue
-        if not require_periods <= period_keys(b):
-            continue
 
-        start = min(
-            str(a.get("from") or "9999-12-31"),
-            str(b.get("from") or "9999-12-31"),
-        )
+        starts = []
+        for row in (a, b):
+            d = unix_ms_to_date(row.get("from"))
+            if d:
+                starts.append(d)
+
+        start = min(starts) if starts else date(9999, 12, 31)
         candidates.append((start, sid))
 
-    if not candidates:
-        return None
     candidates.sort()
-    return candidates[0][1]
+    return [sid for _, sid in candidates]
+
+
+def find_station_with_periods(
+    common: set[str],
+    tmin: dict[str, dict[str, Any]],
+    tmax: dict[str, dict[str, Any]],
+    *,
+    required: set[str],
+    require_active: bool,
+    max_candidates: int = 40,
+) -> tuple[str, dict[int, set[str]]] | None:
+    """Traverse SMHI station-level endpoints until both parameters qualify."""
+    for idx, sid in enumerate(
+        candidate_order(common, tmin, tmax, require_active=require_active)[:max_candidates],
+        1,
+    ):
+        details = {}
+        ok = True
+        for parameter in (PARAM_TMIN, PARAM_TMAX):
+            has, periods = station_has_periods(parameter, sid, required)
+            details[parameter] = periods
+            if not has:
+                ok = False
+
+        log(
+            f"Periodenprüfung {idx}/{min(max_candidates, len(common))}: "
+            f"Station {sid} | Tmin={sorted(details[PARAM_TMIN])} | "
+            f"Tmax={sorted(details[PARAM_TMAX])}"
+        )
+
+        if ok:
+            return sid, details
+
+    return None
+
+
+def count_period_support_sample(
+    common: set[str],
+    tmin: dict[str, dict[str, Any]],
+    tmax: dict[str, dict[str, Any]],
+    *,
+    max_stations: int = 30,
+) -> dict[str, int]:
+    """Small diagnostic sample; not presented as a national total."""
+    counts = {
+        "tested": 0,
+        "archive_both": 0,
+        "latest_months_both": 0,
+    }
+    for sid in candidate_order(common, tmin, tmax, require_active=False)[:max_stations]:
+        try:
+            p19 = period_keys(station_detail(PARAM_TMIN, sid))
+            p20 = period_keys(station_detail(PARAM_TMAX, sid))
+        except Exception as exc:
+            log(f"WARNUNG Perioden-Sample {sid}: {exc}")
+            continue
+        counts["tested"] += 1
+        if "corrected-archive" in p19 and "corrected-archive" in p20:
+            counts["archive_both"] += 1
+        if "latest-months" in p19 and "latest-months" in p20:
+            counts["latest_months_both"] += 1
+    return counts
 
 
 def inspect_parameter(parameter: int) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -357,36 +439,32 @@ def run_probe() -> None:
         sid for sid in common
         if bool(s19[sid].get("active")) and bool(s20[sid].get("active"))
     }
-    archive_common = {
-        sid for sid in common
-        if "corrected-archive" in period_keys(s19[sid])
-        and "corrected-archive" in period_keys(s20[sid])
-    }
-    recent_common = {
-        sid for sid in common
-        if "latest-months" in period_keys(s19[sid])
-        and "latest-months" in period_keys(s20[sid])
-    }
-
     log(f"Parameter 19 CORE-Stationen: {len(s19)}")
     log(f"Parameter 20 CORE-Stationen: {len(s20)}")
     log(f"Gemeinsame Tmax+Tmin-Stationen: {len(common)}")
     log(f"Davon aktuell aktiv: {len(active_common)}")
-    log(f"Mit corrected-archive für beide Parameter: {len(archive_common)}")
-    log(f"Mit latest-months für beide Parameter: {len(recent_common)}")
+    log(
+        "Hinweis: Perioden werden bei SMHI erst am Stations-Endpunkt geliefert; "
+        "sie werden jetzt gezielt dort geprüft."
+    )
 
-    if not common or not archive_common:
-        raise RuntimeError("SMHI liefert keine gemeinsamen CORE-Tmax/Tmin-Archive.")
+    if not common:
+        raise RuntimeError("SMHI liefert keine gemeinsamen CORE-Tmax/Tmin-Stationen.")
 
-    historical_sid = best_sample_station(
+    historical_match = find_station_with_periods(
         common,
         s19,
         s20,
+        required={"corrected-archive"},
         require_active=False,
-        require_periods={"corrected-archive"},
+        max_candidates=40,
     )
-    if historical_sid is None:
-        raise RuntimeError("Keine historische SMHI-Sample-Station gefunden.")
+    if historical_match is None:
+        raise RuntimeError(
+            "Bei den ersten 40 historischen CORE-Kandidaten wurde kein "
+            "gemeinsames corrected-archive gefunden."
+        )
+    historical_sid, historical_periods = historical_match
 
     log()
     log(f"Historische Sample-Station: {historical_sid}")
@@ -430,15 +508,20 @@ def run_probe() -> None:
             f"{max(x[1] for x in rows):.1f} °C"
         )
 
-    current_sid = best_sample_station(
+    current_match = find_station_with_periods(
         common,
         s19,
         s20,
+        required={"latest-months"},
         require_active=True,
-        require_periods={"latest-months"},
+        max_candidates=40,
     )
-    if current_sid is None:
-        raise RuntimeError("Keine aktive SMHI-Station mit latest-months für Tmax+Tmin.")
+    if current_match is None:
+        raise RuntimeError(
+            "Bei den ersten 40 aktiven CORE-Kandidaten wurde keine Station "
+            "mit latest-months für Tmax+Tmin gefunden."
+        )
+    current_sid, current_periods = current_match
 
     log()
     log(f"Aktuelle Sample-Station: {current_sid} ({s20[current_sid].get('name')})")
@@ -463,8 +546,16 @@ def run_probe() -> None:
             f"Qualität {dict(qualities)}"
         )
 
-    # If the current sample also has corrected archive, inspect overlap.
-    if current_sid in archive_common:
+    # Query current station details and inspect archive/current overlap when
+    # corrected-archive is available for both parameters.
+    current_archive_periods = {
+        PARAM_TMIN: period_keys(station_detail(PARAM_TMIN, current_sid)),
+        PARAM_TMAX: period_keys(station_detail(PARAM_TMAX, current_sid)),
+    }
+    if all(
+        "corrected-archive" in current_archive_periods[p]
+        for p in (PARAM_TMIN, PARAM_TMAX)
+    ):
         log()
         log("=== ARCHIV/CURRENT ÜBERGANG ===")
         for parameter, label in ((PARAM_TMIN, "TMIN"), (PARAM_TMAX, "TMAX")):
@@ -488,6 +579,12 @@ def run_probe() -> None:
                 f"{label}: Archiv bis {archive_last} | latest-months ab "
                 f"{recent_first} bis {recent_last} | Abstand {gap:+d} Tage"
             )
+    else:
+        log()
+        log(
+            "Aktuelle Sample-Station besitzt nicht für beide Parameter ein "
+            "corrected-archive; Übergangstest wird an dieser Station übersprungen."
+        )
 
     # Determine nominal earliest metadata dates across both parameters.
     starts = []
@@ -503,7 +600,11 @@ def run_probe() -> None:
     log("=== SMHI SWEDEN PROBE SUMMARY ===")
     log(f"Gemeinsame CORE-Tmax/Tmin-Stationen: {len(common)}")
     log(f"Aktuell aktive gemeinsame Stationen: {len(active_common)}")
-    log(f"Historische Archive für beide: {len(archive_common)}")
+    log(
+        "Perioden-Nationalzahlen werden in diesem Probe bewusst nicht aus "
+        "Parameter-Metadaten abgeleitet; der Historienbuilder traversiert dafür "
+        "die Stations-Endpunkte."
+    )
     if starts:
         log(
             f"Frühester Stations-Metadatenbeginn im gemeinsamen Bestand: "
@@ -534,6 +635,14 @@ Datum;Tid (UTC);Lufttemperatur;Kvalitet;;
     }
     values = json_values(payload)
     assert values and values[0][1:] == (-2.4, "G")
+
+    detail = {
+        "period": [
+            {"key": "corrected-archive"},
+            {"key": "latest-months"},
+        ]
+    }
+    assert period_keys(detail) == {"corrected-archive", "latest-months"}
 
     stations = station_map(
         {
