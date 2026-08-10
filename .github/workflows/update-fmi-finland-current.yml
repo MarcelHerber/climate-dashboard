@@ -1,0 +1,102 @@
+name: Update FMI Finland current year
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "FMI-Current-Year-Datei verwerfen und neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fmi-finland-current-year
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Jahre bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR="$(date -u +%Y)"
+          BASE_YEAR=$(( YEAR - 1 ))
+          echo "year=${YEAR}" >> "$GITHUB_OUTPUT"
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: FMI-Finnland-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: fmi-finland-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            fmi-finland-current-v1-${{ steps.dates.outputs.year }}-
+            fmi-finland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Benötigte Dateien prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/update_fmi_finland_station_cache.py
+          test -f scripts/update_fmi_finland_current.py
+          test -f ".cache/europe-stations/fmi_finland_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v1.pkl.gz"
+
+      - name: Offline-Selbsttests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_fmi_finland_station_cache.py --self-test
+          python scripts/update_fmi_finland_current.py --self-test
+
+      - name: FMI Finnland aktuelles Jahr laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/update_fmi_finland_current.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            $EXTRA_ARGS
+
+      - name: FMI-Current-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: fmi-finland-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+
+      - name: FMI Finnland Current prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime, json, pathlib
+          year = datetime.datetime.now(datetime.UTC).year
+          p = pathlib.Path(f".cache/europe-stations/fmi_finland_current_{year}_status.json")
+          if not p.exists(): raise SystemExit(f"Status fehlt: {p}")
+          status = json.loads(p.read_text(encoding="utf-8")); print(json.dumps(status, indent=2, ensure_ascii=False))
+          if not status.get("complete"): raise SystemExit("FMI-Finnland-Current ist unvollständig.")
+          if int(status.get("station_count",0)) <= 0: raise SystemExit("FMI-Finnland-Current enthält keine Stationsreihen.")
+          if int(status.get("rows_with_temperature",0)) <= 0: raise SystemExit("FMI-Finnland-Current enthält keine Stationstage.")
+          current_file = pathlib.Path(status["current_file"])
+          if not current_file.exists(): raise SystemExit(f"FMI-Current-Cache fehlt: {current_file}")
+          print("FMI Finland Current-Year-Prüfung OK.")
+          PY
