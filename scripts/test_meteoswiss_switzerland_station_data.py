@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MeteoSwiss Switzerland probe v1.1 for climate-dashboard station records.
+MeteoSwiss Switzerland probe v1.2 for climate-dashboard station records.
 
 Official Open Data collections inspected:
 1) SwissMetNet raw/quality-controlled station measurements
@@ -377,22 +377,77 @@ def discover_daily_temperature_parameters(
 
 
 def parse_date_loose(value: Any) -> date | None:
+    """
+    Parse MeteoSwiss inventory dates robustly.
+
+    Accepted examples include:
+      1864-01-01
+      1864-01-01T00:00:00Z
+      1864-01-01 00:00:00
+      01.01.1864
+      01/01/1864
+      1864.01.01
+      18640101
+      186401010000
+      18640101000000
+    """
     text = str(value or "").strip()
     if not text:
         return None
 
-    text = text.replace("Z", "+00:00")
+    # Remove spreadsheet-style leading apostrophe.
+    text = text.lstrip("'").strip()
+
+    # Native ISO first.
+    iso = text.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(text).date()
+        return datetime.fromisoformat(iso).date()
     except ValueError:
         pass
 
-    for candidate in (text[:10], text[:8]):
-        for fmt in ("%Y-%m-%d", "%Y%m%d"):
+    # Common explicit formats.
+    formats = (
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+        "%d.%m.%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+    )
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+
+    # Sometimes inventory values contain extra text/timezone after the date.
+    for pattern, fmt in (
+        (r"\b(\d{4}-\d{2}-\d{2})\b", "%Y-%m-%d"),
+        (r"\b(\d{4}/\d{2}/\d{2})\b", "%Y/%m/%d"),
+        (r"\b(\d{4}\.\d{2}\.\d{2})\b", "%Y.%m.%d"),
+        (r"\b(\d{2}\.\d{2}\.\d{4})\b", "%d.%m.%Y"),
+        (r"\b(\d{2}/\d{2}/\d{4})\b", "%d/%m/%Y"),
+    ):
+        match = re.search(pattern, text)
+        if match:
             try:
-                return datetime.strptime(candidate, fmt).date()
+                return datetime.strptime(match.group(1), fmt).date()
             except ValueError:
-                continue
+                pass
+
+    # Compact numeric timestamps: YYYYMMDD[HHMM[SS]]
+    digits = re.sub(r"\D", "", text)
+    if len(digits) >= 8:
+        candidate = digits[:8]
+        try:
+            return datetime.strptime(candidate, "%Y%m%d").date()
+        except ValueError:
+            pass
 
     return None
 
@@ -408,7 +463,7 @@ def discover_date_columns(
         parsed = []
         nonempty = 0
 
-        for row in rows[:500]:
+        for row in rows:
             raw = str(row.get(field, "") or "").strip()
             if not raw:
                 continue
@@ -421,7 +476,7 @@ def discover_date_columns(
             continue
 
         ratio = len(parsed) / nonempty
-        if ratio < 0.50:
+        if ratio < 0.20:
             continue
 
         name = norm(field)
@@ -444,6 +499,24 @@ def discover_date_columns(
     return candidates
 
 
+def likely_inventory_date_fields(fields: list[str]) -> list[str]:
+    scored = []
+    for field in fields:
+        n = norm(field)
+        score = 0
+        for token in (
+            "start", "end", "from", "to", "since", "until",
+            "begin", "date", "datum", "debut", "fin",
+            "gueltig", "valid"
+        ):
+            if token in n:
+                score += 1
+        if score:
+            scored.append((score, field))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [field for _, field in scored]
+
+
 def inventory_date_span(
     rows: list[dict[str, str]],
     fields: list[str],
@@ -451,8 +524,15 @@ def inventory_date_span(
     candidates = discover_date_columns(rows, fields)
     values = []
 
-    for candidate in candidates:
-        field = candidate["field"]
+    candidate_fields = [candidate["field"] for candidate in candidates]
+
+    # Header-based fallback. MeteoSwiss documents explicit start/end dates;
+    # this makes the probe robust even if a date column is sparsely filled.
+    for field in likely_inventory_date_fields(fields):
+        if field not in candidate_fields:
+            candidate_fields.append(field)
+
+    for field in candidate_fields:
         for row in rows:
             d = parse_date_loose(row.get(field))
             if d:
@@ -836,6 +916,11 @@ def inspect_collection(key: str) -> dict[str, Any]:
     log(f"Stationen mit Tmin/Tmax-Inventareinträgen: {len(inv['stations'])}")
     log(f"Frühester Inventarbeginn: {inv['earliest']}")
     log(f"Neuester Inventarstand: {inv['latest']}")
+    if inv["earliest"] is None or inv["latest"] is None:
+        log("DATUMSPARSER-DIAGNOSE:")
+        log(f"  Inventarfelder: {i_fields}")
+        for sample_row in inv["rows"][:3]:
+            log("  Rohzeile: " + json.dumps(sample_row, ensure_ascii=False))
     for pid, stations in sorted(inv["by_param"].items()):
         log(f"  {pid}: {len(stations)} Stationen")
 
@@ -997,6 +1082,13 @@ def self_test() -> None:
     inv = inventory_for_parameters(r, f, ic, {"tre200dn", "tre200dx"})
     assert inv["stations"] == {"BER"}
     assert inv["earliest"] == date(1864, 1, 1)
+
+    # Common MeteoSwiss-style inventory date representations.
+    assert parse_date_loose("01.01.1864") == date(1864, 1, 1)
+    assert parse_date_loose("1864.01.01") == date(1864, 1, 1)
+    assert parse_date_loose("186401010000") == date(1864, 1, 1)
+    assert parse_date_loose("1864-01-01 00:00:00") == date(1864, 1, 1)
+
     exact = exact_target_parameter_rows("SMN", rows, cols)
     assert exact["TMIN"][0]["parameter"] == "tre200dn"
     assert exact["TMAX"][0]["parameter"] == "tre200dx"
