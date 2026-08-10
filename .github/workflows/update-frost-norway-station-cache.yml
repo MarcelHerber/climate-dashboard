@@ -1,0 +1,127 @@
+name: Build MET Norway Frost station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen Frost-Norwegen-Cache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frost-norway-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 270
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Frost-Dateien und Secret prüfen
+        shell: bash
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          test -f scripts/update_frost_norway_station_cache.py
+          if [[ -z "$FROST_CLIENT_ID" ]]; then
+            echo "FROST_CLIENT_ID fehlt."
+            exit 1
+          fi
+          echo "Frost-Historienskript und Client ID vorhanden."
+
+      - name: Basisjahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_YEAR=$(( $(date -u +%Y) - 1 ))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+          echo "Historischer Frost-Cutoff: ${BASE_YEAR}"
+
+      - name: Frost-Norwegen-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: frost-norway-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            frost-norway-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Offline-Selbsttest
+        run: |
+          set -euo pipefail
+          python scripts/update_frost_norway_station_cache.py --self-test
+
+      - name: Frost-Norwegen Historie bauen
+        shell: bash
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_frost_norway_station_cache.py \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --max-runtime-minutes 220 \
+            $EXTRA_ARGS
+
+      - name: Frost-Norwegen-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: frost-norway-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: Frost-Norwegen-Baseline prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          base_year = datetime.datetime.now(datetime.UTC).year - 1
+          p = pathlib.Path(
+              f".cache/europe-stations/"
+              f"frost_norway_status_through_{base_year}.json"
+          )
+
+          if not p.exists():
+              raise SystemExit(f"Statusdatei fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "Frost-Norwegen-Baseline ist noch nicht vollständig. "
+                  "Zwischenstand wurde gesichert; mit force=false erneut starten."
+              )
+
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("Frost-Norwegen-Baseline enthält keine Stationen.")
+
+          baseline = pathlib.Path(status["baseline_file"])
+          if not baseline.exists():
+              raise SystemExit(f"Finaler Frost-Baselinecache fehlt: {baseline}")
+
+          print("Frost Norway Baseline-Prüfung OK.")
+          PY
