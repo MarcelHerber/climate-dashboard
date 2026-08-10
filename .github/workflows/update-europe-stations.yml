@@ -33,6 +33,16 @@ on:
         required: false
         default: false
         type: boolean
+      force_knmi_baseline:
+        description: "Nur KNMI Niederlande neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_frost_baseline:
+        description: "Nur MET Norway Frost neu aufbauen"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
@@ -47,18 +57,24 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 360
 
     steps:
       - name: Repository auschecken
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
       - name: Cache-Schlüssel bestimmen
         id: dates
         shell: bash
         run: |
+          set -euo pipefail
           YEAR=$(date -u +%Y)
           BASE_YEAR=$((YEAR - 1))
           YEAR_MONTH=$(date -u +%Y-%m)
@@ -66,26 +82,19 @@ jobs:
           echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
           echo "year_month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
 
-      # Hauptcache: GHCN + DWD + Météo-France + AEMET.
-      # Nach dem ersten neuen Lauf enthält er zusätzlich Österreich und Polen.
       - name: Europa-Hauptcache laden
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
+            europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v7-${{ steps.dates.outputs.base_year }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v5-${{ steps.dates.outputs.base_year }}-
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
-      # Beim ersten gemeinsamen Lauf holen wir die bereits erfolgreich aufgebauten
-      # nationalen Caches aus ihren bisherigen Cache-Namensräumen.
-      # Wichtig: Der Météo-France-Bestand lag bislang in einem eigenen Cache-Key.
-      # Er wird hier zusätzlich in denselben Arbeitsordner entpackt, damit die
-      # große Frankreich-Historie nicht unnötig neu heruntergeladen wird.
       - name: Météo-France-Cache ergänzen
         uses: actions/cache/restore@v4
         with:
@@ -113,10 +122,35 @@ jobs:
           restore-keys: |
             imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
 
+      - name: AEMET-Spanien-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-es-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            aemet-spain-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: KNMI-Niederlande-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-nl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Frost-Norwegen-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-no-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            frost-norway-v1-${{ steps.dates.outputs.base_year }}-
+
       - name: Cache-Bestand anzeigen
         shell: bash
         run: |
-          echo "=== Vorhandene historische Gesamtcaches ==="
+          set -euo pipefail
+          echo "=== Historische Gesamtcaches ==="
           find .cache/europe-stations -maxdepth 1 -type f \
             \( -name '*baseline*.pkl.gz' -o -name '*status*.json' \) \
             -printf '%f\n' 2>/dev/null | sort || true
@@ -124,35 +158,63 @@ jobs:
           find .cache/europe-stations -maxdepth 2 -type f \
             -path '*meteofrance_resources*/*.pkl.gz' 2>/dev/null | wc -l
 
-      - name: Skripte und AEMET-Key prüfen
+      - name: Skripte, Secrets und Selbsttests prüfen
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
         run: |
+          set -euo pipefail
           if [[ -z "$AEMET_API_KEY" ]]; then
-            echo "AEMET_API_KEY fehlt. Repository-Secret unter Settings → Secrets and variables → Actions prüfen."
+            echo "AEMET_API_KEY fehlt."
             exit 1
           fi
-          test -s scripts/update_europe_station_records.py
-          test -s scripts/update_europe_station_records_all_sources.py
-          test -s scripts/update_geosphere_austria_station_cache.py
-          test -s scripts/update_imgw_poland_station_cache.py
+          if [[ -z "$FROST_CLIENT_ID" ]]; then
+            echo "FROST_CLIENT_ID fehlt."
+            exit 1
+          fi
+
+          for FILE in \
+            scripts/update_europe_station_records.py \
+            scripts/update_europe_station_records_all_sources.py \
+            scripts/update_geosphere_austria_station_cache.py \
+            scripts/update_imgw_poland_station_cache.py \
+            scripts/update_aemet_spain_station_cache.py \
+            scripts/update_aemet_spain_current.py \
+            scripts/update_knmi_netherlands_station_cache.py \
+            scripts/update_knmi_netherlands_current.py \
+            scripts/update_frost_norway_station_cache.py \
+            scripts/update_frost_norway_current.py
+          do
+            test -s "$FILE"
+          done
+
           python scripts/update_europe_station_records.py --self-test
           python scripts/update_geosphere_austria_station_cache.py --self-test
           python scripts/update_imgw_poland_station_cache.py --self-test
+          python scripts/update_aemet_spain_station_cache.py --self-test
+          python scripts/update_aemet_spain_current.py --self-test
+          python scripts/update_knmi_netherlands_station_cache.py --self-test
+          python scripts/update_knmi_netherlands_current.py --self-test
+          python scripts/update_frost_norway_station_cache.py --self-test
+          python scripts/update_frost_norway_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
         shell: bash
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
           FORCE_BASELINE: ${{ github.event.inputs.force_baseline || 'false' }}
           FORCE_DWD_BASELINE: ${{ github.event.inputs.force_dwd_baseline || 'false' }}
           FORCE_MF_BASELINE: ${{ github.event.inputs.force_mf_baseline || 'false' }}
           FORCE_AEMET_BASELINE: ${{ github.event.inputs.force_aemet_baseline || 'false' }}
           FORCE_AUSTRIA_BASELINE: ${{ github.event.inputs.force_austria_baseline || 'false' }}
           FORCE_POLAND_BASELINE: ${{ github.event.inputs.force_poland_baseline || 'false' }}
+          FORCE_KNMI_BASELINE: ${{ github.event.inputs.force_knmi_baseline || 'false' }}
+          FORCE_FROST_BASELINE: ${{ github.event.inputs.force_frost_baseline || 'false' }}
         run: |
+          set -euo pipefail
           EXTRA_ARGS=""
           [[ "$FORCE_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-baseline"
           [[ "$FORCE_DWD_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-dwd-baseline"
@@ -160,6 +222,8 @@ jobs:
           [[ "$FORCE_AEMET_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-aemet-baseline"
           [[ "$FORCE_AUSTRIA_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-austria-baseline"
           [[ "$FORCE_POLAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-poland-baseline"
+          [[ "$FORCE_KNMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-knmi-baseline"
+          [[ "$FORCE_FROST_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-frost-baseline"
 
           python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
@@ -175,11 +239,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
       - name: Ergebnis vollständig prüfen
         shell: bash
         run: |
+          set -euo pipefail
           test -s europe_stations/index.json
           test -s europe_stations/calendar/01-01.json.gz
           test -s europe_stations/calendar/12-31.json.gz
@@ -194,6 +259,7 @@ jobs:
 
           print("Payload-Version:", p.get("payload_version"))
           print("Gesamtstationen:", p.get("station_count"), "Länder:", p.get("country_count"))
+          print("Aktive Stationen:", p.get("active_station_count"))
           print("Quellen:", sources)
 
           expected={
@@ -202,6 +268,8 @@ jobs:
               "Spanien":"AEMET OpenData",
               "Österreich":"GeoSphere Austria",
               "Polen":"IMGW-PIB",
+              "Niederlande":"KNMI",
+              "Norwegen":"MET Norway Frost",
           }
 
           if p.get("payload_version") != 5:
@@ -215,12 +283,24 @@ jobs:
               if actual != {source}:
                   raise SystemExit(f"{country}: falsche/gemischte Quellen {actual}; erwartet {source}.")
 
-          for source in ("DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria","IMGW-PIB","GHCN-Daily"):
+          for source in (
+              "DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria",
+              "IMGW-PIB","KNMI","MET Norway Frost","GHCN-Daily"
+          ):
               if int(sources.get(source,0) or 0) <= 0:
                   raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
 
           if int(p.get("country_count",0) or 0) < 10:
               raise SystemExit("Zu wenige Länder in der Europa-Ausgabe.")
+          if int(p.get("active_station_count",0) or 0) <= 0:
+              raise SystemExit("Keine aktiven Stationen markiert.")
+          if any("active" not in x or "last_observation" not in x for x in rows):
+              raise SystemExit("active/last_observation fehlt bei mindestens einer Station.")
+
+          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO"}
+          wrong=[x for x in rows if x.get("source")=="GHCN-Daily" and x.get("country_code") in forbidden]
+          if wrong:
+              raise SystemExit(f"GHCN enthält national ersetzte Länder: {sorted({x.get('country_code') for x in wrong})}")
 
           print("Europa-Gesamtprüfung OK.")
           PY
@@ -228,6 +308,7 @@ jobs:
       - name: Europa-Stationsdaten committen
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add europe_stations
@@ -237,6 +318,20 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update Europe station records all sources"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git commit -m "Update Europe station records all national sources [skip ci]"
+
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin "${GITHUB_REF_NAME}"
+            if ! git rebase "origin/${GITHUB_REF_NAME}"; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              PUSH_OK=true
+              break
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+          [[ "$PUSH_OK" == "true" ]]
