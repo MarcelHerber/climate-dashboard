@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import http.client
 import json
 import math
 import os
@@ -209,7 +210,8 @@ def request_json(
 
         except (
             urllib.error.URLError,
-            TimeoutError,
+            http.client.HTTPException,
+            OSError,
             json.JSONDecodeError,
             RuntimeError,
         ) as exc:
@@ -686,12 +688,23 @@ def build_baseline(
         api_path = DAILY_ALL_PATH.format(start=start_api, end=end_api)
         label = f"AEMET {window_start}–{window_end}"
 
-        payload = fetch_api_payload(
-            api_path,
-            api_key,
-            label=label,
-            no_data_is_empty=True,
-        )
+        try:
+            payload = fetch_api_payload(
+                api_path,
+                api_key,
+                label=label,
+                no_data_is_empty=True,
+            )
+        except Exception:
+            # The current window has not been consumed yet, therefore it is
+            # safe to persist the last fully completed window before aborting.
+            save_progress(cache_dir, cutoff_year, progress)
+            log(
+                "AEMET: Abruf eines Fensters ist trotz Wiederholungen "
+                "fehlgeschlagen. Letzter vollständiger Zwischenstand wurde "
+                "vor dem Abbruch gesichert."
+            )
+            raise
 
         rows, station_count = consume_daily_payload(
             payload,
