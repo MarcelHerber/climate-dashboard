@@ -42,9 +42,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          key: meteoswiss-switzerland-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
           restore-keys: |
-            meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-
+            meteoswiss-switzerland-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: Offline-Selbsttest
         shell: bash
@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          key: meteoswiss-switzerland-v2-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
 
       - name: Schweiz-Baseline prüfen
         shell: bash

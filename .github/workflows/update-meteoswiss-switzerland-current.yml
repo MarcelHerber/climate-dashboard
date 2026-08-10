@@ -44,10 +44,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: meteoswiss-switzerland-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          key: meteoswiss-switzerland-current-v2-${{ steps.dates.outputs.year }}-${{ github.run_id }}
           restore-keys: |
-            meteoswiss-switzerland-current-v1-${{ steps.dates.outputs.year }}-
-            meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-
+            meteoswiss-switzerland-current-v2-${{ steps.dates.outputs.year }}-
+            meteoswiss-switzerland-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: Dateien und Baseline prüfen
         shell: bash
@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           test -f scripts/update_meteoswiss_switzerland_station_cache.py
           test -f scripts/update_meteoswiss_switzerland_current.py
-          test -f ".cache/europe-stations/meteoswiss_switzerland_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v1.pkl.gz"
+          test -f ".cache/europe-stations/meteoswiss_switzerland_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2.pkl.gz"
 
       - name: Offline-Selbsttests
         shell: bash
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: meteoswiss-switzerland-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          key: meteoswiss-switzerland-current-v2-${{ steps.dates.outputs.year }}-${{ github.run_id }}
 
       - name: Schweiz Current prüfen
         shell: bash
