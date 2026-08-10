@@ -1,0 +1,18 @@
+name: Legacy Europe station publisher (disabled)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hinweis
+        shell: bash
+        run: |
+          echo "Dieser frühere Europa-Publisher ist absichtlich deaktiviert."
+          echo "Er würde die neue nationale Quellenarchitektur überschreiben."
+          echo "Bitte stattdessen den Workflow 'Update Europe station records' verwenden."
