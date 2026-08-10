@@ -1,0 +1,105 @@
+name: Update AEMET Spain current year
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aemet-spain-current-year
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Jahre bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$(( YEAR - 1 ))
+          echo "year=${YEAR}" >> "$GITHUB_OUTPUT"
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: AEMET-Historiencache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: aemet-spain-current-${{ github.run_id }}
+          restore-keys: |
+            aemet-spain-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Dateien, Secret und Baseline prüfen
+        shell: bash
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -f scripts/update_aemet_spain_station_cache.py
+          test -f scripts/update_aemet_spain_current.py
+
+          if [[ -z "$AEMET_API_KEY" ]]; then
+            echo "AEMET_API_KEY fehlt."
+            exit 1
+          fi
+
+          BASE=".cache/europe-stations/aemet_spain_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v1.pkl.gz"
+          test -f "$BASE"
+          echo "AEMET-Historienbaseline vorhanden: $BASE"
+
+      - name: Offline-Selbsttests
+        run: |
+          set -euo pipefail
+          python scripts/update_aemet_spain_station_cache.py --self-test
+          python scripts/update_aemet_spain_current.py --self-test
+
+      - name: AEMET aktuelles Jahr laden
+        shell: bash
+        env:
+          AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/update_aemet_spain_current.py \
+            --year "${{ steps.dates.outputs.year }}"
+
+      - name: AEMET Current prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          year = datetime.datetime.now(datetime.UTC).year
+          p = pathlib.Path(
+              f".cache/europe-stations/aemet_spain_current_{year}_status.json"
+          )
+          if not p.exists():
+              raise SystemExit(f"Statusdatei fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("AEMET current enthält keine Stationsreihen.")
+          if int(status.get("rows_with_temperature", 0)) <= 0:
+              raise SystemExit("AEMET current enthält keine Temperaturdaten.")
+          if not status.get("data_last"):
+              raise SystemExit("AEMET current hat keinen letzten Datentag.")
+
+          print("AEMET Spain Current-Prüfung OK.")
+          PY
