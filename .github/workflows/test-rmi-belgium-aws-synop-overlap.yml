@@ -1,0 +1,50 @@
+name: Test KMI RMI Belgium AWS SYNOP overlap
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Überlappungsjahr für AWS vs SYNOP"
+        required: false
+        default: "2025"
+        type: string
+      max_stations:
+        description: "Maximalzahl gemeinsamer Stationen"
+        required: false
+        default: "8"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rmi-belgium-overlap-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_aws_synop_overlap.py --self-test
+
+      - name: AWS gegen SYNOP vergleichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_aws_synop_overlap.py \
+            --year "${{ inputs.year }}" \
+            --max-stations "${{ inputs.max_stations }}"
