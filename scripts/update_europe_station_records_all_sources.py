@@ -635,6 +635,51 @@ def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, worke
     return poland.load_baseline(cache_dir, cutoff_year)
 
 
+def validate_meteoswiss_historical_extremes(payload: dict[str, Any]) -> None:
+    """Fail closed if a stale Swiss cache still contains impossible records."""
+    bad = []
+    records = payload.get("records", {})
+    if not isinstance(records, dict):
+        return
+    for sid, rec in records.items():
+        if not isinstance(rec, dict):
+            continue
+        for key, bound, mode in (
+            ("tmax_abs", swiss_hist.HISTORICAL_TMAX_CEILING_C, "max"),
+            ("tmin_abs", swiss_hist.HISTORICAL_TMIN_FLOOR_C, "min"),
+        ):
+            pair = rec.get(key)
+            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                value = float(pair[0])
+                if (mode == "max" and value > bound) or (mode == "min" and value < bound):
+                    bad.append(f"{sid} {key}={value} C ({pair[1]})")
+        for key, bound, mode in (
+            ("calendar_tmax", swiss_hist.HISTORICAL_TMAX_CEILING_C, "max"),
+            ("calendar_tmin", swiss_hist.HISTORICAL_TMIN_FLOOR_C, "min"),
+        ):
+            cal = rec.get(key, {})
+            if not isinstance(cal, dict):
+                continue
+            for mmdd, pair in cal.items():
+                if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                    continue
+                value = float(pair[0])
+                if (mode == "max" and value > bound) or (mode == "min" and value < bound):
+                    bad.append(f"{sid} {key} {mmdd}={value} C ({pair[1]})")
+                    if len(bad) >= 20:
+                        break
+            if len(bad) >= 20:
+                break
+        if len(bad) >= 20:
+            break
+    if bad:
+        raise RuntimeError(
+            "MeteoSwiss-Historiencache enthält Werte außerhalb der offiziellen "
+            "Schweizer Messrekorde. Schweiz-Baseline v2 neu aufbauen. Beispiele: "
+            + "; ".join(bad)
+        )
+
+
 def _load_compact_national_sources(
     cache_dir: Path,
     current_year: int,
@@ -711,6 +756,7 @@ def _load_compact_national_sources(
         max_runtime_minutes=300.0,
     )
     swiss_base = swiss_hist.load_baseline(cache_dir, cutoff_year)
+    validate_meteoswiss_historical_extremes(swiss_base)
 
     # Running year is deliberately refreshed on every unified run.
     aemet_current_path = aemet_current_mod.build_current(
@@ -1100,6 +1146,30 @@ def self_test() -> None:
     add_station_activity(payload, stations={"TEST:X": meta}, states=states, current=current)
     assert payload["stations"][0]["active"] is True
     assert payload["stations"][0]["last_observation"] == "2026-08-01"
+    validate_meteoswiss_historical_extremes({
+        "records": {
+            "GRO": {
+                "tmax_abs": [41.5, "2003-08-11"],
+                "tmin_abs": [-10.0, "2003-01-01"],
+                "calendar_tmax": {"08-11": [41.5, "2003-08-11"]},
+                "calendar_tmin": {"01-01": [-10.0, "2003-01-01"]},
+            }
+        }
+    })
+    try:
+        validate_meteoswiss_historical_extremes({
+            "records": {
+                "CMA": {
+                    "tmax_abs": [51.8, "2000-01-02"],
+                    "calendar_tmax": {"01-02": [51.8, "2000-01-02"]},
+                }
+            }
+        })
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("MeteoSwiss historical fail-safe did not reject 51.8 C")
+
     print("Unified Europe updater self-test OK")
 
 

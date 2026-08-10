@@ -24,8 +24,14 @@ from typing import Any
 
 import update_meteoswiss_switzerland_station_cache as hist
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
+
+# Emergency guard for obviously corrupted current values. A value that only
+# exceeds the historical record remains possible; only far-out values stop
+# publication for manual review.
+CURRENT_TMAX_EMERGENCY_CEILING_C = 45.0
+CURRENT_TMIN_EMERGENCY_FLOOR_C = -45.0
 
 
 def log(msg: str = "") -> None:
@@ -116,6 +122,22 @@ def record_events(
     return events
 
 
+def validate_current_extremes(records: dict[str, dict[str, Any]]) -> None:
+    bad = []
+    for sid, rec in records.items():
+        tmax = rec.get("tmax_abs")
+        tmin = rec.get("tmin_abs")
+        if tmax is not None and float(tmax[0]) > CURRENT_TMAX_EMERGENCY_CEILING_C:
+            bad.append(f"{sid} TMAX {tmax[0]} C {tmax[1]}")
+        if tmin is not None and float(tmin[0]) < CURRENT_TMIN_EMERGENCY_FLOOR_C:
+            bad.append(f"{sid} TMIN {tmin[0]} C {tmin[1]}")
+    if bad:
+        raise RuntimeError(
+            "MeteoSwiss Current enthält extreme Plausibilitätsausreißer; "
+            "nicht veröffentlichen: " + "; ".join(bad[:12])
+        )
+
+
 def build_current(
     cache_dir: Path,
     year: int,
@@ -165,6 +187,8 @@ def build_current(
 
     if not records:
         raise RuntimeError("MeteoSwiss Current enthält keine Stationsreihen.")
+
+    validate_current_extremes(records)
 
     dates = [
         rec["first_date"] for rec in records.values() if rec.get("first_date")
@@ -259,6 +283,15 @@ def self_test() -> None:
     }
     events = record_events(baseline, current)
     assert len(events) == 2
+    validate_current_extremes(current)
+    try:
+        validate_current_extremes({
+            "CMA": {"tmax_abs": [51.8, "2026-08-09"], "tmin_abs": None}
+        })
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Current emergency plausibility guard failed")
     assert {x["element"] for x in events} == {"TMIN", "TMAX"}
     print("MeteoSwiss Switzerland current-year self-test OK")
 

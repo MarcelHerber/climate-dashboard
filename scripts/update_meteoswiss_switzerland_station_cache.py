@@ -51,7 +51,13 @@ STATIONS_META = (
 TMIN_PARAM = "tre200dn"
 TMAX_PARAM = "tre200dx"
 
-FORMAT_VERSION = 1
+# Official measured Swiss national extremes published by MeteoSwiss.
+# Historical source values outside these bounds cannot be valid Swiss
+# temperature observations and are excluded before record aggregation.
+HISTORICAL_TMAX_CEILING_C = 41.5
+HISTORICAL_TMIN_FLOOR_C = -41.8
+
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 UA = "climate-dashboard-meteoswiss-switzerland-cache/1.0"
 TRIES = 5
@@ -258,6 +264,29 @@ def temp_value(value: Any) -> float | None:
     if not math.isfinite(x) or x < -90 or x > 65:
         return None
     return round(x, 2)
+
+
+def apply_historical_extreme_qc(
+    tmin: float | None,
+    tmax: float | None,
+    *,
+    qc_stats: dict[str, Any] | None = None,
+) -> tuple[float | None, float | None]:
+    """Reject historical Swiss values contradicting official national extremes."""
+    tn, tx = tmin, tmax
+    if tx is not None and tx > HISTORICAL_TMAX_CEILING_C:
+        if qc_stats is not None:
+            qc_stats["qc_rejected_tmax"] = int(qc_stats.get("qc_rejected_tmax", 0)) + 1
+        tx = None
+    if tn is not None and tn < HISTORICAL_TMIN_FLOOR_C:
+        if qc_stats is not None:
+            qc_stats["qc_rejected_tmin"] = int(qc_stats.get("qc_rejected_tmin", 0)) + 1
+        tn = None
+    if tn is not None and tx is not None and tn > tx:
+        if qc_stats is not None:
+            qc_stats["qc_rejected_inconsistent_days"] = int(qc_stats.get("qc_rejected_inconsistent_days", 0)) + 1
+        return None, None
+    return tn, tx
 
 
 def get_all_stac_items() -> list[dict[str, Any]]:
@@ -504,6 +533,8 @@ def parse_daily_asset(
     *,
     cutoff_year: int | None = None,
     only_year: int | None = None,
+    historical_qc: bool = False,
+    qc_stats: dict[str, Any] | None = None,
 ) -> list[tuple[date, float | None, float | None]]:
     fields, rows = read_csv(raw)
 
@@ -540,6 +571,8 @@ def parse_daily_asset(
 
         tn = temp_value(row.get(TMIN_PARAM)) if TMIN_PARAM in fields else None
         tx = temp_value(row.get(TMAX_PARAM)) if TMAX_PARAM in fields else None
+        if historical_qc:
+            tn, tx = apply_historical_extreme_qc(tn, tx, qc_stats=qc_stats)
         if tn is None and tx is None:
             continue
 
@@ -560,6 +593,9 @@ def initial_progress(cutoff_year: int) -> dict[str, Any]:
         "processed_stations": [],
         "asset_count": 0,
         "rows_with_temperature": 0,
+        "qc_rejected_tmax": 0,
+        "qc_rejected_tmin": 0,
+        "qc_rejected_inconsistent_days": 0,
         "first_date": None,
         "last_date": None,
         "complete": False,
@@ -589,6 +625,9 @@ def write_status(
         "station_count": len(payload.get("records", {})),
         "asset_count": int(payload.get("asset_count", 0)),
         "rows_with_temperature": int(payload.get("rows_with_temperature", 0)),
+        "qc_rejected_tmax": int(payload.get("qc_rejected_tmax", 0)),
+        "qc_rejected_tmin": int(payload.get("qc_rejected_tmin", 0)),
+        "qc_rejected_inconsistent_days": int(payload.get("qc_rejected_inconsistent_days", 0)),
         "first_date": payload.get("first_date"),
         "last_date": payload.get("last_date"),
         "processed_station_count": len(payload.get("processed_stations", [])),
@@ -702,7 +741,12 @@ def build_baseline(
 
         for href in assets:
             raw = request_bytes(href, accept="text/csv,*/*")
-            rows = parse_daily_asset(raw, cutoff_year=cutoff_year)
+            rows = parse_daily_asset(
+                raw,
+                cutoff_year=cutoff_year,
+                historical_qc=True,
+                qc_stats=progress,
+            )
             if rows:
                 asset_used += 1
             for d, tn, tx in rows:
@@ -749,7 +793,10 @@ def build_baseline(
         },
         "quality_note": (
             "Daily SwissMetNet station values only. Homogeneous NBCN daily "
-            "series are intentionally not mixed into station records."
+            "series are intentionally not mixed into station records. "
+            "Historical TMAX values above 41.5 C and TMIN values below -41.8 C "
+            "are excluded because they contradict MeteoSwiss's published Swiss "
+            "national measured extremes through the historical cutoff year."
         ),
         "public_url": (
             "https://data.geo.admin.ch/api/stac/v1/collections/"
@@ -766,6 +813,12 @@ def build_baseline(
     log(f"Stationsreihen: {len(payload['records'])}")
     log(f"Historische Tagesdateien: {payload['asset_count']}")
     log(f"Stationstage: {payload['rows_with_temperature']:,}")
+    log(
+        "Historische QC verworfen: "
+        f"TMAX>{HISTORICAL_TMAX_CEILING_C:.1f} C = {payload.get('qc_rejected_tmax', 0):,} | "
+        f"TMIN<{HISTORICAL_TMIN_FLOOR_C:.1f} C = {payload.get('qc_rejected_tmin', 0):,} | "
+        f"TMIN>TMAX = {payload.get('qc_rejected_inconsistent_days', 0):,}"
+    )
     log(f"Datenzeitraum: {payload['first_date']} bis {payload['last_date']}")
     log(f"Inventar: {len(payload['inventory'])} Stationen")
     log(f"Output: {final}")
@@ -790,6 +843,25 @@ def self_test() -> None:
     assert consume_day(rec, *rows[1]) is True
     assert rec["calendar_tmin"]["01-01"] == [-8.2, "1864-01-01"]
     assert rec["calendar_tmax"]["01-02"] == [2.5, "1864-01-02"]
+
+    qc = {}
+    tn, tx = apply_historical_extreme_qc(-10.0, 51.8, qc_stats=qc)
+    assert tn == -10.0 and tx is None
+    assert qc["qc_rejected_tmax"] == 1
+    tn, tx = apply_historical_extreme_qc(-50.0, 10.0, qc_stats=qc)
+    assert tn is None and tx == 10.0
+    assert qc["qc_rejected_tmin"] == 1
+
+    bad_raw = (
+        b"station_abbr;reference_timestamp;tre200dn;tre200dx\n"
+        b"CMA;2000-01-02;-5.0;51.8\n"
+        b"GRO;2003-08-11;20.0;41.5\n"
+    )
+    bad_rows = parse_daily_asset(
+        bad_raw, cutoff_year=2025, historical_qc=True, qc_stats=qc
+    )
+    assert bad_rows[0][2] is None
+    assert bad_rows[1][2] == 41.5
 
     meta_fields = [
         "station_abbr",
