@@ -1,0 +1,105 @@
+name: Build KNMI Netherlands station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen KNMI-Cache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: knmi-netherlands-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Basisjahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          echo "base_year=$(( $(date -u +%Y) - 1 ))" >> "$GITHUB_OUTPUT"
+
+      - name: KNMI-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Offline-Selbsttest
+        run: |
+          python scripts/update_knmi_netherlands_station_cache.py --self-test
+
+      - name: KNMI-Niederlande Historie bauen
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_knmi_netherlands_station_cache.py \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --max-runtime-minutes 110 \
+            $EXTRA_ARGS
+
+      - name: KNMI-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: KNMI-Baseline prüfen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import datetime
+
+          base_year = datetime.datetime.utcnow().year - 1
+          p = pathlib.Path(
+              f".cache/europe-stations/"
+              f"knmi_netherlands_status_through_{base_year}.json"
+          )
+
+          if not p.exists():
+              raise SystemExit(f"Statusdatei fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "KNMI-Baseline ist noch nicht vollständig. "
+                  "Der Zwischenstand wurde gesichert; Workflow mit force=false erneut starten."
+              )
+
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("KNMI-Baseline enthält keine Stationsreihen.")
+
+          baseline = pathlib.Path(status["baseline_file"])
+          if not baseline.exists():
+              raise SystemExit(f"Finaler KNMI-Baselinecache fehlt: {baseline}")
+
+          print("KNMI Netherlands Baseline-Prüfung OK.")
+          PY
