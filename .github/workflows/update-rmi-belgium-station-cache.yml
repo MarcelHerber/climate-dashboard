@@ -1,0 +1,114 @@
+name: Build KMI RMI Belgium station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Belgien-Historiencache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rmi-belgium-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Basisjahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_YEAR=$(( $(date -u +%Y) - 1 ))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: Belgien-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_rmi_belgium_station_cache.py --self-test
+
+      - name: Belgien-Historiencache bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_rmi_belgium_station_cache.py \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --max-runtime-minutes 140 \
+            $EXTRA_ARGS
+
+      - name: Belgien-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: Belgien-Baseline prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          base_year = datetime.datetime.now(datetime.UTC).year - 1
+          p = pathlib.Path(
+              f".cache/europe-stations/rmi_belgium_status_through_{base_year}.json"
+          )
+          if not p.exists():
+              raise SystemExit(f"Status fehlt: {p}")
+
+          status = json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "Belgien-Baseline noch nicht vollständig. "
+                  "Workflow mit force=false erneut starten."
+              )
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("Belgien-Baseline enthält keine Stationsreihen.")
+          if int(status.get("uccle_ghcn_rows", 0)) <= 0:
+              raise SystemExit("Uccle-GHCN-Brücke ist leer.")
+          if int(status.get("synop_rows", 0)) <= 0:
+              raise SystemExit("SYNOP-Brücke für übrige Stationen ist leer.")
+          if int(status.get("aws_rows", 0)) <= 0:
+              raise SystemExit("AWS-Historie ab 2000 ist leer.")
+
+          baseline = pathlib.Path(status["baseline_file"])
+          if not baseline.exists():
+              raise SystemExit(f"Baselinecache fehlt: {baseline}")
+
+          print("KMI/RMI Belgium Baseline-Prüfung OK.")
+          PY
