@@ -156,6 +156,17 @@ def request_bytes(
             last = exc
             if exc.code == 404 and allow_404:
                 return None
+
+            # GeoServer error bodies are extremely useful for diagnosing
+            # malformed WFS/CQL requests. Do not hide them behind "HTTP 400".
+            try:
+                body = exc.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                body = ""
+            if body:
+                compact = " ".join(body.split())
+                log(f"HTTP {exc.code} Serverantwort: {compact[:1200]}")
+
             if exc.code in {408, 429, 500, 502, 503, 504} and attempt < TRIES:
                 wait = min(45, attempt * 5)
                 log(f"WARNUNG HTTP {exc.code}; neuer Versuch in {wait}s …")
@@ -193,8 +204,11 @@ def wfs_page(
         "typeNames": typename,
         "outputFormat": "application/json",
         "count": count,
-        "startIndex": start_index,
     }
+    # KMI/RMI GeoServer rejects startIndex on some layer/query combinations.
+    # Never send the redundant startIndex=0.
+    if start_index:
+        params["startIndex"] = start_index
     if cql_filter:
         params["CQL_FILTER"] = cql_filter
     if property_names:
@@ -241,7 +255,7 @@ def wfs_all(
 
         features.extend(x for x in rows if isinstance(x, dict))
 
-        if len(rows) < page_size:
+        if not rows or len(rows) < page_size:
             break
         start += len(rows)
 
@@ -266,6 +280,41 @@ def valid_temp(value: Any) -> float | None:
     if x is None or x < -90 or x > 65:
         return None
     return round(x, 2)
+
+
+def month_windows(year: int) -> list[tuple[str, str]]:
+    """Return half-open monthly UTC windows [start, next_month)."""
+    windows: list[tuple[str, str]] = []
+    for month in range(1, 13):
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        windows.append((start.isoformat(), end.isoformat()))
+    return windows
+
+
+def wfs_small_query(
+    typename: str,
+    *,
+    cql_filter: str,
+    property_names: tuple[str, ...],
+    count: int,
+) -> list[dict[str, Any]]:
+    """One intentionally small GeoServer query without startIndex."""
+    payload = wfs_page(
+        typename,
+        count=count,
+        start_index=0,
+        cql_filter=cql_filter,
+        property_names=property_names,
+        sort_by="timestamp A",
+    )
+    rows = payload.get("features") or []
+    if not isinstance(rows, list):
+        return []
+    return [x for x in rows if isinstance(x, dict)]
 
 
 def parse_iso_day(value: Any) -> date | None:
@@ -294,7 +343,18 @@ def station_layer_inventory(
 ) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
 
-    for feature in wfs_all(typename, page_size=1000):
+    payload = wfs_page(
+        typename,
+        count=1000,
+        property_names=None,
+    )
+    station_features = payload.get("features") or []
+    if not isinstance(station_features, list):
+        station_features = []
+
+    for feature in station_features:
+        if not isinstance(feature, dict):
+            continue
         row = props(feature)
         sid = station_code(row)
         if not sid:
@@ -442,21 +502,24 @@ def consume_day(
 
 
 def synop_year_rows(year: int) -> list[dict[str, Any]]:
-    start = f"{year}-01-01T00:00:00Z"
-    end = f"{year + 1}-01-01T00:00:00Z"
-    cql = (
-        f"timestamp >= '{start}' AND timestamp < '{end}' AND "
-        "(temp_min IS NOT NULL OR temp_max IS NOT NULL)"
-    )
+    rows: list[dict[str, Any]] = []
 
-    features = wfs_all(
-        SYNOP_DATA,
-        cql_filter=cql,
-        property_names=("code", "timestamp", "temp_min", "temp_max"),
-        sort_by="timestamp A",
-        page_size=5000,
-    )
-    return [props(feature) for feature in features]
+    for start, end in month_windows(year):
+        cql = (
+            f"timestamp >= '{start}T00:00:00Z' AND "
+            f"timestamp < '{end}T00:00:00Z' AND "
+            "(temp_min IS NOT NULL OR temp_max IS NOT NULL)"
+        )
+        features = wfs_small_query(
+            SYNOP_DATA,
+            cql_filter=cql,
+            property_names=("code", "timestamp", "temp_min", "temp_max"),
+            count=3000,
+        )
+        rows.extend(props(feature) for feature in features)
+
+    return rows
+
 
 
 def aggregate_synop_days(
@@ -568,18 +631,23 @@ def load_uccle_ghcn(
 
 
 def aws_year_rows(year: int) -> list[dict[str, Any]]:
-    start = f"{year}-01-01T00:00:00Z"
-    end = f"{year + 1}-01-01T00:00:00Z"
-    cql = f"timestamp >= '{start}' AND timestamp < '{end}'"
+    rows: list[dict[str, Any]] = []
 
-    features = wfs_all(
-        AWS_DAY,
-        cql_filter=cql,
-        property_names=("code", "timestamp", "temp_min", "temp_max"),
-        sort_by="timestamp A",
-        page_size=5000,
-    )
-    return [props(feature) for feature in features]
+    for start, end in month_windows(year):
+        cql = (
+            f"timestamp >= '{start}T00:00:00Z' AND "
+            f"timestamp < '{end}T00:00:00Z'"
+        )
+        features = wfs_small_query(
+            AWS_DAY,
+            cql_filter=cql,
+            property_names=("code", "timestamp", "temp_min", "temp_max"),
+            count=1000,
+        )
+        rows.extend(props(feature) for feature in features)
+
+    return rows
+
 
 
 def initial_progress(cutoff_year: int) -> dict[str, Any]:
@@ -942,6 +1010,11 @@ def self_test() -> None:
         (prefix + "".join(blocks) + "\n").encode("ascii")
     )
     assert parsed[date(1999, 1, 1)]["TMAX"] == 25.1
+
+    windows = month_windows(2025)
+    assert len(windows) == 12
+    assert windows[0] == ("2025-01-01", "2025-02-01")
+    assert windows[-1] == ("2025-12-01", "2026-01-01")
 
     records: dict[str, dict[str, Any]] = {}
     consume_day(
