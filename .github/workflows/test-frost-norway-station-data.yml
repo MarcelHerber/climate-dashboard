@@ -1,0 +1,51 @@
+name: Test MET Norway Frost station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-frost-norway-station-data
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Frost-Secret prüfen
+        shell: bash
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FROST_CLIENT_ID" ]]; then
+            echo "FROST_CLIENT_ID fehlt."
+            echo "Bitte kostenlosen Frost Client ID bei MET Norway erstellen"
+            echo "und als Repository-Secret FROST_CLIENT_ID hinterlegen."
+            exit 1
+          fi
+          echo "FROST_CLIENT_ID ist vorhanden."
+
+      - name: Offline-Selbsttest
+        run: |
+          set -euo pipefail
+          python scripts/test_frost_norway_station_data.py --self-test
+
+      - name: MET Norway Frost Probe
+        env:
+          FROST_CLIENT_ID: ${{ secrets.FROST_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          python scripts/test_frost_norway_station_data.py
