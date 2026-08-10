@@ -30,11 +30,22 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: KNMI-Dateien prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/update_knmi_netherlands_station_cache.py
+          echo "KNMI-Skript vorhanden:"
+          ls -lh scripts/update_knmi_netherlands_station_cache.py
+
       - name: Basisjahr bestimmen
         id: dates
         shell: bash
         run: |
-          echo "base_year=$(( $(date -u +%Y) - 1 ))" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          BASE_YEAR=$(( $(date -u +%Y) - 1 ))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+          echo "Historischer KNMI-Cutoff: ${BASE_YEAR}"
 
       - name: KNMI-Cache wiederherstellen
         uses: actions/cache/restore@v4
@@ -46,11 +57,14 @@ jobs:
 
       - name: Offline-Selbsttest
         run: |
+          set -euo pipefail
           python scripts/update_knmi_netherlands_station_cache.py --self-test
 
       - name: KNMI-Niederlande Historie bauen
         shell: bash
         run: |
+          set -euo pipefail
+
           EXTRA_ARGS=""
           if [[ "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
@@ -71,12 +85,13 @@ jobs:
       - name: KNMI-Baseline prüfen
         shell: bash
         run: |
+          set -euo pipefail
           python - <<'PY'
           import json
           import pathlib
           import datetime
 
-          base_year = datetime.datetime.utcnow().year - 1
+          base_year = datetime.datetime.now(datetime.UTC).year - 1
           p = pathlib.Path(
               f".cache/europe-stations/"
               f"knmi_netherlands_status_through_{base_year}.json"
@@ -91,7 +106,8 @@ jobs:
           if not status.get("complete"):
               raise SystemExit(
                   "KNMI-Baseline ist noch nicht vollständig. "
-                  "Der Zwischenstand wurde gesichert; Workflow mit force=false erneut starten."
+                  "Der Zwischenstand wurde gesichert; "
+                  "Workflow mit force=false erneut starten."
               )
 
           if int(status.get("station_count", 0)) <= 0:
@@ -99,7 +115,9 @@ jobs:
 
           baseline = pathlib.Path(status["baseline_file"])
           if not baseline.exists():
-              raise SystemExit(f"Finaler KNMI-Baselinecache fehlt: {baseline}")
+              raise SystemExit(
+                  f"Finaler KNMI-Baselinecache fehlt: {baseline}"
+              )
 
           print("KNMI Netherlands Baseline-Prüfung OK.")
           PY
