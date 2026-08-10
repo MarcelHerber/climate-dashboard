@@ -1,0 +1,37 @@
+name: Test KMI RMI Belgium station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rmi-belgium-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Belgien-Probe Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_station_data.py --self-test
+
+      - name: KMI RMI Belgien WFS testen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_station_data.py
