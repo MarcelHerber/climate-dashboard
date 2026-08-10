@@ -43,6 +43,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_dmi_baseline:
+        description: "Nur DMI Dänemark neu aufbauen"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
@@ -146,6 +151,14 @@ jobs:
           restore-keys: |
             frost-norway-v1-${{ steps.dates.outputs.base_year }}-
 
+      - name: DMI-Dänemark-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-dk-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-
+
       - name: Cache-Bestand anzeigen
         shell: bash
         run: |
@@ -184,7 +197,9 @@ jobs:
             scripts/update_knmi_netherlands_station_cache.py \
             scripts/update_knmi_netherlands_current.py \
             scripts/update_frost_norway_station_cache.py \
-            scripts/update_frost_norway_current.py
+            scripts/update_frost_norway_current.py \
+            scripts/update_dmi_denmark_station_cache.py \
+            scripts/update_dmi_denmark_current.py
           do
             test -s "$FILE"
           done
@@ -198,6 +213,8 @@ jobs:
           python scripts/update_knmi_netherlands_current.py --self-test
           python scripts/update_frost_norway_station_cache.py --self-test
           python scripts/update_frost_norway_current.py --self-test
+          python scripts/update_dmi_denmark_station_cache.py --self-test
+          python scripts/update_dmi_denmark_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
@@ -213,6 +230,7 @@ jobs:
           FORCE_POLAND_BASELINE: ${{ github.event.inputs.force_poland_baseline || 'false' }}
           FORCE_KNMI_BASELINE: ${{ github.event.inputs.force_knmi_baseline || 'false' }}
           FORCE_FROST_BASELINE: ${{ github.event.inputs.force_frost_baseline || 'false' }}
+          FORCE_DMI_BASELINE: ${{ github.event.inputs.force_dmi_baseline || 'false' }}
         run: |
           set -euo pipefail
           EXTRA_ARGS=""
@@ -224,6 +242,7 @@ jobs:
           [[ "$FORCE_POLAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-poland-baseline"
           [[ "$FORCE_KNMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-knmi-baseline"
           [[ "$FORCE_FROST_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-frost-baseline"
+          [[ "$FORCE_DMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-dmi-baseline"
 
           python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
@@ -270,6 +289,7 @@ jobs:
               "Polen":"IMGW-PIB",
               "Niederlande":"KNMI",
               "Norwegen":"MET Norway Frost",
+              "Dänemark":"DMI Open Data",
           }
 
           if p.get("payload_version") != 5:
@@ -285,7 +305,7 @@ jobs:
 
           for source in (
               "DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria",
-              "IMGW-PIB","KNMI","MET Norway Frost","GHCN-Daily"
+              "IMGW-PIB","KNMI","MET Norway Frost","DMI Open Data","GHCN-Daily"
           ):
               if int(sources.get(source,0) or 0) <= 0:
                   raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
@@ -297,7 +317,7 @@ jobs:
           if any("active" not in x or "last_observation" not in x for x in rows):
               raise SystemExit("active/last_observation fehlt bei mindestens einer Station.")
 
-          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO"}
+          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA"}
           wrong=[x for x in rows if x.get("source")=="GHCN-Daily" and x.get("country_code") in forbidden]
           if wrong:
               raise SystemExit(f"GHCN enthält national ersetzte Länder: {sorted({x.get('country_code') for x in wrong})}")
