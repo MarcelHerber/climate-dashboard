@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RMI/KMI Belgium AWS-vs-SYNOP overlap validation.
+RMI/KMI Belgium AWS-vs-SYNOP overlap validation v2.1.
 
 Purpose:
 The official daily AWS layer (aws:aws_1day) starts in 2000 and uses a full
@@ -10,7 +10,7 @@ but TEMP_MIN/TEMP_MAX use 18-06 UTC / 06-18 UTC reporting windows.
 Before using SYNOP as a 1952-1999 historical bridge, compare both official
 products on matching station codes and calendar dates.
 
-No API key / secret is required.
+Queries are split into monthly blocks and request only code/timestamp/temp_min/temp_max.\nNo API key / secret is required.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 ENDPOINT = "https://opendata.meteo.be/geoserver/ows"
@@ -90,6 +90,7 @@ def get_features(
     count: int,
     cql_filter: str | None = None,
     sort_by: str | None = None,
+    property_names: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {
         "service": "WFS",
@@ -103,6 +104,9 @@ def get_features(
         params["CQL_FILTER"] = cql_filter
     if sort_by:
         params["sortBy"] = sort_by
+    if property_names:
+        # WFS/GeoServer propertyName sharply reduces the response size.
+        params["propertyName"] = ",".join(property_names)
 
     raw = request_bytes(params=params, accept="application/json,*/*")
     obj = json.loads(raw.decode("utf-8"))
@@ -158,72 +162,149 @@ def code_filter(code: int) -> str:
     return f"code = {code}"
 
 
-def time_filter(start: str, end: str) -> str:
-    return f"timestamp DURING {start}T00:00:00Z/{end}T23:59:59Z"
+def time_filter(start: str, end_exclusive: str) -> str:
+    # Half-open interval avoids duplicates at month boundaries.
+    return (
+        f"timestamp >= '{start}T00:00:00Z' AND "
+        f"timestamp < '{end_exclusive}T00:00:00Z'"
+    )
+
+
+def month_windows(year: int) -> list[tuple[str, str]]:
+    windows = []
+    for month in range(1, 13):
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        windows.append((start.isoformat(), end.isoformat()))
+    return windows
+
+
+def fetch_month(
+    typename: str,
+    code: int,
+    start: str,
+    end_exclusive: str,
+    *,
+    synop: bool,
+) -> list[dict[str, Any]]:
+    cql = f"{code_filter(code)} AND {time_filter(start, end_exclusive)}"
+    if synop:
+        cql += " AND (temp_min IS NOT NULL OR temp_max IS NOT NULL)"
+
+    payload = get_features(
+        typename,
+        count=1200 if synop else 80,
+        cql_filter=cql,
+        sort_by="timestamp A",
+        property_names=("code", "timestamp", "temp_min", "temp_max"),
+    )
+    return properties(payload)
+
+
+def fetch_month_resilient(
+    typename: str,
+    code: int,
+    start: str,
+    end_exclusive: str,
+    *,
+    synop: bool,
+) -> list[dict[str, Any]]:
+    """Fetch one month; on transport trouble split it into short chunks."""
+    try:
+        return fetch_month(
+            typename,
+            code,
+            start,
+            end_exclusive,
+            synop=synop,
+        )
+    except Exception as exc:
+        log(
+            f"  WARNUNG {typename} {code} {start}: Monatsabruf fehlgeschlagen "
+            f"({exc}); teile in 7-Tage-Blöcke."
+        )
+
+    rows: list[dict[str, Any]] = []
+    cur = date.fromisoformat(start)
+    stop = date.fromisoformat(end_exclusive)
+
+    while cur < stop:
+        nxt = min(cur + timedelta(days=7), stop)
+        part = fetch_month(
+            typename,
+            code,
+            cur.isoformat(),
+            nxt.isoformat(),
+            synop=synop,
+        )
+        rows.extend(part)
+        cur = nxt
+
+    return rows
 
 
 def fetch_aws(
     code: int,
-    start: str,
-    end: str,
+    year: int,
 ) -> dict[date, tuple[float | None, float | None]]:
-    cql = f"{code_filter(code)} AND {time_filter(start, end)}"
-    rows = properties(
-        get_features(
-            AWS_DAY,
-            count=2000,
-            cql_filter=cql,
-            sort_by="timestamp A",
-        )
-    )
+    out: dict[date, tuple[float | None, float | None]] = {}
 
-    out = {}
-    for row in rows:
-        d = parse_iso_day(row.get("timestamp"))
-        if d is None:
-            continue
-        out[d] = (
-            fvalue(row.get("temp_min")),
-            fvalue(row.get("temp_max")),
+    for start, end_exclusive in month_windows(year):
+        rows = fetch_month_resilient(
+            AWS_DAY,
+            code,
+            start,
+            end_exclusive,
+            synop=False,
         )
+        for row in rows:
+            d = parse_iso_day(row.get("timestamp"))
+            if d is None or d.year != year:
+                continue
+            out[d] = (
+                fvalue(row.get("temp_min")),
+                fvalue(row.get("temp_max")),
+            )
+
     return out
 
 
 def fetch_synop(
     code: int,
-    start: str,
-    end: str,
+    year: int,
 ) -> dict[date, tuple[float | None, float | None]]:
-    # Filter down to daily extremes so one year remains small.
-    cql = (
-        f"{code_filter(code)} AND {time_filter(start, end)} AND "
-        "(temp_min IS NOT NULL OR temp_max IS NOT NULL)"
-    )
-    rows = properties(
-        get_features(
-            SYNOP_DATA,
-            count=3000,
-            cql_filter=cql,
-            sort_by="timestamp A",
-        )
-    )
-
     by_day: dict[date, dict[str, float]] = defaultdict(dict)
-    for row in rows:
-        d = parse_iso_day(row.get("timestamp"))
-        if d is None:
-            continue
-        tn = fvalue(row.get("temp_min"))
-        tx = fvalue(row.get("temp_max"))
-        if tn is not None:
-            by_day[d]["TMIN"] = tn
-        if tx is not None:
-            by_day[d]["TMAX"] = tx
+
+    for start, end_exclusive in month_windows(year):
+        rows = fetch_month_resilient(
+            SYNOP_DATA,
+            code,
+            start,
+            end_exclusive,
+            synop=True,
+        )
+
+        for row in rows:
+            d = parse_iso_day(row.get("timestamp"))
+            if d is None or d.year != year:
+                continue
+
+            tn = fvalue(row.get("temp_min"))
+            tx = fvalue(row.get("temp_max"))
+
+            if tn is not None:
+                by_day[d]["TMIN"] = tn
+            if tx is not None:
+                by_day[d]["TMAX"] = tx
 
     return {
         d: (vals.get("TMIN"), vals.get("TMAX"))
         for d, vals in by_day.items()
     }
+
 
 
 def metric(
@@ -268,11 +349,10 @@ def fmt_metric(label: str, m: dict[str, Any]) -> None:
 
 def compare_station(
     code: int,
-    start: str,
-    end: str,
+    year: int,
 ) -> dict[str, Any]:
-    aws = fetch_aws(code, start, end)
-    syn = fetch_synop(code, start, end)
+    aws = fetch_aws(code, year)
+    syn = fetch_synop(code, year)
 
     common = sorted(set(aws) & set(syn))
     tmin_pairs = []
@@ -314,13 +394,11 @@ def run_probe(year: int, max_stations: int) -> None:
     if not common_codes:
         raise RuntimeError("Keine gemeinsamen AWS/SYNOP-Stationscodes.")
 
-    start = f"{year}-01-01"
-    end = f"{year}-12-31"
-
     station_results = []
     for code in common_codes:
         try:
-            result = compare_station(code, start, end)
+            log(f"Prüfe Station {code} in 12 kleinen Monatsblöcken …")
+            result = compare_station(code, year)
         except Exception as exc:
             log(f"WARNUNG Station {code}: {exc}")
             continue
@@ -413,8 +491,13 @@ def self_test() -> None:
     assert [x["code"] for x in properties(payload)] == [6447, "6477"]
 
     assert parse_iso_day("2025-07-01T18:00:00Z") == date(2025, 7, 1)
+    windows = month_windows(2025)
+    assert len(windows) == 12
+    assert windows[0] == ("2025-01-01", "2025-02-01")
+    assert windows[-1] == ("2025-12-01", "2026-01-01")
+    assert "timestamp >=" in time_filter("2025-01-01", "2025-02-01")
 
-    print("KMI/RMI Belgium overlap probe self-test OK")
+    print("KMI/RMI Belgium overlap probe v2.1 self-test OK")
 
 
 def main() -> int:
