@@ -1,0 +1,42 @@
+name: Test KNMI Netherlands station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-knmi-netherlands-station-data
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: NetCDF-Abhängigkeit installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install netCDF4
+
+      - name: Offline-Selbsttest
+        run: |
+          python scripts/test_knmi_netherlands_station_data.py --self-test
+
+      - name: KNMI-Niederlande Probe
+        env:
+          # Optional. Ohne Secret nutzt das Skript den offiziellen,
+          # von KNMI veröffentlichten anonymen Open-Data-Key.
+          KNMI_API_KEY: ${{ secrets.KNMI_API_KEY }}
+        run: |
+          python scripts/test_knmi_netherlands_station_data.py
