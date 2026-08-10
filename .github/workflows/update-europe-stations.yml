@@ -48,6 +48,21 @@ on:
         required: false
         default: false
         type: boolean
+      force_smhi_baseline:
+        description: "Nur SMHI Schweden neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_belgium_baseline:
+        description: "Nur KMI/RMI Belgien neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_swiss_baseline:
+        description: "Nur MeteoSwiss Schweiz neu aufbauen"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
@@ -91,8 +106,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v8-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
+            europe-stations-v8-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v8-${{ steps.dates.outputs.base_year }}-
             europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v7-${{ steps.dates.outputs.base_year }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
@@ -159,6 +176,33 @@ jobs:
           restore-keys: |
             dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-
 
+      - name: SMHI-Schweden-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-se-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            smhi-sweden-current-v1-${{ steps.dates.outputs.year }}-
+            smhi-sweden-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: KMI-RMI-Belgien-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-be-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            rmi-belgium-current-v1-${{ steps.dates.outputs.year }}-
+            rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: MeteoSwiss-Schweiz-Cache ergänzen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-ch-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            meteoswiss-switzerland-current-v1-${{ steps.dates.outputs.year }}-
+            meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-
+
       - name: Cache-Bestand anzeigen
         shell: bash
         run: |
@@ -199,7 +243,13 @@ jobs:
             scripts/update_frost_norway_station_cache.py \
             scripts/update_frost_norway_current.py \
             scripts/update_dmi_denmark_station_cache.py \
-            scripts/update_dmi_denmark_current.py
+            scripts/update_dmi_denmark_current.py \
+            scripts/update_smhi_sweden_station_cache.py \
+            scripts/update_smhi_sweden_current.py \
+            scripts/update_rmi_belgium_station_cache.py \
+            scripts/update_rmi_belgium_current.py \
+            scripts/update_meteoswiss_switzerland_station_cache.py \
+            scripts/update_meteoswiss_switzerland_current.py
           do
             test -s "$FILE"
           done
@@ -215,6 +265,12 @@ jobs:
           python scripts/update_frost_norway_current.py --self-test
           python scripts/update_dmi_denmark_station_cache.py --self-test
           python scripts/update_dmi_denmark_current.py --self-test
+          python scripts/update_smhi_sweden_station_cache.py --self-test
+          python scripts/update_smhi_sweden_current.py --self-test
+          python scripts/update_rmi_belgium_station_cache.py --self-test
+          python scripts/update_rmi_belgium_current.py --self-test
+          python scripts/update_meteoswiss_switzerland_station_cache.py --self-test
+          python scripts/update_meteoswiss_switzerland_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
@@ -231,6 +287,9 @@ jobs:
           FORCE_KNMI_BASELINE: ${{ github.event.inputs.force_knmi_baseline || 'false' }}
           FORCE_FROST_BASELINE: ${{ github.event.inputs.force_frost_baseline || 'false' }}
           FORCE_DMI_BASELINE: ${{ github.event.inputs.force_dmi_baseline || 'false' }}
+          FORCE_SMHI_BASELINE: ${{ github.event.inputs.force_smhi_baseline || 'false' }}
+          FORCE_BELGIUM_BASELINE: ${{ github.event.inputs.force_belgium_baseline || 'false' }}
+          FORCE_SWISS_BASELINE: ${{ github.event.inputs.force_swiss_baseline || 'false' }}
         run: |
           set -euo pipefail
           EXTRA_ARGS=""
@@ -243,6 +302,9 @@ jobs:
           [[ "$FORCE_KNMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-knmi-baseline"
           [[ "$FORCE_FROST_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-frost-baseline"
           [[ "$FORCE_DMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-dmi-baseline"
+          [[ "$FORCE_SMHI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-smhi-baseline"
+          [[ "$FORCE_BELGIUM_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-belgium-baseline"
+          [[ "$FORCE_SWISS_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-swiss-baseline"
 
           python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
@@ -258,7 +320,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/europe-stations
-          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v8-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
       - name: Ergebnis vollständig prüfen
         shell: bash
@@ -290,6 +352,9 @@ jobs:
               "Niederlande":"KNMI",
               "Norwegen":"MET Norway Frost",
               "Dänemark":"DMI Open Data",
+              "Schweden":"SMHI Open Data",
+              "Belgien":"KMI/RMI Open Data",
+              "Schweiz":"MeteoSwiss Open Data",
           }
 
           if p.get("payload_version") != 5:
@@ -305,7 +370,8 @@ jobs:
 
           for source in (
               "DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria",
-              "IMGW-PIB","KNMI","MET Norway Frost","DMI Open Data","GHCN-Daily"
+              "IMGW-PIB","KNMI","MET Norway Frost","DMI Open Data",
+              "SMHI Open Data","KMI/RMI Open Data","MeteoSwiss Open Data","GHCN-Daily"
           ):
               if int(sources.get(source,0) or 0) <= 0:
                   raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
@@ -317,7 +383,7 @@ jobs:
           if any("active" not in x or "last_observation" not in x for x in rows):
               raise SystemExit("active/last_observation fehlt bei mindestens einer Station.")
 
-          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA"}
+          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ"}
           wrong=[x for x in rows if x.get("source")=="GHCN-Daily" and x.get("country_code") in forbidden]
           if wrong:
               raise SystemExit(f"GHCN enthält national ersetzte Länder: {sorted({x.get('country_code') for x in wrong})}")
