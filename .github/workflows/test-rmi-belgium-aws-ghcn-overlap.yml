@@ -1,0 +1,50 @@
+name: Test KMI RMI Belgium AWS GHCN overlap
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Überlappungsjahr für KMI/RMI AWS gegen GHCN"
+        required: false
+        default: "2025"
+        type: string
+      max_stations:
+        description: "Maximalzahl gemappter Stationen"
+        required: false
+        default: "8"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rmi-belgium-ghcn-overlap
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_aws_ghcn_overlap.py --self-test
+
+      - name: KMI RMI AWS gegen GHCN vergleichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_rmi_belgium_aws_ghcn_overlap.py \
+            --year "${{ inputs.year }}" \
+            --max-stations "${{ inputs.max_stations }}"
