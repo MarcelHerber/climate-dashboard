@@ -151,16 +151,42 @@ def station_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def unix_ms_to_date(value: Any) -> date | None:
+    """Parse SMHI JSON timestamps or ISO date/time strings."""
+    if value in (None, ""):
+        return None
+
+    text = str(value).strip()
+
+    # First try Unix seconds/milliseconds.
     try:
-        x = float(value)
+        x = float(text)
     except (TypeError, ValueError):
-        return None
-    if x > 10_000_000_000:
-        x /= 1000.0
+        x = None
+
+    if x is not None:
+        if abs(x) > 10_000_000_000:
+            x /= 1000.0
+        try:
+            return datetime.fromtimestamp(x, tz=timezone.utc).date()
+        except (OverflowError, OSError, ValueError):
+            return None
+
+    # Defensive ISO fallback.
     try:
-        return datetime.fromtimestamp(x, tz=timezone.utc).date()
-    except (OverflowError, OSError, ValueError):
+        if len(text) == 10:
+            return date.fromisoformat(text)
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except (ValueError, TypeError):
         return None
+
+
+def json_value_day(item: dict[str, Any]) -> date | None:
+    """Return the representative day for SMHI sample/interval values."""
+    for key in ("ref", "date", "from"):
+        d = unix_ms_to_date(item.get(key))
+        if d is not None:
+            return d
+    return None
 
 
 def json_values(payload: dict[str, Any]) -> list[tuple[date, float, str]]:
@@ -172,7 +198,7 @@ def json_values(payload: dict[str, Any]) -> list[tuple[date, float, str]]:
     for item in values:
         if not isinstance(item, dict):
             continue
-        d = unix_ms_to_date(item.get("date"))
+        d = json_value_day(item)
         try:
             value = float(item.get("value"))
         except (TypeError, ValueError):
@@ -230,12 +256,21 @@ def parse_corrected_archive(
     for i, line in enumerate(lines):
         if not line.strip():
             continue
-        # SMHI archive CSV has metadata above the actual data table.
-        # Locate the actual data header generically using date+quality tokens.
+        # Daily Tmin/Tmax are interval values. Their archive table contains:
+        # Från Datum Tid (UTC); Till Datum Tid (UTC); Representativt dygn;
+        # Lufttemperatur; Kvalitet.
         lower = norm(line)
-        if ("datum" in lower or "date" in lower) and (
-            "kvalitet" in lower or "quality" in lower
-        ):
+        has_date_axis = any(
+            token in lower
+            for token in (
+                "datum",
+                "date",
+                "representativt_dygn",
+                "representative_day",
+            )
+        )
+        has_quality = "kvalitet" in lower or "quality" in lower
+        if has_date_axis and has_quality:
             header_index = i
             delimiter = ";" if line.count(";") >= line.count(",") else ","
             break
@@ -260,13 +295,27 @@ def parse_corrected_archive(
     headers = list(reader.fieldnames or [])
     normalized = {norm(h): h for h in headers if h is not None}
 
+    # Prefer the interval reference day ("Representativt dygn"). This is
+    # SMHI's `ref` for an interval value and therefore the correct calendar
+    # day for daily Tmin/Tmax.
     date_col = None
-    for candidate in ("datum", "date"):
+    for candidate in (
+        "representativt_dygn",
+        "representative_day",
+        "ref",
+        "datum",
+        "date",
+        "fran_datum_tid_utc",
+        "from_date_time_utc",
+    ):
         if candidate in normalized:
             date_col = normalized[candidate]
             break
     if date_col is None:
-        raise RuntimeError(f"SMHI CSV: Datumsspalte fehlt: {headers}")
+        raise RuntimeError(
+            "SMHI CSV: weder repräsentativer Tag noch Datum/Intervallbeginn "
+            f"gefunden: {headers}"
+        )
 
     quality_col = None
     for candidate in ("kvalitet", "quality"):
@@ -284,6 +333,14 @@ def parse_corrected_archive(
         "time",
         "kvalitet",
         "quality",
+        "fran_datum_tid_utc",
+        "till_datum_tid_utc",
+        "from_date_time_utc",
+        "to_date_time_utc",
+        "representativt_dygn",
+        "representative_day",
+        "ref",
+        "tidsutsnitt",
     }
 
     rows = []
@@ -628,6 +685,19 @@ Datum;Tid (UTC);Lufttemperatur;Kvalitet;;
     assert parsed["rows"][0] == (date(1951, 1, 1), -12.3, "G")
     assert parsed["rows"][1] == (date(1951, 1, 2), -10.5, "Y")
 
+    # Exact live interval header observed for SMHI parameters 19/20.
+    interval_sample = """Stationsnamn;Rörbäcksnäs
+Stationsnummer;112080
+
+Från Datum Tid (UTC);Till Datum Tid (UTC);Representativt dygn;Lufttemperatur;Kvalitet;;Tidsutsnitt:
+1951-01-01 18:00:00;1951-01-02 18:00:00;1951-01-02;-22.4;G;;1 dygn
+1951-01-02 18:00:00;1951-01-03 18:00:00;1951-01-03;-19,8;Y;;1 dygn
+"""
+    interval = parse_corrected_archive(interval_sample.encode("utf-8"))
+    assert interval["value_column"] == "Lufttemperatur"
+    assert interval["rows"][0] == (date(1951, 1, 2), -22.4, "G")
+    assert interval["rows"][1] == (date(1951, 1, 3), -19.8, "Y")
+
     payload = {
         "value": [
             {"date": 1767225600000, "value": -2.4, "quality": "G"},
@@ -635,6 +705,20 @@ Datum;Tid (UTC);Lufttemperatur;Kvalitet;;
     }
     values = json_values(payload)
     assert values and values[0][1:] == (-2.4, "G")
+
+    interval_payload = {
+        "value": [
+            {
+                "from": "2026-01-01T18:00:00Z",
+                "to": "2026-01-02T18:00:00Z",
+                "ref": "2026-01-02",
+                "value": "-5.1",
+                "quality": "G",
+            }
+        ]
+    }
+    interval_values = json_values(interval_payload)
+    assert interval_values == [(date(2026, 1, 2), -5.1, "G")]
 
     detail = {
         "period": [
