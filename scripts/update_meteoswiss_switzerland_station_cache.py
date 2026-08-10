@@ -373,10 +373,24 @@ def load_station_metadata() -> dict[str, dict[str, Any]]:
         fields, ("station_name", "name"), ("station_name",)
     )
     lat_col = pick_column(
-        fields, ("latitude", "lat"), ("latitude",)
+        fields,
+        (
+            "station_coordinates_wgs84_lat",
+            "station_coordinates_wgs84_latitude",
+            "latitude",
+            "lat",
+        ),
+        ("wgs84_lat", "latitude"),
     )
     lon_col = pick_column(
-        fields, ("longitude", "lon"), ("longitude",)
+        fields,
+        (
+            "station_coordinates_wgs84_lon",
+            "station_coordinates_wgs84_longitude",
+            "longitude",
+            "lon",
+        ),
+        ("wgs84_lon", "longitude"),
     )
     elev_col = pick_column(
         fields,
@@ -776,6 +790,24 @@ def self_test() -> None:
     assert consume_day(rec, *rows[1]) is True
     assert rec["calendar_tmin"]["01-01"] == [-8.2, "1864-01-01"]
     assert rec["calendar_tmax"]["01-02"] == [2.5, "1864-01-02"]
+
+    meta_fields = [
+        "station_abbr",
+        "station_name",
+        "station_height_masl",
+        "station_coordinates_wgs84_lat",
+        "station_coordinates_wgs84_lon",
+    ]
+    assert pick_column(
+        meta_fields,
+        ("station_coordinates_wgs84_lat", "latitude", "lat"),
+        ("wgs84_lat", "latitude"),
+    ) == "station_coordinates_wgs84_lat"
+    assert pick_column(
+        meta_fields,
+        ("station_coordinates_wgs84_lon", "longitude", "lon"),
+        ("wgs84_lon", "longitude"),
+    ) == "station_coordinates_wgs84_lon"
 
     item = {
         "id": "ogd-smn_ber",

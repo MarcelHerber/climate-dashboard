@@ -581,8 +581,14 @@ def swiss_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, c
         station = _make_station_meta(
             sid=sid,
             raw_meta=meta,
-            lat_keys=("lat", "latitude"),
-            lon_keys=("lon", "longitude"),
+            lat_keys=(
+                "lat", "latitude", "station_coordinates_wgs84_lat",
+                "station_coordinates_wgs84_latitude",
+            ),
+            lon_keys=(
+                "lon", "longitude", "station_coordinates_wgs84_lon",
+                "station_coordinates_wgs84_longitude",
+            ),
             elev_keys=("elevation_m", "elevation", "height"),
             name_keys=("name",),
             country_code="CH",
@@ -1306,6 +1312,28 @@ def main() -> int:
     smhi_stations = smhi_inventory_to_meta(smhi_inventory)
     belgium_stations = belgium_inventory_to_meta(belgium_inventory)
     swiss_stations = swiss_inventory_to_meta(swiss_inventory)
+
+    # Older MeteoSwiss v1 cache files may contain station names/elevation but
+    # no parsed WGS84 coordinates because the live metadata fields are named
+    # station_coordinates_wgs84_lat/lon. Refresh metadata live without
+    # rebuilding the expensive historical temperature baseline.
+    swiss_record_ids = set(str(x) for x in swiss_base.get("records", {}))
+    swiss_record_ids.update(str(x) for x in swiss_cur_payload.get("records", {}))
+    if not swiss_stations or not any(
+        f"METEOSWISS:{raw_id}" in swiss_stations for raw_id in swiss_record_ids
+    ):
+        fresh_swiss_inventory = swiss_hist.load_station_metadata()
+        swiss_inventory.update(fresh_swiss_inventory)
+        swiss_stations = swiss_inventory_to_meta(swiss_inventory)
+        log(
+            f"MeteoSwiss Metadaten live repariert: {len(swiss_stations)} "
+            f"kartierbare Stationen für {len(swiss_record_ids)} Stationsreihen."
+        )
+    else:
+        log(
+            f"MeteoSwiss Metadaten: {len(swiss_stations)} kartierbare "
+            f"Stationen für {len(swiss_record_ids)} Stationsreihen."
+        )
 
     if not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations or not smhi_stations or not belgium_stations or not swiss_stations:
         raise RuntimeError(
