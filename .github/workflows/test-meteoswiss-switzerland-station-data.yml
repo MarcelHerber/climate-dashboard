@@ -1,0 +1,37 @@
+name: Test MeteoSwiss Switzerland station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meteoswiss-switzerland-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: MeteoSwiss Probe Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_meteoswiss_switzerland_station_data.py --self-test
+
+      - name: MeteoSwiss Schweiz Live-Daten prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_meteoswiss_switzerland_station_data.py
