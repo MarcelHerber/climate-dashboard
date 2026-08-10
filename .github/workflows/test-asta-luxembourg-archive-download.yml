@@ -1,0 +1,50 @@
+name: Test ASTA Luxembourg historical archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      station_limit:
+        description: "Wie viele ASTA-Stationsseiten technisch untersuchen?"
+        required: false
+        default: "6"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asta-luxembourg-archive-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: ASTA Archiv-Probe Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_asta_luxembourg_archive_download.py --self-test
+
+      - name: ASTA historische Download-Endpunkte untersuchen
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LIMIT="${{ inputs.station_limit }}"
+          if [[ -z "$LIMIT" ]]; then
+            LIMIT="6"
+          fi
+
+          python scripts/test_asta_luxembourg_archive_download.py \
+            --station-limit "$LIMIT"
