@@ -1,0 +1,119 @@
+name: Build Met Eireann Ireland station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen Irland-Cache vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: met-eireann-ireland-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Basisjahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_YEAR=$(( $(date -u +%Y) - 1 ))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+          echo "Historische Irland-Baseline bis ${BASE_YEAR}"
+
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
+      - name: Met-Eireann-Irland-Cache wiederherstellen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: met-eireann-ireland-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            met-eireann-ireland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_met_eireann_ireland_station_cache.py --self-test
+
+      - name: Historischen Met-Eireann-Irland-Cache bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_met_eireann_ireland_station_cache.py \
+            --cutoff-year "${{ steps.dates.outputs.base_year }}" \
+            --workers 12 \
+            --batch-size 100 \
+            --max-runtime-minutes 155 \
+            $EXTRA_ARGS
+
+      - name: Met-Eireann-Irland-Cache sichern
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-stations
+          key: met-eireann-ireland-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+
+      - name: Met-Eireann-Irland-Baseline prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          base_year = datetime.datetime.now(datetime.UTC).year - 1
+          status_path = pathlib.Path(
+              f".cache/europe-stations/met_eireann_ireland_status_through_{base_year}.json"
+          )
+          if not status_path.exists():
+              raise SystemExit(f"Status fehlt: {status_path}")
+
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+          print("=== MET ÉIREANN IRELAND STATUS ===")
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit(
+                  "Irland-Baseline ist noch nicht vollständig. "
+                  "Zwischenstand wurde im Cache gespeichert; "
+                  "Workflow mit force=false erneut starten."
+              )
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("Irland-Baseline enthält keine Temperatur-Stationsreihen.")
+          if int(status.get("rows_with_temperature", 0)) <= 0:
+              raise SystemExit("Irland-Baseline enthält keine Stationstage.")
+
+          baseline = pathlib.Path(status["baseline_file"])
+          if not baseline.exists():
+              raise SystemExit(f"Finaler Irland-Baselinecache fehlt: {baseline}")
+
+          print("Met Éireann Ireland historische Baseline vollständig OK.")
+          PY
