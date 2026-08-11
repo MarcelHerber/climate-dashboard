@@ -1,0 +1,27 @@
+name: Test IPMA Portugal temperature files
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: IPMA Portugal Tmax Tmin Dateien testen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_ipma_portugal_climate_temperature_files.py
