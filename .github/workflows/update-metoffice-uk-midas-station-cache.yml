@@ -1,0 +1,85 @@
+name: Build Met Office UK historical cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen UK-Cache komplett neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Vorhandenen UK-Zwischenstand wiederherstellen
+        id: cache_restore
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: metoffice-uk-midas-baseline-2025-v1-${{ github.run_id }}
+          restore-keys: |
+            metoffice-uk-midas-baseline-2025-v1-
+
+      - name: Parser-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_metoffice_uk_midas_station_cache.py --self-test
+
+      - name: Historischen UK-Cache bis 2025 bauen
+        shell: bash
+        env:
+          CEDA_ACCESS_TOKEN: ${{ secrets.CEDA_ACCESS_TOKEN }}
+          CEDA_USERNAME: ${{ secrets.CEDA_USERNAME }}
+          CEDA_PASSWORD: ${{ secrets.CEDA_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_metoffice_uk_midas_station_cache.py \
+            --cutoff-year 2025 \
+            --workers 16 \
+            --max-runtime-minutes 280 \
+            $EXTRA_ARGS
+
+      - name: Cache-Dateien anzeigen
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== UK MIDAS CACHE DATEIEN ==="
+          find .cache/europe-stations -maxdepth 1 -type f \
+            -name 'metoffice_uk_midas_*' \
+            -printf '%f | %s bytes\n' | sort || true
+
+          if [[ -f ".cache/europe-stations/metoffice_uk_midas_status_through_2025.json" ]]; then
+            echo
+            echo "=== UK MIDAS STATUS ==="
+            cat ".cache/europe-stations/metoffice_uk_midas_status_through_2025.json"
+          fi
+
+      - name: UK-Zwischenstand speichern
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-stations
+          key: metoffice-uk-midas-baseline-2025-v1-${{ github.run_id }}
