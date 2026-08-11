@@ -298,6 +298,15 @@ def main():
     print("Der Recent-SHK-Meldestatus ist dabei nur Information und kein Ausschlusskriterium.",flush=True)
     print("Dann berechnen wir aus den echten Tageswerten hydrologische Jahre 01.11.–31.10. vollständig neu.",flush=True)
     print("Referenz 1991–2020: hydrologische Jahre 1991…2020, also 01.11.1990–31.10.2020.",flush=True)
+
+    print("\n=== KURZZUSAMMENFASSUNG FÜR SCHRITT 2 ===",flush=True)
+    print(f"Vollaufbau-Kandidaten >=30 Netto-Jahre: {len(n30):,}",flush=True)
+    print(f"Davon >=50 Netto-Jahre: {len(n50):,}",flush=True)
+    print(f"Davon >=100 Netto-Jahre: {len(n100):,}",flush=True)
+    print("Bundesländer der Vollaufbau-Kandidaten:",flush=True)
+    for state in STATES:
+        print(f"  {state}: {candidate_states.get(state,0)}",flush=True)
+
     if errors:
         print(f"\nEinzelfehler Recent-Scan: {len(errors)}",flush=True)
         for e in errors[:20]: print("  - "+e,flush=True)
