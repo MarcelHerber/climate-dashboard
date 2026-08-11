@@ -73,6 +73,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_hungary_baseline:
+        description: "Nur HungaroMet Ungarn neu aufbauen"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
@@ -120,14 +125,14 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
-          key: europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v10-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
-            europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v10-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v10-${{ steps.dates.outputs.base_year }}-
             europe-stations-v9-${{ steps.dates.outputs.base_year }}-
             europe-stations-v8-${{ steps.dates.outputs.base_year }}-
             europe-stations-v7-${{ steps.dates.outputs.base_year }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: Météo-France-Cache ergänzen
@@ -284,7 +289,9 @@ jobs:
             scripts/update_fmi_finland_station_cache.py \
             scripts/update_fmi_finland_current.py \
             scripts/update_chmi_czechia_station_cache.py \
-            scripts/update_chmi_czechia_current.py
+            scripts/update_chmi_czechia_current.py \
+            scripts/update_hungaromet_hungary_station_cache.py \
+            scripts/update_hungaromet_hungary_current.py
           do
             test -s "$FILE"
           done
@@ -310,6 +317,8 @@ jobs:
           python scripts/update_fmi_finland_current.py --self-test
           python scripts/update_chmi_czechia_station_cache.py --self-test
           python scripts/update_chmi_czechia_current.py --self-test
+          python scripts/update_hungaromet_hungary_station_cache.py --self-test
+          python scripts/update_hungaromet_hungary_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
@@ -331,6 +340,7 @@ jobs:
           FORCE_SWISS_BASELINE: ${{ github.event.inputs.force_swiss_baseline || 'false' }}
           FORCE_FMI_BASELINE: ${{ github.event.inputs.force_fmi_baseline || 'false' }}
           FORCE_CHMI_BASELINE: ${{ github.event.inputs.force_chmi_baseline || 'false' }}
+          FORCE_HUNGARY_BASELINE: ${{ github.event.inputs.force_hungary_baseline || 'false' }}
         run: |
           set -euo pipefail
           EXTRA_ARGS=""
@@ -348,6 +358,7 @@ jobs:
           [[ "$FORCE_SWISS_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-swiss-baseline"
           [[ "$FORCE_FMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-fmi-baseline"
           [[ "$FORCE_CHMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-chmi-baseline"
+          [[ "$FORCE_HUNGARY_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-hungary-baseline"
 
           python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
@@ -363,7 +374,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: .cache/europe-stations
-          key: europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v10-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
       - name: Ergebnis vollständig prüfen
         shell: bash
@@ -400,6 +411,7 @@ jobs:
               "Schweiz":"MeteoSwiss Open Data",
               "Finnland":"FMI Open Data",
               "Tschechien":"CHMI Open Data",
+              "Ungarn":"HungaroMet Open Data",
           }
 
           if p.get("payload_version") != 5:
@@ -417,7 +429,7 @@ jobs:
               "DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria",
               "IMGW-PIB","KNMI","MET Norway Frost","DMI Open Data",
               "SMHI Open Data","KMI/RMI Open Data","MeteoSwiss Open Data",
-              "FMI Open Data","CHMI Open Data","GHCN-Daily"
+              "FMI Open Data","CHMI Open Data","HungaroMet Open Data","GHCN-Daily"
           ):
               if int(sources.get(source,0) or 0) <= 0:
                   raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
@@ -429,7 +441,7 @@ jobs:
           if any("active" not in x or "last_observation" not in x for x in rows):
               raise SystemExit("active/last_observation fehlt bei mindestens einer Station.")
 
-          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ","FI","EZ"}
+          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ","FI","EZ","HU"}
           wrong=[x for x in rows if x.get("source")=="GHCN-Daily" and x.get("country_code") in forbidden]
           if wrong:
               raise SystemExit(f"GHCN enthält national ersetzte Länder: {sorted({x.get('country_code') for x in wrong})}")
