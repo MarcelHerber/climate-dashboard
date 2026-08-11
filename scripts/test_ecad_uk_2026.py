@@ -547,8 +547,8 @@ def main() -> int:
     log("=" * 82)
     log("3. ELEMENT-IDs DER 2026-QUELLEN")
     log("=" * 82)
-    log("TX:", dict(tx_ele_counts.most_common()))
-    log("TN:", dict(tn_ele_counts.most_common()))
+    log(f"TX: {dict(tx_ele_counts.most_common())}")
+    log(f"TN: {dict(tn_ele_counts.most_common())}")
     log("Bevorzugt für MIDAS-Kompatibilität: TX9 + TN9.")
     log(
         "GTS/SYNOP-Erweiterungen sind typischerweise TX7/TN6 und werden "
