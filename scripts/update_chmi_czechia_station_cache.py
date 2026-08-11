@@ -108,9 +108,20 @@ def load_csv_element(url, element, cutoff_year=2025):
     rows = iter(rdr)
     header = next(rows, [])
     idx = {str(c).strip():i for i,c in enumerate(header)}
-    needed = ["ELEMENT","DT","VAL","QUALITY"]
-    if any(x not in idx for x in needed):
-        raise RuntimeError(f"{url}: Header unvollständig: {header}")
+
+    # CHMI uses slightly different field names in its products:
+    # historical CSV: TIMEFUNC + VALUE
+    # recent JSON:    VTYPE    + VAL
+    # This historical loader therefore accepts both VALUE and VAL.
+    value_col = "VALUE" if "VALUE" in idx else ("VAL" if "VAL" in idx else None)
+
+    needed = ["ELEMENT", "DT", "QUALITY"]
+    if any(x not in idx for x in needed) or value_col is None:
+        raise RuntimeError(
+            f"{url}: Header unvollständig/unerwartet: {header} "
+            f"(erwartet ELEMENT, DT, QUALITY und VALUE oder VAL)"
+        )
+
     vals = {}
     qrej = Counter()
     invalid = 0
@@ -124,7 +135,7 @@ def load_csv_element(url, element, cutoff_year=2025):
             if not quality_ok(q):
                 qrej[q or "(leer)"] += 1
                 continue
-            x = float(row[idx["VAL"]])
+            x = float(row[idx[value_col]])
             if not math.isfinite(x): continue
             # Official national bounds through 2025.
             if element == "TMA" and not (-50.0 <= x <= 40.4):
