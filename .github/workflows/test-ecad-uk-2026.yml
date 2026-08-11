@@ -1,0 +1,41 @@
+name: Test ECA&D UK 2026 station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Vorhandenen UK-MIDAS-Cache optional wiederherstellen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: ecad-uk-probe-midas-${{ github.run_id }}
+          restore-keys: |
+            metoffice-uk-midas-baseline-2025-v1-
+
+      - name: Parser-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_ecad_uk_2026.py --self-test
+
+      - name: ECA&D UK 2026 Probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_ecad_uk_2026.py
