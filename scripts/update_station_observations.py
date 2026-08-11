@@ -88,6 +88,17 @@ GERMAN_STATES = (
     "Thüringen",
 )
 
+STATE_ALIASES = {
+    "Baden-Wuerttemberg": "Baden-Württemberg",
+    "Baden Württemberg": "Baden-Württemberg",
+    "Mecklenburg Vorpommern": "Mecklenburg-Vorpommern",
+    "Nordrhein Westfalen": "Nordrhein-Westfalen",
+    "Rheinland Pfalz": "Rheinland-Pfalz",
+    "Sachsen Anhalt": "Sachsen-Anhalt",
+    "Schleswig Holstein": "Schleswig-Holstein",
+}
+
+
 
 @dataclass
 class StationMeta:
@@ -166,70 +177,144 @@ def list_recent_station_ids(product_key: str) -> set[str]:
     return ids
 
 
+def normalize_state(value: str) -> str:
+    cleaned = " ".join(value.strip().split())
+    cleaned = STATE_ALIASES.get(cleaned, cleaned)
+    return cleaned if cleaned in GERMAN_STATES else "Unbekannt"
+
+
 def parse_station_metadata(text: str) -> dict[str, StationMeta]:
+    """Parse DWD station metadata robustly.
+
+    DWD station-description rows contain six leading numeric fields followed
+    by station name, Bundesland and, in newer files, possibly an additional
+    trailing field such as "Abgabe". Therefore the Bundesland must not be
+    assumed to be the final token on the line.
+    """
     stations: dict[str, StationMeta] = {}
 
-    for raw_line in text.splitlines():
+    lines = text.splitlines()
+    header_index = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if "Stations_id" in line
+            and "von_datum" in line
+            and "Stationsname" in line
+            and "Bundesland" in line
+        ),
+        None,
+    )
+    if header_index is None:
+        raise RuntimeError(
+            "DWD-Stationsmetadaten enthalten keine erkennbare Kopfzeile."
+        )
+
+    prefix_pattern = re.compile(
+        r"^\s*(\d{1,5})\s+"
+        r"(\d{8})\s+"
+        r"(\d{8})\s+"
+        r"(-?\d+(?:[.,]\d+)?)\s+"
+        r"(-?\d+(?:[.,]\d+)?)\s+"
+        r"(-?\d+(?:[.,]\d+)?)\s+"
+        r"(.+?)\s*$"
+    )
+
+    state_candidates = sorted(
+        set(GERMAN_STATES) | set(STATE_ALIASES.keys()),
+        key=len,
+        reverse=True,
+    )
+    state_patterns = [
+        (
+            state,
+            re.compile(rf"(?<!\S){re.escape(state)}(?=\s|$)"),
+        )
+        for state in state_candidates
+    ]
+
+    skipped_examples: list[str] = []
+
+    for raw_line in lines[header_index + 1 :]:
         line = raw_line.rstrip()
-        if not line.strip():
+        match = prefix_pattern.match(line)
+        if not match:
+            if (
+                line.strip()
+                and not set(line.strip()) <= {"-", " "}
+                and len(skipped_examples) < 3
+            ):
+                skipped_examples.append(line[:180])
             continue
 
-        lowered = line.lower()
-        if "stations_id" in lowered or "stationsname" in lowered:
-            continue
-        if set(line.strip()) <= {"-", " "}:
-            continue
+        (
+            station_text,
+            start_text,
+            end_text,
+            height_text,
+            lat_text,
+            lon_text,
+            tail,
+        ) = match.groups()
 
-        parts = line.split(maxsplit=6)
-        if len(parts) < 7 or not parts[0].isdigit():
-            continue
+        station_id = station_text.zfill(5)
 
-        station_id = parts[0].zfill(5)
-        start = parts[1] if re.fullmatch(r"\d{8}", parts[1]) else None
-        end = parts[2] if re.fullmatch(r"\d{8}", parts[2]) else None
+        best_state_raw = None
+        best_state_start = -1
 
-        try:
-            height = float(parts[3].replace(",", "."))
-        except ValueError:
-            height = None
-        try:
-            lat = float(parts[4].replace(",", "."))
-        except ValueError:
-            lat = None
-        try:
-            lon = float(parts[5].replace(",", "."))
-        except ValueError:
-            lon = None
+        # The Bundesland is the right-most recognised state in the tail.
+        # Anything after it (e.g. "Abgabe") is intentionally ignored.
+        for raw_state, pattern in state_patterns:
+            for state_match in pattern.finditer(tail):
+                if state_match.start() > best_state_start:
+                    best_state_start = state_match.start()
+                    best_state_raw = raw_state
 
-        remainder = parts[6].strip()
-        name = remainder
-        state = "Unbekannt"
+        if best_state_raw is None:
+            name = tail.strip()
+            state = "Unbekannt"
+        else:
+            name = tail[:best_state_start].strip()
+            state = normalize_state(best_state_raw)
 
-        for candidate in sorted(GERMAN_STATES, key=len, reverse=True):
-            if remainder.endswith(" " + candidate):
-                name = remainder[: -len(candidate)].strip()
-                state = candidate
-                break
-            if remainder == candidate:
-                name = f"Station {station_id}"
-                state = candidate
-                break
+        def as_float(value: str) -> float | None:
+            try:
+                return float(value.replace(",", "."))
+            except ValueError:
+                return None
 
         stations[station_id] = StationMeta(
             station_id=station_id,
             name=name or f"Station {station_id}",
             state=state,
-            height=height,
-            lat=lat,
-            lon=lon,
-            start=start,
-            end=end,
+            height=as_float(height_text),
+            lat=as_float(lat_text),
+            lon=as_float(lon_text),
+            start=start_text,
+            end=end_text,
         )
 
     if len(stations) < 100:
+        detail = (
+            " Beispiele: " + " | ".join(skipped_examples)
+            if skipped_examples
+            else ""
+        )
         raise RuntimeError(
             f"Stationsmetadaten unplausibel: nur {len(stations)} Einträge."
+            + detail
         )
+
+    known_states = sum(
+        station.state != "Unbekannt"
+        for station in stations.values()
+    )
+    if known_states < max(100, int(len(stations) * 0.5)):
+        raise RuntimeError(
+            "Zu wenige Stationsmetadaten konnten einem Bundesland "
+            f"zugeordnet werden: {known_states} von {len(stations)}."
+        )
+
     return stations
 
 
@@ -679,13 +764,13 @@ def self_test() -> None:
     # Metadata parser.
     lines = [
         "Stations_id von_datum bis_datum Stationshoehe geoBreite geoLaenge Stationsname Bundesland",
-        "01420 19490101 20261231 100 50.0259 8.5213 Frankfurt/Main Hessen",
-        "04336 19360101 20261231 320 49.2140 7.1070 Saarbrücken-Ensheim Saarland",
+        "01420 19490101 20261231 100 50.0259 8.5213 Frankfurt/Main Hessen frei",
+        "04336 19360101 20261231 320 49.2140 7.1070 Saarbrücken-Ensheim Saarland frei",
     ]
     # Pad the synthetic metadata to satisfy the plausibility guard.
     for i in range(100):
         lines.append(
-            f"{50000+i:05d} 20000101 20261231 100 50.0 8.0 Test {i} Hessen"
+            f"{50000+i:05d} 20000101 20261231 100 50.0 8.0 Test {i} Hessen frei"
         )
     meta = parse_station_metadata("\n".join(lines))
     assert meta["01420"].name == "Frankfurt/Main"
