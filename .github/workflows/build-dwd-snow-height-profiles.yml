@@ -1,0 +1,75 @@
+name: Build DWD snow-height profiles
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Historischen Schneehöhen-Cache laden
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/dwd-snow-height
+          key: dwd-snow-height-history-through-2025-v1
+          fail-on-cache-miss: true
+
+      - name: Profil-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_snow_height_profiles.py --self-test
+
+      - name: Historische Schneehöhen-Profile erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_snow_height_profiles.py
+
+      - name: Profile versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            station_snow_height_index.json \
+            station_snow_height_profiles
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen an den Schneehöhen-Profilen."
+            exit 0
+          fi
+
+          git commit -m "DWD Schneehöhen-Profile aufgebaut [skip ci]"
+
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((ATTEMPT * 3))
+          done
+
+          echo "FEHLER: Push nach drei Versuchen nicht möglich."
+          exit 1
