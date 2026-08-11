@@ -23,6 +23,7 @@ jobs:
       - name: UK MIDAS Open Daily Temperature testen
         shell: bash
         env:
+          CEDA_ACCESS_TOKEN: ${{ secrets.CEDA_ACCESS_TOKEN }}
           CEDA_USERNAME: ${{ secrets.CEDA_USERNAME }}
           CEDA_PASSWORD: ${{ secrets.CEDA_PASSWORD }}
         run: |
