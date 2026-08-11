@@ -1,0 +1,33 @@
+name: Test ARSO Slovenia archive endpoints
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Parser-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_arso_slovenia_archive_endpoints.py --self-test
+
+      - name: ARSO Archiv-Endpunkte prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_arso_slovenia_archive_endpoints.py
