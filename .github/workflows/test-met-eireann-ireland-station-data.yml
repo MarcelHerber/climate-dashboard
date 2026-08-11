@@ -1,0 +1,27 @@
+name: Test Met Eireann Ireland station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v5
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Met Eireann Irland Daten testen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_met_eireann_ireland_station_data.py
