@@ -219,7 +219,7 @@ def main():
     print(f"Davon SHK zeitnah gemeldet: {len(recent_current):,}",flush=True)
     print(f"SHK derzeit nicht zeitnah gemeldet: {len(recent_stale):,}",flush=True)
 
-    cnt=Counter(meta[s].state for s in recent_files if s in meta)
+    cnt=Counter(meta[s].state for s in files if s in meta)
     print("Aktuelle KL-Stationen nach Bundesland:",flush=True)
     for state in STATES: print(f"  {state}: {cnt.get(state,0)}",flush=True)
     if cnt.get("Unbekannt"): print(f"  Unbekannt: {cnt['Unbekannt']}",flush=True)
@@ -245,7 +245,7 @@ def main():
     print(f"Alle DWD-SHK-Reihen >=30 Jahre Spanne: {len(o30):,}",flush=True)
     print(f"Alle DWD-SHK-Reihen >=50 Jahre Spanne: {len(o50):,}",flush=True)
     print(f"Alle DWD-SHK-Reihen >=100 Jahre Spanne: {len(o100):,}",flush=True)
-    kl_ids=set(recent_files)
+    kl_ids=set(files)
     a30=kl_ids & set(o30); a50=kl_ids & set(o50); a100=kl_ids & set(o100)
     print("\nDavon Stationen im aktuellen DWD-KL-Netz:",flush=True)
     print(f"  >=30 Jahre Spanne: {len(a30):,}",flush=True)
