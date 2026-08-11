@@ -1,17 +1,38 @@
 #!/usr/bin/env python3
-"""Build the current 2026 UK Met Office MIDAS daily TMIN/TMAX cache.
+"""Build the provisional/current 2026 UK temperature cache.
 
-This uses the ongoing/restricted MIDAS TD yearly file:
-  /badc/ukmo-midas/data/TD/yearly_files/midas_tempdrnl_202601-202612.txt
+Historical authority:
+    Met Office MIDAS Open through 2025.
 
-The file is updated by CEDA as newer MIDAS deliveries arrive.  The parser
-reuses the 09-09 UTC climate-day reconstruction from the historical MIDAS
-Open builder, so 12-hour values are never mistaken for complete daily values.
+Current-year bridge:
+    NOAA/NCEI GHCN-Daily for UK stations (country prefix "UK").
+
+Why a bridge?
+    The freely accessible Met Office Weather DataHub Land Observations feed
+    only exposes the most recent 48 hours. It therefore cannot retrospectively
+    reconstruct January-to-date 2026. The restricted ongoing MIDAS archive is
+    intentionally not used.
+
+This script:
+  * selects all UK GHCN-Daily stations whose TMAX and/or TMIN inventory reaches
+    2026,
+  * downloads their by_station files,
+  * keeps only 2026 TMAX/TMIN with blank NOAA QFLAG,
+  * crosswalks current GHCN stations to the completed Met Office MIDAS
+    historical cache using WMO ID first and otherwise a strict
+    coordinate/name match,
+  * writes a separate provisional 2026 cache.
+
+GHCN MFLAG="H" values (highest/lowest hourly temperature) are retained but
+explicitly counted and marked as provisional provenance. Such values are
+conservative for extremes and must not be confused with final MIDAS daily
+temperature observations.
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import difflib
 import gzip
 import io
 import json
@@ -20,7 +41,10 @@ import os
 import pickle
 import re
 import tempfile
+import time
+import unicodedata
 import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -29,68 +53,39 @@ from typing import Any
 import update_metoffice_uk_midas_station_cache as hist
 
 YEAR = 2026
-FORMAT_VERSION = 1
-SOURCE = "Met Office MIDAS"
+FORMAT_VERSION = 2
 COUNTRY = "United Kingdom"
 COUNTRY_CODE = "UK"
+SOURCE = "NOAA/NCEI GHCN-Daily (2026 bridge)"
+HISTORICAL_SOURCE = "Met Office MIDAS Open through 2025"
+
+BASE_URL = "https://www.ncei.noaa.gov/pub/data/ghcn/daily"
+STATIONS_URL = f"{BASE_URL}/ghcnd-stations.txt"
+INVENTORY_URL = f"{BASE_URL}/ghcnd-inventory.txt"
+VERSION_URL = f"{BASE_URL}/ghcnd-version.txt"
+BY_STATION_ROOT = f"{BASE_URL}/by_station"
 
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
-CURRENT_FILE_NAME = "midas_tempdrnl_202601-202612.txt"
-CURRENT_DATA_URL = (
-    "https://dap.ceda.ac.uk/badc/ukmo-midas/data/TD/yearly_files/"
-    + CURRENT_FILE_NAME
-)
-CATALOGUE_URL = (
-    "https://catalogue.ceda.ac.uk/uuid/"
-    "1bb479d3b1e38c339adb9c82c15579d8/"
-)
+UA = "climate-dashboard-uk-ghcn-current-bridge/2.0 (+GitHub Actions)"
 
-# The restricted TD yearly files use the same TD table schema documented by
-# CEDA.  Some snapshots include the header in the file; some historic exports
-# rely on the separately published column header.  This fallback matches the
-# 22-column TD schema used by the MIDAS daily-temperature table.
-CANONICAL_COLUMNS = [
-    "ob_end_time",
-    "id_type",
-    "id",
-    "ob_hour_count",
-    "version_num",
-    "met_domain_name",
-    "src_id",
-    "rec_st_ind",
-    "max_air_temp",
-    "min_air_temp",
-    "min_grss_temp",
-    "min_conc_temp",
-    "max_air_temp_q",
-    "min_air_temp_q",
-    "min_grss_temp_q",
-    "min_conc_temp_q",
-    "max_air_temp_j",
-    "min_air_temp_j",
-    "min_grss_temp_j",
-    "min_conc_temp_j",
-    "meto_stmp_time",
-    "midas_stmp_etime",
-]
+HTTP_TIMEOUT = 90
+TRIES = 4
 
 
 def log(msg: str = "") -> None:
     print(msg, flush=True)
 
 
+def historical_cache_path(cache_dir: Path) -> Path:
+    return cache_dir / "metoffice_uk_midas_daily_baseline_through_2025_v1.pkl.gz"
+
+
 def current_cache_path(cache_dir: Path) -> Path:
-    return cache_dir / "metoffice_uk_midas_current_2026_v1.pkl.gz"
+    return cache_dir / "metoffice_uk_ghcn_bridge_current_2026_v2.pkl.gz"
 
 
 def current_status_path(cache_dir: Path) -> Path:
-    return cache_dir / "metoffice_uk_midas_current_2026_status.json"
-
-
-def historical_cache_path(cache_dir: Path) -> Path:
-    return cache_dir / (
-        "metoffice_uk_midas_daily_baseline_through_2025_v1.pkl.gz"
-    )
+    return cache_dir / "metoffice_uk_ghcn_bridge_current_2026_status.json"
 
 
 def atomic_pickle_gzip(path: Path, obj: Any) -> None:
@@ -130,369 +125,643 @@ def atomic_json(path: Path, obj: Any) -> None:
         tmp.unlink(missing_ok=True)
 
 
-def normalize_src_id(value: str) -> str:
-    text = str(value).strip()
-    try:
-        return str(int(float(text)))
-    except ValueError:
-        return text.lstrip("0") or text
-
-
-def as_float(value: str) -> float | None:
-    text = str(value).strip()
-    if text in {"", "NA", "N/A", "-999", "-999.0"}:
-        return None
-    try:
-        x = float(text)
-    except ValueError:
-        return None
-    return x if math.isfinite(x) else None
-
-
-def parse_datetime(value: str) -> datetime | None:
-    text = str(value).strip()
-    if not text or text in {"NA", "N/A"}:
-        return None
-    for fmt in (
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%dT%H:%M:%S",
-    ):
+def request_bytes(url: str, attempts: int = TRIES) -> bytes:
+    last: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": UA,
+                "Accept": "*/*",
+                "Accept-Encoding": "identity",
+            },
+        )
         try:
-            return datetime.strptime(text, fmt)
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as response:
+                raw = response.read()
+                if not raw:
+                    raise RuntimeError("leere HTTP-Antwort")
+                return raw
+        except urllib.error.HTTPError as exc:
+            last = exc
+            if exc.code not in {408, 429, 500, 502, 503, 504}:
+                raise
+        except (urllib.error.URLError, TimeoutError, OSError, RuntimeError) as exc:
+            last = exc
+
+        if attempt < attempts:
+            time.sleep(min(20, attempt * 2))
+
+    raise RuntimeError(f"Abruf fehlgeschlagen: {url}: {last}")
+
+
+def request_text(url: str) -> str:
+    raw = request_bytes(url)
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    return raw.decode("utf-8", errors="replace")
+
+
+def parse_ghcn_stations(text: str) -> dict[str, dict[str, Any]]:
+    """Parse fixed-width ghcnd-stations.txt."""
+    out: dict[str, dict[str, Any]] = {}
+    for line in text.splitlines():
+        if len(line) < 42:
+            continue
+        sid = line[0:11].strip()
+        if not sid.startswith("UK"):
+            continue
+        try:
+            lat = float(line[12:20])
+            lon = float(line[21:30])
         except ValueError:
-            pass
+            continue
+
+        elev_text = line[31:37].strip()
+        try:
+            elev = float(elev_text)
+        except ValueError:
+            elev = None
+
+        out[sid] = {
+            "ghcn_id": sid,
+            "lat": lat,
+            "lon": lon,
+            "elevation_m": elev,
+            "name": line[41:71].strip(),
+            "wmo_id": line[80:85].strip() if len(line) >= 85 else "",
+        }
+    return out
+
+
+def parse_ghcn_inventory(text: str) -> dict[str, dict[str, tuple[int, int]]]:
+    """Parse fixed-width ghcnd-inventory.txt for UK TMAX/TMIN."""
+    out: dict[str, dict[str, tuple[int, int]]] = defaultdict(dict)
+
+    for line in text.splitlines():
+        if len(line) < 45:
+            continue
+        sid = line[0:11].strip()
+        if not sid.startswith("UK"):
+            continue
+
+        element = line[31:35].strip()
+        if element not in {"TMAX", "TMIN"}:
+            continue
+
+        try:
+            first = int(line[36:40])
+            last = int(line[41:45])
+        except ValueError:
+            continue
+
+        out[sid][element] = (first, last)
+
+    return dict(out)
+
+
+def active_2026_stations(
+    stations: dict[str, dict[str, Any]],
+    inventory: dict[str, dict[str, tuple[int, int]]],
+) -> list[dict[str, Any]]:
+    selected = []
+
+    for sid, elements in inventory.items():
+        if sid not in stations:
+            continue
+
+        has_tmax = (
+            "TMAX" in elements
+            and elements["TMAX"][0] <= YEAR <= elements["TMAX"][1]
+        )
+        has_tmin = (
+            "TMIN" in elements
+            and elements["TMIN"][0] <= YEAR <= elements["TMIN"][1]
+        )
+        if not has_tmax and not has_tmin:
+            continue
+
+        obj = dict(stations[sid])
+        obj["has_tmax_2026_inventory"] = has_tmax
+        obj["has_tmin_2026_inventory"] = has_tmin
+        obj["inventory"] = elements
+        selected.append(obj)
+
+    selected.sort(key=lambda x: x["ghcn_id"])
+    return selected
+
+
+def normalize_name(value: str) -> str:
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.upper()
+    text = re.sub(r"\b(AIRPORT|AP|WEATHER CENTRE|WEATHER CENTER)\b", " ", text)
+    text = re.sub(r"[^A-Z0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def name_similarity(a: str, b: str) -> float:
+    aa = normalize_name(a)
+    bb = normalize_name(b)
+    if not aa or not bb:
+        return 0.0
+    return difflib.SequenceMatcher(None, aa, bb).ratio()
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0088
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dp / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    )
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def first_number(obj: Any, key_needles: tuple[str, ...]) -> float | None:
+    if not isinstance(obj, dict):
+        return None
+
+    # Prefer exact-looking fields.
+    for key, value in obj.items():
+        nk = hist.normalize_ref(key)
+        if not any(needle in nk for needle in key_needles):
+            continue
+        try:
+            x = float(str(value).strip())
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(x):
+            return x
     return None
 
 
-def looks_like_data_row(row: list[str]) -> bool:
-    if len(row) < 10:
-        return False
-    return parse_datetime(row[0]) is not None
+def extract_wmo_values(obj: Any) -> set[str]:
+    found: set[str] = set()
+
+    def visit(x: Any, parent_key: str = "") -> None:
+        if isinstance(x, dict):
+            for k, v in x.items():
+                nk = hist.normalize_ref(k)
+                if "wmo" in nk:
+                    for token in re.findall(r"\d{4,5}", str(v)):
+                        found.add(token.zfill(5))
+                visit(v, nk)
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                visit(v, parent_key)
+
+    visit(obj)
+    return found
 
 
-def detect_rows(text: str) -> tuple[list[str], list[list[str]], dict[str, Any]]:
-    """Read either headered CSV or the plain TD yearly export."""
-    raw_rows = []
-    for row in csv.reader(io.StringIO(text)):
-        if not row or not any(str(x).strip() for x in row):
-            continue
-        raw_rows.append([str(x).strip() for x in row])
-
-    if not raw_rows:
-        raise RuntimeError("MIDAS-2026-Datei enthält keine CSV-Zeilen.")
-
-    header_index = None
-    for i, row in enumerate(raw_rows[:50]):
-        normalized = [hist.normalize_ref(x) for x in row]
-        if "ob_end_time" in normalized and "src_id" in normalized:
-            header_index = i
-            break
-
-    if header_index is not None:
-        refs = [str(x).strip() for x in raw_rows[header_index]]
-        rows = raw_rows[header_index + 1 :]
-        mode = "header_in_file"
-    else:
-        refs = CANONICAL_COLUMNS[:]
-        rows = [row for row in raw_rows if looks_like_data_row(row)]
-        mode = "canonical_22_column_fallback"
-
-    rows = [r for r in rows if looks_like_data_row(r)]
-
-    return refs, rows, {
-        "parse_mode": mode,
-        "raw_csv_rows": len(raw_rows),
-        "data_rows": len(rows),
-        "columns": len(refs),
-        "refs": refs,
-    }
-
-
-def baseline_crosswalk(
+def build_midas_metadata(
     baseline: dict[str, Any],
-) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
-    """Map MIDAS src_id -> historical station key."""
-    src_to_key: dict[str, str] = {}
-    details_by_key: dict[str, dict[str, Any]] = {}
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    candidates: list[dict[str, Any]] = []
+    wmo_to_keys: dict[str, list[str]] = defaultdict(list)
 
     for key, meta in baseline.get("station_details", {}).items():
         if not isinstance(meta, dict):
             continue
-        src = normalize_src_id(meta.get("src_id", ""))
-        if not src:
-            continue
-        # If a duplicate appears, prefer the key which actually has a record.
-        if src not in src_to_key or key in baseline.get("records", {}):
-            src_to_key[src] = key
-            details_by_key[key] = meta
 
-    return src_to_key, details_by_key
+        dataset_meta = meta.get("dataset_metadata", {})
+        lat = first_number(
+            dataset_meta,
+            ("latitude", "station_lat", "src_lat", "lat"),
+        )
+        lon = first_number(
+            dataset_meta,
+            ("longitude", "station_lon", "src_lon", "long", "lon"),
+        )
 
+        # Guard against accidentally treating unrelated numeric fields as coords.
+        if lat is not None and not (49.0 <= lat <= 61.5):
+            lat = None
+        if lon is not None and not (-9.5 <= lon <= 2.5):
+            lon = None
 
-def parse_2026_file(
-    raw: bytes,
-) -> tuple[
-    dict[str, dict[tuple[datetime, int], dict[str, Any]]],
-    Counter,
-    Counter,
-    Counter,
-    dict[str, Any],
-]:
-    text = hist.decode_text(raw)
-    refs, rows, parse_info = detect_rows(text)
+        name = str(meta.get("name") or key)
+        wmos = extract_wmo_values(meta)
 
-    idx_time = hist.field_index(refs, "ob_end_time")
-    idx_hours = hist.field_index(refs, "ob_hour_count")
-    idx_version = hist.field_index(refs, "version_num")
-    idx_src = hist.field_index(refs, "src_id")
-    idx_tmax = hist.field_index(refs, "max_air_temp")
-    idx_tmin = hist.field_index(refs, "min_air_temp")
-    idx_tmax_q = hist.field_index(refs, "max_air_temp_q")
-    idx_tmin_q = hist.field_index(refs, "min_air_temp_q")
-    idx_stamp = hist.field_index(refs, "meto_stmp_time")
-    idx_id = hist.field_index(refs, "id")
-    idx_id_type = hist.field_index(refs, "id_type")
-    idx_domain = hist.field_index(refs, "met_domain_name")
-
-    required = {
-        "ob_end_time": idx_time,
-        "ob_hour_count": idx_hours,
-        "version_num": idx_version,
-        "src_id": idx_src,
-        "max_air_temp": idx_tmax,
-        "min_air_temp": idx_tmin,
-    }
-    missing = [name for name, idx in required.items() if idx is None]
-    if missing:
-        raise RuntimeError(f"MIDAS-2026-Spalten fehlen: {missing}")
-
-    intervals_by_src: dict[
-        str, dict[tuple[datetime, int], dict[str, Any]]
-    ] = defaultdict(dict)
-    stats = Counter()
-    qmax = Counter()
-    qmin = Counter()
-    identifiers: dict[str, dict[str, Counter]] = defaultdict(
-        lambda: {
-            "id": Counter(),
-            "id_type": Counter(),
-            "met_domain_name": Counter(),
+        candidate = {
+            "key": key,
+            "name": name,
+            "lat": lat,
+            "lon": lon,
+            "wmo_ids": sorted(wmos),
+            "meta": meta,
         }
-    )
+        candidates.append(candidate)
+
+        for wmo in wmos:
+            wmo_to_keys[wmo].append(key)
+
+    return candidates, dict(wmo_to_keys)
+
+
+def crosswalk_one(
+    ghcn: dict[str, Any],
+    midas_candidates: list[dict[str, Any]],
+    midas_by_key: dict[str, dict[str, Any]],
+    wmo_to_keys: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Strict GHCN -> MIDAS crosswalk.
+
+    Priority:
+      1. unique WMO ID
+      2. very close coordinate match
+      3. close coordinate + good station-name similarity
+    """
+    wmo = str(ghcn.get("wmo_id", "")).strip()
+    if wmo:
+        wmo = wmo.zfill(5)
+        keys = wmo_to_keys.get(wmo, [])
+        if len(keys) == 1:
+            key = keys[0]
+            target = midas_by_key[key]
+            distance = None
+            if target["lat"] is not None and target["lon"] is not None:
+                distance = haversine_km(
+                    ghcn["lat"], ghcn["lon"], target["lat"], target["lon"]
+                )
+            return {
+                "matched": True,
+                "midas_key": key,
+                "method": "WMO",
+                "distance_km": distance,
+                "name_similarity": name_similarity(
+                    ghcn["name"], target["name"]
+                ),
+            }
+
+    distances = []
+    for candidate in midas_candidates:
+        if candidate["lat"] is None or candidate["lon"] is None:
+            continue
+        dist = haversine_km(
+            ghcn["lat"],
+            ghcn["lon"],
+            candidate["lat"],
+            candidate["lon"],
+        )
+        sim = name_similarity(ghcn["name"], candidate["name"])
+        distances.append((dist, -sim, candidate))
+
+    if not distances:
+        return {
+            "matched": False,
+            "midas_key": None,
+            "method": "NO_MIDAS_COORDINATES",
+            "distance_km": None,
+            "name_similarity": None,
+        }
+
+    distances.sort(key=lambda x: (x[0], x[1]))
+    best_dist, neg_sim, best = distances[0]
+    best_sim = -neg_sim
+    second_dist = distances[1][0] if len(distances) > 1 else float("inf")
+
+    # Rule A: almost identical coordinates and no near-tie.
+    if best_dist <= 0.75 and second_dist - best_dist >= 0.15:
+        return {
+            "matched": True,
+            "midas_key": best["key"],
+            "method": "COORD_STRICT",
+            "distance_km": round(best_dist, 3),
+            "name_similarity": round(best_sim, 3),
+        }
+
+    # Rule B: same local site plus reasonably similar name.
+    if best_dist <= 3.0 and best_sim >= 0.55:
+        return {
+            "matched": True,
+            "midas_key": best["key"],
+            "method": "COORD_NAME",
+            "distance_km": round(best_dist, 3),
+            "name_similarity": round(best_sim, 3),
+        }
+
+    # Rule C: renamed/variant site but exceptionally similar station name.
+    if best_dist <= 7.0 and best_sim >= 0.82:
+        return {
+            "matched": True,
+            "midas_key": best["key"],
+            "method": "NAME_COORD",
+            "distance_km": round(best_dist, 3),
+            "name_similarity": round(best_sim, 3),
+        }
+
+    return {
+        "matched": False,
+        "midas_key": None,
+        "method": "UNMATCHED",
+        "distance_km": round(best_dist, 3),
+        "name_similarity": round(best_sim, 3),
+        "nearest_midas_key": best["key"],
+        "nearest_midas_name": best["name"],
+    }
+
+
+def download_by_station(station_id: str) -> bytes:
+    errors = []
+    for suffix in (".csv.gz", ".csv"):
+        url = f"{BY_STATION_ROOT}/{station_id}{suffix}"
+        try:
+            return request_bytes(url)
+        except urllib.error.HTTPError as exc:
+            errors.append(f"{url}: HTTP {exc.code}")
+            if exc.code != 404:
+                raise
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+    raise RuntimeError("; ".join(errors))
+
+
+def parse_by_station(
+    raw: bytes,
+    station_id: str,
+) -> tuple[dict[date, dict[str, Any]], Counter, Counter, Counter]:
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    text = raw.decode("utf-8", errors="replace")
+
+    rows = csv.reader(io.StringIO(text))
+    daily: dict[date, dict[str, Any]] = {}
+    stats = Counter()
+    mflags = Counter()
+    sflags = Counter()
 
     for row in rows:
-        stats["raw_rows"] += 1
-
-        version = hist.safe_value(row, idx_version)
-        if version != "1":
-            stats["rejected_version_not_1"] += 1
+        if not row:
             continue
 
-        src_raw = hist.safe_value(row, idx_src)
-        src = normalize_src_id(src_raw)
-        if not src:
-            stats["rejected_missing_src_id"] += 1
+        # Optional header tolerance.
+        if row[0].strip().upper() == "ID":
             continue
-        if src == hist.COMMISSIONING_SRC_ID:
-            stats["rejected_commissioning"] += 1
+        if len(row) < 7:
+            stats["short_rows"] += 1
             continue
 
-        end = parse_datetime(hist.safe_value(row, idx_time))
-        if end is None:
-            stats["rejected_bad_time"] += 1
+        sid = row[0].strip()
+        if sid != station_id:
             continue
 
-        # The yearly file may contain only 2026 at present, but filter explicitly
-        # so a future CEDA packaging change cannot pollute the current cache.
-        if end.year not in {YEAR, YEAR + 1}:
-            stats["ignored_outside_2026_support_window"] += 1
+        datestr = row[1].strip()
+        element = row[2].strip()
+        if element not in {"TMAX", "TMIN"}:
+            continue
+        if not datestr.startswith(str(YEAR)):
             continue
 
         try:
-            hours = int(float(hist.safe_value(row, idx_hours)))
-        except ValueError:
-            stats["rejected_bad_hours"] += 1
-            continue
-        if hours not in {12, 24}:
-            stats["ignored_non_12_24_hour_rows"] += 1
+            d = datetime.strptime(datestr, "%Y%m%d").date()
+            raw_value = int(row[3].strip())
+        except (ValueError, IndexError):
+            stats["bad_value_or_date"] += 1
             continue
 
-        tmax = as_float(hist.safe_value(row, idx_tmax))
-        tmin = as_float(hist.safe_value(row, idx_tmin))
-
-        qmax_code = hist.safe_value(row, idx_tmax_q) or "<leer>"
-        qmin_code = hist.safe_value(row, idx_tmin_q) or "<leer>"
-        qmax[qmax_code] += 1
-        qmin[qmin_code] += 1
-
-        if tmax is not None and not hist.plausible_tmax(tmax):
-            stats["qc_rejected_tmax_plausibility"] += 1
-            tmax = None
-        if tmin is not None and not hist.plausible_tmin(tmin):
-            stats["qc_rejected_tmin_plausibility"] += 1
-            tmin = None
-
-        if tmax is None and tmin is None:
-            stats["rows_without_air_temperature"] += 1
+        if raw_value == -9999:
+            stats["missing_values"] += 1
             continue
 
-        stamp = parse_datetime(hist.safe_value(row, idx_stamp))
-        candidate = {
-            "tmax": tmax,
-            "tmin": tmin,
-            "stamp": stamp,
-            "src_id": src,
-            "qmax": qmax_code,
-            "qmin": qmin_code,
-        }
+        mflag = row[4].strip() if len(row) > 4 else ""
+        qflag = row[5].strip() if len(row) > 5 else ""
+        sflag = row[6].strip() if len(row) > 6 else ""
+        obstime = row[7].strip() if len(row) > 7 else ""
 
-        key = (end, hours)
-        old = intervals_by_src[src].get(key)
-        if old is None:
-            intervals_by_src[src][key] = candidate
-        else:
-            old_stamp = old.get("stamp")
-            if old_stamp is None or (
-                stamp is not None and stamp > old_stamp
-            ):
-                intervals_by_src[src][key] = candidate
-                stats["duplicate_rows_replaced_by_newer_stamp"] += 1
-            else:
-                stats["duplicate_rows_older_ignored"] += 1
+        mflags[mflag or "<leer>"] += 1
+        sflags[sflag or "<leer>"] += 1
 
-        ident = hist.safe_value(row, idx_id)
-        ident_type = hist.safe_value(row, idx_id_type)
-        domain = hist.safe_value(row, idx_domain)
-        if ident:
-            identifiers[src]["id"][ident] += 1
-        if ident_type:
-            identifiers[src]["id_type"][ident_type] += 1
-        if domain:
-            identifiers[src]["met_domain_name"][domain] += 1
+        if qflag:
+            stats[f"rejected_qflag_{qflag}"] += 1
+            continue
 
-    identifier_summary: dict[str, dict[str, Any]] = {}
-    for src, obj in identifiers.items():
-        identifier_summary[src] = {
-            k: dict(v.most_common(10)) for k, v in obj.items()
-        }
+        value = raw_value / 10.0
+        if element == "TMAX" and not hist.plausible_tmax(value):
+            stats["rejected_tmax_plausibility"] += 1
+            continue
+        if element == "TMIN" and not hist.plausible_tmin(value):
+            stats["rejected_tmin_plausibility"] += 1
+            continue
 
-    parse_info["identifier_summary"] = identifier_summary
-    return intervals_by_src, stats, qmax, qmin, parse_info
+        slot = daily.setdefault(
+            d,
+            {
+                "tmax": None,
+                "tmin": None,
+                "tmax_mflag": "",
+                "tmin_mflag": "",
+                "tmax_sflag": "",
+                "tmin_sflag": "",
+                "tmax_obstime": "",
+                "tmin_obstime": "",
+            },
+        )
+
+        key = element.lower()
+        if slot[key] is not None:
+            stats[f"duplicate_{element.lower()}"] += 1
+
+        slot[key] = value
+        slot[f"{key}_mflag"] = mflag
+        slot[f"{key}_sflag"] = sflag
+        slot[f"{key}_obstime"] = obstime
+        stats[f"accepted_{element.lower()}"] += 1
+
+    return daily, stats, mflags, sflags
 
 
-def build_current(cache_dir: Path, force: bool = False) -> Path:
+def build_current(cache_dir: Path) -> Path:
     baseline_file = historical_cache_path(cache_dir)
     if not baseline_file.exists():
         raise RuntimeError(
-            "Historischer UK-Cache fehlt. Zuerst Workflow "
-            "'Build Met Office UK historical cache' vollständig abschließen."
+            "Historischer UK-MIDAS-Cache fehlt. Erst den historischen "
+            "UK-Workflow bis 2025 vollständig abschließen."
         )
 
     baseline = load_pickle_gzip(baseline_file)
-    if not isinstance(baseline, dict) or not baseline.get("complete"):
+    if not isinstance(baseline, dict) or baseline.get("complete") is not True:
         raise RuntimeError(
-            "Historischer UK-Cache ist noch nicht vollständig. "
-            "2026-Workflow erst danach ausführen."
+            "Historischer UK-MIDAS-Cache ist noch nicht vollständig."
         )
 
-    src_to_key, baseline_details = baseline_crosswalk(baseline)
-    log(f"Historischer MIDAS-Crosswalk: {len(src_to_key):,} src_ids")
-
-    token = hist.get_ceda_token()
-
-    log()
-    log("=== MET OFFICE UK MIDAS CURRENT 2026 ===")
-    log(f"Quelle: {CURRENT_DATA_URL}")
-    log("Tagesdefinition: dieselbe 09-09-UTC-Logik wie Historie")
-    log("version_num=1; src_id=99999 ausgeschlossen")
+    log("=== UK CURRENT 2026 · GHCN-BRÜCKE ===")
+    log("Historie: Met Office MIDAS Open bis 2025")
+    log("Current 2026: NOAA/NCEI GHCN-Daily")
+    log("NOAA QFLAG: nur leer/ungeflaggt akzeptiert")
     log()
 
+    station_text = request_text(STATIONS_URL)
+    inventory_text = request_text(INVENTORY_URL)
     try:
-        raw = hist.request_bytes(
-            CURRENT_DATA_URL,
-            token=token,
-            timeout=180,
-            attempts=3,
-        )
-    except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403}:
-            raise RuntimeError(
-                "CEDA-Zugriff auf den laufenden/restricted MIDAS-Datensatz "
-                f"wurde mit HTTP {exc.code} abgelehnt. Im CEDA-Katalog beim "
-                "Datensatz 'MIDAS: UK Daily Temperature Data' zuerst "
-                "'Request Access' ausführen und die MIDAS-Lizenz akzeptieren. "
-                "Danach einen neuen CEDA_ACCESS_TOKEN erzeugen und den Workflow "
-                "erneut starten."
-            ) from exc
-        raise
+        ghcn_version = request_text(VERSION_URL).strip()
+    except Exception:
+        ghcn_version = "unbekannt"
 
-    log(f"2026-Jahresdatei heruntergeladen: {len(raw):,} Bytes")
+    stations = parse_ghcn_stations(station_text)
+    inventory = parse_ghcn_inventory(inventory_text)
+    active = active_2026_stations(stations, inventory)
 
-    (
-        intervals_by_src,
-        parse_stats,
-        qmax,
-        qmin,
-        parse_info,
-    ) = parse_2026_file(raw)
+    both = sum(
+        1
+        for x in active
+        if x["has_tmax_2026_inventory"] and x["has_tmin_2026_inventory"]
+    )
+    tmax_any = sum(1 for x in active if x["has_tmax_2026_inventory"])
+    tmin_any = sum(1 for x in active if x["has_tmin_2026_inventory"])
+
+    log(f"UK GHCN-Stationen im Stationsfile: {len(stations):,}")
+    log(f"Mit TMAX und/oder TMIN bis 2026: {len(active):,}")
+    log(f"  TMAX bis 2026: {tmax_any:,}")
+    log(f"  TMIN bis 2026: {tmin_any:,}")
+    log(f"  beide Elemente: {both:,}")
+    log()
+
+    midas_candidates, wmo_to_keys = build_midas_metadata(baseline)
+    midas_by_key = {x["key"]: x for x in midas_candidates}
+
+    log(f"MIDAS-Stationen für Crosswalk: {len(midas_candidates):,}")
+    log(
+        "MIDAS-Stationen mit Koordinaten: "
+        f"{sum(x['lat'] is not None and x['lon'] is not None for x in midas_candidates):,}"
+    )
+    log(f"Eindeutige MIDAS-WMO-IDs: {sum(len(v) == 1 for v in wmo_to_keys.values()):,}")
+    log()
 
     records: dict[str, dict[str, Any]] = {}
     station_details: dict[str, dict[str, Any]] = {}
-    reconstruction = Counter()
-    unmatched_src_ids = []
+    crosswalk_rows: list[dict[str, Any]] = []
 
-    for src in sorted(intervals_by_src, key=lambda x: (len(x), x)):
-        intervals = intervals_by_src[src]
-        local_stats = Counter()
-        daily = hist.reconstruct_daily(intervals, YEAR, local_stats)
-        reconstruction.update(local_stats)
+    global_stats = Counter()
+    global_mflags = Counter()
+    global_sflags = Counter()
+
+    successful_files = 0
+    failed_files: dict[str, str] = {}
+
+    for idx, ghcn in enumerate(active, 1):
+        sid = ghcn["ghcn_id"]
+
+        try:
+            raw = download_by_station(sid)
+            daily, stats, mflags, sflags = parse_by_station(raw, sid)
+            successful_files += 1
+        except Exception as exc:
+            failed_files[sid] = str(exc)
+            continue
+
+        global_stats.update(stats)
+        global_mflags.update(mflags)
+        global_sflags.update(sflags)
+
+        # Inventory may already say 2026 while no 2026 row has reached the
+        # by_station file yet.
+        if not daily:
+            global_stats["stations_without_2026_values"] += 1
+            continue
+
+        cw = crosswalk_one(
+            ghcn,
+            midas_candidates,
+            midas_by_key,
+            wmo_to_keys,
+        )
+
+        if cw["matched"]:
+            out_key = cw["midas_key"]
+        else:
+            out_key = f"ghcn_{sid}"
 
         rec = hist.empty_record()
+
         for d in sorted(daily):
-            if d.year != YEAR:
-                continue
             vals = daily[d]
-            provenance = [
-                p
-                for p in (vals.get("tmin_prov"), vals.get("tmax_prov"))
-                if p
-            ]
+            tmax = vals.get("tmax")
+            tmin = vals.get("tmin")
+            provenance = ["GHCN_2026_BRIDGE"]
+
+            if vals.get("tmax_mflag") == "H":
+                provenance.append("TMAX_HOURLY_EXTREME_MFLAG_H")
+            if vals.get("tmin_mflag") == "H":
+                provenance.append("TMIN_HOURLY_EXTREME_MFLAG_H")
+
             hist.consume_day(
                 rec,
                 d,
-                vals.get("tmin"),
-                vals.get("tmax"),
+                tmin,
+                tmax,
                 provenance,
             )
 
         if rec.get("tmax_abs") is None and rec.get("tmin_abs") is None:
             continue
 
-        key = src_to_key.get(src)
-        if key is None:
-            key = f"midas_src_{src}"
-            unmatched_src_ids.append(src)
-            detail = {
-                "station_id": None,
-                "src_id": src,
-                "name": f"MIDAS src_id {src}",
-                "county": None,
-                "dirname": key,
-                "current_only_2026": True,
-            }
-        else:
-            detail = dict(baseline_details.get(key, {}))
-            detail["current_only_2026"] = False
+        # If two GHCN identifiers map to one MIDAS station, do not silently
+        # merge them. Keep the second identifier separate and flag the conflict.
+        if out_key in records:
+            conflict_key = f"ghcn_{sid}"
+            cw = dict(cw)
+            cw["collision_with_existing_output_key"] = out_key
+            cw["matched"] = False
+            cw["method"] = "CROSSWALK_COLLISION"
+            out_key = conflict_key
+            global_stats["crosswalk_collisions"] += 1
 
-        detail["current_2026_identifiers"] = (
-            parse_info["identifier_summary"].get(src, {})
+        records[out_key] = rec
+
+        if cw["matched"]:
+            base_meta = dict(
+                baseline.get("station_details", {}).get(cw["midas_key"], {})
+            )
+        else:
+            base_meta = {}
+
+        detail = {
+            **base_meta,
+            "current_source": SOURCE,
+            "ghcn_id": sid,
+            "ghcn_name": ghcn["name"],
+            "ghcn_lat": ghcn["lat"],
+            "ghcn_lon": ghcn["lon"],
+            "ghcn_elevation_m": ghcn["elevation_m"],
+            "ghcn_wmo_id": ghcn["wmo_id"],
+            "ghcn_inventory": ghcn["inventory"],
+            "crosswalk": cw,
+            "current_only_2026": not cw["matched"],
+        }
+        station_details[out_key] = detail
+
+        crosswalk_rows.append(
+            {
+                "ghcn_id": sid,
+                "ghcn_name": ghcn["name"],
+                "output_key": out_key,
+                **cw,
+            }
         )
-        records[key] = rec
-        station_details[key] = detail
+
+        if idx % 10 == 0 or idx == len(active):
+            log(
+                f"Fortschritt: {idx}/{len(active)} GHCN-Stationen | "
+                f"2026-Reihen {len(records)} | Downloads Fehler {len(failed_files)}"
+            )
+
+    if failed_files:
+        sample = "; ".join(
+            f"{k}: {v[:120]}" for k, v in list(failed_files.items())[:8]
+        )
+        raise RuntimeError(
+            f"{len(failed_files)} aktive UK-GHCN-Stationsdateien konnten "
+            f"nicht geladen werden. Kein unvollständiger Current-Cache wird "
+            f"veröffentlicht. Beispiele: {sample}"
+        )
 
     if not records:
-        raise RuntimeError("MIDAS-2026-Datei ergab keine täglichen TMAX/TMIN-Reihen.")
+        raise RuntimeError("Keine gültigen UK-2026-TMAX/TMIN-Daten gefunden.")
 
     first_dates = [
         rec["first_date"] for rec in records.values() if rec.get("first_date")
@@ -504,28 +773,29 @@ def build_current(cache_dir: Path, force: bool = False) -> Path:
     first_date = min(first_dates) if first_dates else None
     last_date = max(last_dates) if last_dates else None
 
+    matched = sum(1 for x in crosswalk_rows if x.get("matched"))
+    unmatched = len(crosswalk_rows) - matched
+
     payload = {
         "format_version": FORMAT_VERSION,
         "source": SOURCE,
+        "historical_source": HISTORICAL_SOURCE,
         "country": COUNTRY,
         "country_code": COUNTRY_CODE,
         "year": YEAR,
         "complete": True,
-        "calendar_year_complete": last_date == f"{YEAR}-12-31",
-        "partial_year": last_date != f"{YEAR}-12-31",
-        "data_file": CURRENT_FILE_NAME,
-        "data_url": CURRENT_DATA_URL,
-        "catalogue_url": CATALOGUE_URL,
+        "partial_year": True,
+        "provisional_bridge": True,
+        "ghcn_version": ghcn_version,
         "downloaded_at_utc": datetime.now(timezone.utc).isoformat(
             timespec="seconds"
         ),
         "records": records,
         "station_details": station_details,
+        "crosswalk": crosswalk_rows,
         "station_count": len(records),
-        "matched_historical_station_count": (
-            len(records) - len(unmatched_src_ids)
-        ),
-        "unmatched_current_src_ids": unmatched_src_ids,
+        "matched_historical_station_count": matched,
+        "unmatched_current_station_count": unmatched,
         "first_date": first_date,
         "last_date": last_date,
         "observation_days": sum(
@@ -537,153 +807,149 @@ def build_current(cache_dir: Path, force: bool = False) -> Path:
         "tmin_days": sum(
             int(rec.get("tmin_days", 0)) for rec in records.values()
         ),
-        "parse_info": {
-            k: v
-            for k, v in parse_info.items()
-            if k != "identifier_summary"
-        },
-        "stats": dict(parse_stats),
-        "reconstruction_stats": dict(reconstruction),
-        "q_tmax": dict(qmax),
-        "q_tmin": dict(qmin),
+        "stats": dict(global_stats),
+        "mflag_counts": dict(global_mflags),
+        "sflag_counts": dict(global_sflags),
         "quality_note": (
-            "Current 2026 values come from the ongoing Met Office MIDAS TD "
-            "yearly file. Only version_num=1 is used; src_id=99999 is excluded. "
-            "The same 09-09 UTC reconstruction as the historical MIDAS Open "
-            "cache is applied. Single 12-hour rows are never treated as daily "
-            "records. This current cache is refreshed by replacing it from the "
-            "latest CEDA yearly file, so later MIDAS deliveries can add or revise "
-            "2026 values."
+            "2026 is a provisional GHCN-Daily bridge because the free Met "
+            "Office Land Observations API only provides the most recent 48 "
+            "hours, while the ongoing retrospective MIDAS archive is restricted. "
+            "Only GHCN TMAX/TMIN with blank QFLAG are accepted. MFLAG H values "
+            "are retained and explicitly marked as hourly-extreme-derived; "
+            "NOAA documents H as highest/lowest hourly temperature. Historical "
+            "records through 2025 remain Met Office MIDAS Open. The current "
+            "bridge should be replaced by the next annual MIDAS Open release "
+            "once 2026 becomes openly available."
         ),
     }
 
     out = current_cache_path(cache_dir)
     atomic_pickle_gzip(out, payload)
 
-    hottest = None
-    coldest = None
-    for key, rec in records.items():
-        tx = rec.get("tmax_abs")
-        tn = rec.get("tmin_abs")
-        if tx is not None and (
-            hottest is None or float(tx[0]) > hottest["value"]
-        ):
-            hottest = {
-                "station": key,
-                "value": float(tx[0]),
-                "date": tx[1],
-            }
-        if tn is not None and (
-            coldest is None or float(tn[0]) < coldest["value"]
-        ):
-            coldest = {
-                "station": key,
-                "value": float(tn[0]),
-                "date": tn[1],
-            }
-
     status = {
         "format_version": FORMAT_VERSION,
         "source": SOURCE,
+        "historical_source": HISTORICAL_SOURCE,
         "year": YEAR,
         "complete": True,
-        "calendar_year_complete": payload["calendar_year_complete"],
-        "station_count": len(records),
-        "matched_historical_station_count": payload[
-            "matched_historical_station_count"
-        ],
-        "unmatched_current_src_ids": unmatched_src_ids,
+        "provisional_bridge": True,
+        "ghcn_version": ghcn_version,
+        "ghcn_stations_total": len(stations),
+        "ghcn_active_tmax_or_tmin_2026": len(active),
+        "ghcn_active_both_2026": both,
+        "station_count_with_2026_values": len(records),
+        "matched_historical_station_count": matched,
+        "unmatched_current_station_count": unmatched,
         "first_date": first_date,
         "last_date": last_date,
         "observation_days": payload["observation_days"],
         "tmax_days": payload["tmax_days"],
         "tmin_days": payload["tmin_days"],
-        "download_bytes": len(raw),
-        "parse_mode": payload["parse_info"].get("parse_mode"),
-        "raw_rows": parse_stats.get("raw_rows", 0),
-        "reconstruction_stats": dict(reconstruction),
-        "q_tmax": dict(qmax),
-        "q_tmin": dict(qmin),
-        "hottest": hottest,
-        "coldest": coldest,
+        "mflag_counts": dict(global_mflags),
+        "sflag_counts": dict(global_sflags),
+        "stats": dict(global_stats),
+        "crosswalk": crosswalk_rows,
     }
     atomic_json(current_status_path(cache_dir), status)
 
     log()
-    log("=== MET OFFICE UK CURRENT 2026 SUMMARY ===")
-    log(f"Stationsreihen: {len(records):,}")
-    log(
-        "Mit historischem Stations-Crosswalk: "
-        f"{payload['matched_historical_station_count']:,}"
-    )
-    log(f"Neue/unmatched src_ids: {len(unmatched_src_ids):,}")
-    log(f"Tage: {payload['observation_days']:,}")
+    log("=== UK CURRENT 2026 SUMMARY · GHCN-BRÜCKE ===")
+    log(f"GHCN-Version: {ghcn_version}")
+    log(f"Aktive GHCN-Kandidaten 2026: {len(active):,}")
+    log(f"Stationsdateien erfolgreich: {successful_files:,}/{len(active):,}")
+    log(f"2026-Temperaturreihen: {len(records):,}")
+    log(f"Mit MIDAS-Historie gematcht: {matched:,}")
+    log(f"Unmatched/current-only: {unmatched:,}")
     log(f"TMAX-Tage: {payload['tmax_days']:,}")
     log(f"TMIN-Tage: {payload['tmin_days']:,}")
     log(f"Datenzeitraum: {first_date} bis {last_date}")
-    log(f"Kalenderjahr vollständig: {payload['calendar_year_complete']}")
-    log(
-        "TMAX Rekonstruktion: "
-        f"24h={reconstruction.get('daily_tmax_from_24h', 0):,} | "
-        f"12h-Paare={reconstruction.get('daily_tmax_from_12h_pair', 0):,}"
-    )
-    log(
-        "TMIN Rekonstruktion: "
-        f"24h={reconstruction.get('daily_tmin_from_24h', 0):,} | "
-        f"12h-Paare={reconstruction.get('daily_tmin_from_12h_pair', 0):,}"
-    )
-    log("TMAX _q Codes:", dict(qmax.most_common()))
-    log("TMIN _q Codes:", dict(qmin.most_common()))
+    log(f"MFLAG-Verteilung: {dict(global_mflags.most_common())}")
+    log(f"SFLAG-Verteilung: {dict(global_sflags.most_common())}")
     log(f"Output: {out}")
-    log("Met Office UK Current-2026-Cache OK.")
+    log("UK Current-2026 GHCN-Brückencache vollständig OK.")
+    log()
+    log("=== CROSSWALK ===")
+    for row in crosswalk_rows:
+        log(
+            f"{row['ghcn_id']} | {row['ghcn_name']} -> "
+            f"{row['output_key']} | {row['method']} | "
+            f"dist={row.get('distance_km')} km | "
+            f"name_sim={row.get('name_similarity')}"
+        )
 
     return out
 
 
 def self_test() -> None:
-    header = ",".join(CANONICAL_COLUMNS)
-    row = [
-        "2026-01-02 09:00:00",
-        "DCNN",
-        "708",
-        "24",
-        "1",
-        "NCM",
-        "145",
-        "1011",
-        "12.3",
-        "1.2",
-        "NA",
-        "NA",
-        "6",
-        "6",
-        "NA",
-        "NA",
-        "NA",
-        "NA",
-        "NA",
-        "NA",
-        "2026-01-02 09:05:00",
-        "0.0",
-    ]
-    text = header + "\n" + ",".join(row) + "\n"
-    refs, rows, info = detect_rows(text)
-    assert info["parse_mode"] == "header_in_file"
-    assert len(rows) == 1
-    assert hist.field_index(refs, "src_id") == 6
+    # GHCN station fixed-width parser.
+    line = (
+        "UKM00003772  51.4780   -0.4610   25.3    HEATHROW"
+        "                         03772"
+    )
+    # Build a guaranteed correctly-positioned synthetic line.
+    buf = [" "] * 90
+    buf[0:11] = list("UKM00003772")
+    buf[12:20] = list(f"{51.4780:8.4f}")
+    buf[21:30] = list(f"{-0.4610:9.4f}")
+    buf[31:37] = list(f"{25.3:6.1f}")
+    name = "HEATHROW"
+    buf[41:41+len(name)] = list(name)
+    buf[80:85] = list("03772")
+    parsed = parse_ghcn_stations("".join(buf))
+    assert parsed["UKM00003772"]["wmo_id"] == "03772"
 
-    # Headerless fallback.
-    refs, rows, info = detect_rows(",".join(row) + "\n")
-    assert info["parse_mode"] == "canonical_22_column_fallback"
-    assert len(rows) == 1
+    # Inventory parser.
+    inv = [" "] * 50
+    inv[0:11] = list("UKM00003772")
+    inv[12:20] = list(f"{51.4780:8.4f}")
+    inv[21:30] = list(f"{-0.4610:9.4f}")
+    inv[31:35] = list("TMAX")
+    inv[36:40] = list("1948")
+    inv[41:45] = list("2026")
+    inventory = parse_ghcn_inventory("".join(inv))
+    assert inventory["UKM00003772"]["TMAX"] == (1948, 2026)
 
-    print("Met Office UK current 2026 self-test OK")
+    # GHCN by_station parser with one accepted and one QFLAG-rejected value.
+    rows = (
+        "UKM00003772,20260801,TMAX,350,, ,G,0900\n"
+        "UKM00003772,20260801,TMIN,180,,X,G,0900\n"
+    )
+    daily, stats, _, _ = parse_by_station(
+        rows.encode("utf-8"), "UKM00003772"
+    )
+    assert daily[date(2026, 8, 1)]["tmax"] == 35.0
+    assert daily[date(2026, 8, 1)]["tmin"] is None
+    assert stats["rejected_qflag_X"] == 1
+
+    # Coordinate/name crosswalk.
+    ghcn = {
+        "name": "HEATHROW",
+        "lat": 51.4780,
+        "lon": -0.4610,
+        "wmo_id": "",
+    }
+    midas = [{
+        "key": "00708_heathrow",
+        "name": "heathrow",
+        "lat": 51.479,
+        "lon": -0.449,
+        "wmo_ids": [],
+        "meta": {},
+    }]
+    cw = crosswalk_one(
+        ghcn,
+        midas,
+        {"00708_heathrow": midas[0]},
+        {},
+    )
+    assert cw["matched"] is True
+
+    print("UK current 2026 GHCN bridge self-test OK")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cache-dir", default=str(CACHE_DIR_DEFAULT))
-    parser.add_argument("--force", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -691,7 +957,7 @@ def main() -> int:
         self_test()
         return 0
 
-    build_current(Path(args.cache_dir), force=args.force)
+    build_current(Path(args.cache_dir))
     return 0
 
 
