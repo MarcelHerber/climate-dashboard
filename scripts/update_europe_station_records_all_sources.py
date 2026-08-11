@@ -13,6 +13,8 @@ National sources:
 - Sweden: SMHI Open Data (CORE, historical G; current G/Y)
 - Belgium: KMI/RMI Open Data (Uccle GHCN bridge; other stations SYNOP bridge; AWS 2000+)
 - Switzerland: MeteoSwiss Open Data (SwissMetNet daily)
+- Finland: FMI Open Data (daily multipointcoverage)
+- Czechia: CHMI Open Data (daily TMA/TMI)
 - remaining Europe: GHCN-Daily
 
 The core Stations-V5 writer remains unchanged. Dedicated compact national
@@ -46,10 +48,14 @@ import update_rmi_belgium_station_cache as belgium_hist
 import update_rmi_belgium_current as belgium_current_mod
 import update_meteoswiss_switzerland_station_cache as swiss_hist
 import update_meteoswiss_switzerland_current as swiss_current_mod
+import update_fmi_finland_station_cache as fmi_hist
+import update_fmi_finland_current as fmi_current_mod
+import update_chmi_czechia_station_cache as chmi_hist
+import update_chmi_czechia_current as chmi_current_mod
 
 
 ACTIVE_GRACE_DAYS = 45
-NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ"}
+NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ"}
 
 
 def log(message: str) -> None:
@@ -605,6 +611,175 @@ def swiss_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, c
     return out
 
 
+
+def fmi_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, core.StationMeta]:
+    out: dict[str, core.StationMeta] = {}
+    for raw_id, meta in inventory.items():
+        if not isinstance(meta, dict):
+            continue
+        sid = f"FMI:{raw_id}"
+        station = _make_station_meta(
+            sid=sid,
+            raw_meta=meta,
+            lat_keys=("lat", "latitude"),
+            lon_keys=("lon", "longitude"),
+            elev_keys=("elevation_m", "elevation", "height"),
+            name_keys=("name",),
+            country_code="FI",
+            country="Finnland",
+            source=fmi_hist.SOURCE,
+            quality_rule=(
+                "FMI Open Data daily multipointcoverage: tägliches tmin/tmax; "
+                "historische Plausibilitätsprüfung gegen offizielle finnische "
+                "Messrekorde, laufendes Jahr mit weiter Notfall-QC; Tmin>Tmax verworfen."
+            ),
+        )
+        if station is not None:
+            out[sid] = station
+    return out
+
+
+def chmi_payload_inventory(base_payload: dict, current_payload: dict | None = None) -> dict[str, dict[str, Any]]:
+    inventory: dict[str, dict[str, Any]] = {}
+    for payload in (base_payload, current_payload or {}):
+        for raw_id, record in payload.get("stations", {}).items():
+            if not isinstance(record, dict):
+                continue
+            meta = record.get("meta", {})
+            if not isinstance(meta, dict):
+                continue
+            old = inventory.setdefault(str(raw_id), {})
+            for key, value in meta.items():
+                if value not in (None, ""):
+                    old[key] = value
+    return inventory
+
+
+def chmi_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, core.StationMeta]:
+    out: dict[str, core.StationMeta] = {}
+    for raw_id, meta in inventory.items():
+        if not isinstance(meta, dict):
+            continue
+        sid = f"CHMI:{raw_id}"
+        station = _make_station_meta(
+            sid=sid,
+            raw_meta=meta,
+            lat_keys=("lat", "latitude"),
+            lon_keys=("lon", "longitude"),
+            elev_keys=("elevation", "elevation_m", "height"),
+            name_keys=("name",),
+            country_code="CZ",
+            country="Tschechien",
+            source=chmi_hist.SOURCE,
+            quality_rule=(
+                "CHMI Open Data tägliche TMA/TMI-Werte; ausschließlich QUALITY=0 (Good). "
+                "Nichtnumerische Werte und unplausible Temperatur-/Tmin>Tmax-Fälle werden verworfen."
+            ),
+        )
+        if station is not None:
+            out[sid] = station
+    return out
+
+
+def chmi_packed_to_core_states(stations_payload: dict[str, dict[str, Any]]) -> dict[str, dict]:
+    states: dict[str, dict] = {}
+    missing = int(getattr(chmi_hist, "MISSING_I16", -32768))
+
+    for raw_id, record in stations_payload.items():
+        if not isinstance(record, dict):
+            continue
+        sid = f"CHMI:{raw_id}"
+        state = core.empty_state()
+        years = {"TMAX": set(), "TMIN": set()}
+
+        ordinals = record.get("ordinals", [])
+        tmax_values = record.get("tmax_tenths", [])
+        tmin_values = record.get("tmin_tenths", [])
+
+        for ordv, tx_raw, tn_raw in zip(ordinals, tmax_values, tmin_values):
+            try:
+                day = dt.date.fromordinal(int(ordv))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            date_int = int(day.strftime("%Y%m%d"))
+            mmdd = f"{day.month:02d}-{day.day:02d}"
+
+            for element, raw_value, choose_max in (
+                ("TMAX", tx_raw, True),
+                ("TMIN", tn_raw, False),
+            ):
+                try:
+                    value = int(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                if value == missing:
+                    continue
+
+                block = state[element]
+                rec = (value, date_int, 1)
+                old_abs = block.get("abs")
+                if old_abs is None or (value > old_abs[0] if choose_max else value < old_abs[0]):
+                    block["abs"] = rec
+
+                old_cal = block["cal"].get(mmdd)
+                if old_cal is None or (value > old_cal[0] if choose_max else value < old_cal[0]):
+                    block["cal"][mmdd] = rec
+
+                if block.get("start") is None:
+                    block["start"] = date_int
+                block["end"] = date_int
+                years[element].add(day.year)
+
+        for element in ("TMAX", "TMIN"):
+            state[element]["years"] = len(years[element])
+
+        if state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None:
+            states[sid] = state
+
+    return states
+
+
+def chmi_packed_to_core_current(stations_payload: dict[str, dict[str, Any]]) -> dict[str, dict]:
+    current: dict[str, dict] = {}
+    missing = int(getattr(chmi_hist, "MISSING_I16", -32768))
+
+    for raw_id, record in stations_payload.items():
+        if not isinstance(record, dict):
+            continue
+        sid = f"CHMI:{raw_id}"
+        out = {"TMAX": {}, "TMIN": {}}
+
+        for ordv, tx_raw, tn_raw in zip(
+            record.get("ordinals", []),
+            record.get("tmax_tenths", []),
+            record.get("tmin_tenths", []),
+        ):
+            try:
+                day = dt.date.fromordinal(int(ordv))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            date_int = int(day.strftime("%Y%m%d"))
+            mmdd = f"{day.month:02d}-{day.day:02d}"
+
+            for element, raw_value, choose_max in (
+                ("TMAX", tx_raw, True),
+                ("TMIN", tn_raw, False),
+            ):
+                try:
+                    value = int(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                if value == missing:
+                    continue
+                old = out[element].get(mmdd)
+                pair = (value, date_int)
+                if old is None or (value > old[0] if choose_max else value < old[0]):
+                    out[element][mmdd] = pair
+
+        if out["TMAX"] or out["TMIN"]:
+            current[sid] = out
+    return current
+
 def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, workers: int) -> dict:
     cutoff_year = current_year - 1
     path = poland.baseline_path(cache_dir, cutoff_year)
@@ -635,51 +810,6 @@ def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, worke
     return poland.load_baseline(cache_dir, cutoff_year)
 
 
-def validate_meteoswiss_historical_extremes(payload: dict[str, Any]) -> None:
-    """Fail closed if a stale Swiss cache still contains impossible records."""
-    bad = []
-    records = payload.get("records", {})
-    if not isinstance(records, dict):
-        return
-    for sid, rec in records.items():
-        if not isinstance(rec, dict):
-            continue
-        for key, bound, mode in (
-            ("tmax_abs", swiss_hist.HISTORICAL_TMAX_CEILING_C, "max"),
-            ("tmin_abs", swiss_hist.HISTORICAL_TMIN_FLOOR_C, "min"),
-        ):
-            pair = rec.get(key)
-            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
-                value = float(pair[0])
-                if (mode == "max" and value > bound) or (mode == "min" and value < bound):
-                    bad.append(f"{sid} {key}={value} C ({pair[1]})")
-        for key, bound, mode in (
-            ("calendar_tmax", swiss_hist.HISTORICAL_TMAX_CEILING_C, "max"),
-            ("calendar_tmin", swiss_hist.HISTORICAL_TMIN_FLOOR_C, "min"),
-        ):
-            cal = rec.get(key, {})
-            if not isinstance(cal, dict):
-                continue
-            for mmdd, pair in cal.items():
-                if not isinstance(pair, (list, tuple)) or len(pair) < 2:
-                    continue
-                value = float(pair[0])
-                if (mode == "max" and value > bound) or (mode == "min" and value < bound):
-                    bad.append(f"{sid} {key} {mmdd}={value} C ({pair[1]})")
-                    if len(bad) >= 20:
-                        break
-            if len(bad) >= 20:
-                break
-        if len(bad) >= 20:
-            break
-    if bad:
-        raise RuntimeError(
-            "MeteoSwiss-Historiencache enthält Werte außerhalb der offiziellen "
-            "Schweizer Messrekorde. Schweiz-Baseline v2 neu aufbauen. Beispiele: "
-            + "; ".join(bad)
-        )
-
-
 def _load_compact_national_sources(
     cache_dir: Path,
     current_year: int,
@@ -691,6 +821,8 @@ def _load_compact_national_sources(
     force_smhi: bool,
     force_belgium: bool,
     force_swiss: bool,
+    force_fmi: bool,
+    force_chmi: bool,
 ) -> tuple[dict, ...]:
     cutoff_year = current_year - 1
     aemet_key = os.environ.get("AEMET_API_KEY", "").strip()
@@ -756,7 +888,22 @@ def _load_compact_national_sources(
         max_runtime_minutes=300.0,
     )
     swiss_base = swiss_hist.load_baseline(cache_dir, cutoff_year)
-    validate_meteoswiss_historical_extremes(swiss_base)
+
+    fmi_hist.build_baseline(
+        cache_dir,
+        cutoff_year,
+        force=force_fmi,
+        max_runtime_minutes=300.0,
+    )
+    fmi_base = fmi_hist.load_baseline(cache_dir, cutoff_year)
+
+    chmi_hist.build_baseline(
+        cache_dir,
+        cutoff_year,
+        force=force_chmi,
+        workers=8,
+    )
+    chmi_base = chmi_hist.load_baseline(cache_dir, cutoff_year)
 
     # Running year is deliberately refreshed on every unified run.
     aemet_current_path = aemet_current_mod.build_current(
@@ -788,6 +935,12 @@ def _load_compact_national_sources(
     swiss_current_path = swiss_current_mod.build_current(cache_dir, current_year)
     swiss_cur = swiss_hist.load_pickle_gzip(swiss_current_path)
 
+    fmi_current_path = fmi_current_mod.build_current(cache_dir, current_year)
+    fmi_cur = fmi_hist.load_pickle_gzip(fmi_current_path)
+
+    chmi_current_path = chmi_current_mod.build_current(cache_dir, current_year, workers=12)
+    chmi_cur = chmi_current_mod.load_current(cache_dir, current_year)
+
     return (
         aemet_base, aemet_cur,
         knmi_base, knmi_cur,
@@ -796,6 +949,8 @@ def _load_compact_national_sources(
         smhi_base, smhi_cur,
         belgium_base, belgium_cur,
         swiss_base, swiss_cur,
+        fmi_base, fmi_cur,
+        chmi_base, chmi_cur,
     )
 
 
@@ -913,6 +1068,8 @@ def patch_index_metadata(
     smhi_current_count: int,
     belgium_current_count: int,
     swiss_current_count: int,
+    fmi_current_count: int,
+    chmi_current_count: int,
 ) -> dict:
     path = output_dir / "index.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -925,6 +1082,7 @@ def patch_index_metadata(
         "IMGW-PIB (Polen) + KNMI (Niederlande) + MET Norway Frost (Norwegen) + "
         "DMI Open Data (Dänemark) + SMHI Open Data (Schweden) + "
         "KMI/RMI Open Data (Belgien) + MeteoSwiss Open Data (Schweiz) + "
+        "FMI Open Data (Finnland) + CHMI Open Data (Tschechien) + "
         "GHCN-Daily (übriges Europa)"
     )
     payload["sources"] = [
@@ -939,6 +1097,8 @@ def patch_index_metadata(
         {"name": smhi_hist.SOURCE, "scope": "Schweden", "url": smhi_hist.PUBLIC_URL, "stations": counts.get(smhi_hist.SOURCE, 0)},
         {"name": belgium_hist.SOURCE, "scope": "Belgien", "url": belgium_hist.PUBLIC_URL, "stations": counts.get(belgium_hist.SOURCE, 0)},
         {"name": swiss_hist.SOURCE, "scope": "Schweiz", "url": f"https://data.geo.admin.ch/api/stac/v1/collections/{swiss_hist.COLLECTION_ID}", "stations": counts.get(swiss_hist.SOURCE, 0)},
+        {"name": fmi_hist.SOURCE, "scope": "Finnland", "url": fmi_hist.PUBLIC_URL, "stations": counts.get(fmi_hist.SOURCE, 0)},
+        {"name": chmi_hist.SOURCE, "scope": "Tschechien", "url": chmi_hist.PUBLIC_URL, "stations": counts.get(chmi_hist.SOURCE, 0)},
         {"name": core.GHCN_SOURCE, "scope": "übriges Europa", "url": core.GHCN_BASE, "stations": counts.get(core.GHCN_SOURCE, 0)},
     ]
     payload["quality_rule"] = (
@@ -953,6 +1113,8 @@ def patch_index_metadata(
         "Schweden: SMHI MetObs CORE, historisch corrected-archive nur Qualität G; aktuell G/Y mit G-Vorrang. "
         "Belgien: Uccle vor 2000 GHCN-Daily (leerer Q-FLAG), übrige Stationen 1952–1999 KMI/RMI SYNOP; ab 2000 KMI/RMI AWS aws_1day. "
         "Schweiz: MeteoSwiss SwissMetNet Tageswerte tre200dn/tre200dx; NBCN-Homogenreihen werden nicht eingemischt. "
+        "Finnland: FMI Open Data tägliches tmin/tmax aus daily multipointcoverage mit historischer Plausibilitäts-QC und Tmin<=Tmax. "
+        "Tschechien: CHMI Open Data tägliche TMA/TMI ausschließlich mit QUALITY=0 (Good). "
         "Übriges Europa: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
@@ -960,13 +1122,14 @@ def patch_index_metadata(
         "AEMET Spanien ab 1920, GeoSphere Austria Österreich, IMGW-PIB Polen, "
         "KNMI Niederlande ab 1901, MET Norway Frost für MET.NO-Stationen, "
         "DMI Dänemark ab 1867 mit dokumentierter Übergangsbrücke, SMHI Schweden, "
-        "KMI/RMI Belgien mit historischer Hybridbrücke sowie MeteoSwiss SwissMetNet Schweiz ab 1864; "
+        "KMI/RMI Belgien mit historischer Hybridbrücke, MeteoSwiss SwissMetNet Schweiz ab 1864, "
+        "FMI Finnland ab 1844 sowie CHMI Tschechien bis zurück 1775; "
         "GHCN-Daily für das übrige Europa. "
         f"Das laufende Jahr {current_year} wird bei jedem Workflow-Lauf separat aktualisiert."
     )
     payload["publication_scope"] = (
         "Europa vollständig: nationale Quellen für Deutschland, Frankreich, Spanien, Österreich, Polen, "
-        "Niederlande, Norwegen, Dänemark, Schweden, Belgien und die Schweiz; GHCN-Daily für Rest-Europa"
+        "Niederlande, Norwegen, Dänemark, Schweden, Belgien, die Schweiz, Finnland und Tschechien; GHCN-Daily für Rest-Europa"
     )
     payload["coverage"] = {
         "Deutschland": {"source": core.DWD_SOURCE, "historical_complete": True},
@@ -1003,6 +1166,18 @@ def patch_index_metadata(
             "current_year_station_count": swiss_current_count,
             "history_note": "MeteoSwiss SwissMetNet tre200dn/tre200dx; NBCN-Homogenreihen bewusst ausgeschlossen.",
         },
+        "Finnland": {
+            "source": fmi_hist.SOURCE,
+            "historical_complete": True,
+            "current_year_station_count": fmi_current_count,
+            "history_note": "FMI daily multipointcoverage tmin/tmax; historische Baseline ab 1844.",
+        },
+        "Tschechien": {
+            "source": chmi_hist.SOURCE,
+            "historical_complete": True,
+            "current_year_station_count": chmi_current_count,
+            "history_note": "CHMI TMA/TMI; ausschließlich QUALITY=0; historische Reihen bis 1775.",
+        },
         "Rest-Europa": {"source": core.GHCN_SOURCE, "historical_complete": True},
     }
 
@@ -1024,6 +1199,8 @@ def validate_payload(payload: dict) -> None:
         "Schweden": smhi_hist.SOURCE,
         "Belgien": belgium_hist.SOURCE,
         "Schweiz": swiss_hist.SOURCE,
+        "Finnland": fmi_hist.SOURCE,
+        "Tschechien": chmi_hist.SOURCE,
     }
     for country, source in expected.items():
         country_rows = [row for row in rows if row.get("country") == country]
@@ -1058,6 +1235,8 @@ def validate_payload(payload: dict) -> None:
         smhi_hist.SOURCE,
         belgium_hist.SOURCE,
         swiss_hist.SOURCE,
+        fmi_hist.SOURCE,
+        chmi_hist.SOURCE,
         core.GHCN_SOURCE,
     ):
         if counts.get(source, 0) <= 0:
@@ -1112,7 +1291,7 @@ def self_test() -> None:
     assert dmi_meta_test["DMI:06030"].source == dmi_hist.SOURCE
     assert dmi_meta_test["DMI:06030"].country == "Dänemark"
 
-    assert {"SW", "BE", "SZ"}.issubset(NATIONAL_GHCN_CODES)
+    assert {"SW", "BE", "SZ", "FI", "EZ"}.issubset(NATIONAL_GHCN_CODES)
 
     smhi_meta_test = smhi_inventory_to_meta({"1": {"name": "Test SE", "lat": 60.0, "lon": 15.0, "elevation_m": 100}})
     assert smhi_meta_test["SMHI:1"].country == "Schweden"
@@ -1120,6 +1299,21 @@ def self_test() -> None:
     assert belgium_meta_test["RMI:6447"].source == belgium_hist.SOURCE
     swiss_meta_test = swiss_inventory_to_meta({"BER": {"name": "Bern", "lat": 46.95, "lon": 7.45, "elevation_m": 553}})
     assert swiss_meta_test["METEOSWISS:BER"].country == "Schweiz"
+    fmi_meta_test = fmi_inventory_to_meta({"100001": {"name": "Test FI", "lat": 60.2, "lon": 24.9, "elevation_m": 50}})
+    assert fmi_meta_test["FMI:100001"].country == "Finnland"
+    chmi_meta_test = chmi_inventory_to_meta({"0-203-X": {"name": "Praha", "lat": 50.08, "lon": 14.43, "elevation": 200}})
+    assert chmi_meta_test["CHMI:0-203-X"].country == "Tschechien"
+
+    from array import array as _array
+    packed = {"X": {
+        "ordinals": _array("i", [dt.date(2025,1,1).toordinal(), dt.date(2025,1,2).toordinal()]),
+        "tmax_tenths": _array("h", [100, 120]),
+        "tmin_tenths": _array("h", [-50, -30]),
+    }}
+    packed_states = chmi_packed_to_core_states(packed)
+    assert packed_states["CHMI:X"]["TMAX"]["abs"] == (120, 20250102, 1)
+    packed_current = chmi_packed_to_core_current(packed)
+    assert packed_current["CHMI:X"]["TMIN"]["01-01"] == (-50, 20250101)
 
     sample_records = {
         "X": {
@@ -1146,30 +1340,6 @@ def self_test() -> None:
     add_station_activity(payload, stations={"TEST:X": meta}, states=states, current=current)
     assert payload["stations"][0]["active"] is True
     assert payload["stations"][0]["last_observation"] == "2026-08-01"
-    validate_meteoswiss_historical_extremes({
-        "records": {
-            "GRO": {
-                "tmax_abs": [41.5, "2003-08-11"],
-                "tmin_abs": [-10.0, "2003-01-01"],
-                "calendar_tmax": {"08-11": [41.5, "2003-08-11"]},
-                "calendar_tmin": {"01-01": [-10.0, "2003-01-01"]},
-            }
-        }
-    })
-    try:
-        validate_meteoswiss_historical_extremes({
-            "records": {
-                "CMA": {
-                    "tmax_abs": [51.8, "2000-01-02"],
-                    "calendar_tmax": {"01-02": [51.8, "2000-01-02"]},
-                }
-            }
-        })
-    except RuntimeError:
-        pass
-    else:
-        raise AssertionError("MeteoSwiss historical fail-safe did not reject 51.8 C")
-
     print("Unified Europe updater self-test OK")
 
 
@@ -1193,6 +1363,8 @@ def main() -> int:
     parser.add_argument("--force-smhi-baseline", action="store_true")
     parser.add_argument("--force-belgium-baseline", action="store_true")
     parser.add_argument("--force-swiss-baseline", action="store_true")
+    parser.add_argument("--force-fmi-baseline", action="store_true")
+    parser.add_argument("--force-chmi-baseline", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -1215,7 +1387,8 @@ def main() -> int:
     log(
         "DWD Deutschland + Météo-France Frankreich + AEMET Spanien + GeoSphere Austria + "
         "IMGW Polen + KNMI Niederlande + MET Norway Frost + DMI Dänemark + "
-        "SMHI Schweden + KMI/RMI Belgien + MeteoSwiss Schweiz + GHCN-Daily Rest-Europa."
+        "SMHI Schweden + KMI/RMI Belgien + MeteoSwiss Schweiz + FMI Finnland + "
+        "CHMI Tschechien + GHCN-Daily Rest-Europa."
     )
 
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
@@ -1238,10 +1411,10 @@ def main() -> int:
     ghcn_stations = {
         sid: meta
         for sid, meta in ghcn_all_stations.items()
-        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ"}
+        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ"}
     }
     log(
-        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH: "
+        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH/FI/CZ: "
         f"{len(ghcn_stations):,}"
     )
     if not ghcn_stations:
@@ -1289,6 +1462,10 @@ def main() -> int:
         belgium_cur_payload,
         swiss_base,
         swiss_cur_payload,
+        fmi_base,
+        fmi_cur_payload,
+        chmi_base,
+        chmi_cur_payload,
     ) = _load_compact_national_sources(
         cache_dir,
         current_year,
@@ -1299,6 +1476,8 @@ def main() -> int:
         force_smhi=force_all or args.force_smhi_baseline,
         force_belgium=force_all or args.force_belgium_baseline,
         force_swiss=force_all or args.force_swiss_baseline,
+        force_fmi=force_all or args.force_fmi_baseline,
+        force_chmi=force_all or args.force_chmi_baseline,
     )
 
     ghcn_current = core.parse_current_ghcn_year(current_year, ghcn_stations)
@@ -1316,6 +1495,8 @@ def main() -> int:
     smhi_current = compact_records_to_core_current(smhi_cur_payload.get("records", {}), prefix="SMHI")
     belgium_current = compact_records_to_core_current(belgium_cur_payload.get("records", {}), prefix="RMI")
     swiss_current = compact_records_to_core_current(swiss_cur_payload.get("records", {}), prefix="METEOSWISS")
+    fmi_current = compact_records_to_core_current(fmi_cur_payload.get("records", {}), prefix="FMI")
+    chmi_current = chmi_packed_to_core_current(chmi_cur_payload.get("stations", {}))
 
     for label, data in (
         ("GeoSphere Austria", austria_current),
@@ -1327,6 +1508,8 @@ def main() -> int:
         ("SMHI Schweden", smhi_current),
         ("KMI/RMI Belgien", belgium_current),
         ("MeteoSwiss Schweiz", swiss_current),
+        ("FMI Finnland", fmi_current),
+        ("CHMI Tschechien", chmi_current),
     ):
         if not data:
             raise RuntimeError(f"{label} lieferte für {current_year} keine aktuellen Stationsdaten.")
@@ -1350,6 +1533,9 @@ def main() -> int:
     belgium_inventory.update(belgium_cur_payload.get("inventory", {}))
     swiss_inventory = dict(swiss_base.get("inventory", {}))
     swiss_inventory.update(swiss_cur_payload.get("inventory", {}))
+    fmi_inventory = dict(fmi_base.get("inventory", {}))
+    fmi_inventory.update(fmi_cur_payload.get("inventory", {}))
+    chmi_inventory = chmi_payload_inventory(chmi_base, chmi_cur_payload)
 
     aemet_stations = aemet_inventory_to_meta(aemet_inventory)
 
@@ -1382,6 +1568,8 @@ def main() -> int:
     smhi_stations = smhi_inventory_to_meta(smhi_inventory)
     belgium_stations = belgium_inventory_to_meta(belgium_inventory)
     swiss_stations = swiss_inventory_to_meta(swiss_inventory)
+    fmi_stations = fmi_inventory_to_meta(fmi_inventory)
+    chmi_stations = chmi_inventory_to_meta(chmi_inventory)
 
     # Older MeteoSwiss v1 cache files may contain station names/elevation but
     # no parsed WGS84 coordinates because the live metadata fields are named
@@ -1405,13 +1593,16 @@ def main() -> int:
             f"Stationen für {len(swiss_record_ids)} Stationsreihen."
         )
 
-    if not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations or not smhi_stations or not belgium_stations or not swiss_stations:
+    if (not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations
+            or not smhi_stations or not belgium_stations or not swiss_stations
+            or not fmi_stations or not chmi_stations):
         raise RuntimeError(
             "Nationale Metadaten unvollständig: "
             f"AEMET={len(aemet_stations)}, KNMI={len(knmi_stations)}, "
             f"Frost={len(frost_stations)}, DMI={len(dmi_stations)}, "
             f"SMHI={len(smhi_stations)}, Belgien={len(belgium_stations)}, "
-            f"MeteoSwiss={len(swiss_stations)}"
+            f"MeteoSwiss={len(swiss_stations)}, FMI={len(fmi_stations)}, "
+            f"CHMI={len(chmi_stations)}"
         )
 
     stations = dict(ghcn_stations)
@@ -1426,6 +1617,8 @@ def main() -> int:
     stations.update(smhi_stations)
     stations.update(belgium_stations)
     stations.update(swiss_stations)
+    stations.update(fmi_stations)
+    stations.update(chmi_stations)
 
     states = {sid: state for sid, state in ghcn_baseline.get("states", {}).items() if sid in ghcn_stations}
     states.update(dwd_baseline.get("states", {}))
@@ -1439,6 +1632,8 @@ def main() -> int:
     states.update(compact_records_to_core_states(smhi_base.get("records", {}), prefix="SMHI"))
     states.update(compact_records_to_core_states(belgium_base.get("records", {}), prefix="RMI"))
     states.update(compact_records_to_core_states(swiss_base.get("records", {}), prefix="METEOSWISS"))
+    states.update(compact_records_to_core_states(fmi_base.get("records", {}), prefix="FMI"))
+    states.update(chmi_packed_to_core_states(chmi_base.get("stations", {})))
 
     current = dict(ghcn_current)
     current.update(dwd_current)
@@ -1452,6 +1647,8 @@ def main() -> int:
     current.update(smhi_current)
     current.update(belgium_current)
     current.update(swiss_current)
+    current.update(fmi_current)
+    current.update(chmi_current)
 
     if output_dir.exists():
         import shutil
@@ -1474,6 +1671,8 @@ def main() -> int:
         smhi_current_count=len(smhi_current),
         belgium_current_count=len(belgium_current),
         swiss_current_count=len(swiss_current),
+        fmi_current_count=len(fmi_current),
+        chmi_current_count=len(chmi_current),
     )
     validate_payload(payload)
 

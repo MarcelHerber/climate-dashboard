@@ -9,6 +9,11 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 SOURCE = "CHMI Open Data"
+PUBLIC_URL = "https://opendata.chmi.cz/meteorology/climate/"
+COUNTRY = "Tschechien"
+COUNTRY_CODE = "CZ"
+FORMAT_VERSION = 1
+CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 HIST_TEMP_INDEX = "https://opendata.chmi.cz/meteorology/climate/historical_csv/data/daily/temperature/"
 META1_URL = "https://opendata.chmi.cz/meteorology/climate/historical/metadata/meta1.json"
 RECENT_DAILY_INDEX = "https://opendata.chmi.cz/meteorology/climate/recent/data/daily/"
@@ -102,6 +107,21 @@ def tenths(v):
 def untenths(v):
     return None if v == MISSING_I16 else v/10.0
 
+
+def historical_limits(cutoff_year):
+    # Verified Czech national bounds are used through 2025.  For later
+    # historical cutoffs, keep a loose emergency envelope so a genuine
+    # future national record is not discarded by an obsolete record limit.
+    if int(cutoff_year) <= 2025:
+        return 40.4, -42.2
+    return 45.0, -50.0
+
+def baseline_path(cache_dir, cutoff_year):
+    return Path(cache_dir) / f"chmi_czechia_daily_baseline_through_{int(cutoff_year)}_v{FORMAT_VERSION}.pkl.gz"
+
+def parts_dir(cache_dir, cutoff_year):
+    return Path(cache_dir) / f"chmi_czechia_station_parts_v{FORMAT_VERSION}_{int(cutoff_year)}"
+
 def load_csv_element(url, element, cutoff_year=2025):
     raw = decode(http_bytes(url))
     rdr = csv.reader(io.StringIO(raw), delimiter=",")
@@ -137,10 +157,10 @@ def load_csv_element(url, element, cutoff_year=2025):
                 continue
             x = float(row[idx[value_col]])
             if not math.isfinite(x): continue
-            # Official national bounds through 2025.
-            if element == "TMA" and not (-50.0 <= x <= 40.4):
+            max_limit, min_limit = historical_limits(cutoff_year)
+            if element == "TMA" and not (-50.0 <= x <= max_limit):
                 invalid += 1; continue
-            if element == "TMI" and not (-42.2 <= x <= 45.0):
+            if element == "TMI" and not (min_limit <= x <= 45.0):
                 invalid += 1; continue
             if ds in vals:
                 vals[ds] = max(vals[ds], x) if element=="TMA" else min(vals[ds], x)
@@ -237,80 +257,136 @@ def parse_current_file(url, year):
     return out,qrej,invalid
 
 import argparse
+import shutil
 
-CACHE_DIR = Path(".cache/europe-stations")
-PARTS_DIR = CACHE_DIR / "chmi_czechia_station_parts_v1"
-OUTPUT = CACHE_DIR / "chmi_czechia_daily_baseline_through_2025_v1.pkl.gz"
-
-def build_station(wsi, meta, tma_url, tmi_url):
-    tx,qx,ix = load_csv_element(tma_url,"TMA",2025)
-    tn,qn,inn = load_csv_element(tmi_url,"TMI",2025)
+def build_station(wsi, meta, tma_url, tmi_url, cutoff_year):
+    tx,qx,ix = load_csv_element(tma_url,"TMA",cutoff_year)
+    tn,qn,inn = load_csv_element(tmi_url,"TMI",cutoff_year)
     return pack_station(wsi,meta,tx,tn,qx,qn,ix,inn)
 
-def main():
-    ap=argparse.ArgumentParser(); ap.add_argument("--force",action="store_true"); ap.add_argument("--workers",type=int,default=8)
-    args=ap.parse_args()
-    CACHE_DIR.mkdir(parents=True,exist_ok=True)
-    if args.force:
-        if OUTPUT.exists(): OUTPUT.unlink()
-        if PARTS_DIR.exists(): shutil.rmtree(PARTS_DIR)
-    if OUTPUT.exists() and not args.force:
-        try:
-            old=load_gz_pickle(OUTPUT)
-            if old.get("complete"):
-                log(f"Baseline bereits vollständig: {OUTPUT}")
-                return 0
-        except Exception: pass
-    PARTS_DIR.mkdir(parents=True,exist_ok=True)
-    by_meta,latest=load_historical_metadata()
-    tma,tmi=historical_inventory()
-    stations=sorted(set(tma)&set(tmi)&set(by_meta))
+def valid_baseline(path, cutoff_year):
+    path = Path(path)
+    if not path.exists():
+        return False
+    try:
+        obj = load_gz_pickle(path)
+    except Exception:
+        return False
+    return (
+        isinstance(obj, dict)
+        and obj.get("complete") is True
+        and int(obj.get("cutoff_year", -1)) == int(cutoff_year)
+        and int(obj.get("station_count", 0)) > 0
+    )
+
+def load_baseline(cache_dir, cutoff_year):
+    path = baseline_path(cache_dir, cutoff_year)
+    if not valid_baseline(path, cutoff_year):
+        raise RuntimeError(f"CHMI Czechia Baseline fehlt/unvollständig: {path}")
+    return load_gz_pickle(path)
+
+def build_baseline(cache_dir, cutoff_year, *, force=False, workers=8):
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    output = baseline_path(cache_dir, cutoff_year)
+    parts = parts_dir(cache_dir, cutoff_year)
+
+    if force:
+        output.unlink(missing_ok=True)
+        if parts.exists():
+            shutil.rmtree(parts)
+
+    if not force and valid_baseline(output, cutoff_year):
+        log(f"Verwende vorhandenen CHMI-Czechia-Baselinecache: {output}")
+        return output
+
+    parts.mkdir(parents=True, exist_ok=True)
+    by_meta, latest = load_historical_metadata()
+    tma, tmi = historical_inventory()
+    stations = sorted(set(tma) & set(tmi) & set(by_meta))
+    if not stations:
+        raise RuntimeError("CHMI historische TMA+TMI-Inventarisierung ist leer.")
+
     log(f"CHMI historische TMA+TMI-Stationen: {len(stations)}")
-    existing={p.stem.replace(".pkl","") for p in PARTS_DIR.glob("*.pkl.gz")}
-    todo=[s for s in stations if s not in existing]
-    log(f"Cache-Teile vorhanden: {len(existing)} | neu zu laden: {len(todo)}")
-    workers=max(1,min(args.workers,16))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futs={pool.submit(build_station,s,latest[s],tma[s],tmi[s]):s for s in todo}
-        done=0
-        for fut in as_completed(futs):
-            s=futs[fut]
-            part=fut.result()
-            safe=s.replace("/","_")
-            save_gz_pickle(PARTS_DIR/f"{safe}.pkl.gz",part)
-            done+=1
-            if done%10==0 or done==len(todo):
-                log(f"CHMI: {len(existing)+done}/{len(stations)} Stationsreihen gecacht")
-    data={}
-    qrej=Counter(); invalid=Counter(); total_days=0; first=None; last=None
-    for s in stations:
-        p=PARTS_DIR/f"{s.replace('/','_')}.pkl.gz"
-        part=load_gz_pickle(p)
-        data[s]=part
-        total_days+=part["station_days"]
-        if part["start_date"] and (first is None or part["start_date"]<first): first=part["start_date"]
-        if part["end_date"] and (last is None or part["end_date"]>last): last=part["end_date"]
-        for el,d in part["quality_rejected"].items():
-            for k,v in d.items(): qrej[(el,k)]+=v
-        for k,v in part["invalid_rejected"].items(): invalid[k]+=v
-    out={
-        "source":SOURCE,"format_version":1,"cutoff_year":2025,"complete":True,
-        "station_count":len(data),"inventory_count":len(stations),"station_days":total_days,
-        "start_date":first,"end_date":last,"stations":data,
-        "quality_policy":"Only QUALITY=0 (Good) is accepted for TMA/TMI.",
-        "quality_rejected":dict(qrej),"invalid_rejected":dict(invalid),
+    existing = {
+        p.name[:-7] for p in parts.glob("*.pkl.gz")
     }
-    save_gz_pickle(OUTPUT,out)
+    todo = [s for s in stations if s.replace("/", "_") not in existing]
+    log(f"Cache-Teile vorhanden: {len(existing)} | neu zu laden: {len(todo)}")
+
+    workers = max(1, min(int(workers), 16))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {
+            pool.submit(build_station, s, latest[s], tma[s], tmi[s], cutoff_year): s
+            for s in todo
+        }
+        done = 0
+        for fut in as_completed(futs):
+            s = futs[fut]
+            part = fut.result()
+            safe = s.replace("/", "_")
+            save_gz_pickle(parts / f"{safe}.pkl.gz", part)
+            done += 1
+            if done % 10 == 0 or done == len(todo):
+                log(f"CHMI: {len(existing)+done}/{len(stations)} Stationsreihen gecacht")
+
+    data = {}
+    qrej = Counter(); invalid = Counter(); total_days = 0; first = None; last = None
+    for s in stations:
+        p = parts / f"{s.replace('/', '_')}.pkl.gz"
+        if not p.exists():
+            raise RuntimeError(f"CHMI Stations-Teilcache fehlt: {p}")
+        part = load_gz_pickle(p)
+        data[s] = part
+        total_days += int(part["station_days"])
+        if part.get("start_date") and (first is None or part["start_date"] < first): first = part["start_date"]
+        if part.get("end_date") and (last is None or part["end_date"] > last): last = part["end_date"]
+        for el,d in part.get("quality_rejected",{}).items():
+            for k,v in d.items(): qrej[(el,k)] += v
+        for k,v in part.get("invalid_rejected",{}).items(): invalid[k] += v
+
+    out = {
+        "source": SOURCE, "public_url": PUBLIC_URL, "country": COUNTRY,
+        "country_code": COUNTRY_CODE, "format_version": FORMAT_VERSION,
+        "cutoff_year": int(cutoff_year), "complete": True,
+        "station_count": len(data), "inventory_count": len(stations),
+        "station_days": total_days, "start_date": first, "end_date": last,
+        "stations": data,
+        "quality_policy": "Only QUALITY=0 (Good) is accepted for TMA/TMI.",
+        "quality_rejected": dict(qrej), "invalid_rejected": dict(invalid),
+    }
+    save_gz_pickle(output, out)
+    max_limit, min_limit = historical_limits(cutoff_year)
     log("=== CHMI CZECHIA BASELINE SUMMARY ===")
     log(f"Stationsreihen: {len(data):,}")
     log(f"Stationstage: {total_days:,}")
     log(f"Datenzeitraum: {first} bis {last}")
     log(f"QUALITY verworfen: {dict(qrej)}")
+    log(f"QC-Grenzen: TMAX <= {max_limit:.1f} C | TMIN >= {min_limit:.1f} C")
     log(f"QC verworfen: {dict(invalid)}")
-    log(f"Output: {OUTPUT}")
+    log(f"Output: {output}")
     log("CHMI Czechia Baseline OK.")
+    return output
+
+def self_test():
+    assert historical_limits(2025) == (40.4, -42.2)
+    assert historical_limits(2026) == (45.0, -50.0)
+    assert quality_ok("0.0") and not quality_ok("3.0")
+    assert baseline_path(Path("x"), 2025).name == "chmi_czechia_daily_baseline_through_2025_v1.pkl.gz"
+    print("CHMI Czechia historical cache self-test OK")
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--cache-dir", default=str(CACHE_DIR_DEFAULT))
+    ap.add_argument("--cutoff-year", type=int, default=datetime.now(timezone.utc).year - 1)
+    ap.add_argument("--self-test", action="store_true")
+    args = ap.parse_args()
+    if args.self_test:
+        self_test(); return 0
+    build_baseline(Path(args.cache_dir), args.cutoff_year, force=args.force, workers=args.workers)
     return 0
 
-if __name__=="__main__":
-    import shutil
+if __name__ == "__main__":
     raise SystemExit(main())
