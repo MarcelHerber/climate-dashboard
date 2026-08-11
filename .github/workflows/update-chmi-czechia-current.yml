@@ -1,0 +1,42 @@
+name: Update CHMI Czechia current year
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chmi-czechia-current
+  cancel-in-progress: false
+
+jobs:
+  current:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Historischen CHMI-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: chmi-czechia-v1-2025-current-${{ github.run_id }}
+          restore-keys: |
+            chmi-czechia-v1-2025-
+
+      - name: CHMI aktuelles Jahr bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_chmi_czechia_current.py --workers 12
+
+      - name: Current-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: chmi-czechia-current-v1-${{ github.run_id }}

@@ -1,0 +1,50 @@
+name: Update CHMI Czechia station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Historischen Cache komplett neu aufbauen?"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chmi-czechia-station-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Vorherigen CHMI-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/europe-stations
+          key: chmi-czechia-v1-2025-${{ github.run_id }}
+          restore-keys: |
+            chmi-czechia-v1-2025-
+
+      - name: Historischen CHMI-Cache bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then EXTRA="--force"; fi
+          python scripts/update_chmi_czechia_station_cache.py $EXTRA --workers 8
+
+      - name: CHMI-Cache sichern
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/europe-stations
+          key: chmi-czechia-v1-2025-${{ github.run_id }}
