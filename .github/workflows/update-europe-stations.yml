@@ -112,25 +112,26 @@ jobs:
           echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
           echo "year_month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
 
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
       - name: Europa-Hauptcache laden
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
           restore-keys: |
             europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v9-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v8-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v8-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v7-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-
             europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: Météo-France-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-mf-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -141,7 +142,7 @@ jobs:
             meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: GeoSphere-Österreich-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-at-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -149,7 +150,7 @@ jobs:
             geosphere-austria-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: IMGW-Polen-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-pl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -157,7 +158,7 @@ jobs:
             imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: AEMET-Spanien-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-es-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -165,7 +166,7 @@ jobs:
             aemet-spain-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: KNMI-Niederlande-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-nl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -173,7 +174,7 @@ jobs:
             knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: Frost-Norwegen-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-no-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -181,7 +182,7 @@ jobs:
             frost-norway-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: DMI-Dänemark-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-dk-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -189,7 +190,7 @@ jobs:
             dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: SMHI-Schweden-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-se-${{ steps.dates.outputs.year }}-${{ github.run_id }}
@@ -198,7 +199,7 @@ jobs:
             smhi-sweden-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: KMI-RMI-Belgien-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-be-${{ steps.dates.outputs.year }}-${{ github.run_id }}
@@ -207,7 +208,7 @@ jobs:
             rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: MeteoSwiss-Schweiz-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-ch-${{ steps.dates.outputs.year }}-${{ github.run_id }}
@@ -216,7 +217,7 @@ jobs:
             meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: FMI-Finnland-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-fi-${{ steps.dates.outputs.year }}-${{ github.run_id }}
@@ -225,7 +226,7 @@ jobs:
             fmi-finland-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: CHMI-Tschechien-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-cz-${{ steps.dates.outputs.year }}-${{ github.run_id }}
@@ -359,7 +360,7 @@ jobs:
 
       - name: Stations-Cache sichern
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .cache/europe-stations
           key: europe-stations-v9-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
