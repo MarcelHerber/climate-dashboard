@@ -55,7 +55,7 @@ OBS_HIST_INDEX = f"{BASE}/observations_hungary/daily/historical/"
 OBS_RECENT_INDEX = f"{BASE}/observations_hungary/daily/recent/"
 OBS_META_URL = f"{BASE}/observations_hungary/meta/station_meta_auto.csv"
 
-UA = "climate-dashboard-hungaromet-hungary-probe/1.0"
+UA = "climate-dashboard-hungaromet-hungary-probe/2.0"
 TIMEOUT = 120
 TRIES = 5
 
@@ -155,6 +155,40 @@ class ZipSchema:
     header: tuple[str, ...]
     first_row: tuple[str, ...]
     rows: int
+    markers: tuple[str, ...] = tuple()
+    meta_header: tuple[str, ...] = tuple()
+    meta_row: tuple[str, ...] = tuple()
+    measurement_header: tuple[str, ...] = tuple()
+    measurement_rows: tuple[tuple[str, ...], ...] = tuple()
+    raw_preview: tuple[str, ...] = tuple()
+
+
+def _clean_row(row: list[str]) -> tuple[str, ...]:
+    return tuple(str(x).strip() for x in row)
+
+
+def _first_table_row(rows: list[list[str]], start: int, stop: int | None = None) -> tuple[int, tuple[str, ...]] | None:
+    stop = len(rows) if stop is None else min(stop, len(rows))
+    for i in range(max(0, start), stop):
+        row = _clean_row(rows[i])
+        nonempty = [x for x in row if x]
+        if len(nonempty) >= 2:
+            return i, row
+    return None
+
+
+def _section_bounds(rows: list[list[str]], marker_name: str) -> tuple[int, int] | None:
+    marker_name = marker_name.lower()
+    starts: list[tuple[int, str]] = []
+    for i, row in enumerate(rows):
+        first = str(row[0]).strip() if row else ""
+        if first.startswith("##"):
+            starts.append((i, first.lower()))
+    for pos, (idx, name) in enumerate(starts):
+        if name == marker_name:
+            end = starts[pos + 1][0] if pos + 1 < len(starts) else len(rows)
+            return idx + 1, end
+    return None
 
 
 def inspect_zip(url: str) -> ZipSchema:
@@ -168,10 +202,68 @@ def inspect_zip(url: str) -> ZipSchema:
         csv_members = [n for n in members if n.lower().endswith((".csv", ".txt", ".dat"))]
         member = csv_members[0] if csv_members else members[0]
         text = decode(zf.read(member))
+
     delimiter, rows = sniff_table(text)
     nonempty = [r for r in rows if any(str(x).strip() for x in r)]
     header = tuple(nonempty[0]) if nonempty else tuple()
     first = tuple(nonempty[1]) if len(nonempty) > 1 else tuple()
+
+    markers = tuple(
+        str(row[0]).strip()
+        for row in rows
+        if row and str(row[0]).strip().startswith("##")
+    )
+
+    meta_header: tuple[str, ...] = tuple()
+    meta_row: tuple[str, ...] = tuple()
+    meta_bounds = _section_bounds(rows, "##meta")
+    if meta_bounds:
+        mh = _first_table_row(rows, *meta_bounds)
+        if mh:
+            hi, meta_header = mh
+            mr = _first_table_row(rows, hi + 1, meta_bounds[1])
+            if mr:
+                _, meta_row = mr
+
+    measurement_header: tuple[str, ...] = tuple()
+    measurement_rows: list[tuple[str, ...]] = []
+    data_bounds = _section_bounds(rows, "##data")
+    if data_bounds:
+        dh = _first_table_row(rows, *data_bounds)
+        if dh:
+            hi, measurement_header = dh
+            for i in range(hi + 1, data_bounds[1]):
+                row = _clean_row(rows[i])
+                if len([x for x in row if x]) >= 2:
+                    measurement_rows.append(row)
+                    if len(measurement_rows) >= 3:
+                        break
+
+    # Defensive fallback: some ODP products may not label the measurement
+    # section exactly as ##Data. Find the first multi-column row after Meta
+    # whose field names look date/time/meteorology-like.
+    if not measurement_header:
+        candidates = ("date", "time", "datum", "tx", "tn", "tmax", "tmin", "ta", "temperature")
+        for i, row0 in enumerate(rows):
+            row = _clean_row(row0)
+            if len([x for x in row if x]) < 2:
+                continue
+            low = " | ".join(row).lower().lstrip("#")
+            if any(token in low for token in candidates):
+                if row == meta_header:
+                    continue
+                measurement_header = row
+                for j in range(i + 1, min(len(rows), i + 8)):
+                    rr = _clean_row(rows[j])
+                    if rr and rr[0].startswith("##"):
+                        break
+                    if len([x for x in rr if x]) >= 2:
+                        measurement_rows.append(rr)
+                        if len(measurement_rows) >= 3:
+                            break
+                break
+
+    raw_preview = tuple(text.splitlines()[:24])
     return ZipSchema(
         url=url,
         members=members,
@@ -180,6 +272,12 @@ def inspect_zip(url: str) -> ZipSchema:
         header=header,
         first_row=first,
         rows=max(0, len(nonempty) - 1),
+        markers=markers,
+        meta_header=meta_header,
+        meta_row=meta_row,
+        measurement_header=measurement_header,
+        measurement_rows=tuple(measurement_rows),
+        raw_preview=raw_preview,
     )
 
 
@@ -189,9 +287,22 @@ def print_schema(title: str, schema: ZipSchema) -> None:
     log(f"ZIP-Mitglieder: {schema.members[:8]}" + (" …" if len(schema.members) > 8 else ""))
     log(f"Datendatei: {schema.data_member}")
     log(f"Trennzeichen: {repr(schema.delimiter)}")
-    log(f"Header ({len(schema.header)}): {compact(schema.header)}")
-    log(f"Erste Datenzeile: {compact(schema.first_row)}")
-    log(f"Datenzeilen: {schema.rows:,}")
+    log(f"Abschnittsmarker: {list(schema.markers)}")
+    log(f"Erste nichtleere Zeile ({len(schema.header)}): {compact(schema.header, 700)}")
+    log(f"Zweite nichtleere Zeile: {compact(schema.first_row, 700)}")
+    log(f"Nichtleere Folgezeilen: {schema.rows:,}")
+    if schema.meta_header:
+        log(f"META-Header ({len(schema.meta_header)}): {compact(schema.meta_header, 900)}")
+    if schema.meta_row:
+        log(f"META-Beispiel: {compact(schema.meta_row, 900)}")
+    if schema.measurement_header:
+        log(f"MESSDATEN-Header ({len(schema.measurement_header)}): {compact(schema.measurement_header, 1200)}")
+        for i, row in enumerate(schema.measurement_rows, 1):
+            log(f"MESSDATEN-Beispiel {i}: {compact(row, 1200)}")
+    else:
+        log("WARNUNG: Kein Messdaten-Header erkannt. Rohvorschau folgt:")
+        for i, line in enumerate(schema.raw_preview, 1):
+            log(f"RAW {i:02d}: {line[:1400]}")
 
 
 def long_inventory() -> dict[str, object]:
@@ -248,7 +359,8 @@ def inspect_metadata() -> None:
 
 def schema_signature(schema: ZipSchema) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     suffixes = tuple(sorted(n.rsplit(".", 1)[-1].lower() for n in schema.members if "." in n))
-    return schema.delimiter, schema.header, suffixes
+    effective = schema.measurement_header or schema.header
+    return schema.delimiter, effective, suffixes
 
 
 def inspect_many(label: str, urls: list[str], workers: int) -> None:
@@ -274,10 +386,10 @@ def inspect_many(label: str, urls: list[str], workers: int) -> None:
     for n, (sig, count) in enumerate(counts.most_common(), 1):
         delim, header, suffixes = sig
         log(f"Schema {n}: {count} Datei(en), delimiter={repr(delim)}, members={suffixes}")
-        log(f"  Header: {compact(header, 500)}")
+        log(f"  Messdaten-Header: {compact(header, 1200)}")
         ex = examples[sig]
         log(f"  Beispiel: {ex.url}")
-        log(f"  Erste Zeile: {compact(ex.first_row, 500)}")
+        log(f"  Erstes Messdaten-Beispiel: {compact(ex.measurement_rows[0] if ex.measurement_rows else ex.first_row, 1200)}")
     for url, err in failures[:5]:
         log(f"FEHLER: {url}: {err}")
 
@@ -290,6 +402,14 @@ def self_test() -> None:
     delim, rows = sniff_table(text)
     assert delim == ";"
     assert rows[0] == ["date", "tx", "tn"]
+
+    section_text = "##Meta\n#StationNumber;StartDate;EndDate\n13704;20050727;20260811\n##Data\n#StationNumber;Date;TA;TX;TN\n13704;20260810;24.1;31.2;17.4\n"
+    d2, r2 = sniff_table(section_text)
+    assert d2 == ";"
+    mb = _section_bounds(r2, "##meta")
+    db = _section_bounds(r2, "##data")
+    assert mb and db
+    assert _first_table_row(r2, *db)[1][1] == "Date"
 
     m = re.fullmatch(r"HABP_1D_(\d+)_(\d{8})_(\d{8})_hist\.zip", "HABP_1D_13711_20031107_20251231_hist.zip", flags=re.I)
     assert m and m.group(1) == "13711" and m.group(2) == "20031107"
@@ -371,8 +491,8 @@ def main() -> int:
 
     log("\n=== FAZIT FÜR DIE NÄCHSTE INTEGRATIONSSTUFE ===")
     log("Bitte den vollständigen GitHub-Log dieses Probe-Runs schicken.")
-    log("Entscheidend sind Header/Einheiten der HABP_1D-ZIPs und die Metadaten-Spalten.")
-    log("Danach kann der produktive Ungarn-Cache + Current-Builder ohne Formatannahmen gebaut werden.")
+    log("Entscheidend ist jetzt die Zeile MESSDATEN-Header der HABP_1D-ZIPs.")
+    log("Wenn dort TX/TN bzw. die Temperatur-Maximum/-Minimum-Spalten sichtbar sind, folgt direkt der produktive Ungarn-Cache + Current-Builder.")
     return 0
 
 
