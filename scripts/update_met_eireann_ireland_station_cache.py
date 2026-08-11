@@ -55,10 +55,14 @@ STATION_DETAILS_URLS = (
     "https://cli.fusio.net/cli/climate_data/webdata/StationDetails.csv",
 )
 DAILY_BASES = (
+    # Current official Met Éireann host. The old cli.fusio.net mirror is
+    # deliberately NOT used here: GitHub runners repeatedly report
+    # "Network is unreachable" for that legacy mirror. If both official
+    # clidata paths return HTTP 404, the station is treated as having no
+    # downloadable daily file instead of being blocked by the legacy mirror.
     "https://clidata.met.ie/cli/climate_data/webdata",
     # Some catalogue entries historically used the webdatac path.
     "https://clidata.met.ie/cli/climate_data/webdatac",
-    "https://cli.fusio.net/cli/climate_data/webdata",
 )
 
 FORMAT_VERSION = 1
@@ -662,9 +666,13 @@ def build_baseline(
     log(f"Noch offen: {len(pending):,}")
     log("gmin/igmin werden NICHT als Tmin verwendet.")
 
-    workers = max(1, min(int(workers), 20))
+    # Met Éireann is more reliable with moderate parallelism from GitHub
+    # runners. Keep the CLI option for compatibility, but cap the effective
+    # concurrency here.
+    workers = max(1, min(int(workers), 8))
     batch_size = max(workers, int(batch_size))
     started = time.monotonic()
+    deferred_errors: dict[str, str] = {}
 
     while pending:
         if (time.monotonic() - started) / 60 >= max_runtime_minutes:
@@ -737,14 +745,48 @@ def build_baseline(
         )
 
         if errors:
+            for sid, msg in errors:
+                deferred_errors[sid] = msg
             sample = "; ".join(f"{sid}: {msg}" for sid, msg in errors[:5])
-            raise RuntimeError(
-                f"Met Éireann: {len(errors)} Station(en) in diesem Batch mit "
-                f"Download/Parser-Fehler. Erfolgreicher Zwischenstand ist gespeichert; "
-                f"Workflow mit force=false erneut starten. Beispiele: {sample}"
+            log(
+                f"WARNUNG: {len(errors)} Station(en) in diesem Batch vorerst "
+                f"zurückgestellt. Der Lauf arbeitet mit den übrigen Stationen weiter. "
+                f"Beispiele: {sample}"
             )
 
+        # Always advance past the attempted batch. Failed IDs stay unprocessed
+        # and therefore automatically become the only open IDs on a later
+        # force=false run, while successful/missing stations never block again.
         pending = [sid for sid in pending[len(batch):] if sid not in processed]
+
+    # If transient failures remain after the complete sweep, persist their IDs
+    # and stop only now. The next force=false run then retries just those IDs.
+    if deferred_errors:
+        progress["deferred_error_station_ids"] = sorted(
+            deferred_errors, key=lambda x: int(x)
+        )
+        progress["deferred_errors"] = {
+            sid: deferred_errors[sid]
+            for sid in progress["deferred_error_station_ids"]
+        }
+        refresh_summary(progress)
+        atomic_pickle_gzip(prog_file, progress)
+        write_status(cache_dir, cutoff_year, progress)
+
+        sample = "; ".join(
+            f"{sid}: {deferred_errors[sid]}"
+            for sid in progress["deferred_error_station_ids"][:8]
+        )
+        raise RuntimeError(
+            f"Met Éireann: Der komplette offene Stationsbestand wurde abgearbeitet, "
+            f"aber {len(deferred_errors)} Station(en) hatten weiterhin einen "
+            f"temporären Download/Parser-Fehler. Alle anderen Stationen sind "
+            f"gespeichert. Workflow mit force=false erneut starten; dann werden "
+            f"nur diese noch offenen IDs erneut versucht. Beispiele: {sample}"
+        )
+
+    progress.pop("deferred_error_station_ids", None)
+    progress.pop("deferred_errors", None)
 
     # Final cleanup and summary.
     progress["records"] = {
@@ -842,6 +884,11 @@ date,ind,maxtp,ind,mintp,igmin,gmin,ind,rain
     tn, tx = qc_values(12.0, 11.0, qc)
     assert tn is None and tx is None
     assert qc["qc_rejected_inconsistent_days"] == 1
+
+    urls = daily_urls("532")
+    assert urls
+    assert all("clidata.met.ie" in url for url in urls)
+    assert all("cli.fusio.net" not in url for url in urls)
 
     print("Met Éireann Ireland historical cache self-test OK")
 
