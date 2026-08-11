@@ -34,7 +34,7 @@ import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -859,7 +859,7 @@ def fresh_progress(cutoff_year: int) -> dict[str, Any]:
         "stats": {},
         "q_tmax": {},
         "q_tmin": {},
-        "started_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "started_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }
 
 
@@ -1129,7 +1129,7 @@ def build_baseline(
 
     progress["complete"] = True
     progress["completed_at_utc"] = (
-        datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     )
 
     progress["parameters"] = {
@@ -1177,8 +1177,8 @@ def build_baseline(
         f"TMAX={global_stats.get('qc_rejected_tmax_plausibility', 0):,} | "
         f"TMIN={global_stats.get('qc_rejected_tmin_plausibility', 0):,}"
     )
-    log("TMAX _q Codes:", dict(global_qmax.most_common()))
-    log("TMIN _q Codes:", dict(global_qmin.most_common()))
+    log(f"TMAX _q Codes: {dict(global_qmax.most_common())}")
+    log(f"TMIN _q Codes: {dict(global_qmin.most_common())}")
     log(f"Output: {final}")
     log("Met Office UK historische Baseline vollständig OK.")
 
