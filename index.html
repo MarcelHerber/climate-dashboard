@@ -457,6 +457,7 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <button class="tab-button" onclick="switchTab('accumulation')">Seit Jahresbeginn</button>
   <button class="tab-button" onclick="switchTab('hyras')">Flächenkarten</button>
   <button class="tab-button" onclick="switchTab('current')">Aktuell</button>
+  <button class="tab-button" onclick="switchTab('stationObservations')">Stations-Messwerte</button>
   <button class="tab-button" onclick="switchTab('stationProfile')">Stationsprofil</button>
   <button class="tab-button" onclick="switchTab('stationPrecip')">Stationsniederschlag</button>
   <button class="tab-button" onclick="switchTab('daily')">Tageshöchstwerte</button>
@@ -1189,6 +1190,86 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
   <p class="note" style="margin-top:12px">Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), 10-minütige Stationsmessungen aus <code>air_temperature/now</code>, <code>wind/now</code>, <code>extreme_wind/now</code> und <code>precipitation/now</code>. Wind/Böen/Niederschlag erscheinen nur, wenn der jeweilige Parameter unter derselben DWD-Stations-ID verfügbar ist. Die aktuellen <code>now</code>-Werte sind noch nicht abschließend qualitätsgeprüft. Die Live-Aktualisierung läuft unabhängig vom normalen GitHub-Pages-Deployment.</p>
 </div>
 
+
+<!-- ================= STATIONS-MESSWERTE ================= -->
+<div id="stationObservations" class="tab-content">
+  <div class="section-header">
+    <h2>Stations-Messwerte</h2>
+    <p>Stündliche DWD-Messwerte der letzten 3, 7, 14 oder 30 Tage – direkt von den Messstationen, ohne Raster- oder Modelldaten.</p>
+    <span class="section-status">DWD CDC · Stundenwerte · Recent vorläufig</span>
+  </div>
+
+  <div id="stationObservationsLoading" class="record-loading">
+    Stations-Messwerte werden beim ersten Öffnen geladen …
+  </div>
+
+  <div id="stationObservationsContent" hidden>
+    <div class="controls">
+      <div class="control-group">
+        <label for="stationObservationsStateSelect">Bundesland</label>
+        <select id="stationObservationsStateSelect"></select>
+      </div>
+
+      <div class="control-group" style="min-width:240px">
+        <label for="stationObservationsSearch">Station suchen</label>
+        <input id="stationObservationsSearch" type="search" placeholder="Ort oder Stations-ID"
+          style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
+      </div>
+
+      <div class="control-group" style="min-width:300px">
+        <label for="stationObservationsStationSelect">DWD-Station</label>
+        <select id="stationObservationsStationSelect"></select>
+      </div>
+
+      <div class="control-group">
+        <label for="stationObservationsParameterSelect">Messgröße</label>
+        <select id="stationObservationsParameterSelect"></select>
+      </div>
+
+      <div class="control-group">
+        <label for="stationObservationsPeriodSelect">Zeitraum</label>
+        <select id="stationObservationsPeriodSelect">
+          <option value="3">3 Tage</option>
+          <option value="7" selected>7 Tage</option>
+          <option value="14">14 Tage</option>
+          <option value="30">30 Tage</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="stationObservationsSummary" class="summary-box">
+      Station auswählen …
+    </div>
+
+    <div class="chart-container auto">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <h4 id="stationObservationsStat1Label">Aktuell</h4>
+          <div id="stationObservationsStat1">–</div>
+        </div>
+        <div class="stat-card">
+          <h4 id="stationObservationsStat2Label">Minimum</h4>
+          <div id="stationObservationsStat2">–</div>
+        </div>
+        <div class="stat-card">
+          <h4 id="stationObservationsStat3Label">Maximum</h4>
+          <div id="stationObservationsStat3">–</div>
+        </div>
+        <div class="stat-card">
+          <h4 id="stationObservationsStat4Label">Mittel</h4>
+          <div id="stationObservationsStat4">–</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container tall">
+      <canvas id="stationObservationsChart"></canvas>
+    </div>
+
+    <p id="stationObservationsSourceNote" class="note"></p>
+  </div>
+</div>
+
 <!-- ================= STATIONSPROFIL ================= -->
 <div id="stationProfile" class="tab-content">
   <div class="section-header"><h2>Stationsprofil</h2><p>Eine Station auswählen und Temperatur, Kenntage, Hitzewellen, Rekorde und Niederschlag zentral zusammenführen.</p><span class="section-status">DWD-KL-Stationsnetz · aktuelle Werte vorläufig</span></div>
@@ -1892,6 +1973,12 @@ let nationalStreakMap=null;
 let nationalStreakMapLayer=null;
 const stationYearCache=new Map();
 
+let stationObservationsIndex=null;
+let stationObservationsIndexLoading=null;
+let stationObservationsPayload=null;
+let stationObservationsChart=null;
+let stationObservationsRequestId=0;
+
 function showError(message){
   const box=document.getElementById("loadError");
   box.style.display="block";
@@ -1910,6 +1997,7 @@ function switchTab(tab,{persist=true}={}){
   if(mobile) mobile.value=tab;
   if(persist) persistDashboardState("tab",tab);
   if(tab==="current") ensureCurrentConditions();
+  if(tab==="stationObservations") ensureStationObservationsLoaded();
   if(tab==="hyras") ensureHyrasLoaded();
   if(tab==="monthly") window.setTimeout(()=>{if(regionalMap){regionalMap.invalidateSize();updateRegionalMap();}},80);
   if(tab==="stationProfile") ensureStationProfile();
@@ -1923,7 +2011,7 @@ function switchTab(tab,{persist=true}={}){
     ensureStationStreaksLoaded();
   }
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationObservationsChart,stationPrecipChart,stationPrecipDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -2494,7 +2582,9 @@ const DASHBOARD_RAW_PREFIXES=[
   "station_precip_current/",
   "station_climate_days_profiles/",
   "station_climate_days_current/",
-  "station_heatwaves_profiles/"
+  "station_heatwaves_profiles/",
+  "station_observations_index.json",
+  "station_observations_current/"
 ];
 function dashboardDataUrl(resource){
   if(typeof resource!=="string") return resource;
@@ -6794,6 +6884,475 @@ function initializeStationProfileControls(){
   ["stationProfileYearSelect","stationProfileReferenceSelect","stationProfileFromSelect","stationProfileRollingSelect"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>window.dispatchEvent(new CustomEvent("stationprofilechange"))));
   populateStationProfileStations();
 }
+
+function stationObservationMetricMeta(metricId){
+  const fallback={
+    temperature:{id:"temperature",label:"Temperatur 2 m",unit:"°C"},
+    precipitation:{id:"precipitation",label:"Niederschlag",unit:"mm"},
+    dewpoint:{id:"dewpoint",label:"Taupunkt",unit:"°C"}
+  };
+  return (stationObservationsIndex?.parameters||[]).find(item=>item.id===metricId)
+    || fallback[metricId]
+    || {id:metricId,label:metricId,unit:""};
+}
+
+function stationObservationMetricColumn(metricId){
+  if(metricId==="temperature") return 1;
+  if(metricId==="dewpoint") return 2;
+  if(metricId==="precipitation") return 3;
+  return -1;
+}
+
+function stationObservationDate(value){
+  if(!value) return null;
+  const normalized=/Z$/.test(value)?value:`${value}Z`;
+  const date=new Date(normalized);
+  return Number.isNaN(date.getTime())?null:date;
+}
+
+function stationObservationDateTimeLabel(value){
+  const date=stationObservationDate(value);
+  if(!date) return value||"–";
+  return date.toLocaleString("de-DE",{
+    day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",
+    timeZone:"Europe/Berlin"
+  });
+}
+
+function stationObservationLongDateTime(value){
+  const date=stationObservationDate(value);
+  if(!date) return value||"–";
+  return date.toLocaleString("de-DE",{
+    day:"2-digit",month:"2-digit",year:"numeric",
+    hour:"2-digit",minute:"2-digit",
+    timeZone:"Europe/Berlin"
+  });
+}
+
+function stationObservationNumber(value,digits=1){
+  return Number.isFinite(value)
+    ?value.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})
+    :"–";
+}
+
+async function ensureStationObservationsLoaded(){
+  if(stationObservationsIndex){
+    document.getElementById("stationObservationsContent").hidden=false;
+    document.getElementById("stationObservationsLoading").hidden=true;
+    return;
+  }
+  if(stationObservationsIndexLoading) return stationObservationsIndexLoading;
+
+  const loading=document.getElementById("stationObservationsLoading");
+  loading.hidden=false;
+  loading.style.color="";
+  loading.textContent="Stations-Messwerte werden geladen …";
+
+  stationObservationsIndexLoading=(async()=>{
+    try{
+      const response=await dashboardFetch("station_observations_index.json",{cache:"no-store"});
+      if(!response.ok) throw new Error(
+        response.status===404
+          ?"Die Messwert-Dateien wurden noch nicht erzeugt. Bitte zuerst den Workflow „DWD Stations-Messwerte aktualisieren“ starten."
+          :`HTTP ${response.status}`
+      );
+      const data=await response.json();
+      if(!data?.ready || !Array.isArray(data.stations)) throw new Error("Ungültiger Messwert-Index.");
+
+      stationObservationsIndex=data;
+      initializeStationObservationsControls();
+      document.getElementById("stationObservationsContent").hidden=false;
+      loading.hidden=true;
+      await loadSelectedStationObservations();
+    }catch(error){
+      loading.hidden=false;
+      loading.style.color="#7a1010";
+      loading.textContent=`Stations-Messwerte konnten nicht geladen werden: ${error.message}`;
+      throw error;
+    }finally{
+      stationObservationsIndexLoading=null;
+    }
+  })();
+
+  return stationObservationsIndexLoading;
+}
+
+function stationObservationFilteredStations(){
+  if(!stationObservationsIndex) return [];
+  const state=document.getElementById("stationObservationsStateSelect")?.value||"all";
+  const search=(document.getElementById("stationObservationsSearch")?.value||"")
+    .trim().toLocaleLowerCase("de-DE");
+
+  return (stationObservationsIndex.stations||[]).filter(station=>{
+    if(state!=="all" && station.state!==state) return false;
+    if(search){
+      const haystack=`${station.name} ${station.id}`.toLocaleLowerCase("de-DE");
+      if(!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function populateStationObservationStations({keepSelection=true}={}){
+  const select=document.getElementById("stationObservationsStationSelect");
+  const previous=keepSelection?select.value:"";
+  const stations=stationObservationFilteredStations();
+
+  select.innerHTML="";
+  stations.forEach(station=>{
+    const option=document.createElement("option");
+    option.value=station.id;
+    option.textContent=`${station.name} (${station.id})`;
+    select.appendChild(option);
+  });
+
+  if(previous && stations.some(station=>station.id===previous)){
+    select.value=previous;
+  }else{
+    const preferred=stations.find(station=>/Frankfurt\/Main/i.test(station.name))
+      ||stations.find(station=>/Saarbrücken/i.test(station.name))
+      ||stations[0];
+    if(preferred) select.value=preferred.id;
+  }
+
+  if(!stations.length){
+    const option=document.createElement("option");
+    option.textContent="Keine Station gefunden";
+    option.value="";
+    select.appendChild(option);
+  }
+
+  return stations;
+}
+
+function populateStationObservationParameters(){
+  const stationId=document.getElementById("stationObservationsStationSelect").value;
+  const station=(stationObservationsIndex?.stations||[]).find(item=>item.id===stationId);
+  const select=document.getElementById("stationObservationsParameterSelect");
+  const previous=select.value;
+  select.innerHTML="";
+
+  const available=station?.available||[];
+  (stationObservationsIndex?.parameters||[]).forEach(metric=>{
+    if(!available.includes(metric.id)) return;
+    const option=document.createElement("option");
+    option.value=metric.id;
+    option.textContent=metric.label;
+    select.appendChild(option);
+  });
+
+  if([...select.options].some(option=>option.value===previous)){
+    select.value=previous;
+  }else if([...select.options].some(option=>option.value==="temperature")){
+    select.value="temperature";
+  }else if(select.options.length){
+    select.selectedIndex=0;
+  }
+}
+
+function initializeStationObservationsControls(){
+  const stateSelect=document.getElementById("stationObservationsStateSelect");
+  stateSelect.innerHTML='<option value="all">Alle Bundesländer</option>';
+  (stationObservationsIndex.states||[]).forEach(state=>{
+    const option=document.createElement("option");
+    option.value=state;
+    option.textContent=state;
+    stateSelect.appendChild(option);
+  });
+
+  populateStationObservationStations({keepSelection:false});
+  populateStationObservationParameters();
+
+  stateSelect.addEventListener("change",async()=>{
+    populateStationObservationStations({keepSelection:false});
+    populateStationObservationParameters();
+    await loadSelectedStationObservations();
+  });
+
+  document.getElementById("stationObservationsSearch").addEventListener("input",async()=>{
+    populateStationObservationStations({keepSelection:true});
+    populateStationObservationParameters();
+    await loadSelectedStationObservations();
+  });
+
+  document.getElementById("stationObservationsStationSelect").addEventListener("change",async()=>{
+    populateStationObservationParameters();
+    await loadSelectedStationObservations();
+  });
+
+  document.getElementById("stationObservationsParameterSelect").addEventListener("change",()=>{
+    renderStationObservations();
+  });
+
+  document.getElementById("stationObservationsPeriodSelect").addEventListener("change",()=>{
+    renderStationObservations();
+  });
+
+  document.getElementById("stationObservationsSourceNote").textContent=
+    stationObservationsIndex.source_note||"Quelle: Deutscher Wetterdienst, Climate Data Center (CDC).";
+}
+
+async function loadSelectedStationObservations(){
+  if(!stationObservationsIndex) return;
+  const stationId=document.getElementById("stationObservationsStationSelect").value;
+  if(!stationId){
+    stationObservationsPayload=null;
+    renderStationObservations();
+    return;
+  }
+
+  const station=(stationObservationsIndex.stations||[]).find(item=>item.id===stationId);
+  if(!station) return;
+
+  const requestId=++stationObservationsRequestId;
+  const summary=document.getElementById("stationObservationsSummary");
+  summary.textContent=`${station.name}: Stundenwerte werden geladen …`;
+
+  try{
+    const response=await dashboardFetch(station.file,{cache:"no-store"});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload=await response.json();
+    if(requestId!==stationObservationsRequestId) return;
+    stationObservationsPayload=payload;
+    renderStationObservations();
+  }catch(error){
+    if(requestId!==stationObservationsRequestId) return;
+    stationObservationsPayload=null;
+    summary.textContent=`${station.name}: Messwerte konnten nicht geladen werden: ${error.message}`;
+    if(stationObservationsChart){
+      stationObservationsChart.destroy();
+      stationObservationsChart=null;
+    }
+  }
+}
+
+function stationObservationRowsForPeriod(metricId,days){
+  const payload=stationObservationsPayload;
+  if(!payload?.rows?.length) return [];
+
+  const column=stationObservationMetricColumn(metricId);
+  if(column<0) return [];
+
+  const valid=payload.rows
+    .map(row=>({
+      time:row[0],
+      date:stationObservationDate(row[0]),
+      value:Number.isFinite(Number(row[column]))?Number(row[column]):null
+    }))
+    .filter(item=>item.date && item.value!==null);
+
+  if(!valid.length) return [];
+
+  const latest=valid[valid.length-1].date;
+  const cutoff=new Date(latest.getTime()-days*24*60*60*1000);
+
+  return valid.filter(item=>item.date>=cutoff && item.date<=latest);
+}
+
+function setStationObservationStats(metricId,rows){
+  const labels=[
+    document.getElementById("stationObservationsStat1Label"),
+    document.getElementById("stationObservationsStat2Label"),
+    document.getElementById("stationObservationsStat3Label"),
+    document.getElementById("stationObservationsStat4Label")
+  ];
+  const values=[
+    document.getElementById("stationObservationsStat1"),
+    document.getElementById("stationObservationsStat2"),
+    document.getElementById("stationObservationsStat3"),
+    document.getElementById("stationObservationsStat4")
+  ];
+
+  if(!rows.length){
+    labels.forEach((label,index)=>label.textContent=["Aktuell","Minimum","Maximum","Mittel"][index]);
+    values.forEach(value=>value.textContent="–");
+    return;
+  }
+
+  const nums=rows.map(row=>row.value);
+  const meta=stationObservationMetricMeta(metricId);
+
+  if(metricId==="precipitation"){
+    const total=nums.reduce((sum,value)=>sum+value,0);
+    const max=Math.max(...nums);
+    const wetHours=nums.filter(value=>value>0).length;
+    const latest=nums[nums.length-1];
+
+    labels[0].textContent="Summe";
+    labels[1].textContent="Stärkste Stunde";
+    labels[2].textContent="Niederschlagsstunden";
+    labels[3].textContent="Letzte Stunde";
+
+    values[0].textContent=`${stationObservationNumber(total,1)} mm`;
+    values[1].textContent=`${stationObservationNumber(max,1)} mm`;
+    values[2].textContent=wetHours.toLocaleString("de-DE");
+    values[3].textContent=`${stationObservationNumber(latest,1)} mm`;
+    return;
+  }
+
+  const latest=nums[nums.length-1];
+  const min=Math.min(...nums);
+  const max=Math.max(...nums);
+  const mean=nums.reduce((sum,value)=>sum+value,0)/nums.length;
+
+  labels[0].textContent="Letzter Stundenwert";
+  labels[1].textContent="Minimum";
+  labels[2].textContent="Maximum";
+  labels[3].textContent="Mittel";
+
+  values[0].textContent=`${stationObservationNumber(latest,1)} ${meta.unit}`;
+  values[1].textContent=`${stationObservationNumber(min,1)} ${meta.unit}`;
+  values[2].textContent=`${stationObservationNumber(max,1)} ${meta.unit}`;
+  values[3].textContent=`${stationObservationNumber(mean,1)} ${meta.unit}`;
+}
+
+function renderStationObservations(){
+  const summary=document.getElementById("stationObservationsSummary");
+  if(!stationObservationsPayload){
+    summary.textContent="Keine Stationsdaten geladen.";
+    setStationObservationStats("temperature",[]);
+    return;
+  }
+
+  const metricId=document.getElementById("stationObservationsParameterSelect").value;
+  const days=Number(document.getElementById("stationObservationsPeriodSelect").value)||7;
+  const meta=stationObservationMetricMeta(metricId);
+  const rows=stationObservationRowsForPeriod(metricId,days);
+
+  setStationObservationStats(metricId,rows);
+
+  const station=(stationObservationsIndex?.stations||[])
+    .find(item=>item.id===stationObservationsPayload.station_id);
+  const locationParts=[];
+  if(station?.state) locationParts.push(station.state);
+  if(Number.isFinite(Number(station?.height))) locationParts.push(`${station.height} m`);
+
+  const latest=rows.length?rows[rows.length-1].time:null;
+  summary.textContent=
+    `${stationObservationsPayload.name} (${stationObservationsPayload.station_id})`+
+    (locationParts.length?` · ${locationParts.join(" · ")}`:"")+
+    ` · ${meta.label} · letzte ${days} Tage`+
+    (latest?` · letzter Wert ${stationObservationLongDateTime(latest)}`:" · keine gültigen Werte");
+
+  if(stationObservationsChart){
+    stationObservationsChart.destroy();
+    stationObservationsChart=null;
+  }
+
+  const canvas=document.getElementById("stationObservationsChart");
+  if(!rows.length){
+    return;
+  }
+
+  const labels=rows.map(row=>stationObservationDateTimeLabel(row.time));
+
+  if(metricId==="precipitation"){
+    let cumulative=0;
+    const cumulativeValues=rows.map(row=>{
+      cumulative+=row.value;
+      return Number(cumulative.toFixed(2));
+    });
+
+    stationObservationsChart=new Chart(canvas,{
+      type:"bar",
+      data:{
+        labels,
+        datasets:[
+          {
+            type:"bar",
+            label:"Stundenniederschlag",
+            data:rows.map(row=>row.value),
+            yAxisID:"y"
+          },
+          {
+            type:"line",
+            label:"Kumuliert",
+            data:cumulativeValues,
+            yAxisID:"yCum",
+            borderWidth:2,
+            pointRadius:0,
+            tension:0.12
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{mode:"index",intersect:false},
+        plugins:{
+          legend:{display:true},
+          tooltip:{
+            callbacks:{
+              label(context){
+                return `${context.dataset.label}: ${stationObservationNumber(Number(context.parsed.y),1)} mm`;
+              }
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{autoSkip:true,maxTicksLimit:days<=3?18:days<=7?14:12,maxRotation:0}
+          },
+          y:{
+            beginAtZero:true,
+            position:"left",
+            title:{display:true,text:"Stundenniederschlag [mm]"}
+          },
+          yCum:{
+            beginAtZero:true,
+            position:"right",
+            grid:{drawOnChartArea:false},
+            title:{display:true,text:"Kumuliert [mm]"}
+          }
+        }
+      }
+    });
+    return;
+  }
+
+  stationObservationsChart=new Chart(canvas,{
+    type:"line",
+    data:{
+      labels,
+      datasets:[
+        {
+          label:meta.label,
+          data:rows.map(row=>row.value),
+          borderWidth:2,
+          pointRadius:days<=3?1.5:0,
+          pointHoverRadius:4,
+          tension:0.18,
+          spanGaps:false
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label(context){
+              return `${meta.label}: ${stationObservationNumber(Number(context.parsed.y),1)} ${meta.unit}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          ticks:{autoSkip:true,maxTicksLimit:days<=3?18:days<=7?14:12,maxRotation:0}
+        },
+        y:{
+          title:{display:true,text:`${meta.label} [${meta.unit}]`}
+        }
+      }
+    }
+  });
+}
+
+
 async function ensureStationProfile(){
   const loading=document.getElementById("stationProfileLoading");
   try{
