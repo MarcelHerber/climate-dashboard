@@ -1,0 +1,27 @@
+name: Test Portugal Lisboa IPMA GHCN crosswalk
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Lisboa IPMA GHCN Crosswalk testen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_portugal_lisboa_ipma_ghcn_crosswalk.py
