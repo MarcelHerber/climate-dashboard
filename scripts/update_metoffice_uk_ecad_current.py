@@ -313,6 +313,8 @@ def collect_exact_pairs() -> list[dict[str, Any]]:
 
 def build_record_from_api(
     item: dict[str, Any],
+    *,
+    attempts: int = 4,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     staid = item["staid"]
     api_id = api_station_id(staid)
@@ -323,6 +325,7 @@ def build_record_from_api(
             "datetime": f"{QUERY_START}/{QUERY_END}",
             "standard_name": "air_temperature",
         },
+        attempts=attempts,
     )
 
     flat = flatten_coverage_values(obj)
@@ -443,10 +446,36 @@ def build_current(cache_dir: Path) -> Path:
         midas_key = item["crosswalk"]["midas_key"]
 
         try:
-            rec, detail = build_record_from_api(item)
-        except Exception as exc:
-            errors[str(staid)] = str(exc)
-            continue
+            rec, detail = build_record_from_api(item, attempts=4)
+        except Exception as first_exc:
+            # MeteoGate's ecad-nonblended collection is currently pre-release.
+            # A single station endpoint can occasionally fail while neighboring
+            # stations work. Retry the complete station query separately with
+            # a larger request budget before declaring it unavailable.
+            log(
+                f"RETRY STAID {staid} {item['station']['name']}: "
+                f"erster Abruf fehlgeschlagen: {first_exc}"
+            )
+            import time
+            time.sleep(10)
+
+            try:
+                rec, detail = build_record_from_api(item, attempts=8)
+                global_stats["stations_recovered_second_pass"] += 1
+                log(
+                    f"RETRY ERFOLGREICH STAID {staid} "
+                    f"{item['station']['name']}"
+                )
+            except Exception as second_exc:
+                errors[str(staid)] = (
+                    f"1. Versuch: {first_exc} | "
+                    f"2. Retry-Pass: {second_exc}"
+                )
+                log(
+                    f"RETRY ENDGÜLTIG FEHLGESCHLAGEN STAID {staid} "
+                    f"{item['station']['name']}: {second_exc}"
+                )
+                continue
 
         global_stats.update(detail["stats"])
         global_q_tx.update(detail["q_tx"])
@@ -509,9 +538,10 @@ def build_current(cache_dir: Path) -> Path:
             f"{k}: {v[:120]}" for k, v in list(errors.items())[:8]
         )
         raise RuntimeError(
-            f"{len(errors)} ECA&D-Stationen konnten nicht vollständig "
-            f"abgerufen werden. Kein unvollständiger Produktionscache wird "
-            f"veröffentlicht. Beispiele: {sample}"
+            f"{len(errors)} ECA&D-Stationen blieben auch nach dem separaten "
+            f"Retry-Pass über die MeteoGate-API nicht abrufbar. Kein "
+            f"unvollständiger Produktionscache wird veröffentlicht. "
+            f"Beispiele: {sample}"
         )
 
     if not records:
