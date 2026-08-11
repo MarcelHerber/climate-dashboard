@@ -1,0 +1,75 @@
+name: Add DWD snow-height dashboard
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-snow-height-dashboard
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Aktuelles Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Node einrichten
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Patcher-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/add_dwd_snow_height_dashboard.py --self-test
+
+      - name: Schneehöhenbereich in aktuelle index.html einbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/add_dwd_snow_height_dashboard.py
+
+      - name: Geänderte HTML versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.html
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderung an index.html nötig."
+            exit 0
+          fi
+
+          git commit -m "DWD Schneehöhenbereich eingebaut [skip ci]"
+
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((ATTEMPT * 3))
+          done
+
+          echo "FEHLER: Push nach drei Versuchen nicht möglich."
+          exit 1
