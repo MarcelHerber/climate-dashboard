@@ -1,0 +1,123 @@
+name: Build HungaroMet Hungary 2026 cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "2026-Ungarn-Cache vollständig neu erzeugen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hungaromet-hungary-current
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Aktuelles Jahr bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          echo "year=${YEAR}" >> "$GITHUB_OUTPUT"
+          echo "HungaroMet Current-Jahr: ${YEAR}"
+
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
+      - name: Vorherigen Ungarn-Current-Cache laden
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: hungaromet-hungary-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            hungaromet-hungary-current-v1-${{ steps.dates.outputs.year }}-
+
+      - name: Prüfen ob historischer Parser vorhanden ist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/update_hungaromet_hungary_station_cache.py || {
+            echo "FEHLER: scripts/update_hungaromet_hungary_station_cache.py fehlt."
+            echo "Bitte zuerst die 2 Dateien aus Ungarn Schritt 1 ins Repo hochladen."
+            exit 1
+          }
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_hungaromet_hungary_station_cache.py --self-test
+          python scripts/update_hungaromet_hungary_current.py --self-test
+
+      - name: HungaroMet-Ungarn-Current-Cache bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/update_hungaromet_hungary_current.py \
+            --year "${{ steps.dates.outputs.year }}" \
+            --workers 14 \
+            $EXTRA_ARGS
+
+      - name: 2026-Cache prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime
+          import json
+          import pathlib
+
+          year = datetime.datetime.now(datetime.UTC).year
+          status_path = pathlib.Path(
+              f".cache/europe-stations/hungaromet_hungary_current_{year}_status.json"
+          )
+          if not status_path.exists():
+              raise SystemExit(f"Status fehlt: {status_path}")
+
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+          print("=== HUNGAROMET HUNGARY CURRENT STATUS ===")
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit("Ungarn-Current-Cache ist nicht vollständig.")
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit("Ungarn-Current-Cache enthält keine Stationen.")
+          if int(status.get("rows_with_temperature", 0)) <= 0:
+              raise SystemExit("Ungarn-Current-Cache enthält keine Stationstage.")
+
+          current_file = pathlib.Path(status["current_file"])
+          if not current_file.exists():
+              raise SystemExit(f"Current-Datei fehlt: {current_file}")
+
+          print("HungaroMet Hungary Current vollständig OK.")
+          PY
+
+      - name: HungaroMet-Ungarn-Current-Cache sichern
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-stations
+          key: hungaromet-hungary-current-v1-${{ steps.dates.outputs.year }}-${{ github.run_id }}
