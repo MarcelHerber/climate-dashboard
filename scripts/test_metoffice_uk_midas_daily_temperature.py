@@ -231,29 +231,59 @@ def station_year_files(st: StationDir) -> list[tuple[int, str, str]]:
 
 
 def get_ceda_token() -> str | None:
+    # Robustester Weg für GitHub Actions:
+    # Ein im CEDA-Services-Portal manuell erzeugter Archive Access Token.
+    # CEDA dokumentiert für diese Tokens derzeit eine Lebensdauer von 3 Tagen.
+    manual_token = os.environ.get("CEDA_ACCESS_TOKEN", "").strip()
+    if manual_token:
+        print(
+            "CEDA-Authentifizierung: verwende CEDA_ACCESS_TOKEN.",
+            flush=True,
+        )
+        return manual_token
+
+    # Fallback: Token programmatisch aus CEDA_USERNAME/CEDA_PASSWORD erzeugen.
+    # Der offizielle Endpoint verwendet POST + HTTP Basic Auth.
     username = os.environ.get("CEDA_USERNAME", "").strip()
     password = os.environ.get("CEDA_PASSWORD", "")
 
     if not username or not password:
         return None
 
+    print(
+        "CEDA-Authentifizierung: versuche Token-API mit "
+        "CEDA_USERNAME/CEDA_PASSWORD.",
+        flush=True,
+    )
+
     credentials = base64.b64encode(
         f"{username}:{password}".encode("utf-8")
     ).decode("ascii")
 
-    raw = request_bytes(
-        TOKEN_URL,
-        method="POST",
-        data=b"",
-        basic_auth=credentials,
-        timeout=60,
-        attempts=2,
-    )
+    try:
+        raw = request_bytes(
+            TOKEN_URL,
+            method="POST",
+            data=b"",
+            basic_auth=credentials,
+            timeout=60,
+            attempts=2,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"{exc}\n"
+            "Hinweis: Falls der CEDA-Token-Endpunkt HTTP 500 liefert, "
+            "im CEDA Services Portal unter 'access token' einen manuellen "
+            "Archive Access Token erzeugen und in GitHub als Secret "
+            "CEDA_ACCESS_TOKEN speichern."
+        ) from exc
+
     obj = json.loads(raw.decode("utf-8"))
     token = str(obj.get("access_token", "")).strip()
     if not token:
         raise RuntimeError(
-            "CEDA Token API antwortete ohne access_token."
+            "CEDA Token API antwortete ohne access_token. "
+            "Alternativ CEDA_ACCESS_TOKEN verwenden."
         )
     return token
 
