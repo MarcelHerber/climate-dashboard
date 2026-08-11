@@ -197,34 +197,36 @@ def main():
         raise RuntimeError("Keine gültigen SHK_TAG-Werte im Recent-Netz gefunden.")
 
     network_latest=max(info["last"] for info in usable.values())
-    active={
+    recent_current={
         sid for sid,info in usable.items()
         if is_current_snow_station(info, network_latest)
     }
-    stale=set(usable)-active
+    recent_stale=set(usable)-recent_current
 
-    print("\n=== AKTUELLES SCHNEEHÖHENNETZ ===",flush=True)
+    print("\n=== RECENT-SHK-MELDESTATUS · NUR INFORMATION ===",flush=True)
     print(f"Neuester gültiger SHK_TAG im Netz: {network_latest:%d.%m.%Y}",flush=True)
     print(
-        f"Aktivitätsregel: letzter gültiger SHK_TAG höchstens "
+        f"Status 'zeitnah': letzter gültiger SHK_TAG höchstens "
         f"{ACTIVE_MAX_LAG_DAYS} Tage älter als der Netzdatenstand.",
         flush=True,
     )
+    print(
+        "WICHTIG: Dieser Status wird NICHT zur Auswahl historischer "
+        "Schneestationen verwendet.",
+        flush=True,
+    )
     print(f"Stationen mit irgendeinem gültigen Recent-SHK_TAG: {len(usable):,}",flush=True)
-    print(f"Davon aktuell aktiv: {len(active):,}",flush=True)
-    print(f"Wegen veraltetem SHK_TAG ausgeschlossen: {len(stale):,}",flush=True)
+    print(f"Davon SHK zeitnah gemeldet: {len(recent_current):,}",flush=True)
+    print(f"SHK derzeit nicht zeitnah gemeldet: {len(recent_stale):,}",flush=True)
 
-    cnt=Counter(meta[s].state for s in active if s in meta)
-    print("Aktuelle Stationen nach Bundesland:",flush=True)
+    cnt=Counter(meta[s].state for s in recent_files if s in meta)
+    print("Aktuelle KL-Stationen nach Bundesland:",flush=True)
     for state in STATES: print(f"  {state}: {cnt.get(state,0)}",flush=True)
     if cnt.get("Unbekannt"): print(f"  Unbekannt: {cnt['Unbekannt']}",flush=True)
 
-    if stale:
-        print("\nVeraltete Recent-SHK-Stationen (älteste zuerst):",flush=True)
-        stale_rows=sorted(
-            stale,
-            key=lambda sid: usable[sid]["last"],
-        )
+    if recent_stale:
+        print("\nNicht zeitnahe SHK-Meldungen (nur Diagnose, KEIN Ausschluss):",flush=True)
+        stale_rows=sorted(recent_stale,key=lambda sid: usable[sid]["last"])
         for sid in stale_rows[:30]:
             info=usable[sid]
             m=meta.get(sid)
@@ -236,15 +238,16 @@ def main():
                 flush=True,
             )
         if len(stale_rows)>30:
-            print(f"  ... weitere {len(stale_rows)-30:,} veraltete Stationen",flush=True)
+            print(f"  ... weitere {len(stale_rows)-30:,} Stationen",flush=True)
 
     o30,o50,o100=overview(30),overview(50),overview(100)
     print("\n=== DWD-LANGZEITÜBERSICHT ===",flush=True)
     print(f"Alle DWD-SHK-Reihen >=30 Jahre Spanne: {len(o30):,}",flush=True)
     print(f"Alle DWD-SHK-Reihen >=50 Jahre Spanne: {len(o50):,}",flush=True)
     print(f"Alle DWD-SHK-Reihen >=100 Jahre Spanne: {len(o100):,}",flush=True)
-    a30=active & set(o30); a50=active & set(o50); a100=active & set(o100)
-    print(f"\nDavon im aktuellen {ACTIVE_MAX_LAG_DAYS}-Tage-Netz:",flush=True)
+    kl_ids=set(recent_files)
+    a30=kl_ids & set(o30); a50=kl_ids & set(o50); a100=kl_ids & set(o100)
+    print("\nDavon Stationen im aktuellen DWD-KL-Netz:",flush=True)
     print(f"  >=30 Jahre Spanne: {len(a30):,}",flush=True)
     print(f"  >=50 Jahre Spanne: {len(a50):,}",flush=True)
     print(f"  >=100 Jahre Spanne: {len(a100):,}",flush=True)
@@ -257,8 +260,18 @@ def main():
     print(f"  >=50 Netto-Jahre: {len(n50):,}",flush=True)
     print(f"  >=100 Netto-Jahre: {len(n100):,}",flush=True)
 
-    print("\n=== LÄNGSTE REIHEN IM AKTUELLEN NETZ ===",flush=True)
-    rows=sorted((o30[s] for s in active if s in o30),key=lambda r:(r.net,r.span),reverse=True)
+    print("\n=== KANDIDATEN FÜR DEN HISTORISCHEN VOLLAUFBAU ===",flush=True)
+    print(
+        "Auswahl: aktuelles DWD-KL-Netz + mindestens 30 Netto-Jahre SHK_TAG.",
+        flush=True,
+    )
+    print(f"Vollaufbau-Kandidaten: {len(n30):,}",flush=True)
+    candidate_states=Counter(meta[s].state for s in n30 if s in meta)
+    for state in STATES:
+        print(f"  {state}: {candidate_states.get(state,0)}",flush=True)
+
+    print("\n=== LÄNGSTE REIHEN DER VOLLAUFBAU-KANDIDATEN ===",flush=True)
+    rows=sorted((o30[s] for s in n30 if s in o30),key=lambda r:(r.net,r.span),reverse=True)
     for r in rows[:40]:
         m=meta.get(r.sid)
         state=m.state if m else r.state
@@ -277,11 +290,12 @@ def main():
     for s in samples[:10]:
         i=usable[s]; m=meta[s]; r=o30.get(s)
         ser=f"{r.span:.1f} J. Spanne / {r.net:.1f} Netto-J." if r else "<30 J."
-        status="AKTIV" if s in active else f"VERALTET ({(network_latest-i['last']).days} Tage Rückstand)"
+        status="SHK ZEITNAH" if s in recent_current else f"SHK NICHT ZEITNAH ({(network_latest-i['last']).days} Tage Rückstand)"
         print(f"{s} | {m.name} | {m.state} | {status} | Recent {i['first']:%d.%m.%Y}–{i['last']:%d.%m.%Y} | {i['count']} gültige Tage | {i['positive']} Tage >0 cm | letzter {i['latest']:.1f} cm | Recent-Max {i['max']:.1f} cm am {i['max_day']:%d.%m.%Y} | {ser}",flush=True)
 
     print("\n=== FAZIT FÜR SCHRITT 2 ===",flush=True)
-    print(f"Für den Vollaufbau verwenden wir nur Stationen aus dem aktuellen {ACTIVE_MAX_LAG_DAYS}-Tage-Netz mit mindestens 30 Netto-Jahren SHK_TAG.",flush=True)
+    print("Für den Vollaufbau verwenden wir Stationen aus dem aktuellen DWD-KL-Netz mit mindestens 30 Netto-Jahren SHK_TAG.",flush=True)
+    print("Der Recent-SHK-Meldestatus ist dabei nur Information und kein Ausschlusskriterium.",flush=True)
     print("Dann berechnen wir aus den echten Tageswerten hydrologische Jahre 01.11.–31.10. vollständig neu.",flush=True)
     print("Referenz 1991–2020: hydrologische Jahre 1991…2020, also 01.11.1990–31.10.2020.",flush=True)
     if errors:
@@ -308,6 +322,18 @@ def self_test():
     assert is_current_snow_station({"last":dt(2026,7,27)},latest)
     assert not is_current_snow_station({"last":dt(2026,7,26)},latest)
     assert not is_current_snow_station({"last":dt(2026,2,1)},latest)
+
+    mock_recent_kl={"05792","00722"}
+    mock_overview={
+        "05792": Overview("05792","1901","2025",124.9,8.0,"-","Zugspitze","Bayern"),
+        "00722": Overview("00722","1896","2025",129.4,6.0,"-","Brocken","Sachsen-Anhalt"),
+    }
+    historical_candidates={
+        sid for sid in mock_recent_kl
+        if sid in mock_overview and mock_overview[sid].net>=30
+    }
+    assert "05792" in historical_candidates
+    assert "00722" in historical_candidates
 
     print("DWD snow-height probe self-test OK")
 
