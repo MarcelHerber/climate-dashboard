@@ -119,9 +119,28 @@ def read_station_details():
                 return i
         return None
 
+    # Met Éireann verwendet im offiziellen StationDetails.csv eine etwas
+    # ungewöhnliche Benennung:
+    #   "station name" = numerische Stationsnummer (z. B. 532)
+    #   "name"         = Stationsbezeichnung (z. B. DUBLIN AIRPORT)
+    # Deshalb diese beiden Spalten bewusst explizit behandeln.
+    station_idx = None
+    display_name_idx = None
+
+    for i, h in enumerate(hnorm):
+        if h == "stationname":
+            station_idx = i
+        elif h == "name":
+            display_name_idx = i
+
+    if station_idx is None:
+        station_idx = idx_like("Station Number", "StationNumber", "Station No", "StationNo")
+    if display_name_idx is None:
+        display_name_idx = idx_like("Name")
+
     idx = {
-        "station": idx_like("Station Number", "StationNumber", "Station No", "StationNo"),
-        "name": idx_like("Name", "Station Name", "StationName"),
+        "station": station_idx,
+        "name": display_name_idx,
         "county": idx_like("County"),
         "lat": idx_like("Latitude", "Lat"),
         "lon": idx_like("Longitude", "Long", "Lon"),
@@ -130,6 +149,12 @@ def read_station_details():
         "height": idx_like("Height (m)", "Height", "Elevation"),
     }
     print("Erkannte Spalten:", idx)
+    if idx["station"] is not None and idx["name"] is not None:
+        print(
+            "Met-Éireann-Sonderfall erkannt: "
+            f"'station name' -> Stationsnummer (Spalte {idx['station']}), "
+            f"'name' -> Stationsbezeichnung (Spalte {idx['name']})."
+        )
 
     for j, row in enumerate(data[:5], start=1):
         print(f"Beispiel {j}: " + " | ".join(c.strip() for c in row))
