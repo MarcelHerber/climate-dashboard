@@ -1338,6 +1338,70 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
         </table>
       </div>
     </div>
+
+    <div class="chart-container auto" id="stationClimateDaysRecordOverview">
+      <h2>Stationsrekorde der Kenntage</h2>
+      <p class="note" style="margin-top:-4px">
+        Allzeit-Jahresrekorde aller ausgewerteten Stationen. Das laufende Jahr ist vorläufig;
+        ein bereits überschrittener historischer Höchstwert ist jedoch schon ein sicherer neuer Rekord.
+      </p>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="stationClimateRecordMetricSelect">Kenntag</label>
+          <select id="stationClimateRecordMetricSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="stationClimateRecordYearSelect">Rekordjahr</label>
+          <select id="stationClimateRecordYearSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="stationClimateRecordStateSelect">Bundesland</label>
+          <select id="stationClimateRecordStateSelect"></select>
+        </div>
+        <div class="control-group">
+          <label for="stationClimateRecordStatusSelect">Rekordstatus</label>
+          <select id="stationClimateRecordStatusSelect">
+            <option value="all">Alle Rekorde</option>
+            <option value="new_current">Neuer Rekord im aktuellen Jahr</option>
+            <option value="tied_current">Rekord im aktuellen Jahr eingestellt</option>
+            <option value="historical">Historischer Rekord</option>
+          </select>
+        </div>
+        <div class="control-group" style="min-width:240px">
+          <label for="stationClimateRecordSearch">Station suchen</label>
+          <input id="stationClimateRecordSearch" type="search" placeholder="Ort oder Stations-ID"
+            style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
+        </div>
+      </div>
+
+      <div class="stat-grid" style="margin:12px 0 16px">
+        <div class="stat-card"><h4>Treffer</h4><div id="stationClimateRecordHits">–</div></div>
+        <div class="stat-card"><h4>Stationen</h4><div id="stationClimateRecordStations">–</div></div>
+        <div class="stat-card"><h4 id="stationClimateRecordNewTitle">Neue Rekorde</h4><div id="stationClimateRecordNew">–</div></div>
+        <div class="stat-card"><h4 id="stationClimateRecordTieTitle">Eingestellte Rekorde</h4><div id="stationClimateRecordTied">–</div></div>
+      </div>
+
+      <div id="stationClimateRecordSummary" class="summary-box">Rekordstatistik wird geladen …</div>
+      <div class="table-wrap">
+        <table id="stationClimateRecordTable">
+          <thead>
+            <tr>
+              <th>Station</th><th>Bundesland</th><th>Kenntag</th><th>Rekord</th>
+              <th>Rekordjahr(e)</th><th id="stationClimateRecordCurrentHeader">Aktuell</th>
+              <th>Status</th><th>Messreihe</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <p class="note" style="margin-top:12px">
+        Historische Jahresrekorde verwenden nur ausreichend vollständige Gesamtjahre gemäß der
+        vorhandenen Stations-Kenntage-Auswertung. Nullrekorde werden nicht aufgelistet.
+      </p>
+    </div>
+
     <p id="stationClimateDaysSourceNote" class="note"></p>
   </div>
 </div>
@@ -4432,6 +4496,7 @@ function ensureStationClimateDaysLoaded(){
       if(!data.ready) throw new Error(data.message || "Die Stations-Kenntage wurden noch nicht aufgebaut.");
       stationClimateDaysIndex=data;
       initializeStationClimateDaysControls();
+      initializeStationClimateRecordOverview();
       loading.hidden=true;
       document.getElementById("stationClimateDaysContent").hidden=false;
       document.getElementById("stationClimateDaysSourceNote").textContent=[data.source_note,data.leap_day_rule].filter(Boolean).join(" ");
@@ -4834,6 +4899,165 @@ async function updateStationClimateDays(){
   }catch(error){
     document.getElementById("stationClimateDaysSummary").textContent=`Stations-Kenntage konnten nicht geladen werden: ${error.message}`;
   }
+}
+
+
+function stationClimateRecordRows(){
+  if(!stationClimateDaysIndex) return [];
+  const metrics=new Map((stationClimateDaysIndex.climate_days||[]).map(item=>[item.id,item]));
+  const rows=[];
+  (stationClimateDaysIndex.stations||[]).forEach(station=>{
+    Object.entries(station.annual_records||{}).forEach(([metricId,record])=>{
+      const metric=metrics.get(metricId);
+      if(!metric || !record) return;
+      const years=(record.years||[]).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!years.length || !Number.isFinite(Number(record.count))) return;
+      rows.push({
+        stationId:station.id,
+        stationName:station.name,
+        state:station.state||"Bundesland unbekannt",
+        startYear:Number(station.start_year),
+        endYear:Number(station.end_year),
+        metricId,
+        metricLabel:metric.label,
+        definition:metric.definition,
+        recordCount:Number(record.count),
+        recordYears:years,
+        currentCount:Number(record.current_count||0),
+        currentValidDays:Number(record.current_valid_days||0),
+        status:record.status||"historical"
+      });
+    });
+  });
+  return rows;
+}
+
+function initializeStationClimateRecordOverview(){
+  const metricSelect=document.getElementById("stationClimateRecordMetricSelect");
+  if(!metricSelect || !stationClimateDaysIndex) return;
+
+  metricSelect.innerHTML='<option value="all">Alle Kenntage</option>';
+  (stationClimateDaysIndex.climate_days||[]).forEach(metric=>{
+    const option=document.createElement("option");
+    option.value=metric.id;
+    option.textContent=`${metric.label} · ${metric.definition}`;
+    metricSelect.appendChild(option);
+  });
+
+  const stateSelect=document.getElementById("stationClimateRecordStateSelect");
+  stateSelect.innerHTML='<option value="all">Alle Bundesländer</option>';
+  (stationClimateDaysIndex.states||[]).forEach(state=>{
+    const option=document.createElement("option");
+    option.value=state;
+    option.textContent=state;
+    stateSelect.appendChild(option);
+  });
+
+  const yearSelect=document.getElementById("stationClimateRecordYearSelect");
+  const years=[...new Set(stationClimateRecordRows().flatMap(row=>row.recordYears))].sort((a,b)=>b-a);
+  yearSelect.innerHTML='<option value="all">Alle Rekordjahre</option>';
+  years.forEach(year=>{
+    const option=document.createElement("option");
+    option.value=String(year);
+    option.textContent=String(year);
+    yearSelect.appendChild(option);
+  });
+
+  const currentYear=String(stationClimateDaysIndex.current_year);
+  const currentOption=[...yearSelect.options].find(option=>option.value===currentYear);
+  if(currentOption) currentOption.textContent=`${currentYear} · aktuelle Rekorde`;
+
+  ["stationClimateRecordMetricSelect","stationClimateRecordYearSelect",
+   "stationClimateRecordStateSelect","stationClimateRecordStatusSelect"]
+    .forEach(id=>document.getElementById(id).addEventListener("change",renderStationClimateRecordOverview));
+  document.getElementById("stationClimateRecordSearch")
+    .addEventListener("input",renderStationClimateRecordOverview);
+
+  document.getElementById("stationClimateRecordNewTitle").textContent=`Neue Rekorde ${currentYear}`;
+  document.getElementById("stationClimateRecordTieTitle").textContent=`Eingestellt ${currentYear}`;
+  document.getElementById("stationClimateRecordCurrentHeader").textContent=`Aktuell ${currentYear}`;
+
+  renderStationClimateRecordOverview();
+}
+
+function renderStationClimateRecordOverview(){
+  if(!stationClimateDaysIndex) return;
+  const target=document.querySelector("#stationClimateRecordTable tbody");
+  if(!target) return;
+
+  const metric=document.getElementById("stationClimateRecordMetricSelect").value;
+  const year=document.getElementById("stationClimateRecordYearSelect").value;
+  const state=document.getElementById("stationClimateRecordStateSelect").value;
+  const status=document.getElementById("stationClimateRecordStatusSelect").value;
+  const search=document.getElementById("stationClimateRecordSearch").value.trim().toLocaleLowerCase("de-DE");
+  const currentYear=Number(stationClimateDaysIndex.current_year);
+
+  const rows=stationClimateRecordRows().filter(row=>{
+    if(metric!=="all" && row.metricId!==metric) return false;
+    if(year!=="all" && !row.recordYears.includes(Number(year))) return false;
+    if(state!=="all" && row.state!==state) return false;
+    if(status!=="all" && row.status!==status) return false;
+    if(search && !`${row.stationName} ${row.stationId}`.toLocaleLowerCase("de-DE").includes(search)) return false;
+    return true;
+  });
+
+  const statusRank={new_current:0,tied_current:1,historical:2};
+  rows.sort((a,b)=>
+    (statusRank[a.status]??9)-(statusRank[b.status]??9) ||
+    b.recordCount-a.recordCount ||
+    a.state.localeCompare(b.state,"de") ||
+    a.stationName.localeCompare(b.stationName,"de")
+  );
+
+  const stationCount=new Set(rows.map(row=>row.stationId)).size;
+  const newCount=rows.filter(row=>row.status==="new_current").length;
+  const tiedCount=rows.filter(row=>row.status==="tied_current").length;
+
+  document.getElementById("stationClimateRecordHits").textContent=rows.length.toLocaleString("de-DE");
+  document.getElementById("stationClimateRecordStations").textContent=stationCount.toLocaleString("de-DE");
+  document.getElementById("stationClimateRecordNew").textContent=newCount.toLocaleString("de-DE");
+  document.getElementById("stationClimateRecordTied").textContent=tiedCount.toLocaleString("de-DE");
+
+  const scope=[];
+  if(metric!=="all"){
+    const m=(stationClimateDaysIndex.climate_days||[]).find(item=>item.id===metric);
+    if(m) scope.push(m.label);
+  }
+  if(year!=="all") scope.push(`Rekordjahr ${year}`);
+  if(state!=="all") scope.push(state);
+
+  document.getElementById("stationClimateRecordSummary").textContent=
+    `${rows.length.toLocaleString("de-DE")} Rekordeinträge aus ${stationCount.toLocaleString("de-DE")} Stationen`+
+    (scope.length?` · ${scope.join(" · ")}`:"")+
+    ` · Datenstand ${dailyGermanDate(stationClimateDaysIndex.data_through,true)}.`;
+
+  if(!rows.length){
+    target.innerHTML='<tr><td colspan="8">Für die gewählten Filter wurden keine Stationsrekorde gefunden.</td></tr>';
+    return;
+  }
+
+  target.innerHTML=rows.map(row=>{
+    let statusText="Historischer Rekord";
+    let badgeClass="checked";
+    if(row.status==="new_current"){
+      statusText=`Neuer Rekord ${currentYear}`;
+      badgeClass="preliminary";
+    }else if(row.status==="tied_current"){
+      statusText=`Rekord ${currentYear} eingestellt`;
+      badgeClass="preliminary";
+    }
+
+    return `<tr>
+      <td><strong>${row.stationName}</strong><br><span class="note">${row.stationId}</span></td>
+      <td>${row.state}</td>
+      <td><strong>${row.metricLabel}</strong><br><span class="note">${row.definition}</span></td>
+      <td class="record-value">${row.recordCount.toLocaleString("de-DE")} ${row.recordCount===1?"Tag":"Tage"}</td>
+      <td>${row.recordYears.join(", ")}</td>
+      <td>${row.currentCount.toLocaleString("de-DE")} ${row.currentCount===1?"Tag":"Tage"}<br><span class="note">${row.currentValidDays.toLocaleString("de-DE")} gültige Tage</span></td>
+      <td><span class="record-badge ${badgeClass}">${statusText}</span></td>
+      <td>${row.startYear}–${row.endYear}</td>
+    </tr>`;
+  }).join("");
 }
 
 function resetStationClimateDaysZoom(){
