@@ -7654,7 +7654,7 @@ function initializeStationObservationsControls(){
   });
 
   document.getElementById("stationObservationsSourceNote").textContent=
-    stationObservationsIndex.source_note||"Quelle: Deutscher Wetterdienst, Climate Data Center (CDC).";
+    stationObservationSourceNoteForMetric("temperature");
 }
 
 async function loadSelectedStationObservations(){
@@ -7771,6 +7771,92 @@ function setStationObservationStats(metricId,rows){
   values[3].textContent=`${stationObservationNumber(mean,1)} ${meta.unit}`;
 }
 
+
+function stationObservationDayKey(value){
+  const date=stationObservationDate(value);
+  if(!date) return null;
+  return date.toLocaleDateString("sv-SE",{timeZone:"Europe/Berlin"});
+}
+
+function stationObservationClimateDayCategory(tmin,tmax){
+  if(!Number.isFinite(tmin) || !Number.isFinite(tmax)){
+    return {id:"normal",label:"Kein Kenntag",color:"#4f6f8f"};
+  }
+  if(tmax<0){
+    return {id:"ice",label:"Eistag (Tmax < 0 °C)",color:"#08519c"};
+  }
+  if(tmin<0){
+    return {id:"frost",label:"Frosttag (Tmin < 0 °C)",color:"#3182bd"};
+  }
+  if(tmin>=20 && tmax>=30){
+    return {id:"tropical_hot",label:"Tropennacht + Hitzetag",color:"#7a0177"};
+  }
+  if(tmin>=20){
+    return {id:"tropical",label:"Tropennacht (Tmin ≥ 20 °C)",color:"#c51b8a"};
+  }
+  if(tmax>=30){
+    return {id:"hot",label:"Hitzetag (Tmax ≥ 30 °C)",color:"#d7301f"};
+  }
+  if(tmax>=25){
+    return {id:"summer",label:"Sommertag (Tmax ≥ 25 °C)",color:"#fc8d59"};
+  }
+  return {id:"normal",label:"Kein Kenntag",color:"#4f6f8f"};
+}
+
+function stationObservationAnalyzeDays(rows){
+  const dayMap=new Map();
+
+  rows.forEach((row,index)=>{
+    const dayKey=stationObservationDayKey(row.time);
+    if(!dayKey || !Number.isFinite(row.value)) return;
+
+    let group=dayMap.get(dayKey);
+    if(!group){
+      group={
+        key:dayKey,
+        min:row.value,
+        max:row.value,
+        minIndex:index,
+        maxIndex:index
+      };
+      dayMap.set(dayKey,group);
+    }else{
+      if(row.value<group.min){
+        group.min=row.value;
+        group.minIndex=index;
+      }
+      if(row.value>group.max){
+        group.max=row.value;
+        group.maxIndex=index;
+      }
+    }
+  });
+
+  const minIndices=new Set();
+  const maxIndices=new Set();
+  const dayCategoryByKey=new Map();
+
+  dayMap.forEach(group=>{
+    minIndices.add(group.minIndex);
+    maxIndices.add(group.maxIndex);
+    dayCategoryByKey.set(group.key,stationObservationClimateDayCategory(group.min,group.max));
+  });
+
+  return {dayMap,minIndices,maxIndices,dayCategoryByKey};
+}
+
+function stationObservationLineColor(metricId){
+  if(metricId==="temperature") return "#4f6f8f";
+  if(metricId==="dewpoint") return "#2c7fb8";
+  return "#666";
+}
+
+function stationObservationSourceNoteForMetric(metricId){
+  const base=stationObservationsIndex?.source_note || "Quelle: Deutscher Wetterdienst, Climate Data Center (CDC).";
+  if(metricId!=="temperature") return base;
+  return `${base} Linienfarbe nach Tages-Kenntag: dunkelblau = Eistag, blau = Frosttag, orange = Sommertag, rot = Hitzetag, magenta = Tropennacht, violett = Tropennacht + Hitzetag. Markiert werden jeweils nur Tagesminimum und Tagesmaximum.`;
+}
+
 function renderStationObservations(){
   const summary=document.getElementById("stationObservationsSummary");
   if(!stationObservationsPayload){
@@ -7783,6 +7869,9 @@ function renderStationObservations(){
   const days=Number(document.getElementById("stationObservationsPeriodSelect").value)||7;
   const meta=stationObservationMetricMeta(metricId);
   const rows=stationObservationRowsForPeriod(metricId,days);
+
+  document.getElementById("stationObservationsSourceNote").textContent=
+    stationObservationSourceNoteForMetric(metricId);
 
   setStationObservationStats(metricId,rows);
 
@@ -7875,6 +7964,10 @@ function renderStationObservations(){
     return;
   }
 
+  const dailyInfo=stationObservationAnalyzeDays(rows);
+  const dayLabels=rows.map(row=>stationObservationDayKey(row.time));
+  const baseLineColor=stationObservationLineColor(metricId);
+
   stationObservationsChart=new Chart(canvas,{
     type:"line",
     data:{
@@ -7884,10 +7977,37 @@ function renderStationObservations(){
           label:meta.label,
           data:rows.map(row=>row.value),
           borderWidth:2,
-          pointRadius:days<=3?1.5:0,
+          pointRadius:0,
           pointHoverRadius:4,
           tension:0.18,
-          spanGaps:false
+          spanGaps:false,
+          borderColor:baseLineColor,
+          segment: metricId==="temperature" ? {
+            borderColor(context){
+              const key=dayLabels[context.p0DataIndex];
+              return dailyInfo.dayCategoryByKey.get(key)?.color || baseLineColor;
+            }
+          } : undefined
+        },
+        {
+          type:"scatter",
+          label:"Tagesminimum",
+          data:rows.map((row,index)=>dailyInfo.minIndices.has(index)?row.value:null),
+          pointRadius:4,
+          pointHoverRadius:5,
+          showLine:false,
+          borderColor:"#2166ac",
+          backgroundColor:"#2166ac"
+        },
+        {
+          type:"scatter",
+          label:"Tagesmaximum",
+          data:rows.map((row,index)=>dailyInfo.maxIndices.has(index)?row.value:null),
+          pointRadius:4,
+          pointHoverRadius:5,
+          showLine:false,
+          borderColor:"#b2182b",
+          backgroundColor:"#b2182b"
         }
       ]
     },
@@ -7896,11 +8016,18 @@ function renderStationObservations(){
       maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
       plugins:{
-        legend:{display:false},
+        legend:{display:true},
         tooltip:{
           callbacks:{
             label(context){
-              return `${meta.label}: ${stationObservationNumber(Number(context.parsed.y),1)} ${meta.unit}`;
+              const value=Number(context.parsed.y);
+              if(context.dataset.label==="Tagesminimum" || context.dataset.label==="Tagesmaximum"){
+                return `${context.dataset.label}: ${stationObservationNumber(value,1)} ${meta.unit}`;
+              }
+              const dayKey=dayLabels[context.dataIndex];
+              const category=dailyInfo.dayCategoryByKey.get(dayKey);
+              const extra=metricId==="temperature" && category ? ` · ${category.label}` : "";
+              return `${meta.label}: ${stationObservationNumber(value,1)} ${meta.unit}${extra}`;
             }
           }
         }
