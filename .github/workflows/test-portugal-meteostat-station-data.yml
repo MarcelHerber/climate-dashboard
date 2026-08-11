@@ -1,0 +1,34 @@
+name: Test Portugal Meteostat station data
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Meteostat CLI installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install meteostat-cli
+
+      - name: Portugal Meteostat TMIN/TMAX testen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_portugal_meteostat_station_data.py
