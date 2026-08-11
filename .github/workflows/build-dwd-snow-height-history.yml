@@ -1,0 +1,47 @@
+name: Build DWD snow-height historical cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Historischen Schneehöhen-Cache wiederherstellen
+        id: snow-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/dwd-snow-height
+          key: dwd-snow-height-history-through-2025-v1
+
+      - name: Parser- und Hydrologie-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_snow_height_history.py --self-test
+
+      - name: Historischen Schneehöhen-Cache aufbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_snow_height_history.py
+
+      - name: Historischen Schneehöhen-Cache speichern
+        if: steps.snow-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/dwd-snow-height
+          key: dwd-snow-height-history-through-2025-v1
