@@ -5,6 +5,7 @@ import csv, html, io, math, re, sys, time, urllib.request, zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import timedelta
 from html.parser import HTMLParser
 
 BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl"
@@ -13,6 +14,7 @@ META = RECENT + "KL_Tageswerte_Beschreibung_Stationen.txt"
 OVERVIEW = BASE + "/timeseries_overview/"
 UA = "climate-dashboard-dwd-snow-probe/1.0"
 WORKERS = 10
+ACTIVE_MAX_LAG_DAYS = 14
 
 STATES = (
     "Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg",
@@ -149,6 +151,11 @@ def scan_one(sid,fn):
         return sid,{"first":vals[0][0],"last":vals[-1][0],"latest":vals[-1][1],"max":mv,"max_day":md,"count":len(vals),"positive":sum(v>0 for _,v in vals)},None
     except Exception as e: return sid,None,str(e)
 
+def is_current_snow_station(info, network_latest, max_lag_days=ACTIVE_MAX_LAG_DAYS):
+    """A station is current when its latest valid SHK value is close to the
+    newest valid SHK date observed anywhere in the network."""
+    return (network_latest - info["last"]) <= timedelta(days=max_lag_days)
+
 def fnum(s):
     s=s.strip().replace(",",".")
     if s.startswith("."): s="0"+s
@@ -186,12 +193,50 @@ def main():
             if i%50==0 or i==len(fut):
                 print(f"  geprüft {i:,}/{len(fut):,} | mit gültigem SHK_TAG: {len(usable):,}",flush=True)
 
-    active=set(usable)
-    print("\n=== AKTIVE SCHNEEHÖHENSTATIONEN ===",flush=True)
-    print(f"Aktuelle Stationen mit gültigem SHK_TAG: {len(active):,}",flush=True)
+    if not usable:
+        raise RuntimeError("Keine gültigen SHK_TAG-Werte im Recent-Netz gefunden.")
+
+    network_latest=max(info["last"] for info in usable.values())
+    active={
+        sid for sid,info in usable.items()
+        if is_current_snow_station(info, network_latest)
+    }
+    stale=set(usable)-active
+
+    print("\n=== AKTUELLES SCHNEEHÖHENNETZ ===",flush=True)
+    print(f"Neuester gültiger SHK_TAG im Netz: {network_latest:%d.%m.%Y}",flush=True)
+    print(
+        f"Aktivitätsregel: letzter gültiger SHK_TAG höchstens "
+        f"{ACTIVE_MAX_LAG_DAYS} Tage älter als der Netzdatenstand.",
+        flush=True,
+    )
+    print(f"Stationen mit irgendeinem gültigen Recent-SHK_TAG: {len(usable):,}",flush=True)
+    print(f"Davon aktuell aktiv: {len(active):,}",flush=True)
+    print(f"Wegen veraltetem SHK_TAG ausgeschlossen: {len(stale):,}",flush=True)
+
     cnt=Counter(meta[s].state for s in active if s in meta)
+    print("Aktuelle Stationen nach Bundesland:",flush=True)
     for state in STATES: print(f"  {state}: {cnt.get(state,0)}",flush=True)
     if cnt.get("Unbekannt"): print(f"  Unbekannt: {cnt['Unbekannt']}",flush=True)
+
+    if stale:
+        print("\nVeraltete Recent-SHK-Stationen (älteste zuerst):",flush=True)
+        stale_rows=sorted(
+            stale,
+            key=lambda sid: usable[sid]["last"],
+        )
+        for sid in stale_rows[:30]:
+            info=usable[sid]
+            m=meta.get(sid)
+            lag=(network_latest-info["last"]).days
+            print(
+                f"  {sid} | {m.name if m else sid} | "
+                f"{m.state if m else '?'} | letzter SHK_TAG "
+                f"{info['last']:%d.%m.%Y} | Rückstand {lag} Tage",
+                flush=True,
+            )
+        if len(stale_rows)>30:
+            print(f"  ... weitere {len(stale_rows)-30:,} veraltete Stationen",flush=True)
 
     o30,o50,o100=overview(30),overview(50),overview(100)
     print("\n=== DWD-LANGZEITÜBERSICHT ===",flush=True)
@@ -199,7 +244,7 @@ def main():
     print(f"Alle DWD-SHK-Reihen >=50 Jahre Spanne: {len(o50):,}",flush=True)
     print(f"Alle DWD-SHK-Reihen >=100 Jahre Spanne: {len(o100):,}",flush=True)
     a30=active & set(o30); a50=active & set(o50); a100=active & set(o100)
-    print("\nDavon aktuell aktiv mit SHK_TAG:",flush=True)
+    print(f"\nDavon im aktuellen {ACTIVE_MAX_LAG_DAYS}-Tage-Netz:",flush=True)
     print(f"  >=30 Jahre Spanne: {len(a30):,}",flush=True)
     print(f"  >=50 Jahre Spanne: {len(a50):,}",flush=True)
     print(f"  >=100 Jahre Spanne: {len(a100):,}",flush=True)
@@ -212,7 +257,7 @@ def main():
     print(f"  >=50 Netto-Jahre: {len(n50):,}",flush=True)
     print(f"  >=100 Netto-Jahre: {len(n100):,}",flush=True)
 
-    print("\n=== LÄNGSTE AKTUELLEN REIHEN ===",flush=True)
+    print("\n=== LÄNGSTE REIHEN IM AKTUELLEN NETZ ===",flush=True)
     rows=sorted((o30[s] for s in active if s in o30),key=lambda r:(r.net,r.span),reverse=True)
     for r in rows[:40]:
         m=meta.get(r.sid)
@@ -225,17 +270,18 @@ def main():
     wanted=("Zugspitze","Brocken","Fichtelberg","Wasserkuppe","Oberstdorf","Kahler","Braunlage","Freiburg","Frankfurt","Saarbrücken")
     samples=[]
     for w in wanted:
-        mm=[s for s in active if s in meta and w.casefold() in meta[s].name.casefold()]
+        mm=[s for s in usable if s in meta and w.casefold() in meta[s].name.casefold()]
         if mm:
             s=sorted(mm)[0]
             if s not in samples: samples.append(s)
     for s in samples[:10]:
         i=usable[s]; m=meta[s]; r=o30.get(s)
         ser=f"{r.span:.1f} J. Spanne / {r.net:.1f} Netto-J." if r else "<30 J."
-        print(f"{s} | {m.name} | {m.state} | Recent {i['first']:%d.%m.%Y}–{i['last']:%d.%m.%Y} | {i['count']} gültige Tage | {i['positive']} Tage >0 cm | letzter {i['latest']:.1f} cm | Recent-Max {i['max']:.1f} cm am {i['max_day']:%d.%m.%Y} | {ser}",flush=True)
+        status="AKTIV" if s in active else f"VERALTET ({(network_latest-i['last']).days} Tage Rückstand)"
+        print(f"{s} | {m.name} | {m.state} | {status} | Recent {i['first']:%d.%m.%Y}–{i['last']:%d.%m.%Y} | {i['count']} gültige Tage | {i['positive']} Tage >0 cm | letzter {i['latest']:.1f} cm | Recent-Max {i['max']:.1f} cm am {i['max_day']:%d.%m.%Y} | {ser}",flush=True)
 
     print("\n=== FAZIT FÜR SCHRITT 2 ===",flush=True)
-    print("Für den Vollaufbau würde ich aktive Stationen mit mindestens 30 Netto-Jahren SHK_TAG verwenden.",flush=True)
+    print(f"Für den Vollaufbau verwenden wir nur Stationen aus dem aktuellen {ACTIVE_MAX_LAG_DAYS}-Tage-Netz mit mindestens 30 Netto-Jahren SHK_TAG.",flush=True)
     print("Dann berechnen wir aus den echten Tageswerten hydrologische Jahre 01.11.–31.10. vollständig neu.",flush=True)
     print("Referenz 1991–2020: hydrologische Jahre 1991…2020, also 01.11.1990–31.10.2020.",flush=True)
     if errors:
@@ -255,6 +301,14 @@ def self_test():
     vals,_=scan_zip(b.getvalue()); assert len(vals)==2 and vals[-1][1]==12
     p=Table(); p.feed("<table><tr><td>1691</td><td>01.05.1858</td><td>13.05.2025</td><td>167.15</td><td>19.88</td><td>7258</td><td>-</td><td>Göttingen</td><td>Niedersachsen</td></tr></table>")
     assert p.rows[0][7]=="Göttingen"
+
+    dt=__import__("datetime").datetime
+    latest=dt(2026,8,10)
+    assert is_current_snow_station({"last":dt(2026,8,10)},latest)
+    assert is_current_snow_station({"last":dt(2026,7,27)},latest)
+    assert not is_current_snow_station({"last":dt(2026,7,26)},latest)
+    assert not is_current_snow_station({"last":dt(2026,2,1)},latest)
+
     print("DWD snow-height probe self-test OK")
 
 if __name__=="__main__":
