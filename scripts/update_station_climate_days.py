@@ -960,6 +960,88 @@ def build_map_summaries(
         }
     return result
 
+
+def build_annual_climate_day_records(
+    root: Path,
+    profiles: list[StationProfile],
+    current_year: int,
+    map_summaries: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Kompakte Allzeit-Jahresrekorde der Kenntage je Station."""
+    result: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for profile in profiles:
+        profile_path = root / profile.file
+        if not profile_path.exists():
+            continue
+        try:
+            payload = read_json(profile_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        current_map = map_summaries.get(profile.station_id, {})
+        current_counts = current_map.get("current_counts") or {}
+        current_valid = current_map.get("valid_days") or {}
+        station_records: dict[str, dict[str, Any]] = {}
+
+        for specification in CLIMATE_DAYS:
+            metric_id = specification["id"]
+            entries = (
+                ((payload.get("counts") or {}).get(metric_id) or {}).get("year")
+                or []
+            )
+            historical = []
+            for item in entries:
+                if not isinstance(item, list) or len(item) < 3:
+                    continue
+                year = int(item[0])
+                if year >= current_year:
+                    continue
+                historical.append((year, int(item[1]), int(item[2])))
+
+            if not historical:
+                continue
+
+            historical_max = max(count for _, count, _ in historical)
+            historical_years = sorted(
+                year for year, count, _ in historical if count == historical_max
+            )
+            current_count = int(current_counts.get(metric_id) or 0)
+            valid_days = int(current_valid.get(metric_id) or 0)
+
+            # Nullrekorde vermeiden; ein positiver aktueller Wert gegen
+            # einen historischen Nullrekord bleibt dagegen relevant.
+            if historical_max <= 0 and current_count <= 0:
+                continue
+
+            record_count = historical_max
+            record_years = historical_years
+            status = "historical"
+
+            if current_count > historical_max:
+                record_count = current_count
+                record_years = [current_year]
+                status = "new_current"
+            elif current_count == historical_max and current_count > 0:
+                record_years = sorted(set(historical_years + [current_year]))
+                status = "tied_current"
+
+            station_records[metric_id] = {
+                "count": record_count,
+                "years": record_years,
+                "historical_count": historical_max,
+                "historical_years": historical_years,
+                "current_count": current_count,
+                "current_valid_days": valid_days,
+                "status": status,
+            }
+
+        if station_records:
+            result[profile.station_id] = station_records
+
+    return result
+
+
 def build_index(
     root: Path,
     profiles: list[StationProfile],
@@ -972,6 +1054,9 @@ def build_index(
     states = sorted({profile.state for profile in profiles if profile.state})
     data_through = date.fromisoformat(current_status["data_through"])
     map_summaries = build_map_summaries(root, profiles, data_through, current_files)
+    annual_records_by_station = build_annual_climate_day_records(
+        root, profiles, current_year, map_summaries
+    )
 
     longest_by_station: dict[str, dict[str, dict[str, Any] | None]] = {}
     for profile in profiles:
@@ -998,6 +1083,7 @@ def build_index(
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
         "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK und TMK)",
         "current_payload_version": 4,
+        "annual_record_summary_version": 1,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
@@ -1025,6 +1111,7 @@ def build_index(
                 "reference_years": profile.reference_years,
                 "file": profile.file,
                 "map": map_summaries.get(profile.station_id, {}),
+                "annual_records": annual_records_by_station.get(profile.station_id, {}),
                 "historical_longest_runs": profile.longest_runs,
                 "longest_runs": longest_by_station.get(profile.station_id, {}),
             }
