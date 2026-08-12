@@ -42,6 +42,9 @@ jobs:
       - name: Kandidaten-QC-Stufe-5-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage5.py --self-test
 
+      - name: Kandidaten-QC-Stufe-6-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage6.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -287,6 +290,28 @@ jobs:
           echo
           echo "=== STAGE 5 RECORD-RANK-1 · HEAD ==="
           head -n 121 world_ghcn_baseline/qc_stage5/world_country_record_rank1_stage5.csv || true
+
+      - name: Kanonische Länder-Rekord-Mastertabelle · Stufe 6
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage6.py \
+            --input world_ghcn_baseline/qc_stage5/world_country_extreme_candidates_stage5_annotated.csv \
+            --output-dir world_ghcn_baseline/qc_stage6
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 6 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage6/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 6 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage6/qc_report.md
+          echo
+          echo "=== STAGE 6 MASTER · HEAD ==="
+          head -n 81 world_ghcn_baseline/qc_stage6/world_country_record_master_stage6.csv || true
+          echo
+          echo "=== STAGE 6 UNRESOLVED · HEAD ==="
+          head -n 121 world_ghcn_baseline/qc_stage6/world_country_record_master_unresolved_stage6.csv || true
+          echo
+          echo "=== STAGE 6 OFFICIAL ANCHOR OVERLAY ==="
+          cat world_ghcn_baseline/qc_stage6/official_anchor_overlay_stage6.csv
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
