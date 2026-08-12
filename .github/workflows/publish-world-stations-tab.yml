@@ -1,0 +1,86 @@
+name: Publish world stations tab
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/publish-world-stations-tab.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current dashboard
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download latest successful world baseline artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list --workflow build-world-ghcn-baseline.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID"
+          echo "Using baseline run $RUN_ID"
+          rm -rf _world_artifact
+          mkdir -p _world_artifact
+          gh run download "$RUN_ID" --name world-ghcn-baseline-through-2025-v1 --dir _world_artifact
+          test -f _world_artifact/qc_stage9/world_country_record_master_publishable_stage9.csv
+          test -f _world_artifact/qc_stage9/summary.json
+
+      - name: Build web data and add Weltweite Stationen tab
+        run: |
+          set -euo pipefail
+          OPEN_COUNT="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('_world_artifact/qc_stage9/summary.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          print(d.get('unresolved_after_stage9', 24))
+          PY
+          )"
+          python scripts/publish_world_stations_tab.py \
+            --index index.html \
+            --publishable-csv _world_artifact/qc_stage9/world_country_record_master_publishable_stage9.csv \
+            --output-json data/world_stations_stage9.json \
+            --unresolved-count "$OPEN_COUNT"
+
+      - name: Validate publication payload
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('data/world_stations_stage9.json').read_text(encoding='utf-8'))
+          html=Path('index.html').read_text(encoding='utf-8')
+          assert d['publishable_rows'] == 840, d['publishable_rows']
+          assert d['unresolved_rows'] == 24, d['unresolved_rows']
+          assert d['country_codes'] == 216, d['country_codes']
+          assert html.count('Weltweite Stationen') >= 2
+          assert html.count('id="worldStations"') == 1
+          assert html.count('switchTab(\'worldStations\')') == 1
+          print('VALIDATION OK', d['publishable_rows'], d['unresolved_rows'], d['country_codes'])
+          PY
+
+      - name: Commit published world stations tab
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html data/world_stations_stage9.json
+          if git diff --cached --quiet; then
+            echo 'No publication changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Publish world stations Stage 9 tab'
+          git push
