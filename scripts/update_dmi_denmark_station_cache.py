@@ -81,7 +81,7 @@ CLIMATE_FIRST_YEAR = 2011
 CLIMATE_TMAX = "max_temp_w_date"
 CLIMATE_TMIN = "min_temp"
 
-BASELINE_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 
 MAX_HTTP_TRIES = 6
@@ -364,7 +364,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "provenance_days": {},
@@ -416,6 +418,8 @@ def consume_row(
         tmax = round(float(tmax), 1)
         if better_max(rec["tmax_abs"], tmax, d):
             rec["tmax_abs"] = [tmax, iso]
+        if better_min(rec["tmax_low_abs"], tmax, d):
+            rec["tmax_low_abs"] = [tmax, iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, tmax, d):
             rec["calendar_tmax"][mmdd] = [tmax, iso]
@@ -424,6 +428,8 @@ def consume_row(
         tmin = round(float(tmin), 1)
         if better_min(rec["tmin_abs"], tmin, d):
             rec["tmin_abs"] = [tmin, iso]
+        if better_max(rec["tmin_high_abs"], tmin, d):
+            rec["tmin_high_abs"] = [tmin, iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, tmin, d):
             rec["calendar_tmin"][mmdd] = [tmin, iso]
@@ -1262,6 +1268,8 @@ def self_test() -> None:
     )
     assert records["06030"]["tmax_abs"] == [10.0, "1999-01-02"]
     assert records["06030"]["tmin_abs"] == [-3.0, "1999-01-02"]
+    assert records["06030"]["tmax_low_abs"] is not None
+    assert records["06030"]["tmin_high_abs"] is not None
 
     print("DMI Denmark historical cache self-test OK")
 

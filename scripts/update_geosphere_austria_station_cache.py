@@ -35,8 +35,8 @@ API_BASE = "https://dataset.api.hub.geosphere.at/v1/station/historical/klima-v2-
 PUBLIC_URL = "https://data.hub.geosphere.at/de/dataset/klima-v2-1d"
 SOURCE = "GeoSphere Austria"
 RESOURCE_ID = "klima-v2-1d"
-BASELINE_FORMAT_VERSION = 1
-BLOCK_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
+BLOCK_FORMAT_VERSION = 2
 # Stay comfortably below the official 1,000,000-value JSON/CSV request limit.
 REQUEST_VALUE_BUDGET = 850_000
 MAX_BLOCK_YEARS = 15
@@ -59,6 +59,63 @@ class RateGate:
 
 RATE_GATE = RateGate()
 
+
+
+def update_opposite_record(record, value: int, date_int: int, element: str):
+    """Lowest TMAX / highest TMIN with earliest date retained on ties."""
+    better = record is None or (value < record[0] if element == "TMAX" else value > record[0])
+    if better:
+        return (value, date_int, 1)
+    if value == record[0]:
+        return (record[0], min(int(record[1]), int(date_int)), int(record[2]) + 1)
+    return record
+
+
+def merge_opposite_records(a, b, element: str):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if (b[0] < a[0] if element == "TMAX" else b[0] > a[0]):
+        return b
+    if (a[0] < b[0] if element == "TMAX" else a[0] > b[0]):
+        return a
+    return (a[0], min(int(a[1]), int(b[1])), int(a[2]) + int(b[2]))
+
+
+def merge_partial_states(target: dict, incoming: dict) -> None:
+    for sid, src_state in incoming.items():
+        dst_state = target.setdefault(sid, core.mf_empty_partial_state())
+        for element in ("TMAX", "TMIN"):
+            src = src_state[element]
+            dst = dst_state[element]
+            dst["abs"] = core.merge_record_tuples(dst.get("abs"), src.get("abs"), element)
+            dst["opposite_abs"] = merge_opposite_records(
+                dst.get("opposite_abs"), src.get("opposite_abs"), element
+            )
+            for mmdd, rec in src.get("cal", {}).items():
+                dst["cal"][mmdd] = core.merge_record_tuples(dst["cal"].get(mmdd), rec, element)
+            starts = [x for x in (dst.get("start"), src.get("start")) if x is not None]
+            dst["start"] = min(starts) if starts else None
+            ends = [x for x in (dst.get("end"), src.get("end")) if x is not None]
+            dst["end"] = max(ends) if ends else None
+            dst.setdefault("year_set", set()).update(src.get("year_set", set()))
+
+
+def finalize_partial_states(partial: dict) -> dict:
+    out = {}
+    for sid, state in partial.items():
+        dst = core.empty_state()
+        for element in ("TMAX", "TMIN"):
+            src = state[element]
+            dst[element]["abs"] = src.get("abs")
+            dst[element]["opposite_abs"] = src.get("opposite_abs")
+            dst[element]["cal"] = src.get("cal", {})
+            dst[element]["start"] = src.get("start")
+            dst[element]["end"] = src.get("end")
+            dst[element]["years"] = len(src.get("year_set", set()))
+        out[sid] = dst
+    return out
 
 def log(msg: str) -> None:
     print(msg, flush=True)
@@ -359,6 +416,7 @@ def parse_feature_collection(payload: dict, pmax: str, pmin: str, cutoff_year: O
                     state = partial.setdefault(sid, core.mf_empty_partial_state())
                     b = state[element]
                     b["abs"] = core.update_record(b.get("abs"), value, date_int, element)
+                    b["opposite_abs"] = update_opposite_record(b.get("opposite_abs"), value, date_int, element)
                     b["cal"][mmdd] = core.update_record(b["cal"].get(mmdd), value, date_int, element)
                     b["start"] = date_int if b.get("start") is None else min(b["start"], date_int)
                     b["end"] = date_int if b.get("end") is None else max(b["end"], date_int)
@@ -411,7 +469,7 @@ def build_baseline(cache_dir: Path, cutoff_year: int, force: bool = False) -> di
         path = block_dir / f"{key}.pkl.gz"
         cached = None if force else load_block(path, cutoff_year)
         if cached is not None:
-            core.merge_mf_partial(merged, cached.get("partial", {}))
+            merge_partial_states(merged, cached.get("partial", {}))
             from_cache += 1
         else:
             raw = [raw_ids[sid] for sid in ids]
@@ -428,7 +486,7 @@ def build_baseline(cache_dir: Path, cutoff_year: int, force: bool = False) -> di
                     "partial": partial,
                 }
                 save_pickle_gz(path, block_payload)
-                core.merge_mf_partial(merged, partial)
+                merge_partial_states(merged, partial)
                 fresh += 1
             except Exception as exc:
                 failed += 1
@@ -452,7 +510,7 @@ def build_baseline(cache_dir: Path, cutoff_year: int, force: bool = False) -> di
             "Erfolgreiche Blöcke sind einzeln gecacht; force=false setzt beim nächsten Lauf fort."
         )
 
-    states = core.finalize_mf_states(merged)
+    states = finalize_partial_states(merged)
     stations = {sid: meta for sid, meta in stations.items() if sid in states}
     if not states:
         raise RuntimeError("GeoSphere Austria Baseline enthält keine TMAX/TMIN-Daten.")
@@ -551,7 +609,7 @@ def self_test() -> None:
     }
     partial, current = parse_feature_collection(payload, "tlmax", "tlmin", cutoff_year=2025)
     assert not current and partial["GSA:1"]["TMAX"]["abs"][0] == 324
-    final = core.finalize_mf_states(partial)
+    final = finalize_partial_states(partial)
     assert final["GSA:1"]["TMAX"]["years"] == 1
     _p, cur = parse_feature_collection(payload, "tlmax", "tlmin", exact_year=2025)
     assert cur["GSA:1"]["TMIN"]["07-02"][0] == 190

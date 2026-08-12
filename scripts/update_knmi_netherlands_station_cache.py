@@ -49,7 +49,7 @@ from typing import Any
 SOURCE = "KNMI"
 PUBLIC_URL = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
 
-BASELINE_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
 START_YEAR = 1901
 MAX_HTTP_TRIES = 7
 REQUEST_TIMEOUT = 180
@@ -344,7 +344,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
     }
@@ -387,6 +389,8 @@ def consume_rows(
         if tx is not None:
             if better_max(rec["tmax_abs"], tx, d):
                 rec["tmax_abs"] = [round(tx, 1), iso]
+            if better_min(rec["tmax_low_abs"], tx, d):
+                rec["tmax_low_abs"] = [round(tx, 1), iso]
             old = rec["calendar_tmax"].get(mmdd)
             if better_max(old, tx, d):
                 rec["calendar_tmax"][mmdd] = [round(tx, 1), iso]
@@ -394,6 +398,8 @@ def consume_rows(
         if tn is not None:
             if better_min(rec["tmin_abs"], tn, d):
                 rec["tmin_abs"] = [round(tn, 1), iso]
+            if better_max(rec["tmin_high_abs"], tn, d):
+                rec["tmin_high_abs"] = [round(tn, 1), iso]
             old = rec["calendar_tmin"].get(mmdd)
             if better_min(old, tn, d):
                 rec["calendar_tmin"][mmdd] = [round(tn, 1), iso]
@@ -613,6 +619,8 @@ def self_test() -> None:
     consume_rows(records, rows)
     assert records["260"]["tmax_abs"] == [5.5, "1901-01-02"]
     assert records["260"]["tmin_abs"] == [-3.0, "1901-01-02"]
+    assert records["260"]["tmax_low_abs"] is not None
+    assert records["260"]["tmin_high_abs"] is not None
     assert records["260"]["calendar_tmax"]["01-01"] == [4.1, "1901-01-01"]
     assert records["280"]["observation_days"] == 1
 

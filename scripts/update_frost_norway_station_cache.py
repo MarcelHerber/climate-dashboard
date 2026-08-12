@@ -47,7 +47,7 @@ TMAX = "max(air_temperature P1D)"
 TMIN = "min(air_temperature P1D)"
 ELEMENTS = f"{TMAX},{TMIN}"
 
-BASELINE_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
 EARLIEST_INVENTORY_DATE = date(1800, 1, 1)
 SOURCE_CHUNK_SIZE = 40
 MAX_HTTP_TRIES = 7
@@ -512,7 +512,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
     }
@@ -558,6 +560,8 @@ def consume_rows(
         if tx is not None:
             if better_max(rec["tmax_abs"], tx, d):
                 rec["tmax_abs"] = [round(tx, 1), iso]
+            if better_min(rec["tmax_low_abs"], tx, d):
+                rec["tmax_low_abs"] = [round(tx, 1), iso]
             old = rec["calendar_tmax"].get(mmdd)
             if better_max(old, tx, d):
                 rec["calendar_tmax"][mmdd] = [round(tx, 1), iso]
@@ -565,6 +569,8 @@ def consume_rows(
         if tn is not None:
             if better_min(rec["tmin_abs"], tn, d):
                 rec["tmin_abs"] = [round(tn, 1), iso]
+            if better_max(rec["tmin_high_abs"], tn, d):
+                rec["tmin_high_abs"] = [round(tn, 1), iso]
             old = rec["calendar_tmin"].get(mmdd)
             if better_min(old, tn, d):
                 rec["calendar_tmin"][mmdd] = [round(tn, 1), iso]
@@ -902,6 +908,8 @@ def self_test() -> None:
     consume_rows(recs, flat)
     assert recs["SN18700"]["tmax_abs"] == [21.1, "2024-07-01"]
     assert recs["SN18700"]["tmin_abs"] == [10.0, "2024-07-01"]
+    assert recs["SN18700"]["tmax_low_abs"] is not None
+    assert recs["SN18700"]["tmin_high_abs"] is not None
 
     a, b = split_date_range(date(2020, 1, 1), date(2021, 1, 1))
     assert a[0] == date(2020, 1, 1)

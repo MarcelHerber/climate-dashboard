@@ -65,7 +65,7 @@ DAILY_BASES = (
     "https://clidata.met.ie/cli/climate_data/webdatac",
 )
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 UA = "climate-dashboard-met-eireann-ireland-cache/1.0"
 HTTP_TIMEOUT = 90
@@ -223,7 +223,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "tmax_indicator_counts": {},
@@ -255,6 +257,8 @@ def consume_day(rec: dict[str, Any], d: date, tmin: float | None, tmax: float | 
     if tmax is not None:
         if better_max(rec["tmax_abs"], tmax):
             rec["tmax_abs"] = [float(tmax), iso]
+        if better_min(rec["tmax_low_abs"], tmax):
+            rec["tmax_low_abs"] = [float(tmax), iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, tmax):
             rec["calendar_tmax"][mmdd] = [float(tmax), iso]
@@ -262,6 +266,8 @@ def consume_day(rec: dict[str, Any], d: date, tmin: float | None, tmax: float | 
     if tmin is not None:
         if better_min(rec["tmin_abs"], tmin):
             rec["tmin_abs"] = [float(tmin), iso]
+        if better_max(rec["tmin_high_abs"], tmin):
+            rec["tmin_high_abs"] = [float(tmin), iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, tmin):
             rec["calendar_tmin"][mmdd] = [float(tmin), iso]
@@ -875,6 +881,7 @@ date,ind,maxtp,ind,mintp,igmin,gmin,ind,rain
     assert rec["observation_days"] == 2
     assert rec["tmax_abs"] == [10.2, "1942-01-02"]
     assert rec["tmin_abs"] == [5.0, "1942-01-02"]
+    assert rec["tmax_low_abs"] is not None and rec["tmin_high_abs"] is not None
     # Grass minimum -20.0 must not become AIR Tmin.
     assert rec["tmin_abs"][0] != -20.0
     assert rec["tmax_indicator_counts"] == {"0": 2}

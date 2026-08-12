@@ -38,7 +38,7 @@ COUNTRY_CODE = "FI"
 PARAM_TMIN = "tmin"
 PARAM_TMAX = "tmax"
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 START_DATE = date(1844, 1, 1)
 
@@ -428,7 +428,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "provenance_days": {"FMI_WFS_DAILY": 0},
@@ -467,10 +469,12 @@ def consume_day(rec: dict[str, Any], d: date, tmin: float | None, tmax: float | 
     rec["provenance_days"]["FMI_WFS_DAILY"] += 1
     if tmax is not None:
         if better_max(rec["tmax_abs"], tmax): rec["tmax_abs"] = [float(tmax), iso]
+        if better_min(rec["tmax_low_abs"], tmax): rec["tmax_low_abs"] = [float(tmax), iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, tmax): rec["calendar_tmax"][mmdd] = [float(tmax), iso]
     if tmin is not None:
         if better_min(rec["tmin_abs"], tmin): rec["tmin_abs"] = [float(tmin), iso]
+        if better_max(rec["tmin_high_abs"], tmin): rec["tmin_high_abs"] = [float(tmin), iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, tmin): rec["calendar_tmin"][mmdd] = [float(tmin), iso]
     return True
@@ -726,6 +730,7 @@ def self_test() -> None:
 
     rec=empty_record(); consume_day(rec,date(2025,1,1),-5.0,2.0); consume_day(rec,date(2025,1,2),-6.0,3.0)
     assert rec["tmax_abs"] == [3.0,"2025-01-02"] and rec["tmin_abs"] == [-6.0,"2025-01-02"] and rec["observation_days"] == 2
+    assert rec["tmax_low_abs"] is not None and rec["tmin_high_abs"] is not None
     print("FMI Finland historical cache self-test OK")
 
 

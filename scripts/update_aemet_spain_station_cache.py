@@ -27,7 +27,7 @@ DAILY_ALL_PATH = (
     "fechaini/{start}/fechafin/{end}/todasestaciones"
 )
 
-BASELINE_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
 START_DATE = date(1920, 1, 1)
 WINDOW_DAYS = 14
 
@@ -387,7 +387,9 @@ def empty_station_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
     }
@@ -495,6 +497,8 @@ def consume_daily_payload(
         if tmax is not None:
             if _better_max(tmax, day_text, state["tmax_abs"]):
                 state["tmax_abs"] = [round(tmax, 1), day_text]
+            if _better_min(tmax, day_text, state["tmax_low_abs"]):
+                state["tmax_low_abs"] = [round(tmax, 1), day_text]
             current = state["calendar_tmax"].get(mmdd)
             if _better_max(tmax, day_text, current):
                 state["calendar_tmax"][mmdd] = [round(tmax, 1), day_text]
@@ -502,6 +506,8 @@ def consume_daily_payload(
         if tmin is not None:
             if _better_min(tmin, day_text, state["tmin_abs"]):
                 state["tmin_abs"] = [round(tmin, 1), day_text]
+            if _better_max(tmin, day_text, state["tmin_high_abs"]):
+                state["tmin_high_abs"] = [round(tmin, 1), day_text]
             current = state["calendar_tmin"].get(mmdd)
             if _better_min(tmin, day_text, current):
                 state["calendar_tmin"][mmdd] = [round(tmin, 1), day_text]
@@ -804,6 +810,8 @@ def self_test() -> None:
     assert r1 == 1 and r2 == 1
     assert records["X"]["tmax_abs"] == [41.2, "2021-07-01"]
     assert records["X"]["tmin_abs"] == [19.0, "2021-07-01"]
+    assert records["X"]["tmax_low_abs"] is not None
+    assert records["X"]["tmin_high_abs"] is not None
     assert records["X"]["calendar_tmax"]["07-01"] == [41.2, "2021-07-01"]
     assert records["X"]["calendar_tmin"]["07-01"] == [19.0, "2021-07-01"]
 

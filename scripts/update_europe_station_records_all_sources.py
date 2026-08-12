@@ -26,10 +26,16 @@ writing ``europe_stations/index.json`` and the 366 calendar packs.
 from __future__ import annotations
 
 import argparse
+import calendar
+import csv
 import datetime as dt
+import gzip
+import io
 import json
 import math
 import os
+import re
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +68,210 @@ import update_met_eireann_ireland_current as ireland_current_mod
 
 ACTIVE_GRACE_DAYS = 45
 NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI"}
+OPPOSITE_EXTREMES_CACHE_VERSION = 1
+
+# The legacy Stations-V5 core only persists the conventional record direction
+# (highest TMAX / lowest TMIN). Keep its payload version unchanged and extend it
+# at runtime with the opposite absolute station extremes. This makes the change
+# backward-compatible with the existing frontend while the next frontend step
+# can opt into the two new JSON fields.
+def _opposite_better(element: str, new_value: int, old_value: int | None) -> bool:
+    if old_value is None:
+        return True
+    return new_value < old_value if element == "TMAX" else new_value > old_value
+
+
+def _update_opposite_record(record, value: int, date_int: int, element: str):
+    if record is None or _opposite_better(element, value, record[0]):
+        return (value, date_int, 1)
+    if value == record[0]:
+        return (record[0], min(int(record[1]), int(date_int)), int(record[2]) + 1)
+    return record
+
+
+def _merge_opposite_records(a, b, element: str):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if _opposite_better(element, b[0], a[0]):
+        return b
+    if _opposite_better(element, a[0], b[0]):
+        return a
+    return (a[0], min(int(a[1]), int(b[1])), int(a[2]) + int(b[2]))
+
+
+# GeoSphere/IMGW historical cache modules use this injected helper while still
+# sharing all other state/merge machinery with the unchanged core module.
+core.update_opposite_record = _update_opposite_record
+
+_CORE_PARSE_DLY_STATION = core.parse_dly_station
+_CORE_PARSE_DWD_PRODUCT_BYTES = core.parse_dwd_product_bytes
+_CORE_PARSE_MF_STREAM = core.parse_mf_stream
+_CORE_MERGE_MF_PARTIAL = core.merge_mf_partial
+_CORE_FINALIZE_MF_STATES = core.finalize_mf_states
+
+
+def _parse_dly_station_with_opposite(stream, cutoff_year: int) -> dict:
+    raw_data = stream.read()
+    if isinstance(raw_data, str):
+        raw_data = raw_data.encode("ascii", errors="ignore")
+    state = _CORE_PARSE_DLY_STATION(io.BytesIO(raw_data), cutoff_year)
+    for raw in raw_data.splitlines():
+        line = raw.decode("ascii", errors="ignore") if isinstance(raw, bytes) else str(raw)
+        if len(line) < 21:
+            continue
+        try:
+            year = int(line[11:15]); month = int(line[15:17])
+        except ValueError:
+            continue
+        if year > cutoff_year:
+            continue
+        element = line[17:21]
+        if element not in ("TMAX", "TMIN"):
+            continue
+        try:
+            max_day = calendar.monthrange(year, month)[1]
+        except (ValueError, calendar.IllegalMonthError):
+            continue
+        for day in range(1, max_day + 1):
+            pos = 21 + (day - 1) * 8
+            if pos + 8 > len(line):
+                break
+            try:
+                value = int(line[pos:pos + 5])
+            except ValueError:
+                continue
+            if value == -9999 or line[pos + 6:pos + 7].strip():
+                continue
+            try:
+                date_obj = dt.date(year, month, day)
+            except ValueError:
+                continue
+            date_int = int(date_obj.strftime("%Y%m%d"))
+            block = state[element]
+            block["opposite_abs"] = _update_opposite_record(
+                block.get("opposite_abs"), value, date_int, element
+            )
+    return state
+
+
+def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_year=None) -> dict:
+    state = _CORE_PARSE_DWD_PRODUCT_BYTES(data, cutoff_year=cutoff_year, exact_year=exact_year)
+    if exact_year is not None:
+        return state
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        candidates = [name for name in zf.namelist() if re.search(r"produkt_klima_tag_.*\.txt$", name, re.I)]
+        if not candidates:
+            candidates = [name for name in zf.namelist() if name.lower().endswith(".txt") and "produkt" in name.lower()]
+        for member in candidates:
+            with zf.open(member) as raw:
+                text = io.TextIOWrapper(raw, encoding="latin-1", errors="replace", newline="")
+                reader = csv.DictReader(text, delimiter=";")
+                if not reader.fieldnames:
+                    continue
+                fmap = {str(k).strip(): k for k in reader.fieldnames if k is not None}
+                date_key, tx_key, tn_key = fmap.get("MESS_DATUM"), fmap.get("TXK"), fmap.get("TNK")
+                if not date_key:
+                    continue
+                for row in reader:
+                    datestr = str(row.get(date_key, "")).strip()
+                    if not re.fullmatch(r"\d{8}", datestr):
+                        continue
+                    year = int(datestr[:4])
+                    if cutoff_year is not None and year > cutoff_year:
+                        continue
+                    date_int = int(datestr)
+                    for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
+                        if not key:
+                            continue
+                        value = core.dwd_float_to_tenths(row.get(key, ""))
+                        if value is None:
+                            continue
+                        block = state[element]
+                        block["opposite_abs"] = _update_opposite_record(
+                            block.get("opposite_abs"), value, date_int, element
+                        )
+    return state
+
+
+def _parse_mf_stream_with_opposite(fileobj, *, cutoff_year=None, exact_year=None):
+    raw_data = fileobj.read()
+    partial, current, metas = _CORE_PARSE_MF_STREAM(
+        io.BytesIO(raw_data), cutoff_year=cutoff_year, exact_year=exact_year
+    )
+    if exact_year is not None:
+        return partial, current, metas
+    with gzip.GzipFile(fileobj=io.BytesIO(raw_data)) as gz:
+        text = io.TextIOWrapper(gz, encoding="utf-8-sig", errors="replace", newline="")
+        reader = csv.DictReader(text, delimiter=";")
+        if not reader.fieldnames:
+            return partial, current, metas
+        fmap = {str(k).strip().upper(): k for k in reader.fieldnames if k is not None}
+        if "NUM_POSTE" not in fmap or "AAAAMMJJ" not in fmap:
+            return partial, current, metas
+        for row in reader:
+            sid = core.mf_station_id(row.get(fmap["NUM_POSTE"], ""))
+            datestr = str(row.get(fmap["AAAAMMJJ"], "")).strip().replace(".0", "")
+            if not sid or not re.fullmatch(r"\d{8}", datestr):
+                continue
+            year = int(datestr[:4])
+            if cutoff_year is not None and year > cutoff_year:
+                continue
+            lat = core.mf_float(row.get(fmap.get("LAT", ""), "")) if "LAT" in fmap else None
+            lon = core.mf_float(row.get(fmap.get("LON", ""), "")) if "LON" in fmap else None
+            if lat is None or lon is None or not (core.LAT_MIN <= lat <= core.LAT_MAX and core.LON_MIN <= lon <= core.LON_MAX):
+                continue
+            date_int = int(datestr)
+            for element, value_col, quality_col in (("TMAX", "TX", "QTX"), ("TMIN", "TN", "QTN")):
+                if value_col not in fmap:
+                    continue
+                value = core.mf_temp_to_tenths(row.get(fmap[value_col], ""))
+                qraw = row.get(fmap[quality_col], "") if quality_col in fmap else ""
+                if value is None or not core.mf_quality_ok(qraw):
+                    continue
+                state = partial.setdefault(sid, core.mf_empty_partial_state())
+                block = state[element]
+                block["opposite_abs"] = _update_opposite_record(
+                    block.get("opposite_abs"), value, date_int, element
+                )
+    return partial, current, metas
+
+
+def _merge_mf_partial_with_opposite(target: dict, incoming: dict) -> None:
+    _CORE_MERGE_MF_PARTIAL(target, incoming)
+    for sid, src_state in incoming.items():
+        dst_state = target.setdefault(sid, core.mf_empty_partial_state())
+        for element in ("TMAX", "TMIN"):
+            src = src_state.get(element, {})
+            dst = dst_state.setdefault(element, {})
+            dst["opposite_abs"] = _merge_opposite_records(
+                dst.get("opposite_abs"), src.get("opposite_abs"), element
+            )
+
+
+def _finalize_mf_states_with_opposite(partial: dict) -> dict:
+    out = _CORE_FINALIZE_MF_STATES(partial)
+    for sid, src_state in partial.items():
+        if sid not in out:
+            continue
+        for element in ("TMAX", "TMIN"):
+            out[sid][element]["opposite_abs"] = src_state.get(element, {}).get("opposite_abs")
+    return out
+
+
+core.parse_dly_station = _parse_dly_station_with_opposite
+core.parse_dwd_product_bytes = _parse_dwd_product_bytes_with_opposite
+core.parse_mf_stream = _parse_mf_stream_with_opposite
+core.merge_mf_partial = _merge_mf_partial_with_opposite
+core.finalize_mf_states = _finalize_mf_states_with_opposite
+
+# Force one clean Météo-France per-resource rebuild because the old cached
+# partial states do not contain the new opposite absolute extremes.
+_BASE_MF_RESOURCE_CACHE_FORMAT_VERSION = int(getattr(core, "MF_RESOURCE_CACHE_FORMAT_VERSION", 1))
+core.MF_RESOURCE_CACHE_FORMAT_VERSION = (
+    _BASE_MF_RESOURCE_CACHE_FORMAT_VERSION + 100 * OPPOSITE_EXTREMES_CACHE_VERSION
+)
 
 
 def log(message: str) -> None:
@@ -152,12 +362,13 @@ def compact_records_to_core_states(
         end = _iso_to_date_int(record.get("last_date"))
         years = _span_years(record)
 
-        for element, abs_key, cal_key in (
-            ("TMAX", "tmax_abs", "calendar_tmax"),
-            ("TMIN", "tmin_abs", "calendar_tmin"),
+        for element, abs_key, opposite_key, cal_key in (
+            ("TMAX", "tmax_abs", "tmax_low_abs", "calendar_tmax"),
+            ("TMIN", "tmin_abs", "tmin_high_abs", "calendar_tmin"),
         ):
             block = state[element]
             block["abs"] = _compact_record_triplet(record.get(abs_key))
+            block["opposite_abs"] = _compact_record_triplet(record.get(opposite_key))
             cal: dict[str, tuple[int, int, int]] = {}
             raw_cal = record.get(cal_key, {})
             if isinstance(raw_cal, dict):
@@ -166,14 +377,15 @@ def compact_records_to_core_states(
                     if converted is not None:
                         cal[str(mmdd)] = converted
             block["cal"] = cal
-            has_values = block["abs"] is not None or bool(cal)
+            has_values = block["abs"] is not None or block.get("opposite_abs") is not None or bool(cal)
             block["start"] = start if has_values else None
             block["end"] = end if has_values else None
             # The compact national caches store first/last observation and
             # observation-day count, but not a distinct-year set. The inclusive
             # observation span is therefore used for the frontend length filter.
             block["years"] = years if has_values else 0
-        if state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None:
+        if (state["TMAX"]["abs"] is not None or state["TMIN"]["abs"] is not None or
+                state["TMAX"].get("opposite_abs") is not None or state["TMIN"].get("opposite_abs") is not None):
             states[sid] = state
     return states
 
@@ -794,6 +1006,9 @@ def chmi_packed_to_core_states(stations_payload: dict[str, dict[str, Any]]) -> d
                 old_abs = block.get("abs")
                 if old_abs is None or (value > old_abs[0] if choose_max else value < old_abs[0]):
                     block["abs"] = rec
+                block["opposite_abs"] = _update_opposite_record(
+                    block.get("opposite_abs"), value, date_int, element
+                )
 
                 old_cal = block["cal"].get(mmdd)
                 if old_cal is None or (value > old_cal[0] if choose_max else value < old_cal[0]):
@@ -1159,6 +1374,58 @@ def add_station_activity(
     }
 
 
+def _current_opposite_absolute(current_state: dict[str, Any] | None, element: str):
+    record = None
+    if not isinstance(current_state, dict):
+        return None
+    values = current_state.get(element, {})
+    if not isinstance(values, dict):
+        return None
+    for item in values.values():
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        try:
+            value, date_int = int(item[0]), int(item[1])
+        except (TypeError, ValueError):
+            continue
+        record = _update_opposite_record(record, value, date_int, element)
+    return record
+
+
+def add_opposite_station_extremes(payload: dict, *, states: dict[str, dict], current: dict[str, dict]) -> None:
+    """Add lowest TMAX and highest TMIN without changing Stations-V5 fields."""
+    missing: list[str] = []
+    for row in payload.get("stations", []):
+        sid = str(row.get("id") or "")
+        historical = states.get(sid, {})
+        current_state = current.get(sid, {})
+        for element, payload_key, new_key in (
+            ("TMAX", "tmax", "lowest_record"),
+            ("TMIN", "tmin", "highest_record"),
+        ):
+            base = historical.get(element, {}).get("opposite_abs") if isinstance(historical, dict) else None
+            cur = _current_opposite_absolute(current_state, element)
+            final = _merge_opposite_records(base, cur, element)
+            target = row.setdefault(payload_key, {})
+            target[new_key] = core.record_json(final)
+            # A conventional record implies that at least one valid value exists;
+            # therefore the opposite extreme must also be derivable after a clean
+            # cache rebuild.
+            if target.get("record") is not None and target[new_key] is None:
+                missing.append(f"{sid}:{element}")
+    if missing:
+        preview = ", ".join(missing[:12])
+        raise RuntimeError(
+            f"Gegenextreme fehlen für {len(missing)} Stationsparameter nach dem Neuaufbau: {preview}"
+        )
+    payload["additional_station_extremes"] = {
+        "tmax_lowest": "stations[].tmax.lowest_record",
+        "tmin_highest": "stations[].tmin.highest_record",
+        "unit": "°C",
+        "scope": "Allzeit-Stationsrekord einschließlich laufendem Jahr",
+    }
+
+
 def patch_index_metadata(
     output_dir: Path,
     *,
@@ -1184,6 +1451,7 @@ def patch_index_metadata(
     path = output_dir / "index.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     add_station_activity(payload, stations=stations, states=states, current=current)
+    add_opposite_station_extremes(payload, states=states, current=current)
     counts = _source_counts(payload)
 
     payload["source"] = (
@@ -1377,6 +1645,16 @@ def validate_payload(payload: dict) -> None:
 
     if not rows or any("active" not in row or "last_observation" not in row for row in rows):
         raise RuntimeError("Aktivstatus/letzte Beobachtung fehlt bei mindestens einer Station.")
+    missing_opposite = []
+    for row in rows:
+        if row.get("tmax", {}).get("record") is not None and row.get("tmax", {}).get("lowest_record") is None:
+            missing_opposite.append(f"{row.get('id')}:TMAX")
+        if row.get("tmin", {}).get("record") is not None and row.get("tmin", {}).get("highest_record") is None:
+            missing_opposite.append(f"{row.get('id')}:TMIN")
+    if missing_opposite:
+        raise RuntimeError(
+            "Neue Gegenextreme fehlen: " + ", ".join(missing_opposite[:12])
+        )
     if int(payload.get("active_station_count", 0)) <= 0:
         raise RuntimeError("Aktivfilter würde 0 Stationen liefern.")
 
@@ -1462,7 +1740,9 @@ def self_test() -> None:
             "last_date": "2025-12-31",
             "observation_days": 1000,
             "tmax_abs": [40.1, "2020-07-01"],
+            "tmax_low_abs": [-10.5, "1940-01-01"],
             "tmin_abs": [-20.2, "1940-01-01"],
+            "tmin_high_abs": [22.3, "2020-07-01"],
             "calendar_tmax": {"07-01": [40.1, "2020-07-01"]},
             "calendar_tmin": {"01-01": [-20.2, "1940-01-01"]},
         }
@@ -1470,6 +1750,8 @@ def self_test() -> None:
     states = compact_records_to_core_states(sample_records, prefix="TEST")
     assert states["TEST:X"]["TMAX"]["abs"] == (401, 20200701, 1)
     assert states["TEST:X"]["TMIN"]["cal"]["01-01"] == (-202, 19400101, 1)
+    assert states["TEST:X"]["TMAX"]["opposite_abs"] == (-105, 19400101, 1)
+    assert states["TEST:X"]["TMIN"]["opposite_abs"] == (223, 20200701, 1)
     current = compact_records_to_core_current(
         {"X": {"calendar_tmax": {"08-01": [31.2, "2026-08-01"]}, "calendar_tmin": {}}},
         prefix="TEST",
@@ -1477,9 +1759,12 @@ def self_test() -> None:
     assert current["TEST:X"]["TMAX"]["08-01"] == (312, 20260801)
 
     meta = core.StationMeta("TEST:X", 50.0, 8.0, 100.0, "Test", "ZZ", "Testland", "TEST", "test")
-    payload = {"stations": [{"id": "TEST:X", "source": "TEST"}]}
+    payload = {"stations": [{"id": "TEST:X", "source": "TEST", "tmax": {"record": {"value": 40.1}}, "tmin": {"record": {"value": -20.2}}}]}
     add_station_activity(payload, stations={"TEST:X": meta}, states=states, current=current)
+    add_opposite_station_extremes(payload, states=states, current=current)
     assert payload["stations"][0]["active"] is True
+    assert payload["stations"][0]["tmax"]["lowest_record"]["value"] == -10.5
+    assert payload["stations"][0]["tmin"]["highest_record"]["value"] == 22.3
     assert payload["stations"][0]["last_observation"] == "2026-08-01"
     print("Unified Europe updater self-test OK")
 
@@ -1568,9 +1853,18 @@ def main() -> int:
     if not dwd_stations:
         raise RuntimeError("Keine DWD-KL-Stationsmetadaten gefunden.")
 
-    ghcn_cache = cache_dir / f"ghcn_europe_baseline_through_{cutoff_year}_v{core.GHCN_BASELINE_FORMAT_VERSION}.pkl.gz"
-    dwd_cache = cache_dir / f"dwd_germany_kl_baseline_through_{cutoff_year}_v{core.DWD_BASELINE_FORMAT_VERSION}.pkl.gz"
-    mf_cache = cache_dir / f"meteofrance_daily_baseline_through_{cutoff_year}_v{core.MF_BASELINE_FORMAT_VERSION}.pkl.gz"
+    ghcn_cache = cache_dir / (
+        f"ghcn_europe_baseline_through_{cutoff_year}_v{core.GHCN_BASELINE_FORMAT_VERSION}"
+        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}.pkl.gz"
+    )
+    dwd_cache = cache_dir / (
+        f"dwd_germany_kl_baseline_through_{cutoff_year}_v{core.DWD_BASELINE_FORMAT_VERSION}"
+        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}.pkl.gz"
+    )
+    mf_cache = cache_dir / (
+        f"meteofrance_daily_baseline_through_{cutoff_year}_v{core.MF_BASELINE_FORMAT_VERSION}"
+        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}.pkl.gz"
+    )
 
     force_all = args.force_baseline
     ghcn_baseline = core.load_or_build_ghcn_baseline(ghcn_cache, ghcn_stations, cutoff_year, force_all)

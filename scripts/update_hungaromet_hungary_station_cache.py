@@ -45,7 +45,7 @@ OBS_HIST_INDEX = f"{BASE}/observations_hungary/daily/historical/"
 OBS_RECENT_INDEX = f"{BASE}/observations_hungary/daily/recent/"
 OBS_META_URL = f"{BASE}/observations_hungary/meta/station_meta_auto.csv"
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 UA = "climate-dashboard-hungaromet-hungary-cache/1.0"
 TRIES = 6
@@ -202,7 +202,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "provenance_days": {},
@@ -244,12 +246,16 @@ def consume_day(rec: dict[str, Any], d: date, tmin: float | None, tmax: float | 
     if tmax is not None:
         if better_max(rec["tmax_abs"], tmax):
             rec["tmax_abs"] = [float(tmax), iso]
+        if better_min(rec["tmax_low_abs"], tmax):
+            rec["tmax_low_abs"] = [float(tmax), iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, tmax):
             rec["calendar_tmax"][mmdd] = [float(tmax), iso]
     if tmin is not None:
         if better_min(rec["tmin_abs"], tmin):
             rec["tmin_abs"] = [float(tmin), iso]
+        if better_max(rec["tmin_high_abs"], tmin):
+            rec["tmin_high_abs"] = [float(tmin), iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, tmin):
             rec["calendar_tmin"][mmdd] = [float(tmin), iso]
@@ -652,6 +658,7 @@ def self_test() -> None:
     tn,tx = qc_values(20.6,36.0,stats); consume_day(rec,date(2005,7,28),tn,tx,"TEST")
     tn,tx = qc_values(21.2,35.8,stats); consume_day(rec,date(2005,7,29),tn,tx,"TEST")
     assert rec["tmax_abs"] == [36.0,"2005-07-28"] and rec["tmin_abs"] == [20.6,"2005-07-28"]
+    assert rec["tmax_low_abs"] is not None and rec["tmin_high_abs"] is not None
 
     csv_text = "##Meta\n#StationNumber;StartDate;EndDate;Latitude;Longitude;Elevation;StationName;EOR\n#        13704;20050727;20260102;47.6783;16.6022;232.8;Sopron Kuruc-domb;EOR\n##Meta END\nStationNumber;Time;rau;Q_rau;t;Q_t;tn;Q_tn;tx;Q_tx;EOR\n13704;20260101;0.0;;2.5;;-0.3;;8.2;;EOR\n"
     bio=io.BytesIO()

@@ -57,7 +57,7 @@ TMAX_PARAM = "tre200dx"
 HISTORICAL_TMAX_CEILING_C = 41.5
 HISTORICAL_TMIN_FLOOR_C = -41.8
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 UA = "climate-dashboard-meteoswiss-switzerland-cache/1.0"
 TRIES = 5
@@ -468,7 +468,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "provenance_days": {"METEOSWISS_SMN": 0},
@@ -514,6 +516,8 @@ def consume_day(
     if tmax is not None:
         if better_max(rec["tmax_abs"], tmax, iso):
             rec["tmax_abs"] = [tmax, iso]
+        if better_min(rec["tmax_low_abs"], tmax, iso):
+            rec["tmax_low_abs"] = [tmax, iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, tmax, iso):
             rec["calendar_tmax"][mmdd] = [tmax, iso]
@@ -521,6 +525,8 @@ def consume_day(
     if tmin is not None:
         if better_min(rec["tmin_abs"], tmin, iso):
             rec["tmin_abs"] = [tmin, iso]
+        if better_max(rec["tmin_high_abs"], tmin, iso):
+            rec["tmin_high_abs"] = [tmin, iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, tmin, iso):
             rec["calendar_tmin"][mmdd] = [tmin, iso]
@@ -843,6 +849,7 @@ def self_test() -> None:
     assert consume_day(rec, *rows[1]) is True
     assert rec["calendar_tmin"]["01-01"] == [-8.2, "1864-01-01"]
     assert rec["calendar_tmax"]["01-02"] == [2.5, "1864-01-02"]
+    assert rec["tmax_low_abs"] is not None and rec["tmin_high_abs"] is not None
 
     qc = {}
     tn, tx = apply_historical_extreme_qc(-10.0, 51.8, qc_stats=qc)

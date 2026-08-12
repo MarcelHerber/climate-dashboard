@@ -60,7 +60,7 @@ SYNOP_START_YEAR = 1952
 BRIDGE_END_YEAR = 1999
 AWS_START_YEAR = 2000
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 UA = "climate-dashboard-rmi-belgium-hybrid-cache/1.0"
 TRIES = 6
@@ -430,7 +430,9 @@ def empty_record() -> dict[str, Any]:
         "last_date": None,
         "observation_days": 0,
         "tmax_abs": None,
+        "tmax_low_abs": None,
         "tmin_abs": None,
+        "tmin_high_abs": None,
         "calendar_tmax": {},
         "calendar_tmin": {},
         "provenance_days": {
@@ -486,6 +488,8 @@ def consume_day(
         value = round(float(tmax), 2)
         if better_max(rec["tmax_abs"], value, iso):
             rec["tmax_abs"] = [value, iso]
+        if better_min(rec["tmax_low_abs"], value, iso):
+            rec["tmax_low_abs"] = [value, iso]
         old = rec["calendar_tmax"].get(mmdd)
         if better_max(old, value, iso):
             rec["calendar_tmax"][mmdd] = [value, iso]
@@ -494,6 +498,8 @@ def consume_day(
         value = round(float(tmin), 2)
         if better_min(rec["tmin_abs"], value, iso):
             rec["tmin_abs"] = [value, iso]
+        if better_max(rec["tmin_high_abs"], value, iso):
+            rec["tmin_high_abs"] = [value, iso]
         old = rec["calendar_tmin"].get(mmdd)
         if better_min(old, value, iso):
             rec["calendar_tmin"][mmdd] = [value, iso]

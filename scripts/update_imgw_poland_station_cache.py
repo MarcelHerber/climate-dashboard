@@ -62,10 +62,67 @@ SOURCE = "IMGW-PIB"
 # Baseline v3 reflects corrected station metadata. Resource format deliberately
 # remains v2 so the 349 already valid historical shards stay reusable; v4 only
 # changes recovery of a not-yet-cached malformed IMGW ZIP.
-BASELINE_FORMAT_VERSION = 3
-RESOURCE_FORMAT_VERSION = 2
+BASELINE_FORMAT_VERSION = 4
+RESOURCE_FORMAT_VERSION = 3
 START_YEAR = 1951
 
+
+
+def update_opposite_record(record, value: int, date_int: int, element: str):
+    """Lowest TMAX / highest TMIN with earliest date retained on ties."""
+    better = record is None or (value < record[0] if element == "TMAX" else value > record[0])
+    if better:
+        return (value, date_int, 1)
+    if value == record[0]:
+        return (record[0], min(int(record[1]), int(date_int)), int(record[2]) + 1)
+    return record
+
+
+def merge_opposite_records(a, b, element: str):
+    if a is None:
+        return b
+    if b is None:
+        return a
+    if (b[0] < a[0] if element == "TMAX" else b[0] > a[0]):
+        return b
+    if (a[0] < b[0] if element == "TMAX" else a[0] > b[0]):
+        return a
+    return (a[0], min(int(a[1]), int(b[1])), int(a[2]) + int(b[2]))
+
+
+def merge_partial_states(target: dict, incoming: dict) -> None:
+    for sid, src_state in incoming.items():
+        dst_state = target.setdefault(sid, core.mf_empty_partial_state())
+        for element in ("TMAX", "TMIN"):
+            src = src_state[element]
+            dst = dst_state[element]
+            dst["abs"] = core.merge_record_tuples(dst.get("abs"), src.get("abs"), element)
+            dst["opposite_abs"] = merge_opposite_records(
+                dst.get("opposite_abs"), src.get("opposite_abs"), element
+            )
+            for mmdd, rec in src.get("cal", {}).items():
+                dst["cal"][mmdd] = core.merge_record_tuples(dst["cal"].get(mmdd), rec, element)
+            starts = [x for x in (dst.get("start"), src.get("start")) if x is not None]
+            dst["start"] = min(starts) if starts else None
+            ends = [x for x in (dst.get("end"), src.get("end")) if x is not None]
+            dst["end"] = max(ends) if ends else None
+            dst.setdefault("year_set", set()).update(src.get("year_set", set()))
+
+
+def finalize_partial_states(partial: dict) -> dict:
+    out = {}
+    for sid, state in partial.items():
+        dst = core.empty_state()
+        for element in ("TMAX", "TMIN"):
+            src = state[element]
+            dst[element]["abs"] = src.get("abs")
+            dst[element]["opposite_abs"] = src.get("opposite_abs")
+            dst[element]["cal"] = src.get("cal", {})
+            dst[element]["start"] = src.get("start")
+            dst[element]["end"] = src.get("end")
+            dst[element]["years"] = len(src.get("year_set", set()))
+        out[sid] = dst
+    return out
 
 def log(msg: str) -> None:
     print(msg, flush=True)
@@ -660,6 +717,7 @@ def parse_zip(
                     station = partial.setdefault(sid, partial_state())
                     block = station[element]
                     block["abs"] = core.update_record(block.get("abs"), value, date_int, element)
+                    block["opposite_abs"] = update_opposite_record(block.get("opposite_abs"), value, date_int, element)
                     block["cal"][mmdd] = core.update_record(
                         block["cal"].get(mmdd), value, date_int, element
                     )
@@ -706,7 +764,7 @@ def load_shard(path: Path, cutoff_year: int) -> Optional[dict]:
 
 
 def merge_partial(target: dict, source: dict) -> None:
-    core.merge_mf_partial(target, source)
+    merge_partial_states(target, source)
 
 
 def process_resource(
@@ -794,7 +852,7 @@ def build_baseline(
                     f"fehlerhaft {counts['error']} | {len(partial):,} Stationscodes …"
                 )
 
-    states_all = core.finalize_mf_states(partial)
+    states_all = finalize_partial_states(partial)
     states = {
         sid: state
         for sid, state in states_all.items()
