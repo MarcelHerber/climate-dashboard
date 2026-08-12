@@ -48,6 +48,9 @@ jobs:
       - name: Kandidaten-QC-Stufe-7-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage7.py --self-test
 
+      - name: Kandidaten-QC-Stufe-8-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage8.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -338,6 +341,32 @@ jobs:
           echo
           echo "=== STAGE 7 DECISIONS ==="
           cat world_ghcn_baseline/qc_stage7/resolution_decisions_stage7.csv
+
+      - name: Wikipedia-Referenzen für offene Länder-Rekorde · Stufe 8
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage8.py \
+            --master-input world_ghcn_baseline/qc_stage7/world_country_record_master_stage7.csv \
+            --candidate-input world_ghcn_baseline/qc_stage5/world_country_extreme_candidates_stage5_annotated.csv \
+            --output-dir world_ghcn_baseline/qc_stage8
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 8 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage8/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 8 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage8/qc_report.md
+          echo
+          echo "=== STAGE 8 RESOLVED ==="
+          cat world_ghcn_baseline/qc_stage8/resolved_stage8.csv
+          echo
+          echo "=== STAGE 8 STILL UNRESOLVED ==="
+          cat world_ghcn_baseline/qc_stage8/world_country_record_master_unresolved_stage8.csv
+          echo
+          echo "=== STAGE 8 WIKIPEDIA REFERENCES ==="
+          cat world_ghcn_baseline/qc_stage8/wikipedia_reference_anchors_stage8.csv
+          echo
+          echo "=== STAGE 8 DECISIONS ==="
+          cat world_ghcn_baseline/qc_stage8/resolution_decisions_stage8.csv
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
