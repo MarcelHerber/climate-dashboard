@@ -27,6 +27,9 @@ jobs:
       - name: Parser-Selbsttest
         run: python scripts/build_world_ghcn_baseline.py --self-test
 
+      - name: Kandidaten-QC-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -158,6 +161,22 @@ jobs:
           qc_path.write_text(text, encoding="utf-8")
           print(text)
           PY
+
+      - name: Fachliche Kandidaten-QC · Stufe 1
+        run: |
+          python scripts/verify_world_ghcn_candidates.py \
+            --input world_ghcn_baseline/world_country_extreme_candidates_top10.csv \
+            --output-dir world_ghcn_baseline/qc_stage1
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 1 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage1/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 1 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage1/qc_report.md
+          echo
+          echo "=== CONFIRMED REJECTIONS ==="
+          cat world_ghcn_baseline/qc_stage1/rejected_confirmed.csv
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
