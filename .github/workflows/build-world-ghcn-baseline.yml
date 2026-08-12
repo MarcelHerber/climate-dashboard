@@ -39,6 +39,9 @@ jobs:
       - name: Kandidaten-QC-Stufe-4-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage4.py --self-test
 
+      - name: Kandidaten-QC-Stufe-5-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage5.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -256,6 +259,34 @@ jobs:
           echo
           echo "=== STAGE 4 COUNTRY-RANK-1 REVIEW PRIORITY · HEAD ==="
           head -n 101 world_ghcn_baseline/qc_stage4/review_priority_rank1_stage4.csv || true
+
+      - name: Fachliche Kandidaten-QC · Stufe 5
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage5.py \
+            --input world_ghcn_baseline/qc_stage4/world_country_extreme_candidates_stage4_clean.csv \
+            --output-dir world_ghcn_baseline/qc_stage5
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 5 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage5/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 5 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage5/qc_report.md
+          echo
+          echo "=== STAGE 5 CONFIRMED REJECTIONS ==="
+          cat world_ghcn_baseline/qc_stage5/rejected_confirmed_stage5.csv
+          echo
+          echo "=== STAGE 5 OFFICIAL RECORD ANCHORS ==="
+          cat world_ghcn_baseline/qc_stage5/official_record_anchors_stage5.csv
+          echo
+          echo "=== STAGE 5 RECORD HOLDS ==="
+          head -n 121 world_ghcn_baseline/qc_stage5/record_holds_stage5.csv || true
+          echo
+          echo "=== STAGE 5 PRIORITY GROUPS ==="
+          cat world_ghcn_baseline/qc_stage5/priority_groups_stage5.csv
+          echo
+          echo "=== STAGE 5 RECORD-RANK-1 · HEAD ==="
+          head -n 121 world_ghcn_baseline/qc_stage5/world_country_record_rank1_stage5.csv || true
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
