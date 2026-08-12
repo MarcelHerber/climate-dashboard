@@ -1,0 +1,59 @@
+name: Build world GHCN historical baseline
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: world-ghcn-historical-baseline
+  cancel-in-progress: false
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Parser-Selbsttest
+        run: python scripts/build_world_ghcn_baseline.py --self-test
+
+      - name: Historischen Welt-GHCN-Cache wiederherstellen
+        id: world-ghcn-cache
+        uses: actions/cache@v5
+        with:
+          path: .cache/world-ghcn
+          key: world-ghcn-baseline-v1-through-2025
+
+      - name: Weltweiten GHCN-Baseline-Cache bauen oder aus Cache laden
+        run: |
+          python scripts/build_world_ghcn_baseline.py \
+            --cutoff-year 2025 \
+            --cache-dir .cache/world-ghcn \
+            --output world_ghcn_baseline
+
+      - name: Ergebnis kontrollieren
+        run: |
+          echo "=== WORLD GHCN BASELINE OUTPUT ==="
+          du -h world_ghcn_baseline/* || true
+          echo
+          echo "=== SUMMARY ==="
+          cat world_ghcn_baseline/summary.json
+
+      - name: Baseline als Artifact hochladen
+        uses: actions/upload-artifact@v7
+        with:
+          name: world-ghcn-baseline-through-2025-v1
+          path: world_ghcn_baseline/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
