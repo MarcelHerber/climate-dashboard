@@ -1,0 +1,44 @@
+name: Probe world GHCN inventory
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Parser self-test
+        run: python scripts/test_world_ghcn_inventory.py --self-test
+
+      - name: Build world GHCN temperature inventory
+        run: python scripts/test_world_ghcn_inventory.py --output world_ghcn_inventory --refresh
+
+      - name: Show report in workflow summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f world_ghcn_inventory/report.md ]]; then
+            cat world_ghcn_inventory/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload inventory artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-ghcn-inventory
+          path: world_ghcn_inventory/
+          if-no-files-found: error
+          retention-days: 14
