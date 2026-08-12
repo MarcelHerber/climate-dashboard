@@ -41,13 +41,123 @@ jobs:
             --cache-dir .cache/world-ghcn \
             --output world_ghcn_baseline
 
-      - name: Ergebnis kontrollieren
+      - name: Ergebnis und Rekordkandidaten kontrollieren
         run: |
+          echo "=== CACHE STATUS ==="
+          echo "Cache hit: ${{ steps.world-ghcn-cache.outputs.cache-hit }}"
+          echo
+
           echo "=== WORLD GHCN BASELINE OUTPUT ==="
           du -h world_ghcn_baseline/* || true
           echo
+
           echo "=== SUMMARY ==="
           cat world_ghcn_baseline/summary.json
+          echo
+
+          echo "=== REPORT ==="
+          cat world_ghcn_baseline/report.md
+          echo
+
+          python - <<'PY'
+          import csv
+          from collections import Counter
+          from pathlib import Path
+
+          path = Path("world_ghcn_baseline/world_country_extreme_candidates_top10.csv")
+          with path.open("r", encoding="utf-8-sig", newline="") as handle:
+              rows = list(csv.DictReader(handle, delimiter=";"))
+
+          metrics = (
+              ("tmax_highest", True, 25),
+              ("tmin_lowest", False, 25),
+              ("tmax_lowest", False, 20),
+              ("tmin_highest", True, 20),
+          )
+
+          def value(row):
+              try:
+                  return float(row["value_c"])
+              except (TypeError, ValueError):
+                  return float("nan")
+
+          countries = {r["country_code"] for r in rows if r.get("country_code")}
+          metric_counts = Counter(r["metric"] for r in rows)
+          rank1 = [r for r in rows if r.get("rank") == "1"]
+
+          lines = []
+          lines.append("WORLD GHCN BASELINE · QC OVERVIEW")
+          lines.append("=" * 72)
+          lines.append(f"Kandidatenzeilen gesamt: {len(rows):,}")
+          lines.append(f"Laender/GHCN-Codes:      {len(countries):,}")
+          lines.append(f"Rank-1-Zeilen:           {len(rank1):,}")
+          lines.append("")
+          lines.append("Kandidatenzeilen je Extremtyp:")
+          for metric in sorted(metric_counts):
+              lines.append(f"  {metric:14s}: {metric_counts[metric]:,}")
+
+          for metric, descending, limit in metrics:
+              subset = [r for r in rank1 if r.get("metric") == metric]
+              subset.sort(key=value, reverse=descending)
+              lines.append("")
+              lines.append(f"=== GLOBALE RANK-1-SPITZE · {metric} ===")
+              for r in subset[:limit]:
+                  lines.append(
+                      f"{r['country_code']:>2s} | {r['country'][:24]:24s} | "
+                      f"{float(r['value_c']):6.1f} °C | {r['date']} | "
+                      f"{r['station_id']} | {r['station_name'][:30]}"
+                  )
+
+          suspicious = []
+          for r in rows:
+              v = value(r)
+              metric = r.get("metric", "")
+              is_suspicious = (
+                  (metric == "tmax_highest" and v >= 55.0)
+                  or (metric == "tmin_highest" and v >= 45.0)
+                  or (metric == "tmin_lowest" and v <= -90.0)
+                  or (metric == "tmax_lowest" and v <= -90.0)
+              )
+              if is_suspicious:
+                  suspicious.append(r)
+
+          lines.append("")
+          lines.append("=== EXTREME QC-FLAGS ===")
+          lines.append(
+              "Nur technische Auffaelligkeiten nahe den sehr weiten Parsing-Grenzen; "
+              "keine fachliche Rekordverifikation."
+          )
+          if not suspicious:
+              lines.append("Keine Kandidaten ober-/unterhalb der QC-Flag-Schwellen gefunden.")
+          else:
+              suspicious.sort(key=lambda r: (r["metric"], value(r), r["country_code"], int(r["rank"])))
+              for r in suspicious[:200]:
+                  lines.append(
+                      f"{r['metric']:14s} | {r['country_code']} | rank {r['rank']:>2s} | "
+                      f"{float(r['value_c']):6.1f} °C | {r['date']} | "
+                      f"{r['station_id']} | {r['station_name'][:36]}"
+                  )
+              if len(suspicious) > 200:
+                  lines.append(f"... weitere {len(suspicious) - 200:,} QC-Flag-Zeilen im CSV pruefen.")
+
+          missing_coords = sum(
+              not (r.get("latitude") or "").strip() or not (r.get("longitude") or "").strip()
+              for r in rows
+          )
+          lines.append("")
+          lines.append("=== METADATEN-CHECK ===")
+          lines.append(f"Kandidaten ohne vollstaendige Koordinaten: {missing_coords:,}")
+          lines.append("")
+          lines.append(
+              "Naechster fachlicher Schritt erst nach dieser Kontrolle: "
+              "Abgleich der Rekordkandidaten gegen Maxcrc/WMO/nationale Wetterdienste."
+          )
+
+          text = "\n".join(lines) + "\n"
+          qc_path = Path("world_ghcn_baseline/qc_overview.txt")
+          qc_path.write_text(text, encoding="utf-8")
+          print(text)
+          PY
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
