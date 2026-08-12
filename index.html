@@ -1397,6 +1397,7 @@ button.action:hover{background:#1f2937}
         <div class="control-group"><label for="europeStationMode">Rekordansicht</label><select id="europeStationMode"><option value="absolute">Absoluter Stationsrekord</option><option value="calendar">Kalendertag-Rekord</option><option value="newCurrent">Neue Rekorde im laufenden Jahr</option><option value="recordChase">Rekordjagd am Kalendertag</option></select></div>
         <div class="control-group"><label for="europeStationCountry">Land</label><select id="europeStationCountry"><option value="">Alle Länder</option></select></div>
         <div class="control-group"><label for="europeStationMinYears">Mind. Messjahre</label><select id="europeStationMinYears"><option value="0">keine Begrenzung</option><option value="10">10 Jahre</option><option value="30" selected>30 Jahre</option><option value="50">50 Jahre</option><option value="75">75 Jahre</option></select></div>
+        <div class="control-group inline-check"><input id="europeStationActiveOnly" type="checkbox" checked><label for="europeStationActiveOnly">Nur aktive Stationen anzeigen</label></div>
         <div id="europeStationDateGroup" class="control-group europe-station-date-row" hidden><label for="europeStationDate">Kalendertag</label><input id="europeStationDate" type="date"></div>
         <div class="control-group europe-station-search-row"><label for="europeStationSearch">Stationssuche</label><input id="europeStationSearch" type="search" autocomplete="off" placeholder="Name, Stations-ID oder Land …"></div>
       </div>
@@ -11336,6 +11337,60 @@ function europeStationFormatTemp(value){return Number.isFinite(Number(value))?`$
 function europeStationElementBlock(station,param){return param==="tmin"?station?.tmin:station?.tmax;}
 function europeStationCurrentYearMeta(station){return station?.new_current_year||station?.new_2026||{};}
 function europeStationCurrentYear(){return Number(europeStationData?.current_year)||new Date().getFullYear();}
+function europeStationFlagValue(value,param){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(Object.prototype.hasOwnProperty.call(value,param))return europeStationFlagValue(value[param],param);
+    if(Object.prototype.hasOwnProperty.call(value,"value"))return europeStationFlagValue(value.value,param);
+  }
+  if(typeof value==="boolean")return value;
+  if(typeof value==="number"&&Number.isFinite(value))return value!==0;
+  if(typeof value==="string"){
+    const s=value.trim().toLowerCase();
+    if(["1","true","yes","ja","active","aktiv","current"].includes(s))return true;
+    if(["0","false","no","nein","inactive","inaktiv","closed"].includes(s))return false;
+  }
+  return null;
+}
+function europeStationDateYear(value){
+  if(value===null||value===undefined||value==="")return NaN;
+  if(typeof value==="number"&&Number.isFinite(value)){
+    const s=String(Math.trunc(value));
+    if(s.length>=4)return Number(s.slice(0,4));
+  }
+  const m=String(value).match(/(18|19|20|21)\d{2}/);
+  return m?Number(m[0]):NaN;
+}
+function europeStationIsActive(station,param){
+  const block=europeStationElementBlock(station,param)||{};
+  const explicit=[
+    station?.active,station?.is_active,station?.active_current_year,station?.current_year_active,
+    station?.active_now,station?.status,station?.active_parameters,
+    block?.active,block?.is_active,block?.active_current_year,block?.current_year_active,block?.status
+  ];
+  for(const candidate of explicit){
+    if(Array.isArray(candidate)){
+      const normalized=candidate.map(v=>String(v).toLowerCase());
+      if(normalized.includes(param.toLowerCase()))return true;
+      continue;
+    }
+    const flag=europeStationFlagValue(candidate,param);
+    if(flag!==null)return flag;
+  }
+  const currentYear=europeStationCurrentYear();
+  const endCandidates=[
+    block?.end,block?.last_date,block?.data_end,block?.latest_date,block?.end_date,
+    station?.end,station?.last_date,station?.data_end,station?.latest_date,station?.end_date,
+    station?.last_observation,station?.latest_observation
+  ];
+  let latestYear=NaN;
+  for(const candidate of endCandidates){
+    const year=europeStationDateYear(candidate);
+    if(Number.isFinite(year)&&( !Number.isFinite(latestYear)||year>latestYear))latestYear=year;
+  }
+  // Der historische Europa-Basiscache reicht regulär bis zum Vorjahr.
+  // Deshalb gilt eine Reihe mit Daten im laufenden Jahr ODER Vorjahr als aktiv.
+  return Number.isFinite(latestYear)&&latestYear>=currentYear-1;
+}
 function europeStationSelectedMmdd(){
   const input=document.getElementById("europeStationDate");
   const value=input?.value||"";const m=value.match(/^\d{4}-(\d{2})-(\d{2})$/);return m?`${m[1]}-${m[2]}`:"01-01";
@@ -11483,7 +11538,7 @@ function renderEuropeStationRanking(rows,param,mode,mmdd){
   const title=document.getElementById("europeStationRankingTitle"),subtitle=document.getElementById("europeStationRankingSubtitle"),list=document.getElementById("europeStationTop20"),countryEl=document.getElementById("europeStationCountryRanking");if(!list||!countryEl)return;
   const currentYear=europeStationCurrentYear();
   if(title)title.textContent=mode==="newCurrent"?`Top 20 · Rekordstationen ${currentYear}`:mode==="recordChase"?`Rekordjagd · ${europeStationMmddLabel(mmdd)}`:mode==="calendar"?`Top 20 · ${europeStationMmddLabel(mmdd)}`:"Top 20 · Stationsrekorde";
-  if(subtitle)subtitle.textContent=mode==="recordChase"?`${currentYear}-Wert gegen bisherigen Kalendertagsrekord · kleinster Abstand zuerst`:mode==="newCurrent"?"Stationen mit den meisten neuen Kalendertagsrekorden":"Ranking reagiert auf Land, Messlänge und Stationssuche";
+  if(subtitle)subtitle.textContent=mode==="recordChase"?`${currentYear}-Wert gegen bisherigen Kalendertagsrekord · kleinster Abstand zuerst`:mode==="newCurrent"?"Stationen mit den meisten neuen Kalendertagsrekorden":"Ranking reagiert auf Aktivstatus, Land, Messlänge und Stationssuche";
   const ranked=europeStationRankSort(rows,param,mode).slice(0,20);
   if(!ranked.length)list.innerHTML='<div class="europe-station-empty">Für diesen Filter gibt es keine passenden Stationen.</div>';
   else list.innerHTML=ranked.map((row,i)=>{
@@ -11496,7 +11551,7 @@ function renderEuropeStationRanking(rows,param,mode,mmdd){
 }
 async function renderEuropeStations(){
   initEuropeStationMap();if(!europeStationMap||!europeStationLayer||!europeStationData)return;
-  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
+  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const activeOnly=document.getElementById("europeStationActiveOnly")?.checked===true;const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
   europeStationUpdateControls();setEuropeStationStatus((mode==="calendar"||mode==="recordChase")?`Tagesdaten für ${europeStationMmddLabel(mmdd)} werden geladen …`:"Stationsrekorde werden dargestellt …");
   let calendarMap=null;
   if(mode==="calendar"||mode==="recordChase"){
@@ -11504,7 +11559,7 @@ async function renderEuropeStations(){
   }
   europeStationLayer.clearLayers();europeStationMarkerById=new Map();const stations=Array.isArray(europeStationData.stations)?europeStationData.stations:[];let shown=0,newCount=0,extreme=null,extremeStation=null,currentExtreme=null,currentExtremeStation=null,nearRecordCount=0;const bounds=[],rows=[],visibleCountries=new Set();
   stations.forEach((station,index)=>{
-    if(country&&station.country!==country)return;if(!europeStationSearchMatches(station,search))return;
+    if(country&&station.country!==country)return;if(!europeStationSearchMatches(station,search))return;if(activeOnly&&!europeStationIsActive(station,param))return;
     const block=europeStationElementBlock(station,param);if((Number(block?.years)||0)<minYears)return;const coords=europeStationCoordinates(station);if(!coords)return;const view=europeStationValueForView(station,index,param,mode,calendarMap);if(!view)return;
     shown++;visibleCountries.add(station.country||station.country_code||"–");if(view.isNew)newCount+=mode==="newCurrent"?Number(view.count||0):1;
     if(mode!=="newCurrent"&&mode!=="recordChase"&&Number.isFinite(Number(view.value))){
@@ -11538,13 +11593,13 @@ async function renderEuropeStations(){
   europeStationUpdateLegend(param,mode);renderEuropeStationRanking(rows,param,mode,mmdd);
   if((country||search)&&bounds.length){if(bounds.length===1)europeStationMap.flyTo(bounds[0],8,{duration:.4});else europeStationMap.fitBounds(L.latLngBounds(bounds).pad(.08),{maxZoom:7});}
   const modeText=mode==="absolute"?"absolute Rekorde":mode==="calendar"?`Kalendertag ${europeStationMmddLabel(mmdd)}`:mode==="recordChase"?`Rekordjagd ${europeStationMmddLabel(mmdd)}`:`neue Rekorde ${europeStationCurrentYear()}`;
-  setEuropeStationStatus(`${shown.toLocaleString("de-DE")} Stationen · ${param==="tmin"?"TMIN":"TMAX"} · ${modeText}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`,"ready");
+  setEuropeStationStatus(`${shown.toLocaleString("de-DE")} Stationen · ${param==="tmin"?"TMIN":"TMAX"} · ${modeText}${activeOnly?" · nur aktive Stationen":""}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`,"ready");
 }
 function initEuropeStationControls(){
-  const param=document.getElementById("europeStationParameter"),mode=document.getElementById("europeStationMode"),country=document.getElementById("europeStationCountry"),years=document.getElementById("europeStationMinYears"),date=document.getElementById("europeStationDate"),search=document.getElementById("europeStationSearch"),toggle=document.getElementById("europeStationRankingToggle"),body=document.getElementById("europeStationRankingBody");
+  const param=document.getElementById("europeStationParameter"),mode=document.getElementById("europeStationMode"),country=document.getElementById("europeStationCountry"),years=document.getElementById("europeStationMinYears"),activeOnly=document.getElementById("europeStationActiveOnly"),date=document.getElementById("europeStationDate"),search=document.getElementById("europeStationSearch"),toggle=document.getElementById("europeStationRankingToggle"),body=document.getElementById("europeStationRankingBody");
   const today=new Date(),yyyy=europeStationCurrentYear();if(date&&!date.value){const mm=String(today.getMonth()+1).padStart(2,"0"),dd=String(today.getDate()).padStart(2,"0");date.value=`${yyyy}-${mm}-${dd}`;}
   if(param?.dataset.stationV2Bound==="1")return;
-  [param,mode,country,years,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode)europeStationUpdateControls();renderEuropeStations();}));
+  [param,mode,country,years,activeOnly,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode)europeStationUpdateControls();renderEuropeStations();}));
   search?.addEventListener("input",()=>{window.clearTimeout(europeStationSearchTimer);europeStationSearchTimer=window.setTimeout(()=>renderEuropeStations(),140);});
   search?.addEventListener("keydown",event=>{if(event.key!=="Enter")return;event.preventDefault();renderEuropeStations().then(()=>{if(europeStationLastRows.length)europeStationFocusById(europeStationLastRows[0].station.id);});});
   toggle?.addEventListener("click",()=>{if(!body)return;body.hidden=!body.hidden;toggle.textContent=body.hidden?"Ausklappen":"Einklappen";toggle.setAttribute("aria-expanded",body.hidden?"false":"true");});
@@ -11697,5 +11752,6 @@ initializeDashboardState();
 <!-- Dashboard Version 13.7.1: Live-Wetterkarte ohne Straßen, Datenalter und Kartenexport -->
 <!-- Erweiterung 16.2: Gebietsmittel-Kartenvergleich Jahr A / Jahr B / Differenz + Bundesländer-Ranking -->
 <!-- Climate Dashboard Layout v21: professionelles Layout + vollständiges ERA5-Land V8.1 + Europa-Stationen -->
+<!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
 </body>
 </html>
