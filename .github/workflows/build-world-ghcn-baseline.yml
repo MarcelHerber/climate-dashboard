@@ -30,6 +30,9 @@ jobs:
       - name: Kandidaten-QC-Selbsttest
         run: python scripts/verify_world_ghcn_candidates.py --self-test
 
+      - name: Kandidaten-QC-Stufe-2-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage2.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -177,6 +180,26 @@ jobs:
           echo
           echo "=== CONFIRMED REJECTIONS ==="
           cat world_ghcn_baseline/qc_stage1/rejected_confirmed.csv
+
+
+      - name: Fachliche Kandidaten-QC · Stufe 2
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage2.py \
+            --input world_ghcn_baseline/qc_stage1/world_country_extreme_candidates_stage1_clean.csv \
+            --output-dir world_ghcn_baseline/qc_stage2
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 2 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage2/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 2 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage2/qc_report.md
+          echo
+          echo "=== STAGE 2 CONFIRMED REJECTIONS ==="
+          cat world_ghcn_baseline/qc_stage2/rejected_confirmed_stage2.csv
+          echo
+          echo "=== STAGE 2 REVIEW PRIORITY · HEAD ==="
+          head -n 81 world_ghcn_baseline/qc_stage2/review_priority_stage2.csv || true
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
