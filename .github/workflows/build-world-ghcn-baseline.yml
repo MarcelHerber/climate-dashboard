@@ -36,6 +36,9 @@ jobs:
       - name: Kandidaten-QC-Stufe-3-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage3.py --self-test
 
+      - name: Kandidaten-QC-Stufe-4-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage4.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -225,6 +228,34 @@ jobs:
           echo
           echo "=== STAGE 3 COUNTRY-RANK-1 REVIEW PRIORITY · HEAD ==="
           head -n 101 world_ghcn_baseline/qc_stage3/review_priority_rank1_stage3.csv || true
+
+      - name: Fachliche Kandidaten-QC · Stufe 4
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage4.py \
+            --input world_ghcn_baseline/qc_stage3/world_country_extreme_candidates_stage3_clean.csv \
+            --output-dir world_ghcn_baseline/qc_stage4
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 4 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage4/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 4 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage4/qc_report.md
+          echo
+          echo "=== STAGE 4 CONFIRMED REJECTIONS ==="
+          cat world_ghcn_baseline/qc_stage4/rejected_confirmed_stage4.csv
+          echo
+          echo "=== STAGE 4 OFFICIAL COVERAGE GAPS ==="
+          cat world_ghcn_baseline/qc_stage4/official_coverage_gaps_stage4.csv
+          echo
+          echo "=== STAGE 4 OFFICIAL ANCHOR CONFLICTS ==="
+          cat world_ghcn_baseline/qc_stage4/official_anchor_conflicts_stage4.csv
+          echo
+          echo "=== STAGE 4 PACIFIC 39C CLUSTER ==="
+          cat world_ghcn_baseline/qc_stage4/pacific_39c_cluster_stage4.csv
+          echo
+          echo "=== STAGE 4 COUNTRY-RANK-1 REVIEW PRIORITY · HEAD ==="
+          head -n 101 world_ghcn_baseline/qc_stage4/review_priority_rank1_stage4.csv || true
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
