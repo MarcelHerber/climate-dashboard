@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/publish-world-stations-tab.yml'
+      - 'scripts/publish_world_stations_tab.py'
 
 permissions:
   contents: write
@@ -35,25 +36,15 @@ jobs:
           rm -rf _world_artifact
           mkdir -p _world_artifact
           gh run download "$RUN_ID" --name world-ghcn-baseline-through-2025-v1 --dir _world_artifact
-          test -f _world_artifact/qc_stage9/world_country_record_master_publishable_stage9.csv
-          test -f _world_artifact/qc_stage9/summary.json
+          test -f _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz
 
-      - name: Build web data and add Weltweite Stationen tab
+      - name: Build full world station data and add tab
         run: |
           set -euo pipefail
-          OPEN_COUNT="$(python - <<'PY'
-          import json
-          from pathlib import Path
-          p=Path('_world_artifact/qc_stage9/summary.json')
-          d=json.loads(p.read_text(encoding='utf-8'))
-          print(d.get('unresolved_after_stage9', 24))
-          PY
-          )"
           python scripts/publish_world_stations_tab.py \
             --index index.html \
-            --publishable-csv _world_artifact/qc_stage9/world_country_record_master_publishable_stage9.csv \
-            --output-json data/world_stations_stage9.json \
-            --unresolved-count "$OPEN_COUNT"
+            --baseline-pickle _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz \
+            --output-json data/world_stations_stage9.json
 
       - name: Validate publication payload
         run: |
@@ -63,13 +54,16 @@ jobs:
           from pathlib import Path
           d=json.loads(Path('data/world_stations_stage9.json').read_text(encoding='utf-8'))
           html=Path('index.html').read_text(encoding='utf-8')
-          assert d['publishable_rows'] == 840, d['publishable_rows']
-          assert d['unresolved_rows'] == 24, d['unresolved_rows']
+          assert d['station_count'] == 40695, d['station_count']
+          assert d['with_tmax'] == 40548, d['with_tmax']
+          assert d['with_tmin'] == 40442, d['with_tmin']
+          assert d['with_both'] == 40295, d['with_both']
           assert d['country_codes'] == 216, d['country_codes']
-          assert html.count('Weltweite Stationen') >= 2
           assert html.count('id="worldStations"') == 1
-          assert html.count('switchTab(\'worldStations\')') == 1
-          print('VALIDATION OK', d['publishable_rows'], d['unresolved_rows'], d['country_codes'])
+          assert html.count("switchTab('worldStations')") >= 1
+          assert 'niedrigstes TMAX' not in html[html.find('id="worldStations"'):html.find('id="compare"')]
+          assert 'höchstes TMIN' not in html[html.find('id="worldStations"'):html.find('id="compare"')]
+          print('VALIDATION OK', d['station_count'], d['with_tmax'], d['with_tmin'], d['with_both'])
           PY
 
       - name: Commit published world stations tab
@@ -82,5 +76,5 @@ jobs:
             echo 'No publication changes to commit.'
             exit 0
           fi
-          git commit -m 'Publish world stations Stage 9 tab'
+          git commit -m 'Publish full world GHCN station map'
           git push
