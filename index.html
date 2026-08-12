@@ -1391,9 +1391,9 @@ button.action:hover{background:#1f2937}
     <div id="europeStationMap" class="europe-station-map" role="img" aria-label="Europakarte der Stationsrekorde"></div>
     <div class="europe-station-panel">
       <h2>Europa · Stationsrekorde</h2>
-      <p class="subtitle">Europaweite Stationsrekorde · TMAX/TMIN · Top-20 &amp; Rekordjagd · Datenquellen je Land aus dem bestehenden Europa-Workflow</p>
+      <p class="subtitle">Europaweite Stationsrekorde · vier TMAX/TMIN-Allzeitextreme · Top-20 &amp; Rekordjagd · Gegenextreme derzeit als absolute Stationsrekorde</p>
       <div class="europe-station-panel-grid">
-        <div class="control-group"><label for="europeStationParameter">Parameter</label><select id="europeStationParameter"><option value="tmax">TMAX · höchste Maxima</option><option value="tmin">TMIN · tiefste Minima</option></select></div>
+        <div class="control-group"><label for="europeStationParameter">Parameter</label><select id="europeStationParameter"><option value="tmax">TMAX · höchstes Maximum</option><option value="tmax_low">TMAX · niedrigstes Maximum</option><option value="tmin">TMIN · tiefstes Minimum</option><option value="tmin_high">TMIN · höchstes Minimum</option></select></div>
         <div class="control-group"><label for="europeStationMode">Rekordansicht</label><select id="europeStationMode"><option value="absolute">Absoluter Stationsrekord</option><option value="calendar">Kalendertag-Rekord</option><option value="newCurrent">Neue Rekorde im laufenden Jahr</option><option value="recordChase">Rekordjagd am Kalendertag</option></select></div>
         <div class="control-group"><label for="europeStationCountry">Land</label><select id="europeStationCountry"><option value="">Alle Länder</option></select></div>
         <div class="control-group"><label for="europeStationMinYears">Mind. Messjahre</label><select id="europeStationMinYears"><option value="0">keine Begrenzung</option><option value="10">10 Jahre</option><option value="30" selected>30 Jahre</option><option value="50">50 Jahre</option><option value="75">75 Jahre</option></select></div>
@@ -11334,13 +11334,34 @@ function europeStationAnyDateToText(value){
   if(!value)return "–";const digits=String(value).replace(/\D/g,"");return digits.length===8&&!String(value).includes("-")?europeStationDateIntToText(value):europeStationIsoToText(value);
 }
 function europeStationFormatTemp(value){return Number.isFinite(Number(value))?`${Number(value).toFixed(1).replace(".",",")} °C`:"–";}
-function europeStationElementBlock(station,param){return param==="tmin"?station?.tmin:station?.tmax;}
+function europeStationParamBase(param){return String(param||"").startsWith("tmin")?"tmin":"tmax";}
+function europeStationParamIsOpposite(param){return param==="tmax_low"||param==="tmin_high";}
+function europeStationParamIsLow(param){return param==="tmin"||param==="tmax_low";}
+function europeStationParamLabel(param){
+  if(param==="tmax_low")return "TMAX · niedrigstes Maximum";
+  if(param==="tmin")return "TMIN · tiefstes Minimum";
+  if(param==="tmin_high")return "TMIN · höchstes Minimum";
+  return "TMAX · höchstes Maximum";
+}
+function europeStationParamExtremeLabel(param){
+  if(param==="tmax_low")return "Niedrigstes Tmax";
+  if(param==="tmin")return "Tiefstes Tmin";
+  if(param==="tmin_high")return "Höchstes Tmin";
+  return "Höchstes Tmax";
+}
+function europeStationElementBlock(station,param){return europeStationParamBase(param)==="tmin"?station?.tmin:station?.tmax;}
+function europeStationAbsoluteRecord(block,param){
+  if(param==="tmax_low")return block?.lowest_record;
+  if(param==="tmin_high")return block?.highest_record;
+  return block?.record;
+}
 function europeStationCurrentYearMeta(station){return station?.new_current_year||station?.new_2026||{};}
 function europeStationCurrentYear(){return Number(europeStationData?.current_year)||new Date().getFullYear();}
 function europeStationFlagValue(value,param){
+  const baseParam=europeStationParamBase(param);
   if(value&&typeof value==="object"&&!Array.isArray(value)){
-    if(Object.prototype.hasOwnProperty.call(value,param))return europeStationFlagValue(value[param],param);
-    if(Object.prototype.hasOwnProperty.call(value,"value"))return europeStationFlagValue(value.value,param);
+    if(Object.prototype.hasOwnProperty.call(value,baseParam))return europeStationFlagValue(value[baseParam],baseParam);
+    if(Object.prototype.hasOwnProperty.call(value,"value"))return europeStationFlagValue(value.value,baseParam);
   }
   if(typeof value==="boolean")return value;
   if(typeof value==="number"&&Number.isFinite(value))return value!==0;
@@ -11361,7 +11382,7 @@ function europeStationDateYear(value){
   return m?Number(m[0]):NaN;
 }
 function europeStationIsActive(station,param){
-  const block=europeStationElementBlock(station,param)||{};
+  const baseParam=europeStationParamBase(param);const block=europeStationElementBlock(station,param)||{};
   const explicit=[
     station?.active,station?.is_active,station?.active_current_year,station?.current_year_active,
     station?.active_now,station?.status,station?.active_parameters,
@@ -11370,10 +11391,10 @@ function europeStationIsActive(station,param){
   for(const candidate of explicit){
     if(Array.isArray(candidate)){
       const normalized=candidate.map(v=>String(v).toLowerCase());
-      if(normalized.includes(param.toLowerCase()))return true;
+      if(normalized.includes(baseParam))return true;
       continue;
     }
-    const flag=europeStationFlagValue(candidate,param);
+    const flag=europeStationFlagValue(candidate,baseParam);
     if(flag!==null)return flag;
   }
   const currentYear=europeStationCurrentYear();
@@ -11397,18 +11418,20 @@ function europeStationSelectedMmdd(){
 }
 function europeStationMmddLabel(mmdd){const m=String(mmdd).match(/^(\d{2})-(\d{2})$/);return m?`${Number(m[2])}.${Number(m[1])}.`:mmdd;}
 function europeStationRecordColor(year,param,isNew=false){
-  if(isNew)return param==="tmin"?"#245d9c":"#c83d31";
+  const lowExtreme=europeStationParamIsLow(param);
+  if(isNew)return lowExtreme?"#245d9c":"#c83d31";
   const current=europeStationCurrentYear();const age=Number.isFinite(year)?current-year:999;
-  if(param==="tmin"){
+  if(lowExtreme){
     if(age<=5)return "#3e76b7";if(age<=15)return "#6f9fc9";if(age<=30)return "#9bbbd5";return "#bac8d3";
   }
   if(age<=5)return "#c9473b";if(age<=15)return "#d97869";if(age<=30)return "#dea59b";return "#cdbdb8";
 }
 function europeStationChaseColor(view,param){
-  if(view?.isNew)return param==="tmin"?"#174f88":"#a62d25";
+  const lowExtreme=europeStationParamIsLow(param);
+  if(view?.isNew)return lowExtreme?"#174f88":"#a62d25";
   if(view?.isTie)return "#76518d";
   const d=Number(view?.distance);
-  if(param==="tmin"){
+  if(lowExtreme){
     if(d<=.5)return "#3979b8";if(d<=1)return "#6e9fcb";if(d<=2)return "#9ebbd4";return "#c2cdd6";
   }
   if(d<=.5)return "#c84b3d";if(d<=1)return "#dc7b68";if(d<=2)return "#e5aa98";return "#d7c7c2";
@@ -11431,7 +11454,7 @@ async function loadEuropeStationCalendar(mmdd){
   europeStationCalendarCache.set(mmdd,promise);return promise;
 }
 function europeStationCalendarMap(pack,param){
-  const source=param==="tmin"?pack?.tmin:pack?.tmax;const map=new Map();(Array.isArray(source)?source:[]).forEach(row=>map.set(Number(row[0]),row));return map;
+  const source=europeStationParamBase(param)==="tmin"?pack?.tmin:pack?.tmax;const map=new Map();(Array.isArray(source)?source:[]).forEach(row=>map.set(Number(row[0]),row));return map;
 }
 function europeStationCalendarView(row,years){
   if(!row)return null;
@@ -11439,28 +11462,29 @@ function europeStationCalendarView(row,years){
   return {value:finalValue,date:recordDate,years,isNew,previous:prevValue==null?null:{value:prevValue,date:prevDate},current:currentValue==null?null:{value:currentValue,date:currentDate},delta,record:{value:finalValue,date:recordDate}};
 }
 function europeStationValueForView(station,index,param,mode,calendarMap){
-  const block=europeStationElementBlock(station,param);const years=Number(block?.years)||0;
+  const block=europeStationElementBlock(station,param);const years=Number(block?.years)||0;const baseParam=europeStationParamBase(param);const opposite=europeStationParamIsOpposite(param);
   if(mode==="absolute"){
-    const rec=block?.record;if(!rec||!Number.isFinite(Number(rec.value)))return null;
-    return {value:Number(rec.value),date:rec.date,years,isNew:Boolean(block?.new_absolute_current_year),previous:block?.previous,current:null,delta:block?.new_absolute_delta,record:rec};
+    const rec=europeStationAbsoluteRecord(block,param);if(!rec||!Number.isFinite(Number(rec.value)))return null;
+    return {value:Number(rec.value),date:rec.date,years,isNew:opposite?false:Boolean(block?.new_absolute_current_year),previous:opposite?null:block?.previous,current:null,delta:opposite?null:block?.new_absolute_delta,record:rec};
   }
+  if(opposite)return null;
   if(mode==="newCurrent"){
-    const meta=europeStationCurrentYearMeta(station);const count=Number(param==="tmin"?meta.tmin_calendar:meta.tmax_calendar)||0;if(count<=0)return null;
-    const last=param==="tmin"?meta.tmin_last:meta.tmax_last;return {value:count,date:last,years,isNew:true,count,record:null};
+    const meta=europeStationCurrentYearMeta(station);const count=Number(baseParam==="tmin"?meta.tmin_calendar:meta.tmax_calendar)||0;if(count<=0)return null;
+    const last=baseParam==="tmin"?meta.tmin_last:meta.tmax_last;return {value:count,date:last,years,isNew:true,count,record:null};
   }
   const row=calendarMap?.get(index);const baseView=europeStationCalendarView(row,years);if(!baseView)return null;
   if(mode==="calendar")return baseView;
   if(mode==="recordChase"){
     if(!baseView.current||!baseView.previous||!Number.isFinite(Number(baseView.current.value))||!Number.isFinite(Number(baseView.previous.value)))return null;
     const currentValue=Number(baseView.current.value),recordValue=Number(baseView.previous.value);
-    const signedDistance=param==="tmin"?currentValue-recordValue:recordValue-currentValue;
+    const signedDistance=europeStationParamIsLow(param)?currentValue-recordValue:recordValue-currentValue;
     const distance=Math.max(0,signedDistance),improvement=Math.max(0,-signedDistance),isTie=Math.abs(signedDistance)<1e-9&&!baseView.isNew;
     return {...baseView,value:currentValue,date:baseView.current.date,recordValue,recordDate:baseView.previous.date,distance,improvement,isTie};
   }
   return baseView;
 }
 function europeStationPopup(station,param,mode,view,mmdd){
-  const block=europeStationElementBlock(station,param)||{};const currentYear=europeStationCurrentYear();const paramLabel=param==="tmin"?"TMIN · tiefstes Minimum":"TMAX · höchstes Maximum";
+  const block=europeStationElementBlock(station,param)||{};const currentYear=europeStationCurrentYear();const paramLabel=europeStationParamLabel(param);
   let recordHtml="";
   if(mode==="newCurrent"){
     recordHtml=`<div class="record">${Number(view.count||0).toLocaleString("de-DE")} Rekorde</div><div class="record-detail">neue Kalendertagsrekorde ${currentYear}${view.date?` · zuletzt ${europeStationEscapeHtml(europeStationIsoToText(view.date))}`:""}</div>`;
@@ -11476,7 +11500,7 @@ function europeStationPopup(station,param,mode,view,mmdd){
     if(view.isNew){
       let comparison="";
       if(mode==="calendar"&&view.previous)comparison=` · vorher ${europeStationFormatTemp(view.previous.value)}`;
-      else if(mode==="absolute"&&block.previous)comparison=` · vorher ${europeStationFormatTemp(block.previous.value)}`;
+      else if(mode==="absolute"&&!europeStationParamIsOpposite(param)&&block.previous)comparison=` · vorher ${europeStationFormatTemp(block.previous.value)}`;
       const delta=Number(view.delta);recordHtml+=`<div class="new-record">Neuer Rekord ${currentYear}${Number.isFinite(delta)?` · um ${delta.toFixed(1).replace(".",",")} °C verbessert`:""}${comparison}</div>`;
     }
   }
@@ -11486,18 +11510,25 @@ function europeStationPopup(station,param,mode,view,mmdd){
 function europeStationUpdateLegend(param,mode){
   const el=document.getElementById("europeStationLegend");if(!el)return;
   if(mode==="newCurrent"){
-    const color=param==="tmin"?"#245d9c":"#c83d31";el.innerHTML=`<div class="europe-station-legend-row"><span class="europe-station-legend-dot" style="background:${color}"></span>mind. ein neuer Rekord ${europeStationCurrentYear()}</div>`;return;
+    const color=europeStationParamIsLow(param)?"#245d9c":"#c83d31";el.innerHTML=`<div class="europe-station-legend-row"><span class="europe-station-legend-dot" style="background:${color}"></span>mind. ein neuer Rekord ${europeStationCurrentYear()}</div>`;return;
   }
   if(mode==="recordChase"){
-    const colors=param==="tmin"?["#174f88","#76518d","#3979b8","#6e9fcb","#9ebbd4","#c2cdd6"]:["#a62d25","#76518d","#c84b3d","#dc7b68","#e5aa98","#d7c7c2"];
+    const colors=europeStationParamIsLow(param)?["#174f88","#76518d","#3979b8","#6e9fcb","#9ebbd4","#c2cdd6"]:["#a62d25","#76518d","#c84b3d","#dc7b68","#e5aa98","#d7c7c2"];
     const labels=["Rekord gebrochen","Rekord eingestellt","≤ 0,5 °C Abstand","≤ 1,0 °C Abstand","≤ 2,0 °C Abstand","> 2,0 °C Abstand"];
     el.innerHTML=labels.map((label,i)=>`<div class="europe-station-legend-row"><span class="europe-station-legend-dot" style="background:${colors[i]}"></span>${label}</div>`).join("");return;
   }
-  const colors=param==="tmin"?["#3e76b7","#6f9fc9","#9bbbd5","#bac8d3"]:["#c9473b","#d97869","#dea59b","#cdbdb8"];
+  const colors=europeStationParamIsLow(param)?["#3e76b7","#6f9fc9","#9bbbd5","#bac8d3"]:["#c9473b","#d97869","#dea59b","#cdbdb8"];
   el.innerHTML=["≤ 5 Jahre","6–15 Jahre","16–30 Jahre","> 30 Jahre"].map((label,i)=>`<div class="europe-station-legend-row"><span class="europe-station-legend-dot" style="background:${colors[i]}"></span>${label} Rekordalter</div>`).join("");
 }
 function europeStationUpdateControls(){
-  const mode=document.getElementById("europeStationMode")?.value||"absolute";const dateGroup=document.getElementById("europeStationDateGroup");if(dateGroup)dateGroup.hidden=!(mode==="calendar"||mode==="recordChase");
+  const param=document.getElementById("europeStationParameter")?.value||"tmax";const modeEl=document.getElementById("europeStationMode");const opposite=europeStationParamIsOpposite(param);
+  if(modeEl){
+    Array.from(modeEl.options).forEach(option=>{if(option.value!=="absolute")option.disabled=opposite;});
+    if(opposite&&modeEl.value!=="absolute")modeEl.value="absolute";
+    modeEl.disabled=opposite;
+    modeEl.title=opposite?"Niedrigstes TMAX und höchstes TMIN liegen derzeit als absolute Allzeit-Stationsrekorde vor.":"";
+  }
+  const mode=modeEl?.value||"absolute";const dateGroup=document.getElementById("europeStationDateGroup");if(dateGroup)dateGroup.hidden=opposite||!(mode==="calendar"||mode==="recordChase");
 }
 function europeStationSearchMatches(station,query){
   if(!query)return true;const hay=europeStationNormalize(`${station?.name||""} ${station?.id||""} ${station?.source_id||""} ${station?.country||""} ${station?.country_code||""}`);return hay.includes(query);
@@ -11508,9 +11539,9 @@ function europeStationRankSort(rows,param,mode){
   if(mode==="recordChase")return copy.sort((a,b)=>{
     const group=x=>x.view.isNew?0:x.view.isTie?1:2;const g=group(a)-group(b);if(g)return g;
     const d=Number(a.view.distance||0)-Number(b.view.distance||0);if(d)return d;
-    return param==="tmin"?Number(a.view.value)-Number(b.view.value):Number(b.view.value)-Number(a.view.value);
+    return europeStationParamIsLow(param)?Number(a.view.value)-Number(b.view.value):Number(b.view.value)-Number(a.view.value);
   });
-  return copy.sort((a,b)=>param==="tmin"?Number(a.view.value)-Number(b.view.value):Number(b.view.value)-Number(a.view.value));
+  return copy.sort((a,b)=>europeStationParamIsLow(param)?Number(a.view.value)-Number(b.view.value):Number(b.view.value)-Number(a.view.value));
 }
 function europeStationRankValue(view,mode){
   if(mode==="newCurrent")return `${Number(view.count||0).toLocaleString("de-DE")} Rek.`;
@@ -11537,7 +11568,7 @@ function europeStationFocusById(stationId){
 function renderEuropeStationRanking(rows,param,mode,mmdd){
   const title=document.getElementById("europeStationRankingTitle"),subtitle=document.getElementById("europeStationRankingSubtitle"),list=document.getElementById("europeStationTop20"),countryEl=document.getElementById("europeStationCountryRanking");if(!list||!countryEl)return;
   const currentYear=europeStationCurrentYear();
-  if(title)title.textContent=mode==="newCurrent"?`Top 20 · Rekordstationen ${currentYear}`:mode==="recordChase"?`Rekordjagd · ${europeStationMmddLabel(mmdd)}`:mode==="calendar"?`Top 20 · ${europeStationMmddLabel(mmdd)}`:"Top 20 · Stationsrekorde";
+  if(title)title.textContent=mode==="newCurrent"?`Top 20 · Rekordstationen ${currentYear}`:mode==="recordChase"?`Rekordjagd · ${europeStationMmddLabel(mmdd)}`:mode==="calendar"?`Top 20 · ${europeStationMmddLabel(mmdd)}`:`Top 20 · ${europeStationParamExtremeLabel(param)}`;
   if(subtitle)subtitle.textContent=mode==="recordChase"?`${currentYear}-Wert gegen bisherigen Kalendertagsrekord · kleinster Abstand zuerst`:mode==="newCurrent"?"Stationen mit den meisten neuen Kalendertagsrekorden":"Ranking reagiert auf Aktivstatus, Land, Messlänge und Stationssuche";
   const ranked=europeStationRankSort(rows,param,mode).slice(0,20);
   if(!ranked.length)list.innerHTML='<div class="europe-station-empty">Für diesen Filter gibt es keine passenden Stationen.</div>';
@@ -11551,22 +11582,22 @@ function renderEuropeStationRanking(rows,param,mode,mmdd){
 }
 async function renderEuropeStations(){
   initEuropeStationMap();if(!europeStationMap||!europeStationLayer||!europeStationData)return;
-  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const activeOnly=document.getElementById("europeStationActiveOnly")?.checked===true;const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
-  europeStationUpdateControls();setEuropeStationStatus((mode==="calendar"||mode==="recordChase")?`Tagesdaten für ${europeStationMmddLabel(mmdd)} werden geladen …`:"Stationsrekorde werden dargestellt …");
+  const token=++europeStationRenderToken;const param=document.getElementById("europeStationParameter")?.value||"tmax";europeStationUpdateControls();const mode=document.getElementById("europeStationMode")?.value||"absolute";const country=document.getElementById("europeStationCountry")?.value||"";const minYears=Number(document.getElementById("europeStationMinYears")?.value)||0;const activeOnly=document.getElementById("europeStationActiveOnly")?.checked===true;const mmdd=europeStationSelectedMmdd();const search=europeStationNormalize(document.getElementById("europeStationSearch")?.value||"");
+  setEuropeStationStatus((mode==="calendar"||mode==="recordChase")?`Tagesdaten für ${europeStationMmddLabel(mmdd)} werden geladen …`:"Stationsrekorde werden dargestellt …");
   let calendarMap=null;
   if(mode==="calendar"||mode==="recordChase"){
     try{const pack=await loadEuropeStationCalendar(mmdd);if(token!==europeStationRenderToken)return;calendarMap=europeStationCalendarMap(pack,param);}catch(error){console.error(error);setEuropeStationStatus(`Tagesarchiv ${mmdd} konnte nicht geladen werden: ${error.message}`,"error");return;}
   }
-  europeStationLayer.clearLayers();europeStationMarkerById=new Map();const stations=Array.isArray(europeStationData.stations)?europeStationData.stations:[];let shown=0,newCount=0,extreme=null,extremeStation=null,currentExtreme=null,currentExtremeStation=null,nearRecordCount=0;const bounds=[],rows=[],visibleCountries=new Set();
+  europeStationLayer.clearLayers();europeStationMarkerById=new Map();const stations=Array.isArray(europeStationData.stations)?europeStationData.stations:[];const oppositePayloadAvailable=!europeStationParamIsOpposite(param)||stations.some(station=>Number.isFinite(Number(europeStationAbsoluteRecord(europeStationElementBlock(station,param),param)?.value)));let shown=0,newCount=0,extreme=null,extremeStation=null,currentExtreme=null,currentExtremeStation=null,nearRecordCount=0;const bounds=[],rows=[],visibleCountries=new Set();
   stations.forEach((station,index)=>{
     if(country&&station.country!==country)return;if(!europeStationSearchMatches(station,search))return;if(activeOnly&&!europeStationIsActive(station,param))return;
     const block=europeStationElementBlock(station,param);if((Number(block?.years)||0)<minYears)return;const coords=europeStationCoordinates(station);if(!coords)return;const view=europeStationValueForView(station,index,param,mode,calendarMap);if(!view)return;
     shown++;visibleCountries.add(station.country||station.country_code||"–");if(view.isNew)newCount+=mode==="newCurrent"?Number(view.count||0):1;
     if(mode!=="newCurrent"&&mode!=="recordChase"&&Number.isFinite(Number(view.value))){
-      if(extreme===null||(param==="tmin"?Number(view.value)<extreme:Number(view.value)>extreme)){extreme=Number(view.value);extremeStation=station;}
+      if(extreme===null||(europeStationParamIsLow(param)?Number(view.value)<extreme:Number(view.value)>extreme)){extreme=Number(view.value);extremeStation=station;}
     }
     const currentValue=mode==="recordChase"?Number(view.value):mode==="calendar"&&view.current?Number(view.current.value):NaN;
-    if(Number.isFinite(currentValue)&&(currentExtreme===null||(param==="tmin"?currentValue<currentExtreme:currentValue>currentExtreme))){currentExtreme=currentValue;currentExtremeStation=station;}
+    if(Number.isFinite(currentValue)&&(currentExtreme===null||(europeStationParamIsLow(param)?currentValue<currentExtreme:currentValue>currentExtreme))){currentExtreme=currentValue;currentExtremeStation=station;}
     if(mode==="recordChase"&&Number(view.distance)<=1)nearRecordCount++;
     const year=europeStationRecordYear(view.date);const color=mode==="recordChase"?europeStationChaseColor(view,param):europeStationRecordColor(year,param,view.isNew);const radius=europeStationMarkerRadius(view.years,mode);const marker=L.circleMarker(coords,{renderer:europeStationRenderer,radius,weight:1.05,color:"#fff",fillColor:color,fillOpacity:(mode==="newCurrent"||mode==="recordChase")?.9:.78,opacity:.95,className:"europe-station-dot"});
     marker.bindPopup(europeStationPopup(station,param,mode,view,mmdd),{maxWidth:350});marker.addTo(europeStationLayer);europeStationMarkerById.set(String(station.id),marker);bounds.push(coords);rows.push({station,index,view,coords});
@@ -11579,12 +11610,17 @@ async function renderEuropeStations(){
   }else if(mode==="recordChase"){
     if(extremeLabel)extremeLabel.textContent="≤ 1 °C am Rekord";if(extremeEl)extremeEl.textContent=nearRecordCount.toLocaleString("de-DE");if(extremeDetail)extremeDetail.textContent=`am ${europeStationMmddLabel(mmdd)} · inkl. Rekorde`;
   }else{
-    if(extremeLabel)extremeLabel.textContent=param==="tmin"?"Tiefstes Minimum":"Höchstes Maximum";if(extremeEl)extremeEl.textContent=extreme===null?"–":europeStationFormatTemp(extreme);if(extremeDetail)extremeDetail.textContent=extremeStation?.name||"–";
+    if(extremeLabel)extremeLabel.textContent=europeStationParamExtremeLabel(param);if(extremeEl)extremeEl.textContent=extreme===null?"–":europeStationFormatTemp(extreme);if(extremeDetail)extremeDetail.textContent=extremeStation?.name||"–";
   }
-  document.getElementById("europeStationNewRecords").textContent=newCount.toLocaleString("de-DE");document.getElementById("europeStationNewRecordsDetail").textContent=mode==="newCurrent"?`Rekordtage ${europeStationCurrentYear()}`:`sichtbare neue Rekorde ${europeStationCurrentYear()}`;
+  const newRecordsEl=document.getElementById("europeStationNewRecords"),newRecordsDetail=document.getElementById("europeStationNewRecordsDetail");
+  if(europeStationParamIsOpposite(param)){
+    if(newRecordsEl)newRecordsEl.textContent="–";if(newRecordsDetail)newRecordsDetail.textContent="Gegenextrem derzeit nur als Allzeit-Rekord";
+  }else{
+    if(newRecordsEl)newRecordsEl.textContent=newCount.toLocaleString("de-DE");if(newRecordsDetail)newRecordsDetail.textContent=mode==="newCurrent"?`Rekordtage ${europeStationCurrentYear()}`:`sichtbare neue Rekorde ${europeStationCurrentYear()}`;
+  }
   const currentLabel=document.getElementById("europeStationCurrentExtremeLabel"),currentEl=document.getElementById("europeStationCurrentExtreme"),currentDetail=document.getElementById("europeStationCurrentExtremeDetail");
   if(mode==="calendar"||mode==="recordChase"){
-    if(currentLabel)currentLabel.textContent=`${europeStationCurrentYear()}-${param==="tmin"?"TMIN":"TMAX"}`;if(currentEl)currentEl.textContent=currentExtreme===null?"–":europeStationFormatTemp(currentExtreme);if(currentDetail)currentDetail.textContent=currentExtremeStation?`${currentExtremeStation.name} · ${europeStationMmddLabel(mmdd)}`:"noch kein Wert für diesen Tag";
+    if(currentLabel)currentLabel.textContent=`${europeStationCurrentYear()}-${europeStationParamBase(param)==="tmin"?"TMIN":"TMAX"}`;if(currentEl)currentEl.textContent=currentExtreme===null?"–":europeStationFormatTemp(currentExtreme);if(currentDetail)currentDetail.textContent=currentExtremeStation?`${currentExtremeStation.name} · ${europeStationMmddLabel(mmdd)}`:"noch kein Wert für diesen Tag";
   }else if(mode==="newCurrent"){
     const countriesWithRecords=europeStationCountryRecordCounts(rows,mode).length;if(currentLabel)currentLabel.textContent="Länder mit Rekord";if(currentEl)currentEl.textContent=countriesWithRecords.toLocaleString("de-DE");if(currentDetail)currentDetail.textContent=`mind. ein neuer Rekord ${europeStationCurrentYear()}`;
   }else{
@@ -11593,13 +11629,14 @@ async function renderEuropeStations(){
   europeStationUpdateLegend(param,mode);renderEuropeStationRanking(rows,param,mode,mmdd);
   if((country||search)&&bounds.length){if(bounds.length===1)europeStationMap.flyTo(bounds[0],8,{duration:.4});else europeStationMap.fitBounds(L.latLngBounds(bounds).pad(.08),{maxZoom:7});}
   const modeText=mode==="absolute"?"absolute Rekorde":mode==="calendar"?`Kalendertag ${europeStationMmddLabel(mmdd)}`:mode==="recordChase"?`Rekordjagd ${europeStationMmddLabel(mmdd)}`:`neue Rekorde ${europeStationCurrentYear()}`;
-  setEuropeStationStatus(`${shown.toLocaleString("de-DE")} Stationen · ${param==="tmin"?"TMIN":"TMAX"} · ${modeText}${activeOnly?" · nur aktive Stationen":""}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`,"ready");
+  const statusText=oppositePayloadAvailable?`${shown.toLocaleString("de-DE")} Stationen · ${europeStationParamLabel(param)} · ${modeText}${europeStationParamIsOpposite(param)?" · Gegenextrem als Allzeit-Rekord":""}${activeOnly?" · nur aktive Stationen":""}${search?` · Suche „${document.getElementById("europeStationSearch")?.value||""}“`:""} · Ranking und Punkte sind anklickbar`:`${europeStationParamLabel(param)} fehlt noch in europe_stations/index.json · bitte zuerst den Europa-Workflow mit dem neuen Gegenextreme-Updater ausführen.`;
+  setEuropeStationStatus(statusText,oppositePayloadAvailable?"ready":"warn");
 }
 function initEuropeStationControls(){
   const param=document.getElementById("europeStationParameter"),mode=document.getElementById("europeStationMode"),country=document.getElementById("europeStationCountry"),years=document.getElementById("europeStationMinYears"),activeOnly=document.getElementById("europeStationActiveOnly"),date=document.getElementById("europeStationDate"),search=document.getElementById("europeStationSearch"),toggle=document.getElementById("europeStationRankingToggle"),body=document.getElementById("europeStationRankingBody");
   const today=new Date(),yyyy=europeStationCurrentYear();if(date&&!date.value){const mm=String(today.getMonth()+1).padStart(2,"0"),dd=String(today.getDate()).padStart(2,"0");date.value=`${yyyy}-${mm}-${dd}`;}
   if(param?.dataset.stationV2Bound==="1")return;
-  [param,mode,country,years,activeOnly,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode)europeStationUpdateControls();renderEuropeStations();}));
+  [param,mode,country,years,activeOnly,date].forEach(el=>el?.addEventListener("change",()=>{if(el===mode||el===param)europeStationUpdateControls();renderEuropeStations();}));
   search?.addEventListener("input",()=>{window.clearTimeout(europeStationSearchTimer);europeStationSearchTimer=window.setTimeout(()=>renderEuropeStations(),140);});
   search?.addEventListener("keydown",event=>{if(event.key!=="Enter")return;event.preventDefault();renderEuropeStations().then(()=>{if(europeStationLastRows.length)europeStationFocusById(europeStationLastRows[0].station.id);});});
   toggle?.addEventListener("click",()=>{if(!body)return;body.hidden=!body.hidden;toggle.textContent=body.hidden?"Ausklappen":"Einklappen";toggle.setAttribute("aria-expanded",body.hidden?"false":"true");});
