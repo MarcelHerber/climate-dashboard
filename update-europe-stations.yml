@@ -43,12 +43,53 @@ on:
         required: false
         default: false
         type: boolean
+      force_dmi_baseline:
+        description: "Nur DMI Dänemark neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_smhi_baseline:
+        description: "Nur SMHI Schweden neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_belgium_baseline:
+        description: "Nur KMI/RMI Belgien neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_swiss_baseline:
+        description: "Nur MeteoSwiss Schweiz neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_fmi_baseline:
+        description: "Nur FMI Finnland neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_chmi_baseline:
+        description: "Nur CHMI Tschechien neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_hungary_baseline:
+        description: "Nur HungaroMet Ungarn neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+      force_ireland_baseline:
+        description: "Nur Met Éireann Irland neu aufbauen"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Täglich 05:25 UTC = 07:25 MESZ / 06:25 MEZ.
     - cron: "25 5 * * *"
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: update-europe-stations
@@ -82,21 +123,126 @@ jobs:
           echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
           echo "year_month=$YEAR_MONTH" >> "$GITHUB_OUTPUT"
 
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
+      # Wichtig: Ein abgebrochener Lauf kann dank if: always() ebenfalls einen
+      # Cache-Snapshot speichern. Der zeitlich neueste Snapshot ist deshalb nicht
+      # automatisch der vollständigste. Wir wählen unter allen v11-Snapshots
+      # bewusst den GRÖSSTEN aus und stellen anschließend exakt diesen Key wieder her.
+      # So kann ein kleinerer Teilcache einen guten vollständigen Cache nicht verdrängen.
+      - name: Besten Europa-Hauptcache bestimmen
+        id: best-europe-cache
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CACHE_PREFIX_MONTH: europe-stations-v11-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+          CACHE_PREFIX_YEAR: europe-stations-v11-${{ steps.dates.outputs.base_year }}-
+        run: |
+          set -euo pipefail
+
+          pick_largest() {
+            local prefix="$1"
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
+              "/repos/${GH_REPO}/actions/caches?ref=refs/heads/${GITHUB_REF_NAME}&key=${prefix}&sort=size_in_bytes&direction=desc&per_page=100" \
+              --jq '[.actions_caches[] | {key: .key, size: .size_in_bytes, created: .created_at}] | sort_by(.size) | reverse | .[0] // empty'
+          }
+
+          BEST="$(pick_largest "$CACHE_PREFIX_MONTH")"
+          if [[ -z "$BEST" ]]; then
+            BEST="$(pick_largest "$CACHE_PREFIX_YEAR")"
+          fi
+
+          if [[ -n "$BEST" ]]; then
+            KEY="$(jq -r '.key' <<<"$BEST")"
+            SIZE="$(jq -r '.size' <<<"$BEST")"
+            CREATED="$(jq -r '.created' <<<"$BEST")"
+            echo "Gefundener größter v11-Snapshot:"
+            echo "  Key:     $KEY"
+            echo "  Größe:   $SIZE Bytes"
+            echo "  Erstellt: $CREATED"
+            echo "key=$KEY" >> "$GITHUB_OUTPUT"
+            echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            KEY="europe-stations-v11-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}"
+            echo "Kein v11-Hauptcache gefunden; ältere Cache-Generationen dürfen als Fallback dienen."
+            echo "key=$KEY" >> "$GITHUB_OUTPUT"
+            echo "size=0" >> "$GITHUB_OUTPUT"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Europa-Hauptcache laden
-        uses: actions/cache/restore@v4
+        id: station-cache
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
-          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: ${{ steps.best-europe-cache.outputs.key }}
           restore-keys: |
-            europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
+            europe-stations-v10-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v9-${{ steps.dates.outputs.base_year }}-
+            europe-stations-v8-${{ steps.dates.outputs.base_year }}-
             europe-stations-v7-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v6-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-
             europe-stations-v6-${{ steps.dates.outputs.base_year }}-
-            europe-stations-v5r1-${{ steps.dates.outputs.base_year }}-
             ghcn-europe-baseline-v2-${{ steps.dates.outputs.base_year }}-
 
+      - name: Europa-Hauptcache-Restore prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Ausgewählter Key: ${{ steps.best-europe-cache.outputs.key }}"
+          echo "Ausgewählte Größe: ${{ steps.best-europe-cache.outputs.size }} Bytes"
+          echo "Exact cache hit: ${{ steps.station-cache.outputs.cache-hit }}"
+          du -sh .cache/europe-stations || true
+
+          # Wurde vorher über die API ein konkreter v11-Snapshot gewählt, muss
+          # actions/cache genau diesen Snapshot erfolgreich wiederherstellen.
+          # Andernfalls stoppen wir hier, statt unbemerkt alles neu aufzubauen.
+          if [[ "${{ steps.best-europe-cache.outputs.found }}" == "true" && \
+                "${{ steps.station-cache.outputs.cache-hit }}" != "true" ]]; then
+            echo "FEHLER: Der ausgewählte v11-Cache konnte nicht exakt wiederhergestellt werden."
+            exit 1
+          fi
+
+          echo "=== Teure bereits fertige Baselines im Restore ==="
+          for FILE in \
+            ghcn_europe_baseline_through_${{ steps.dates.outputs.base_year }}_v2_opposite_v1.pkl.gz \
+            dwd_germany_kl_baseline_through_${{ steps.dates.outputs.base_year }}_v1_opposite_v1.pkl.gz \
+            meteofrance_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2_opposite_v1.pkl.gz \
+            geosphere_austria_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2.pkl.gz \
+            aemet_spain_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2.pkl.gz \
+            knmi_netherlands_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2.pkl.gz
+          do
+            if [[ -s ".cache/europe-stations/$FILE" ]]; then
+              echo "OK  $FILE"
+            else
+              echo "--- $FILE fehlt"
+            fi
+          done
+
+          # Der bekannte große v11-Snapshot ab ~350 MB muss mindestens die
+          # besonders teuren AEMET-/GHCN-/DWD-/Météo-France-Baselines enthalten.
+          SIZE="${{ steps.best-europe-cache.outputs.size }}"
+          if [[ "${{ steps.best-europe-cache.outputs.found }}" == "true" && "$SIZE" -ge 350000000 ]]; then
+            for FILE in \
+              ghcn_europe_baseline_through_${{ steps.dates.outputs.base_year }}_v2_opposite_v1.pkl.gz \
+              dwd_germany_kl_baseline_through_${{ steps.dates.outputs.base_year }}_v1_opposite_v1.pkl.gz \
+              meteofrance_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2_opposite_v1.pkl.gz \
+              aemet_spain_daily_baseline_through_${{ steps.dates.outputs.base_year }}_v2.pkl.gz
+            do
+              test -s ".cache/europe-stations/$FILE" || {
+                echo "FEHLER: Großer Snapshot ist unvollständig: $FILE fehlt."
+                exit 1
+              }
+            done
+          fi
+
       - name: Météo-France-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-mf-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -107,7 +253,7 @@ jobs:
             meteofrance-stations-v2-${{ steps.dates.outputs.base_year }}-
 
       - name: GeoSphere-Österreich-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-at-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -115,7 +261,7 @@ jobs:
             geosphere-austria-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: IMGW-Polen-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-pl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -123,7 +269,7 @@ jobs:
             imgw-poland-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: AEMET-Spanien-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-es-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -131,7 +277,7 @@ jobs:
             aemet-spain-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: KNMI-Niederlande-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-nl-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
@@ -139,12 +285,97 @@ jobs:
             knmi-netherlands-v1-${{ steps.dates.outputs.base_year }}-
 
       - name: Frost-Norwegen-Cache ergänzen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
           key: europe-merge-no-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
           restore-keys: |
             frost-norway-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: DMI-Dänemark-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-dk-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            dmi-denmark-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: SMHI-Schweden-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-se-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            smhi-sweden-current-v1-${{ steps.dates.outputs.year }}-
+            smhi-sweden-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: KMI-RMI-Belgien-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-be-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            rmi-belgium-current-v1-${{ steps.dates.outputs.year }}-
+            rmi-belgium-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: MeteoSwiss-Schweiz-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-ch-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            meteoswiss-switzerland-current-v1-${{ steps.dates.outputs.year }}-
+            meteoswiss-switzerland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: FMI-Finnland-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-fi-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            fmi-finland-current-v1-${{ steps.dates.outputs.year }}-
+            fmi-finland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: CHMI-Tschechien-Cache ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-cz-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            chmi-czechia-current-v1-
+            chmi-czechia-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: HungaroMet-Ungarn-Historie ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-hu-hist-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            hungaromet-hungary-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: HungaroMet-Ungarn-Current ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-hu-current-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            hungaromet-hungary-current-v1-${{ steps.dates.outputs.year }}-
+
+      - name: Met-Éireann-Irland-Historie ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-ie-hist-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            met-eireann-ireland-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Met-Éireann-Irland-Current ergänzen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: europe-merge-ie-current-${{ steps.dates.outputs.year }}-${{ github.run_id }}
+          restore-keys: |
+            met-eireann-ireland-current-${{ steps.dates.outputs.year }}-v1-
 
       - name: Cache-Bestand anzeigen
         shell: bash
@@ -184,7 +415,23 @@ jobs:
             scripts/update_knmi_netherlands_station_cache.py \
             scripts/update_knmi_netherlands_current.py \
             scripts/update_frost_norway_station_cache.py \
-            scripts/update_frost_norway_current.py
+            scripts/update_frost_norway_current.py \
+            scripts/update_dmi_denmark_station_cache.py \
+            scripts/update_dmi_denmark_current.py \
+            scripts/update_smhi_sweden_station_cache.py \
+            scripts/update_smhi_sweden_current.py \
+            scripts/update_rmi_belgium_station_cache.py \
+            scripts/update_rmi_belgium_current.py \
+            scripts/update_meteoswiss_switzerland_station_cache.py \
+            scripts/update_meteoswiss_switzerland_current.py \
+            scripts/update_fmi_finland_station_cache.py \
+            scripts/update_fmi_finland_current.py \
+            scripts/update_chmi_czechia_station_cache.py \
+            scripts/update_chmi_czechia_current.py \
+            scripts/update_hungaromet_hungary_station_cache.py \
+            scripts/update_hungaromet_hungary_current.py \
+            scripts/update_met_eireann_ireland_station_cache.py \
+            scripts/update_met_eireann_ireland_current.py
           do
             test -s "$FILE"
           done
@@ -198,6 +445,22 @@ jobs:
           python scripts/update_knmi_netherlands_current.py --self-test
           python scripts/update_frost_norway_station_cache.py --self-test
           python scripts/update_frost_norway_current.py --self-test
+          python scripts/update_dmi_denmark_station_cache.py --self-test
+          python scripts/update_dmi_denmark_current.py --self-test
+          python scripts/update_smhi_sweden_station_cache.py --self-test
+          python scripts/update_smhi_sweden_current.py --self-test
+          python scripts/update_rmi_belgium_station_cache.py --self-test
+          python scripts/update_rmi_belgium_current.py --self-test
+          python scripts/update_meteoswiss_switzerland_station_cache.py --self-test
+          python scripts/update_meteoswiss_switzerland_current.py --self-test
+          python scripts/update_fmi_finland_station_cache.py --self-test
+          python scripts/update_fmi_finland_current.py --self-test
+          python scripts/update_chmi_czechia_station_cache.py --self-test
+          python scripts/update_chmi_czechia_current.py --self-test
+          python scripts/update_hungaromet_hungary_station_cache.py --self-test
+          python scripts/update_hungaromet_hungary_current.py --self-test
+          python scripts/update_met_eireann_ireland_station_cache.py --self-test
+          python scripts/update_met_eireann_ireland_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
@@ -213,6 +476,14 @@ jobs:
           FORCE_POLAND_BASELINE: ${{ github.event.inputs.force_poland_baseline || 'false' }}
           FORCE_KNMI_BASELINE: ${{ github.event.inputs.force_knmi_baseline || 'false' }}
           FORCE_FROST_BASELINE: ${{ github.event.inputs.force_frost_baseline || 'false' }}
+          FORCE_DMI_BASELINE: ${{ github.event.inputs.force_dmi_baseline || 'false' }}
+          FORCE_SMHI_BASELINE: ${{ github.event.inputs.force_smhi_baseline || 'false' }}
+          FORCE_BELGIUM_BASELINE: ${{ github.event.inputs.force_belgium_baseline || 'false' }}
+          FORCE_SWISS_BASELINE: ${{ github.event.inputs.force_swiss_baseline || 'false' }}
+          FORCE_FMI_BASELINE: ${{ github.event.inputs.force_fmi_baseline || 'false' }}
+          FORCE_CHMI_BASELINE: ${{ github.event.inputs.force_chmi_baseline || 'false' }}
+          FORCE_HUNGARY_BASELINE: ${{ github.event.inputs.force_hungary_baseline || 'false' }}
+          FORCE_IRELAND_BASELINE: ${{ github.event.inputs.force_ireland_baseline || 'false' }}
         run: |
           set -euo pipefail
           EXTRA_ARGS=""
@@ -224,6 +495,14 @@ jobs:
           [[ "$FORCE_POLAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-poland-baseline"
           [[ "$FORCE_KNMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-knmi-baseline"
           [[ "$FORCE_FROST_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-frost-baseline"
+          [[ "$FORCE_DMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-dmi-baseline"
+          [[ "$FORCE_SMHI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-smhi-baseline"
+          [[ "$FORCE_BELGIUM_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-belgium-baseline"
+          [[ "$FORCE_SWISS_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-swiss-baseline"
+          [[ "$FORCE_FMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-fmi-baseline"
+          [[ "$FORCE_CHMI_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-chmi-baseline"
+          [[ "$FORCE_HUNGARY_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-hungary-baseline"
+          [[ "$FORCE_IRELAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-ireland-baseline"
 
           python scripts/update_europe_station_records_all_sources.py \
             --year "${{ steps.dates.outputs.year }}" \
@@ -236,10 +515,10 @@ jobs:
 
       - name: Stations-Cache sichern
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .cache/europe-stations
-          key: europe-stations-v7-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
+          key: europe-stations-v11-${{ steps.dates.outputs.base_year }}-${{ steps.dates.outputs.year_month }}-${{ github.run_id }}
 
       - name: Ergebnis vollständig prüfen
         shell: bash
@@ -270,6 +549,14 @@ jobs:
               "Polen":"IMGW-PIB",
               "Niederlande":"KNMI",
               "Norwegen":"MET Norway Frost",
+              "Dänemark":"DMI Open Data",
+              "Schweden":"SMHI Open Data",
+              "Belgien":"KMI/RMI Open Data",
+              "Schweiz":"MeteoSwiss Open Data",
+              "Finnland":"FMI Open Data",
+              "Tschechien":"CHMI Open Data",
+              "Ungarn":"HungaroMet Open Data",
+              "Irland":"Met Éireann Climate Data Online",
           }
 
           if p.get("payload_version") != 5:
@@ -285,7 +572,10 @@ jobs:
 
           for source in (
               "DWD CDC","Météo-France","AEMET OpenData","GeoSphere Austria",
-              "IMGW-PIB","KNMI","MET Norway Frost","GHCN-Daily"
+              "IMGW-PIB","KNMI","MET Norway Frost","DMI Open Data",
+              "SMHI Open Data","KMI/RMI Open Data","MeteoSwiss Open Data",
+              "FMI Open Data","CHMI Open Data","HungaroMet Open Data",
+              "Met Éireann Climate Data Online","GHCN-Daily"
           ):
               if int(sources.get(source,0) or 0) <= 0:
                   raise SystemExit(f"Quelle {source} fehlt oder hat 0 Stationen.")
@@ -297,7 +587,7 @@ jobs:
           if any("active" not in x or "last_observation" not in x for x in rows):
               raise SystemExit("active/last_observation fehlt bei mindestens einer Station.")
 
-          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO"}
+          forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ","FI","EZ","HU","EI"}
           wrong=[x for x in rows if x.get("source")=="GHCN-Daily" and x.get("country_code") in forbidden]
           if wrong:
               raise SystemExit(f"GHCN enthält national ersetzte Länder: {sorted({x.get('country_code') for x in wrong})}")
