@@ -51,6 +51,9 @@ jobs:
       - name: Kandidaten-QC-Stufe-8-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage8.py --self-test
 
+      - name: Kandidaten-QC-Stufe-9-Selbsttest
+        run: python scripts/verify_world_ghcn_candidates_stage9.py --self-test
+
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
         uses: actions/cache@v5
@@ -368,7 +371,7 @@ jobs:
           echo "=== STAGE 8 DECISIONS ==="
           cat world_ghcn_baseline/qc_stage8/resolution_decisions_stage8.csv
 
-      - name: Maxcrc/Herrera · nationale absolute Rekorde · Stufe 9
+      - name: Maxcrc-Kontinent-Länderrekorde bis 2025 · Stufe 9
         run: |
           python scripts/verify_world_ghcn_candidates_stage9.py \
             --master-input world_ghcn_baseline/qc_stage8/world_country_record_master_stage8.csv \
