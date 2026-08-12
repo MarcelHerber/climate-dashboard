@@ -368,6 +368,32 @@ jobs:
           echo "=== STAGE 8 DECISIONS ==="
           cat world_ghcn_baseline/qc_stage8/resolution_decisions_stage8.csv
 
+      - name: Maxcrc/Herrera · nationale absolute Rekorde · Stufe 9
+        run: |
+          python scripts/verify_world_ghcn_candidates_stage9.py \
+            --master-input world_ghcn_baseline/qc_stage8/world_country_record_master_stage8.csv \
+            --candidate-input world_ghcn_baseline/qc_stage5/world_country_extreme_candidates_stage5_annotated.csv \
+            --output-dir world_ghcn_baseline/qc_stage9
+
+          echo
+          echo "=== WORLD GHCN QC STAGE 9 · SUMMARY ==="
+          cat world_ghcn_baseline/qc_stage9/summary.json
+          echo
+          echo "=== WORLD GHCN QC STAGE 9 · REPORT ==="
+          cat world_ghcn_baseline/qc_stage9/qc_report.md
+          echo
+          echo "=== STAGE 9 RESOLVED ==="
+          cat world_ghcn_baseline/qc_stage9/resolved_stage9.csv
+          echo
+          echo "=== STAGE 9 STILL UNRESOLVED ==="
+          cat world_ghcn_baseline/qc_stage9/world_country_record_master_unresolved_stage9.csv
+          echo
+          echo "=== STAGE 9 MAXCRC REFERENCES ==="
+          cat world_ghcn_baseline/qc_stage9/maxcrc_reference_anchors_stage9.csv
+          echo
+          echo "=== STAGE 9 MAXCRC PARSE DIAGNOSTICS ==="
+          cat world_ghcn_baseline/qc_stage9/maxcrc_parse_diagnostics_stage9.csv
+
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
         with:
