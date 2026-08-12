@@ -3757,6 +3757,10 @@ dashboardFetch("update_status.json",{cache:"no-store"})
     document.getElementById("dataStatus").textContent=parts.length?parts.join(" · "):"Datenstand nicht verfügbar";
     renderDashboardStatusBadges(status);
     updateOverviewStatus(status);
+    if(monthlyData.length){
+      updateOverviewSummary();
+      if(document.getElementById("overview")?.classList.contains("active"))renderOverviewMap();
+    }
   })
   .catch(()=>{
     document.getElementById("dataStatus").textContent="Datenstand nicht verfügbar";
@@ -3807,10 +3811,19 @@ function overviewGermanNumber(value,decimals=1,{sign=false}={}){
   const prefix=sign&&value>0?"+":"";
   return prefix+value.toLocaleString("de-DE",{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
 }
+function overviewHasMonthlyValue(value){
+  return value!==null && value!==undefined && value!=="" && Number.isFinite(Number(value));
+}
 function overviewLatestGermanyRow(){
   if(!monthlyData.length)return null;
-  return areaRows("Deutschland")
-    .filter(row=>row?.date && ["temp","rain","sun"].some(param=>Number.isFinite(Number(row[param]))))
+  const rows=areaRows("Deutschland");
+  const hasData=row=>row?.date && ["temp","rain","sun"].some(param=>overviewHasMonthlyValue(row[param]));
+  const statusMonth=overviewStatusPayload?.monthly?.latest_complete_month;
+  if(statusMonth){
+    const exact=rows.find(row=>String(row.date)===String(statusMonth) && hasData(row));
+    if(exact)return exact;
+  }
+  return rows.filter(hasData)
     .sort((a,b)=>String(a.date).localeCompare(String(b.date)))
     .at(-1)||null;
 }
@@ -3821,7 +3834,7 @@ function overviewReferenceValue(area,param,date){
     .filter(row=>row.area===area && String(row.date).slice(5,7)===month)
     .filter(row=>{
       const year=Number(String(row.date).slice(0,4));
-      return year>=1991&&year<=2020&&Number.isFinite(Number(row[param]));
+      return year>=1991&&year<=2020&&overviewHasMonthlyValue(row[param]);
     })
     .map(row=>Number(row[param]));
   return values.length>=27?mean(values):null;
@@ -3860,7 +3873,9 @@ function updateOverviewSummary(){
   const refTemp=overviewReferenceValue("Deutschland","temp",latest.date);
   const refRain=overviewReferenceValue("Deutschland","rain",latest.date);
   const refSun=overviewReferenceValue("Deutschland","sun",latest.date);
-  const temp=Number(latest.temp),rain=Number(latest.rain),sun=Number(latest.sun);
+  const temp=overviewHasMonthlyValue(latest.temp)?Number(latest.temp):null;
+  const rain=overviewHasMonthlyValue(latest.rain)?Number(latest.rain):null;
+  const sun=overviewHasMonthlyValue(latest.sun)?Number(latest.sun):null;
   const tempAnom=Number.isFinite(temp)&&Number.isFinite(refTemp)?temp-refTemp:null;
   const rainPct=Number.isFinite(rain)&&Number.isFinite(refRain)&&refRain!==0?100*rain/refRain:null;
   const sunPct=Number.isFinite(sun)&&Number.isFinite(refSun)&&refSun!==0?100*sun/refSun:null;
@@ -3934,7 +3949,7 @@ function overviewMapScale(values,param){
 }
 function overviewMetric(area,param,date){
   const row=monthlyData.find(item=>item.area===area&&item.date===date);
-  if(!row||!Number.isFinite(Number(row[param])))return null;
+  if(!row||!overviewHasMonthlyValue(row[param]))return null;
   const ref=overviewReferenceValue(area,param,date);
   if(!Number.isFinite(ref))return null;
   const value=Number(row[param]);
