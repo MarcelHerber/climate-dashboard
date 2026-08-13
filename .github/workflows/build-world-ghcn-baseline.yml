@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: world-ghcn-historical-baseline
@@ -53,6 +53,12 @@ jobs:
 
       - name: Kandidaten-QC-Stufe-9-Selbsttest
         run: python scripts/verify_world_ghcn_candidates_stage9.py --self-test
+
+      - name: Weltweite Stations-Webdaten-Selbsttest
+        run: python scripts/build_world_station_web.py --self-test
+
+      - name: Weltweite-Stationen-Reiter-Selbsttest
+        run: python scripts/patch_world_stations_tab.py --self-test
 
       - name: Historischen Welt-GHCN-Cache wiederherstellen
         id: world-ghcn-cache
@@ -396,6 +402,44 @@ jobs:
           echo
           echo "=== STAGE 9 MAXCRC PARSE DIAGNOSTICS ==="
           cat world_ghcn_baseline/qc_stage9/maxcrc_parse_diagnostics_stage9.csv
+
+      - name: Weltweite Stations-Webdaten bauen
+        run: |
+          rm -rf world_stations_build
+          python scripts/build_world_station_web.py \
+            --cache-dir .cache/world-ghcn \
+            --baseline-dir world_ghcn_baseline \
+            --master-input world_ghcn_baseline/qc_stage9/world_country_record_master_stage9.csv \
+            --output-dir world_stations_build
+
+          echo
+          echo "=== WORLD STATIONS WEB DATA ==="
+          du -h world_stations_build/* world_stations_build/packs/* || true
+          echo
+          cat world_stations_build/index.json | head -n 120
+
+      - name: Weltweite Stationen im Dashboard veröffentlichen
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Der Baseline-Lauf kann lange dauern. Vor dem HTML-Patch holen wir
+          # deshalb den inzwischen aktuellen main-Stand und patchen genau diesen.
+          git pull --ff-only origin main
+          python scripts/patch_world_stations_tab.py --input index.html
+
+          rm -rf world_stations
+          mv world_stations_build world_stations
+
+          git add -A index.html world_stations
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen an index.html/world_stations zu veröffentlichen."
+          else
+            git commit -m "Publish worldwide GHCN stations tab"
+            git push origin HEAD:main
+          fi
 
       - name: Baseline als Artifact hochladen
         uses: actions/upload-artifact@v7
