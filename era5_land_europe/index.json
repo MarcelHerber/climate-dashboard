@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 9,
-  "generated_at": "2026-08-13T15:10:42+00:00",
+  "payload_version": 10,
+  "generated_at": "2026-08-13T17:23:46+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -75,7 +75,17 @@
       12
     ],
     "tp_all_months_ready": true,
-    "tp_all_months_note": "Temperatur und Niederschlag: historische Monatskarten Januar–Dezember auf 0,1°; Zusatzparameter werden schrittweise ergänzt."
+    "tp_all_months_note": "Temperatur und Niederschlag: historische Monatskarten Januar–Dezember auf 0,1°; Zusatzparameter werden schrittweise ergänzt.",
+    "temperature_precipitation_current_year": 2026,
+    "temperature_precipitation_current_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
   },
   "click_geometry": {
     "left": 0.141973684211,
@@ -932,94 +942,346 @@
     },
     "month_01": {
       "id": "month_01",
-      "label": "Januar",
-      "year": 2025,
+      "label": "Januar 2026",
+      "year": 2026,
       "months": [
         1
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_01_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_01_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": -3.169016037782727,
+          "reference": -1.6237228004072446,
+          "difference": -1.5452932373754822
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_01_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_01_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 78.56687804290743,
+          "reference": 64.21839873244097,
+          "percent": 122.34325301421458
+        }
+      }
     },
     "month_02": {
       "id": "month_02",
-      "label": "Februar",
-      "year": 2025,
+      "label": "Februar 2026",
+      "year": 2026,
       "months": [
         2
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_02_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_02_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": -1.0247973232069894,
+          "reference": -0.9527534933728286,
+          "difference": -0.0720438298341608
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_02_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_02_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 77.16003452977498,
+          "reference": 56.046897835149515,
+          "percent": 137.670482239223
+        }
+      }
     },
     "month_03": {
       "id": "month_03",
-      "label": "März",
-      "year": 2025,
+      "label": "März 2026",
+      "year": 2026,
       "months": [
         3
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_03_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_03_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 4.707796026088474,
+          "reference": 2.678244393886146,
+          "difference": 2.0295516322023275
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_03_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_03_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 54.174799049129135,
+          "reference": 60.6521745617042,
+          "percent": 89.32045625835667
+        }
+      }
     },
     "month_04": {
       "id": "month_04",
-      "label": "April",
-      "year": 2025,
+      "label": "April 2026",
+      "year": 2026,
       "months": [
         4
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_04_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_04_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 8.190849780473451,
+          "reference": 7.6868732618132425,
+          "difference": 0.5039765186602088
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_04_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_04_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 55.029866286673965,
+          "reference": 60.49484066797784,
+          "percent": 90.9662141085749
+        }
+      }
     },
     "month_05": {
       "id": "month_05",
-      "label": "Mai",
-      "year": 2025,
+      "label": "Mai 2026",
+      "year": 2026,
       "months": [
         5
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_05_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_05_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 13.693319571430592,
+          "reference": 12.968563884268473,
+          "difference": 0.7247556871621192
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_05_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_05_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 71.17017436572304,
+          "reference": 70.04203300118071,
+          "percent": 101.61066336341682
+        }
+      }
     },
     "month_06": {
       "id": "month_06",
-      "label": "Juni",
-      "year": 2025,
+      "label": "Juni 2026",
+      "year": 2026,
       "months": [
         6
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_06_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_06_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 19.098037284069193,
+          "reference": 17.308668771506106,
+          "difference": 1.7893685125630867
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_06_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_06_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 61.58417181577174,
+          "reference": 69.5887279080075,
+          "percent": 88.49733809932933
+        }
+      }
     },
     "month_07": {
       "id": "month_07",
-      "label": "Juli",
-      "year": 2025,
+      "label": "Juli 2026",
+      "year": 2026,
       "months": [
         7
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_07_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_07_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 20.84005826681465,
+          "reference": 19.946988206740485,
+          "difference": 0.8930700600741659
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_07_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_07_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 63.042323841825905,
+          "reference": 67.92819388517246,
+          "percent": 92.80730170508323
+        }
+      }
     },
     "month_08": {
       "id": "month_08",
@@ -1086,5 +1348,21 @@
         "precipitation"
       ]
     }
+  },
+  "tp_current_months": {
+    "ready": true,
+    "version": 1,
+    "year": 2026,
+    "months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "latest_complete_month": 7,
+    "note": "Temperatur und Niederschlag sind im aktuellen ERA5-Land-Jahr für alle vollständig verfügbaren Monate einzeln auswählbar. Historische Jahre bleiben für dieselben Monate ab 1950 verfügbar."
   }
 }

@@ -1319,7 +1319,7 @@ button.action:hover{background:#1f2937}
   <div class="section-header">
     <h2>ERA5-Land Europa</h2>
     <p>Hochaufgelöste Europakarten aus der ERA5-Land-Reanalyse plus historisches Kartenarchiv: Temperatur, Niederschlag, Bodenfeuchte, Wasserhaushalt und Schnee mit Klimamittel, Perzentilen, Europa-Rankings, Extremen und Gitterpunktanalyse.</p>
-    <span class="section-status">Version 9.0 · Temperatur &amp; Niederschlag monatlich Jan–Dez seit 1950 · Aktuell 0,1° · Analyse 1,0° · Copernicus C3S / ECMWF</span>
+    <span class="section-status">Version 10.0 · Temperatur &amp; Niederschlag monatlich · aktuelles Jahr + Historie seit 1950 · Aktuell 0,1° · Analyse 1,0° · Copernicus C3S / ECMWF</span>
   </div>
   <div id="era5EuropeStatus" class="era5-europe-status">ERA5-Land-Daten werden beim ersten Öffnen geladen …</div>
   <div class="controls era5-europe-controls">
@@ -11178,7 +11178,7 @@ function era5EuropeUpdatePeriodOptions(){
   const monthNumbers=(era5EuropeIndex?.history_map?.temperature_precipitation_months||[]).map(Number).filter(m=>m>=1&&m<=12);
   if((parameter==="temperature"||parameter==="precipitation")&&monthNumbers.length){
     const options=monthNumbers.map(month=>{const id=`month_${String(month).padStart(2,"0")}`,p=era5EuropeIndex?.periods?.[id];return `<option value="${id}">${p?.label||id}</option>`;}).join("");
-    html+=`<optgroup label="Historisches Monatsarchiv 1950–${era5EuropeIndex?.history_map?.year_end||""}">${options}</optgroup>`;
+    html+=`<optgroup label="Monate · aktuell + Historie 1950–${era5EuropeIndex?.history_map?.year_end||""}">${options}</optgroup>`;
   }
   select.innerHTML=html;
   if([...select.options].some(o=>o.value===previous))select.value=previous;else select.value="latest_month";
@@ -11599,7 +11599,10 @@ function era5EuropePlaceMarker(){
   const y=g.top+(c.north-era5EuropeSelectedPoint.lat)/(c.north-c.south)*(g.bottom-g.top);
   marker.style.left=`${x*100}%`;marker.style.top=`${y*100}%`;marker.style.display="block";
 }
+// ERA5_TP_CURRENT_MONTHS_FRONTEND_V1
 async function era5EuropeHandleMapClick(event){
+  const selectedPeriodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";
+  if(era5EuropeIndex?.periods?.[selectedPeriodId]?.analysis_ready===false)return;
   const stage=document.getElementById("era5EuropeImageStage");if(!stage||!era5EuropeIndex)return;
   const rect=stage.getBoundingClientRect();const nx=(event.clientX-rect.left)/rect.width,ny=(event.clientY-rect.top)/rect.height;
   const g=era5EuropeIndex.click_geometry||{left:.07,top:.16,right:.96,bottom:.82};
@@ -11733,8 +11736,12 @@ function renderEra5Europe(){
   const imageUrl=`${ERA5_EUROPE_RAW_BASE}${mapInfo.file}?v=${encodeURIComponent(era5EuropeIndex.generated_at||Date.now())}`,wrap=document.getElementById("era5EuropeImageWrap");
   if(wrap){wrap.innerHTML=`<div id="era5EuropeImageStage" class="era5-europe-image-stage"><img id="era5EuropeImage" class="era5-europe-image" alt="${title} ${period.label}" src="${imageUrl}"><div id="era5EuropePointMarker" class="era5-europe-point-marker"></div><div class="era5-europe-click-hint">Karte anklicken<br>→ Gitterpunktanalyse</div></div>`;const stage=document.getElementById("era5EuropeImageStage"),img=document.getElementById("era5EuropeImage");stage?.addEventListener("click",era5EuropeHandleMapClick);img?.addEventListener("load",era5EuropePlaceMarker);img?.addEventListener("error",()=>{wrap.innerHTML='<div class="era5-europe-loading">Die Karten-PNG konnte nicht geladen werden.</div>';});}
   const source=document.getElementById("era5EuropeSource");if(source){let extra=era5EuropeIndex.availability_note||"";if(view==="percentile")extra=era5EuropeIndex.percentile_note||extra;if(["evaporation","runoff","surface_runoff","sub_surface_runoff","water_balance"].includes(parameter))extra=`${era5EuropeIndex.water_budget_note||""} ${extra}`.trim();if(["snow_depth","snow_water_equivalent","snow_cover"].includes(parameter))extra=`${era5EuropeIndex.snow_note||""} ${extra}`.trim();source.textContent=`Quelle: ${era5EuropeIndex.source}. ${extra}`.trim();}
-  if(era5EuropeSelectedPoint&&era5EuropeAnalysis?.ready)renderEra5EuropePointAnalysis();
-  renderEra5EuropeRankings();
+  if(period?.analysis_ready===false){
+    era5EuropeShowMonthlyRankingPending(meta,period,Number(period?.year));
+  }else{
+    if(era5EuropeSelectedPoint&&era5EuropeAnalysis?.ready)renderEra5EuropePointAnalysis();
+    renderEra5EuropeRankings();
+  }
 }
 async function downloadEra5EuropeMap(){
   if(!era5EuropeIndex?.ready)return;
