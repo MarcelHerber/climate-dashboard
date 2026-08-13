@@ -1026,6 +1026,11 @@ button.action:hover{background:#1f2937}
 .world-station-popup{min-width:265px;line-height:1.45}.world-station-popup h3{font-size:15px;margin:0 0 3px}.world-station-popup .sub{font-size:11px;color:#69747c;margin-bottom:8px}.world-station-popup-grid{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:12px}.world-station-popup-grid strong{text-align:right}.world-station-popup-section{margin-top:8px;padding-top:7px;border-top:1px solid #e1e5e8}.world-station-popup-section b{font-size:12px}
 @media(max-width:900px){.world-stations-kpis{grid-template-columns:1fr 1fr}.world-stations-map{height:520px}}
 @media(max-width:560px){.world-stations-kpis{grid-template-columns:1fr}.world-stations-controls .control-group{min-width:100%}.world-stations-map{height:470px}.world-stations-pager{align-items:flex-start;flex-direction:column}}
+
+.world-stations-active-toggle{background:#fff!important;color:#334149!important;border:1px solid #9aa6af!important}
+.world-stations-active-toggle.is-active{background:#2f5f87!important;color:#fff!important;border-color:#2f5f87!important}
+.world-stations-current-note{margin:0 0 12px;padding:9px 11px;border-radius:7px;background:#f3f7fa;border:1px solid #d5e0e7;color:#44525c;font-size:11px;line-height:1.45}
+
 </style>
 </head>
 <body>
@@ -2698,7 +2703,7 @@ button.action:hover{background:#1f2937}
   <div class="section-header">
     <h2>Weltweite Stationen</h2>
     <p>GHCN-Daily-Temperaturstationen weltweit. Angezeigt werden ausschließlich der höchste Tageshöchstwert (TMAX) und der tiefste Tagesminimumwert (TMIN) jeder Station.</p>
-    <span class="section-status">Historische Basis bis 31.12.2025 · GHCN-Daily</span>
+    <span class="section-status">Historische Basis bis 31.12.2025 + laufende GHCN-Daily-Daten 2026</span>
   </div>
   <div id="worldStationsLoading" class="record-loading">Weltweite Stationsdaten werden beim ersten Öffnen geladen …</div>
   <div id="worldStationsContent" hidden>
@@ -2721,6 +2726,7 @@ button.action:hover{background:#1f2937}
           <option value="tmin">TMIN</option>
         </select>
       </div>
+      <button id="worldStationsActiveOnly" class="action world-stations-active-toggle" type="button" aria-pressed="false">Nur aktive Stationen anzeigen</button>
       <button id="worldStationsReset" class="action" type="button">Filter zurücksetzen</button>
     </div>
 
@@ -2745,7 +2751,7 @@ button.action:hover{background:#1f2937}
       <div id="worldStationsPageInfo">–</div>
       <div class="world-stations-pager-actions"><button id="worldStationsPrev" type="button">Zurück</button><button id="worldStationsNext" type="button">Weiter</button></div>
     </div>
-    <p class="note">TMAX = höchstes gültiges Tagesmaximum der Station bis Ende 2025. TMIN = tiefstes gültiges Tagesminimum der Station bis Ende 2025. Höchstes TMIN und niedrigstes TMAX werden in diesem Reiter bewusst nicht geführt.</p>
+    <p class="note">TMAX = höchstes gültiges Tagesmaximum der Station inklusive laufender 2026-Daten. TMIN = tiefstes gültiges Tagesminimum der Station inklusive laufender 2026-Daten. Höchstes TMIN und niedrigstes TMAX werden in diesem Reiter bewusst nicht geführt.</p>
   </div>
 </div>
 <!-- ================= VERGLEICHE ================= -->
@@ -3190,6 +3196,7 @@ function closeNavigationDropdowns(){
 let worldStationsLoaded=false;
 let worldStationsLoadingPromise=null;
 let worldStationsData=null;
+let worldStationsCurrentData=null;
 let worldStationsRows=[];
 let worldStationsFiltered=[];
 let worldStationsPage=0;
@@ -3234,6 +3241,79 @@ function worldStationsPopupHtml(s){
     <div class="world-station-popup-section"><b>TMIN · tiefstes Tagesminimum</b><div class="world-station-popup-grid"><span>Rekord</span><strong>${worldStationsFormatTemp(s.tn)}</strong><span>Datum</span><strong>${worldStationsEscape(s.tnDate||"–")}</strong><span>Datenzeitraum</span><strong>${worldStationsEscape(worldStationsFormatPeriod(s.tnFirst,s.tnLast))}</strong></div></div>
   </div>`;
 }
+
+function worldStationsApplyCurrentOverlay(){
+  if(!worldStationsCurrentData) return;
+  const overlay=worldStationsCurrentData.stations||{};
+  const cutoff=worldStationsCurrentData.active_cutoff_date||"";
+  for(const s of worldStationsRows){
+    const o=overlay[s.id];
+    s.active=false;
+    s.currentLast="";
+    if(!o) continue;
+    s.currentLast=o[0]||"";
+    s.active=Boolean(cutoff && s.currentLast && s.currentLast>=cutoff);
+    const txLast=o[1]||"";
+    const txValue=o[2];
+    const txDate=o[3]||"";
+    const tnLast=o[4]||"";
+    const tnValue=o[5];
+    const tnDate=o[6]||"";
+    if(txLast && (!s.txLast || txLast>s.txLast)) s.txLast=txLast;
+    if(tnLast && (!s.tnLast || tnLast>s.tnLast)) s.tnLast=tnLast;
+    if(Number.isFinite(Number(txValue)) && (!Number.isFinite(Number(s.tx)) || Number(txValue)>Number(s.tx))){
+      s.tx=Number(txValue); s.txDate=txDate; s.txIsCurrent=true;
+    }
+    if(Number.isFinite(Number(tnValue)) && (!Number.isFinite(Number(s.tn)) || Number(tnValue)<Number(s.tn))){
+      s.tn=Number(tnValue); s.tnDate=tnDate; s.tnIsCurrent=true;
+    }
+  }
+}
+function worldStationsActiveOnly(){
+  return document.getElementById("worldStationsActiveOnly")?.getAttribute("aria-pressed")==="true";
+}
+function updateWorldStationsActiveButton(){
+  const btn=document.getElementById("worldStationsActiveOnly");
+  if(!btn) return;
+  const on=worldStationsActiveOnly();
+  btn.classList.toggle("is-active",on);
+  btn.textContent=on?"✓ Nur aktive Stationen anzeigen":"Nur aktive Stationen anzeigen";
+}
+function updateWorldStationsMapVisibility(){
+  if(!worldStationsLayer || !worldStationMarkerById.size) return;
+  const onlyActive=worldStationsActiveOnly();
+  let visible=0;
+  for(const marker of worldStationMarkerById.values()){
+    const shouldShow=!onlyActive || marker._worldActive===true;
+    const present=worldStationsLayer.hasLayer(marker);
+    if(shouldShow && !present) marker.addTo(worldStationsLayer);
+    if(!shouldShow && present) worldStationsLayer.removeLayer(marker);
+    if(shouldShow) visible++;
+  }
+  const status=document.getElementById("worldStationsMapStatus");
+  if(status && worldStationsCurrentData){
+    status.textContent=onlyActive
+      ? `${visible.toLocaleString("de-DE")} aktive GHCN-Temperaturstationen · Aktiv seit ${worldStationsCurrentData.active_cutoff_date}.`
+      : `${visible.toLocaleString("de-DE")} GHCN-Temperaturstationen · aktuelle Daten bis ${worldStationsCurrentData.latest_valid_date||"–"}.`;
+  }
+}
+function renderWorldStationsCurrentNote(){
+  let note=document.getElementById("worldStationsCurrentNote");
+  if(!note){
+    const controls=document.querySelector("#worldStations .world-stations-controls");
+    if(!controls) return;
+    note=document.createElement("div");
+    note.id="worldStationsCurrentNote";
+    note.className="world-stations-current-note";
+    controls.insertAdjacentElement("afterend",note);
+  }
+  if(!worldStationsCurrentData){
+    note.textContent="2026-Aktualisierung derzeit nicht verfügbar; angezeigt wird die historische Basis bis Ende 2025.";
+    return;
+  }
+  note.textContent=`GHCN-Daily aktuell bis ${worldStationsCurrentData.latest_valid_date||"–"} · ${Number(worldStationsCurrentData.active_station_count||0).toLocaleString("de-DE")} aktive Stationen. Aktiv = mindestens eine gültige TMAX- oder TMIN-Meldung in den letzten ${worldStationsCurrentData.active_window_days} Tagen relativ zum aktuellsten GHCN-Datum.`;
+}
+
 function renderWorldStationsKpis(){
   const box=document.getElementById("worldStationsKpis");
   if(!box || !worldStationsData) return;
@@ -3256,6 +3336,7 @@ function getFilteredWorldStations(){
   const cc=document.getElementById("worldStationsCountry")?.value||"";
   const availability=document.getElementById("worldStationsAvailability")?.value||"all";
   return worldStationsRows.filter(s=>{
+    if(worldStationsActiveOnly() && !s.active) return false;
     if(cc && s.cc!==cc) return false;
     if(availability==="both" && !(s.txCount>0 && s.tnCount>0)) return false;
     if(availability==="tmax" && !(s.txCount>0)) return false;
@@ -3317,6 +3398,16 @@ function bindWorldStationsControls(){
     const el=document.getElementById(id);
     if(el && !el.dataset.worldBound){el.addEventListener("change",()=>renderWorldStationsTable({resetPage:true}));el.dataset.worldBound="1";}
   });
+  const activeBtn=document.getElementById("worldStationsActiveOnly");
+  if(activeBtn && !activeBtn.dataset.worldBound){
+    activeBtn.addEventListener("click",()=>{
+      activeBtn.setAttribute("aria-pressed",worldStationsActiveOnly()?"false":"true");
+      updateWorldStationsActiveButton();
+      renderWorldStationsTable({resetPage:true});
+      updateWorldStationsMapVisibility();
+    });
+    activeBtn.dataset.worldBound="1";
+  }
   const reset=document.getElementById("worldStationsReset");
   if(reset && !reset.dataset.worldBound){reset.addEventListener("click",()=>{if(search) search.value="";const c=document.getElementById("worldStationsCountry");if(c)c.value="";const a=document.getElementById("worldStationsAvailability");if(a)a.value="all";renderWorldStationsTable({resetPage:true});});reset.dataset.worldBound="1";}
   const prev=document.getElementById("worldStationsPrev");
@@ -3347,6 +3438,7 @@ async function buildWorldStationsMap(){
       const cls=worldStationsAvailabilityClass(s);
       const fill=cls==="both"?"#376f9e":cls==="tmax"?"#b46b32":"#6d8d55";
       const marker=L.circleMarker([Number(s.lat),Number(s.lon)],{renderer:worldStationsRenderer,radius:2.35,weight:.45,color:"#24313a",opacity:.55,fillColor:fill,fillOpacity:.68});
+      marker._worldActive=s.active===true;
       marker.bindPopup(()=>worldStationsPopupHtml(s),{maxWidth:360});
       marker.addTo(worldStationsLayer);
       worldStationMarkerById.set(s.id,marker);
@@ -3354,7 +3446,7 @@ async function buildWorldStationsMap(){
     if(status) status.textContent=`Stationskarte wird aufgebaut: ${end.toLocaleString("de-DE")} / ${total.toLocaleString("de-DE")} Stationen …`;
     await new Promise(resolve=>window.requestAnimationFrame(()=>resolve()));
   }
-  if(status) status.textContent=`${worldStationMarkerById.size.toLocaleString("de-DE")} GHCN-Temperaturstationen auf der Karte · historische Werte bis 31.12.2025.`;
+  updateWorldStationsMapVisibility();
   window.setTimeout(()=>worldStationsMap.invalidateSize(false),80);
 }
 function ensureWorldStationsMobileOption(){
@@ -3371,10 +3463,17 @@ async function ensureWorldStationsLoaded(){
   const content=document.getElementById("worldStationsContent");
   worldStationsLoadingPromise=(async()=>{
     try{
-      const response=await fetch("data/world_stations_stage9.json",{cache:"no-store"});
+      const [response,currentResponse]=await Promise.all([
+        fetch("data/world_stations_stage9.json",{cache:"no-store"}),
+        fetch("data/world_stations_current.json",{cache:"no-store"})
+      ]);
       if(!response.ok) throw new Error(`HTTP ${response.status}`);
       worldStationsData=await response.json();
+      worldStationsCurrentData=currentResponse.ok?await currentResponse.json():null;
       worldStationsRows=(worldStationsData.stations||[]).map(worldStationsDecode);
+      worldStationsApplyCurrentOverlay();
+      renderWorldStationsCurrentNote();
+      updateWorldStationsActiveButton();
       renderWorldStationsKpis();
       populateWorldStationsCountries();
       bindWorldStationsControls();
