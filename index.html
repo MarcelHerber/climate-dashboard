@@ -11199,9 +11199,33 @@ function era5EuropeHighresWeightedMean(field){
   }
   return weights?sum/weights:null;
 }
+// ERA5_PERIOD_YEAR_LABEL_FIX_V1
+function era5EuropePeriodDisplayLabel(period,year){
+  const raw=String(period?.label||"Zeitraum").trim();
+  const y=Number(year);
+  if(!Number.isFinite(y))return raw;
+  const periodYear=Number(period?.year);
+  if(Number.isFinite(periodYear)){
+    const re=new RegExp(`\\b${periodYear}\\b`,'g');
+    if(re.test(raw))return raw.replace(re,String(y));
+  }
+  const months=(period?.months||[]).map(Number).filter(Number.isFinite);
+  if(months.length===1)return `${raw.replace(/\\s+(?:19|20)\\d{2}\\s*$/,'').trim()} ${y}`;
+  return raw;
+}
+function era5EuropeSyncPeriodOptionLabels(){
+  const select=document.getElementById("era5EuropePeriod");if(!select||!era5EuropeIndex)return;
+  const selectedYear=era5EuropeMapYear();
+  for(const option of select.options){
+    if(!String(option.value||"").startsWith("month_"))continue;
+    const period=era5EuropeIndex?.periods?.[option.value];if(!period)continue;
+    const year=Number.isFinite(selectedYear)?selectedYear:Number(period?.year);
+    option.textContent=era5EuropePeriodDisplayLabel(period,year);
+  }
+}
 function era5EuropeShowMonthlyRankingPending(meta,period,year){
   const panel=document.getElementById("era5EuropeRanking");if(!panel)return;
-  document.getElementById("era5EuropeRankingTitle").textContent=`${meta.label} · ${period?.label||"Monat"} ${year}`;
+  document.getElementById("era5EuropeRankingTitle").textContent=`${meta.label} · ${era5EuropePeriodDisplayLabel(period,year)}`;
   document.getElementById("era5EuropeRankingSubtitle").textContent="0,1°-Monatskarte verfügbar · 1,0°-Rankings und Gitterpunkt-Zeitreihen werden in einer späteren Stufe ergänzt.";
   for(const id of ["era5EuropeRankingMax","era5EuropeRankingMin","era5EuropeRankingHighRecords","era5EuropeRankingLowRecords","era5EuropeRankingMaxDetail","era5EuropeRankingMinDetail"]){const el=document.getElementById(id);if(el)el.textContent="–";}
   const top=document.getElementById("era5EuropeRankingTop"),bottom=document.getElementById("era5EuropeRankingBottom");
@@ -11408,8 +11432,9 @@ async function renderEra5EuropeHistorical(){
   const minLabel=era5EuropeHistoryLegendLabel(era5EuropeHistoricalScale.min,meta,view),maxLabel=era5EuropeHistoryLegendLabel(era5EuropeHistoricalScale.max,meta,view),clickable=rows.length>0;
   if(wrap)wrap.innerHTML=`<div id="era5EuropeImageStage" class="era5-europe-image-stage"><img id="era5EuropeImage" class="era5-europe-image" crossorigin="anonymous" alt="Historische ERA5-Land-Karte ${year}" src="${base}"><canvas id="era5EuropeHistoryCanvas" class="era5-europe-history-canvas"></canvas><div id="era5EuropePointMarker" class="era5-europe-point-marker"></div><div class="era5-europe-history-badge">Historisches Kartenarchiv<br>${year} · 0,1° ERA5-Land</div><div class="era5-europe-click-hint">${clickable?'Karte anklicken<br>→ Gitterpunktanalyse':'Monatsarchiv<br>0,1° ERA5-Land'}</div><div class="era5-europe-history-legend"><span>${minLabel}</span><div class="era5-europe-history-gradient" style="background:${era5EuropeHistoricalScale.gradient}"></div><span>${maxLabel}</span></div></div>`;
   const stage=document.getElementById("era5EuropeImageStage"),img=document.getElementById("era5EuropeImage");if(clickable)stage?.addEventListener("click",era5EuropeHandleMapClick);img?.addEventListener("load",()=>{era5EuropeDrawHistoricalCanvas();if(clickable)era5EuropePlaceMarker();});img?.addEventListener("error",()=>{if(wrap)wrap.innerHTML='<div class="era5-europe-loading">Die historische Basiskarte konnte nicht geladen werden.</div>';});
-  document.getElementById("era5EuropeMapTitle").textContent=`${meta.label} · ${year} · ${period?.label||year}`;document.getElementById("era5EuropeMapSubtitle").textContent=`Historische 0,1°-ERA5-Land-Karte · ${document.getElementById("era5EuropeView")?.selectedOptions?.[0]?.textContent||view}${clickable?' · Rankings/KPIs separat auf 1,0°':' · Monatsarchiv'}`;
-  document.getElementById("era5EuropePeriodKpi").textContent=`${year} · ${period?.label||periodId}`;document.getElementById("era5EuropeDataKpi").textContent="Historisches Archiv · sichtbares Raster 0,1°";
+  const periodDisplayLabel=era5EuropePeriodDisplayLabel(period,year);
+  document.getElementById("era5EuropeMapTitle").textContent=`${meta.label} · ${periodDisplayLabel}`;document.getElementById("era5EuropeMapSubtitle").textContent=`Historische 0,1°-ERA5-Land-Karte · ${document.getElementById("era5EuropeView")?.selectedOptions?.[0]?.textContent||view}${clickable?' · Rankings/KPIs separat auf 1,0°':' · Monatsarchiv'}`;
+  document.getElementById("era5EuropePeriodKpi").textContent=periodDisplayLabel;document.getElementById("era5EuropeDataKpi").textContent="Historisches Archiv · sichtbares Raster 0,1°";
   const diffLabel=document.getElementById("era5EuropeDifferenceLabel");document.getElementById("era5EuropeCurrentKpi").textContent=era5EuropeFormat(rawMean,meta.decimals,` ${meta.unit}`);document.getElementById("era5EuropeReferenceKpi").textContent=era5EuropeFormat(refMean,meta.decimals,` ${meta.unit}`);
   if(parameter==="precipitation"){if(diffLabel)diffLabel.textContent="Vom Mittel";document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(Number.isFinite(rawMean)&&Number.isFinite(refMean)&&refMean!==0?rawMean/refMean*100:null,0," %");document.getElementById("era5EuropeDifferenceDetail").textContent=`Niederschlag ${year} gegenüber 1991–2020`;}
   else{if(diffLabel)diffLabel.textContent="Abweichung";document.getElementById("era5EuropeDifferenceKpi").textContent=era5EuropeFormat(Number.isFinite(rawMean)&&Number.isFinite(refMean)?rawMean-refMean:null,meta.decimals,` ${parameter==="temperature"?"K":meta.diffUnit||meta.unit}`);document.getElementById("era5EuropeDifferenceDetail").textContent=`${year} gegenüber 1991–2020`;}
@@ -11695,6 +11720,7 @@ function renderEra5EuropePointAnalysis(){
 }
 function renderEra5Europe(){
   if(!era5EuropeIndex?.ready)return;
+  era5EuropeSyncPeriodOptionLabels();
   if(Number.isFinite(era5EuropeMapYear())){renderEra5EuropeHistorical();return;}
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
   const soilLayer=document.getElementById("era5EuropeSoilLayer")?.value||"layer1";
