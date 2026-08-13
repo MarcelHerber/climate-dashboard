@@ -170,7 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site
+          mkdir -p _site/data
 
           # Nur Frontend und kompakte Indexdateien werden über GitHub Pages verteilt.
           # Die vielen historischen Stationsprofile bleiben im Repository und werden
@@ -186,6 +186,10 @@ jobs:
             station_heatwaves_current.json \
             update_status.json \
             _site/
+
+          # Weltweite GHCN-Stationsdaten für den Reiter "Weltweite Stationen".
+          cp data/world_stations_stage9.json _site/data/world_stations_stage9.json
+
           touch _site/.nojekyll
 
           echo "Dateien im Pages-Artefakt: $(find _site -type f | wc -l)"
