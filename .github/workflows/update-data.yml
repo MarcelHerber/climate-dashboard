@@ -87,6 +87,22 @@ jobs:
           fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
+      - name: Weltweite GHCN-Temperaturstationen aktualisieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_world_stations_current.py --self-test
+          if python scripts/update_world_stations_current.py \
+            --baseline-json data/world_stations_stage9.json \
+            --output data/world_stations_current.json \
+            --index index.html \
+            --year 2026 \
+            --active-days 60; then
+            echo "Weltweite GHCN-Aktualisierung erfolgreich."
+          else
+            echo "WARNUNG: Aktuelle GHCN-Daten konnten nicht aktualisiert werden; der letzte erfolgreiche Stand bleibt erhalten."
+          fi
+
       - name: Änderungen versionieren
         id: versioning
         shell: bash
@@ -115,6 +131,12 @@ jobs:
             station_heatwaves_profiles \
             station_heatwaves_current.json \
             update_status.json
+
+          # Weltstations-Frontend und aktueller GHCN-Overlay.
+          git add index.html
+          if [[ -f data/world_stations_current.json ]]; then
+            git add data/world_stations_current.json
+          fi
 
           # update_status.json kann allein durch den Prüfzeitpunkt geändert werden.
           # Für die Entscheidung, ob wirklich neue DWD-Daten vorliegen, wird diese
@@ -189,6 +211,9 @@ jobs:
 
           # Weltweite GHCN-Stationsdaten für den Reiter "Weltweite Stationen".
           cp data/world_stations_stage9.json _site/data/world_stations_stage9.json
+          if [[ -f data/world_stations_current.json ]]; then
+            cp data/world_stations_current.json _site/data/world_stations_current.json
+          fi
 
           touch _site/.nojekyll
 
