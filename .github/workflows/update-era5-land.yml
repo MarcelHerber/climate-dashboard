@@ -4,7 +4,7 @@ on:
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
     # Der tägliche Lauf ist leichtgewichtig: Wenn kein neuer Zielmonat vorliegt,
-    # beendet sich das Skript ohne CDS-Download.
+    # beendet sich das Hauptskript ohne CDS-Download. Der T/P-Monatscheck ist danach idempotent.
     - cron: "37 12 * * *"
       timezone: "Europe/Berlin"
   workflow_dispatch:
@@ -96,13 +96,26 @@ jobs:
         shell: bash
         run: python scripts/fix_era5_history_geometry.py
 
+      - name: T/P-Monatsarchiv Januar bis Dezember ergänzen
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/build_era5_tp_all_months.py $EXTRA_ARGS
+
+      - name: T/P-Monatsauswahl im Frontend ergänzen
+        shell: bash
+        run: python scripts/patch_era5_tp_month_frontend.py
+
       - name: Änderungen versionieren
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add era5_land_europe
+          git add era5_land_europe index.html
 
           if git diff --cached --quiet; then
             echo "Keine neuen ERA5-Land Monatsdaten vorhanden."
