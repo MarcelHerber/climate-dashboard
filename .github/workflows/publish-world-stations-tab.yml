@@ -41,10 +41,7 @@ jobs:
       - name: Build full world station data and add tab
         run: |
           set -euo pipefail
-          python scripts/publish_world_stations_tab.py \
-            --index index.html \
-            --baseline-pickle _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz \
-            --output-json data/world_stations_stage9.json
+          python scripts/publish_world_stations_tab.py             --index index.html             --baseline-pickle _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz             --output-json data/world_stations_stage9.json
 
       - name: Validate publication payload
         run: |
@@ -54,15 +51,19 @@ jobs:
           from pathlib import Path
           d=json.loads(Path('data/world_stations_stage9.json').read_text(encoding='utf-8'))
           html=Path('index.html').read_text(encoding='utf-8')
+          start=html.find('id="worldStations"')
+          end=html.find('id="compare"', start)
+          section=html[start:end] if start >= 0 and end > start else ''
           assert d['station_count'] == 40695, d['station_count']
           assert d['with_tmax'] == 40548, d['with_tmax']
           assert d['with_tmin'] == 40442, d['with_tmin']
           assert d['with_both'] == 40295, d['with_both']
           assert d['country_codes'] == 216, d['country_codes']
+          assert len(d.get('stations', [])) == 40695, len(d.get('stations', []))
           assert html.count('id="worldStations"') == 1
           assert html.count("switchTab('worldStations')") >= 1
-          assert 'niedrigstes TMAX' not in html[html.find('id="worldStations"'):html.find('id="compare"')]
-          assert 'höchstes TMIN' not in html[html.find('id="worldStations"'):html.find('id="compare"')]
+          assert 'höchstes Tagesmaximum' in section
+          assert 'tiefstes Tagesminimum' in section
           print('VALIDATION OK', d['station_count'], d['with_tmax'], d['with_tmin'], d['with_both'])
           PY
 
