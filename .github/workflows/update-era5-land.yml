@@ -92,6 +92,10 @@ jobs:
           fi
           python scripts/update_era5_land_europe.py $EXTRA_ARGS
 
+      - name: Historische Karten-Geometrie korrigieren
+        shell: bash
+        run: python scripts/fix_era5_history_geometry.py
+
       - name: Änderungen versionieren
         shell: bash
         run: |
