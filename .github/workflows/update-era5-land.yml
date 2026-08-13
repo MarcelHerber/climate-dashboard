@@ -122,6 +122,10 @@ jobs:
         shell: bash
         run: python scripts/patch_era5_current_tp_frontend.py
 
+      - name: Monats- und Kartenjahr-Beschriftung synchronisieren
+        shell: bash
+        run: python scripts/fix_era5_period_year_labels.py
+
       - name: Änderungen versionieren
         shell: bash
         run: |
