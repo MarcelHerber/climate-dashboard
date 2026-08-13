@@ -1,0 +1,58 @@
+/* Weltweite Stationen · GHCN-Daily historical baseline through 2025 */
+.world-station-controls{margin-bottom:14px}
+.world-station-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin:12px 0 16px}
+.world-station-summary-card{background:#fff;border:1px solid #d7dee3;border-radius:9px;padding:12px 14px;min-width:0}
+.world-station-summary-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.35px;color:#68747c;font-weight:800}
+.world-station-summary-card .value{margin-top:4px;font-size:23px;font-weight:850;color:#202a31;line-height:1.15}
+.world-station-summary-card .detail{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.35}
+.world-station-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(310px,.8fr);gap:16px;align-items:start}
+.world-station-map-card{margin:0!important;padding:12px!important}
+.world-station-map{height:690px;border:1px solid #cbd4da;border-radius:10px;overflow:hidden;background:#f5f7f8}
+.world-station-map .leaflet-container{background:#f5f7f8}
+.world-station-map .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.78)}
+.world-station-side{display:grid;gap:14px}
+.world-station-side-card{background:#fff;border:1px solid #d7dee3;border-radius:10px;padding:14px;box-shadow:var(--shadow)}
+.world-station-side-card h3{margin:0 0 5px;font-size:17px}
+.world-station-side-card .note{margin:0 0 10px}
+.world-station-selected-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;font-size:12px}
+.world-station-selected-grid .label{color:#69747c;font-size:10px;text-transform:uppercase;font-weight:800;letter-spacing:.25px}
+.world-station-selected-grid .value{font-weight:750;line-height:1.3;word-break:break-word}
+.world-country-records{display:grid;gap:8px}
+.world-country-record{border:1px solid #dde3e7;border-radius:8px;padding:9px 10px;background:#fafbfc}
+.world-country-record .head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.world-country-record .metric{font-size:11px;font-weight:850;color:#3e4b54}
+.world-country-record .record-value{font-size:18px;font-weight:850;margin-top:3px}
+.world-country-record .record-detail{font-size:11px;color:#68747c;margin-top:2px;line-height:1.35}
+.world-country-record .source{font-size:9px;margin-top:5px;overflow-wrap:anywhere}
+.world-country-record .source a{color:#365f7a}
+.world-record-status{display:inline-flex;padding:3px 6px;border-radius:999px;font-size:9px;font-weight:850;white-space:nowrap;background:#e8edf1;color:#43515c}
+.world-record-status.official{background:#dff1e4;color:#245d35}
+.world-record-status.secondary{background:#e8e5f7;color:#584c8a}
+.world-record-status.ghcn{background:#e2eef7;color:#2e6081}
+.world-record-status.open{background:#fff0ce;color:#765300}
+.world-station-map-legend{display:flex;gap:12px;flex-wrap:wrap;margin:9px 2px 0;font-size:11px;color:#58636c}
+.world-station-map-legend span{display:inline-flex;align-items:center;gap:5px}
+.world-station-map-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.2)}
+.world-station-table-card{margin-top:16px;background:#fff;border:1px solid #d7dee3;border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.world-station-table-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:13px 14px;border-bottom:1px solid #e1e6e9;flex-wrap:wrap}
+.world-station-table-head h3{margin:0;font-size:17px}
+.world-station-table-head p{margin:3px 0 0}
+.world-station-table-wrap{max-height:560px;overflow:auto}
+.world-station-table{margin:0;min-width:1080px;font-size:11px}
+.world-station-table th{position:sticky;top:0;background:#29323a;color:#fff;z-index:2;white-space:nowrap}
+.world-station-table td{padding:7px 8px;white-space:nowrap}
+.world-station-table td.name{text-align:left;font-weight:750}
+.world-station-table td.country{text-align:left}
+.world-station-table tbody tr{cursor:pointer}
+.world-station-table tbody tr:hover{background:#f2f7fa}
+.world-station-table .active-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#2f8b57}
+.world-station-table .inactive-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#9da5ab}
+.world-station-loading{padding:18px;border-radius:9px;background:#fff;border:1px solid #d7dee3;color:#5f6971}
+.world-station-error{color:#8c1f1f;background:#fff0f0;border-color:#e3b4b4}
+.world-station-popup{min-width:250px;line-height:1.45}
+.world-station-popup strong{font-size:14px}
+.world-station-popup .muted{color:#6d7780;font-size:10px}
+.world-station-popup .extreme{margin-top:5px;font-size:11px}
+@media(max-width:1100px){.world-station-layout{grid-template-columns:1fr}.world-station-side{grid-template-columns:1fr 1fr}.world-station-map{height:620px}}
+@media(max-width:760px){.world-station-summary{grid-template-columns:1fr 1fr}.world-station-side{grid-template-columns:1fr}.world-station-map{height:540px}.world-station-controls .control-group{min-width:100%}}
+@media(max-width:480px){.world-station-summary{grid-template-columns:1fr}.world-station-map{height:500px}.world-station-selected-grid{grid-template-columns:1fr}}
