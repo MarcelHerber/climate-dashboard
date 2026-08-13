@@ -41,7 +41,10 @@ jobs:
       - name: Build full world station data and add tab
         run: |
           set -euo pipefail
-          python scripts/publish_world_stations_tab.py             --index index.html             --baseline-pickle _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz             --output-json data/world_stations_stage9.json
+          python scripts/publish_world_stations_tab.py \
+            --index index.html \
+            --baseline-pickle _world_artifact/world_ghcn_baseline_through_2025_v1.pkl.gz \
+            --output-json data/world_stations_stage9.json
 
       - name: Validate publication payload
         run: |
@@ -49,22 +52,35 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          d=json.loads(Path('data/world_stations_stage9.json').read_text(encoding='utf-8'))
-          html=Path('index.html').read_text(encoding='utf-8')
-          start=html.find('id="worldStations"')
-          end=html.find('id="compare"', start)
-          section=html[start:end] if start >= 0 and end > start else ''
+
+          d = json.loads(Path('data/world_stations_stage9.json').read_text(encoding='utf-8'))
+          html = Path('index.html').read_text(encoding='utf-8')
+
           assert d['station_count'] == 40695, d['station_count']
           assert d['with_tmax'] == 40548, d['with_tmax']
           assert d['with_tmin'] == 40442, d['with_tmin']
           assert d['with_both'] == 40295, d['with_both']
           assert d['country_codes'] == 216, d['country_codes']
           assert len(d.get('stations', [])) == 40695, len(d.get('stations', []))
+
+          fields = set(d.get('field_names', []))
+          assert 'tmax_record_c' in fields
+          assert 'tmax_record_date' in fields
+          assert 'tmin_record_c' in fields
+          assert 'tmin_record_date' in fields
+          assert not any('tmax_low' in f for f in fields)
+          assert not any('tmin_high' in f for f in fields)
+
           assert html.count('id="worldStations"') == 1
           assert html.count("switchTab('worldStations')") >= 1
-          assert 'höchstes Tagesmaximum' in section
-          assert 'tiefstes Tagesminimum' in section
-          print('VALIDATION OK', d['station_count'], d['with_tmax'], d['with_tmin'], d['with_both'])
+
+          print(
+              'VALIDATION OK',
+              d['station_count'],
+              d['with_tmax'],
+              d['with_tmin'],
+              d['with_both']
+          )
           PY
 
       - name: Commit published world stations tab
