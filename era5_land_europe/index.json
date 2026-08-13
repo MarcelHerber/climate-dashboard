@@ -1,7 +1,7 @@
 {
   "ready": true,
-  "payload_version": 8,
-  "generated_at": "2026-08-09T06:34:54+00:00",
+  "payload_version": 9,
+  "generated_at": "2026-08-13T15:10:42+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -44,10 +44,38 @@
     "soil_year_end": 2020,
     "periods": [
       "latest_month",
-      "summer"
+      "summer",
+      "month_01",
+      "month_02",
+      "month_03",
+      "month_04",
+      "month_05",
+      "month_06",
+      "month_07",
+      "month_08",
+      "month_09",
+      "month_10",
+      "month_11",
+      "month_12"
     ],
     "note": "Sichtbare historische Karten werden aus echten 0,1°-ERA5-Land-Rasterfeldern aufgebaut. Das 1,0°-Raster bleibt ausschließlich für Rankings, KPIs und Gitterpunkt-Zeitreihen im Hintergrund.",
-    "quantization_note": "Die sichtbare historische Karte nutzt das echte 0,1°-ERA5-Land-Raster. Für kompakte Browserdateien werden die Rasterwerte verlustarm auf 255 Stufen quantisiert; Rankings, KPIs und Gitterpunkt-Zeitreihen bleiben auf dem separaten 1,0°-Analysedatensatz."
+    "quantization_note": "Die sichtbare historische Karte nutzt das echte 0,1°-ERA5-Land-Raster. Für kompakte Browserdateien werden die Rasterwerte verlustarm auf 255 Stufen quantisiert; Rankings, KPIs und Gitterpunkt-Zeitreihen bleiben auf dem separaten 1,0°-Analysedatensatz.",
+    "temperature_precipitation_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "tp_all_months_ready": true,
+    "tp_all_months_note": "Temperatur und Niederschlag: historische Monatskarten Januar–Dezember auf 0,1°; Zusatzparameter werden schrittweise ergänzt."
   },
   "click_geometry": {
     "left": 0.141973684211,
@@ -901,6 +929,162 @@
           "very_high_area_percent": 0.9081432993433286
         }
       }
+    },
+    "month_01": {
+      "id": "month_01",
+      "label": "Januar",
+      "year": 2025,
+      "months": [
+        1
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_02": {
+      "id": "month_02",
+      "label": "Februar",
+      "year": 2025,
+      "months": [
+        2
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_03": {
+      "id": "month_03",
+      "label": "März",
+      "year": 2025,
+      "months": [
+        3
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_04": {
+      "id": "month_04",
+      "label": "April",
+      "year": 2025,
+      "months": [
+        4
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_05": {
+      "id": "month_05",
+      "label": "Mai",
+      "year": 2025,
+      "months": [
+        5
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_06": {
+      "id": "month_06",
+      "label": "Juni",
+      "year": 2025,
+      "months": [
+        6
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_07": {
+      "id": "month_07",
+      "label": "Juli",
+      "year": 2025,
+      "months": [
+        7
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_08": {
+      "id": "month_08",
+      "label": "August",
+      "year": 2025,
+      "months": [
+        8
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_09": {
+      "id": "month_09",
+      "label": "September",
+      "year": 2025,
+      "months": [
+        9
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_10": {
+      "id": "month_10",
+      "label": "Oktober",
+      "year": 2025,
+      "months": [
+        10
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_11": {
+      "id": "month_11",
+      "label": "November",
+      "year": 2025,
+      "months": [
+        11
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
+    },
+    "month_12": {
+      "id": "month_12",
+      "label": "Dezember",
+      "year": 2025,
+      "months": [
+        12
+      ],
+      "historical_only": true,
+      "parameters": [
+        "temperature",
+        "precipitation"
+      ]
     }
   }
 }
