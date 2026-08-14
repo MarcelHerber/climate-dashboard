@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: hyras-data
@@ -20,7 +21,7 @@ jobs:
       - name: Repository laden
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Python einrichten
         uses: actions/setup-python@v5
@@ -30,6 +31,9 @@ jobs:
 
       - name: HYRAS-Abhängigkeiten installieren
         run: pip install -r requirements-hyras.txt
+
+      - name: HYRAS-Live-Tageslogik im Generator sicherstellen
+        run: python scripts/patch_hyras_live_daily.py
 
       - name: Tagesreferenz 1991-2020 cachen
         uses: actions/cache@v4
@@ -72,6 +76,35 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS 15.4 Mouseover aktualisieren"
+          git commit -m "HYRAS 15.5 Live-Zeiträume aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
+
+      - name: HYRAS-Live-Presets im Frontend sicherstellen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_live_frontend.py
+
+      - name: Dauerhafte HYRAS-Quelländerungen auf main veröffentlichen
+        id: publish-main
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/update_hyras_maps.py index.html
+          if git diff --cached --quiet; then
+            echo "HYRAS-Generator und Frontend sind bereits auf dem aktuellen Stand."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "HYRAS Live-Zeiträume tagesgenau aktualisieren"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages nach Frontend-Änderung aktualisieren
+        if: steps.publish-main.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run update-data.yml --ref main
