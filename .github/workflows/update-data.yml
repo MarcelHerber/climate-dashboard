@@ -2,8 +2,6 @@ name: DWD-Daten aktualisieren und GitHub Pages veröffentlichen
 
 on:
   schedule:
-    # 1. Prüfung gegen 10:17 Uhr. Ist der DWD zu diesem Zeitpunkt noch nicht
-    # aktualisiert, prüft der zweite Lauf rund eine Stunde später erneut.
     - cron: "17 10 * * *"
       timezone: "Europe/Berlin"
     - cron: "17 11 * * *"
@@ -39,8 +37,6 @@ permissions:
   pages: write
   id-token: write
 
-# GitHub Pages erlaubt nur eine aktive Veröffentlichung gleichzeitig.
-# Weitere Läufe warten deshalb, statt einen laufenden Pages-Deploy abzubrechen.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -87,21 +83,8 @@ jobs:
           fi
           python scripts/update_dashboard.py --workers 8 $EXTRA_ARGS
 
-      - name: Weltweite GHCN-Temperaturstationen aktualisieren
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/update_world_stations_current.py --self-test
-          if python scripts/update_world_stations_current.py \
-            --baseline-json data/world_stations_stage9.json \
-            --output data/world_stations_current.json \
-            --index index.html \
-            --year 2026 \
-            --active-days 60; then
-            echo "Weltweite GHCN-Aktualisierung erfolgreich."
-          else
-            echo "WARNUNG: Aktuelle GHCN-Daten konnten nicht aktualisiert werden; der letzte erfolgreiche Stand bleibt erhalten."
-          fi
+      - name: Dashboard-Performancepatch anwenden
+        run: python scripts/patch_dashboard_lazy_loading.py
 
       - name: Änderungen versionieren
         id: versioning
@@ -130,59 +113,41 @@ jobs:
             station_heatwaves_state.json \
             station_heatwaves_profiles \
             station_heatwaves_current.json \
-            update_status.json
+            update_status.json \
+            index.html
 
-          # Weltstations-Frontend und aktueller GHCN-Overlay.
-          git add index.html
-          if [[ -f data/world_stations_current.json ]]; then
-            git add data/world_stations_current.json
-          fi
-
-          # update_status.json kann allein durch den Prüfzeitpunkt geändert werden.
-          # Für die Entscheidung, ob wirklich neue DWD-Daten vorliegen, wird diese
-          # Datei deshalb nicht als fachliche Datenänderung gewertet.
           REAL_CHANGES="$(git diff --cached --name-only | grep -v '^update_status\.json$' || true)"
 
           if [[ -z "$REAL_CHANGES" ]]; then
-            echo "Keine neuen oder korrigierten DWD-Daten vorhanden."
+            echo "Keine neuen oder korrigierten DWD-/Frontend-Daten vorhanden."
             echo "changed=false" >> "$GITHUB_OUTPUT"
             git restore --staged update_status.json 2>/dev/null || true
             git restore update_status.json 2>/dev/null || true
             exit 0
           fi
 
-          echo "Neue DWD-Daten erkannt:"
+          echo "Neue Änderungen erkannt:"
           printf '%s\n' "$REAL_CHANGES"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
           git commit -m "DWD-Daten automatisch aktualisiert [skip ci]"
 
-          # Während des langen DWD-Laufs kann auf GitHub ein neuer manueller
-          # Commit eintreffen. Der Daten-Commit wird deshalb vor dem Push auf
-          # den neuesten Stand von main gesetzt. Bei einem erneuten Rennen wird
-          # der Vorgang bis zu dreimal wiederholt.
           PUSH_OK=false
           for ATTEMPT in 1 2 3; do
             echo "Push-Versuch ${ATTEMPT}/3 ..."
             git fetch origin main
-
             if ! git rebase origin/main; then
-              echo "FEHLER: Die automatisch erzeugten Daten kollidieren mit einer neueren Änderung auf main."
               git rebase --abort || true
               exit 1
             fi
-
             if git push origin HEAD:main; then
               PUSH_OK=true
               break
             fi
-
-            echo "Remote wurde während des Pushs erneut geändert; neuer Versuch folgt."
             sleep $((ATTEMPT * 5))
           done
 
           if [[ "$PUSH_OK" != "true" ]]; then
-            echo "FEHLER: Push war nach drei Versuchen weiterhin nicht möglich."
             exit 1
           fi
 
@@ -192,11 +157,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site/data
+          mkdir -p _site
 
-          # Nur Frontend und kompakte Indexdateien werden über GitHub Pages verteilt.
-          # Die vielen historischen Stationsprofile bleiben im Repository und werden
-          # bei Bedarf direkt über raw.githubusercontent.com geladen.
           cp \
             index.html \
             data.json \
@@ -209,11 +171,8 @@ jobs:
             update_status.json \
             _site/
 
-          # Weltweite GHCN-Stationsdaten für den Reiter "Weltweite Stationen".
-          cp data/world_stations_stage9.json _site/data/world_stations_stage9.json
-          if [[ -f data/world_stations_current.json ]]; then
-            cp data/world_stations_current.json _site/data/world_stations_current.json
-          fi
+          # Weltweite GHCN-Stationsdaten sind vorerst nicht Teil der Website.
+          # Die JSON-Dateien im Repository bleiben erhalten.
 
           touch _site/.nojekyll
 
