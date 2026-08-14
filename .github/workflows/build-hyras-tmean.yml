@@ -1,0 +1,97 @@
+name: HYRAS Tmean Datenbasis bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_history:
+        description: "Historische Tmean-Packs 1951 bis Vorjahr komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-tmean-data
+  cancel-in-progress: false
+
+jobs:
+  tmean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-tmean-work
+          mkdir -p /tmp/hyras-data /tmp/hyras-tmean-work
+          git fetch origin hyras-data --depth=1 || true
+          if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
+            git worktree add --detach /tmp/hyras-existing origin/hyras-data
+            cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+            rm -rf /tmp/hyras-data/.git
+          fi
+
+      - name: HYRAS Tmean aktuell + Historie 1951 bis Vorjahr bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_history }}" == "true" ]]; then
+            EXTRA_ARGS="--force-history"
+          fi
+          python scripts/build_hyras_tmean.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            --history-factor 5 \
+            $EXTRA_ARGS
+
+      - name: Tmean-Paket prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmean/index.json
+          test -f /tmp/hyras-data/tmean/history_5km/manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-data/tmean')
+          idx=json.loads((root/'index.json').read_text())
+          hist=json.loads((root/'history_5km/manifest.json').read_text())
+          packs=[root/'history_5km'/f'month_{m:02d}.i16.gz' for m in range(1,13)]
+          missing=[str(p) for p in packs if not p.exists()]
+          if missing: raise SystemExit('Fehlende Monatspacks: '+', '.join(missing))
+          if hist['first_year'] != 1951: raise SystemExit(f"Unerwarteter Start: {hist['first_year']}")
+          print('Tmean-Prüfung OK')
+          print('Datenstand:',idx['data_through'])
+          print('Historie:',hist['first_year'],'–',hist['last_year'])
+          print('Perioden:',len(idx['periods']))
+          PY
+
+      - name: hyras-data Branch mit Tmean veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Tmean Datenbasis ergänzen"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
