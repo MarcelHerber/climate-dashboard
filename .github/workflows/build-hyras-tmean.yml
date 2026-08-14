@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_region_climate:
+        description: "Tägliche Bundesland-Klimakurve 1991–2020 komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -20,7 +25,7 @@ concurrency:
 jobs:
   tmean:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
@@ -60,25 +65,45 @@ jobs:
             --history-factor 5 \
             $EXTRA_ARGS
 
+      - name: Deutschland- und Bundesland-Kurven + Downloadkarten bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_region_climate }}" == "true" ]]; then
+            EXTRA_ARGS="--force-climate"
+          fi
+          python scripts/build_hyras_tmean_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            $EXTRA_ARGS
+
       - name: Tmean-Paket prüfen
         run: |
           set -euo pipefail
           test -f /tmp/hyras-data/tmean/index.json
           test -f /tmp/hyras-data/tmean/history_5km/manifest.json
+          test -f /tmp/hyras-data/tmean/regions/index.json
+          test -f /tmp/hyras-data/tmean/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmean/regions/map_downloads.json
           python - <<'PY'
           import json
           from pathlib import Path
           root=Path('/tmp/hyras-data/tmean')
           idx=json.loads((root/'index.json').read_text())
           hist=json.loads((root/'history_5km/manifest.json').read_text())
-          packs=[root/'history_5km'/f'month_{m:02d}.i16.gz' for m in range(1,13)]
-          missing=[str(p) for p in packs if not p.exists()]
-          if missing: raise SystemExit('Fehlende Monatspacks: '+', '.join(missing))
+          reg=json.loads((root/'regions/index.json').read_text())
+          cur=json.loads((root/'regions'/reg['current_file']).read_text())
+          cli=json.loads((root/'regions'/reg['climate_file']).read_text())
+          maps=json.loads((root/'regions'/reg['map_downloads_file']).read_text())
           if hist['first_year'] != 1951: raise SystemExit(f"Unerwarteter Start: {hist['first_year']}")
+          if len(reg['regions']) != 17: raise SystemExit(f"Unerwartete Gebietszahl: {len(reg['regions'])}")
+          if 'Deutschland' not in cur['regions'] or 'Bayern' not in cur['regions']: raise SystemExit('Gebietsdaten fehlen')
+          if 'Deutschland' not in cli['regions'] or 'Bayern' not in cli['regions']: raise SystemExit('Klimakurven fehlen')
           print('Tmean-Prüfung OK')
           print('Datenstand:',idx['data_through'])
           print('Historie:',hist['first_year'],'–',hist['last_year'])
-          print('Perioden:',len(idx['periods']))
+          print('Gebiete:',len(reg['regions']))
+          print('Tage aktuell:',len(cur['dates']))
+          print('Download-Kartenperioden:',len(maps['periods']))
           PY
 
       - name: Tmean im HYRAS-Frontend ergänzen
@@ -90,6 +115,11 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_tmean_performance.py
+
+      - name: Tmean auf Gebietskurven + Karten-Downloads umstellen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_regions_frontend.py
 
       - name: hyras-data Branch mit Tmean veröffentlichen
         env:
@@ -103,7 +133,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS Tmean Datenbasis aktualisieren"
+          git commit -m "HYRAS Tmean Gebietskurven und Downloadkarten aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
 
@@ -120,7 +150,7 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "HYRAS Tmean im Dashboard ergänzen"
+          git commit -m "HYRAS Tmean Gebietskurven im Dashboard"
           git pull --rebase origin main
           git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
