@@ -330,6 +330,49 @@ def period_label_date(start_date: str, end_date: str) -> str:
     return f"{s.strftime('%d.%m.%Y')}–{e.strftime('%d.%m.%Y')}"
 
 
+# HYRAS_LIVE_DAILY_PRESETS_V1
+def current_season_info(dt: datetime) -> tuple[str, str, str]:
+    """Return period key, German label and meteorological season start date."""
+    if 3 <= dt.month <= 5:
+        return "spring", "Frühling", f"{dt.year:04d}-03-01"
+    if 6 <= dt.month <= 8:
+        return "summer", "Sommer", f"{dt.year:04d}-06-01"
+    if 9 <= dt.month <= 11:
+        return "autumn", "Herbst", f"{dt.year:04d}-09-01"
+    if dt.month == 12:
+        return "winter", "Winter", f"{dt.year:04d}-12-01"
+    return "winter", "Winter", f"{dt.year - 1:04d}-12-01"
+
+
+def live_daily_period(*, key: str, label: str, start_date: str, end_date: str, period_type: str) -> dict[str, Any]:
+    """Metadata for a browser-computed live period using exact daily 1991-2020 reference rasters."""
+    return {
+        "key": key,
+        "label": label,
+        "period_type": period_type,
+        "start_date": start_date,
+        "end_date": end_date,
+        "date_label": period_label_date(start_date, end_date),
+        "reference": "1991-2020",
+        "reference_exact": True,
+        "daily_live": True,
+        "reference_note": (
+            "Tagesgenauer Vergleich mit exakt demselben Kalenderabschnitt des Mittels 1991–2020. "
+            "Der laufende Monat wird aus den jeweils verfügbaren HYRAS-Tagesrastern ergänzt."
+        ),
+        # Sentinel entries keep all three metric choices available. The browser uses
+        # hyras_web_manifest.json instead of opening these as files.
+        "outputs": {"sum": "__daily_live__", "percent": "__daily_live__", "anomaly": "__daily_live__"},
+        "interactive": {"daily_live": True},
+        "stats": {
+            "current_mean_mm": None,
+            "reference_mean_mm": None,
+            "percent_of_reference": None,
+            "anomaly_mean_mm": None,
+        },
+    }
+
+
 def load_month_reference(month: int, work: Path, cache: dict[int, xr.DataArray]) -> tuple[xr.DataArray, str]:
     if month in cache:
         return cache[month], latest_clim_filename(month)
@@ -653,11 +696,12 @@ def build_geo_lookup(
 def build_web_cumulative_package(
     *, daily: xr.DataArray, year: int, data_through: str, factor: int,
     out: Path, work: Path, cache_dir: Path, geojson: dict[str, Any] | None,
-    data_crs: CRS,
+    data_crs: CRS, first_date: str | None = None,
 ) -> dict[str, Any]:
-    print(f"Erzeuge Web-Raster für freie Zeiträume (Abtastung {factor} km) …")
+    print(f"Erzeuge Web-Raster für freie und laufende Zeiträume (Abtastung {factor} km) …")
     vals, dates, x, y = sample_daily_for_web(daily, factor)
-    keep = [i for i, iso in enumerate(dates) if iso <= data_through and iso.startswith(f"{year}-")]
+    first_date = first_date or f"{year:04d}-01-01"
+    keep = [i for i, iso in enumerate(dates) if first_date <= iso <= data_through]
     vals = vals[keep]
     dates = [dates[i] for i in keep]
     if not dates:
@@ -1029,31 +1073,64 @@ def main() -> int:
             reference_note="Exakter Vergleich 1991–2020 über vollständig abgeschlossene Kalendermonate.",
         ))
 
-    # Aktueller Zeitraum bis zum letzten HYRAS-Tag. Für Teilmonate zunächst nur Summe.
-    if data_through_dt.month >= 6:
-        start_date = f"{args.year}-06-01"
-        current = date_sum(daily, start_date, data_through).load()
-        periods.append(render_period(
-            out=out, current=current, reference=None, key=f"{args.year}_summer_live",
-            title_label=f"Sommer aktuell {args.year}", subtitle_period=period_label_date(start_date, data_through),
-            geojson=geojson, data_crs=data_crs, source_files=[], period_type="summer_live",
-            start_date=start_date, end_date=data_through,
-            reference_note="Für diese vordefinierte 1-km-Karte wird der laufende Teilmonat nur als Summe gezeigt. Für einen tagesgenauen 1991–2020-Vergleich denselben Zeitraum bitte über „Freier Zeitraum“ im Dashboard wählen.",
-        ))
-    start_date = f"{args.year}-01-01"
-    current = date_sum(daily, start_date, data_through).load()
-    periods.append(render_period(
-        out=out, current=current, reference=None, key=f"{args.year}_ytd_live",
-        title_label=f"Jahr aktuell {args.year}", subtitle_period=period_label_date(start_date, data_through),
-        geojson=geojson, data_crs=data_crs, source_files=[], period_type="ytd_live",
-        start_date=start_date, end_date=data_through,
-        reference_note="Für diese vordefinierte 1-km-Karte wird der laufende Teilmonat nur als Summe gezeigt. Für einen tagesgenauen 1991–2020-Vergleich denselben Zeitraum bitte über „Freier Zeitraum“ im Dashboard wählen.",
+    # Laufender Monat, aktuelle meteorologische Jahreszeit und Jahr bis zum letzten HYRAS-Tag.
+    # Alle drei werden im Browser aus denselben tagesgenauen Kumulativrastern wie der
+    # freie Zeitraum berechnet – inklusive exakt gleichem Referenzzeitraum 1991–2020.
+    live_month_key = f"{args.year}_{data_through_dt.month:02d}_live"
+    live_month_start = f"{args.year}-{data_through_dt.month:02d}-01"
+    periods.append(live_daily_period(
+        key=live_month_key,
+        label=f"{MONTH_DE[data_through_dt.month]} aktuell {args.year}",
+        start_date=live_month_start, end_date=data_through, period_type="month_live",
     ))
 
-    # Web-Raster für wirklich freie Start-/Enddaten.
+    season_id, season_label, season_start = current_season_info(data_through_dt)
+    season_year_label = (
+        f"{datetime.strptime(season_start, '%Y-%m-%d').year}/{str(args.year)[-2:]}"
+        if season_id == "winter" and datetime.strptime(season_start, "%Y-%m-%d").year != args.year
+        else str(args.year)
+    )
+    live_season_key = f"{args.year}_{season_id}_live"
+    periods.append(live_daily_period(
+        key=live_season_key, label=f"{season_label} aktuell {season_year_label}",
+        start_date=season_start, end_date=data_through, period_type="season_live",
+    ))
+
+    live_ytd_key = f"{args.year}_ytd_live"
+    periods.append(live_daily_period(
+        key=live_ytd_key, label=f"Jahr aktuell {args.year}",
+        start_date=f"{args.year}-01-01", end_date=data_through, period_type="ytd_live",
+    ))
+
+    # Januar/Februar gehören meteorologisch noch zum Winter, der am 1. Dezember
+    # des Vorjahres begonnen hat. Für diese beiden Monate wird deshalb der Dezember
+    # des Vorjahres zusätzlich in das Web-Kumulativpaket aufgenommen.
+    web_daily = daily
+    web_first_date = f"{args.year}-01-01"
+    if data_through_dt.month in (1, 2):
+        previous_year = args.year - 1
+        previous_name = latest_daily_filename(previous_year)
+        previous_file = work / previous_name
+        if not previous_file.exists():
+            download(f"{DAILY_BASE}/{previous_name}", previous_file)
+        with xr.open_dataset(previous_file, decode_times=True) as prev_ds:
+            prev_da = pick_precip_var(prev_ds)
+            prev_td = time_dim(prev_da)
+            prev_dec = prev_da.where(
+                (prev_da[prev_td].dt.year == previous_year) & (prev_da[prev_td].dt.month == 12),
+                drop=True,
+            ).load()
+        current_td = time_dim(daily)
+        if prev_td != current_td:
+            prev_dec = prev_dec.rename({prev_td: current_td})
+        web_daily = xr.concat([prev_dec, daily], dim=current_td)
+        web_first_date = f"{previous_year}-12-01"
+
+    # Web-Raster für freie sowie die neuen laufenden Start-/Endzeiträume.
     web_manifest = build_web_cumulative_package(
-        daily=daily, year=args.year, data_through=data_through, factor=max(2, args.web_factor),
+        daily=web_daily, year=args.year, data_through=data_through, factor=max(2, args.web_factor),
         out=out, work=work, cache_dir=Path(args.reference_cache), geojson=geojson, data_crs=data_crs,
+        first_date=web_first_date,
     )
 
     # Kompakte historische Monatsraster 1931 bis Vorjahr. Bereits vorhandene
@@ -1074,11 +1151,11 @@ def main() -> int:
         json.dumps(historical_manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
 
-    # Default: Sommer-bisher mit exaktem Vergleich, sonst letzter vollständiger Monat.
-    default_key = f"{args.year}_summer_so_far_complete" if any(p["key"] == f"{args.year}_summer_so_far_complete" for p in periods) else f"{args.year}_{latest_month:02d}"
+    # Default ist immer die laufende meteorologische Jahreszeit bis zum aktuellen HYRAS-Datenstand.
+    default_key = live_season_key if any(p["key"] == live_season_key for p in periods) else live_month_key
 
     metadata = {
-        "schema_version": 7,
+        "schema_version": 8,
         "product": "DWD HYRAS-DE-PR",
         "resolution_km": 1,
         "reference": "1991-2020",
@@ -1099,7 +1176,7 @@ def main() -> int:
             "boundary_overlay_1km": native_boundary_rel,
             "geo_lookup_1km": native_geo_rel,
         },
-        "note": "Version 15.4: Mouseover für aktuelle Presetkarten, historische Karten und freie Zeiträume. Historie und aktuelle Presets nutzen native 1-km-Werte; freie tagesgenaue Zeiträume bleiben auf dem separaten 2-km-Webraster.",
+        "note": "Version 15.5: Laufender Monat, aktuelle Jahreszeit und Jahr werden täglich bis zum HYRAS-Datenstand fortgeschrieben und tagesgenau mit 1991–2020 verglichen. Abgeschlossene Presets und Historie bleiben auf 1 km; laufende Tageszeiträume nutzen das 2-km-Webraster.",
     }
     (out / "hyras_index.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"period_count": len(periods), "default_period": default_key, "data_through": data_through}, ensure_ascii=False, indent=2))
