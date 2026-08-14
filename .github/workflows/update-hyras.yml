@@ -54,6 +54,9 @@ jobs:
             if [ -f /tmp/hyras-existing/hyras_historical_manifest.json ]; then
               cp /tmp/hyras-existing/hyras_historical_manifest.json /tmp/hyras-data/
             fi
+            if [ -d /tmp/hyras-existing/click_series_5km ]; then
+              cp -a /tmp/hyras-existing/click_series_5km /tmp/hyras-data/
+            fi
           fi
 
       - name: HYRAS aktuell, Historie und Mouseover-Raster bauen
@@ -64,6 +67,12 @@ jobs:
             --reference-cache /tmp/hyras-reference-cache \
             --web-factor 2 \
             --historical-factor 1
+
+      - name: HYRAS Klick-Zeitreihen seit 1931 bauen
+        run: |
+          python scripts/build_hyras_click_series.py \
+            --data-root /tmp/hyras-data \
+            --factor 5
 
       - name: hyras-data Branch veröffentlichen
         env:
@@ -76,7 +85,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS 15.5 Live-Zeiträume aktualisieren"
+          git commit -m "HYRAS 15.6 Klick-Zeitreihen und Maxima aktualisieren"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
 
@@ -84,6 +93,11 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_live_frontend.py
+
+      - name: HYRAS Klick-Zeitreihe im Frontend sicherstellen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_click_timeseries_frontend.py
 
       - name: Dauerhafte HYRAS-Quelländerungen auf main veröffentlichen
         id: publish-main
@@ -98,7 +112,7 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "HYRAS Live-Zeiträume tagesgenau aktualisieren"
+          git commit -m "HYRAS Klick-Zeitreihe seit 1931 ergänzen"
           git pull --rebase origin main
           git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
