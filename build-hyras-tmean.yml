@@ -1,0 +1,197 @@
+name: HYRAS Tmean Datenbasis bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_history:
+        description: "Historische Tmean-Packs 1951 bis Vorjahr komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+      force_region_climate:
+        description: "Tägliche Bundesland-Klimakurve 1991–2020 komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+      force_region_records:
+        description: "Tägliche Tmean-Maxima/Minima seit 1951 komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: hyras-tmean-data
+  cancel-in-progress: false
+
+jobs:
+  tmean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-tmean-work
+          mkdir -p /tmp/hyras-data /tmp/hyras-tmean-work
+          git fetch origin hyras-data --depth=1 || true
+          if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
+            git worktree add --detach /tmp/hyras-existing origin/hyras-data
+            cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+            rm -rf /tmp/hyras-data/.git
+          fi
+
+      - name: HYRAS Tmean aktuell + Historie 1951 bis Vorjahr bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_history }}" == "true" ]]; then
+            EXTRA_ARGS="--force-history"
+          fi
+          python scripts/build_hyras_tmean.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            --history-factor 5 \
+            $EXTRA_ARGS
+
+      - name: Deutschland- und Bundesland-Kurven + Downloadkarten bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_region_climate }}" == "true" ]]; then
+            EXTRA_ARGS="--force-climate"
+          fi
+          python scripts/build_hyras_tmean_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            $EXTRA_ARGS
+
+      - name: Historische tägliche Tmean-Maxima und Minima bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_region_records }}" == "true" ]]; then
+            EXTRA_ARGS="--force-records"
+          fi
+          python scripts/build_hyras_tmean_daily_records.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            $EXTRA_ARGS
+
+      - name: Tmean-Paket prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmean/index.json
+          test -f /tmp/hyras-data/tmean/history_5km/manifest.json
+          test -f /tmp/hyras-data/tmean/regions/index.json
+          test -f /tmp/hyras-data/tmean/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmean/regions/map_downloads.json
+          test -f /tmp/hyras-data/tmean/regions/daily_records.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-data/tmean')
+          idx=json.loads((root/'index.json').read_text())
+          hist=json.loads((root/'history_5km/manifest.json').read_text())
+          reg=json.loads((root/'regions/index.json').read_text())
+          cur=json.loads((root/'regions'/reg['current_file']).read_text())
+          cli=json.loads((root/'regions'/reg['climate_file']).read_text())
+          maps=json.loads((root/'regions'/reg['map_downloads_file']).read_text())
+          rec=json.loads((root/'regions'/reg['records_file']).read_text())
+          if hist['first_year'] != 1951:
+              raise SystemExit(f"Unerwarteter Start: {hist['first_year']}")
+          if len(reg['regions']) != 17:
+              raise SystemExit(f"Unerwartete Gebietszahl: {len(reg['regions'])}")
+          if 'Deutschland' not in cur['regions'] or 'Bayern' not in cur['regions']:
+              raise SystemExit('Gebietsdaten fehlen')
+          if 'Deutschland' not in cli['regions'] or 'Bayern' not in cli['regions']:
+              raise SystemExit('Klimakurven fehlen')
+          if rec['first_year'] != 1951:
+              raise SystemExit(f"Rekordstart falsch: {rec['first_year']}")
+          if rec['last_year'] != idx['year']-1:
+              raise SystemExit(f"Rekordende falsch: {rec['last_year']}")
+          if len(rec['regions'].get('Deutschland',{})) < 365:
+              raise SystemExit('Deutschland-Rekordkalender unvollständig')
+          print('Tmean-Prüfung OK')
+          print('Datenstand:',idx['data_through'])
+          print('Historie:',hist['first_year'],'–',hist['last_year'])
+          print('Gebiete:',len(reg['regions']))
+          print('Tage aktuell:',len(cur['dates']))
+          print('Tagesrekorde:',rec['first_year'],'–',rec['last_year'])
+          print('Rekord-Kalendertage Deutschland:',len(rec['regions']['Deutschland']))
+          print('Download-Kartenperioden:',len(maps['periods']))
+          PY
+
+      - name: Tmean im HYRAS-Frontend ergänzen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_frontend.py
+
+      - name: Tmean-Frontend beschleunigen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_performance.py
+
+      - name: Tmean Gebietskurven + Karten-Downloads sicherstellen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_regions_frontend.py
+
+      - name: Historische Maxima und Minima in Tmean-Kurven ergänzen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_records_frontend.py
+
+      - name: hyras-data Branch mit Tmean veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Tmean Gebietskurven und Tagesrekorde aktualisieren"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
+
+      - name: Tmean-Frontend auf main veröffentlichen
+        id: publish-main
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Tmean-Frontend ist bereits aktuell."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "HYRAS Tmean Tagesrekorde im Dashboard"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages nach Frontend-Änderung aktualisieren
+        if: steps.publish-main.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run update-data.yml --ref main
