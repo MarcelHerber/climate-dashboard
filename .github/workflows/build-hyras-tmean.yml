@@ -86,6 +86,11 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_tmean_frontend.py
 
+      - name: Tmean-Frontend beschleunigen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmean_performance.py
+
       - name: hyras-data Branch mit Tmean veröffentlichen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
