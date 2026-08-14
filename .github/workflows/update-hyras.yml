@@ -99,6 +99,11 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_click_timeseries_frontend.py
 
+      - name: HYRAS-Zeitreihenwerte auf eine Nachkommastelle formatieren
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/fix_hyras_timeseries_rounding.py
+
       - name: Dauerhafte HYRAS-Quelländerungen auf main veröffentlichen
         id: publish-main
         run: |
