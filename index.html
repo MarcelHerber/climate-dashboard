@@ -3068,6 +3068,8 @@ let hyrasTmeanRegionsIndex=null;
 let hyrasTmeanRegionsCurrent=null;
 let hyrasTmeanRegionsClimate=null;
 let hyrasTmeanMapDownloads=null;
+// HYRAS_TMEAN_DAILY_RECORDS_V1
+let hyrasTmeanRegionsRecords=null;
 let hyrasTmeanRegionChart=null;
 let hyrasTmeanRegionsLoading=null;
 let hyrasPointChart=null;
@@ -10559,16 +10561,17 @@ async function hyrasTmeanRegionsFetch(path){
   return response.json();
 }
 async function hyrasTmeanRegionsEnsureLoaded(){
-  if(hyrasTmeanRegionsIndex&&hyrasTmeanRegionsCurrent&&hyrasTmeanRegionsClimate&&hyrasTmeanMapDownloads)return hyrasTmeanRegionsIndex;
+  if(hyrasTmeanRegionsIndex&&hyrasTmeanRegionsCurrent&&hyrasTmeanRegionsClimate&&hyrasTmeanMapDownloads&&hyrasTmeanRegionsRecords)return hyrasTmeanRegionsIndex;
   if(hyrasTmeanRegionsLoading)return hyrasTmeanRegionsLoading;
   hyrasTmeanRegionsLoading=(async()=>{
     hyrasTmeanRegionsIndex=await hyrasTmeanRegionsFetch("index.json");
-    const [current,climate,maps]=await Promise.all([
+    const [current,climate,maps,records]=await Promise.all([
       hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.current_file),
       hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.climate_file),
       hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.map_downloads_file),
+      hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.records_file),
     ]);
-    hyrasTmeanRegionsCurrent=current;hyrasTmeanRegionsClimate=climate;hyrasTmeanMapDownloads=maps;
+    hyrasTmeanRegionsCurrent=current;hyrasTmeanRegionsClimate=climate;hyrasTmeanMapDownloads=maps;hyrasTmeanRegionsRecords=records;
     return hyrasTmeanRegionsIndex;
   })().finally(()=>{hyrasTmeanRegionsLoading=null;});
   return hyrasTmeanRegionsLoading;
@@ -10592,12 +10595,13 @@ function hyrasTmeanCurvePeriod(){
 }
 function hyrasTmeanRegionName(){return document.getElementById("hyrasTmeanRegionSelect")?.value||"Deutschland";}
 function hyrasTmeanCurveRows(region,period){
-  const dates=hyrasTmeanRegionsCurrent?.dates||[],values=hyrasTmeanRegionsCurrent?.regions?.[region]||[],climate=hyrasTmeanRegionsClimate?.regions?.[region]||{};
+  const dates=hyrasTmeanRegionsCurrent?.dates||[],values=hyrasTmeanRegionsCurrent?.regions?.[region]||[],climate=hyrasTmeanRegionsClimate?.regions?.[region]||{},records=hyrasTmeanRegionsRecords?.regions?.[region]||{};
   const rows=[];
   for(let i=0;i<dates.length;i++){
     const date=dates[i];if(date<period.start_date||date>period.end_date)continue;
-    const current=Number(values[i]),normal=Number(climate[date.slice(5,10)]);
-    rows.push({date,current:Number.isFinite(current)?current:null,normal:Number.isFinite(normal)?normal:null});
+    const mmdd=date.slice(5,10),current=Number(values[i]),normal=Number(climate[mmdd]),record=records[mmdd]||{};
+    const recordMax=record.max===null||record.max===undefined?null:Number(record.max),recordMin=record.min===null||record.min===undefined?null:Number(record.min);
+    rows.push({date,current:Number.isFinite(current)?current:null,normal:Number.isFinite(normal)?normal:null,recordMax:Number.isFinite(recordMax)?recordMax:null,recordMin:Number.isFinite(recordMin)?recordMin:null,recordMaxYears:Array.isArray(record.max_years)?record.max_years:[],recordMinYears:Array.isArray(record.min_years)?record.min_years:[]});
   }
   return rows;
 }
@@ -10681,15 +10685,25 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
     ));
   });
   const labels=rows.map(r=>{const [,m,d]=r.date.split("-");return `${d}.${m}.`;});
-  const climate=rows.map(r=>r.normal),current=rows.map(r=>r.current);
+  const climate=rows.map(r=>r.normal),current=rows.map(r=>r.current),recordMax=rows.map(r=>r.recordMax),recordMin=rows.map(r=>r.recordMin);
+  const recordFirst=Number(hyrasTmeanRegionsIndex.records_first_year||hyrasTmeanRegionsRecords?.first_year||1951),recordLast=Number(hyrasTmeanRegionsIndex.records_last_year||hyrasTmeanRegionsRecords?.last_year||2025);
   hyrasTmeanRegionChart=new Chart(document.getElementById("hyrasTmeanRegionCanvas"),{
     type:"line",
     data:{labels,datasets:[
       {label:"Mittel 1991–2020",data:climate,borderColor:"#666",borderWidth:2,pointRadius:0,tension:.08,spanGaps:false},
-      {label:`${hyrasTmeanRegionsIndex.year}`,data:current,borderColor:"#111",borderWidth:2.4,pointRadius:0,tension:.08,spanGaps:false,fill:{target:0,above:"rgba(210,55,45,.28)",below:"rgba(55,115,190,.28)"}}
+      {label:`${hyrasTmeanRegionsIndex.year}`,data:current,borderColor:"#111",borderWidth:2.4,pointRadius:0,tension:.08,spanGaps:false,fill:{target:0,above:"rgba(210,55,45,.28)",below:"rgba(55,115,190,.28)"}},
+      {label:`Historisches Maximum ${recordFirst}–${recordLast}`,data:recordMax,borderColor:"#b42318",backgroundColor:"transparent",borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:.04,spanGaps:false},
+      {label:`Historisches Minimum ${recordFirst}–${recordLast}`,data:recordMin,borderColor:"#1f5f99",backgroundColor:"transparent",borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:.04,spanGaps:false}
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},interaction:{mode:"index",intersect:false},
-      plugins:{legend:{display:true},datalabels:{display:false},tooltip:{callbacks:{afterBody(items){if(!items?.length)return "";const i=items[0].dataIndex,a=current[i],b=climate[i];return Number.isFinite(a)&&Number.isFinite(b)?`Abweichung: ${(a-b)>=0?"+":""}${(a-b).toFixed(2).replace(".",",")} K`:"";}}}},
+      plugins:{legend:{display:true},datalabels:{display:false},tooltip:{filter:item=>item.datasetIndex<2,callbacks:{afterBody(items){
+        if(!items?.length)return "";
+        const i=items[0].dataIndex,a=current[i],b=climate[i],row=rows[i]||{},lines=[];
+        if(Number.isFinite(a)&&Number.isFinite(b))lines.push(`Abweichung: ${(a-b)>=0?"+":""}${(a-b).toFixed(2).replace(".",",")} K`);
+        if(Number.isFinite(row.recordMax))lines.push(`Historisches Maximum: ${row.recordMax.toFixed(2).replace(".",",")} °C (${(row.recordMaxYears||[]).join(", ")})`);
+        if(Number.isFinite(row.recordMin))lines.push(`Historisches Minimum: ${row.recordMin.toFixed(2).replace(".",",")} °C (${(row.recordMinYears||[]).join(", ")})`);
+        return lines;
+      }}}},
       scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Temperatur (°C)"}}}
     }
   });
