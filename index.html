@@ -3041,6 +3041,10 @@ let hyrasTmeanHistoryManifest=null;
 let hyrasTmeanHistoricalState=null;
 const hyrasTmeanFileCache=new Map();
 const hyrasTmeanMonthCache=new Map();
+// HYRAS_TMEAN_PERFORMANCE_V1
+const HYRAS_TMEAN_CURRENT_DISPLAY_FACTOR=2;
+let hyrasTmeanBoundaryBitmapPromise=null;
+let hyrasTmeanExportObjectUrl=null;
 let hyrasPointChart=null;
 let hyrasClickSeriesManifest=null;
 let hyrasSelectedGridPoint=null;
@@ -10274,14 +10278,21 @@ async function hyrasTmeanLoadI16(path){
   })().catch(error=>{hyrasTmeanFileCache.delete(path);throw error;});
   hyrasTmeanFileCache.set(path,promise);return promise;
 }
-function hyrasTmeanDecodePlane(raw,width,height,scale=100,missing=-32768,offset=0){
-  const n=width*height,values=new Float32Array(n),valid=new Uint8Array(n);
-  for(let i=0;i<n;i++){
-    const q=raw[offset+i];
-    if(q===undefined||q===missing){values[i]=NaN;continue;}
-    values[i]=Number(q)/scale;valid[i]=1;
+function hyrasTmeanDecodePlane(raw,width,height,scale=100,missing=-32768,offset=0,factor=1){
+  const step=Math.max(1,Math.floor(Number(factor)||1));
+  const outWidth=Math.ceil(width/step),outHeight=Math.ceil(height/step),n=outWidth*outHeight;
+  const values=new Float32Array(n),valid=new Uint8Array(n);
+  let out=0;
+  for(let oy=0;oy<outHeight;oy++){
+    const sy=Math.min(height-1,oy*step);
+    const row=offset+sy*width;
+    for(let ox=0;ox<outWidth;ox++,out++){
+      const sx=Math.min(width-1,ox*step),q=raw[row+sx];
+      if(q===undefined||q===missing){values[out]=NaN;continue;}
+      values[out]=Number(q)/scale;valid[out]=1;
+    }
   }
-  return {values,valid,width,height};
+  return {values,valid,width:outWidth,height:outHeight,resolutionKm:step};
 }
 async function hyrasTmeanEnsureLoaded(){
   if(!hyrasTmeanIndex)hyrasTmeanIndex=await hyrasTmeanFetchJson("index.json");
@@ -10391,13 +10402,97 @@ function hyrasTmeanLegend(mode){
   const vals=mode==="anomaly"?[-6,-4,-2,-1,0,1,2,4,6]:[-15,-10,-5,0,5,10,15,20,25,30,35];
   return vals.map(v=>{const [r,g,b]=hyrasTmeanColor(v,mode);return `<span><i style="background:rgb(${r},${g},${b})"></i>${v>0&&mode==="anomaly"?"+":""}${v}${mode==="anomaly"?" K":" °C"}</span>`;}).join("");
 }
+async function hyrasTmeanBoundaryBitmap(){
+  const boundary=hyrasIndex?.interactive?.boundary_overlay_1km;
+  if(!boundary)return null;
+  if(!hyrasTmeanBoundaryBitmapPromise){
+    hyrasTmeanBoundaryBitmapPromise=fetch(`${HYRAS_DATA_BASE}/${boundary}`,{cache:"force-cache"})
+      .then(response=>{if(!response.ok)throw new Error(`HYRAS-Grenzmaske fehlt (${response.status}).`);return response.blob();})
+      .then(blob=>createImageBitmap(blob))
+      .catch(error=>{hyrasTmeanBoundaryBitmapPromise=null;throw error;});
+  }
+  return hyrasTmeanBoundaryBitmapPromise;
+}
+function hyrasTmeanResetExportLink(){
+  const link=document.getElementById("hyrasOpenImage");
+  if(link)link.onclick=null;
+  if(hyrasTmeanExportObjectUrl){
+    URL.revokeObjectURL(hyrasTmeanExportObjectUrl);
+    hyrasTmeanExportObjectUrl=null;
+  }
+}
+function hyrasTmeanInstallLazyExport(link,canvas,mode,boundaryPromise){
+  if(!link)return;
+  hyrasTmeanResetExportLink();
+  link.textContent="PNG herunterladen";
+  link.target="";
+  link.removeAttribute("download");
+  link.href="#";
+  link.style.display="inline-block";
+  link.onclick=async event=>{
+    event.preventDefault();
+    try{await boundaryPromise;}catch(_){}
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+    if(!blob)return;
+    if(hyrasTmeanExportObjectUrl)URL.revokeObjectURL(hyrasTmeanExportObjectUrl);
+    hyrasTmeanExportObjectUrl=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=hyrasTmeanExportObjectUrl;
+    a.download=`hyras_tmean_${mode}.png`;
+    document.body.appendChild(a);a.click();a.remove();
+    window.setTimeout(()=>{
+      if(hyrasTmeanExportObjectUrl){
+        URL.revokeObjectURL(hyrasTmeanExportObjectUrl);
+        hyrasTmeanExportObjectUrl=null;
+      }
+    },1500);
+  };
+}
 async function hyrasTmeanDrawMap(raster,{title,subtitle,mode,resolutionKm}){
-  const raw=document.createElement("canvas");raw.width=raster.width;raw.height=raster.height;const rctx=raw.getContext("2d"),img=rctx.createImageData(raw.width,raw.height);
-  for(let i=0,j=0;i<raster.values.length;i++,j+=4){if(!raster.valid[i]){img.data[j+3]=0;continue;}const [r,g,b,a]=hyrasTmeanColor(raster.values[i],mode);img.data[j]=r;img.data[j+1]=g;img.data[j+2]=b;img.data[j+3]=a;}
-  rctx.putImageData(img,0,0);const scale=Number(resolutionKm||1)<=1?1:4,canvas=document.createElement("canvas");canvas.width=raw.width*scale;canvas.height=raw.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
-  const boundary=hyrasIndex?.interactive?.boundary_overlay_1km;if(boundary){try{const response=await fetch(`${HYRAS_DATA_BASE}/${boundary}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("Tmean-Grenzen:",error);}}
-  const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";wrap.innerHTML=`<div class="hyras-dynamic-title">${title}</div><div class="hyras-dynamic-subtitle">${subtitle}</div>`;wrap.appendChild(canvas);const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasTmeanLegend(mode);wrap.appendChild(legend);frame.appendChild(wrap);
-  const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=`hyras_tmean_${mode}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
+  const raw=document.createElement("canvas");
+  raw.width=raster.width;raw.height=raster.height;
+  const rctx=raw.getContext("2d",{alpha:true}),img=rctx.createImageData(raw.width,raw.height);
+  for(let i=0,j=0;i<raster.values.length;i++,j+=4){
+    if(!raster.valid[i]){img.data[j+3]=0;continue;}
+    const [r,g,b,a]=hyrasTmeanColor(raster.values[i],mode);
+    img.data[j]=r;img.data[j+1]=g;img.data[j+2]=b;img.data[j+3]=a;
+  }
+  rctx.putImageData(img,0,0);
+
+  const effectiveKm=Number(raster.resolutionKm||resolutionKm||1);
+  const canvas=document.createElement("canvas");
+  if(effectiveKm===2&&hyrasTmeanIndex?.grid_1km){
+    canvas.width=Number(hyrasTmeanIndex.grid_1km.width)||raw.width*2;
+    canvas.height=Number(hyrasTmeanIndex.grid_1km.height)||raw.height*2;
+  }else{
+    const displayScale=effectiveKm<=1?1:4;
+    canvas.width=raw.width*displayScale;
+    canvas.height=raw.height*displayScale;
+  }
+  const ctx=canvas.getContext("2d",{alpha:true});
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(raw,0,0,canvas.width,canvas.height);
+
+  const frame=document.getElementById("hyrasMapFrame");
+  frame.innerHTML="";
+  const wrap=document.createElement("div");
+  wrap.className="hyras-dynamic-wrap";
+  wrap.innerHTML=`<div class="hyras-dynamic-title">${title}</div><div class="hyras-dynamic-subtitle">${subtitle}</div>`;
+  wrap.appendChild(canvas);
+  const legend=document.createElement("div");
+  legend.className="hyras-dynamic-legend";
+  legend.innerHTML=hyrasTmeanLegend(mode);
+  wrap.appendChild(legend);
+  frame.appendChild(wrap);
+
+  const boundaryPromise=hyrasTmeanBoundaryBitmap().then(bmp=>{
+    if(!bmp)return null;
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(bmp,0,0,canvas.width,canvas.height);
+    return bmp;
+  }).catch(error=>{console.warn("Tmean-Grenzen:",error);return null;});
+
+  hyrasTmeanInstallLazyExport(document.getElementById("hyrasOpenImage"),canvas,mode,boundaryPromise);
 }
 function hyrasTmeanSetKpis({label,dateLabel,currentMean,referenceMean,anomalyMean,live=false,resolutionKm=1}){
   document.getElementById("hyrasPeriodStat").textContent=label||"–";document.getElementById("hyrasDataThrough").textContent=dateLabel||"–";
@@ -10410,10 +10505,10 @@ function hyrasTmeanSetKpis({label,dateLabel,currentMean,referenceMean,anomalyMea
 async function hyrasTmeanRenderCurrent(period){
   const mode=document.getElementById("hyrasMetricSelect")?.value||"absolute",hasAnomaly=Boolean(period.anomaly);hyrasTmeanMetricOptions(hasAnomaly);const selectedMode=document.getElementById("hyrasMetricSelect")?.value||"absolute";
   const path=selectedMode==="anomaly"?period.anomaly:period.absolute;if(!path)throw new Error("Für diesen laufenden Tmean-Zeitraum ist die Abweichung noch nicht verfügbar.");
-  const raw=await hyrasTmeanLoadI16(path),w=Number(hyrasTmeanIndex.grid_1km.width),h=Number(hyrasTmeanIndex.grid_1km.height),raster=hyrasTmeanDecodePlane(raw,w,h,100,-32768);
+  const raw=await hyrasTmeanLoadI16(path),w=Number(hyrasTmeanIndex.grid_1km.width),h=Number(hyrasTmeanIndex.grid_1km.height),raster=hyrasTmeanDecodePlane(raw,w,h,100,-32768,0,HYRAS_TMEAN_CURRENT_DISPLAY_FACTOR);
   const stats=period.stats||{},anom=Number(stats.anomaly_mean_k),ref=Number(stats.reference_mean_c),cur=Number(stats.current_mean_c);
-  hyrasTmeanSetKpis({label:period.label,dateLabel:`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,currentMean:cur,referenceMean:ref,anomalyMean:anom,live:Boolean(period.live),resolutionKm:1});
-  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${period.label}`,subtitle:`${selectedMode==="anomaly"?"Abweichung 1991–2020":"2-m-Temperaturmittel"} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,mode:selectedMode,resolutionKm:1});
+  hyrasTmeanSetKpis({label:period.label,dateLabel:`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,currentMean:cur,referenceMean:ref,anomalyMean:anom,live:Boolean(period.live),resolutionKm:2});
+  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${period.label}`,subtitle:`${selectedMode==="anomaly"?"Abweichung 1991–2020":"2-m-Temperaturmittel"} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,mode:selectedMode,resolutionKm:2});
   const note=document.getElementById("hyrasReferenceNote");if(note)note.textContent=period.reference_exact?"Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Abweichung gegenüber dem gleichen Zeitraum 1991–2020.":"Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Für laufende Teilzeiträume ist in dieser Stufe zunächst die absolute Temperatur verfügbar.";
 }
 async function hyrasTmeanApplyHistorical(){
@@ -10439,6 +10534,7 @@ async function hyrasSwitchParameter(){
   if(isTmean){
     if(custom)custom.style.display="none";const status=document.getElementById("hyrasStatus");if(status)status.textContent="HYRAS Tmean wird geladen …";await hyrasTmeanEnsureLoaded();hyrasTmeanPopulatePeriods();hyrasTmeanPopulateHistoricalYears();hyrasTmeanMetricOptions(Boolean(hyrasTmeanSelectedPeriod()?.anomaly));if(status)status.textContent=`Tmean · Daten bis ${hyrasDate(hyrasTmeanIndex.data_through)} · Historie ${hyrasTmeanIndex.history_first_year}–${hyrasTmeanIndex.history_last_year}`;await renderHyrasTmean();
   }else{
+    hyrasTmeanResetExportLink();
     if(custom)custom.style.display="";hyrasRestorePrecipMetricOptions();populateHyrasPeriods();hyrasRestorePrecipHistoricalYears();const status=document.getElementById("hyrasStatus");if(status&&hyrasIndex)status.textContent=`Niederschlag · Daten bis ${hyrasDate(hyrasIndex.data_through)} · Historie ${hyrasIndex.historical_first_year}–${hyrasIndex.historical_last_year}`;renderHyras();
   }
 }
