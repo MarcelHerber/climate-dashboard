@@ -1,0 +1,121 @@
+name: HYRAS Tmax Datenbasis bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_history_summary:
+        description: "Tmax-Klimakurve 1991–2020 und Tagesrekorde seit 1951 komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-tmax-data
+  cancel-in-progress: false
+
+jobs:
+  tmax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-tmax-work
+          mkdir -p /tmp/hyras-data /tmp/hyras-tmax-work
+
+          git fetch origin hyras-data --depth=1 || true
+          if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
+            git worktree add --detach /tmp/hyras-existing origin/hyras-data
+            cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+            rm -rf /tmp/hyras-data/.git
+          fi
+
+      - name: Tmax Deutschland + Bundesländer bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_history_summary }}" == "true" ]]; then
+            EXTRA_ARGS="--force-history-summary"
+          fi
+
+          python scripts/build_hyras_tmax_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmax-work \
+            $EXTRA_ARGS
+
+      - name: Tmax-Paket prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmax/regions/index.json
+          test -f /tmp/hyras-data/tmax/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmax/regions/daily_records.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-data/tmax/regions')
+          idx=json.loads((root/'index.json').read_text())
+          cur=json.loads((root/idx['current_file']).read_text())
+          cli=json.loads((root/idx['climate_file']).read_text())
+          rec=json.loads((root/idx['records_file']).read_text())
+
+          if idx['parameter'] != 'tmax':
+              raise SystemExit('Falscher Parameter im Tmax-Index')
+          if len(idx['regions']) != 17:
+              raise SystemExit(f"Unerwartete Gebietszahl: {len(idx['regions'])}")
+          if cli['reference'] != '1991-2020':
+              raise SystemExit(f"Falsche Referenz: {cli['reference']}")
+          if rec['first_year'] != 1951:
+              raise SystemExit(f"Falscher Rekordstart: {rec['first_year']}")
+          if rec['last_year'] != idx['year']-1:
+              raise SystemExit(f"Falsches Rekordende: {rec['last_year']}")
+          if len(cli['regions'].get('Deutschland',{})) < 365:
+              raise SystemExit('Deutschland-Klimakurve unvollständig')
+          if len(rec['regions'].get('Deutschland',{})) < 365:
+              raise SystemExit('Deutschland-Rekordkalender unvollständig')
+
+          print('Tmax-Prüfung OK')
+          print('Datenstand:',idx['data_through'])
+          print('Gebiete:',len(idx['regions']))
+          print('Tage aktuell:',len(cur['dates']))
+          print('Klima:',cli['reference'])
+          print('Rekorde:',rec['first_year'],'–',rec['last_year'])
+          PY
+
+      - name: hyras-data Branch mit Tmax veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "HYRAS Tmax Datenbasis aktualisieren"
+
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
