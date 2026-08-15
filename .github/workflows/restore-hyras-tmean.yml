@@ -1,0 +1,96 @@
+name: HYRAS Tmean wiederherstellen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data-repair
+  cancel-in-progress: false
+
+jobs:
+  restore-tmean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aktuellen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-current
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-current origin/hyras-data
+          cp -a /tmp/hyras-current/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Letzten vollständigen Tmean-Stand wiederherstellen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/restore_hyras_subtree_from_commit.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit fe0035e2b5cf1281c8fbe8bd9f77c61bc376ec95 \
+            --subtree tmean \
+            --output /tmp/hyras-data
+
+      - name: Tmean und bestehende Daten prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmean/index.json
+          test -f /tmp/hyras-data/tmean/history_5km/manifest.json
+          test -f /tmp/hyras-data/tmean/regions/index.json
+          test -f /tmp/hyras-data/tmean/regions/current_2026.json
+          test -f /tmp/hyras-data/tmean/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmean/regions/daily_records.json
+          test -f /tmp/hyras-data/tmean/regions/map_downloads.json
+          test -f /tmp/hyras-data/tmax/regions/index.json
+          test -f /tmp/hyras-data/hyras_index.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/hyras-data')
+          tmean = json.loads((root/'tmean/index.json').read_text())
+          hist = json.loads((root/'tmean/history_5km/manifest.json').read_text())
+          reg = json.loads((root/'tmean/regions/index.json').read_text())
+          tmax = json.loads((root/'tmax/regions/index.json').read_text())
+
+          if tmean.get('parameter') != 'tmean':
+              raise SystemExit('Tmean-Index ungültig')
+          if hist.get('first_year') != 1951 or hist.get('last_year') != 2025:
+              raise SystemExit('Tmean-Historie ist nicht 1951–2025')
+          if len(reg.get('regions', [])) != 17:
+              raise SystemExit(f"Tmean-Gebietszahl falsch: {len(reg.get('regions', []))}")
+          if tmax.get('parameter') != 'tmax':
+              raise SystemExit('Bestehendes Tmax-Paket fehlt oder ist ungültig')
+
+          print('Wiederherstellung geprüft.')
+          print('Tmean Datenstand:', tmean.get('data_through'))
+          print('Tmean Historie:', hist.get('first_year'), '–', hist.get('last_year'))
+          print('Tmean Gebiete:', len(reg.get('regions', [])))
+          print('Tmax bleibt erhalten, Datenstand:', tmax.get('data_through'))
+          PY
+
+      - name: hyras-data mit wiederhergestelltem Tmean veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Tmean aus gesichertem Datenstand wiederherstellen"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
