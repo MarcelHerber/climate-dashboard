@@ -102,13 +102,19 @@ h1{
   font-weight:bold;
   color:#444;
 }
-select{
+select,
+input[type="number"]{
   width:100%;
   padding:10px 11px;
   border:1px solid #bbb;
   border-radius:6px;
   background:white;
   font:inherit;
+}
+.input-hint{
+  color:#777;
+  font-size:11px;
+  line-height:1.25;
 }
 .summary-grid{
   display:grid;
@@ -340,6 +346,11 @@ td.value{
         <option value="tnk_low">Tmin · tiefstes Minimum</option>
       </select>
     </div>
+    <div class="control-group">
+      <label for="maxHeightInput">Max. Stationshöhe (m)</label>
+      <input id="maxHeightInput" type="number" step="1" placeholder="z. B. 999" disabled>
+      <div class="input-hint">Leer lassen = alle Stationshöhen</div>
+    </div>
   </div>
 
   <div class="summary-grid">
@@ -386,7 +397,7 @@ td.value{
     <section class="card">
       <div class="card-head">
         <h2 id="tableTitle">Top 50</h2>
-        <p>Die stärksten Messwerte im gewählten Gebiet und Zeitfenster.</p>
+        <p>Die 50 stärksten Stationsrekorde im gewählten Gebiet und Zeitfenster.</p>
       </div>
       <div class="table-wrap">
         <table>
@@ -395,12 +406,13 @@ td.value{
               <th>Rang</th>
               <th>Wert</th>
               <th>Station</th>
+              <th>Höhe</th>
               <th>Datum</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody id="rankingBody">
-            <tr><td colspan="5" class="loading">Daten werden geladen …</td></tr>
+            <tr><td colspan="6" class="loading">Daten werden geladen …</td></tr>
           </tbody>
         </table>
       </div>
@@ -410,8 +422,9 @@ td.value{
   <div class="note">
     <strong>Methodik:</strong> Grundlage sind tägliche DWD-CDC-Klimadaten der deutschen
     Stationen. Für jede meteorologische Dekade wird pro Station der höchste Tmax- bzw.
-    niedrigste Tmin-Wert bestimmt. Die Rangliste zeigt die stärksten einzelnen
-    Stationsmessungen; die Karte zeigt je Station deren persönlichen Dekadenrekord.
+    niedrigste Tmin-Wert bestimmt. Rangliste und Karte verwenden je Station deren
+    persönlichen Dekadenrekord. Ein gesetzter Höhenfilter berücksichtigt nur Stationen,
+    deren DWD-Stationshöhe höchstens dem eingegebenen Wert entspricht.
     Die Bundeslandzuordnung folgt den DWD-Stationsmetadaten zum jeweiligen Messtag.
   </div>
 </div>
@@ -428,6 +441,7 @@ td.value{
     month: document.getElementById("monthSelect"),
     decade: document.getElementById("decadeSelect"),
     metric: document.getElementById("metricSelect"),
+    maxHeight: document.getElementById("maxHeightInput"),
     recordValue: document.getElementById("recordValue"),
     recordDetail: document.getElementById("recordDetail"),
     recordDate: document.getElementById("recordDate"),
@@ -497,11 +511,23 @@ td.value{
     return `month-${month}-d${els.decade.value}`;
   }
 
+  function maxHeightLimit() {
+    const raw = String(els.maxHeight?.value ?? "").trim();
+    if (raw === "") return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function heightLabel() {
+    const limit = maxHeightLimit();
+    return limit == null ? "" : ` · bis ${limit.toLocaleString("de-DE")} m`;
+  }
+
   function selectedLabel() {
     const area = els.area.value;
     const month = monthNames[Number(els.month.value) - 1];
     const decade = els.decade.value;
-    return `${area} · ${month} · ${decade}. Dekade`;
+    return `${area} · ${month} · ${decade}. Dekade${heightLabel()}`;
   }
 
   function valueText(value, metric = els.metric.value) {
@@ -531,11 +557,15 @@ td.value{
     els.month.value = String(now.getMonth() + 1);
     els.decade.value = now.getDate() <= 10 ? "1" : (now.getDate() <= 20 ? "2" : "3");
     els.metric.value = "txk_high";
+    els.maxHeight.value = "";
 
     [els.area, els.month, els.decade, els.metric].forEach(select => {
       select.disabled = false;
       select.addEventListener("change", render);
     });
+
+    els.maxHeight.disabled = false;
+    els.maxHeight.addEventListener("input", render);
   }
 
   function setupMap() {
@@ -578,14 +608,38 @@ td.value{
     const metric = els.metric.value;
     const area = els.area.value;
     const period = periodId();
-    return data.station_records?.[metric]?.[area]?.[period] ?? {};
+    const raw = data.station_records?.[metric]?.[area]?.[period] ?? {};
+    const limit = maxHeightLimit();
+
+    if (limit == null) return raw;
+
+    const filtered = {};
+    for (const [stationId, entry] of Object.entries(raw)) {
+      const station = stationFromEntry(entry);
+      const height = Number(station?.height);
+      if (Number.isFinite(height) && height <= limit) {
+        filtered[stationId] = entry;
+      }
+    }
+    return filtered;
   }
 
-  function leaderRecords() {
+  function rankedStationRecords(records) {
     const metric = els.metric.value;
-    const area = els.area.value;
-    const period = periodId();
-    return data.leaders?.[metric]?.[area]?.[period] ?? [];
+    const direction = metricMeta(metric).direction;
+    return Object.values(records)
+      .sort((a, b) => {
+        const av = Number(a?.[0]);
+        const bv = Number(b?.[0]);
+        if (av !== bv) return direction === "asc" ? av - bv : bv - av;
+
+        const ad = String(a?.[1] ?? "");
+        const bd = String(b?.[1] ?? "");
+        if (ad !== bd) return ad.localeCompare(bd);
+
+        return stationIdFromEntry(a).localeCompare(stationIdFromEntry(b));
+      })
+      .slice(0, 50);
   }
 
   function renderSummary(leaders, records) {
@@ -599,8 +653,10 @@ td.value{
     if (first) {
       els.recordValue.textContent = valueText(first[0], metric);
       const sid = stationIdFromEntry(first);
+      const height = Number(station?.height);
+      const heightText = Number.isFinite(height) ? ` · ${height.toLocaleString("de-DE")} m` : "";
       els.recordDetail.textContent = station
-        ? `${station.name} · Station ${sid}`
+        ? `${station.name} · Station ${sid}${heightText}`
         : `Station ${sid}`;
 
       els.recordDate.textContent = formatShortDate(first[1]);
@@ -627,7 +683,7 @@ td.value{
 
     if (!leaders.length) {
       els.rankingBody.innerHTML =
-        '<tr><td colspan="5" class="empty">Für diese Auswahl liegen keine Rekorde vor.</td></tr>';
+        '<tr><td colspan="6" class="empty">Für diese Auswahl liegen keine Rekorde vor.</td></tr>';
       return;
     }
 
@@ -635,6 +691,10 @@ td.value{
       const station = stationFromEntry(entry);
       const sid = stationIdFromEntry(entry);
       const name = station?.name ?? `Station ${sid}`;
+      const height = Number(station?.height);
+      const heightText = Number.isFinite(height)
+        ? `${height.toLocaleString("de-DE")} m`
+        : "–";
       const preliminary = Boolean(entry[3]);
 
       return `
@@ -645,6 +705,7 @@ td.value{
             <strong>${escapeHtml(name)}</strong><br>
             <span style="color:#777;font-size:11px">Station ${escapeHtml(sid)}</span>
           </td>
+          <td>${escapeHtml(heightText)}</td>
           <td>${escapeHtml(formatDate(entry[1]))}</td>
           <td>
             <span class="badge ${preliminary ? "preliminary" : ""}">
@@ -734,8 +795,8 @@ td.value{
   function render() {
     if (!data) return;
 
-    const leaders = leaderRecords();
     const records = markerRecords();
+    const leaders = rankedStationRecords(records);
 
     renderSummary(leaders, records);
     renderMap(records);
@@ -768,7 +829,7 @@ td.value{
       els.status.textContent =
         `Dekadenrekorde konnten nicht geladen werden: ${error.message}`;
       els.rankingBody.innerHTML =
-        '<tr><td colspan="5" class="empty">Daten konnten nicht geladen werden.</td></tr>';
+        '<tr><td colspan="6" class="empty">Daten konnten nicht geladen werden.</td></tr>';
     }
   }
 
