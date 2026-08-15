@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dekadenrekorde deutscher Wetterstationen</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+:root{
+  color-scheme:light;
+  --page:#f4f6f8;
+  --card:#fff;
+  --text:#171717;
+  --muted:#666;
+  --border:#d7dce1;
+  --shadow:0 4px 14px rgba(0,0,0,.08);
+  --accent:#333;
+  --warm:#b42318;
+  --cold:#155eef;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  padding:28px;
+  background:var(--page);
+  color:var(--text);
+}
+.page{
+  max-width:1500px;
+  margin:0 auto;
+}
+.topline{
+  display:flex;
+  gap:14px;
+  justify-content:space-between;
+  align-items:flex-start;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+h1{
+  margin:0 0 8px;
+  font-size:clamp(28px,4vw,44px);
+  line-height:1.08;
+}
+.subtitle{
+  margin:0;
+  color:var(--muted);
+  line-height:1.5;
+}
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:10px 14px;
+  border:1px solid #c7ccd1;
+  border-radius:7px;
+  background:#fff;
+  color:#222;
+  text-decoration:none;
+  font-weight:bold;
+  box-shadow:var(--shadow);
+}
+.back-link:hover{background:#f7f8f9}
+.data-status{
+  display:inline-block;
+  margin:0 0 20px;
+  padding:10px 14px;
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  color:#444;
+  font-size:14px;
+}
+.data-status.error{color:#8a1c13;background:#fff0ee}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:14px;
+  padding:16px;
+  margin-bottom:18px;
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+}
+.control-group{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  min-width:190px;
+  flex:1 1 190px;
+}
+.control-group label{
+  font-size:13px;
+  font-weight:bold;
+  color:#444;
+}
+select{
+  width:100%;
+  padding:10px 11px;
+  border:1px solid #bbb;
+  border-radius:6px;
+  background:white;
+  font:inherit;
+}
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(180px,1fr));
+  gap:14px;
+  margin-bottom:18px;
+}
+.summary-card{
+  min-height:112px;
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  padding:16px;
+}
+.summary-label{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:bold;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  margin-bottom:7px;
+}
+.summary-value{
+  font-size:clamp(22px,3vw,31px);
+  font-weight:800;
+  line-height:1.12;
+}
+.summary-value.hot{color:var(--warm)}
+.summary-value.cold{color:var(--cold)}
+.summary-detail{
+  margin-top:7px;
+  color:#555;
+  font-size:13px;
+  line-height:1.4;
+}
+.content-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(380px,.9fr);
+  gap:18px;
+  align-items:start;
+}
+.card{
+  background:var(--card);
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.card-head{
+  padding:16px 18px 12px;
+  border-bottom:1px solid #e6e9ec;
+}
+.card-head h2{
+  margin:0 0 5px;
+  font-size:21px;
+}
+.card-head p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+#decadeMap{
+  width:100%;
+  height:690px;
+  background:#e8edf1;
+}
+.table-wrap{
+  width:100%;
+  max-height:690px;
+  overflow:auto;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+}
+thead{
+  position:sticky;
+  top:0;
+  z-index:2;
+}
+th{
+  background:#f0f2f4;
+  color:#333;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+th,td{
+  padding:10px 9px;
+  border-bottom:1px solid #e4e7ea;
+  text-align:center;
+  white-space:nowrap;
+}
+tbody tr{
+  cursor:pointer;
+}
+tbody tr:hover{
+  background:#f6f8fa;
+}
+td.station{
+  text-align:left;
+  white-space:normal;
+  min-width:170px;
+}
+td.value{
+  font-weight:800;
+}
+.badge{
+  display:inline-block;
+  padding:3px 7px;
+  border-radius:999px;
+  font-size:11px;
+  background:#e9edf1;
+  color:#333;
+}
+.badge.preliminary{
+  background:#fff1cf;
+  color:#6a4a00;
+}
+.rank{
+  font-weight:700;
+  color:#555;
+}
+.legend{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  padding:10px 14px;
+  font-size:12px;
+  color:#555;
+  border-top:1px solid #e6e9ec;
+}
+.legend-gradient{
+  width:160px;
+  height:10px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#2f6fd4,#e5e8eb,#d5412f);
+  border:1px solid #c8cdd2;
+}
+.note{
+  margin:18px 0 0;
+  padding:14px 16px;
+  background:#fff;
+  border-left:5px solid #555;
+  border-radius:7px;
+  box-shadow:var(--shadow);
+  color:#555;
+  font-size:13px;
+  line-height:1.55;
+}
+.loading{
+  padding:20px;
+  color:#555;
+}
+.empty{
+  padding:24px;
+  color:#777;
+  text-align:center;
+}
+.leaflet-popup-content{
+  margin:12px 14px;
+  line-height:1.45;
+}
+.popup-value{
+  font-size:20px;
+  font-weight:800;
+}
+.popup-meta{
+  color:#555;
+  font-size:12px;
+  margin-top:4px;
+}
+@media (max-width:1050px){
+  .content-grid{grid-template-columns:1fr}
+  #decadeMap{height:560px}
+  .table-wrap{max-height:620px}
+}
+@media (max-width:760px){
+  body{padding:16px}
+  .summary-grid{grid-template-columns:1fr 1fr}
+  .control-group{min-width:150px}
+  #decadeMap{height:500px}
+}
+@media (max-width:480px){
+  .summary-grid{grid-template-columns:1fr}
+  .control-group{flex-basis:100%}
+}
+</style>
+</head>
+
+<body>
+<div class="page">
+  <div class="topline">
+    <div>
+      <h1>Dekadenrekorde deutscher Wetterstationen</h1>
+      <p class="subtitle">
+        Extremwerte für die 1. (01.–10.), 2. (11.–20.) und 3. meteorologische Dekade
+        (21.–Monatsende) – Deutschland und alle Bundesländer.
+      </p>
+    </div>
+    <a class="back-link" href="index.html">← Climate Dashboard</a>
+  </div>
+
+  <div id="dataStatus" class="data-status">DWD-Dekadenrekorde werden geladen …</div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="areaSelect">Gebiet</label>
+      <select id="areaSelect" disabled></select>
+    </div>
+    <div class="control-group">
+      <label for="monthSelect">Monat</label>
+      <select id="monthSelect" disabled></select>
+    </div>
+    <div class="control-group">
+      <label for="decadeSelect">Dekade</label>
+      <select id="decadeSelect" disabled>
+        <option value="1">1. Dekade · 01.–10.</option>
+        <option value="2">2. Dekade · 11.–20.</option>
+        <option value="3">3. Dekade · 21.–Monatsende</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="metricSelect">Parameter</label>
+      <select id="metricSelect" disabled>
+        <option value="txk_high">Tmax · höchstes Maximum</option>
+        <option value="tnk_low">Tmin · tiefstes Minimum</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="summary-label">Gebietsrekord</div>
+      <div id="recordValue" class="summary-value">–</div>
+      <div id="recordDetail" class="summary-detail">–</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Datum</div>
+      <div id="recordDate" class="summary-value">–</div>
+      <div id="recordDateDetail" class="summary-detail">–</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Stationen mit Rekordwert</div>
+      <div id="stationCount" class="summary-value">–</div>
+      <div class="summary-detail">persönliche Dekadenrekorde auf der Karte</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Datenstand</div>
+      <div id="dataThrough" class="summary-value">–</div>
+      <div id="dataRange" class="summary-detail">–</div>
+    </div>
+  </div>
+
+  <div class="content-grid">
+    <section class="card">
+      <div class="card-head">
+        <h2 id="mapTitle">Stationskarte</h2>
+        <p>
+          Jeder Punkt zeigt den persönlichen Rekord der Station für die gewählte Dekade.
+          Anklicken für Stationsname, Wert und Datum.
+        </p>
+      </div>
+      <div id="decadeMap"></div>
+      <div class="legend">
+        <strong>Kartenfarbe:</strong>
+        niedriger Wert
+        <span class="legend-gradient" aria-hidden="true"></span>
+        höherer Wert
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 id="tableTitle">Top 50</h2>
+        <p>Die stärksten Messwerte im gewählten Gebiet und Zeitfenster.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rang</th>
+              <th>Wert</th>
+              <th>Station</th>
+              <th>Datum</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="rankingBody">
+            <tr><td colspan="5" class="loading">Daten werden geladen …</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="note">
+    <strong>Methodik:</strong> Grundlage sind tägliche DWD-CDC-Klimadaten der deutschen
+    Stationen. Für jede meteorologische Dekade wird pro Station der höchste Tmax- bzw.
+    niedrigste Tmin-Wert bestimmt. Die Rangliste zeigt die stärksten einzelnen
+    Stationsmessungen; die Karte zeigt je Station deren persönlichen Dekadenrekord.
+    Die Bundeslandzuordnung folgt den DWD-Stationsmetadaten zum jeweiligen Messtag.
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const DATA_URL = "data/dwd_decade_records.json";
+
+  const els = {
+    status: document.getElementById("dataStatus"),
+    area: document.getElementById("areaSelect"),
+    month: document.getElementById("monthSelect"),
+    decade: document.getElementById("decadeSelect"),
+    metric: document.getElementById("metricSelect"),
+    recordValue: document.getElementById("recordValue"),
+    recordDetail: document.getElementById("recordDetail"),
+    recordDate: document.getElementById("recordDate"),
+    recordDateDetail: document.getElementById("recordDateDetail"),
+    stationCount: document.getElementById("stationCount"),
+    dataThrough: document.getElementById("dataThrough"),
+    dataRange: document.getElementById("dataRange"),
+    rankingBody: document.getElementById("rankingBody"),
+    mapTitle: document.getElementById("mapTitle"),
+    tableTitle: document.getElementById("tableTitle")
+  };
+
+  let data = null;
+  let map = null;
+  let markerLayer = null;
+  let markersByStation = new Map();
+
+  const monthNames = [
+    "Januar","Februar","März","April","Mai","Juni",
+    "Juli","August","September","Oktober","November","Dezember"
+  ];
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "–";
+    const parts = String(iso).split("-");
+    if (parts.length !== 3) return iso;
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+
+  function formatShortDate(iso) {
+    if (!iso) return "–";
+    const parts = String(iso).split("-");
+    if (parts.length !== 3) return iso;
+    return `${parts[2]}.${parts[1]}.`;
+  }
+
+  function stationFromEntry(entry) {
+    if (!entry || entry.length < 3) return null;
+    return data.stations?.[entry[2]] ?? null;
+  }
+
+  function stationIdFromEntry(entry) {
+    const station = stationFromEntry(entry);
+    if (station?.id) return String(station.id).padStart(5, "0");
+    return String(entry?.[2] ?? "").split(":", 1)[0];
+  }
+
+  function metricMeta(metric) {
+    return data.metrics?.[metric] ?? {
+      label: metric,
+      unit: "°C",
+      direction: metric === "tnk_low" ? "asc" : "desc"
+    };
+  }
+
+  function periodId() {
+    const month = String(Number(els.month.value)).padStart(2, "0");
+    return `month-${month}-d${els.decade.value}`;
+  }
+
+  function selectedLabel() {
+    const area = els.area.value;
+    const month = monthNames[Number(els.month.value) - 1];
+    const decade = els.decade.value;
+    return `${area} · ${month} · ${decade}. Dekade`;
+  }
+
+  function valueText(value, metric = els.metric.value) {
+    const meta = metricMeta(metric);
+    return `${Number(value).toFixed(1).replace(".", ",")} ${meta.unit}`;
+  }
+
+  function setupControls() {
+    els.area.innerHTML = "";
+    data.areas.forEach(area => {
+      const option = document.createElement("option");
+      option.value = area;
+      option.textContent = area;
+      els.area.appendChild(option);
+    });
+
+    els.month.innerHTML = "";
+    monthNames.forEach((name, index) => {
+      const option = document.createElement("option");
+      option.value = String(index + 1);
+      option.textContent = name;
+      els.month.appendChild(option);
+    });
+
+    const now = new Date();
+    els.area.value = "Deutschland";
+    els.month.value = String(now.getMonth() + 1);
+    els.decade.value = now.getDate() <= 10 ? "1" : (now.getDate() <= 20 ? "2" : "3");
+    els.metric.value = "txk_high";
+
+    [els.area, els.month, els.decade, els.metric].forEach(select => {
+      select.disabled = false;
+      select.addEventListener("change", render);
+    });
+  }
+
+  function setupMap() {
+    map = L.map("decadeMap", {
+      preferCanvas: true,
+      zoomControl: true
+    }).setView([51.1, 10.4], 6);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+
+    markerLayer = L.layerGroup().addTo(map);
+  }
+
+  function colorFor(value, min, max) {
+    if (!Number.isFinite(value)) return "#7b8794";
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return "#7b8794";
+
+    let t = (value - min) / (max - min);
+    t = Math.max(0, Math.min(1, t));
+
+    const cold = [47, 111, 212];
+    const neutral = [229, 232, 235];
+    const hot = [213, 65, 47];
+
+    let a, b, u;
+    if (t <= 0.5) {
+      a = cold; b = neutral; u = t / 0.5;
+    } else {
+      a = neutral; b = hot; u = (t - 0.5) / 0.5;
+    }
+
+    const rgb = a.map((v, i) => Math.round(v + (b[i] - v) * u));
+    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  }
+
+  function markerRecords() {
+    const metric = els.metric.value;
+    const area = els.area.value;
+    const period = periodId();
+    return data.station_records?.[metric]?.[area]?.[period] ?? {};
+  }
+
+  function leaderRecords() {
+    const metric = els.metric.value;
+    const area = els.area.value;
+    const period = periodId();
+    return data.leaders?.[metric]?.[area]?.[period] ?? [];
+  }
+
+  function renderSummary(leaders, records) {
+    const metric = els.metric.value;
+    const meta = metricMeta(metric);
+    const first = leaders[0] ?? null;
+    const station = stationFromEntry(first);
+
+    els.recordValue.className = `summary-value ${metric === "txk_high" ? "hot" : "cold"}`;
+
+    if (first) {
+      els.recordValue.textContent = valueText(first[0], metric);
+      const sid = stationIdFromEntry(first);
+      els.recordDetail.textContent = station
+        ? `${station.name} · Station ${sid}`
+        : `Station ${sid}`;
+
+      els.recordDate.textContent = formatShortDate(first[1]);
+      els.recordDateDetail.textContent =
+        `${formatDate(first[1])}${first[3] ? " · vorläufig" : ""}`;
+    } else {
+      els.recordValue.textContent = "–";
+      els.recordDetail.textContent = "Keine Messung vorhanden";
+      els.recordDate.textContent = "–";
+      els.recordDateDetail.textContent = "–";
+    }
+
+    els.stationCount.textContent = Object.keys(records).length.toLocaleString("de-DE");
+    els.dataThrough.textContent = formatShortDate(data.data_through);
+    els.dataRange.textContent =
+      `${formatDate(data.data_start)} bis ${formatDate(data.data_through)}`;
+
+    els.mapTitle.textContent = `${selectedLabel()} · ${meta.label}`;
+    els.tableTitle.textContent = `Top 50 · ${selectedLabel()} · ${meta.label}`;
+  }
+
+  function renderTable(leaders) {
+    markersByStation = new Map();
+
+    if (!leaders.length) {
+      els.rankingBody.innerHTML =
+        '<tr><td colspan="5" class="empty">Für diese Auswahl liegen keine Rekorde vor.</td></tr>';
+      return;
+    }
+
+    els.rankingBody.innerHTML = leaders.map((entry, index) => {
+      const station = stationFromEntry(entry);
+      const sid = stationIdFromEntry(entry);
+      const name = station?.name ?? `Station ${sid}`;
+      const preliminary = Boolean(entry[3]);
+
+      return `
+        <tr data-station-id="${escapeHtml(sid)}">
+          <td class="rank">${index + 1}</td>
+          <td class="value">${escapeHtml(valueText(entry[0]))}</td>
+          <td class="station">
+            <strong>${escapeHtml(name)}</strong><br>
+            <span style="color:#777;font-size:11px">Station ${escapeHtml(sid)}</span>
+          </td>
+          <td>${escapeHtml(formatDate(entry[1]))}</td>
+          <td>
+            <span class="badge ${preliminary ? "preliminary" : ""}">
+              ${preliminary ? "vorläufig" : "geprüft"}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    els.rankingBody.querySelectorAll("tr[data-station-id]").forEach(row => {
+      row.addEventListener("click", () => {
+        const marker = markersByStation.get(row.dataset.stationId);
+        if (!marker) return;
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 9), {animate:true});
+        marker.openPopup();
+      });
+    });
+  }
+
+  function renderMap(records) {
+    markerLayer.clearLayers();
+    markersByStation = new Map();
+
+    const points = [];
+    const values = [];
+
+    for (const [stationId, entry] of Object.entries(records)) {
+      const station = stationFromEntry(entry);
+      const lat = Number(station?.lat);
+      const lon = Number(station?.lon);
+      const value = Number(entry?.[0]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(value)) continue;
+      points.push({stationId, entry, station, lat, lon, value});
+      values.push(value);
+    }
+
+    const sortedValues = [...values].sort((a,b) => a-b);
+    const lowIndex = Math.floor((sortedValues.length - 1) * 0.05);
+    const highIndex = Math.floor((sortedValues.length - 1) * 0.95);
+    const min = sortedValues.length ? sortedValues[lowIndex] : NaN;
+    const max = sortedValues.length ? sortedValues[highIndex] : NaN;
+
+    const bounds = [];
+
+    points.forEach(point => {
+      const sid = String(point.station?.id ?? point.stationId).padStart(5, "0");
+      const fill = colorFor(point.value, min, max);
+      const marker = L.circleMarker([point.lat, point.lon], {
+        radius: 5.5,
+        weight: 1,
+        color: "#ffffff",
+        opacity: 0.9,
+        fillColor: fill,
+        fillOpacity: 0.88
+      });
+
+      marker.bindPopup(`
+        <div>
+          <strong>${escapeHtml(point.station?.name ?? `Station ${sid}`)}</strong>
+          <div class="popup-value">${escapeHtml(valueText(point.value))}</div>
+          <div>${escapeHtml(formatDate(point.entry[1]))}</div>
+          <div class="popup-meta">
+            Station ${escapeHtml(sid)}
+            ${point.station?.height != null ? ` · ${escapeHtml(point.station.height)} m` : ""}
+            ${point.entry[3] ? " · vorläufig" : ""}
+          </div>
+        </div>
+      `);
+
+      marker.addTo(markerLayer);
+      markersByStation.set(sid, marker);
+      bounds.push([point.lat, point.lon]);
+    });
+
+    if (bounds.length) {
+      if (els.area.value === "Deutschland") {
+        map.setView([51.1, 10.4], 6);
+      } else {
+        map.fitBounds(bounds, {padding:[25,25], maxZoom:8});
+      }
+    } else {
+      map.setView([51.1, 10.4], 6);
+    }
+  }
+
+  function render() {
+    if (!data) return;
+
+    const leaders = leaderRecords();
+    const records = markerRecords();
+
+    renderSummary(leaders, records);
+    renderMap(records);
+    renderTable(leaders);
+  }
+
+  async function loadData() {
+    try {
+      const response = await fetch(DATA_URL, {cache:"no-cache"});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = await response.json();
+
+      if (!Array.isArray(data.areas) || data.areas.length !== 17) {
+        throw new Error("Gebietsliste unvollständig");
+      }
+      if (!Array.isArray(data.periods) || data.periods.length !== 36) {
+        throw new Error("Dekadenliste unvollständig");
+      }
+
+      setupControls();
+      setupMap();
+
+      els.status.textContent =
+        `DWD · Datenstand ${formatDate(data.data_through)} · ` +
+        `${data.areas.length} Gebiete · ${data.periods.length} Dekaden`;
+      render();
+    } catch (error) {
+      console.error(error);
+      els.status.classList.add("error");
+      els.status.textContent =
+        `Dekadenrekorde konnten nicht geladen werden: ${error.message}`;
+      els.rankingBody.innerHTML =
+        '<tr><td colspan="5" class="empty">Daten konnten nicht geladen werden.</td></tr>';
+    }
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>
