@@ -76,6 +76,33 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_tmin_frontend.py
 
+      - name: Sichtbare HYRAS-Tmin-Option hart prüfen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          text=Path("index.html").read_text(encoding="utf-8")
+          match=re.search(
+              r'<select\s+id="hyrasParameterSelect"[^>]*>(.*?)</select>',
+              text,
+              re.DOTALL,
+          )
+          if not match:
+              raise SystemExit("FEHLER: HYRAS-Parameter-Dropdown nicht gefunden.")
+
+          body=match.group(1)
+          expected='<option value="tmin">2-m-Tagesminimum</option>'
+          if expected not in body:
+              raise SystemExit(
+                  "FEHLER: 2-m-Tagesminimum fehlt weiterhin im sichtbaren HYRAS-Parameter-Dropdown."
+              )
+
+          print("HYRAS-Tmin-Menüprüfung OK")
+          print("2-m-Tagesminimum steht im sichtbaren #hyrasParameterSelect.")
+          PY
+
       - name: Tmin-Frontend auf main veröffentlichen
         id: publish-main
         run: |
@@ -87,18 +114,19 @@ jobs:
 
           git add index.html
           if git diff --cached --quiet; then
-            echo "Tmin-Frontend ist bereits aktuell."
+            echo "Tmin-Frontend ist auf main bereits aktuell."
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            git commit -m "HYRAS Tmin im sichtbaren Parameterfeld repariert"
+            git pull --rebase origin main
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-          git commit -m "HYRAS Tmin Gebietskurven im Dashboard"
-          git pull --rebase origin main
-          git push origin HEAD:main
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub Pages nach Frontend-Änderung aktualisieren
-        if: steps.publish-main.outputs.changed == 'true'
+      - name: GitHub Pages mit geprüftem Tmin-Frontend aktualisieren
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run update-data.yml --ref main
+        run: |
+          set -euo pipefail
+          echo "Starte Pages-Workflow ausdrücklich – unabhängig davon, ob main geändert wurde."
+          gh workflow run update-data.yml --ref main
