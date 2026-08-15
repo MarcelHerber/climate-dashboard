@@ -493,8 +493,24 @@ hyrasSwitchParameter=async function(){
 def main() -> int:
     text=TARGET.read_text(encoding="utf-8")
 
+    # Reparaturmodus: Die sichtbare Tmin-Option muss unabhängig davon
+    # vorhanden sein, ob die Tmin-JavaScript-Logik bereits eingebaut ist.
+    # Das behebt ältere Läufe, bei denen der Marker vorhanden war,
+    # die Dropdown-Option aber fehlte.
+    menu_changed=False
+    if 'value="tmin"' not in text:
+        old_option='''        <option value="tmax">2-m-Tagesmaximum</option>'''
+        new_option='''        <option value="tmax">2-m-Tagesmaximum</option>
+        <option value="tmin">2-m-Tagesminimum</option>'''
+        text=replace_once(text,old_option,new_option,"Tmin-Parameteroption reparieren")
+        menu_changed=True
+
     if MARKER in text:
-        print("HYRAS Tmin Frontend V1 ist bereits aktiv.")
+        if menu_changed:
+            TARGET.write_text(text,encoding="utf-8")
+            print("HYRAS Tmin Frontend V1 war bereits aktiv; fehlende Tmin-Menüoption wurde ergänzt.")
+        else:
+            print("HYRAS Tmin Frontend V1 inklusive Menüoption ist bereits vollständig aktiv.")
         return 0
 
     required=[
@@ -506,12 +522,6 @@ def main() -> int:
     missing=[marker for marker in required if marker not in text]
     if missing:
         raise RuntimeError("Benötigte HYRAS-Frontend-Basis fehlt: "+", ".join(missing))
-
-    if 'value="tmin"' not in text:
-        old='''        <option value="tmax">2-m-Tagesmaximum</option>'''
-        new='''        <option value="tmax">2-m-Tagesmaximum</option>
-        <option value="tmin">2-m-Tagesminimum</option>'''
-        text=replace_once(text,old,new,"Tmin-Parameteroption")
 
     pos=text.rfind("</script>")
     if pos<0:
