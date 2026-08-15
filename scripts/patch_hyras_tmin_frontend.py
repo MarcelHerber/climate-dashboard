@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "index.html"
@@ -490,27 +491,50 @@ hyrasSwitchParameter=async function(){
 '''
 
 
+def ensure_hyras_tmin_menu_option(text: str) -> tuple[str, bool]:
+    """Prüft ausschließlich das sichtbare HYRAS-Parameter-Dropdown."""
+    pattern=re.compile(
+        r'(<select\s+id="hyrasParameterSelect"[^>]*>)(.*?)(</select>)',
+        re.DOTALL,
+    )
+    match=pattern.search(text)
+    if not match:
+        raise RuntimeError("HYRAS-Parameter-Dropdown #hyrasParameterSelect nicht gefunden.")
+
+    body=match.group(2)
+    tmin_option='<option value="tmin">2-m-Tagesminimum</option>'
+    if tmin_option in body:
+        return text, False
+
+    tmax_option='<option value="tmax">2-m-Tagesmaximum</option>'
+    if tmax_option not in body:
+        raise RuntimeError(
+            "Tmax-Anker im HYRAS-Parameter-Dropdown fehlt; Tmin kann nicht sicher ergänzt werden."
+        )
+
+    new_body=body.replace(
+        tmax_option,
+        tmax_option+'\n        '+tmin_option,
+        1,
+    )
+    start,end=match.span(2)
+    return text[:start]+new_body+text[end:], True
+
+
 def main() -> int:
     text=TARGET.read_text(encoding="utf-8")
 
-    # Reparaturmodus: Die sichtbare Tmin-Option muss unabhängig davon
-    # vorhanden sein, ob die Tmin-JavaScript-Logik bereits eingebaut ist.
-    # Das behebt ältere Läufe, bei denen der Marker vorhanden war,
-    # die Dropdown-Option aber fehlte.
-    menu_changed=False
-    if 'value="tmin"' not in text:
-        old_option='''        <option value="tmax">2-m-Tagesmaximum</option>'''
-        new_option='''        <option value="tmax">2-m-Tagesmaximum</option>
-        <option value="tmin">2-m-Tagesminimum</option>'''
-        text=replace_once(text,old_option,new_option,"Tmin-Parameteroption reparieren")
-        menu_changed=True
+    # Wichtig: Nicht global nach value="tmin" suchen.
+    # Auf derselben Seite existiert bereits ein anderes Tmin-Dropdown
+    # (Europa-Stationsrekorde). Geprüft wird nur #hyrasParameterSelect.
+    text,menu_changed=ensure_hyras_tmin_menu_option(text)
 
     if MARKER in text:
         if menu_changed:
             TARGET.write_text(text,encoding="utf-8")
             print("HYRAS Tmin Frontend V1 war bereits aktiv; fehlende Tmin-Menüoption wurde ergänzt.")
         else:
-            print("HYRAS Tmin Frontend V1 inklusive Menüoption ist bereits vollständig aktiv.")
+            print("HYRAS Tmin Frontend V1 inklusive HYRAS-Menüoption ist bereits vollständig aktiv.")
         return 0
 
     required=[
