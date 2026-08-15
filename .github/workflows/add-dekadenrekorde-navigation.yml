@@ -1,0 +1,98 @@
+name: Dekadenrekorde Navigation einbauen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dekadenrekorde-navigation
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Dekadenrekorde im Dashboard verlinken
+        run: |
+          set -euo pipefail
+          python scripts/patch_dekadenrekorde_navigation.py --file index.html
+
+      - name: Navigation prüfen
+        run: |
+          set -euo pipefail
+          grep -q 'DWD_DECADE_RECORDS_DESKTOP_NAV_V1' index.html
+          grep -q 'DWD_DECADE_RECORDS_OVERVIEW_LINK_V1' index.html
+
+          LINK_COUNT="$(grep -o 'dekadenrekorde\.html' index.html | wc -l)"
+          if [ "$LINK_COUNT" -lt 2 ]; then
+            echo "FEHLER: Dekadenrekorde sind nicht an beiden Stellen verlinkt."
+            exit 1
+          fi
+
+          echo "Dekadenrekord-Navigation geprüft: $LINK_COUNT Links vorhanden."
+
+      - name: Änderung nach main veröffentlichen
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.html
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderung an index.html nötig."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "Dekadenrekorde im Dashboard verlinken [skip ci]"
+
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin main
+
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "Rebase-Konflikt – index.html wurde parallel geändert."
+              exit 1
+            fi
+
+            if git push origin HEAD:main; then
+              PUSH_OK=true
+              break
+            fi
+
+            sleep $((ATTEMPT * 4))
+          done
+
+          if [ "$PUSH_OK" != "true" ]; then
+            echo "Push nach drei Versuchen fehlgeschlagen."
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages Neubau starten
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run update-data.yml --ref main
+          echo "DWD-/Pages-Workflow wurde für den neuen Dashboard-Link gestartet."
