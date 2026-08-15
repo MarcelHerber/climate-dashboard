@@ -41,22 +41,21 @@ jobs:
           path: /tmp/hyras-reference-cache
           key: hyras-daily-reference-1991-2020-v6-web2-v1
 
-      - name: Vorhandenes historisches HYRAS-Paket übernehmen
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
         run: |
+          set -euo pipefail
           rm -rf /tmp/hyras-data /tmp/hyras-work /tmp/hyras-existing
           mkdir -p /tmp/hyras-data /tmp/hyras-reference-cache
+
           git fetch origin hyras-data --depth=1 || true
           if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
             git worktree add --detach /tmp/hyras-existing origin/hyras-data
-            if [ -d /tmp/hyras-existing/historical_1km ]; then
-              cp -a /tmp/hyras-existing/historical_1km /tmp/hyras-data/
-            fi
-            if [ -f /tmp/hyras-existing/hyras_historical_manifest.json ]; then
-              cp /tmp/hyras-existing/hyras_historical_manifest.json /tmp/hyras-data/
-            fi
-            if [ -d /tmp/hyras-existing/click_series_5km ]; then
-              cp -a /tmp/hyras-existing/click_series_5km /tmp/hyras-data/
-            fi
+
+            # Kompletten bestehenden Datenbranch übernehmen.
+            # Dadurch bleiben tmean/, tmax/, tmin/ und zukünftige
+            # Zusatzprodukte bei Niederschlagsupdates erhalten.
+            cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+            rm -rf /tmp/hyras-data/.git
           fi
 
       - name: HYRAS aktuell, Historie und Mouseover-Raster bauen
@@ -74,10 +73,23 @@ jobs:
             --data-root /tmp/hyras-data \
             --factor 5
 
+      - name: Temperaturordner vor Veröffentlichung prüfen
+        run: |
+          set -euo pipefail
+          for parameter in tmean tmax tmin; do
+            if [ -d "/tmp/hyras-existing/$parameter" ]; then
+              test -d "/tmp/hyras-data/$parameter"
+              echo "$parameter wurde erhalten."
+            else
+              echo "$parameter war vor diesem Lauf nicht auf hyras-data vorhanden."
+            fi
+          done
+
       - name: hyras-data Branch veröffentlichen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           cd /tmp/hyras-data
           rm -rf .git
           git init
