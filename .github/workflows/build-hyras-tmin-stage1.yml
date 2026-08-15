@@ -1,0 +1,95 @@
+name: HYRAS Tmin Stufe 1
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_history_summary:
+        description: "Tmin-Klimakurve 1991–2020 und Tagesrekorde seit 1951 komplett neu bauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: hyras-tmin-stage1
+  cancel-in-progress: false
+
+jobs:
+  tmin-stage1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-tmin-work
+          mkdir -p /tmp/hyras-data /tmp/hyras-tmin-work
+          git fetch origin hyras-data --depth=1 || true
+          if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
+            git worktree add --detach /tmp/hyras-existing origin/hyras-data
+            cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+            rm -rf /tmp/hyras-data/.git
+          fi
+
+      - name: Tmin Deutschland + Bundesländer bauen
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ inputs.force_history_summary }}" == "true" ]]; then
+            EXTRA_ARGS="--force-history-summary"
+          fi
+          python scripts/build_hyras_tmin_regions.py             --data-root /tmp/hyras-data             --work /tmp/hyras-tmin-work             $EXTRA_ARGS
+
+      - name: Tmin-Paket prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmin/regions/index.json
+          test -f /tmp/hyras-data/tmin/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmin/regions/daily_records.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-data/tmin/regions')
+          idx=json.loads((root/'index.json').read_text())
+          if idx['parameter']!='tmin':
+              raise SystemExit('Falscher Parameter im Tmin-Index')
+          if len(idx['regions'])!=17:
+              raise SystemExit(f"Unerwartete Gebietszahl: {len(idx['regions'])}")
+          print('Tmin-Stufe-1 OK')
+          print('Datenstand:', idx['data_through'])
+          print('Gebiete:', len(idx['regions']))
+          print('Perioden:', len(idx['periods']))
+          PY
+
+      - name: hyras-data Branch mit Tmin veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Tmin Stufe 1 aktualisieren"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
