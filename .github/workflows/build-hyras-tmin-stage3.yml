@@ -1,0 +1,143 @@
+name: HYRAS Tmin Stufe 3 Karten
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: hyras-tmin-stage3
+  cancel-in-progress: false
+
+jobs:
+  tmin-stage3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Vorhandenen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-tmin-work
+          mkdir -p /tmp/hyras-data /tmp/hyras-tmin-work
+
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-existing origin/hyras-data
+          cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+          test -f /tmp/hyras-data/tmin/regions/index.json
+          test -f /tmp/hyras-data/tmin/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmin/regions/daily_records.json
+
+      - name: Tmin-Karten für Downloads bauen
+        run: |
+          python scripts/build_hyras_tmin_maps.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmin-work
+
+      - name: Tmin-Kartenpaket prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmin/regions/map_downloads.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-data/tmin')
+          idx=json.loads((root/'regions/index.json').read_text())
+          maps=json.loads((root/'regions'/idx['map_downloads_file']).read_text())
+
+          if idx['parameter']!='tmin':
+              raise SystemExit('Falscher Parameter im Tmin-Index')
+          if maps.get('parameter')!='tmin':
+              raise SystemExit('Falscher Parameter im Tmin-Kartenmanifest')
+          if not maps.get('periods'):
+              raise SystemExit('Tmin-Kartenmanifest ist leer')
+
+          for key,item in maps['periods'].items():
+              absolute=item.get('absolute')
+              if not absolute or not (root/absolute).exists():
+                  raise SystemExit(f'Absolute Tmin-Karte fehlt: {key}')
+              anomaly=item.get('anomaly')
+              if anomaly and not (root/anomaly).exists():
+                  raise SystemExit(f'Tmin-Anomaliekarte fehlt: {key}')
+
+          anomaly_count=sum(
+              1 for item in maps['periods'].values()
+              if item.get('anomaly')
+          )
+
+          print('Tmin-Kartenprüfung OK')
+          print('Datenstand:',idx['data_through'])
+          print('Download-Kartenperioden:',len(maps['periods']))
+          print('Davon mit Anomaliekarte:',anomaly_count)
+          PY
+
+      - name: Tmin-Kartendownloads im Frontend ergänzen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmin_maps_frontend.py
+
+      - name: hyras-data Branch mit Tmin-Karten veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "HYRAS Tmin Downloadkarten aktualisieren"
+
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
+
+      - name: Tmin-Frontend auf main veröffentlichen
+        id: publish-main
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Tmin-Kartenfrontend ist bereits aktuell."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "HYRAS Tmin Kartendownloads im Dashboard"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages nach Frontend-Änderung aktualisieren
+        if: steps.publish-main.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run update-data.yml --ref main
