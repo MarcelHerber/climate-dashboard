@@ -10809,6 +10809,8 @@ let hyrasTmaxRegionsIndex=null;
 let hyrasTmaxRegionsCurrent=null;
 let hyrasTmaxRegionsClimate=null;
 let hyrasTmaxRegionsRecords=null;
+// HYRAS_TMAX_MAP_DOWNLOADS_V1
+let hyrasTmaxMapDownloads=null;
 let hyrasTmaxRegionChart=null;
 let hyrasTmaxRegionsLoading=null;
 
@@ -10823,21 +10825,23 @@ async function hyrasTmaxRegionsFetch(path){
   return response.json();
 }
 async function hyrasTmaxRegionsEnsureLoaded(){
-  if(hyrasTmaxRegionsIndex&&hyrasTmaxRegionsCurrent&&hyrasTmaxRegionsClimate&&hyrasTmaxRegionsRecords){
+  if(hyrasTmaxRegionsIndex&&hyrasTmaxRegionsCurrent&&hyrasTmaxRegionsClimate&&hyrasTmaxRegionsRecords&&hyrasTmaxMapDownloads){
     return hyrasTmaxRegionsIndex;
   }
   if(hyrasTmaxRegionsLoading)return hyrasTmaxRegionsLoading;
 
   hyrasTmaxRegionsLoading=(async()=>{
     hyrasTmaxRegionsIndex=await hyrasTmaxRegionsFetch("index.json");
-    const [current,climate,records]=await Promise.all([
+    const [current,climate,records,maps]=await Promise.all([
       hyrasTmaxRegionsFetch(hyrasTmaxRegionsIndex.current_file),
       hyrasTmaxRegionsFetch(hyrasTmaxRegionsIndex.climate_file),
       hyrasTmaxRegionsFetch(hyrasTmaxRegionsIndex.records_file),
+      hyrasTmaxRegionsFetch(hyrasTmaxRegionsIndex.map_downloads_file),
     ]);
     hyrasTmaxRegionsCurrent=current;
     hyrasTmaxRegionsClimate=climate;
     hyrasTmaxRegionsRecords=records;
+    hyrasTmaxMapDownloads=maps;
     return hyrasTmaxRegionsIndex;
   })().finally(()=>{hyrasTmaxRegionsLoading=null;});
 
@@ -11057,9 +11061,56 @@ async function hyrasTmaxExportCurvePdf(event,region,period){
     }
   }
 }
+function hyrasTmaxMapHref(path){
+  return path?`${HYRAS_DATA_BASE}/tmax/${path}`:"#";
+}
+async function hyrasTmaxForceMapDownload(event,path,filename){
+  if(event)event.preventDefault();
+  if(!path)return;
+
+  const url=hyrasTmaxMapHref(path);
+  const link=event?.currentTarget||null;
+  const oldText=link?.textContent||"";
+
+  if(link){
+    link.style.pointerEvents="none";
+    link.style.opacity=".65";
+    link.textContent="Download wird vorbereitet …";
+  }
+
+  try{
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+
+    const blob=await response.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const anchor=document.createElement("a");
+    anchor.href=objectUrl;
+    anchor.download=filename||path.split("/").pop()||"hyras_tmax.png";
+    anchor.style.display="none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(objectUrl),2000);
+  }catch(error){
+    console.error("HYRAS Tmax Kartendownload:",error);
+    window.open(url,"_blank","noopener,noreferrer");
+  }finally{
+    if(link){
+      link.style.pointerEvents="";
+      link.style.opacity="";
+      link.textContent=oldText;
+    }
+  }
+}
+
 function hyrasTmaxRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");
   if(!frame)return;
+
+  const maps=hyrasTmaxMapDownloads?.periods?.[period.key]||{};
+  const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
+  const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
 
   if(hyrasTmeanRegionChart){
     hyrasTmeanRegionChart.destroy();
@@ -11081,14 +11132,25 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
       <canvas id="hyrasTmaxRegionCanvas"></canvas>
     </div>
     <div class="hyras-tmean-downloads">
+      <a class="${absClass}" ${maps.absolute?`href="${hyrasTmaxMapHref(maps.absolute)}" data-tmax-map="${maps.absolute}" data-tmax-filename="hyras_tmax_${period.key}_temperatur.png"`:""}>Tmax-Karte herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte 1991–2020 herunterladen</a>
       <a class="hyras-tmean-download" href="#" data-tmax-pdf="1">Kurve als PDF herunterladen</a>
     </div>
     <p class="hyras-tmean-region-note">
-      Räumliches Gebietsmittel des täglichen 2-m-Temperaturmaximums.
+      ${maps.anomaly
+        ?"Absolute Tmax- und Anomaliekarte stehen als fertige PNGs bereit."
+        :"Für diesen laufenden Zeitraum ist die absolute Tmax-Karte verfügbar; eine Raster-Anomalie wird erst für vollständige Monate/Jahreszeiten angeboten."}
       Historische Tagesrekorde beziehen sich auf 1951–2025.
     </p>
   </div>`;
 
+  frame.querySelectorAll("a[data-tmax-map]").forEach(link=>{
+    link.addEventListener("click",event=>hyrasTmaxForceMapDownload(
+      event,
+      link.dataset.tmaxMap,
+      link.dataset.tmaxFilename
+    ));
+  });
   frame.querySelector("a[data-tmax-pdf]")?.addEventListener(
     "click",
     event=>hyrasTmaxExportCurvePdf(event,region,period)
