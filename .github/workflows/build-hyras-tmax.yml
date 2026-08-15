@@ -62,12 +62,19 @@ jobs:
             --work /tmp/hyras-tmax-work \
             $EXTRA_ARGS
 
+      - name: Tmax-Karten für Downloads bauen
+        run: |
+          python scripts/build_hyras_tmax_maps.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmax-work
+
       - name: Tmax-Paket prüfen
         run: |
           set -euo pipefail
           test -f /tmp/hyras-data/tmax/regions/index.json
           test -f /tmp/hyras-data/tmax/regions/climate_1991_2020.json
           test -f /tmp/hyras-data/tmax/regions/daily_records.json
+          test -f /tmp/hyras-data/tmax/regions/map_downloads.json
 
           python - <<'PY'
           import json
@@ -78,6 +85,7 @@ jobs:
           cur=json.loads((root/idx['current_file']).read_text())
           cli=json.loads((root/idx['climate_file']).read_text())
           rec=json.loads((root/idx['records_file']).read_text())
+          maps=json.loads((root/idx['map_downloads_file']).read_text())
 
           if idx['parameter'] != 'tmax':
               raise SystemExit('Falscher Parameter im Tmax-Index')
@@ -93,6 +101,18 @@ jobs:
               raise SystemExit('Deutschland-Klimakurve unvollständig')
           if len(rec['regions'].get('Deutschland',{})) < 365:
               raise SystemExit('Deutschland-Rekordkalender unvollständig')
+          if not maps.get('periods'):
+              raise SystemExit('Tmax-Kartenmanifest ist leer')
+
+          for key,item in maps['periods'].items():
+              absolute=item.get('absolute')
+              if not absolute or not (Path('/tmp/hyras-data/tmax')/absolute).exists():
+                  raise SystemExit(f'Absolute Tmax-Karte fehlt: {key}')
+              anomaly=item.get('anomaly')
+              if anomaly and not (Path('/tmp/hyras-data/tmax')/anomaly).exists():
+                  raise SystemExit(f'Tmax-Anomaliekarte fehlt: {key}')
+
+          anomaly_count=sum(1 for item in maps['periods'].values() if item.get('anomaly'))
 
           print('Tmax-Prüfung OK')
           print('Datenstand:',idx['data_through'])
@@ -100,12 +120,19 @@ jobs:
           print('Tage aktuell:',len(cur['dates']))
           print('Klima:',cli['reference'])
           print('Rekorde:',rec['first_year'],'–',rec['last_year'])
+          print('Download-Kartenperioden:',len(maps['periods']))
+          print('Davon mit Anomaliekarte:',anomaly_count)
           PY
 
       - name: Tmax im HYRAS-Frontend ergänzen
         run: |
           cd "$GITHUB_WORKSPACE"
           python scripts/patch_hyras_tmax_frontend.py
+
+      - name: Tmax-Kartendownloads im Frontend ergänzen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmax_maps_frontend.py
 
       - name: hyras-data Branch mit Tmax veröffentlichen
         env:
@@ -121,7 +148,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add .
-          git commit -m "HYRAS Tmax Datenbasis aktualisieren"
+          git commit -m "HYRAS Tmax Datenbasis und Downloadkarten aktualisieren"
 
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
@@ -142,7 +169,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "HYRAS Tmax Gebietskurven im Dashboard"
+          git commit -m "HYRAS Tmax Kartendownloads im Dashboard"
           git pull --rebase origin main
           git push origin HEAD:main
           echo "changed=true" >> "$GITHUB_OUTPUT"
