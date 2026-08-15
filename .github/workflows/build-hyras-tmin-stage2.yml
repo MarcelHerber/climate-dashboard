@@ -1,0 +1,104 @@
+name: HYRAS Tmin Stufe 2 Frontend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: hyras-tmin-stage2
+  cancel-in-progress: false
+
+jobs:
+  tmin-stage2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tmin-Datenbasis auf hyras-data prüfen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-tmin-check
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-tmin-check origin/hyras-data
+
+          test -f /tmp/hyras-tmin-check/tmin/regions/index.json
+          test -f /tmp/hyras-tmin-check/tmin/regions/climate_1991_2020.json
+          test -f /tmp/hyras-tmin-check/tmin/regions/daily_records.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-tmin-check/tmin/regions')
+          idx=json.loads((root/'index.json').read_text())
+          cur=json.loads((root/idx['current_file']).read_text())
+          cli=json.loads((root/idx['climate_file']).read_text())
+          rec=json.loads((root/idx['records_file']).read_text())
+
+          if idx['parameter']!='tmin':
+              raise SystemExit('Falscher Parameter im Tmin-Index')
+          if len(idx['regions'])!=17:
+              raise SystemExit(f"Unerwartete Gebietszahl: {len(idx['regions'])}")
+          if cli['reference']!='1991-2020':
+              raise SystemExit(f"Falsche Referenz: {cli['reference']}")
+          if rec['first_year']!=1951:
+              raise SystemExit(f"Falscher Rekordstart: {rec['first_year']}")
+          if rec['last_year']!=idx['year']-1:
+              raise SystemExit(f"Falsches Rekordende: {rec['last_year']}")
+          if len(cli['regions'].get('Deutschland',{}))<365:
+              raise SystemExit('Deutschland-Klimakurve unvollständig')
+          if len(rec['regions'].get('Deutschland',{}))<365:
+              raise SystemExit('Deutschland-Rekordkalender unvollständig')
+
+          print('Tmin-Datenbasis OK')
+          print('Datenstand:',idx['data_through'])
+          print('Gebiete:',len(idx['regions']))
+          print('Tage aktuell:',len(cur['dates']))
+          print('Klima:',cli['reference'])
+          print('Rekorde:',rec['first_year'],'–',rec['last_year'])
+          PY
+
+      - name: Tmin im HYRAS-Frontend ergänzen
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          python scripts/patch_hyras_tmin_frontend.py
+
+      - name: Tmin-Frontend auf main veröffentlichen
+        id: publish-main
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Tmin-Frontend ist bereits aktuell."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "HYRAS Tmin Gebietskurven im Dashboard"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub Pages nach Frontend-Änderung aktualisieren
+        if: steps.publish-main.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run update-data.yml --ref main
