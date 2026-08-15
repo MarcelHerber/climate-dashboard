@@ -158,9 +158,11 @@ jobs:
           set -euo pipefail
           rm -rf _site
           mkdir -p _site
+          mkdir -p _site/data
 
           cp \
             index.html \
+            dekadenrekorde.html \
             data.json \
             daily_tmax_1881_2026.json \
             station_records.json \
@@ -170,6 +172,8 @@ jobs:
             station_heatwaves_current.json \
             update_status.json \
             _site/
+
+          cp data/dwd_decade_records.json _site/data/dwd_decade_records.json
 
           # Weltweite GHCN-Stationsdaten sind vorerst nicht Teil der Website.
           # Die JSON-Dateien im Repository bleiben erhalten.
