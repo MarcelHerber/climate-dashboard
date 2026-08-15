@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           python scripts/restore_hyras_subtree_from_commit.py \
             --repo "$GITHUB_REPOSITORY" \
-            --commit 1a6ed00 \
+            --commit 1a6ed007f2540438db7feba33986ec7b26a2ef76 \
             --subtree tmin \
             --output /tmp/hyras-data
 
