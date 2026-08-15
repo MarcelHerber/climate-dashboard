@@ -1,0 +1,103 @@
+name: HYRAS Tmin wiederherstellen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data-repair
+  cancel-in-progress: false
+
+jobs:
+  restore-tmin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aktuellen hyras-data Branch vollständig übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-current
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-current origin/hyras-data
+          cp -a /tmp/hyras-current/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Letzten vollständigen Tmin-Stand wiederherstellen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/restore_hyras_subtree_from_commit.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit 1a6ed00 \
+            --subtree tmin \
+            --output /tmp/hyras-data
+
+      - name: Tmin und bestehende Temperaturdaten prüfen
+        run: |
+          set -euo pipefail
+          test -f /tmp/hyras-data/tmin/regions/index.json
+          test -f /tmp/hyras-data/tmin/regions/current_2026.json
+          test -f /tmp/hyras-data/tmin/regions/climate_1991_2020.json
+          test -f /tmp/hyras-data/tmin/regions/daily_records.json
+          test -f /tmp/hyras-data/tmin/regions/map_downloads.json
+          test -f /tmp/hyras-data/tmean/regions/index.json
+          test -f /tmp/hyras-data/tmax/regions/index.json
+          test -f /tmp/hyras-data/hyras_index.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/hyras-data')
+          tmin = json.loads((root/'tmin/regions/index.json').read_text())
+          maps = json.loads((root/'tmin/regions/map_downloads.json').read_text())
+          tmean = json.loads((root/'tmean/regions/index.json').read_text())
+          tmax = json.loads((root/'tmax/regions/index.json').read_text())
+
+          if tmin.get('parameter') != 'tmin':
+              raise SystemExit('Tmin-Index ungültig')
+          if len(tmin.get('regions', [])) != 17:
+              raise SystemExit(f"Tmin-Gebietszahl falsch: {len(tmin.get('regions', []))}")
+          if tmin.get('records_first_year') != 1951 or tmin.get('records_last_year') != 2025:
+              raise SystemExit('Tmin-Rekordzeitraum ist nicht 1951–2025')
+          if maps.get('parameter') != 'tmin' or not maps.get('periods'):
+              raise SystemExit('Tmin-Kartenmanifest fehlt oder ist ungültig')
+          if tmean.get('parameter') != 'tmean':
+              raise SystemExit('Tmean wurde beim Restore beschädigt')
+          if tmax.get('parameter') != 'tmax':
+              raise SystemExit('Tmax wurde beim Restore beschädigt')
+
+          print('Tmin-Wiederherstellung geprüft.')
+          print('Tmin Datenstand:', tmin.get('data_through'))
+          print('Tmin Gebiete:', len(tmin.get('regions', [])))
+          print('Tmin Rekorde:', tmin.get('records_first_year'), '–', tmin.get('records_last_year'))
+          print('Tmin Kartenperioden:', len(maps.get('periods', {})))
+          print('Tmean bleibt erhalten:', tmean.get('data_through'))
+          print('Tmax bleibt erhalten:', tmax.get('data_through'))
+          PY
+
+      - name: hyras-data mit wiederhergestelltem Tmin veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Tmin aus gesichertem Datenstand wiederherstellen"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
