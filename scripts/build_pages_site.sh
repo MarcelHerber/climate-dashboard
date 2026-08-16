@@ -28,6 +28,7 @@ done
 required_data_files=(
   data/dwd_decade_records.json
   data/dwd_decade_snow_records.json
+  data/dwd_decade_pressure_records.json
 )
 
 for file in "${required_data_files[@]}"; do
@@ -38,12 +39,7 @@ for file in "${required_data_files[@]}"; do
   cp "$file" "_site/data/$(basename "$file")"
 done
 
-# Weltweite GHCN-Stationsdaten sind vorerst nicht Teil der Website.
-# Die JSON-Dateien im Repository bleiben erhalten.
-
 touch _site/.nojekyll
-
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Dateien: $(find _site -type f | wc -l)"
-echo "Größe:"
 du -sh _site
