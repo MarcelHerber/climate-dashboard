@@ -1,0 +1,130 @@
+name: Tropennächte nach DWD-Definition
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dwd-annual-tropical-nights-official
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install requests
+
+      - name: Tropennächte aus DWD-Stundenwerten berechnen
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_annual_tropical_nights.py
+
+      - name: Frontend und Haupt-Builder korrigieren
+        run: |
+          set -euo pipefail
+          python scripts/patch_dwd_annual_tropical_nights.py
+
+      - name: Ergebnis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          tropical = json.loads(
+              Path("data/dwd_annual_tropical_nights.json")
+              .read_text(encoding="utf-8")
+          )
+          main = json.loads(
+              Path("data/dwd_annual_extremes.json")
+              .read_text(encoding="utf-8")
+          )
+
+          assert len(tropical["areas"]) == 17
+          assert (
+              tropical["official_definition"]
+              == "Minimum der Lufttemperatur von 18 UTC bis 06 UTC >= 20,0 °C"
+          )
+          assert tropical["stats"]["complete_nights"] > 100_000
+          assert tropical["stats"]["tropical_nights"] > 100
+
+          metric = main["metrics"]["tropical_nights_max"]
+          assert metric["source"] == "DWD hourly/air_temperature · TT_TU"
+          assert "18–06 UTC" in metric["threshold"]
+          assert "tropical_night_start_years" in main
+
+          html = Path("jahresextremwerte.html").read_text(encoding="utf-8")
+          assert "Tropennächte ≥20 °C" in html
+          assert "Minimum von 18 UTC" in html
+
+          builder = Path("scripts/build_dwd_annual_extremes.py").read_text(
+              encoding="utf-8"
+          )
+          assert "merge_official_tropical_nights" in builder
+
+          print("Tropennacht-Korrektur vollständig geprüft.")
+          print(
+              "Vollständige 18-06-Nächte:",
+              f'{tropical["stats"]["complete_nights"]:,}',
+          )
+          print(
+              "Tropennächte >=20 °C:",
+              f'{tropical["stats"]["tropical_nights"]:,}',
+          )
+          print("Erste Verfügbarkeit je Gebiet:")
+          print(tropical["area_start_years"])
+
+          for year in ("2003", "2015", str(main["end_year"])):
+              print(
+                  "BW",
+                  year,
+                  main["records"]["Baden-Württemberg"][year]
+                  ["tropical_nights_max"],
+              )
+          PY
+
+      - name: Änderungen veröffentlichen
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            data/dwd_annual_tropical_nights.json \
+            data/dwd_annual_extremes.json \
+            scripts/build_dwd_annual_extremes.py \
+            jahresextremwerte.html
+
+          if git diff --cached --quiet; then
+            echo "Tropennacht-Korrektur bereits aktuell."
+          else
+            git commit -m "Tropennächte nach DWD-Definition [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Schnellen Pages-Neubau starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-only-Workflow gestartet."
