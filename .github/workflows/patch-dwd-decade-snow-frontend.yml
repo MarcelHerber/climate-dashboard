@@ -1,0 +1,79 @@
+name: Schneehöhe in Dekadenrekorde einbauen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dwd-decade-snow-frontend
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Schnee-Datenbasis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path("data/dwd_decade_snow_records.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          assert data["metric"] == "shk_high"
+          assert data["metric_meta"]["unit"] == "cm"
+          assert len(data["areas"]) == 17
+          assert len(data["periods"]) == 36
+          assert data["valid_observations"] >= 100_000
+          print("Schnee-Datenbasis OK:", data["data_start"], "bis", data["data_through"])
+          PY
+
+      - name: Dekadenseite um Schneehöhe erweitern
+        run: |
+          set -euo pipefail
+          python scripts/patch_dwd_decade_snow_frontend.py             --file dekadenrekorde.html
+
+      - name: Frontend und Pages-Paket prüfen
+        run: |
+          set -euo pipefail
+          grep -q 'value="shk_high"' dekadenrekorde.html
+          grep -q 'dwd_decade_snow_records.json' dekadenrekorde.html
+          grep -q 'dwd_decade_snow_records.json' scripts/build_pages_site.sh
+          echo "Schnee-Frontend und Pages-Paket sind vorbereitet."
+
+      - name: Frontend veröffentlichen
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add dekadenrekorde.html
+
+          if git diff --cached --quiet; then
+            echo "Frontend bereits aktuell."
+          else
+            git commit -m "Schneehöhe in Dekadenrekorde einbauen"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Schnellen Pages-Neubau starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-only-Workflow wurde gestartet."
