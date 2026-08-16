@@ -24,7 +24,7 @@ from update_station_records import (
     parse_metadata,
 )
 
-VERSION = 4
+VERSION = 5
 TOP_K = 50
 
 # Qualitätsfilter für vergleichbare NN-Luftdruckrekorde.
@@ -35,7 +35,10 @@ TOP_K = 50
 PRESSURE_MIN_HPA = 954.4
 PRESSURE_MAX_HPA = 1060.8
 MAX_STATION_HEIGHT_M = 750
-ALLOWED_QN_8 = {2, 3, 5, 7, 8, 9, 10}
+ALLOWED_QN_8 = {1, 2, 3, 5, 7, 8, 9, 10}
+CANDIDATES_PER_STATION = 3
+SUPPORT_EXTREME_TOLERANCE_HPA = 8.0
+SUPPORT_MEAN_TOLERANCE_HPA = 12.0
 
 BASE_URL = (
     "https://opendata.dwd.de/climate_environment/CDC/"
@@ -330,16 +333,192 @@ def better(
 
 
 class PressureAccumulator:
+    """
+    Sammelt pro Station/Dekade mehrere Rekordkandidaten.
+
+    QN_8 = 1 ist beim DWD nicht systematisch qualitätsgeprüft. Solche
+    Kandidaten werden deshalb nur akzeptiert, wenn der Druckwert im selben
+    Stundenzeitpunkt durch das übrige Stationsnetz synoptisch plausibel ist.
+    Höhere DWD-Qualitätsniveaus brauchen diese Zusatzprüfung nicht.
+    """
+
     def __init__(self) -> None:
-        self.station_records: dict[
+        # metric -> area -> period -> station_id -> [candidate, ...]
+        self.station_candidates: dict[
             str,
-            dict[str, dict[str, dict[str, list[Any]]]],
+            dict[str, dict[str, dict[str, list[list[Any]]]]],
         ] = defaultdict(
             lambda: defaultdict(lambda: defaultdict(dict))
         )
+
+        # timestamp_key -> kompakte Netzzusammenfassung:
+        # [count, sum,
+        #  hi1_value, hi1_station, hi2_value, hi2_station,
+        #  lo1_value, lo1_station, lo2_value, lo2_station]
+        self.hour_support: dict[int, list[Any]] = {}
+
         self.observation_count = 0
         self.first_moment: tuple[date, int] | None = None
         self.last_moment: tuple[date, int] | None = None
+        self.qn1_candidates_rejected = 0
+        self.validated_station_records_count = 0
+
+    @staticmethod
+    def _moment_key(day: date, hour: int) -> int:
+        return day.toordinal() * 24 + hour
+
+    @staticmethod
+    def _entry_moment_key(entry: list[Any]) -> int:
+        day = date.fromisoformat(str(entry[1]))
+        hour = int(str(entry[4])[:2])
+        return PressureAccumulator._moment_key(day, hour)
+
+    @staticmethod
+    def _entry_station_id(entry: list[Any]) -> str:
+        return str(entry[2]).split(":", 1)[0]
+
+    @staticmethod
+    def _sort_key(metric: str, entry: list[Any]) -> tuple[Any, ...]:
+        value = float(entry[0])
+        direction = METRIC_CONFIG[metric]["direction"]
+        station_text = PressureAccumulator._entry_station_id(entry)
+        station_number = (
+            int(station_text)
+            if station_text.isdigit()
+            else 99999
+        )
+        base = (
+            str(entry[1]),
+            str(entry[4] if len(entry) > 4 else ""),
+            station_number,
+        )
+        return (
+            (-value, *base)
+            if direction == "desc"
+            else (value, *base)
+        )
+
+    def _update_hour_support(
+        self,
+        day: date,
+        hour: int,
+        station_id: str,
+        value: float,
+    ) -> None:
+        key = self._moment_key(day, hour)
+        summary = self.hour_support.get(key)
+        if summary is None:
+            summary = [
+                0, 0.0,
+                float("-inf"), "", float("-inf"), "",
+                float("inf"), "", float("inf"), "",
+            ]
+            self.hour_support[key] = summary
+
+        summary[0] += 1
+        summary[1] += value
+
+        # Zwei höchste unabhängige Stationen.
+        if station_id == summary[3]:
+            if value > summary[2]:
+                summary[2] = value
+        elif value > summary[2]:
+            summary[4], summary[5] = summary[2], summary[3]
+            summary[2], summary[3] = value, station_id
+        elif station_id == summary[5]:
+            if value > summary[4]:
+                summary[4] = value
+        elif value > summary[4]:
+            summary[4], summary[5] = value, station_id
+
+        # Zwei niedrigste unabhängige Stationen.
+        if station_id == summary[7]:
+            if value < summary[6]:
+                summary[6] = value
+        elif value < summary[6]:
+            summary[8], summary[9] = summary[6], summary[7]
+            summary[6], summary[7] = value, station_id
+        elif station_id == summary[9]:
+            if value < summary[8]:
+                summary[8] = value
+        elif value < summary[8]:
+            summary[8], summary[9] = value, station_id
+
+    def _candidate_supported(
+        self,
+        metric: str,
+        entry: list[Any],
+    ) -> bool:
+        qn8 = int(entry[5]) if len(entry) > 5 else 0
+
+        # QN 2/3/5/7/8/9/10 werden nach DWD-Qualitätsniveau direkt genutzt.
+        if qn8 != 1:
+            return True
+
+        summary = self.hour_support.get(
+            self._entry_moment_key(entry)
+        )
+        if summary is None or int(summary[0]) < 2:
+            return False
+
+        value = float(entry[0])
+        station_id = self._entry_station_id(entry)
+
+        if metric == "p_high":
+            other_value = (
+                float(summary[2])
+                if summary[3] != station_id
+                else float(summary[4])
+            )
+        else:
+            other_value = (
+                float(summary[6])
+                if summary[7] != station_id
+                else float(summary[8])
+            )
+
+        if math.isfinite(other_value):
+            if abs(other_value - value) <= SUPPORT_EXTREME_TOLERANCE_HPA:
+                return True
+
+        # Zusätzlich Vergleich mit dem Mittel aller anderen Stationen
+        # desselben Stundenzeitpunkts.
+        count = int(summary[0])
+        if count > 1:
+            mean_other = (float(summary[1]) - value) / (count - 1)
+            if abs(mean_other - value) <= SUPPORT_MEAN_TOLERANCE_HPA:
+                return True
+
+        return False
+
+    def _add_candidate(
+        self,
+        metric: str,
+        area: str,
+        pid: str,
+        station_id: str,
+        entry: list[Any],
+    ) -> None:
+        bucket = self.station_candidates[metric][area][pid]
+        candidates = bucket.setdefault(station_id, [])
+
+        if len(candidates) < CANDIDATES_PER_STATION:
+            candidates.append(entry)
+            candidates.sort(
+                key=lambda item: self._sort_key(metric, item)
+            )
+            return
+
+        # Nur ersetzen, wenn der neue Wert besser als der schlechteste
+        # der aktuell gehaltenen Kandidaten ist.
+        if self._sort_key(metric, entry) < self._sort_key(
+            metric,
+            candidates[-1],
+        ):
+            candidates[-1] = entry
+            candidates.sort(
+                key=lambda item: self._sort_key(metric, item)
+            )
 
     def add(self, observation: Observation) -> None:
         pid = period_id(observation.day)
@@ -349,15 +528,26 @@ class PressureAccumulator:
             areas.append(observation.state)
 
         hour = int(observation.values["_hour"])
+        value = float(observation.values["p_high"])
         moment_key = (observation.day, hour)
+
+        self._update_hour_support(
+            observation.day,
+            hour,
+            observation.station_id,
+            value,
+        )
 
         for metric in METRIC_CONFIG:
             entry = entry_for(observation, metric)
             for area in areas:
-                bucket = self.station_records[metric][area][pid]
-                old = bucket.get(observation.station_id)
-                if old is None or better(metric, entry, old):
-                    bucket[observation.station_id] = entry
+                self._add_candidate(
+                    metric,
+                    area,
+                    pid,
+                    observation.station_id,
+                    entry,
+                )
 
         self.observation_count += 1
         self.first_moment = (
@@ -377,23 +567,45 @@ class PressureAccumulator:
     ) -> dict[str, Any]:
         period_ids = [item["id"] for item in periods]
         result: dict[str, Any] = {}
+        self.qn1_candidates_rejected = 0
+        self.validated_station_records_count = 0
 
         for metric in METRIC_CONFIG:
             metric_out: dict[str, Any] = {}
+
             for area in AREAS:
                 area_out: dict[str, Any] = {}
+
                 for pid in period_ids:
-                    records = (
-                        self.station_records
+                    candidates_by_station = (
+                        self.station_candidates
                         .get(metric, {})
                         .get(area, {})
                         .get(pid, {})
                     )
-                    area_out[pid] = {
-                        station_id: records[station_id]
-                        for station_id in sorted(records)
-                    }
+
+                    validated: dict[str, list[Any]] = {}
+
+                    for station_id in sorted(candidates_by_station):
+                        candidates = candidates_by_station[station_id]
+                        chosen: list[Any] | None = None
+
+                        for entry in candidates:
+                            if self._candidate_supported(metric, entry):
+                                chosen = entry
+                                break
+
+                            if len(entry) > 5 and int(entry[5]) == 1:
+                                self.qn1_candidates_rejected += 1
+
+                        if chosen is not None:
+                            validated[station_id] = chosen
+                            self.validated_station_records_count += 1
+
+                    area_out[pid] = validated
+
                 metric_out[area] = area_out
+
             result[metric] = metric_out
 
         return result
@@ -401,47 +613,27 @@ class PressureAccumulator:
     def public_leaders(
         self,
         periods: list[dict[str, Any]],
+        station_records: dict[str, Any],
     ) -> dict[str, Any]:
         period_ids = [item["id"] for item in periods]
         result: dict[str, Any] = {}
 
-        for metric, meta in METRIC_CONFIG.items():
+        for metric in METRIC_CONFIG:
             metric_out: dict[str, Any] = {}
-            direction = meta["direction"]
 
             for area in AREAS:
                 area_out: dict[str, Any] = {}
 
                 for pid in period_ids:
                     records = (
-                        self.station_records
+                        station_records
                         .get(metric, {})
                         .get(area, {})
                         .get(pid, {})
                     )
-
-                    def sort_key(entry: list[Any]) -> tuple[Any, ...]:
-                        value = float(entry[0])
-                        station_text = str(entry[2]).split(":", 1)[0]
-                        station_number = (
-                            int(station_text)
-                            if station_text.isdigit()
-                            else 99999
-                        )
-                        base = (
-                            str(entry[1]),
-                            str(entry[4] if len(entry) > 4 else ""),
-                            station_number,
-                        )
-                        return (
-                            (-value, *base)
-                            if direction == "desc"
-                            else (value, *base)
-                        )
-
                     ranked = sorted(
                         records.values(),
-                        key=sort_key,
+                        key=lambda entry: self._sort_key(metric, entry),
                     )
                     area_out[pid] = ranked[:TOP_K]
 
@@ -626,7 +818,7 @@ def main() -> int:
 
     periods = build_periods()
     station_records = accumulator.public_station_records(periods)
-    leaders = accumulator.public_leaders(periods)
+    leaders = accumulator.public_leaders(periods, station_records)
 
     metadata_keys: set[str] = set()
     referenced_metadata_keys(station_records, metadata_keys)
@@ -685,17 +877,26 @@ def main() -> int:
         "leaders": leaders,
         "station_records": station_records,
         "valid_observations": accumulator.observation_count,
+        "qc_stats": {
+            "hourly_support_slots": len(accumulator.hour_support),
+            "qn1_candidates_rejected": accumulator.qn1_candidates_rejected,
+            "validated_station_records": accumulator.validated_station_records_count,
+        },
         "quality_filter": {
             "pressure_min_hpa": PRESSURE_MIN_HPA,
             "pressure_max_hpa": PRESSURE_MAX_HPA,
             "max_station_height_m": MAX_STATION_HEIGHT_M,
             "allowed_qn_8": sorted(ALLOWED_QN_8),
+            "qn1_requires_synoptic_support": True,
+            "candidate_depth": CANDIDATES_PER_STATION,
+            "support_extreme_tolerance_hpa": SUPPORT_EXTREME_TOLERANCE_HPA,
+            "support_mean_tolerance_hpa": SUPPORT_MEAN_TOLERANCE_HPA,
             "reason": (
-                "Verwendet die DWD-Qualitätsniveaus 2, 3, 5, 7, 8, 9 und 10, "
-                "schließt Bergstationen über 750 m aus "
-                "und interpretiert Werte außerhalb des vom DWD dokumentierten "
-                "deutschen Rekordrahmens 954,4–1060,8 hPa nicht automatisch "
-                "als Stationsrekorde."
+                "QN_8=1 wird für die historische Abdeckung zugelassen, "
+                "aber ein QN-1-Rekordkandidat nur übernommen, wenn zeitgleiche "
+                "Messungen des übrigen Stationsnetzes den Wert synoptisch "
+                "plausibilisieren. Stationen über 750 m sowie Werte außerhalb "
+                "954,4–1060,8 hPa werden ausgeschlossen."
             ),
         },
         "method_note": (
@@ -703,12 +904,13 @@ def main() -> int:
             "3.=21.–Monatsende. Aus dem stündlichen DWD-Datensatz "
             "hourly/pressure wird ausschließlich P ausgewertet. Laut DWD "
             "ist P der auf Meereshöhe NN reduzierte Luftdruck in hPa; "
-            "P0 ist dagegen der Luftdruck auf Stationshöhe. Für den "
-            "vergleichbaren NN-Rekord werden nur Stationen bis 750 m "
-            "verwendet. Zusätzlich werden offensichtliche Rohdatenfehler "
-            "außerhalb 945–1062 hPa verworfen. Pro Station und Dekade "
-            "werden höchster und niedrigster beobachteter P-Stundenwert "
-            "bestimmt. Recent-Werte sind als vorläufig gekennzeichnet."
+            "P0 ist dagegen der Luftdruck auf Stationshöhe. Stationen über "
+            "750 m und Werte außerhalb 954,4–1060,8 hPa werden ausgeschlossen. "
+            "Für QN_8=1 werden je Station und Dekade drei Rekordkandidaten "
+            "gehalten; ein solcher Kandidat wird nur verwendet, wenn derselbe "
+            "Stundenzeitpunkt durch andere DWD-Stationen synoptisch plausibel "
+            "ist. QN 2/3/5/7/8/9/10 werden direkt verwendet. Pro Station und "
+            "Dekade werden höchster und niedrigster P-Stundenwert bestimmt."
         ),
     }
 
@@ -775,7 +977,13 @@ def main() -> int:
     print(
         f"QC: {PRESSURE_MIN_HPA:.1f}–{PRESSURE_MAX_HPA:.1f} hPa | "
         f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m | "
-        f"QN_8 in {sorted(ALLOWED_QN_8)}",
+        f"QN_8 in {sorted(ALLOWED_QN_8)} | "
+        "QN1 nur mit synoptischer Bestätigung",
+        flush=True,
+    )
+    print(
+        f"QN1-Kandidaten verworfen: "
+        f"{accumulator.qn1_candidates_rejected:,}",
         flush=True,
     )
     print(
@@ -783,6 +991,21 @@ def main() -> int:
         f"{len(payload['stations']):,}",
         flush=True,
     )
+
+    high_entries = [
+        period[0]
+        for period in payload["leaders"]["p_high"]["Deutschland"].values()
+        if period
+    ]
+    low_entries = [
+        period[0]
+        for period in payload["leaders"]["p_low"]["Deutschland"].values()
+        if period
+    ]
+    alltime_high = max(high_entries, key=lambda entry: float(entry[0]))
+    alltime_low = min(low_entries, key=lambda entry: float(entry[0]))
+    print("Deutschland Gesamtmaximum im Bestand:", alltime_high, flush=True)
+    print("Deutschland Gesamtminimum im Bestand:", alltime_low, flush=True)
 
     for metric in ("p_high", "p_low"):
         sample = payload["leaders"][metric]["Deutschland"]["month-01-d2"]
