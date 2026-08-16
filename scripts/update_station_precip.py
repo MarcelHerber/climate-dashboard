@@ -44,7 +44,7 @@ RR_RECENT_PATTERN = re.compile(
 )
 RR_STATION_ID_PATTERN = re.compile(r"tageswerte_RR_(\d{5})_", re.IGNORECASE)
 
-STATE_VERSION = 2
+STATE_VERSION = 3
 MIN_REFERENCE_YEARS = 5
 MIN_HISTORY_YEARS = 5
 MIN_CURRENT_STATIONS = 500
@@ -218,6 +218,62 @@ def observations_to_complete_curves(observations, current_year: int) -> dict[int
     return curves
 
 
+HISTORICAL_PERIOD_RANGES = {
+    "spring": ("03-01", "05-31"),
+    "summer": ("06-01", "08-31"),
+    "autumn": ("09-01", "11-30"),
+}
+
+
+def build_historical_period_envelopes(curves: dict[int, list[float]]) -> dict[str, dict[str, Any]]:
+    """Historische Hüllkurven, die am Beginn des gewählten Zeitraums bei 0 starten."""
+    labels = labels_non_leap()
+    label_index = {label: index for index, label in enumerate(labels)}
+    result: dict[str, dict[str, Any]] = {}
+
+    for period, (start_label, end_label) in HISTORICAL_PERIOD_RANGES.items():
+        start_index = label_index[start_label]
+        end_index = label_index[end_label]
+        period_curves: dict[int, list[float]] = {}
+
+        for year, curve in curves.items():
+            if len(curve) <= end_index:
+                continue
+            base = curve[start_index - 1] if start_index > 0 else 0.0
+            period_curves[year] = [
+                round(curve[index] - base, 1)
+                for index in range(start_index, end_index + 1)
+            ]
+
+        if not period_curves:
+            continue
+
+        historical_min: list[float] = []
+        historical_max: list[float] = []
+        historical_min_year: list[int] = []
+        historical_max_year: list[int] = []
+
+        for offset in range(end_index - start_index + 1):
+            candidates = [(curve[offset], year) for year, curve in period_curves.items()]
+            minimum = min(candidates, key=lambda item: (item[0], item[1]))
+            maximum = max(candidates, key=lambda item: (item[0], -item[1]))
+            historical_min.append(round(minimum[0], 1))
+            historical_max.append(round(maximum[0], 1))
+            historical_min_year.append(minimum[1])
+            historical_max_year.append(maximum[1])
+
+        result[period] = {
+            "start_index": start_index,
+            "end_index": end_index,
+            "historical_min_cumulative": historical_min,
+            "historical_max_cumulative": historical_max,
+            "historical_min_year": historical_min_year,
+            "historical_max_year": historical_max_year,
+        }
+
+    return result
+
+
 def build_profile_payload(
     station_id: str,
     observations,
@@ -252,6 +308,8 @@ def build_profile_payload(
         historical_min_year.append(minimum[1])
         historical_max_year.append(maximum[1])
 
+    historical_periods = build_historical_period_envelopes(curves)
+
     segment = current_segment(metadata, station_id)
     profile = StationProfile(
         station_id=station_id,
@@ -284,6 +342,7 @@ def build_profile_payload(
         "historical_max_cumulative": historical_max,
         "historical_min_year": historical_min_year,
         "historical_max_year": historical_max_year,
+        "historical_periods": historical_periods,
     }
     return profile, payload
 

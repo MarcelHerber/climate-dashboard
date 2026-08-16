@@ -2654,7 +2654,7 @@ button.action:hover{background:#1f2937}
         <div class="stat-card"><h4>Gewählter Zeitraum</h4><div id="stationPrecipCurrentStat">–</div></div>
         <div class="stat-card"><h4>Mittel 1991–2020</h4><div id="stationPrecipMeanStat">–</div></div>
         <div class="stat-card"><h4>Abweichung</h4><div id="stationPrecipDeviationStat">–</div></div>
-        <div class="stat-card"><h4>Historischer Spannbereich (ab 01.01.)</h4><div id="stationPrecipRangeStat">–</div></div>
+        <div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>
         <div class="stat-card"><h4>Datenlücken im aktuellen Jahr</h4><div id="stationPrecipMissingStat">–</div></div>
       </div>
     </div>
@@ -7307,6 +7307,11 @@ async function updateStationPrecipitation(){
 
     let historicalMin=[],historicalMax=[],minValue=null,maxValue=null,minYear=null,maxYear=null;
     const ytdCompatible=range.startIndex===0;
+    const periodHistory=stationPrecipProfile.historical_periods?.[range.period]??null;
+    const periodCompatible=Boolean(periodHistory)
+      && Number(periodHistory.start_index)===range.startIndex
+      && range.endIndex<=Number(periodHistory.end_index);
+    const historicalCompatible=ytdCompatible||periodCompatible;
     if(ytdCompatible){
       historicalMin=(stationPrecipProfile.historical_min_cumulative||[]).slice(range.startIndex,range.endIndex+1);
       historicalMax=(stationPrecipProfile.historical_max_cumulative||[]).slice(range.startIndex,range.endIndex+1);
@@ -7314,6 +7319,14 @@ async function updateStationPrecipitation(){
       maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
       minYear=(stationPrecipProfile.historical_min_year||[])[range.endIndex]??null;
       maxYear=(stationPrecipProfile.historical_max_year||[])[range.endIndex]??null;
+    }else if(periodCompatible){
+      const endOffset=range.endIndex-range.startIndex;
+      historicalMin=(periodHistory.historical_min_cumulative||[]).slice(0,endOffset+1);
+      historicalMax=(periodHistory.historical_max_cumulative||[]).slice(0,endOffset+1);
+      minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
+      maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
+      minYear=(periodHistory.historical_min_year||[])[endOffset]??null;
+      maxYear=(periodHistory.historical_max_year||[])[endOffset]??null;
     }
 
     const missingDates=currentCumulative.missingDates||[];
@@ -7321,9 +7334,9 @@ async function updateStationPrecipitation(){
     document.getElementById("stationPrecipCurrentStat").textContent=Number.isFinite(currentValue)?`${stationPrecipFormat(currentValue)} mm · ${range.displayLabel}`:"–";
     document.getElementById("stationPrecipMeanStat").textContent=Number.isFinite(climateValue)?`${stationPrecipFormat(climateValue)} mm · gleicher Kalenderzeitraum`:"–";
     document.getElementById("stationPrecipDeviationStat").textContent=deviation===null?"–":`${deviation>=0?"+":""}${stationPrecipFormat(deviation)} mm (${percentage>=0?"+":""}${stationPrecipFormat(percentage)} %)`;
-    document.getElementById("stationPrecipRangeStat").textContent=ytdCompatible&&minValue!==null
+    document.getElementById("stationPrecipRangeStat").textContent=historicalCompatible&&minValue!==null
       ?`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`
-      :"Für Zeiträume mit Start nach dem 01.01. nicht vorab berechnet";
+      :"Für diesen Zeitraum nicht vorab berechnet";
     document.getElementById("stationPrecipMissingStat").textContent=missingCount===0
       ? "Keine fehlenden Tageswerte im Zeitraum"
       : `${missingCount} ${missingCount===1?"Tag":"Tage"} ohne Messwert im Zeitraum`;
@@ -7340,12 +7353,12 @@ async function updateStationPrecipitation(){
       const moreDates=missingCount>shownDates.length?` und ${missingCount-shownDates.length} weitere`:"";
       gapText=` Es fehlen ${missingCount} ${missingCount===1?"Tageswert":"Tageswerte"} (${shownDates.join(", ")}${moreDates}). Fehlende Tage werden nicht als 0 mm gewertet.`;
     }else gapText=" Für den gewählten Zeitraum liegen bis zum Datenstand alle Tageswerte vor.";
-    if(!ytdCompatible) gapText+=" Der historische Min-Max-Spannbereich wird bei frei beginnenden Zeiträumen bewusst nicht angezeigt, weil die bisher gespeicherten historischen Hüllkurven auf den 1. Januar bezogen sind.";
+    if(!historicalCompatible) gapText+=" Der historische Min-Max-Spannbereich ist derzeit für Seit Jahresbeginn sowie Frühling, Sommer und Herbst verfügbar.";
     document.getElementById("stationPrecipSummary").textContent=metaParts.join(" · ")+`.${gapText}`;
 
     if(stationPrecipChart) stationPrecipChart.destroy();
     const datasets=[];
-    if(ytdCompatible){
+    if(historicalCompatible){
       datasets.push(
         {label:"Historisches Maximum",data:historicalMax,borderColor:"rgba(110,110,110,.65)",backgroundColor:"rgba(150,150,150,.18)",borderWidth:1,pointRadius:0,fill:{target:1,above:"rgba(150,150,150,.18)"},tension:.12},
         {label:"Historisches Minimum",data:historicalMin,borderColor:"rgba(110,110,110,.65)",borderWidth:1,pointRadius:0,fill:false,tension:.12}
