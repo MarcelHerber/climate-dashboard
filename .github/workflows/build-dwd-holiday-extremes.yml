@@ -44,62 +44,64 @@ jobs:
           import json
           from pathlib import Path
 
-          p = Path("data/dwd_holiday_extremes.json")
-          d = json.loads(p.read_text(encoding="utf-8"))
-
-          assert d["version"] == 1
+          d = json.loads(Path("data/dwd_holiday_extremes.json").read_text(encoding="utf-8"))
+          assert d["version"] == 2
           assert len(d["areas"]) == 17
           assert set(d["holidays"]) == {"easter", "christmas"}
-          assert set(d["metrics"]) == {"tnn", "txx"}
           assert d["start_year"] == 1881
           assert d["stats"]["holiday_observations"] > 0
+          assert {"tnn", "txx", "txn", "rr24x", "snow_high", "snow_low", "gust", "sun_sum", "holiday_temp_mean"}.issubset(d["metrics"])
 
           assert d["holiday_dates"]["2024"]["easter"]["easter_sunday"] == "2024-03-31"
           assert d["holiday_dates"]["2025"]["easter"]["easter_sunday"] == "2025-04-20"
           assert d["holiday_dates"]["2026"]["easter"]["easter_sunday"] == "2026-04-05"
+          assert d["holiday_dates"]["2026"]["easter"]["holy_saturday"] == "2026-04-04"
 
-          germany = d["records"]["Deutschland"]
+          expected_easter = {"easter_total", "good_friday", "holy_saturday", "easter_sunday", "easter_monday"}
+          expected_christmas = {"christmas_total", "christmas_eve", "christmas_day", "second_christmas_day"}
+          pr = d["period_records"]["Deutschland"]
+          assert set(pr["easter"]) == expected_easter
+          assert set(pr["christmas"]) == expected_christmas
+
+          for year in ("2024", "2025"):
+              for period in expected_easter - {"easter_total"}:
+                  row = pr["easter"][period][year]
+                  assert row["tnn"] is not None, (period, year, "tnn")
+                  assert row["txx"] is not None, (period, year, "txx")
+                  assert row["txn"] is not None, (period, year, "txn")
+              assert pr["easter"]["easter_total"][year]["holiday_temp_mean"] is not None
+
+              for period in expected_christmas - {"christmas_total"}:
+                  row = pr["christmas"][period][year]
+                  assert row["tnn"] is not None, (period, year, "tnn")
+                  assert row["txx"] is not None, (period, year, "txx")
+                  assert row["txn"] is not None, (period, year, "txn")
+              assert pr["christmas"]["christmas_total"][year]["holiday_temp_mean"] is not None
+
+          # Rückwärtskompatibilität zur noch nicht umgestellten Live-Seite.
           for holiday in ("easter", "christmas"):
               for year in ("2024", "2025"):
-                  row = germany[holiday][year]
-                  assert row["tnn"] is not None, (holiday, year, "tnn fehlt")
-                  assert row["txx"] is not None, (holiday, year, "txx fehlt")
+                  row = d["records"]["Deutschland"][holiday][year]
+                  assert row["tnn"] is not None and row["txx"] is not None
 
-          print("DWD Feiertags-Extremwerte · Prüfung OK")
-          print("Gebiete:", len(d["areas"]))
-          print("Feiertage:", ", ".join(d["holidays"]))
+          print("DWD Feiertags-Extremwerte V2 · Prüfung OK")
           print("Beobachtungen:", f'{d["stats"]["holiday_observations"]:,}')
           print("Stationen:", f'{d["stats"]["referenced_stations"]:,}')
-
-          for holiday in ("easter", "christmas"):
-              print("Deutschland", holiday)
-              for year in ("2024", "2025", "2026"):
-                  row = germany[holiday][year]
-                  print(
-                      year,
-                      {
-                          key: (value[0] if value else None)
-                          for key, value in row.items()
-                      },
-                  )
+          print("Oster-Perioden:", ", ".join(sorted(expected_easter)))
+          print("Weihnachts-Perioden:", ", ".join(sorted(expected_christmas)))
           PY
 
       - name: Datenbasis veröffentlichen
         run: |
           set -euo pipefail
-
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add data/dwd_holiday_extremes.json
-
           if git diff --cached --quiet; then
             echo "Feiertags-Extremwerte unverändert."
             exit 0
           fi
-
-          git commit -m "DWD Feiertags-Extremwerte aktualisieren"
+          git commit -m "DWD Feiertags-Extremwerte V2 aktualisieren"
           git pull --rebase origin main
           git push origin HEAD:main
-
-          echo "Feiertags-Datenbasis veröffentlicht."
+          echo "Feiertags-Datenbasis V2 veröffentlicht."
