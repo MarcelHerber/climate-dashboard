@@ -96,11 +96,10 @@ def holiday_days(year: int) -> dict[date, str]:
 
 
 @lru_cache(maxsize=None)
-def holiday_stamp_lookup(start_year: int, end_year: int) -> dict[str, str]:
-    result: dict[str, str] = {}
+def holiday_stamp_lookup(start_year: int, end_year: int) -> set[str]:
+    result: set[str] = set()
     for year in range(start_year, end_year + 1):
-        for day, holiday in holiday_days(year).items():
-            result[day.strftime("%Y%m%d")] = holiday
+        result.update(day.strftime("%Y%m%d") for day in holiday_days(year))
     return result
 
 
@@ -136,12 +135,12 @@ def parse_holiday_kl_zip(
     end_date: date,
     preliminary: bool,
 ) -> list[Observation]:
-    """Liest nur TXK/TNK für Ostern und Weihnachten aus DWD daily/kl."""
+    """Liest ausschließlich TXK/TNK an den gewünschten Feiertagstagen."""
     observations: list[Observation] = []
     wanted = holiday_stamp_lookup(start_date.year, end_date.year)
 
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
-        product_files: list[str] = []
+        product_name: str | None = None
         for name in archive.namelist():
             if not name.lower().endswith(".txt") or "produkt" not in name.lower():
                 continue
@@ -153,26 +152,29 @@ def parse_holiday_kl_zip(
                 continue
             columns = {part.strip().upper() for part in first_line.split(";")}
             if {"STATIONS_ID", "MESS_DATUM", "TXK", "TNK"}.issubset(columns):
-                product_files.append(name)
+                product_name = name
+                break
 
-        if not product_files:
+        if product_name is None:
             return []
 
-        text = decode_product(archive.read(product_files[0]))
+        text = decode_product(archive.read(product_name))
         reader = csv.DictReader(io.StringIO(text), delimiter=";")
-        fields = [(field or "").strip() for field in (reader.fieldnames or [])]
-        lookup = {field.upper(): field for field in fields}
-        station_field = lookup.get("STATIONS_ID")
-        date_field = lookup.get("MESS_DATUM")
-        txk_field = lookup.get("TXK")
-        tnk_field = lookup.get("TNK")
-        if not station_field or not date_field or not txk_field or not tnk_field:
-            return []
 
+        # DWD-Header enthalten teils Leerzeichen. Deshalb wird jede Zeile
+        # auf bereinigte Spaltennamen normalisiert, bevor darauf zugegriffen wird.
         for raw_row in reader:
-            stamp = str(raw_row.get(date_field) or "").strip()
+            row = {
+                (key or "").strip().upper(): (
+                    value.strip() if isinstance(value, str) else value
+                )
+                for key, value in raw_row.items()
+            }
+
+            stamp = str(row.get("MESS_DATUM") or "").strip()
             if stamp not in wanted:
                 continue
+
             try:
                 day = datetime.strptime(stamp, "%Y%m%d").date()
             except ValueError:
@@ -180,15 +182,15 @@ def parse_holiday_kl_zip(
             if day < start_date or day > end_date:
                 continue
 
-            station_raw = str(raw_row.get(station_field) or "").strip()
+            station_raw = str(row.get("STATIONS_ID") or "").strip()
             station_id = station_raw.zfill(5) if station_raw else station_id_hint
             segment = metadata.segment_for(station_id, day)
 
             values: dict[str, float] = {}
-            txk = parse_float(raw_row.get(txk_field))
+            txk = parse_float(row.get("TXK"))
             if txk is not None and -60.0 <= txk <= 60.0:
                 values["txk"] = round(txk, 1)
-            tnk = parse_float(raw_row.get(tnk_field))
+            tnk = parse_float(row.get("TNK"))
             if tnk is not None and -60.0 <= tnk <= 60.0:
                 values["tnk"] = round(tnk, 1)
 
@@ -213,12 +215,7 @@ def extreme_entry(
     metadata_key: str,
     preliminary: bool,
 ) -> list[Any]:
-    return [
-        round(float(value), 1),
-        day.isoformat(),
-        metadata_key,
-        1 if preliminary else 0,
-    ]
+    return [round(float(value), 1), day.isoformat(), metadata_key, 1 if preliminary else 0]
 
 
 def better_extreme(metric: str, new: list[Any], old: list[Any]) -> bool:
@@ -228,9 +225,7 @@ def better_extreme(metric: str, new: list[Any], old: list[Any]) -> bool:
     if nv != ov:
         return nv > ov if direction == "desc" else nv < ov
 
-    # Bei Gleichstand zuerst das frühere Datum, danach die kleinere Stations-ID.
-    nd = str(new[1])
-    od = str(old[1])
+    nd, od = str(new[1]), str(old[1])
     if nd != od:
         return nd < od
     ns = str(new[2]).split(":", 1)[0]
@@ -240,10 +235,9 @@ def better_extreme(metric: str, new: list[Any], old: list[Any]) -> bool:
 
 class HolidayAccumulator:
     def __init__(self) -> None:
-        # area -> holiday -> year -> metric -> entry
-        self.records: dict[
-            str, dict[str, dict[int, dict[str, list[Any]]]]
-        ] = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+        self.records: dict[str, dict[str, dict[int, dict[str, list[Any]]]]] = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(dict))
+        )
         self.observations = 0
         self.first_day: date | None = None
         self.last_day: date | None = None
@@ -262,9 +256,8 @@ class HolidayAccumulator:
         if holiday is None:
             return
 
-        values = observation.values
         for metric, source_key in (("tnn", "tnk"), ("txx", "txk")):
-            value = values.get(source_key)
+            value = observation.values.get(source_key)
             if value is None:
                 continue
             entry = extreme_entry(
@@ -280,31 +273,20 @@ class HolidayAccumulator:
                     bucket[metric] = entry
 
         self.observations += 1
-        self.first_day = (
-            observation.day
-            if self.first_day is None
-            else min(self.first_day, observation.day)
-        )
-        self.last_day = (
-            observation.day
-            if self.last_day is None
-            else max(self.last_day, observation.day)
-        )
+        self.first_day = observation.day if self.first_day is None else min(self.first_day, observation.day)
+        self.last_day = observation.day if self.last_day is None else max(self.last_day, observation.day)
 
     def public_records(self, end_year: int) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for area in AREAS:
-            holiday_rows: dict[str, Any] = {}
+            result[area] = {}
             for holiday in HOLIDAYS:
-                years: dict[str, Any] = {}
+                result[area][holiday] = {}
                 for year in range(START_YEAR, end_year + 1):
                     raw = self.records.get(area, {}).get(holiday, {}).get(year, {})
-                    years[str(year)] = {
-                        metric: raw.get(metric)
-                        for metric in METRICS
+                    result[area][holiday][str(year)] = {
+                        metric: raw.get(metric) for metric in METRICS
                     }
-                holiday_rows[holiday] = years
-            result[area] = holiday_rows
         return result
 
 
@@ -342,54 +324,39 @@ def referenced_metadata_keys(part: Any, target: set[str]) -> None:
             referenced_metadata_keys(value, target)
         return
     if isinstance(part, list):
-        if (
-            len(part) == 4
-            and isinstance(part[2], str)
-            and ":" in part[2]
-        ):
+        if len(part) == 4 and isinstance(part[2], str) and ":" in part[2]:
             target.add(part[2])
             return
         for value in part:
             referenced_metadata_keys(value, target)
 
 
-def selected_station_metadata(
-    metadata: MetadataIndex,
-    records: dict[str, Any],
-) -> dict[str, Any]:
+def selected_station_metadata(metadata: MetadataIndex, records: dict[str, Any]) -> dict[str, Any]:
     keys: set[str] = set()
     referenced_metadata_keys(records, keys)
     public = metadata.public_dict()
-    return {
-        key: public[key]
-        for key in sorted(keys)
-        if key in public
-    }
+    return {key: public[key] for key in sorted(keys) if key in public}
 
 
 def first_available_year(years: dict[str, Any]) -> int | None:
     found: list[int] = []
     for year_text, row in years.items():
-        if not isinstance(row, dict):
-            continue
-        if not any(value is not None for value in row.values()):
-            continue
-        try:
-            found.append(int(year_text))
-        except ValueError:
-            continue
+        if isinstance(row, dict) and any(value is not None for value in row.values()):
+            try:
+                found.append(int(year_text))
+            except ValueError:
+                pass
     return min(found) if found else None
 
 
 def derive_area_start_years(records: dict[str, Any]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for area in AREAS:
-        result[area] = {}
-        for holiday in HOLIDAYS:
-            result[area][holiday] = first_available_year(
-                records.get(area, {}).get(holiday, {})
-            )
-    return result
+    return {
+        area: {
+            holiday: first_available_year(records.get(area, {}).get(holiday, {}))
+            for holiday in HOLIDAYS
+        }
+        for area in AREAS
+    }
 
 
 def holiday_date_metadata(end_year: int) -> dict[str, Any]:
@@ -412,10 +379,7 @@ def holiday_date_metadata(end_year: int) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output",
-        default="data/dwd_holiday_extremes.json",
-    )
+    parser.add_argument("--output", default="data/dwd_holiday_extremes.json")
     parser.add_argument("--max-workers", type=int, default=10)
     args = parser.parse_args()
 
@@ -433,42 +397,23 @@ def main() -> int:
     print("Parameter: TNn und TXx", flush=True)
 
     metadata = parse_metadata(download(METADATA_URL, timeout=90))
-    historical = list_station_files(
-        HISTORICAL_URL,
-        HISTORICAL_PATTERN,
-        minimum=500,
-    )
-    recent = list_station_files(
-        RECENT_URL,
-        RECENT_PATTERN,
-        minimum=300,
-    )
+    historical = list_station_files(HISTORICAL_URL, HISTORICAL_PATTERN, minimum=500)
+    recent = list_station_files(RECENT_URL, RECENT_PATTERN, minimum=300)
 
     print(f"KL historical: {len(historical):,}", flush=True)
     print(f"KL recent:     {len(recent):,}", flush=True)
 
     acc = HolidayAccumulator()
     n = consume_kl(
-        acc,
-        metadata,
-        historical,
-        HISTORICAL_URL,
-        start_date,
-        today,
-        False,
-        args.max_workers,
+        acc, metadata, historical, HISTORICAL_URL,
+        start_date, today, False, args.max_workers,
     )
     print(f"Feiertags-Beobachtungen historical: {n:,}", flush=True)
 
     n = consume_kl(
-        acc,
-        metadata,
-        recent,
-        RECENT_URL,
-        date(max(START_YEAR, today.year - 2), 1, 1),
-        today,
-        True,
-        args.max_workers,
+        acc, metadata, recent, RECENT_URL,
+        date(max(START_YEAR, today.year - 2), 1, 1), today,
+        True, args.max_workers,
     )
     print(f"Feiertags-Beobachtungen recent:     {n:,}", flush=True)
 
@@ -477,9 +422,7 @@ def main() -> int:
 
     payload = {
         "version": VERSION,
-        "generated_at": (
-            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        ),
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "project": "Feiertags-Extremwerte",
         "source": "DWD CDC observations_germany/climate/daily/kl",
         "areas": AREAS,
@@ -488,12 +431,7 @@ def main() -> int:
         "run_date": today.isoformat(),
         "holidays": HOLIDAY_META,
         "metrics": METRICS,
-        "entry_schema": [
-            "value",
-            "date",
-            "metadata_key",
-            "preliminary",
-        ],
+        "entry_schema": ["value", "date", "metadata_key", "preliminary"],
         "area_start_years": derive_area_start_years(records),
         "holiday_dates": holiday_date_metadata(today.year),
         "stations": stations,
@@ -501,32 +439,20 @@ def main() -> int:
         "stats": {
             "holiday_observations": acc.observations,
             "referenced_stations": len(stations),
-            "first_holiday_observation": (
-                acc.first_day.isoformat() if acc.first_day else None
-            ),
-            "last_holiday_observation": (
-                acc.last_day.isoformat() if acc.last_day else None
-            ),
+            "first_holiday_observation": acc.first_day.isoformat() if acc.first_day else None,
+            "last_holiday_observation": acc.last_day.isoformat() if acc.last_day else None,
         },
         "method_note": (
             "Ausgewertet werden DWD-Tageswerte des KL-Netzes. Ostern umfasst "
             "Karfreitag, Karsamstag, Ostersonntag und Ostermontag. Weihnachten "
             "umfasst den 24., 25. und 26. Dezember. Für jedes Gebiet und Jahr "
             "wird innerhalb des jeweiligen Feiertagsfensters das niedrigste "
-            "Tagesminimum TNK als TNn und das höchste Tagesmaximum TXK als TXx "
-            "gespeichert. Deutschland enthält alle DWD-Stationen; zusätzlich "
-            "wird jede Station ihrem Bundesland zugeordnet."
+            "Tagesminimum TNK als TNn und das höchste Tagesmaximum TXK als TXx gespeichert."
         ),
     }
 
     output.write_text(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            allow_nan=False,
-        )
-        + "\n",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n",
         encoding="utf-8",
     )
 
@@ -539,15 +465,9 @@ def main() -> int:
     assert payload["stats"]["holiday_observations"] > 0
 
     print("Feiertags-Datenbasis erfolgreich gebaut.", flush=True)
-    print(
-        f"Feiertags-Beobachtungen: {acc.observations:,}",
-        flush=True,
-    )
+    print(f"Feiertags-Beobachtungen: {acc.observations:,}", flush=True)
     print(f"Referenzierte Stationen: {len(stations):,}", flush=True)
-    print(
-        f"Ausgabe: {output} ({output.stat().st_size / 1024 / 1024:.2f} MB)",
-        flush=True,
-    )
+    print(f"Ausgabe: {output} ({output.stat().st_size / 1024 / 1024:.2f} MB)", flush=True)
     return 0
 
 
