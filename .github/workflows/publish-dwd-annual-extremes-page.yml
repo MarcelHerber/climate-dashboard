@@ -1,0 +1,82 @@
+name: Jährliche Extremwerte Seite veröffentlichen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: dwd-annual-extremes-frontend
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Daten und Seite prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          page = Path("jahresextremwerte.html")
+          data_path = Path("data/dwd_annual_extremes.json")
+          pages_builder = Path("scripts/build_pages_site.sh")
+
+          assert page.is_file()
+          assert data_path.is_file()
+          assert pages_builder.is_file()
+
+          data = json.loads(data_path.read_text(encoding="utf-8"))
+
+          expected = {
+              "tnn",
+              "txx",
+              "summer_days_max",
+              "hot_days_max",
+              "tropical_nights_max",
+              "rr24x",
+              "snox_ge_400",
+              "snox_lt_400",
+              "fgx_ge_400",
+              "fgx_lt_400",
+          }
+
+          assert data["version"] >= 2
+          assert len(data["areas"]) == 17
+          assert set(data["metrics"]) == expected
+          assert data["list_min_year"] == 1881
+          assert len(data["area_start_years"]) == 17
+
+          html = page.read_text(encoding="utf-8")
+          for metric in expected:
+              assert metric in html
+          assert "data/dwd_annual_extremes.json" in html
+
+          builder = pages_builder.read_text(encoding="utf-8")
+          assert "jahresextremwerte.html" in builder
+          assert "data/dwd_annual_extremes.json" in builder
+
+          print("Jahreslisten-Seite vollständig geprüft.")
+          print("Gebiete:", len(data["areas"]))
+          print("Parameter:", len(data["metrics"]))
+          print("Daten bis:", data["data_through"])
+          PY
+
+      - name: Schnellen Pages-Neubau starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-only-Workflow gestartet."
