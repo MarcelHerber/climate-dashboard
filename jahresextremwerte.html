@@ -364,7 +364,7 @@ thead .year-head{
             <th class="group-days">&gt;25 °C</th>
             <th class="group-days">&gt;30 °C</th>
             <th class="group-days">≥35 °C</th>
-            <th class="group-days">Tmin &gt;20 °C</th>
+            <th class="group-days">Tropennächte ≥20 °C</th>
             <th class="group-rain">RR24x</th>
             <th class="group-snow">SNOx ≥400 m</th>
             <th class="group-snow">SNOx &lt;400 m</th>
@@ -384,10 +384,10 @@ thead .year-head{
     1881; wenn in einem Bundesland die ersten tatsächlich verfügbaren Jahreswerte später
     einsetzen, beginnt die Liste erst in diesem späteren Jahr. TNn und TXx stammen aus
     DWD daily/kl. Die Kenntage entsprechen der Excel-Struktur mit den strikten Schwellen
-    TXK &gt;25,0 °C, TXK &gt;30,0 °C, TXK ≥35,0 °C und TNK &gt;20,0 °C. RR24x stammt aus dem erweiterten
+    TXK &gt;25,0 °C, TXK &gt;30,0 °C und TXK ≥35,0 °C. Tropennächte werden nach DWD-Definition aus Stundenwerten bestimmt: Das Minimum von 18 UTC bis 06 UTC muss ≥20,0 °C bleiben. RR24x stammt aus dem erweiterten
     täglichen DWD-Niederschlagsnetz. Schnee und Wind werden nach Stationshöhe in
     ≥400 m und &lt;400 m getrennt. FGx basiert auf dem Tagesmaximum der Windspitze (FX),
-    umgerechnet in km/h; dargestellt werden Werte ab 75 km/h. Das laufende Jahr ist
+    umgerechnet in km/h; dargestellt werden Werte ab 75 km/h. Für Tropennächte werden nur vollständig vorhandene 13-Stunden-Nachtfenster ausgewertet. Das laufende Jahr ist
     naturgemäß unvollständig.
   </div>
 </div>

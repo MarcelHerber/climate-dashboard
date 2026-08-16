@@ -86,13 +86,13 @@ METRICS = {
         "source": "DWD daily/kl · TXK",
     },
     "tropical_nights_max": {
-        "label": "max. Nächte Tmin >20 °C",
-        "description": "Höchste Zahl der Tage mit TNK > 20,0 °C an einer Station",
-        "unit": "Tage",
+        "label": "Tropennächte ≥20 °C",
+        "description": "Höchste Zahl der Tropennächte an einer Station; Nachtminimum 18 UTC bis 06 UTC >= 20,0 °C",
+        "unit": "Nächte",
         "kind": "station_year_count",
-        "threshold": "TNK > 20.0",
+        "threshold": "Nachtminimum 18–06 UTC >= 20.0 °C",
         "direction": "desc",
-        "source": "DWD daily/kl · TNK",
+        "source": "DWD hourly/air_temperature · TT_TU",
     },
     "rr24x": {
         "label": "RR24x",
@@ -669,6 +669,31 @@ def derive_area_start_years(
     return result
 
 
+
+def merge_official_tropical_nights(
+    records: dict[str, Any],
+) -> dict[str, Any]:
+    path = Path("data/dwd_annual_tropical_nights.json")
+    if not path.is_file():
+        raise RuntimeError(
+            "Offizielle Tropennacht-Datenbasis fehlt: "
+            "data/dwd_annual_tropical_nights.json"
+        )
+
+    tropical = json.loads(path.read_text(encoding="utf-8"))
+    if tropical.get("areas") != AREAS:
+        raise RuntimeError(
+            "Tropennacht-Gebietsliste passt nicht zur Hauptdatei."
+        )
+
+    for area in AREAS:
+        tropical_years = tropical["records"][area]
+        for year, row in records[area].items():
+            row["tropical_nights_max"] = tropical_years.get(year)
+
+    return tropical
+
+
 def reference_value(
     records: dict[str, Any],
     area: str,
@@ -846,12 +871,15 @@ def main() -> int:
 
     acc.finalize_counts()
     records = acc.public_records(today.year)
+    tropical_data = merge_official_tropical_nights(records)
     area_start_years = derive_area_start_years(records)
     stations = merge_station_metadata(
         kl_metadata,
         rr_metadata,
         records,
     )
+    for key, value in tropical_data.get("stations", {}).items():
+        stations.setdefault(key, value)
 
     payload = {
         "version": VERSION,
@@ -912,7 +940,7 @@ def main() -> int:
         "method_note": (
             "Rohdaten werden ab 1861 ausgewertet. Für spätere Jahreslisten ""beginnt jedes Gebiet frühestens 1881; liegt der erste tatsächlich ""vorhandene Jahreswert später, wird dieses spätere Jahr verwendet. ""TNn und TXx stammen aus TNK/TXK. "
             "Die drei Kenntage werden entsprechend der Excel-Vorlage strikt "
-            "mit TXK >25,0 °C, TXK >30,0 °C, TXK >=35,0 °C und TNK >20,0 °C gezählt; "
+            "mit TXK >25,0 °C, TXK >30,0 °C und TXK >=35,0 °C gezählt. ""Tropennächte werden separat nach DWD-Definition aus ""TT_TU-Stundenwerten für 18–06 UTC mit Minimum >=20,0 °C übernommen; "
             "pro Gebiet/Jahr wird die höchste Stationsanzahl gespeichert. "
             "RR24x verwendet das erweiterte tägliche DWD-RR-Netz (RS). "
             "SNOx verwendet SHK_TAG/SHK aus daily/kl und wird nach "
