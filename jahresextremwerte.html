@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jährliche Extremwerte deutscher Wetterstationen</title>
+<style>
+:root{
+  color-scheme:light;
+  --page:#f4f6f8;
+  --card:#fff;
+  --text:#171717;
+  --muted:#666;
+  --border:#d7dce1;
+  --shadow:0 4px 14px rgba(0,0,0,.08);
+  --cold:#155eef;
+  --hot:#b42318;
+  --rain:#176b4d;
+  --snow:#2463a7;
+  --wind:#7a3e9d;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  padding:28px;
+  font-family:Arial,sans-serif;
+  background:var(--page);
+  color:var(--text);
+}
+.page{max-width:1800px;margin:0 auto}
+.topline{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+h1{
+  margin:0 0 8px;
+  font-size:clamp(28px,4vw,44px);
+  line-height:1.08;
+}
+.subtitle{
+  margin:0;
+  color:var(--muted);
+  line-height:1.5;
+  max-width:1000px;
+}
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  padding:10px 14px;
+  border:1px solid #c7ccd1;
+  border-radius:7px;
+  background:#fff;
+  color:#222;
+  text-decoration:none;
+  font-weight:bold;
+  box-shadow:var(--shadow);
+}
+.back-link:hover{background:#f7f8f9}
+.data-status{
+  display:inline-block;
+  margin:0 0 18px;
+  padding:10px 14px;
+  background:#fff;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  color:#444;
+  font-size:14px;
+}
+.data-status.error{background:#fff0ee;color:#8a1c13}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:14px;
+  align-items:end;
+  padding:16px;
+  margin-bottom:18px;
+  background:#fff;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+}
+.control-group{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  flex:1 1 190px;
+  min-width:180px;
+}
+.control-group label{
+  font-size:13px;
+  font-weight:bold;
+  color:#444;
+}
+select,input[type="number"]{
+  width:100%;
+  padding:10px 11px;
+  border:1px solid #bbb;
+  border-radius:6px;
+  background:#fff;
+  font:inherit;
+}
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(180px,1fr));
+  gap:14px;
+  margin-bottom:18px;
+}
+.summary-card{
+  background:#fff;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  padding:16px;
+  min-height:105px;
+}
+.summary-label{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:bold;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  margin-bottom:7px;
+}
+.summary-value{
+  font-size:clamp(22px,3vw,30px);
+  font-weight:800;
+  line-height:1.12;
+}
+.summary-detail{
+  margin-top:7px;
+  color:#555;
+  font-size:13px;
+  line-height:1.4;
+}
+.card{
+  background:#fff;
+  border-radius:8px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.card-head{
+  padding:16px 18px 12px;
+  border-bottom:1px solid #e6e9ec;
+}
+.card-head h2{
+  margin:0 0 5px;
+  font-size:21px;
+}
+.card-head p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+.table-wrap{
+  width:100%;
+  overflow:auto;
+  max-height:76vh;
+}
+table{
+  width:100%;
+  min-width:1760px;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+}
+thead{
+  position:sticky;
+  top:0;
+  z-index:5;
+}
+th,td{
+  border-right:1px solid #e4e7ea;
+  border-bottom:1px solid #e4e7ea;
+  text-align:center;
+  vertical-align:top;
+}
+th{
+  padding:9px 8px;
+  background:#f0f2f4;
+  color:#333;
+  font-size:12px;
+}
+thead tr:first-child th{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  border-bottom:1px solid #cfd5db;
+}
+td{
+  padding:9px 8px;
+  font-size:13px;
+}
+tbody tr:hover td{background:#fafbfc}
+.year-cell{
+  position:sticky;
+  left:0;
+  z-index:2;
+  min-width:82px;
+  background:#f8f9fa;
+  font-weight:800;
+  font-size:15px;
+}
+thead .year-head{
+  position:sticky;
+  left:0;
+  z-index:7;
+}
+.current-year .year-cell{
+  background:#fff4cf;
+}
+.current-badge{
+  display:block;
+  margin-top:5px;
+  font-size:10px;
+  color:#6a4a00;
+  font-weight:normal;
+}
+.metric-cell{
+  min-width:150px;
+  line-height:1.25;
+}
+.metric-value{
+  display:block;
+  font-weight:800;
+  font-size:15px;
+  margin-bottom:3px;
+}
+.metric-date{
+  display:block;
+  color:#555;
+  font-size:11px;
+  margin-bottom:2px;
+}
+.metric-station{
+  display:block;
+  color:#666;
+  font-size:11px;
+  white-space:normal;
+}
+.metric-empty{
+  color:#a0a5aa;
+  padding-top:8px;
+}
+.temp-cold .metric-value{color:var(--cold)}
+.temp-hot .metric-value{color:var(--hot)}
+.rain .metric-value{color:var(--rain)}
+.snow .metric-value{color:var(--snow)}
+.wind .metric-value{color:var(--wind)}
+.group-temp{background:#eef4ff!important}
+.group-days{background:#fff3ea!important}
+.group-rain{background:#edf8f3!important}
+.group-snow{background:#eef7ff!important}
+.group-wind{background:#f7effa!important}
+.note{
+  margin-top:18px;
+  padding:14px 16px;
+  background:#fff;
+  border-left:5px solid #555;
+  border-radius:7px;
+  box-shadow:var(--shadow);
+  color:#555;
+  font-size:13px;
+  line-height:1.55;
+}
+.small-note{
+  color:#777;
+  font-size:11px;
+}
+@media(max-width:900px){
+  body{padding:16px}
+  .summary-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .summary-grid{grid-template-columns:1fr}
+  .control-group{flex-basis:100%}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topline">
+    <div>
+      <h1>Jährliche Extremwerte deutscher Wetterstationen</h1>
+      <p class="subtitle">
+        Jahreslisten für Deutschland und alle Bundesländer. Grundlage sind die jeweils
+        stärksten bzw. tiefsten Stationswerte des Kalenderjahres – nach der Struktur
+        des Datenblatts „Extremwerte“.
+      </p>
+    </div>
+    <a class="back-link" href="index.html">← Climate Dashboard</a>
+  </div>
+
+  <div id="dataStatus" class="data-status">Jährliche Extremwerte werden geladen …</div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="areaSelect">Gebiet</label>
+      <select id="areaSelect" disabled></select>
+    </div>
+    <div class="control-group">
+      <label for="yearFrom">Von Jahr</label>
+      <input id="yearFrom" type="number" step="1" disabled>
+    </div>
+    <div class="control-group">
+      <label for="yearTo">Bis Jahr</label>
+      <input id="yearTo" type="number" step="1" disabled>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="summary-label">Listenbeginn</div>
+      <div id="startYear" class="summary-value">–</div>
+      <div class="summary-detail">automatisch je Region</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Letztes Jahr</div>
+      <div id="endYear" class="summary-value">–</div>
+      <div id="endYearDetail" class="summary-detail">–</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Jahre in Auswahl</div>
+      <div id="yearCount" class="summary-value">–</div>
+      <div class="summary-detail">Zeilen der aktuellen Tabelle</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Parameter</div>
+      <div class="summary-value">10</div>
+      <div class="summary-detail">Temperatur · Kenntage · RR · Schnee · Wind</div>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2 id="tableTitle">Jahresliste</h2>
+      <p>
+        Bei Extremwerten werden Wert, Datum und Station gezeigt. Bei Kenntagen steht
+        die höchste Jahresanzahl einer einzelnen Station mit Stationsname.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="year-head" rowspan="2">Jahr</th>
+            <th class="group-temp" colspan="2">Temperatur-Extreme</th>
+            <th class="group-days" colspan="3">Maximale Kenntage an einer Station</th>
+            <th class="group-rain" colspan="1">Niederschlag</th>
+            <th class="group-snow" colspan="2">Schneehöhe</th>
+            <th class="group-wind" colspan="2">Windspitze · ab 75 km/h</th>
+          </tr>
+          <tr>
+            <th class="group-temp">TNn</th>
+            <th class="group-temp">TXx</th>
+            <th class="group-days">&gt;25 °C</th>
+            <th class="group-days">&gt;30 °C</th>
+            <th class="group-days">Tmin &gt;20 °C</th>
+            <th class="group-rain">RR24x</th>
+            <th class="group-snow">SNOx ≥400 m</th>
+            <th class="group-snow">SNOx &lt;400 m</th>
+            <th class="group-wind">FGx ≥400 m</th>
+            <th class="group-wind">FGx &lt;400 m</th>
+          </tr>
+        </thead>
+        <tbody id="annualBody">
+          <tr><td colspan="11" style="padding:24px;color:#666">Daten werden geladen …</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="note">
+    <strong>Methodik:</strong> Die sichtbaren Jahreslisten beginnen je Gebiet frühestens
+    1881; wenn in einem Bundesland die ersten tatsächlich verfügbaren Jahreswerte später
+    einsetzen, beginnt die Liste erst in diesem späteren Jahr. TNn und TXx stammen aus
+    DWD daily/kl. Die Kenntage entsprechen der Excel-Struktur mit den strikten Schwellen
+    TXK &gt;25,0 °C, TXK &gt;30,0 °C und TNK &gt;20,0 °C. RR24x stammt aus dem erweiterten
+    täglichen DWD-Niederschlagsnetz. Schnee und Wind werden nach Stationshöhe in
+    ≥400 m und &lt;400 m getrennt. FGx basiert auf dem Tagesmaximum der Windspitze (FX),
+    umgerechnet in km/h; dargestellt werden Werte ab 75 km/h. Das laufende Jahr ist
+    naturgemäß unvollständig.
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const DATA_URL = "data/dwd_annual_extremes.json";
+
+  const METRIC_ORDER = [
+    "tnn",
+    "txx",
+    "summer_days_max",
+    "hot_days_max",
+    "tropical_nights_max",
+    "rr24x",
+    "snox_ge_400",
+    "snox_lt_400",
+    "fgx_ge_400",
+    "fgx_lt_400"
+  ];
+
+  const els = {
+    status: document.getElementById("dataStatus"),
+    area: document.getElementById("areaSelect"),
+    yearFrom: document.getElementById("yearFrom"),
+    yearTo: document.getElementById("yearTo"),
+    startYear: document.getElementById("startYear"),
+    endYear: document.getElementById("endYear"),
+    endYearDetail: document.getElementById("endYearDetail"),
+    yearCount: document.getElementById("yearCount"),
+    tableTitle: document.getElementById("tableTitle"),
+    body: document.getElementById("annualBody")
+  };
+
+  let data = null;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "–";
+    const p = String(iso).split("-");
+    if (p.length !== 3) return String(iso);
+    return `${p[2]}.${p[1]}.${p[0]}`;
+  }
+
+  function stationFromKey(key) {
+    return data?.stations?.[key] ?? null;
+  }
+
+  function stationLabel(key) {
+    const station = stationFromKey(key);
+    if (!station) {
+      const id = String(key ?? "").split(":", 1)[0];
+      return id ? `Station ${id}` : "–";
+    }
+
+    const id = String(station.id ?? "").padStart(5, "0");
+    const height = Number(station.height);
+    const heightText = Number.isFinite(height)
+      ? ` · ${height.toLocaleString("de-DE")} m`
+      : "";
+
+    return `${station.name ?? "Station"} (${id})${heightText}`;
+  }
+
+  function metricUnit(metric) {
+    return data?.metrics?.[metric]?.unit ?? "";
+  }
+
+  function valueText(metric, value) {
+    if (value == null) return "–";
+
+    if (
+      metric === "summer_days_max" ||
+      metric === "hot_days_max" ||
+      metric === "tropical_nights_max"
+    ) {
+      return `${Number(value).toLocaleString("de-DE")} Tage`;
+    }
+
+    const unit = metricUnit(metric);
+    const decimals = metric.startsWith("fgx_") ? 1 : 1;
+    const number = Number(value).toFixed(decimals).replace(".", ",");
+    return `${number} ${unit}`.trim();
+  }
+
+  function metricClass(metric) {
+    if (metric === "tnn") return "temp-cold";
+    if (metric === "txx") return "temp-hot";
+    if (metric === "rr24x") return "rain";
+    if (metric.startsWith("snox_")) return "snow";
+    if (metric.startsWith("fgx_")) return "wind";
+    return "";
+  }
+
+  function cellHtml(metric, entry) {
+    if (!entry) {
+      return `<td class="metric-cell ${metricClass(metric)}"><div class="metric-empty">–</div></td>`;
+    }
+
+    const kind = data.metrics?.[metric]?.kind ?? (
+      metric.includes("days") || metric === "tropical_nights_max"
+        ? "station_year_count"
+        : "extreme"
+    );
+
+    let value;
+    let day = null;
+    let metadataKey;
+
+    if (kind === "station_year_count") {
+      value = entry[0];
+      metadataKey = entry[1];
+    } else {
+      value = entry[0];
+      day = entry[1];
+      metadataKey = entry[2];
+    }
+
+    const preliminaryIndex = kind === "station_year_count" ? 2 : 3;
+    const preliminary = Boolean(entry[preliminaryIndex]);
+    const dateLine = day
+      ? `<span class="metric-date">${escapeHtml(formatDate(day))}${preliminary ? " · vorläufig" : ""}</span>`
+      : (preliminary ? `<span class="metric-date">vorläufig</span>` : "");
+
+    return `
+      <td class="metric-cell ${metricClass(metric)}">
+        <span class="metric-value">${escapeHtml(valueText(metric, value))}</span>
+        ${dateLine}
+        <span class="metric-station">${escapeHtml(stationLabel(metadataKey))}</span>
+      </td>
+    `;
+  }
+
+  function areaStartYear() {
+    const area = els.area.value;
+    const raw = Number(data?.area_start_years?.[area]);
+    return Number.isFinite(raw) ? raw : Number(data?.list_min_year ?? 1881);
+  }
+
+  function clampYearInputs() {
+    const start = areaStartYear();
+    const end = Number(data.end_year);
+
+    els.yearFrom.min = String(start);
+    els.yearFrom.max = String(end);
+    els.yearTo.min = String(start);
+    els.yearTo.max = String(end);
+
+    let from = Number(els.yearFrom.value);
+    let to = Number(els.yearTo.value);
+
+    if (!Number.isFinite(from)) from = start;
+    if (!Number.isFinite(to)) to = end;
+
+    from = Math.max(start, Math.min(end, Math.round(from)));
+    to = Math.max(start, Math.min(end, Math.round(to)));
+
+    if (from > to) [from, to] = [to, from];
+
+    els.yearFrom.value = String(from);
+    els.yearTo.value = String(to);
+
+    return {from, to, start, end};
+  }
+
+  function render() {
+    if (!data) return;
+
+    const area = els.area.value;
+    const years = data.records?.[area] ?? {};
+    const {from, to, start, end} = clampYearInputs();
+    const currentYear = new Date().getFullYear();
+
+    els.startYear.textContent = String(start);
+    els.endYear.textContent = String(end);
+    els.endYearDetail.textContent =
+      end === currentYear
+        ? `laufendes Jahr · Daten bis ${formatDate(data.data_through)}`
+        : `Daten bis ${formatDate(data.data_through)}`;
+    els.yearCount.textContent = String(to - from + 1);
+    els.tableTitle.textContent = `${area} · Jahreswerte ${from}–${to}`;
+
+    const rows = [];
+
+    for (let year = to; year >= from; year--) {
+      const row = years[String(year)] ?? {};
+      const isCurrent = year === currentYear;
+      rows.push(`
+        <tr class="${isCurrent ? "current-year" : ""}">
+          <td class="year-cell">
+            ${year}
+            ${isCurrent ? '<span class="current-badge">laufend</span>' : ""}
+          </td>
+          ${METRIC_ORDER.map(metric => cellHtml(metric, row[metric])).join("")}
+        </tr>
+      `);
+    }
+
+    els.body.innerHTML = rows.length
+      ? rows.join("")
+      : `<tr><td colspan="11" style="padding:24px;color:#777">Keine Jahre in der Auswahl.</td></tr>`;
+  }
+
+  function setupControls() {
+    els.area.innerHTML = "";
+
+    data.areas.forEach(area => {
+      const option = document.createElement("option");
+      option.value = area;
+      option.textContent = area;
+      els.area.appendChild(option);
+    });
+
+    els.area.value = "Deutschland";
+    els.area.disabled = false;
+    els.yearFrom.disabled = false;
+    els.yearTo.disabled = false;
+
+    els.yearFrom.value = String(areaStartYear());
+    els.yearTo.value = String(data.end_year);
+
+    els.area.addEventListener("change", () => {
+      els.yearFrom.value = String(areaStartYear());
+      els.yearTo.value = String(data.end_year);
+      render();
+    });
+    els.yearFrom.addEventListener("change", render);
+    els.yearTo.addEventListener("change", render);
+  }
+
+  async function loadData() {
+    try {
+      const response = await fetch(DATA_URL, {cache:"no-cache"});
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      data = await response.json();
+
+      const requiredMetrics = new Set(METRIC_ORDER);
+      const available = new Set(Object.keys(data.metrics ?? {}));
+      for (const metric of requiredMetrics) {
+        if (!available.has(metric)) {
+          throw new Error(`Parameter fehlt: ${metric}`);
+        }
+      }
+
+      if (!Array.isArray(data.areas) || data.areas.length !== 17) {
+        throw new Error("Gebietsliste unvollständig");
+      }
+      if (!data.area_start_years || Object.keys(data.area_start_years).length !== 17) {
+        throw new Error("Regionale Startjahre fehlen");
+      }
+
+      setupControls();
+
+      els.status.textContent =
+        `DWD · Daten bis ${formatDate(data.data_through)} · ` +
+        `${data.areas.length} Gebiete · 10 Parameter`;
+
+      render();
+    } catch (error) {
+      console.error(error);
+      els.status.classList.add("error");
+      els.status.textContent =
+        `Jährliche Extremwerte konnten nicht geladen werden: ${error.message}`;
+      els.body.innerHTML =
+        `<tr><td colspan="11" style="padding:24px;color:#8a1c13">Daten konnten nicht geladen werden.</td></tr>`;
+    }
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>
