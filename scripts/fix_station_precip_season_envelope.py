@@ -93,11 +93,20 @@ def build_profile_payload('''
         "historical_periods berechnen",
     )
 
+    old_payload_tail = '''        "historical_min_year": historical_min_year,
+        "historical_max_year": historical_max_year,
+    }
+    return profile, payload'''
+    new_payload_tail = '''        "historical_min_year": historical_min_year,
+        "historical_max_year": historical_max_year,
+        "historical_periods": historical_periods,
+    }
+    return profile, payload'''
     text = replace_once(
         text,
-        '        "historical_max_year": historical_max_year,\n',
-        '        "historical_max_year": historical_max_year,\n        "historical_periods": historical_periods,\n',
-        "historical_periods Payload",
+        old_payload_tail,
+        new_payload_tail,
+        "historical_periods Profil-Payload",
     )
 
     GENERATOR_PATH.write_text(text, encoding="utf-8")
