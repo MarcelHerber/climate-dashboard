@@ -24,8 +24,17 @@ from update_station_records import (
     parse_metadata,
 )
 
-VERSION = 1
+VERSION = 2
 TOP_K = 50
+
+# Qualitätsfilter für vergleichbare NN-Luftdruckrekorde.
+# Der DWD weist darauf hin, dass auch historische Daten noch Einzel-
+# fehler enthalten können. Die Schranken liegen bewusst etwas außerhalb
+# der publizierten deutschen Luftdruckextreme und dienen nur dazu,
+# offensichtliche Fehlwerte/Fehlzuordnungen zu entfernen.
+PRESSURE_MIN_HPA = 945.0
+PRESSURE_MAX_HPA = 1062.0
+MAX_STATION_HEIGHT_M = 750
 
 BASE_URL = (
     "https://opendata.dwd.de/climate_environment/CDC/"
@@ -116,10 +125,10 @@ def decode_product(data: bytes) -> str:
 
 
 def plausible_pressure(value: float) -> bool:
-    # Sehr großzügige physikalische Schranke. Nur echte Fehl-/Defektwerte
-    # sollen ausgeschlossen werden; ein möglicher Rekord darf nicht durch
-    # einen zu engen klimatologischen Filter verschwinden.
-    return math.isfinite(value) and 850.0 <= value <= 1100.0
+    return (
+        math.isfinite(value)
+        and PRESSURE_MIN_HPA <= value <= PRESSURE_MAX_HPA
+    )
 
 
 def parse_pressure_zip(
@@ -218,9 +227,6 @@ def parse_pressure_zip(
                 except ValueError:
                     continue
 
-                if not plausible_pressure(value):
-                    continue
-
                 station_raw = str(
                     row.get(station_field) or ""
                 ).strip()
@@ -230,6 +236,16 @@ def parse_pressure_zip(
                     else station_id_hint
                 )
                 segment = metadata.segment_for(station_id, day)
+
+                # Vergleichbare NN-Rekorde nur aus Stationen bis 750 m.
+                # Bei höheren Bergstationen kann die Reduktion auf
+                # Meereshöhe sehr empfindlich bzw. historisch inkonsistent
+                # sein. Unbekannte Höhen werden ebenfalls nicht verwendet.
+                if segment.height is None or segment.height > MAX_STATION_HEIGHT_M:
+                    continue
+
+                if not plausible_pressure(value):
+                    continue
 
                 observations.append(
                     Observation(
@@ -651,15 +667,26 @@ def main() -> int:
         "leaders": leaders,
         "station_records": station_records,
         "valid_observations": accumulator.observation_count,
+        "quality_filter": {
+            "pressure_min_hpa": PRESSURE_MIN_HPA,
+            "pressure_max_hpa": PRESSURE_MAX_HPA,
+            "max_station_height_m": MAX_STATION_HEIGHT_M,
+            "reason": (
+                "Entfernt offensichtliche historische Fehlwerte und "
+                "schließt Bergstationen über 750 m vom NN-Rekordvergleich aus."
+            ),
+        },
         "method_note": (
             "Meteorologische Dekaden: 1.=01.–10., 2.=11.–20., "
             "3.=21.–Monatsende. Aus dem stündlichen DWD-Datensatz "
             "hourly/pressure wird ausschließlich P ausgewertet. Laut DWD "
             "ist P der auf Meereshöhe NN reduzierte Luftdruck in hPa; "
-            "P0 ist dagegen der Luftdruck auf Stationshöhe. Pro Station "
-            "und Dekade werden höchster und niedrigster beobachteter "
-            "P-Stundenwert bestimmt. Recent-Werte sind als vorläufig "
-            "gekennzeichnet."
+            "P0 ist dagegen der Luftdruck auf Stationshöhe. Für den "
+            "vergleichbaren NN-Rekord werden nur Stationen bis 750 m "
+            "verwendet. Zusätzlich werden offensichtliche Rohdatenfehler "
+            "außerhalb 945–1062 hPa verworfen. Pro Station und Dekade "
+            "werden höchster und niedrigster beobachteter P-Stundenwert "
+            "bestimmt. Recent-Werte sind als vorläufig gekennzeichnet."
         ),
     }
 
@@ -690,6 +717,13 @@ def main() -> int:
             f"{payload['valid_observations']:,}"
         )
 
+    if any(
+        station.get("height") is None
+        or float(station["height"]) > MAX_STATION_HEIGHT_M
+        for station in payload["stations"].values()
+    ):
+        raise RuntimeError("Höhenfilter wurde nicht vollständig angewendet.")
+
     for metric in expected_metrics:
         germany = payload["leaders"][metric]["Deutschland"]
         nonempty = sum(
@@ -712,8 +746,13 @@ def main() -> int:
         flush=True,
     )
     print(
-        f"Gültige P-Stundenwerte: "
+        f"Gültige P-Stundenwerte nach QC: "
         f"{payload['valid_observations']:,}",
+        flush=True,
+    )
+    print(
+        f"QC: {PRESSURE_MIN_HPA:.1f}–{PRESSURE_MAX_HPA:.1f} hPa | "
+        f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m",
         flush=True,
     )
     print(
