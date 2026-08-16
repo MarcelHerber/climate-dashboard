@@ -47,7 +47,7 @@ jobs:
           path = Path("data/dwd_decade_pressure_records.json")
           data = json.loads(path.read_text(encoding="utf-8"))
 
-          assert data["version"] == 4
+          assert data["version"] == 5
           assert set(data["metrics"]) == {"p_high", "p_low"}
           assert data["metrics"]["p_high"]["unit"] == "hPa"
           assert data["metrics"]["p_low"]["unit"] == "hPa"
@@ -56,14 +56,18 @@ jobs:
           assert len(data["areas"]) == 17
           assert data["areas"][0] == "Deutschland"
           assert len(data["periods"]) == 36
-          assert data["valid_observations"] >= 1_000_000
+          assert data["valid_observations"] >= 60_000_000
           assert data["data_start"]
           assert data["data_through"]
-          assert int(data["data_start"][:4]) <= 1980, data["data_start"]
+          assert int(data["data_start"][:4]) <= 1950, data["data_start"]
           assert data["quality_filter"]["pressure_min_hpa"] == 954.4
           assert data["quality_filter"]["pressure_max_hpa"] == 1060.8
           assert data["quality_filter"]["max_station_height_m"] == 750
-          assert data["quality_filter"]["allowed_qn_8"] == [2, 3, 5, 7, 8, 9, 10]
+          assert data["quality_filter"]["allowed_qn_8"] == [1, 2, 3, 5, 7, 8, 9, 10]
+          assert data["quality_filter"]["qn1_requires_synoptic_support"] is True
+          assert data["quality_filter"]["candidate_depth"] == 3
+          assert data["qc_stats"]["hourly_support_slots"] > 500_000
+          assert data["qc_stats"]["validated_station_records"] > 10_000
           assert all(
               station.get("height") is not None
               and float(station["height"]) <= 750
@@ -82,7 +86,7 @@ jobs:
               assert min(values) >= 954.4
               assert max(values) <= 1060.8
               assert all(
-                  int(entry[5]) in {2, 3, 5, 7, 8, 9, 10}
+                  int(entry[5]) in {1, 2, 3, 5, 7, 8, 9, 10}
                   for period in germany.values()
                   for entry in period
               )
@@ -99,6 +103,27 @@ jobs:
               f'{data["valid_observations"]:,}',
           )
           print("QC:", data["quality_filter"])
+          print("QC-Statistik:", data["qc_stats"])
+
+          high_entries = [
+              period[0]
+              for period in data["leaders"]["p_high"]["Deutschland"].values()
+              if period
+          ]
+          low_entries = [
+              period[0]
+              for period in data["leaders"]["p_low"]["Deutschland"].values()
+              if period
+          ]
+          alltime_high = max(high_entries, key=lambda entry: float(entry[0]))
+          alltime_low = min(low_entries, key=lambda entry: float(entry[0]))
+          print("Deutschland Gesamtmaximum:", alltime_high)
+          print("Deutschland Gesamtminimum:", alltime_low)
+
+          # Der bekannte deutsche Tiefdruckrekord von 1983 liegt bei 954,4 hPa.
+          # Der Stundenbestand ab 1949 muss mindestens wieder in diesen Bereich reichen.
+          assert float(alltime_low[0]) <= 956.0, alltime_low
+
           print("Gebiete:", len(data["areas"]))
           print("Dekaden:", len(data["periods"]))
           print(
