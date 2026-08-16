@@ -250,6 +250,11 @@ thead .year-head{
 .rain .metric-value{color:var(--rain)}
 .snow .metric-value{color:var(--snow)}
 .wind .metric-value{color:var(--wind)}
+.metric-cell.extreme-high{background:rgba(180, 35, 24, .16)}
+.metric-cell.extreme-low{background:rgba(21, 94, 239, .14)}
+.metric-cell.extreme-high.extreme-low{
+  background:linear-gradient(180deg, rgba(180,35,24,.14), rgba(21,94,239,.12));
+}
 .group-temp{background:#eef4ff!important}
 .group-days{background:#fff3ea!important}
 .group-rain{background:#edf8f3!important}
@@ -488,7 +493,7 @@ thead .year-head{
 
   function cellHtml(metric, entry) {
     if (!entry) {
-      return `<td class="metric-cell ${metricClass(metric)}"><div class="metric-empty">–</div></td>`;
+      return `<td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value=""><div class="metric-empty">–</div></td>`;
     }
 
     const kind = data.metrics?.[metric]?.kind ?? (
@@ -517,7 +522,7 @@ thead .year-head{
       : (preliminary ? `<span class="metric-date">vorläufig</span>` : "");
 
     return `
-      <td class="metric-cell ${metricClass(metric)}">
+      <td class="metric-cell ${metricClass(metric)}" data-metric="${escapeHtml(metric)}" data-value="${escapeHtml(String(value))}">
         <span class="metric-value">${escapeHtml(valueText(metric, value))}</span>
         ${dateLine}
         <span class="metric-station">${escapeHtml(stationLabel(metadataKey))}</span>
@@ -557,6 +562,40 @@ thead .year-head{
     return {from, to, start, end};
   }
 
+  function applyExtremaHighlighting() {
+    const cells = Array.from(document.querySelectorAll("td.metric-cell[data-metric]"));
+
+    cells.forEach(cell => {
+      cell.classList.remove("extreme-high", "extreme-low");
+    });
+
+    for (const metric of METRIC_ORDER) {
+      const metricCells = cells.filter(cell => cell.dataset.metric === metric);
+      const values = metricCells
+        .map(cell => {
+          const raw = (cell.dataset.value || "").trim();
+          if (!raw) return null;
+          const value = Number(raw.replace(",", "."));
+          return Number.isFinite(value) ? value : null;
+        })
+        .filter(value => value !== null);
+
+      if (!values.length) continue;
+
+      const maxValue = Math.max(...values);
+      const minValue = Math.min(...values);
+
+      metricCells.forEach(cell => {
+        const raw = (cell.dataset.value || "").trim();
+        if (!raw) return;
+        const value = Number(raw.replace(",", "."));
+        if (!Number.isFinite(value)) return;
+        if (value === maxValue) cell.classList.add("extreme-high");
+        if (value === minValue) cell.classList.add("extreme-low");
+      });
+    }
+  }
+
   function render() {
     if (!data) return;
 
@@ -593,6 +632,8 @@ thead .year-head{
     els.body.innerHTML = rows.length
       ? rows.join("")
       : `<tr><td colspan="11" style="padding:24px;color:#777">Keine Jahre in der Auswahl.</td></tr>`;
+
+    applyExtremaHighlighting();
   }
 
   function setupControls() {
