@@ -47,7 +47,7 @@ jobs:
           path = Path("data/dwd_decade_pressure_records.json")
           data = json.loads(path.read_text(encoding="utf-8"))
 
-          assert data["version"] == 3
+          assert data["version"] == 4
           assert set(data["metrics"]) == {"p_high", "p_low"}
           assert data["metrics"]["p_high"]["unit"] == "hPa"
           assert data["metrics"]["p_low"]["unit"] == "hPa"
@@ -59,10 +59,11 @@ jobs:
           assert data["valid_observations"] >= 1_000_000
           assert data["data_start"]
           assert data["data_through"]
+          assert int(data["data_start"][:4]) <= 1980, data["data_start"]
           assert data["quality_filter"]["pressure_min_hpa"] == 954.4
           assert data["quality_filter"]["pressure_max_hpa"] == 1060.8
           assert data["quality_filter"]["max_station_height_m"] == 750
-          assert data["quality_filter"]["min_qn_8"] == 3
+          assert data["quality_filter"]["allowed_qn_8"] == [2, 3, 5, 7, 8, 9, 10]
           assert all(
               station.get("height") is not None
               and float(station["height"]) <= 750
@@ -81,7 +82,7 @@ jobs:
               assert min(values) >= 954.4
               assert max(values) <= 1060.8
               assert all(
-                  int(entry[5]) >= 3
+                  int(entry[5]) in {2, 3, 5, 7, 8, 9, 10}
                   for period in germany.values()
                   for entry in period
               )
