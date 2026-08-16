@@ -1,0 +1,116 @@
+name: Wüstentage in jährliche Extremwerte einbauen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dwd-annual-extremes-desert-days
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install requests
+
+      - name: Wüstentage berechnen
+        run: |
+          set -euo pipefail
+          python scripts/add_dwd_annual_desert_days.py
+
+      - name: Frontend ergänzen
+        run: |
+          set -euo pipefail
+          python scripts/patch_dwd_annual_desert_days_frontend.py
+
+      - name: Ergebnis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          d = json.loads(
+              Path("data/dwd_annual_extremes.json")
+              .read_text(encoding="utf-8")
+          )
+
+          assert d["version"] >= 3
+          assert len(d["areas"]) == 17
+          assert len(d["metrics"]) == 11
+          assert "desert_days_max" in d["metrics"]
+          assert (
+              d["metrics"]["desert_days_max"]["threshold"]
+              == "TXK >= 35.0"
+          )
+
+          html = Path("jahresextremwerte.html").read_text(
+              encoding="utf-8"
+          )
+          assert "desert_days_max" in html
+          assert "≥35 °C" in html
+          assert "11 Parameter" in html
+
+          builder = Path(
+              "scripts/build_dwd_annual_extremes.py"
+          ).read_text(encoding="utf-8")
+          assert '"desert_days_max"' in builder
+          assert 'float(txk) >= 35.0' in builder
+
+          print("Wüstentage vollständig geprüft.")
+          print(
+              "Stations-Tage >=35 °C:",
+              f'{d["stats"]["desert_day_observations_ge_35c"]:,}',
+          )
+          print(
+              "Deutschland aktuell:",
+              d["records"]["Deutschland"][str(d["end_year"])]
+              ["desert_days_max"],
+          )
+          PY
+
+      - name: Änderungen veröffentlichen
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            data/dwd_annual_extremes.json \
+            scripts/build_dwd_annual_extremes.py \
+            jahresextremwerte.html
+
+          if git diff --cached --quiet; then
+            echo "Wüstentage bereits vollständig eingebaut."
+          else
+            git commit -m "Wüstentage in jährliche Extremwerte einbauen [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Schnellen Pages-Neubau starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-only-Workflow gestartet."
