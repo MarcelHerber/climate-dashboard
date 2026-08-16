@@ -1060,6 +1060,10 @@ button.action:hover{background:#1f2937}
           <div class="nav-menu-heading">Extreme</div>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('daily')">Tageshöchstwerte</button>
           <button class="tab-button" data-nav-group="germany" onclick="switchTab('extremes')">Deutschland-Kenntage</button>
+<!-- ANNUAL_HOLIDAY_EXTREMES_DESKTOP_NAV_V1 -->
+          <button class="tab-button" data-nav-group="germany" type="button" onclick="window.location.href='jahresextremwerte.html'">Jahresextreme</button>
+          <button class="tab-button" data-nav-group="germany" type="button" onclick="window.location.href='dekadenrekorde.html'">Dekadenrekorde</button>
+          <button class="tab-button" data-nav-group="germany" type="button" onclick="window.location.href='feiertagsextremwerte.html'">Feiertags-Extreme</button>
         </div>
       </div>
 
@@ -1212,6 +1216,15 @@ button.action:hover{background:#1f2937}
         <button class="overview-quicklink" type="button" onclick="switchTab('records')">
           <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0z"></path><path d="M12 12v5M8 21h8M9 17h6M6 5H3v2a4 4 0 0 0 4 4M18 5h3v2a4 4 0 0 1-4 4"></path></svg></span>
           <span><span class="overview-link-title">Stationsrekorde</span><span class="overview-link-copy">Höchste, tiefste und längste Stationswerte</span></span>
+        </button>
+<!-- ANNUAL_HOLIDAY_EXTREMES_OVERVIEW_LINKS_V1 -->
+        <button class="overview-quicklink" type="button" onclick="window.location.href='jahresextremwerte.html'">
+          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v15H4z"></path><path d="M8 2v6M16 2v6M7 12h10M7 16h7"></path></svg></span>
+          <span><span class="overview-link-title">Jahresextreme</span><span class="overview-link-copy">TNn, TXx, Kenntage, Niederschlag, Schnee und Wind nach Jahr</span></span>
+        </button>
+        <button class="overview-quicklink" type="button" onclick="window.location.href='feiertagsextremwerte.html'">
+          <span class="overview-link-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16v14H4z"></path><path d="M8 3v6M16 3v6M4 10h16"></path><path d="M8 14h3M13 14h3M8 17h3"></path></svg></span>
+          <span><span class="overview-link-title">Feiertags-Extreme</span><span class="overview-link-copy">Ostern und Weihnachten · Tmin/Tmax · Deutschland &amp; Bundesländer</span></span>
         </button>
 <!-- DWD_DECADE_RECORDS_OVERVIEW_LINK_V1 -->
         <button class="overview-quicklink" type="button" onclick="window.location.href='dekadenrekorde.html'">
