@@ -1,0 +1,96 @@
+name: DWD jährliche Extremwerte Wind zusammenführen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-annual-extremes-merge-wind
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Wind in Hauptliste zusammenführen
+        run: |
+          set -euo pipefail
+          python scripts/merge_dwd_annual_wind_extremes.py
+
+      - name: Hauptdatei prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path("data/dwd_annual_extremes.json")
+          d = json.loads(p.read_text(encoding="utf-8"))
+
+          assert d["version"] >= 2
+          assert len(d["areas"]) == 17
+          assert len(d["metrics"]) == 10
+
+          expected = {
+              "tnn",
+              "txx",
+              "summer_days_max",
+              "hot_days_max",
+              "tropical_nights_max",
+              "rr24x",
+              "snox_ge_400",
+              "snox_lt_400",
+              "fgx_ge_400",
+              "fgx_lt_400",
+          }
+          assert set(d["metrics"]) == expected
+
+          assert d["list_min_year"] == 1881
+          assert len(d["area_start_years"]) == 17
+          assert d["wind_data_start"][:4] == "1948"
+          assert d["stats"]["wind_observations_ge_75_kmh"] > 100_000
+
+          bw = d["records"]["Baden-Württemberg"]
+          for year in ("2003", "2015", "2024"):
+              assert bw[year]["fgx_ge_400"] is not None
+              assert bw[year]["fgx_lt_400"] is not None
+
+          print("Hauptdatei vollständig geprüft.")
+          print("Parameter:", len(d["metrics"]))
+          print(
+              "Wind:",
+              d["wind_data_start"],
+              "bis",
+              d["wind_data_through"],
+          )
+          PY
+
+      - name: Hauptdatei veröffentlichen
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/dwd_annual_extremes.json
+
+          if git diff --cached --quiet; then
+            echo "Hauptdatei bereits aktuell."
+            exit 0
+          fi
+
+          git commit -m "Wind in jährliche Extremwerte zusammenführen [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+          echo "Jährliche Extremwerte inklusive Wind veröffentlicht."
