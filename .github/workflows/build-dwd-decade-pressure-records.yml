@@ -47,7 +47,7 @@ jobs:
           path = Path("data/dwd_decade_pressure_records.json")
           data = json.loads(path.read_text(encoding="utf-8"))
 
-          assert data["version"] == 1
+          assert data["version"] == 2
           assert set(data["metrics"]) == {"p_high", "p_low"}
           assert data["metrics"]["p_high"]["unit"] == "hPa"
           assert data["metrics"]["p_low"]["unit"] == "hPa"
@@ -59,10 +59,26 @@ jobs:
           assert data["valid_observations"] >= 1_000_000
           assert data["data_start"]
           assert data["data_through"]
+          assert data["quality_filter"]["pressure_min_hpa"] == 945.0
+          assert data["quality_filter"]["pressure_max_hpa"] == 1062.0
+          assert data["quality_filter"]["max_station_height_m"] == 750
+          assert all(
+              station.get("height") is not None
+              and float(station["height"]) <= 750
+              for station in data["stations"].values()
+          )
 
           for metric in ("p_high", "p_low"):
               germany = data["leaders"][metric]["Deutschland"]
               assert all(germany[p["id"]] for p in data["periods"])
+              values = [
+                  float(entry[0])
+                  for period in germany.values()
+                  for entry in period
+              ]
+              assert values
+              assert min(values) >= 945.0
+              assert max(values) <= 1062.0
 
           print("DWD-Luftdruck-NN-Dekadenprüfung OK")
           print(
@@ -72,9 +88,10 @@ jobs:
               data["data_through_timestamp"],
           )
           print(
-              "Gültige P-Stundenwerte:",
+              "Gültige P-Stundenwerte nach QC:",
               f'{data["valid_observations"]:,}',
           )
+          print("QC:", data["quality_filter"])
           print("Gebiete:", len(data["areas"]))
           print("Dekaden:", len(data["periods"]))
           print(
