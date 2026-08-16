@@ -1,0 +1,267 @@
+name: Fix Stationsniederschlag Saison-Huellkurven
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/fix-station-precip-season-envelope.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-station-precip-season-envelope
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Python-Pakete installieren
+        run: python -m pip install -r requirements.txt
+
+      - name: Saison-Huellkurven in Generator und Frontend einbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          generator_path = Path("scripts/update_station_precip.py")
+          generator = generator_path.read_text(encoding="utf-8")
+
+          old = "STATE_VERSION = 2"
+          new = "STATE_VERSION = 3"
+          if old not in generator:
+              raise SystemExit("STATE_VERSION=2 nicht gefunden")
+          generator = generator.replace(old, new, 1)
+
+          marker = "    return curves\n\n\ndef build_profile_payload("
+          if marker not in generator:
+              raise SystemExit("Einfügemarke nach observations_to_complete_curves fehlt")
+
+          helper = '''    return curves
+
+
+HISTORICAL_PERIOD_RANGES = {
+    "spring": ("03-01", "05-31"),
+    "summer": ("06-01", "08-31"),
+    "autumn": ("09-01", "11-30"),
+}
+
+
+def build_historical_period_envelopes(curves: dict[int, list[float]]) -> dict[str, dict[str, Any]]:
+    """Baut korrekte historische Hüllkurven, die am Beginn der Jahreszeit neu bei 0 starten."""
+    labels = labels_non_leap()
+    label_index = {label: index for index, label in enumerate(labels)}
+    result: dict[str, dict[str, Any]] = {}
+
+    for period, (start_label, end_label) in HISTORICAL_PERIOD_RANGES.items():
+        start_index = label_index[start_label]
+        end_index = label_index[end_label]
+        period_curves: dict[int, list[float]] = {}
+
+        for year, curve in curves.items():
+            if len(curve) <= end_index:
+                continue
+            base = curve[start_index - 1] if start_index > 0 else 0.0
+            period_curves[year] = [
+                round(curve[index] - base, 1)
+                for index in range(start_index, end_index + 1)
+            ]
+
+        if not period_curves:
+            continue
+
+        historical_min: list[float] = []
+        historical_max: list[float] = []
+        historical_min_year: list[int] = []
+        historical_max_year: list[int] = []
+        length = end_index - start_index + 1
+
+        for offset in range(length):
+            candidates = [(curve[offset], year) for year, curve in period_curves.items()]
+            minimum = min(candidates, key=lambda item: (item[0], item[1]))
+            maximum = max(candidates, key=lambda item: (item[0], -item[1]))
+            historical_min.append(round(minimum[0], 1))
+            historical_max.append(round(maximum[0], 1))
+            historical_min_year.append(minimum[1])
+            historical_max_year.append(maximum[1])
+
+        result[period] = {
+            "start_index": start_index,
+            "end_index": end_index,
+            "historical_min_cumulative": historical_min,
+            "historical_max_cumulative": historical_max,
+            "historical_min_year": historical_min_year,
+            "historical_max_year": historical_max_year,
+        }
+
+    return result
+
+
+def build_profile_payload('''
+          generator = generator.replace(marker, helper, 1)
+
+          old = "        historical_max_year.append(maximum[1])\n\n    segment = current_segment(metadata, station_id)"
+          new = "        historical_max_year.append(maximum[1])\n\n    historical_periods = build_historical_period_envelopes(curves)\n\n    segment = current_segment(metadata, station_id)"
+          if old not in generator:
+              raise SystemExit("Einfügemarke für historical_periods fehlt")
+          generator = generator.replace(old, new, 1)
+
+          old = '        "historical_max_year": historical_max_year,\n'
+          new = '        "historical_max_year": historical_max_year,\n        "historical_periods": historical_periods,\n'
+          if old not in generator:
+              raise SystemExit("Payload-Einfügemarke fehlt")
+          generator = generator.replace(old, new, 1)
+          generator_path.write_text(generator, encoding="utf-8")
+
+          index_path = Path("index.html")
+          index = index_path.read_text(encoding="utf-8")
+
+          old = '<div class="stat-card"><h4>Historischer Spannbereich (ab 01.01.)</h4><div id="stationPrecipRangeStat">–</div></div>'
+          new = '<div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>'
+          if old not in index:
+              raise SystemExit("Überschrift des historischen Spannbereichs nicht gefunden")
+          index = index.replace(old, new, 1)
+
+          old = '''    let historicalMin=[],historicalMax=[],minValue=null,maxValue=null,minYear=null,maxYear=null;
+    const ytdCompatible=range.startIndex===0;
+    if(ytdCompatible){
+      historicalMin=(stationPrecipProfile.historical_min_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      historicalMax=(stationPrecipProfile.historical_max_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
+      maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
+      minYear=(stationPrecipProfile.historical_min_year||[])[range.endIndex]??null;
+      maxYear=(stationPrecipProfile.historical_max_year||[])[range.endIndex]??null;
+    }'''
+          new = '''    let historicalMin=[],historicalMax=[],minValue=null,maxValue=null,minYear=null,maxYear=null;
+    const ytdCompatible=range.startIndex===0;
+    const periodHistory=stationPrecipProfile.historical_periods?.[range.period]??null;
+    const periodCompatible=Boolean(periodHistory)
+      && Number(periodHistory.start_index)===range.startIndex
+      && range.endIndex<=Number(periodHistory.end_index);
+    const historicalCompatible=ytdCompatible||periodCompatible;
+    if(ytdCompatible){
+      historicalMin=(stationPrecipProfile.historical_min_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      historicalMax=(stationPrecipProfile.historical_max_cumulative||[]).slice(range.startIndex,range.endIndex+1);
+      minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
+      maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
+      minYear=(stationPrecipProfile.historical_min_year||[])[range.endIndex]??null;
+      maxYear=(stationPrecipProfile.historical_max_year||[])[range.endIndex]??null;
+    }else if(periodCompatible){
+      const endOffset=range.endIndex-range.startIndex;
+      historicalMin=(periodHistory.historical_min_cumulative||[]).slice(0,endOffset+1);
+      historicalMax=(periodHistory.historical_max_cumulative||[]).slice(0,endOffset+1);
+      minValue=historicalMin.length?historicalMin[historicalMin.length-1]:null;
+      maxValue=historicalMax.length?historicalMax[historicalMax.length-1]:null;
+      minYear=(periodHistory.historical_min_year||[])[endOffset]??null;
+      maxYear=(periodHistory.historical_max_year||[])[endOffset]??null;
+    }'''
+          if old not in index:
+              raise SystemExit("Frontend-Block ytdCompatible nicht gefunden")
+          index = index.replace(old, new, 1)
+
+          old = '''    document.getElementById("stationPrecipRangeStat").textContent=ytdCompatible&&minValue!==null
+      ?`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`
+      :"Für Zeiträume mit Start nach dem 01.01. nicht vorab berechnet";'''
+          new = '''    document.getElementById("stationPrecipRangeStat").textContent=historicalCompatible&&minValue!==null
+      ?`${stationPrecipFormat(minValue)} mm (${minYear}) bis ${stationPrecipFormat(maxValue)} mm (${maxYear})`
+      :"Für diesen Zeitraum nicht vorab berechnet";'''
+          if old not in index:
+              raise SystemExit("RangeStat-Block nicht gefunden")
+          index = index.replace(old, new, 1)
+
+          old = '    if(!ytdCompatible) gapText+=" Der historische Min-Max-Spannbereich wird bei frei beginnenden Zeiträumen bewusst nicht angezeigt, weil die bisher gespeicherten historischen Hüllkurven auf den 1. Januar bezogen sind.";'
+          new = '    if(!historicalCompatible) gapText+=" Der historische Min-Max-Spannbereich ist derzeit für Seit Jahresbeginn sowie Frühling, Sommer und Herbst verfügbar.";'
+          if old not in index:
+              raise SystemExit("Hinweistext zur Hüllkurve nicht gefunden")
+          index = index.replace(old, new, 1)
+
+          old = '    if(ytdCompatible){\n      datasets.push('
+          new = '    if(historicalCompatible){\n      datasets.push('
+          if old not in index:
+              raise SystemExit("Dataset-Bedingung nicht gefunden")
+          index = index.replace(old, new, 1)
+
+          index_path.write_text(index, encoding="utf-8")
+          PY
+
+      - name: Änderungen syntaktisch prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/update_station_precip.py
+          grep -q 'historical_periods' index.html
+          grep -q 'historicalCompatible' index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("index.html").read_text(encoding="utf-8")
+          blocks = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', html, flags=re.S | re.I)
+          for index, block in enumerate(blocks):
+              if block.strip():
+                  Path(f"/tmp/dashboard-inline-{index}.js").write_text(block, encoding="utf-8")
+          PY
+          for file in /tmp/dashboard-inline-*.js; do
+            node --check "$file"
+          done
+
+      - name: Historische Niederschlagsprofile mit Saison-Huellkurven neu aufbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_station_precip.py --workers 8 --full
+
+      - name: Änderungen versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            index.html \
+            scripts/update_station_precip.py \
+            station_precip_index.json \
+            station_precip_state.json \
+            station_precip_climate \
+            station_precip_current
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen erkannt."
+            exit 0
+          fi
+
+          git commit -m "Stationsniederschlag: Saison-Huellkurven korrigiert"
+
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+
+          echo "FEHLER: Push nach drei Versuchen nicht möglich."
+          exit 1
