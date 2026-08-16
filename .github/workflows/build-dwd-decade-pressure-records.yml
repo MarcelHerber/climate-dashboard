@@ -47,7 +47,7 @@ jobs:
           path = Path("data/dwd_decade_pressure_records.json")
           data = json.loads(path.read_text(encoding="utf-8"))
 
-          assert data["version"] == 2
+          assert data["version"] == 3
           assert set(data["metrics"]) == {"p_high", "p_low"}
           assert data["metrics"]["p_high"]["unit"] == "hPa"
           assert data["metrics"]["p_low"]["unit"] == "hPa"
@@ -59,9 +59,10 @@ jobs:
           assert data["valid_observations"] >= 1_000_000
           assert data["data_start"]
           assert data["data_through"]
-          assert data["quality_filter"]["pressure_min_hpa"] == 945.0
-          assert data["quality_filter"]["pressure_max_hpa"] == 1062.0
+          assert data["quality_filter"]["pressure_min_hpa"] == 954.4
+          assert data["quality_filter"]["pressure_max_hpa"] == 1060.8
           assert data["quality_filter"]["max_station_height_m"] == 750
+          assert data["quality_filter"]["min_qn_8"] == 3
           assert all(
               station.get("height") is not None
               and float(station["height"]) <= 750
@@ -77,8 +78,13 @@ jobs:
                   for entry in period
               ]
               assert values
-              assert min(values) >= 945.0
-              assert max(values) <= 1062.0
+              assert min(values) >= 954.4
+              assert max(values) <= 1060.8
+              assert all(
+                  int(entry[5]) >= 3
+                  for period in germany.values()
+                  for entry in period
+              )
 
           print("DWD-Luftdruck-NN-Dekadenprüfung OK")
           print(
