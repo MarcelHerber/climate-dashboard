@@ -1,0 +1,23 @@
+name: DWD jährliche Extremwerte Diagnose
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Diagnose ausgeben
+        run: |
+          set -euo pipefail
+          python scripts/check_dwd_annual_extremes_stage1.py
