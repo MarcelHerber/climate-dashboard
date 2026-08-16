@@ -1,0 +1,97 @@
+name: DWD Schneehöhen-Dekadenrekorde
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-decade-snow-records
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install requests
+
+      - name: Schneehöhen-Dekadenrekorde bauen
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_decade_snow_records.py \
+            --output data/dwd_decade_snow_records.json \
+            --max-workers 10
+
+      - name: Datenbasis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("data/dwd_decade_snow_records.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          assert data["version"] == 1
+          assert data["metric"] == "shk_high"
+          assert data["metric_meta"]["unit"] == "cm"
+          assert data["metric_meta"]["direction"] == "desc"
+          assert len(data["areas"]) == 17
+          assert data["areas"][0] == "Deutschland"
+          assert len(data["periods"]) == 36
+          assert data["data_start"]
+          assert data["data_through"]
+          assert data["valid_observations"] >= 100_000
+
+          germany = data["leaders"]["Deutschland"]
+          assert sum(bool(germany[p["id"]]) for p in data["periods"]) >= 30
+
+          print("DWD-Schneehöhen-Dekadenprüfung OK")
+          print("Datenzeitraum:", data["data_start"], "bis", data["data_through"])
+          print("Gültige SHK-Werte:", f'{data["valid_observations"]:,}')
+          print("Gebiete:", len(data["areas"]))
+          print("Dekaden:", len(data["periods"]))
+          print("Stations-Metadatensegmente:", len(data["stations"]))
+
+          for pid in ("month-01-d1", "month-02-d2", "month-12-d3"):
+              sample = germany[pid]
+              print(pid, "Top-Einträge:", len(sample))
+              if sample:
+                  print("  Spitzenwert:", sample[0])
+          PY
+
+      - name: Schneehöhen-Datenbasis versionieren
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/dwd_decade_snow_records.json
+
+          if git diff --cached --quiet; then
+            echo "Schneehöhen-Dekadenrekorde sind unverändert."
+            exit 0
+          fi
+
+          git commit -m "DWD Schneehöhen-Dekadenrekorde aktualisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+          echo "Schneehöhen-Datenbasis nach main veröffentlicht."
+          echo "Frontend wird bewusst erst im nächsten Schritt erweitert."
