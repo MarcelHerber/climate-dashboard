@@ -24,7 +24,7 @@ from update_station_records import (
     parse_metadata,
 )
 
-VERSION = 2
+VERSION = 3
 TOP_K = 50
 
 # Qualitätsfilter für vergleichbare NN-Luftdruckrekorde.
@@ -32,9 +32,10 @@ TOP_K = 50
 # fehler enthalten können. Die Schranken liegen bewusst etwas außerhalb
 # der publizierten deutschen Luftdruckextreme und dienen nur dazu,
 # offensichtliche Fehlwerte/Fehlzuordnungen zu entfernen.
-PRESSURE_MIN_HPA = 945.0
-PRESSURE_MAX_HPA = 1062.0
+PRESSURE_MIN_HPA = 954.4
+PRESSURE_MAX_HPA = 1060.8
 MAX_STATION_HEIGHT_M = 750
+MIN_QN_8 = 3
 
 BASE_URL = (
     "https://opendata.dwd.de/climate_environment/CDC/"
@@ -169,7 +170,7 @@ def parse_pressure_zip(
                 part.strip().upper()
                 for part in first_line.split(";")
             }
-            if {"STATIONS_ID", "MESS_DATUM", "P"}.issubset(columns):
+            if {"STATIONS_ID", "MESS_DATUM", "QN_8", "P"}.issubset(columns):
                 product_files.append(name)
 
         if not product_files:
@@ -187,9 +188,15 @@ def parse_pressure_zip(
 
             station_field = lookup.get("STATIONS_ID")
             date_field = lookup.get("MESS_DATUM")
+            quality_field = lookup.get("QN_8")
             pressure_field = lookup.get("P")
 
-            if not station_field or not date_field or not pressure_field:
+            if (
+                not station_field
+                or not date_field
+                or not quality_field
+                or not pressure_field
+            ):
                 continue
 
             for raw_row in reader:
@@ -215,6 +222,14 @@ def parse_pressure_zip(
 
                 day = moment.date()
                 if day < start_date or day > end_date:
+                    continue
+
+                raw_quality = row.get(quality_field)
+                try:
+                    quality_level = int(float(str(raw_quality).strip()))
+                except (TypeError, ValueError):
+                    continue
+                if quality_level < MIN_QN_8:
                     continue
 
                 raw_value = row.get(pressure_field)
@@ -258,8 +273,9 @@ def parse_pressure_zip(
                             # beobachteten NN-Luftdruck P.
                             "p_high": round(value, 1),
                             "p_low": round(value, 1),
-                            # Interne Zusatzinfo für exakte Uhrzeit.
+                            # Interne Zusatzinfos.
                             "_hour": moment.hour,
+                            "_qn8": quality_level,
                         },
                         preliminary=preliminary,
                     )
@@ -279,6 +295,7 @@ def entry_for(
         observation.metadata_key,
         1 if observation.preliminary else 0,
         f"{hour:02d}:00 UTC",
+        int(observation.values["_qn8"]),
     ]
 
 
@@ -662,6 +679,7 @@ def main() -> int:
             "metadata_key",
             "preliminary",
             "time_utc",
+            "qn_8",
         ],
         "stations": stations,
         "leaders": leaders,
@@ -671,9 +689,12 @@ def main() -> int:
             "pressure_min_hpa": PRESSURE_MIN_HPA,
             "pressure_max_hpa": PRESSURE_MAX_HPA,
             "max_station_height_m": MAX_STATION_HEIGHT_M,
+            "min_qn_8": MIN_QN_8,
             "reason": (
-                "Entfernt offensichtliche historische Fehlwerte und "
-                "schließt Bergstationen über 750 m vom NN-Rekordvergleich aus."
+                "Verwendet nur QN_8 >= 3, schließt Bergstationen über 750 m aus "
+                "und interpretiert Werte außerhalb des vom DWD dokumentierten "
+                "deutschen Rekordrahmens 954,4–1060,8 hPa nicht automatisch "
+                "als Stationsrekorde."
             ),
         },
         "method_note": (
@@ -752,7 +773,7 @@ def main() -> int:
     )
     print(
         f"QC: {PRESSURE_MIN_HPA:.1f}–{PRESSURE_MAX_HPA:.1f} hPa | "
-        f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m",
+        f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m | QN_8 >= {MIN_QN_8}",
         flush=True,
     )
     print(
