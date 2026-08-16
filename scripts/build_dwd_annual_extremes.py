@@ -38,6 +38,7 @@ from update_station_records import (
 
 VERSION = 1
 START_YEAR = 1861
+LIST_MIN_YEAR = 1881
 AREAS = ["Deutschland", *STATE_ORDER]
 
 METRICS = {
@@ -622,6 +623,39 @@ def merge_station_metadata(
     }
 
 
+
+def first_available_year(years: dict[str, Any]) -> int | None:
+    found: list[int] = []
+
+    for year_text, row in years.items():
+        if not isinstance(row, dict):
+            continue
+        if not any(value is not None for value in row.values()):
+            continue
+        try:
+            found.append(int(year_text))
+        except ValueError:
+            continue
+
+    return min(found) if found else None
+
+
+def derive_area_start_years(
+    records: dict[str, Any],
+) -> dict[str, int | None]:
+    result: dict[str, int | None] = {}
+
+    for area in AREAS:
+        first = first_available_year(records.get(area, {}))
+        result[area] = (
+            max(LIST_MIN_YEAR, first)
+            if first is not None
+            else None
+        )
+
+    return result
+
+
 def reference_value(
     records: dict[str, Any],
     area: str,
@@ -799,6 +833,7 @@ def main() -> int:
 
     acc.finalize_counts()
     records = acc.public_records(today.year)
+    area_start_years = derive_area_start_years(records)
     stations = merge_station_metadata(
         kl_metadata,
         rr_metadata,
@@ -836,6 +871,8 @@ def main() -> int:
             else None
         ),
         "start_year": START_YEAR,
+        "list_min_year": LIST_MIN_YEAR,
+        "area_start_years": area_start_years,
         "end_year": today.year,
         "areas": AREAS,
         "metrics": METRICS,
@@ -860,7 +897,7 @@ def main() -> int:
             "station_year_count_series": len(acc.counts),
         },
         "method_note": (
-            "Kalenderjahre ab 1861. TNn und TXx stammen aus TNK/TXK. "
+            "Rohdaten werden ab 1861 ausgewertet. Für spätere Jahreslisten ""beginnt jedes Gebiet frühestens 1881; liegt der erste tatsächlich ""vorhandene Jahreswert später, wird dieses spätere Jahr verwendet. ""TNn und TXx stammen aus TNK/TXK. "
             "Die drei Kenntage werden entsprechend der Excel-Vorlage strikt "
             "mit TXK >25,0 °C, TXK >30,0 °C und TNK >20,0 °C gezählt; "
             "pro Gebiet/Jahr wird die höchste Stationsanzahl gespeichert. "
