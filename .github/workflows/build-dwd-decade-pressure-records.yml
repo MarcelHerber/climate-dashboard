@@ -1,0 +1,112 @@
+name: DWD Luftdruck-NN Dekadenrekorde
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-decade-pressure-records
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install requests
+
+      - name: Luftdruck-NN-Dekadenrekorde bauen
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_decade_pressure_records.py \
+            --output data/dwd_decade_pressure_records.json \
+            --max-workers 10
+
+      - name: Datenbasis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("data/dwd_decade_pressure_records.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          assert data["version"] == 1
+          assert set(data["metrics"]) == {"p_high", "p_low"}
+          assert data["metrics"]["p_high"]["unit"] == "hPa"
+          assert data["metrics"]["p_low"]["unit"] == "hPa"
+          assert data["metrics"]["p_high"]["source_column"] == "P"
+          assert data["metrics"]["p_low"]["source_column"] == "P"
+          assert len(data["areas"]) == 17
+          assert data["areas"][0] == "Deutschland"
+          assert len(data["periods"]) == 36
+          assert data["valid_observations"] >= 1_000_000
+          assert data["data_start"]
+          assert data["data_through"]
+
+          for metric in ("p_high", "p_low"):
+              germany = data["leaders"][metric]["Deutschland"]
+              assert all(germany[p["id"]] for p in data["periods"])
+
+          print("DWD-Luftdruck-NN-Dekadenprüfung OK")
+          print(
+              "Datenzeitraum:",
+              data["data_start_timestamp"],
+              "bis",
+              data["data_through_timestamp"],
+          )
+          print(
+              "Gültige P-Stundenwerte:",
+              f'{data["valid_observations"]:,}',
+          )
+          print("Gebiete:", len(data["areas"]))
+          print("Dekaden:", len(data["periods"]))
+          print(
+              "Stations-Metadatensegmente:",
+              len(data["stations"]),
+          )
+
+          for metric in ("p_high", "p_low"):
+              sample = (
+                  data["leaders"][metric]["Deutschland"]
+                  ["month-01-d2"]
+              )
+              print(metric, "Januar 2. Dekade:", sample[0])
+          PY
+
+      - name: Luftdruck-Datenbasis versionieren
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/dwd_decade_pressure_records.json
+
+          if git diff --cached --quiet; then
+            echo "Luftdruck-Dekadenrekorde sind unverändert."
+            exit 0
+          fi
+
+          git commit -m "DWD Luftdruck-NN Dekadenrekorde aktualisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+          echo "Luftdruck-Datenbasis nach main veröffentlicht."
+          echo "Frontend wird bewusst erst im nächsten Schritt erweitert."
