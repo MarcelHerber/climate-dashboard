@@ -343,6 +343,8 @@ td.value{
       <label for="metricSelect">Parameter</label>
       <select id="metricSelect" disabled>
         <option value="txk_high">Tmax · höchstes Maximum</option>
+        <option value="txk_low">Tmax · niedrigstes Maximum</option>
+        <option value="tnk_high">Tmin · höchstes Minimum</option>
         <option value="tnk_low">Tmin · tiefstes Minimum</option>
       </select>
     </div>
@@ -421,9 +423,9 @@ td.value{
 
   <div class="note">
     <strong>Methodik:</strong> Grundlage sind tägliche DWD-CDC-Klimadaten der deutschen
-    Stationen. Für jede meteorologische Dekade wird pro Station der höchste Tmax- bzw.
-    niedrigste Tmin-Wert bestimmt. Rangliste und Karte verwenden je Station deren
-    persönlichen Dekadenrekord. Ein gesetzter Höhenfilter berücksichtigt nur Stationen,
+    Stationen. Für jede meteorologische Dekade werden pro Station höchstes und
+    niedrigstes Tmax sowie höchstes und niedrigstes Tmin bestimmt. Rangliste und Karte
+    verwenden je Station deren persönlichen Dekadenrekord. Ein gesetzter Höhenfilter berücksichtigt nur Stationen,
     deren DWD-Stationshöhe höchstens dem eingegebenen Wert entspricht.
     Die Bundeslandzuordnung folgt den DWD-Stationsmetadaten zum jeweiligen Messtag.
   </div>
@@ -648,7 +650,7 @@ td.value{
     const first = leaders[0] ?? null;
     const station = stationFromEntry(first);
 
-    els.recordValue.className = `summary-value ${metric === "txk_high" ? "hot" : "cold"}`;
+    els.recordValue.className = `summary-value ${metric.endsWith("_high") ? "hot" : "cold"}`;
 
     if (first) {
       els.recordValue.textContent = valueText(first[0], metric);
