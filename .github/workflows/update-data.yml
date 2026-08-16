@@ -28,9 +28,6 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -153,36 +150,7 @@ jobs:
 
       - name: Schlanken Veröffentlichungsordner erstellen
         if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf _site
-          mkdir -p _site
-          mkdir -p _site/data
-
-          cp \
-            index.html \
-            dekadenrekorde.html \
-            data.json \
-            daily_tmax_1881_2026.json \
-            station_records.json \
-            station_precip_index.json \
-            station_climate_days_index.json \
-            station_heatwaves_index.json \
-            station_heatwaves_current.json \
-            update_status.json \
-            _site/
-
-          cp data/dwd_decade_records.json _site/data/dwd_decade_records.json
-
-          # Weltweite GHCN-Stationsdaten sind vorerst nicht Teil der Website.
-          # Die JSON-Dateien im Repository bleiben erhalten.
-
-          touch _site/.nojekyll
-
-          echo "Dateien im Pages-Artefakt: $(find _site -type f | wc -l)"
-          echo "Größe des Pages-Artefakts:"
-          du -sh _site
+        run: bash scripts/build_pages_site.sh
 
       - name: GitHub Pages konfigurieren
         if: github.event_name != 'schedule' || steps.versioning.outputs.changed == 'true'
