@@ -6,158 +6,15 @@
 <title>Feiertags-Extremwerte · Ostern & Weihnachten</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{
-  color-scheme:light;
-  --page:#f4f6f8;
-  --card:#fff;
-  --text:#171717;
-  --muted:#667085;
-  --border:#d7dce1;
-  --shadow:0 4px 14px rgba(0,0,0,.08);
-  --hot:#b42318;
-  --cold:#155eef;
-  --accent:#173a78;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{
-  margin:0;
-  padding:28px;
-  font-family:Arial,sans-serif;
-  background:var(--page);
-  color:var(--text);
-}
-.page{max-width:1540px;margin:0 auto}
-.topline{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:18px;
-  flex-wrap:wrap;
-  margin-bottom:18px;
-}
-h1{margin:0 0 8px;font-size:clamp(28px,4vw,44px);line-height:1.08}
-.subtitle{margin:0;color:var(--muted);line-height:1.5;max-width:980px}
-.top-actions{display:flex;gap:8px;flex-wrap:wrap}
-.back-link{
-  display:inline-flex;
-  align-items:center;
-  padding:10px 14px;
-  border:1px solid #c7ccd1;
-  border-radius:7px;
-  background:#fff;
-  color:#222;
-  text-decoration:none;
-  font-weight:bold;
-  box-shadow:var(--shadow);
-}
-.back-link:hover{background:#f7f8f9}
-.data-status{
-  display:inline-block;
-  margin:0 0 18px;
-  padding:10px 14px;
-  background:#fff;
-  border-radius:8px;
-  box-shadow:var(--shadow);
-  color:#444;
-  font-size:14px;
-}
-.data-status.error{background:#fff0ee;color:#8a1c13}
-.controls{
-  display:flex;
-  flex-wrap:wrap;
-  gap:14px;
-  align-items:end;
-  padding:16px;
-  margin-bottom:18px;
-  background:#fff;
-  border-radius:8px;
-  box-shadow:var(--shadow);
-}
-.control-group{display:flex;flex-direction:column;gap:5px;flex:1 1 220px;min-width:190px}
-.control-group label{font-size:13px;font-weight:bold;color:#444}
-select{
-  width:100%;
-  padding:10px 11px;
-  border:1px solid #bbb;
-  border-radius:6px;
-  background:#fff;
-  font:inherit;
-}
-.summary-grid{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(180px,1fr));
-  gap:14px;
-  margin-bottom:18px;
-}
-.summary-card{
-  background:#fff;
-  border-radius:8px;
-  box-shadow:var(--shadow);
-  padding:16px;
-  min-height:112px;
-}
-.summary-label{color:var(--muted);font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px}
-.summary-value{font-size:clamp(22px,3vw,30px);font-weight:800;line-height:1.12}
-.summary-value.hot{color:var(--hot)}
-.summary-value.cold{color:var(--cold)}
-.summary-detail{margin-top:7px;color:#555;font-size:13px;line-height:1.4}
-.card{
-  background:#fff;
-  border-radius:8px;
-  box-shadow:var(--shadow);
-  overflow:hidden;
-  margin-bottom:18px;
-}
-.card-head{padding:16px 18px 12px;border-bottom:1px solid #e6e9ec}
-.card-head h2{margin:0 0 5px;font-size:21px}
-.card-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
-.chart-wrap{height:430px;padding:18px}
-.table-wrap{width:100%;overflow:auto;max-height:72vh}
-table{width:100%;min-width:940px;border-collapse:separate;border-spacing:0;background:#fff}
-thead{position:sticky;top:0;z-index:5}
-th,td{padding:10px 12px;border-right:1px solid #e4e7ea;border-bottom:1px solid #e4e7ea;text-align:center;vertical-align:middle}
-th{background:#2d3743;color:#fff;font-size:12px;white-space:nowrap}
-td{font-size:13px}
-td.year{font-weight:800;background:#fafbfc}
-td.value{font-size:16px;font-weight:800;white-space:nowrap}
-td.station{text-align:left;min-width:230px}
-.station-name{font-weight:700}
-.station-detail{margin-top:2px;color:var(--muted);font-size:11px}
-.period-cell{white-space:nowrap}
-.current-row td{background:#fff8dd}
-.current-row td.year{background:#ffefb4}
-.no-data{padding:28px;color:var(--muted);text-align:center}
-.note{
-  margin:0;
-  padding:14px 16px;
-  color:#5d6878;
-  font-size:12px;
-  line-height:1.55;
-  border-top:1px solid #e8ebee;
-  background:#fafbfc;
-}
-.badge{
-  display:inline-flex;
-  align-items:center;
-  padding:3px 7px;
-  border-radius:999px;
-  background:#eef2f6;
-  color:#435267;
-  font-size:11px;
-  font-weight:700;
-}
-.badge.preliminary{background:#fff1cf;color:#6a4a00}
-@media(max-width:900px){
-  body{padding:16px}
-  .summary-grid{grid-template-columns:1fr 1fr}
-  .chart-wrap{height:360px;padding:10px}
-}
-@media(max-width:560px){
-  .summary-grid{grid-template-columns:1fr}
-  .top-actions{width:100%}
-  .back-link{flex:1;justify-content:center}
-}
+:root{color-scheme:light;--page:#f4f6f8;--card:#fff;--text:#171717;--muted:#667085;--border:#d7dce1;--shadow:0 4px 14px rgba(0,0,0,.08);--hot:#b42318;--cold:#155eef;--accent:#173a78;--green:#067647;--gold:#b54708}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;padding:28px;font-family:Arial,sans-serif;background:var(--page);color:var(--text)}.page{max-width:1540px;margin:0 auto}
+.topline{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:18px}h1{margin:0 0 8px;font-size:clamp(28px,4vw,44px);line-height:1.08}.subtitle{margin:0;color:var(--muted);line-height:1.5;max-width:1050px}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.back-link{display:inline-flex;align-items:center;padding:10px 14px;border:1px solid #c7ccd1;border-radius:7px;background:#fff;color:#222;text-decoration:none;font-weight:bold;box-shadow:var(--shadow)}.back-link:hover{background:#f7f8f9}
+.data-status{display:inline-block;margin:0 0 18px;padding:10px 14px;background:#fff;border-radius:8px;box-shadow:var(--shadow);color:#444;font-size:14px}.data-status.error{background:#fff0ee;color:#8a1c13}.controls{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:14px;padding:16px;margin-bottom:18px;background:#fff;border-radius:8px;box-shadow:var(--shadow)}.control-group{display:flex;flex-direction:column;gap:5px;min-width:0}.control-group label{font-size:13px;font-weight:bold;color:#444}select{width:100%;padding:10px 11px;border:1px solid #bbb;border-radius:6px;background:#fff;font:inherit}
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:14px;margin-bottom:18px}.summary-card{background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:16px;min-height:112px}.summary-label{color:var(--muted);font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px}.summary-value{font-size:clamp(22px,3vw,30px);font-weight:800;line-height:1.12}.summary-value.hot{color:var(--hot)}.summary-value.cold{color:var(--cold)}.summary-value.green{color:var(--green)}.summary-value.gold{color:var(--gold)}.summary-detail{margin-top:7px;color:#555;font-size:13px;line-height:1.4}
+.card{background:#fff;border-radius:8px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}.card-head{padding:16px 18px 12px;border-bottom:1px solid #e6e9ec}.card-head h2{margin:0 0 5px;font-size:21px}.card-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}.chart-wrap{height:430px;padding:18px}.table-wrap{width:100%;overflow:auto;max-height:72vh}table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0;background:#fff}thead{position:sticky;top:0;z-index:5}th,td{padding:10px 12px;border-right:1px solid #e4e7ea;border-bottom:1px solid #e4e7ea;text-align:center;vertical-align:middle}th{background:#2d3743;color:#fff;font-size:12px;white-space:nowrap}td{font-size:13px}td.year{font-weight:800;background:#fafbfc}td.value{font-size:16px;font-weight:800;white-space:nowrap}td.station{text-align:left;min-width:230px}.station-name{font-weight:700}.station-detail{margin-top:2px;color:var(--muted);font-size:11px}.period-cell{white-space:nowrap}.current-row td{background:#fff8dd}.current-row td.year{background:#ffefb4}.no-data{padding:28px;color:var(--muted);text-align:center}.note{margin:0;padding:14px 16px;color:#5d6878;font-size:12px;line-height:1.55;border-top:1px solid #e8ebee;background:#fafbfc}.badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#eef2f6;color:#435267;font-size:11px;font-weight:700}.badge.preliminary{background:#fff1cf;color:#6a4a00}
+.probability-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px;padding:16px 18px 18px}.prob-card{border:1px solid #e1e5e9;border-radius:8px;padding:13px;background:#fbfcfd}.prob-period{font-weight:800;margin-bottom:10px}.prob-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid #eef0f2;font-size:13px}.prob-row:first-of-type{border-top:0}.prob-value{font-weight:800}.hidden{display:none!important}
+@media(max-width:1000px){.controls{grid-template-columns:1fr 1fr}.summary-grid{grid-template-columns:1fr 1fr}.probability-grid{grid-template-columns:1fr}.chart-wrap{height:380px}}
+@media(max-width:560px){body{padding:16px}.controls,.summary-grid{grid-template-columns:1fr}.top-actions{width:100%}.back-link{flex:1;justify-content:center}.chart-wrap{height:340px;padding:10px}}
 </style>
 </head>
 <body>
@@ -165,7 +22,7 @@ td.station{text-align:left;min-width:230px}
   <div class="topline">
     <div>
       <h1>Feiertags-Extremwerte</h1>
-      <p class="subtitle">Ostern und Weihnachten seit Messbeginn: niedrigstes Tagesminimum und höchstes Tagesmaximum für Deutschland und alle 16 Bundesländer.</p>
+      <p class="subtitle">Ostern und Weihnachten für Deutschland und alle 16 Bundesländer. Die Parameter folgen der bereitgestellten Feiertags-Auswertung; zusätzlich werden Karsamstag sowie Gesamt- und Einzeltage getrennt auswählbar.</p>
     </div>
     <div class="top-actions">
       <a class="back-link" href="index.html">← Dashboard</a>
@@ -177,306 +34,104 @@ td.station{text-align:left;min-width:230px}
   <div id="status" class="data-status">Feiertags-Daten werden geladen …</div>
 
   <div class="controls">
-    <div class="control-group">
-      <label for="areaSelect">Gebiet</label>
-      <select id="areaSelect"></select>
-    </div>
-    <div class="control-group">
-      <label for="holidaySelect">Feiertag</label>
-      <select id="holidaySelect">
-        <option value="easter">Ostern · Karfreitag bis Ostermontag</option>
-        <option value="christmas">Weihnachten · 24.–26. Dezember</option>
-      </select>
-    </div>
-    <div class="control-group">
-      <label for="metricSelect">Parameter</label>
-      <select id="metricSelect">
-        <option value="txx">Höchstes Tmax · TXx</option>
-        <option value="tnn">Niedrigstes Tmin · TNn</option>
-      </select>
-    </div>
+    <div class="control-group"><label for="areaSelect">Gebiet</label><select id="areaSelect"></select></div>
+    <div class="control-group"><label for="holidaySelect">Feiertag</label><select id="holidaySelect"><option value="easter">Ostern</option><option value="christmas">Weihnachten</option></select></div>
+    <div class="control-group"><label for="periodSelect">Zeitraum / Tag</label><select id="periodSelect"></select></div>
+    <div class="control-group"><label for="metricSelect">Parameter</label><select id="metricSelect"></select></div>
   </div>
 
   <div class="summary-grid">
-    <div class="summary-card">
-      <div id="recordLabel" class="summary-label">Extremwert der Reihe</div>
-      <div id="recordValue" class="summary-value">–</div>
-      <div id="recordDetail" class="summary-detail">–</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Jüngster Wert</div>
-      <div id="latestValue" class="summary-value">–</div>
-      <div id="latestDetail" class="summary-detail">–</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Datenreihe</div>
-      <div id="rangeValue" class="summary-value">–</div>
-      <div id="rangeDetail" class="summary-detail">–</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Ausgewertete Jahre</div>
-      <div id="countValue" class="summary-value">–</div>
-      <div id="countDetail" class="summary-detail">mit verfügbarem Feiertagswert</div>
-    </div>
+    <div class="summary-card"><div id="recordLabel" class="summary-label">Rekord</div><div id="recordValue" class="summary-value">–</div><div id="recordDetail" class="summary-detail">–</div></div>
+    <div class="summary-card"><div id="secondLabel" class="summary-label">Gegenrekord</div><div id="secondValue" class="summary-value">–</div><div id="secondDetail" class="summary-detail">–</div></div>
+    <div class="summary-card"><div class="summary-label">Jüngster verfügbarer Wert</div><div id="latestValue" class="summary-value">–</div><div id="latestDetail" class="summary-detail">–</div></div>
+    <div class="summary-card"><div class="summary-label">Datenreihe</div><div id="rangeValue" class="summary-value">–</div><div id="rangeDetail" class="summary-detail">–</div></div>
   </div>
 
+  <section id="probabilityCard" class="card hidden">
+    <div class="card-head"><h2 id="probabilityTitle">Schnee-Wahrscheinlichkeit</h2><p>Wie häufig lag im jeweiligen 30-Jahres-Zeitraum am gewählten Weihnachtstag bzw. im gesamten Weihnachtszeitraum Schnee an mindestens einer Station der Höhenklasse?</p></div>
+    <div id="probabilityGrid" class="probability-grid"></div>
+  </section>
+
   <section class="card">
-    <div class="card-head">
-      <h2 id="chartTitle">Zeitreihe</h2>
-      <p id="chartSubtitle">–</p>
-    </div>
+    <div class="card-head"><h2 id="chartTitle">Zeitreihe</h2><p id="chartSubtitle">–</p></div>
     <div class="chart-wrap"><canvas id="holidayChart"></canvas></div>
   </section>
 
   <section class="card">
-    <div class="card-head">
-      <h2 id="tableTitle">Jahresliste</h2>
-      <p id="tableSubtitle">Neueste Jahre zuerst · Datum und Station des jeweiligen Feiertags-Extremwertes.</p>
-    </div>
+    <div class="card-head"><h2 id="tableTitle">Jahresliste</h2><p id="tableSubtitle">Neueste Jahre zuerst.</p></div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Jahr</th>
-            <th>Zeitraum</th>
-            <th id="valueHead">TXx</th>
-            <th>Datum</th>
-            <th>Station</th>
-            <th>Status</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Jahr</th><th>Zeitraum / Datum</th><th id="valueHead">Wert</th><th>Extremdatum</th><th>Station</th><th>Status</th></tr></thead>
         <tbody id="rows"><tr><td colspan="6" class="no-data">Daten werden geladen …</td></tr></tbody>
       </table>
     </div>
-    <p class="note">Ostern umfasst Karfreitag, Karsamstag, Ostersonntag und Ostermontag. Weihnachten umfasst den 24., 25. und 26. Dezember. Dargestellt wird pro Gebiet und Jahr jeweils das niedrigste TNK bzw. höchste TXK innerhalb dieses Fensters. Quelle: DWD CDC daily/kl.</p>
+    <p id="methodNote" class="note">Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), Tageswerte KL.</p>
   </section>
 </div>
 
 <script>
 "use strict";
+let DATA=null, chart=null;
+const $=id=>document.getElementById(id);
+const els={status:$("status"),area:$("areaSelect"),holiday:$("holidaySelect"),period:$("periodSelect"),metric:$("metricSelect"),recordLabel:$("recordLabel"),recordValue:$("recordValue"),recordDetail:$("recordDetail"),secondLabel:$("secondLabel"),secondValue:$("secondValue"),secondDetail:$("secondDetail"),latestValue:$("latestValue"),latestDetail:$("latestDetail"),rangeValue:$("rangeValue"),rangeDetail:$("rangeDetail"),chartTitle:$("chartTitle"),chartSubtitle:$("chartSubtitle"),tableTitle:$("tableTitle"),tableSubtitle:$("tableSubtitle"),valueHead:$("valueHead"),rows:$("rows"),probabilityCard:$("probabilityCard"),probabilityGrid:$("probabilityGrid"),probabilityTitle:$("probabilityTitle"),methodNote:$("methodNote")};
 
-let DATA = null;
-let chart = null;
-
-const els = {
-  status: document.getElementById("status"),
-  area: document.getElementById("areaSelect"),
-  holiday: document.getElementById("holidaySelect"),
-  metric: document.getElementById("metricSelect"),
-  recordLabel: document.getElementById("recordLabel"),
-  recordValue: document.getElementById("recordValue"),
-  recordDetail: document.getElementById("recordDetail"),
-  latestValue: document.getElementById("latestValue"),
-  latestDetail: document.getElementById("latestDetail"),
-  rangeValue: document.getElementById("rangeValue"),
-  rangeDetail: document.getElementById("rangeDetail"),
-  countValue: document.getElementById("countValue"),
-  countDetail: document.getElementById("countDetail"),
-  chartTitle: document.getElementById("chartTitle"),
-  chartSubtitle: document.getElementById("chartSubtitle"),
-  tableTitle: document.getElementById("tableTitle"),
-  tableSubtitle: document.getElementById("tableSubtitle"),
-  valueHead: document.getElementById("valueHead"),
-  rows: document.getElementById("rows"),
+const PARAMS={
+  tnn:{label:"Kälteste Nacht · TNn",unit:"°C",record:"Kälteste Nacht",second:"Mildeste Nacht",main:"min",color:"cold"},
+  txx:{label:"Wärmster Tag · TXx",unit:"°C",record:"Wärmster Tag",second:"Kältester TXx",main:"max",color:"hot"},
+  txn:{label:"Kältester Tag · TXn",unit:"°C",record:"Kältester Tag",second:"Höchster TXn",main:"min",color:"cold"},
+  rr24x:{label:"Nassester Tag · RR24x",unit:"mm",record:"Nassester Tag",second:"Letztes Mal gänzlich trocken",main:"max",color:"green",dry:true},
+  rr_sum:{label:"Niederschlagssumme",unit:"mm",record:"Nassestes Fest",second:"Letztes Mal gänzlich trocken",main:"max",color:"green",dry:true},
+  snow_high:{label:"Max. Schneehöhe · höhere Lagen",unit:"cm",record:"Maximale Schneehöhe",second:"Jüngster Wert mit Schnee",main:"max",color:"cold",snow:true},
+  snow_low:{label:"Max. Schneehöhe · tiefere Lagen",unit:"cm",record:"Maximale Schneehöhe",second:"Jüngster Wert mit Schnee",main:"max",color:"cold",snow:true},
+  sun_sum:{label:"Sonnenschein · SDn + SDx",unit:"h",record:"Sonnigster Wert",second:"Grauester Wert",main:"max",color:"gold"},
+  gust:{label:"Maximale Windböe · ab 75 km/h",unit:"km/h",record:"Stärkste Windböe",second:"Jüngstes Sturmereignis",main:"max",color:"gold",event:true},
+  holiday_temp_mean:{label:"Feiertags-Temperaturmittel",unit:"°C",record:"Mildestes Fest",second:"Kältestes Fest",main:"max",color:"hot"}
 };
 
-function esc(value){
-  return String(value ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+const METRIC_SETS={
+  easter_day:["tnn","txx","txn","rr24x","snow_high","snow_low","sun_sum","gust"],
+  easter_total:["holiday_temp_mean","rr_sum","sun_sum"],
+  christmas_day:["tnn","txx","txn","snow_high","snow_low","gust"],
+  christmas_total:["holiday_temp_mean","tnn","txx","txn","snow_high","snow_low","gust"]
+};
+
+function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
+function fmtDate(iso){if(!iso)return"–";const p=String(iso).split("-");return p.length===3?`${p[2]}.${p[1]}.${p[0]}`:String(iso)}
+function fmtValue(value,unit){if(value==null||!Number.isFinite(Number(value)))return"–";const n=Number(value);const digits=unit==="km/h"||unit==="cm"?1:1;return `${n.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})}${unit?` ${unit}`:""}`}
+function stationInfo(entry){if(!entry||!entry[2])return{name:"–",detail:""};const s=DATA?.stations?.[entry[2]]||{};const parts=[];if(s.id)parts.push(`ID ${s.id}`);if(s.height!=null)parts.push(`${Number(s.height).toLocaleString("de-DE")} m`);return{name:s.name||String(entry[2]).split(":",1)[0],detail:parts.join(" · ")}}
+function holidayMeta(){return DATA.holidays[els.holiday.value]}
+function selectedPeriodMeta(){return (holidayMeta().periods||[]).find(p=>p.id===els.period.value)||{id:els.period.value,label:els.period.value,kind:"day"}}
+function periodDate(year){const h=els.holiday.value,p=els.period.value,m=DATA.holiday_dates?.[String(year)]?.[h];if(!m)return"–";if(p.endsWith("_total"))return`${fmtDate(m.from)}–${fmtDate(m.to)}`;return fmtDate(m[p])}
+function metricSet(){const h=els.holiday.value,kind=selectedPeriodMeta().kind;return METRIC_SETS[`${h}_${kind}`]||[]}
+function periodYears(){return DATA?.period_records?.[els.area.value]?.[els.holiday.value]?.[els.period.value]||{}}
+function allRows(){const metric=els.metric.value;return Object.entries(periodYears()).map(([year,row])=>({year:Number(year),entry:row?.[metric]||null,row})).sort((a,b)=>a.year-b.year)}
+function validRows(){return allRows().filter(r=>r.entry&&Number.isFinite(Number(r.entry[0])))}
+function pick(rows,mode){if(!rows.length)return null;return rows.reduce((best,r)=>!best?r:(mode==="max"?(Number(r.entry[0])>Number(best.entry[0])?r:best):(Number(r.entry[0])<Number(best.entry[0])?r:best)),null)}
+function detailFor(row){if(!row)return"–";const meta=PARAMS[els.metric.value],s=stationInfo(row.entry),derived=!row.entry?.[2];return derived?`${row.year} · ${periodDate(row.year)}`:`${fmtDate(row.entry[1])} · ${s.name}`}
+
+function rebuildPeriods(){const old=els.period.value;els.period.innerHTML="";(holidayMeta().periods||[]).forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.label;els.period.appendChild(o)});if([...els.period.options].some(o=>o.value===old))els.period.value=old;else els.period.value=holidayMeta().total_period;rebuildMetrics()}
+function rebuildMetrics(){const old=els.metric.value;els.metric.innerHTML="";metricSet().forEach(id=>{const o=document.createElement("option");o.value=id;o.textContent=PARAMS[id]?.label||DATA.metrics?.[id]?.label||id;els.metric.appendChild(o)});if([...els.metric.options].some(o=>o.value===old))els.metric.value=old;else els.metric.selectedIndex=0;render()}
+
+function renderSummary(){const rows=validRows(),meta=PARAMS[els.metric.value]||{unit:"",main:"max",record:"Rekord",second:"Gegenrekord",color:""};els.recordLabel.textContent=meta.record;els.secondLabel.textContent=meta.second;els.recordValue.className=`summary-value ${meta.color||""}`;els.secondValue.className="summary-value";els.latestValue.className=`summary-value ${meta.color||""}`;
+  if(!rows.length){[els.recordValue,els.secondValue,els.latestValue,els.rangeValue].forEach(e=>e.textContent="–");els.recordDetail.textContent=els.secondDetail.textContent=els.latestDetail.textContent=els.rangeDetail.textContent="Keine Werte verfügbar";return}
+  const primary=pick(rows,meta.main||"max");let secondary=null;
+  if(meta.dry){const dry=rows.filter(r=>Number(r.entry[0])===0);secondary=dry.length?dry[dry.length-1]:null;els.secondValue.textContent=secondary?String(secondary.year):"–";els.secondDetail.textContent=secondary?`${periodDate(secondary.year)} · 0,0 mm`:"Kein komplett trockener Wert"}
+  else if(meta.snow){const snowy=rows.filter(r=>Number(r.entry[0])>0);secondary=snowy.length?snowy[snowy.length-1]:null;els.secondValue.textContent=secondary?fmtValue(secondary.entry[0],meta.unit):"–";els.secondDetail.textContent=secondary?detailFor(secondary):"Kein Schneewert"}
+  else if(meta.event){secondary=rows[rows.length-1];els.secondValue.textContent=fmtValue(secondary.entry[0],meta.unit);els.secondDetail.textContent=detailFor(secondary)}
+  else{secondary=pick(rows,(meta.main||"max")==="max"?"min":"max");els.secondValue.textContent=fmtValue(secondary?.entry?.[0],meta.unit);els.secondDetail.textContent=detailFor(secondary)}
+  const latest=rows[rows.length-1];els.recordValue.textContent=fmtValue(primary.entry[0],meta.unit);els.recordDetail.textContent=detailFor(primary);els.latestValue.textContent=fmtValue(latest.entry[0],meta.unit);els.latestDetail.textContent=detailFor(latest);els.rangeValue.textContent=`${rows[0].year}–${rows[rows.length-1].year}`;els.rangeDetail.textContent=`${rows.length} Jahre mit Wert · ${els.area.value}`
 }
 
-function fmtDate(iso){
-  if(!iso) return "–";
-  const p = String(iso).split("-");
-  return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
-}
+function renderProbabilities(){if(els.holiday.value!=="christmas"){els.probabilityCard.classList.add("hidden");return}els.probabilityCard.classList.remove("hidden");els.probabilityTitle.textContent=`Schnee-Wahrscheinlichkeit · ${selectedPeriodMeta().label}`;const years=periodYears();const refs=holidayMeta().snow_probability_reference_periods||[];const blocks=refs.map(ref=>{const vals=[];for(let y=ref.from;y<=ref.to;y++){const row=years[String(y)];if(row)vals.push(row)};function calc(key){const usable=vals.map(r=>r?.[key]).filter(Boolean);if(!usable.length)return{pct:null,n:0,hits:0};const hits=usable.filter(e=>Number(e[0])>0).length;return{pct:100*hits/usable.length,n:usable.length,hits}}const hi=calc("snow_high_present"),lo=calc("snow_low_present");const pct=x=>x.pct==null?"–":`${x.pct.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} %`;return `<div class="prob-card"><div class="prob-period">${ref.from}–${ref.to}</div><div class="prob-row"><span>Bergland / höhere Lagen</span><span class="prob-value">${pct(hi)}</span></div><div class="prob-row"><span>Tiefere Lagen</span><span class="prob-value">${pct(lo)}</span></div><div class="prob-row"><span>verfügbare Jahre</span><span>${Math.max(hi.n,lo.n)} / 30</span></div></div>`}).join("");els.probabilityGrid.innerHTML=blocks}
 
-function fmtValue(value){
-  return value == null ? "–" : `${Number(value).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`;
-}
+function renderChart(){const rows=allRows(),meta=PARAMS[els.metric.value]||{unit:""};const labels=rows.map(r=>r.year),values=rows.map(r=>r.entry?Number(r.entry[0]):null);if(chart)chart.destroy();chart=new Chart($("holidayChart"),{type:"line",data:{labels,datasets:[{label:meta.label,data:values,borderWidth:2,pointRadius:2.2,pointHoverRadius:5,spanGaps:false,tension:0.08}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${meta.label}: ${fmtValue(c.raw,meta.unit)}`}}},scales:{x:{ticks:{autoSkip:true,maxTicksLimit:18,maxRotation:0}},y:{title:{display:true,text:meta.unit||"Wert"}}}}});els.chartTitle.textContent=`${meta.label} · ${selectedPeriodMeta().label}`;els.chartSubtitle.textContent=`${els.area.value} · ${holidayMeta().label} · fehlende Jahre bleiben als Lücken sichtbar.`}
 
-function stationInfo(entry){
-  if(!entry) return {name:"–",detail:""};
-  const key = entry[2];
-  const station = DATA?.stations?.[key] || {};
-  const parts = [];
-  if(station.id) parts.push(`ID ${station.id}`);
-  if(station.height != null) parts.push(`${Number(station.height).toLocaleString("de-DE")} m`);
-  if(station.state) parts.push(station.state);
-  return {
-    name: station.name || String(key || "–").split(":",1)[0],
-    detail: parts.join(" · "),
-  };
-}
+function renderTable(){const rows=validRows().slice().sort((a,b)=>b.year-a.year),meta=PARAMS[els.metric.value]||{unit:""};els.valueHead.textContent=meta.label;els.tableTitle.textContent=`Jahresliste · ${selectedPeriodMeta().label}`;els.tableSubtitle.textContent=`${holidayMeta().label} · ${els.area.value} · neueste Jahre zuerst.`;if(!rows.length){els.rows.innerHTML='<tr><td colspan="6" class="no-data">Keine Werte verfügbar.</td></tr>';return}const current=Number(DATA.run_date?.slice(0,4));els.rows.innerHTML=rows.map(r=>{const e=r.entry,s=stationInfo(e),derived=!e[2],pre=Boolean(e[3]);return `<tr class="${r.year===current?"current-row":""}"><td class="year">${r.year}</td><td class="period-cell">${esc(periodDate(r.year))}</td><td class="value">${esc(fmtValue(e[0],meta.unit))}</td><td>${derived?"Gesamtwert":esc(fmtDate(e[1]))}</td><td class="station">${derived?"–":`<div class="station-name">${esc(s.name)}</div><div class="station-detail">${esc(s.detail)}</div>`}</td><td>${pre?'<span class="badge preliminary">vorläufig</span>':'<span class="badge">geprüfter Bestand</span>'}</td></tr>`}).join("")}
 
-function holidayPeriod(year, holiday){
-  const meta = DATA?.holiday_dates?.[String(year)]?.[holiday];
-  if(!meta) return "–";
-  return `${fmtDate(meta.from)}–${fmtDate(meta.to)}`;
-}
+function render(){if(!DATA)return;renderSummary();renderProbabilities();renderChart();renderTable();const split=holidayMeta().snow_height_split_m;els.methodNote.textContent=`Quelle: Deutscher Wetterdienst, Climate Data Center (CDC), daily/kl. ${holidayMeta().label}: ${holidayMeta().rule}. Schneehöhen werden bei ${split} m getrennt. Ostern-Gesamtwerte verwenden alle vier Tage von Karfreitag bis Ostermontag einschließlich Karsamstag. ${DATA.method_note||""}`}
 
-function selectedRows(){
-  const area = els.area.value;
-  const holiday = els.holiday.value;
-  const metric = els.metric.value;
-  const years = DATA?.records?.[area]?.[holiday] || {};
-  return Object.entries(years)
-    .map(([year,row]) => ({year:Number(year),entry:row?.[metric] || null}))
-    .filter(x => x.entry && Number.isFinite(Number(x.entry[0])))
-    .sort((a,b)=>a.year-b.year);
-}
-
-function renderSummary(rows){
-  const metric = els.metric.value;
-  const isHot = metric === "txx";
-  els.recordLabel.textContent = isHot ? "Wärmster Feiertagswert" : "Kältester Feiertagswert";
-  els.recordValue.className = `summary-value ${isHot ? "hot" : "cold"}`;
-  els.latestValue.className = `summary-value ${isHot ? "hot" : "cold"}`;
-
-  if(!rows.length){
-    els.recordValue.textContent = "–";
-    els.recordDetail.textContent = "Keine Werte verfügbar";
-    els.latestValue.textContent = "–";
-    els.latestDetail.textContent = "Keine Werte verfügbar";
-    els.rangeValue.textContent = "–";
-    els.rangeDetail.textContent = "–";
-    els.countValue.textContent = "0";
-    return;
-  }
-
-  const record = rows.reduce((best,row) => {
-    if(!best) return row;
-    return isHot
-      ? (Number(row.entry[0]) > Number(best.entry[0]) ? row : best)
-      : (Number(row.entry[0]) < Number(best.entry[0]) ? row : best);
-  }, null);
-  const latest = rows[rows.length-1];
-  const recordStation = stationInfo(record.entry);
-  const latestStation = stationInfo(latest.entry);
-
-  els.recordValue.textContent = fmtValue(record.entry[0]);
-  els.recordDetail.textContent = `${fmtDate(record.entry[1])} · ${recordStation.name}`;
-  els.latestValue.textContent = fmtValue(latest.entry[0]);
-  els.latestDetail.textContent = `${latest.year} · ${fmtDate(latest.entry[1])} · ${latestStation.name}`;
-  els.rangeValue.textContent = `${rows[0].year}–${latest.year}`;
-  els.rangeDetail.textContent = `${DATA.holidays[els.holiday.value].label} · ${els.area.value}`;
-  els.countValue.textContent = Number(rows.length).toLocaleString("de-DE");
-}
-
-function renderChart(rows){
-  const metric = els.metric.value;
-  const holidayLabel = DATA.holidays[els.holiday.value].label;
-  const metricLabel = metric === "txx" ? "höchstes Tmax" : "niedrigstes Tmin";
-  els.chartTitle.textContent = `${holidayLabel}: ${metric === "txx" ? "TXx" : "TNn"}`;
-  els.chartSubtitle.textContent = `${els.area.value} · ${metricLabel} im jeweiligen Feiertagsfenster`;
-
-  if(chart) chart.destroy();
-  const ctx = document.getElementById("holidayChart");
-  chart = new Chart(ctx,{
-    type:"line",
-    data:{
-      labels:rows.map(x=>String(x.year)),
-      datasets:[{
-        label:metric === "txx" ? "TXx" : "TNn",
-        data:rows.map(x=>Number(x.entry[0])),
-        borderColor:metric === "txx" ? "#b42318" : "#155eef",
-        backgroundColor:metric === "txx" ? "rgba(180,35,24,.08)" : "rgba(21,94,239,.08)",
-        borderWidth:2,
-        pointRadius:2,
-        pointHoverRadius:5,
-        tension:.08,
-        fill:false,
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{mode:"nearest",intersect:false},
-      scales:{
-        x:{grid:{display:false},ticks:{maxTicksLimit:18}},
-        y:{title:{display:true,text:"Temperatur (°C)"}}
-      },
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{
-          title(items){return items.length ? `${holidayLabel} ${items[0].label}` : "";},
-          label(context){
-            const row = rows[context.dataIndex];
-            const st = stationInfo(row.entry);
-            return `${metric === "txx" ? "TXx" : "TNn"}: ${fmtValue(row.entry[0])} · ${fmtDate(row.entry[1])} · ${st.name}`;
-          }
-        }}
-      }
-    }
-  });
-}
-
-function renderTable(rows){
-  const metric = els.metric.value;
-  const holidayLabel = DATA.holidays[els.holiday.value].label;
-  els.valueHead.textContent = metric === "txx" ? "TXx" : "TNn";
-  els.tableTitle.textContent = `${holidayLabel} · ${els.area.value}`;
-  els.tableSubtitle.textContent = `${metric === "txx" ? "Höchstes Tmax" : "Niedrigstes Tmin"} im Feiertagsfenster · neueste Jahre zuerst.`;
-
-  if(!rows.length){
-    els.rows.innerHTML = '<tr><td colspan="6" class="no-data">Keine Werte in dieser Auswahl.</td></tr>';
-    return;
-  }
-
-  const latestYear = rows[rows.length-1].year;
-  els.rows.innerHTML = [...rows].reverse().map(row => {
-    const e = row.entry;
-    const st = stationInfo(e);
-    const preliminary = Number(e[3]) === 1;
-    return `<tr class="${row.year === latestYear ? "current-row" : ""}">
-      <td class="year">${row.year}</td>
-      <td class="period-cell">${esc(holidayPeriod(row.year,els.holiday.value))}</td>
-      <td class="value">${esc(fmtValue(e[0]))}</td>
-      <td>${esc(fmtDate(e[1]))}</td>
-      <td class="station"><div class="station-name">${esc(st.name)}</div><div class="station-detail">${esc(st.detail)}</div></td>
-      <td><span class="badge ${preliminary ? "preliminary" : ""}">${preliminary ? "vorläufig" : "geprüfter Bestand"}</span></td>
-    </tr>`;
-  }).join("");
-}
-
-function render(){
-  if(!DATA) return;
-  const rows = selectedRows();
-  renderSummary(rows);
-  renderChart(rows);
-  renderTable(rows);
-}
-
-async function init(){
-  try{
-    const response = await fetch(`data/dwd_holiday_extremes.json?v=${Date.now()}`,{cache:"no-store"});
-    if(!response.ok) throw new Error(`HTTP ${response.status}`);
-    DATA = await response.json();
-
-    els.area.innerHTML = DATA.areas.map(area => `<option value="${esc(area)}">${esc(area)}</option>`).join("");
-    els.area.value = "Deutschland";
-
-    const generated = DATA.generated_at ? new Date(DATA.generated_at) : null;
-    const generatedText = generated && !Number.isNaN(generated.getTime())
-      ? generated.toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"})
-      : "unbekannt";
-    els.status.textContent = `DWD · ${DATA.stats.holiday_observations.toLocaleString("de-DE")} Feiertags-Beobachtungen · ${DATA.stats.referenced_stations.toLocaleString("de-DE")} Stationen · erzeugt ${generatedText}`;
-
-    for(const el of [els.area,els.holiday,els.metric]) el.addEventListener("change",render);
-    render();
-  }catch(error){
-    console.error(error);
-    els.status.classList.add("error");
-    els.status.textContent = `Feiertags-Daten konnten nicht geladen werden: ${error.message}`;
-    els.rows.innerHTML = '<tr><td colspan="6" class="no-data">Daten konnten nicht geladen werden.</td></tr>';
-  }
-}
-
-init();
+async function init(){try{const res=await fetch("data/dwd_holiday_extremes.json",{cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);DATA=await res.json();if(Number(DATA.version)<2||!DATA.period_records)throw new Error("Feiertags-Datenbasis V2 fehlt");els.area.innerHTML=DATA.areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join("");els.area.value="Deutschland";els.status.textContent=`Datenbasis V${DATA.version} · ${Number(DATA.stats?.holiday_observations||0).toLocaleString("de-DE")} Feiertags-Beobachtungen · ${Number(DATA.stats?.referenced_stations||0).toLocaleString("de-DE")} Stationen · Stand ${fmtDate(DATA.run_date)}`;rebuildPeriods()}catch(err){els.status.classList.add("error");els.status.textContent=`Fehler beim Laden: ${err.message}`;els.rows.innerHTML='<tr><td colspan="6" class="no-data">Feiertags-Daten konnten nicht geladen werden.</td></tr>'}}
+els.area.addEventListener("change",render);els.holiday.addEventListener("change",rebuildPeriods);els.period.addEventListener("change",rebuildMetrics);els.metric.addEventListener("change",render);init();
 </script>
 </body>
 </html>
