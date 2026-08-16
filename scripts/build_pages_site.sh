@@ -25,11 +25,18 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
-if [[ ! -f data/dwd_decade_records.json ]]; then
-  echo "FEHLER: Für GitHub Pages fehlt: data/dwd_decade_records.json"
-  exit 1
-fi
-cp data/dwd_decade_records.json _site/data/dwd_decade_records.json
+required_data_files=(
+  data/dwd_decade_records.json
+  data/dwd_decade_snow_records.json
+)
+
+for file in "${required_data_files[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo "FEHLER: Für GitHub Pages fehlt: $file"
+    exit 1
+  fi
+  cp "$file" "_site/data/$(basename "$file")"
+done
 
 # Weltweite GHCN-Stationsdaten sind vorerst nicht Teil der Website.
 # Die JSON-Dateien im Repository bleiben erhalten.
