@@ -2,65 +2,96 @@
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 
 DESKTOP_MARKER = "<!-- DWD_DECADE_RECORDS_DESKTOP_NAV_V1 -->"
+# Der Markername bleibt absichtlich gleich, damit der bereits hochgeladene
+# Workflow unverändert weiterverwendet werden kann.
 OVERVIEW_MARKER = "<!-- DWD_DECADE_RECORDS_OVERVIEW_LINK_V1 -->"
 
-DESKTOP_INSERT = f'''{DESKTOP_MARKER}
-<button type="button" class="tab-dropdown-item" onclick="window.location.href='dekadenrekorde.html'">Dekadenrekorde</button>'''
+STATION_RECORDS_BUTTON = """  <button class="tab-button" onclick="switchTab('records')">Stationsrekorde</button>"""
 
-OVERVIEW_INSERT = f'''{OVERVIEW_MARKER}
-<button type="button" class="overview-link-button" onclick="window.location.href='dekadenrekorde.html'">
-  <span>Dekadenrekorde</span>
-  <small>1.–3. Dekade · Deutschland &amp; Bundesländer</small>
-</button>'''
+DESKTOP_INSERT = """  <!-- DWD_DECADE_RECORDS_DESKTOP_NAV_V1 -->
+  <button class="tab-button" onclick="window.location.href='dekadenrekorde.html'">Dekadenrekorde</button>"""
 
+MOBILE_OLD = """  document.querySelectorAll(".tab-button").forEach(button=>{
+    const match=button.getAttribute("onclick")?.match(/switchTab\('([^']+)'\)/);
+    if(!match) return;
+    const option=document.createElement("option");
+    option.value=match[1];
+    option.textContent=button.textContent.trim();
+    select.appendChild(option);
+  });
+  select.addEventListener("change",()=>switchTab(select.value));"""
 
-def insert_after_once(text: str, pattern: str, addition: str, label: str) -> str:
-    matches = list(re.finditer(pattern, text, flags=re.IGNORECASE | re.DOTALL))
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"{label}: genau 1 Einfügeposition erwartet, gefunden: {len(matches)}"
-        )
-    match = matches[0]
-    return text[: match.end()] + "\n" + addition + text[match.end() :]
+MOBILE_NEW = """  document.querySelectorAll(".tab-button").forEach(button=>{
+    const match=button.getAttribute("onclick")?.match(/switchTab\('([^']+)'\)/);
+    if(!match) return;
+    const option=document.createElement("option");
+    option.value=match[1];
+    option.textContent=button.textContent.trim();
+    select.appendChild(option);
+  });
+
+  <!-- DWD_DECADE_RECORDS_OVERVIEW_LINK_V1 -->
+  const decadeRecordsOption=document.createElement("option");
+  decadeRecordsOption.value="__decade_records__";
+  decadeRecordsOption.textContent="Dekadenrekorde";
+  select.appendChild(decadeRecordsOption);
+
+  select.addEventListener("change",()=>{
+    if(select.value==="__decade_records__"){
+      window.location.href="dekadenrekorde.html";
+      return;
+    }
+    switchTab(select.value);
+  });"""
 
 
 def patch(path: Path) -> bool:
     text = path.read_text(encoding="utf-8")
     original = text
 
+    # Desktop: direkt hinter "Stationsrekorde".
     if DESKTOP_MARKER not in text:
-        text = insert_after_once(
-            text,
-            r'''<button\b[^>]*class=["'][^"']*\btab-dropdown-item\b[^"']*["'][^>]*\bdata-tab=["']annual-records["'][^>]*>\s*Jahresrekorde\s*</button>''',
-            DESKTOP_INSERT,
-            "Stationen-Menü / Jahresrekorde",
+        count = text.count(STATION_RECORDS_BUTTON)
+        if count != 1:
+            raise RuntimeError(
+                "Desktop-Navigation: genau 1 Stationsrekorde-Button erwartet, "
+                f"gefunden: {count}"
+            )
+        text = text.replace(
+            STATION_RECORDS_BUTTON,
+            STATION_RECORDS_BUTTON + "\n" + DESKTOP_INSERT,
+            1,
         )
 
+    # Mobil: eigener Eintrag in der automatisch erzeugten Bereichsauswahl.
     if OVERVIEW_MARKER not in text:
-        text = insert_after_once(
-            text,
-            r'''<button\b[^>]*class=["'][^"']*\boverview-link-button\b[^"']*["'][^>]*\bdata-tab-target=["']stationen["'][^>]*>.*?</button>''',
-            OVERVIEW_INSERT,
-            "Übersicht / Direkteinstieg Stationsrekorde",
-        )
+        count = text.count(MOBILE_OLD)
+        if count != 1:
+            raise RuntimeError(
+                "Mobile Navigation: genau 1 Initialisierungsblock erwartet, "
+                f"gefunden: {count}"
+            )
+        text = text.replace(MOBILE_OLD, MOBILE_NEW, 1)
 
     if DESKTOP_MARKER not in text:
-        raise RuntimeError("Desktop-Navigationsmarker fehlt nach Patch.")
+        raise RuntimeError("Desktop-Marker fehlt nach Patch.")
     if OVERVIEW_MARKER not in text:
-        raise RuntimeError("Übersichtsmarker fehlt nach Patch.")
+        raise RuntimeError("Mobile-Marker fehlt nach Patch.")
     if text.count("dekadenrekorde.html") < 2:
-        raise RuntimeError("Dekadenrekord-Link wurde nicht zweimal eingebaut.")
+        raise RuntimeError(
+            "Dekadenrekorde müssen für Desktop und Mobil verlinkt sein."
+        )
 
     changed = text != original
     if changed:
         path.write_text(text, encoding="utf-8")
-        print("index.html wurde um die Dekadenrekord-Navigation ergänzt.")
+        print("Dekadenrekorde wurden in Desktop- und Mobilnavigation eingebaut.")
     else:
         print("Dekadenrekord-Navigation ist bereits vollständig vorhanden.")
+
     return changed
 
 
