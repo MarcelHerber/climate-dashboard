@@ -8,6 +8,7 @@ required_root_files=(
   index.html
   dekadenrekorde.html
   jahresextremwerte.html
+  feiertagsextremwerte.html
   data.json
   daily_tmax_1881_2026.json
   station_records.json
@@ -31,6 +32,7 @@ required_data_files=(
   data/dwd_decade_snow_records.json
   data/dwd_decade_pressure_records.json
   data/dwd_annual_extremes.json
+  data/dwd_holiday_extremes.json
 )
 
 for file in "${required_data_files[@]}"; do
