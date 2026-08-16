@@ -346,6 +346,7 @@ td.value{
         <option value="txk_low">Tmax · niedrigstes Maximum</option>
         <option value="tnk_high">Tmin · höchstes Minimum</option>
         <option value="tnk_low">Tmin · tiefstes Minimum</option>
+        <option value="shk_high">Schneehöhe · höchster Wert</option>
       </select>
     </div>
     <div class="control-group">
@@ -424,8 +425,9 @@ td.value{
   <div class="note">
     <strong>Methodik:</strong> Grundlage sind tägliche DWD-CDC-Klimadaten der deutschen
     Stationen. Für jede meteorologische Dekade werden pro Station höchstes und
-    niedrigstes Tmax sowie höchstes und niedrigstes Tmin bestimmt. Rangliste und Karte
-    verwenden je Station deren persönlichen Dekadenrekord. Ein gesetzter Höhenfilter berücksichtigt nur Stationen,
+    niedrigstes Tmax, höchstes und niedrigstes Tmin sowie die höchste gemessene
+    Schneehöhe (SHK_TAG/SHK) bestimmt. Rangliste und Karte verwenden je Station deren
+    persönlichen Dekadenrekord. Ein gesetzter Höhenfilter berücksichtigt nur Stationen,
     deren DWD-Stationshöhe höchstens dem eingegebenen Wert entspricht.
     Die Bundeslandzuordnung folgt den DWD-Stationsmetadaten zum jeweiligen Messtag.
   </div>
@@ -436,6 +438,7 @@ td.value{
   "use strict";
 
   const DATA_URL = "data/dwd_decade_records.json";
+  const SNOW_DATA_URL = "data/dwd_decade_snow_records.json";
 
   const els = {
     status: document.getElementById("dataStatus"),
@@ -457,6 +460,7 @@ td.value{
   };
 
   let data = null;
+  let snowData = null;
   let map = null;
   let markerLayer = null;
   let markersByStation = new Map();
@@ -489,9 +493,13 @@ td.value{
     return `${parts[2]}.${parts[1]}.`;
   }
 
+  function activeData(metric = els.metric.value) {
+    return metric === "shk_high" ? snowData : data;
+  }
+
   function stationFromEntry(entry) {
     if (!entry || entry.length < 3) return null;
-    return data.stations?.[entry[2]] ?? null;
+    return activeData()?.stations?.[entry[2]] ?? null;
   }
 
   function stationIdFromEntry(entry) {
@@ -501,10 +509,17 @@ td.value{
   }
 
   function metricMeta(metric) {
+    if (metric === "shk_high") {
+      return snowData?.metric_meta ?? {
+        label: "Höchste Schneehöhe",
+        unit: "cm",
+        direction: "desc"
+      };
+    }
     return data.metrics?.[metric] ?? {
       label: metric,
       unit: "°C",
-      direction: metric === "tnk_low" ? "asc" : "desc"
+      direction: metric.endsWith("_low") ? "asc" : "desc"
     };
   }
 
@@ -591,6 +606,13 @@ td.value{
     let t = (value - min) / (max - min);
     t = Math.max(0, Math.min(1, t));
 
+    if (els.metric.value === "shk_high") {
+      const pale = [229, 232, 235];
+      const blue = [47, 111, 212];
+      const rgb = pale.map((v, i) => Math.round(v + (blue[i] - v) * t));
+      return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    }
+
     const cold = [47, 111, 212];
     const neutral = [229, 232, 235];
     const hot = [213, 65, 47];
@@ -610,7 +632,10 @@ td.value{
     const metric = els.metric.value;
     const area = els.area.value;
     const period = periodId();
-    const raw = data.station_records?.[metric]?.[area]?.[period] ?? {};
+    const source = activeData(metric);
+    const raw = metric === "shk_high"
+      ? (source?.station_records?.[area]?.[period] ?? {})
+      : (source?.station_records?.[metric]?.[area]?.[period] ?? {});
     const limit = maxHeightLimit();
 
     if (limit == null) return raw;
@@ -650,7 +675,9 @@ td.value{
     const first = leaders[0] ?? null;
     const station = stationFromEntry(first);
 
-    els.recordValue.className = `summary-value ${metric.endsWith("_high") ? "hot" : "cold"}`;
+    els.recordValue.className = `summary-value ${
+      metric === "shk_high" ? "cold" : (metric.endsWith("_high") ? "hot" : "cold")
+    }`;
 
     if (first) {
       els.recordValue.textContent = valueText(first[0], metric);
@@ -672,9 +699,10 @@ td.value{
     }
 
     els.stationCount.textContent = Object.keys(records).length.toLocaleString("de-DE");
-    els.dataThrough.textContent = formatShortDate(data.data_through);
+    const source = activeData(metric);
+    els.dataThrough.textContent = formatShortDate(source?.data_through);
     els.dataRange.textContent =
-      `${formatDate(data.data_start)} bis ${formatDate(data.data_through)}`;
+      `${formatDate(source?.data_start)} bis ${formatDate(source?.data_through)}`;
 
     els.mapTitle.textContent = `${selectedLabel()} · ${meta.label}`;
     els.tableTitle.textContent = `Top 50 · ${selectedLabel()} · ${meta.label}`;
@@ -795,7 +823,7 @@ td.value{
   }
 
   function render() {
-    if (!data) return;
+    if (!data || !snowData) return;
 
     const records = markerRecords();
     const leaders = rankedStationRecords(records);
@@ -807,22 +835,45 @@ td.value{
 
   async function loadData() {
     try {
-      const response = await fetch(DATA_URL, {cache:"no-cache"});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      data = await response.json();
+      const [tempResponse, snowResponse] = await Promise.all([
+        fetch(DATA_URL, {cache:"no-cache"}),
+        fetch(SNOW_DATA_URL, {cache:"no-cache"})
+      ]);
+
+      if (!tempResponse.ok) {
+        throw new Error(`Temperaturdaten: HTTP ${tempResponse.status}`);
+      }
+      if (!snowResponse.ok) {
+        throw new Error(`Schneedaten: HTTP ${snowResponse.status}`);
+      }
+
+      [data, snowData] = await Promise.all([
+        tempResponse.json(),
+        snowResponse.json()
+      ]);
 
       if (!Array.isArray(data.areas) || data.areas.length !== 17) {
-        throw new Error("Gebietsliste unvollständig");
+        throw new Error("Temperatur-Gebietsliste unvollständig");
       }
       if (!Array.isArray(data.periods) || data.periods.length !== 36) {
-        throw new Error("Dekadenliste unvollständig");
+        throw new Error("Temperatur-Dekadenliste unvollständig");
+      }
+      if (!Array.isArray(snowData.areas) || snowData.areas.length !== 17) {
+        throw new Error("Schnee-Gebietsliste unvollständig");
+      }
+      if (!Array.isArray(snowData.periods) || snowData.periods.length !== 36) {
+        throw new Error("Schnee-Dekadenliste unvollständig");
+      }
+      if (snowData.metric !== "shk_high") {
+        throw new Error("Schnee-Parameter fehlt");
       }
 
       setupControls();
       setupMap();
 
       els.status.textContent =
-        `DWD · Datenstand ${formatDate(data.data_through)} · ` +
+        `DWD · Temperatur bis ${formatDate(data.data_through)} · ` +
+        `Schnee bis ${formatDate(snowData.data_through)} · ` +
         `${data.areas.length} Gebiete · ${data.periods.length} Dekaden`;
       render();
     } catch (error) {
