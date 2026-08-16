@@ -24,7 +24,7 @@ from update_station_records import (
     parse_metadata,
 )
 
-VERSION = 3
+VERSION = 4
 TOP_K = 50
 
 # Qualitätsfilter für vergleichbare NN-Luftdruckrekorde.
@@ -35,7 +35,7 @@ TOP_K = 50
 PRESSURE_MIN_HPA = 954.4
 PRESSURE_MAX_HPA = 1060.8
 MAX_STATION_HEIGHT_M = 750
-MIN_QN_8 = 3
+ALLOWED_QN_8 = {2, 3, 5, 7, 8, 9, 10}
 
 BASE_URL = (
     "https://opendata.dwd.de/climate_environment/CDC/"
@@ -229,7 +229,7 @@ def parse_pressure_zip(
                     quality_level = int(float(str(raw_quality).strip()))
                 except (TypeError, ValueError):
                     continue
-                if quality_level < MIN_QN_8:
+                if quality_level not in ALLOWED_QN_8:
                     continue
 
                 raw_value = row.get(pressure_field)
@@ -689,9 +689,10 @@ def main() -> int:
             "pressure_min_hpa": PRESSURE_MIN_HPA,
             "pressure_max_hpa": PRESSURE_MAX_HPA,
             "max_station_height_m": MAX_STATION_HEIGHT_M,
-            "min_qn_8": MIN_QN_8,
+            "allowed_qn_8": sorted(ALLOWED_QN_8),
             "reason": (
-                "Verwendet nur QN_8 >= 3, schließt Bergstationen über 750 m aus "
+                "Verwendet die DWD-Qualitätsniveaus 2, 3, 5, 7, 8, 9 und 10, "
+                "schließt Bergstationen über 750 m aus "
                 "und interpretiert Werte außerhalb des vom DWD dokumentierten "
                 "deutschen Rekordrahmens 954,4–1060,8 hPa nicht automatisch "
                 "als Stationsrekorde."
@@ -773,7 +774,8 @@ def main() -> int:
     )
     print(
         f"QC: {PRESSURE_MIN_HPA:.1f}–{PRESSURE_MAX_HPA:.1f} hPa | "
-        f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m | QN_8 >= {MIN_QN_8}",
+        f"Stationshöhe <= {MAX_STATION_HEIGHT_M} m | "
+        f"QN_8 in {sorted(ALLOWED_QN_8)}",
         flush=True,
     )
     print(
