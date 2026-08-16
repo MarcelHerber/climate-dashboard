@@ -76,6 +76,15 @@ METRICS = {
         "direction": "desc",
         "source": "DWD daily/kl · TXK",
     },
+    "desert_days_max": {
+        "label": "max. Wüstentage ≥35 °C",
+        "description": "Höchste Zahl der Tage mit TXK >= 35,0 °C an einer Station",
+        "unit": "Tage",
+        "kind": "station_year_count",
+        "threshold": "TXK >= 35.0",
+        "direction": "desc",
+        "source": "DWD daily/kl · TXK",
+    },
     "tropical_nights_max": {
         "label": "max. Nächte Tmin >20 °C",
         "description": "Höchste Zahl der Tage mit TNK > 20,0 °C an einer Station",
@@ -388,6 +397,7 @@ class AnnualAccumulator:
                 info = {
                     "summer_days_max": 0,
                     "hot_days_max": 0,
+                    "desert_days_max": 0,
                     "tropical_nights_max": 0,
                     "metadata_key": observation.metadata_key,
                     "preliminary": False,
@@ -408,6 +418,8 @@ class AnnualAccumulator:
                     info["summer_days_max"] += 1
                 if float(txk) > 30.0:
                     info["hot_days_max"] += 1
+                if float(txk) >= 35.0:
+                    info["desert_days_max"] += 1
 
             tnk = values.get("tnk")
             if tnk is not None and float(tnk) > 20.0:
@@ -481,6 +493,7 @@ class AnnualAccumulator:
             for metric in (
                 "summer_days_max",
                 "hot_days_max",
+                "desert_days_max",
                 "tropical_nights_max",
             ):
                 entry = count_entry(
@@ -899,7 +912,7 @@ def main() -> int:
         "method_note": (
             "Rohdaten werden ab 1861 ausgewertet. Für spätere Jahreslisten ""beginnt jedes Gebiet frühestens 1881; liegt der erste tatsächlich ""vorhandene Jahreswert später, wird dieses spätere Jahr verwendet. ""TNn und TXx stammen aus TNK/TXK. "
             "Die drei Kenntage werden entsprechend der Excel-Vorlage strikt "
-            "mit TXK >25,0 °C, TXK >30,0 °C und TNK >20,0 °C gezählt; "
+            "mit TXK >25,0 °C, TXK >30,0 °C, TXK >=35,0 °C und TNK >20,0 °C gezählt; "
             "pro Gebiet/Jahr wird die höchste Stationsanzahl gespeichert. "
             "RR24x verwendet das erweiterte tägliche DWD-RR-Netz (RS). "
             "SNOx verwendet SHK_TAG/SHK aus daily/kl und wird nach "
@@ -926,6 +939,7 @@ def main() -> int:
         "txx",
         "summer_days_max",
         "hot_days_max",
+        "desert_days_max",
         "tropical_nights_max",
         "rr24x",
         "snox_ge_400",
@@ -943,6 +957,7 @@ def main() -> int:
         "txx",
         "summer_days_max",
         "hot_days_max",
+        "desert_days_max",
         "tropical_nights_max",
         "rr24x",
         "snox_ge_400",

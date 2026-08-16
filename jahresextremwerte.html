@@ -162,7 +162,7 @@ select,input[type="number"]{
 }
 table{
   width:100%;
-  min-width:1760px;
+  min-width:1910px;
   border-collapse:separate;
   border-spacing:0;
   background:#fff;
@@ -334,7 +334,7 @@ thead .year-head{
     </div>
     <div class="summary-card">
       <div class="summary-label">Parameter</div>
-      <div class="summary-value">10</div>
+      <div class="summary-value">11</div>
       <div class="summary-detail">Temperatur · Kenntage · RR · Schnee · Wind</div>
     </div>
   </div>
@@ -353,7 +353,7 @@ thead .year-head{
           <tr>
             <th class="year-head" rowspan="2">Jahr</th>
             <th class="group-temp" colspan="2">Temperatur-Extreme</th>
-            <th class="group-days" colspan="3">Maximale Kenntage an einer Station</th>
+            <th class="group-days" colspan="4">Maximale Kenntage an einer Station</th>
             <th class="group-rain" colspan="1">Niederschlag</th>
             <th class="group-snow" colspan="2">Schneehöhe</th>
             <th class="group-wind" colspan="2">Windspitze · ab 75 km/h</th>
@@ -363,6 +363,7 @@ thead .year-head{
             <th class="group-temp">TXx</th>
             <th class="group-days">&gt;25 °C</th>
             <th class="group-days">&gt;30 °C</th>
+            <th class="group-days">≥35 °C</th>
             <th class="group-days">Tmin &gt;20 °C</th>
             <th class="group-rain">RR24x</th>
             <th class="group-snow">SNOx ≥400 m</th>
@@ -372,7 +373,7 @@ thead .year-head{
           </tr>
         </thead>
         <tbody id="annualBody">
-          <tr><td colspan="11" style="padding:24px;color:#666">Daten werden geladen …</td></tr>
+          <tr><td colspan="12" style="padding:24px;color:#666">Daten werden geladen …</td></tr>
         </tbody>
       </table>
     </div>
@@ -383,7 +384,7 @@ thead .year-head{
     1881; wenn in einem Bundesland die ersten tatsächlich verfügbaren Jahreswerte später
     einsetzen, beginnt die Liste erst in diesem späteren Jahr. TNn und TXx stammen aus
     DWD daily/kl. Die Kenntage entsprechen der Excel-Struktur mit den strikten Schwellen
-    TXK &gt;25,0 °C, TXK &gt;30,0 °C und TNK &gt;20,0 °C. RR24x stammt aus dem erweiterten
+    TXK &gt;25,0 °C, TXK &gt;30,0 °C, TXK ≥35,0 °C und TNK &gt;20,0 °C. RR24x stammt aus dem erweiterten
     täglichen DWD-Niederschlagsnetz. Schnee und Wind werden nach Stationshöhe in
     ≥400 m und &lt;400 m getrennt. FGx basiert auf dem Tagesmaximum der Windspitze (FX),
     umgerechnet in km/h; dargestellt werden Werte ab 75 km/h. Das laufende Jahr ist
@@ -402,6 +403,7 @@ thead .year-head{
     "txx",
     "summer_days_max",
     "hot_days_max",
+    "desert_days_max",
     "tropical_nights_max",
     "rr24x",
     "snox_ge_400",
@@ -471,6 +473,7 @@ thead .year-head{
     if (
       metric === "summer_days_max" ||
       metric === "hot_days_max" ||
+      metric === "desert_days_max" ||
       metric === "tropical_nights_max"
     ) {
       return `${Number(value).toLocaleString("de-DE")} Tage`;
@@ -631,7 +634,7 @@ thead .year-head{
 
     els.body.innerHTML = rows.length
       ? rows.join("")
-      : `<tr><td colspan="11" style="padding:24px;color:#777">Keine Jahre in der Auswahl.</td></tr>`;
+      : `<tr><td colspan="12" style="padding:24px;color:#777">Keine Jahre in der Auswahl.</td></tr>`;
 
     applyExtremaHighlighting();
   }
@@ -691,7 +694,7 @@ thead .year-head{
 
       els.status.textContent =
         `DWD · Daten bis ${formatDate(data.data_through)} · ` +
-        `${data.areas.length} Gebiete · 10 Parameter`;
+        `${data.areas.length} Gebiete · 11 Parameter`;
 
       render();
     } catch (error) {
@@ -700,7 +703,7 @@ thead .year-head{
       els.status.textContent =
         `Jährliche Extremwerte konnten nicht geladen werden: ${error.message}`;
       els.body.innerHTML =
-        `<tr><td colspan="11" style="padding:24px;color:#8a1c13">Daten konnten nicht geladen werden.</td></tr>`;
+        `<tr><td colspan="12" style="padding:24px;color:#8a1c13">Daten konnten nicht geladen werden.</td></tr>`;
     }
   }
 
