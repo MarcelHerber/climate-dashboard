@@ -43,7 +43,25 @@ for file in "${required_data_files[@]}"; do
   cp "$file" "_site/data/$(basename "$file")"
 done
 
+# Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.
+# index.html lädt europe_stations/index.json direkt beim Seitenstart; die
+# Tages-/Kalenderarchive liegen darunter in europe_stations/calendar/.
+if [[ ! -s europe_stations/index.json ]]; then
+  echo "FEHLER: Für GitHub Pages fehlt: europe_stations/index.json"
+  exit 1
+fi
+if [[ ! -s europe_stations/calendar/01-01.json.gz ]]; then
+  echo "FEHLER: Für GitHub Pages fehlt: europe_stations/calendar/01-01.json.gz"
+  exit 1
+fi
+if [[ ! -s europe_stations/calendar/12-31.json.gz ]]; then
+  echo "FEHLER: Für GitHub Pages fehlt: europe_stations/calendar/12-31.json.gz"
+  exit 1
+fi
+cp -a europe_stations _site/
+
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
-echo "Dateien: $(find _site -type f | wc -l)"
+echo "Europa-Stationsdaten: $(find _site/europe_stations -type f | wc -l) Dateien"
+echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
