@@ -1035,6 +1035,13 @@ button.action:hover{background:#1f2937}
 .hyras-tmean-region-note{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:700px){.hyras-tmean-chart-wrap{height:390px}.hyras-tmean-download{width:100%;justify-content:center}}
 
+
+/* Stationsniederschlag · Monatslisten */
+.station-precip-monthly-table tr.current-year .year-cell{background:#fff0bf;color:#251900}
+.station-precip-monthly-table tr.current-year td{border-top:2px solid #222;border-bottom:2px solid #222}
+.station-precip-monthly-table td.no-value{background:#f1f3f5;color:#999}
+.station-precip-monthly-table .annual-cell{border-left:3px solid rgba(25,25,25,.58)!important;font-weight:700}
+
 </style>
 </head>
 <body>
@@ -2657,6 +2664,27 @@ button.action:hover{background:#1f2937}
         <div class="stat-card"><h4>Historischer Spannbereich</h4><div id="stationPrecipRangeStat">–</div></div>
         <div class="stat-card"><h4>Datenlücken im aktuellen Jahr</h4><div id="stationPrecipMissingStat">–</div></div>
       </div>
+    </div>
+
+    <div class="chart-container auto">
+      <div class="anomaly-table-heading">
+        <div>
+          <h2 id="stationPrecipMonthlyTitle">Monatsniederschlag · komplette Monatslisten</h2>
+          <p id="stationPrecipMonthlySubtitle">Monatssummen der ausgewählten Station in mm.</p>
+        </div>
+      </div>
+      <div class="anomaly-table-wrap">
+        <table id="stationPrecipMonthlyTable" class="anomaly-table station-precip-monthly-table">
+          <thead><tr>
+            <th class="year-cell">Jahr</th>
+            <th>Jan</th><th>Feb</th><th>Mär</th><th>Apr</th><th>Mai</th><th>Jun</th>
+            <th>Jul</th><th>Aug</th><th>Sep</th><th>Okt</th><th>Nov</th><th>Dez</th>
+            <th class="annual-cell">Jahressumme</th>
+          </tr></thead>
+          <tbody id="stationPrecipMonthlyBody"></tbody>
+        </table>
+      </div>
+      <p id="stationPrecipMonthlyNote" class="note">Nur vollständig vorliegende Monate werden summiert. „–“ bedeutet unvollständig oder noch nicht abgeschlossen.</p>
     </div>
     <p id="stationPrecipSourceNote" class="note"></p>
   </div>
@@ -7273,6 +7301,57 @@ function stationPrecipRangeTotalFromCumulative(curve,range){
   return Number.isFinite(end)&&Number.isFinite(base)?Math.round((end-base)*10)/10:null;
 }
 
+
+function stationPrecipMonthlyFormat(value){
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}) : "–";
+}
+function stationPrecipCurrentMonthlyRow(stationId){
+  if(!stationPrecipIndex) return null;
+  const currentYear=Number(stationPrecipIndex.current_year), dataThrough=String(stationPrecipIndex.data_through||"");
+  if(!Number.isFinite(currentYear)) return null;
+  const byMonth=new Map();
+  for(const payload of stationPrecipMonthCache.values()) if(Number(payload?.year)===currentYear) byMonth.set(Number(payload.month),payload);
+  const months=Array(12).fill(null);
+  for(let month=1;month<=12;month++){
+    const values=byMonth.get(month)?.stations?.[stationId];
+    if(!Array.isArray(values)) continue;
+    const days=new Date(currentYear,month,0).getDate();
+    const end=`${currentYear}-${String(month).padStart(2,"0")}-${String(days).padStart(2,"0")}`;
+    if(!dataThrough || dataThrough<end || values.length<days) continue;
+    const part=values.slice(0,days);
+    if(!part.every(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v)))) continue;
+    months[month-1]=Math.round(part.reduce((s,v)=>s+Number(v),0)*10)/10;
+  }
+  if(!months.some(Number.isFinite)) return null;
+  const annual=months.every(Number.isFinite)?Math.round(months.reduce((s,v)=>s+Number(v),0)*10)/10:null;
+  return {year:currentYear,months,annual,current:true};
+}
+function updateStationPrecipMonthlyTable(stationId){
+  const body=document.getElementById("stationPrecipMonthlyBody");
+  if(!body) return;
+  const station=stationPrecipIndex?.stations?.find(item=>item.id===stationId);
+  const historical=Array.isArray(stationPrecipProfile?.monthly_history)?stationPrecipProfile.monthly_history.map(row=>({year:Number(row.year),months:Array.isArray(row.months)?row.months.slice(0,12):Array(12).fill(null),annual:row.annual,current:false})):[];
+  const current=stationPrecipCurrentMonthlyRow(stationId), currentYear=Number(stationPrecipIndex?.current_year);
+  const rows=historical.filter(r=>Number.isFinite(r.year)&&r.year!==currentYear).sort((a,b)=>b.year-a.year);
+  if(current) rows.unshift(current);
+  const title=document.getElementById("stationPrecipMonthlyTitle"), subtitle=document.getElementById("stationPrecipMonthlySubtitle"), note=document.getElementById("stationPrecipMonthlyNote");
+  if(title) title.textContent=`Monatsniederschlag · ${station?.name||stationId}`;
+  if(subtitle){
+    const years=historical.map(r=>Number(r.year)).filter(Number.isFinite);
+    subtitle.textContent=`Monatssummen in mm · ${years.length?Math.min(...years)+"–":""}${currentYear||""} · neuestes Jahr oben`;
+  }
+  if(!rows.length){
+    body.innerHTML='<tr><td colspan="14" class="no-value">Noch keine Monatslisten im Stationsprofil vorhanden.</td></tr>';
+    if(note) note.textContent="Die historischen Monatslisten werden beim nächsten vollständigen Neuaufbau der Niederschlagsprofile erzeugt.";
+    return;
+  }
+  body.innerHTML=rows.map(row=>{
+    const cells=Array.from({length:12},(_,i)=>{const v=row.months?.[i],ok=Number.isFinite(Number(v));return `<td class="${ok?"":"no-value"}">${ok?stationPrecipMonthlyFormat(v):"–"}</td>`;}).join("");
+    const ok=Number.isFinite(Number(row.annual));
+    return `<tr class="${row.current?"current-year":""}"><td class="year-cell">${row.year}</td>${cells}<td class="annual-cell ${ok?"":"no-value"}">${ok?stationPrecipMonthlyFormat(row.annual):"–"}</td></tr>`;
+  }).join("");
+  if(note) note.textContent="Nur vollständige Kalendermonate werden summiert; der 29. Februar zählt in Schaltjahren mit. Der laufende Monat bleibt bis zu seinem Abschluss „–“. Die Jahressumme erscheint nur bei zwölf vollständigen Monaten.";
+}
 async function updateStationPrecipitation(){
   if(!stationPrecipIndex) return;
   const stationId=document.getElementById("stationPrecipStationSelect").value;
@@ -7294,6 +7373,7 @@ async function updateStationPrecipitation(){
     ]);
     if(!profileResponse.ok) throw new Error(`Klimadatei konnte nicht geladen werden (HTTP ${profileResponse.status}).`);
     stationPrecipProfile=await profileResponse.json();
+    updateStationPrecipMonthlyTable(stationId);
 
     const labels=stationPrecipIndex.labels||[];
     const selectedLabels=labels.slice(range.startIndex,range.endIndex+1);

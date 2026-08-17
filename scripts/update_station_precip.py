@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import csv
 import io
 import json
@@ -44,7 +45,7 @@ RR_RECENT_PATTERN = re.compile(
 )
 RR_STATION_ID_PATTERN = re.compile(r"tageswerte_RR_(\d{5})_", re.IGNORECASE)
 
-STATE_VERSION = 3
+STATE_VERSION = 4
 MIN_REFERENCE_YEARS = 5
 MIN_HISTORY_YEARS = 5
 MIN_CURRENT_STATIONS = 500
@@ -274,6 +275,31 @@ def build_historical_period_envelopes(curves: dict[int, list[float]]) -> dict[st
     return result
 
 
+
+def observations_to_monthly_history(observations, current_year: int) -> list[dict[str, Any]]:
+    """Monatssummen je Jahr; nur vollständig vorliegende Kalendermonate erhalten einen Wert."""
+    values_by_month: dict[tuple[int, int], dict[int, float]] = defaultdict(dict)
+    for observation in observations:
+        day = observation.day
+        if day.year >= current_year:
+            continue
+        value = observation.values.get("rsk_high")
+        if value is not None:
+            values_by_month[(day.year, day.month)][day.day] = float(value)
+    history: list[dict[str, Any]] = []
+    for year in sorted({year for year, _ in values_by_month}):
+        months: list[float | None] = []
+        for month in range(1, 13):
+            vals = values_by_month.get((year, month), {})
+            days = calendar.monthrange(year, month)[1]
+            complete = len(vals) == days and all(d in vals for d in range(1, days + 1))
+            months.append(round(sum(vals[d] for d in range(1, days + 1)), 1) if complete else None)
+        if any(v is not None for v in months):
+            annual = round(sum(float(v) for v in months), 1) if all(v is not None for v in months) else None
+            history.append({"year": year, "months": months, "annual": annual})
+    return history
+
+
 def build_profile_payload(
     station_id: str,
     observations,
@@ -281,6 +307,7 @@ def build_profile_payload(
     current_year: int,
 ) -> tuple[StationProfile, dict[str, Any]] | None:
     curves = observations_to_complete_curves(observations, current_year)
+    monthly_history = observations_to_monthly_history(observations, current_year)
     if not curves:
         return None
 
@@ -337,6 +364,7 @@ def build_profile_payload(
         "reference_period": "1991-2020",
         "reference_years": len(reference_years),
         "reference_year_list": reference_years,
+        "monthly_history": monthly_history,
         "climate_mean_cumulative": climate_mean,
         "historical_min_cumulative": historical_min,
         "historical_max_cumulative": historical_max,
