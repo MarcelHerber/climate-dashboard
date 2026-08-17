@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
-"""Probe/build official ARSO station metadata for the Slovenia temperature IDs.
+"""Build official ARSO station metadata for the Slovenia Agromet temperature IDs.
 
-STEP 8 ONLY:
-- reads the already-tested 74-station agrometeorological inventory;
-- queries an official ARSO ArcGIS meteorological-station layer;
-- matches ArcGIS field ST_POSTAJE to the three-digit Agromet station ID;
-- reports exact-ID coverage, coordinate variants and missing IDs;
-- writes a small JSON metadata cache for the next integration step.
+STEP 8b ONLY.
 
-It DOES NOT modify:
-- the historical 1961-2025 temperature cache;
-- the 2026 current cache;
-- the unified Europe updater.
+The first probe used a VISFRIM project layer and therefore covered only a
+small regional subset. This corrected version uses the national ARSO
+"Atlas okolja" meteorological-station layer:
 
-Official ArcGIS layer:
-https://gis.arso.gov.si/arcgis/rest/services/VISFRIM/VISFRIM_new/MapServer/1
+  Atlasokolja_intranet_D96 / lay_MM_METEO (layer 81)
 
-Relevant official fields:
-ST_POSTAJE, IME_POSTAJ, DAT_ZAC_TI, DAT_KON_TI, Z, GEO_SIR, GEO_DOL
+Official fields used:
+  ST_POSTAJE  station number
+  IME_POSTAJE station name
+  DAT_ZAC_TIPA / DAT_KON_TIPA type-period dates
+  Z           elevation
+  GEO_SIR     latitude
+  GEO_DOL     longitude
+
+This script:
+- reads the already-tested 74-station ARSO Agromet inventory;
+- queries the national official ARSO GIS station layer;
+- matches the three-digit Agromet ID to ST_POSTAJE;
+- prefers the newest usable coordinate row if an ID occurs more than once;
+- reports missing IDs and coordinate variants;
+- writes a separate metadata v2 cache for the later Europe integration.
+
+It does NOT modify the historical/current temperature caches or the unified
+Europe updater.
 """
 
 from __future__ import annotations
@@ -25,7 +34,9 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
+import tempfile
 import unicodedata
 from datetime import datetime, UTC
 from pathlib import Path
@@ -34,20 +45,24 @@ from urllib.parse import urlencode
 
 import update_arso_slovenia_station_cache as core
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 
 GIS_LAYER = (
     "https://gis.arso.gov.si/arcgis/rest/services/"
-    "VISFRIM/VISFRIM_new/MapServer/1"
+    "Atlasokolja_intranet_D96/MapServer/81"
 )
 GIS_QUERY = GIS_LAYER + "/query"
 
 GIS_FIELDS = [
+    "OBJECTID",
+    "IDMM",
     "ST_POSTAJE",
-    "IME_POSTAJ",
-    "DAT_ZAC_TI",
-    "DAT_KON_TI",
+    "IME_POSTAJE",
+    "TIP",
+    "SIF_MERITVE",
+    "DAT_ZAC_TIPA",
+    "DAT_KON_TIPA",
     "ID",
     "Z",
     "GEO_SIR",
@@ -68,7 +83,22 @@ def status_path(cache_dir: Path) -> Path:
 
 
 def atomic_json(path: Path, obj: Any) -> None:
-    core.atomic_json(path, obj)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        tmp.write_text(
+            json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def norm_name(value: Any) -> str:
@@ -80,10 +110,7 @@ def norm_name(value: Any) -> str:
 
 
 def station_id(value: Any) -> str | None:
-    if value is None:
-        return None
-
-    if isinstance(value, bool):
+    if value is None or isinstance(value, bool):
         return None
 
     if isinstance(value, int):
@@ -112,16 +139,13 @@ def finite_float(value: Any) -> float | None:
     return x if math.isfinite(x) else None
 
 
-def parse_yearish(value: Any) -> tuple[int, int, int]:
-    """Return a sortable (year, month, day), unknown -> (0,0,0)."""
-    if value is None:
-        return (0, 0, 0)
+def date_rank(value: Any, *, blank_is_latest: bool) -> tuple[int, int, int]:
+    """Convert ARSO date-ish values to a sortable tuple."""
+    if value is None or not str(value).strip():
+        return (9999, 12, 31) if blank_is_latest else (0, 0, 0)
 
     s = str(value).strip()
-    if not s:
-        return (9999, 12, 31)  # blank end date generally means still active
 
-    # YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD
     m = re.search(
         r"\b(19\d{2}|20\d{2})[-./](\d{1,2})[-./](\d{1,2})\b",
         s,
@@ -129,16 +153,14 @@ def parse_yearish(value: Any) -> tuple[int, int, int]:
     if m:
         return tuple(map(int, m.groups()))
 
-    # DD.MM.YYYY / DD-MM-YYYY / DD/MM/YYYY
     m = re.search(
         r"\b(\d{1,2})[-./](\d{1,2})[-./](19\d{2}|20\d{2})\b",
         s,
     )
     if m:
-        d, mo, y = map(int, m.groups())
-        return (y, mo, d)
+        day, month, year = map(int, m.groups())
+        return (year, month, day)
 
-    # At least keep a year if that is all the layer contains.
     m = re.search(r"\b(19\d{2}|20\d{2})\b", s)
     if m:
         return (int(m.group(1)), 1, 1)
@@ -146,11 +168,42 @@ def parse_yearish(value: Any) -> tuple[int, int, int]:
     return (0, 0, 0)
 
 
+def coordinate_from_row(
+    row: dict[str, Any],
+) -> tuple[float, float, float | None] | None:
+    lat = finite_float(row.get("GEO_SIR"))
+    lon = finite_float(row.get("GEO_DOL"))
+    elev = finite_float(row.get("Z"))
+
+    if lat is None or lon is None:
+        return None
+
+    # Slovenia plus a small safety margin.
+    if not (45.0 <= lat <= 47.2 and 13.0 <= lon <= 17.0):
+        return None
+
+    if elev is not None and not (-20.0 <= elev <= 3000.0):
+        elev = None
+
+    return lat, lon, elev
+
+
+def row_rank(row: dict[str, Any]) -> tuple[Any, ...]:
+    """Prefer rows with coordinates and the newest applicable period."""
+    return (
+        1 if coordinate_from_row(row) is not None else 0,
+        date_rank(row.get("DAT_KON_TIPA"), blank_is_latest=True),
+        date_rank(row.get("DAT_ZAC_TIPA"), blank_is_latest=False),
+        int(finite_float(row.get("OBJECTID")) or 0),
+    )
+
+
 def make_query_url() -> str:
     params = {
         "where": "1=1",
         "outFields": ",".join(GIS_FIELDS),
         "returnGeometry": "false",
+        "resultRecordCount": "1000",
         "f": "json",
     }
     return GIS_QUERY + "?" + urlencode(params)
@@ -163,59 +216,47 @@ def load_gis_rows() -> tuple[list[dict[str, Any]], str]:
 
     if "error" in data:
         raise RuntimeError(
-            "ARSO ArcGIS query error: "
+            "ARSO Atlas okolja query error: "
             + json.dumps(data["error"], ensure_ascii=False)
         )
 
     features = data.get("features")
     if not isinstance(features, list):
         raise RuntimeError(
-            "ARSO ArcGIS response enthält keine 'features'-Liste."
+            "ARSO Atlas okolja response enthält keine 'features'-Liste."
         )
 
-    rows: list[dict[str, Any]] = []
+    rows = []
     for feature in features:
-        attrs = feature.get("attributes") if isinstance(feature, dict) else None
+        attrs = (
+            feature.get("attributes")
+            if isinstance(feature, dict)
+            else None
+        )
         if isinstance(attrs, dict):
             rows.append(attrs)
 
     if not rows:
-        raise RuntimeError("ARSO ArcGIS query lieferte 0 Datensätze.")
+        raise RuntimeError(
+            "ARSO Atlas okolja query lieferte 0 Datensätze."
+        )
+
+    if data.get("exceededTransferLimit"):
+        raise RuntimeError(
+            "ARSO Atlas okolja meldet exceededTransferLimit; "
+            "Abfrage muss paginiert werden."
+        )
 
     return rows, url
 
 
-def coordinate_from_row(row: dict[str, Any]) -> tuple[float, float, float | None] | None:
-    lat = finite_float(row.get("GEO_SIR"))
-    lon = finite_float(row.get("GEO_DOL"))
-    elev = finite_float(row.get("Z"))
-
-    # Slovenia bounding box with a little safety margin.
-    if lat is None or lon is None:
-        return None
-    if not (45.0 <= lat <= 47.2 and 13.0 <= lon <= 17.0):
-        return None
-    if elev is not None and not (-20 <= elev <= 3000):
-        elev = None
-
-    return (lat, lon, elev)
-
-
-def row_rank(row: dict[str, Any]) -> tuple[Any, ...]:
-    """Prefer the most recently applicable station-location row."""
-    end = parse_yearish(row.get("DAT_KON_TI"))
-    start = parse_yearish(row.get("DAT_ZAC_TI"))
-    has_coord = coordinate_from_row(row) is not None
-    return (
-        1 if has_coord else 0,
-        end,
-        start,
-        int(finite_float(row.get("ID")) or 0),
-    )
-
-
-def unique_coordinate_variants(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen: dict[tuple[float, float, float | None], dict[str, Any]] = {}
+def unique_coordinate_variants(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    seen: dict[
+        tuple[float, float, float | None],
+        dict[str, Any],
+    ] = {}
 
     for row in rows:
         coord = coordinate_from_row(row)
@@ -234,10 +275,13 @@ def unique_coordinate_variants(rows: list[dict[str, Any]]) -> list[dict[str, Any
                 "lat": lat,
                 "lon": lon,
                 "elevation_m": elev,
-                "gis_name": row.get("IME_POSTAJ"),
-                "start": row.get("DAT_ZAC_TI"),
-                "end": row.get("DAT_KON_TI"),
-                "gis_id": row.get("ID"),
+                "gis_name": row.get("IME_POSTAJE"),
+                "start": row.get("DAT_ZAC_TIPA"),
+                "end": row.get("DAT_KON_TIPA"),
+                "tip": row.get("TIP"),
+                "measurement_codes": row.get("SIF_MERITVE"),
+                "idmm": row.get("IDMM"),
+                "objectid": row.get("OBJECTID"),
             }
 
     return list(seen.values())
@@ -251,9 +295,8 @@ def build_metadata(
 
     for row in gis_rows:
         sid = station_id(row.get("ST_POSTAJE"))
-        if sid is None:
-            continue
-        by_sid.setdefault(sid, []).append(row)
+        if sid is not None:
+            by_sid.setdefault(sid, []).append(row)
 
     metadata: dict[str, dict[str, Any]] = {}
     missing_ids: list[str] = []
@@ -274,50 +317,33 @@ def build_metadata(
             multirow_ids.append(sid)
 
         candidates = sorted(candidates, key=row_rank, reverse=True)
-        chosen = candidates[0]
+
+        chosen = next(
+            (
+                row
+                for row in candidates
+                if coordinate_from_row(row) is not None
+            ),
+            candidates[0],
+        )
+
         coord = coordinate_from_row(chosen)
-
-        # If the nominally newest row has no usable coordinate, use the
-        # newest row that does.
-        if coord is None:
-            chosen = next(
-                (
-                    row
-                    for row in candidates
-                    if coordinate_from_row(row) is not None
-                ),
-                chosen,
-            )
-            coord = coordinate_from_row(chosen)
-
         variants = unique_coordinate_variants(candidates)
+
         if len(variants) > 1:
             multicoordinate_ids.append(sid)
 
         if coord is None:
             no_coordinate_ids.append(sid)
-            metadata[sid] = {
-                "station_id": sid,
-                "name": inv.get("name"),
-                "lat": None,
-                "lon": None,
-                "elevation_m": None,
-                "gis_name": chosen.get("IME_POSTAJ"),
-                "gis_start": chosen.get("DAT_ZAC_TI"),
-                "gis_end": chosen.get("DAT_KON_TI"),
-                "gis_id": chosen.get("ID"),
-                "coordinate_variants": variants,
-            }
-            continue
-
-        lat, lon, elev = coord
+            lat = lon = elev = None
+        else:
+            lat, lon, elev = coord
 
         inv_name = inv.get("name")
-        gis_name = chosen.get("IME_POSTAJ")
+        gis_name = chosen.get("IME_POSTAJE")
         ni = norm_name(inv_name)
         ng = norm_name(gis_name)
 
-        # Only informational. Names can legitimately differ slightly.
         if ni and ng and ni not in ng and ng not in ni:
             name_mismatches.append(
                 {
@@ -334,22 +360,25 @@ def build_metadata(
             "lon": lon,
             "elevation_m": elev,
             "gis_name": gis_name,
-            "gis_start": chosen.get("DAT_ZAC_TI"),
-            "gis_end": chosen.get("DAT_KON_TI"),
-            "gis_id": chosen.get("ID"),
+            "gis_start": chosen.get("DAT_ZAC_TIPA"),
+            "gis_end": chosen.get("DAT_KON_TIPA"),
+            "gis_tip": chosen.get("TIP"),
+            "gis_measurement_codes": chosen.get("SIF_MERITVE"),
+            "gis_idmm": chosen.get("IDMM"),
+            "gis_objectid": chosen.get("OBJECTID"),
             "coordinate_variants": variants,
         }
 
-    matched_ids = sorted(metadata)
     coordinate_ids = sorted(
         sid
         for sid, meta in metadata.items()
-        if meta.get("lat") is not None and meta.get("lon") is not None
+        if meta.get("lat") is not None
+        and meta.get("lon") is not None
     )
 
     return {
         "metadata": metadata,
-        "matched_ids": matched_ids,
+        "matched_ids": sorted(metadata),
         "coordinate_ids": coordinate_ids,
         "missing_ids": missing_ids,
         "no_coordinate_ids": no_coordinate_ids,
@@ -360,19 +389,26 @@ def build_metadata(
     }
 
 
-def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    """Independent sanity checks against ARSO climate pages."""
+def known_station_checks(
+    metadata: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    # Independent official ARSO climate-page sanity references.
     expected = {
-        # ID: (lat, lon, elevation)
         "192": (46.0655, 14.5124, 299.0),   # Ljubljana Bežigrad
         "097": (45.8956, 13.6240, 55.0),    # Bilje
         "048": (46.3787, 13.8489, 2513.0),  # Kredarica
     }
 
     checks = []
+
     for sid, (elat, elon, eelev) in expected.items():
         meta = metadata.get(sid)
-        if not meta or meta.get("lat") is None or meta.get("lon") is None:
+
+        if (
+            not meta
+            or meta.get("lat") is None
+            or meta.get("lon") is None
+        ):
             checks.append(
                 {
                     "station_id": sid,
@@ -386,7 +422,10 @@ def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, 
         lon = float(meta["lon"])
         elev = meta.get("elevation_m")
 
-        horizontal_ok = abs(lat - elat) <= 0.03 and abs(lon - elon) <= 0.03
+        horizontal_ok = (
+            abs(lat - elat) <= 0.03
+            and abs(lon - elon) <= 0.03
+        )
         elevation_ok = (
             elev is None
             or abs(float(elev) - eelev) <= 60.0
@@ -415,16 +454,32 @@ def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, 
 def run(cache_dir: Path) -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=== ARSO SLOWENIEN · STATIONSMETADATEN ===", flush=True)
-    print("Ziel: offizielle Koordinaten/Höhen für die 74 Agromet-IDs", flush=True)
+    print(
+        "=== ARSO SLOWENIEN · STATIONSMETADATEN V2 ===",
+        flush=True,
+    )
+    print(
+        "Ziel: nationale offizielle Koordinaten/Höhen "
+        "für die 74 Agromet-IDs",
+        flush=True,
+    )
     print(f"GIS-Layer: {GIS_LAYER}", flush=True)
 
     inventory, inventory_source = core.load_inventory()
-    print(f"Agromet-Inventar: {len(inventory):,} Stationen", flush=True)
-    print(f"Inventarquelle: {inventory_source}", flush=True)
+    print(
+        f"Agromet-Inventar: {len(inventory):,} Stationen",
+        flush=True,
+    )
+    print(
+        f"Inventarquelle: {inventory_source}",
+        flush=True,
+    )
 
     gis_rows, query_url = load_gis_rows()
-    print(f"ARSO-GIS-Datensätze: {len(gis_rows):,}", flush=True)
+    print(
+        f"Nationaler ARSO-GIS-Datensatz: {len(gis_rows):,} Zeilen",
+        flush=True,
+    )
 
     result = build_metadata(inventory, gis_rows)
     metadata = result["metadata"]
@@ -432,7 +487,9 @@ def run(cache_dir: Path) -> int:
 
     payload = {
         "format_version": FORMAT_VERSION,
-        "source": "ARSO official ArcGIS meteorological station layer",
+        "source": (
+            "ARSO Atlas okolja national meteorological station layer"
+        ),
         "source_layer": GIS_LAYER,
         "query_url": query_url,
         "inventory_source": inventory_source,
@@ -444,7 +501,9 @@ def run(cache_dir: Path) -> int:
         "missing_id_count": len(result["missing_ids"]),
         "no_coordinate_id_count": len(result["no_coordinate_ids"]),
         "multirow_id_count": len(result["multirow_ids"]),
-        "multicoordinate_id_count": len(result["multicoordinate_ids"]),
+        "multicoordinate_id_count": len(
+            result["multicoordinate_ids"]
+        ),
         "metadata": metadata,
         "missing_ids": result["missing_ids"],
         "no_coordinate_ids": result["no_coordinate_ids"],
@@ -458,7 +517,10 @@ def run(cache_dir: Path) -> int:
     out = metadata_path(cache_dir)
     atomic_json(out, payload)
 
-    known_ok = sum(1 for x in checks if x.get("ok"))
+    known_ok = sum(
+        1 for item in checks if item.get("ok")
+    )
+
     status = {
         "complete_probe": True,
         "metadata_file": str(out),
@@ -470,13 +532,19 @@ def run(cache_dir: Path) -> int:
         "missing_id_count": len(result["missing_ids"]),
         "no_coordinate_id_count": len(result["no_coordinate_ids"]),
         "multirow_id_count": len(result["multirow_ids"]),
-        "multicoordinate_id_count": len(result["multicoordinate_ids"]),
-        "name_mismatch_count": len(result["name_mismatches"]),
+        "multicoordinate_id_count": len(
+            result["multicoordinate_ids"]
+        ),
+        "name_mismatch_count": len(
+            result["name_mismatches"]
+        ),
         "known_station_checks_ok": known_ok,
         "known_station_checks_total": len(checks),
         "missing_ids": result["missing_ids"],
         "no_coordinate_ids": result["no_coordinate_ids"],
-        "multicoordinate_ids": result["multicoordinate_ids"],
+        "multicoordinate_ids": result[
+            "multicoordinate_ids"
+        ],
         "updated_utc": datetime.now(UTC).isoformat(),
     }
 
@@ -484,7 +552,7 @@ def run(cache_dir: Path) -> int:
 
     print()
     print("=" * 88)
-    print("ARSO SLOWENIEN · METADATEN STATUS")
+    print("ARSO SLOWENIEN · METADATEN V2 STATUS")
     print("=" * 88)
     print(json.dumps(status, indent=2, ensure_ascii=False))
 
@@ -496,12 +564,30 @@ def run(cache_dir: Path) -> int:
     if result["name_mismatches"]:
         print()
         print("Erste Namensabweichungen (nur Hinweis):")
-        for item in result["name_mismatches"][:15]:
+        for item in result["name_mismatches"][:20]:
             print(json.dumps(item, ensure_ascii=False))
+
+    if result["multicoordinate_ids"]:
+        print()
+        print(
+            "IDs mit mehreren historischen "
+            "Koordinatenvarianten:"
+        )
+        for sid in result["multicoordinate_ids"]:
+            print(
+                sid,
+                json.dumps(
+                    metadata[sid]["coordinate_variants"],
+                    ensure_ascii=False,
+                ),
+            )
 
     print()
     print(f"Output: {out}")
-    print("ARSO Slowenien Metadaten-Abgleich abgeschlossen.")
+    print(
+        "ARSO Slowenien nationaler Metadaten-Abgleich abgeschlossen."
+    )
+
     return 0
 
 
@@ -515,44 +601,54 @@ def self_test() -> int:
 
     rows = [
         {
+            "OBJECTID": 1,
             "ST_POSTAJE": 48,
-            "IME_POSTAJ": "KREDARICA",
-            "DAT_ZAC_TI": "01.01.1961",
-            "DAT_KON_TI": "",
-            "ID": 1,
-            "Z": 2513,
-            "GEO_SIR": 46.3787,
-            "GEO_DOL": 13.8489,
+            "IME_POSTAJE": "KREDARICA",
+            "DAT_ZAC_TIPA": "01.01.1961",
+            "DAT_KON_TIPA": "",
+            "Z": 2514,
+            "GEO_SIR": 46.37944,
+            "GEO_DOL": 13.85389,
         },
         {
+            "OBJECTID": 2,
             "ST_POSTAJE": "097",
-            "IME_POSTAJ": "Bilje",
-            "DAT_ZAC_TI": "1962-01-01",
-            "DAT_KON_TI": None,
-            "ID": 2,
+            "IME_POSTAJE": "Bilje",
+            "DAT_ZAC_TIPA": "1962-01-01",
+            "DAT_KON_TIPA": None,
             "Z": 55,
-            "GEO_SIR": 45.8956,
-            "GEO_DOL": 13.6240,
+            "GEO_SIR": 45.89583,
+            "GEO_DOL": 13.62889,
         },
         {
+            "OBJECTID": 3,
             "ST_POSTAJE": 192.0,
-            "IME_POSTAJ": "Ljubljana Bezigrad",
-            "DAT_ZAC_TI": "1961",
-            "DAT_KON_TI": "2010",
-            "ID": 3,
+            "IME_POSTAJE": "Ljubljana Bezigrad",
+            "DAT_ZAC_TIPA": "1961",
+            "DAT_KON_TIPA": "2010",
             "Z": 299,
             "GEO_SIR": 46.0650,
             "GEO_DOL": 14.5119,
         },
         {
+            "OBJECTID": 4,
             "ST_POSTAJE": 192,
-            "IME_POSTAJ": "Ljubljana Bežigrad",
-            "DAT_ZAC_TI": "2011",
-            "DAT_KON_TI": "",
-            "ID": 4,
+            "IME_POSTAJE": "Ljubljana Bežigrad",
+            "DAT_ZAC_TIPA": "2011",
+            "DAT_KON_TIPA": "",
             "Z": 299,
             "GEO_SIR": 46.0655,
             "GEO_DOL": 14.5124,
+        },
+        {
+            "OBJECTID": 5,
+            "ST_POSTAJE": 816,
+            "IME_POSTAJE": "Podnanos",
+            "DAT_ZAC_TIPA": "2017",
+            "DAT_KON_TIPA": "",
+            "Z": 150,
+            "GEO_SIR": 45.80,
+            "GEO_DOL": 13.97,
         },
     ]
 
@@ -562,16 +658,19 @@ def self_test() -> int:
     assert station_id("097") == "097"
     assert station_id(192.0) == "192"
 
-    assert result["missing_ids"] == ["816"]
+    assert result["missing_ids"] == []
     assert result["multirow_ids"] == ["192"]
     assert result["multicoordinate_ids"] == ["192"]
-    assert result["metadata"]["192"]["gis_id"] == 4
+    assert result["metadata"]["192"]["gis_objectid"] == 4
     assert result["metadata"]["192"]["lat"] == 46.0655
+    assert len(result["coordinate_ids"]) == 4
 
     checks = known_station_checks(result["metadata"])
-    assert sum(1 for x in checks if x["ok"]) == 3
+    assert sum(1 for item in checks if item["ok"]) == 3
 
-    print("ARSO Slovenia station-metadata self-test OK")
+    print(
+        "ARSO Slovenia station-metadata v2 self-test OK"
+    )
     return 0
 
 
