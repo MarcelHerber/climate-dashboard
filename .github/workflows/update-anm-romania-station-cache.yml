@@ -1,0 +1,90 @@
+name: Build ANM Romania station cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rumänien-Baseline vollständig neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Cache-Schlüssel bestimmen
+        id: dates
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          echo "base_year=${BASE_YEAR}" >> "$GITHUB_OUTPUT"
+
+      - name: Vorhandenen Rumänien-Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/europe-stations/anm_romania_daily_baseline_through_*_v1.pkl.gz
+            .cache/europe-stations/anm_romania_progress_through_*_v1.pkl.gz
+            .cache/europe-stations/anm_romania_status_through_*.json
+          key: anm-romania-v1-${{ steps.dates.outputs.base_year }}-${{ github.run_id }}
+          restore-keys: |
+            anm-romania-v1-${{ steps.dates.outputs.base_year }}-
+
+      - name: Skript prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/update_anm_romania_station_cache.py
+          python scripts/update_anm_romania_station_cache.py --self-test
+
+      - name: ANM Rumänien Historical Baseline bauen
+        shell: bash
+        env:
+          FORCE_INPUT: ${{ inputs.force }}
+          BASE_YEAR: ${{ steps.dates.outputs.base_year }}
+        run: |
+          set -euo pipefail
+
+          EXTRA_ARGS=""
+          if [[ "${FORCE_INPUT:-false}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+
+          python scripts/update_anm_romania_station_cache.py \
+            --cutoff-year "${BASE_YEAR}" \
+            --workers 6 \
+            ${EXTRA_ARGS}
+
+      - name: Status anzeigen
+        shell: bash
+        env:
+          BASE_YEAR: ${{ steps.dates.outputs.base_year }}
+        run: |
+          set -euo pipefail
+          STATUS=".cache/europe-stations/anm_romania_status_through_${BASE_YEAR}.json"
+          test -s "$STATUS"
+          cat "$STATUS"
+
+      - name: Status als Artifact speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: anm-romania-baseline-status
+          path: .cache/europe-stations/anm_romania_status_through_*.json
+          if-no-files-found: error
+          retention-days: 14
