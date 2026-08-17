@@ -17,6 +17,7 @@ National sources:
 - Czechia: CHMI Open Data (daily TMA/TMI)
 - Hungary: HungaroMet Open Data (original controlled long series + HABP_1D)
 - Ireland: Met Éireann Climate Data Online (daily maxtp/mintp)
+- Estonia: Estonian Environment Agency climate API (daily DTAX/DTAN)
 - remaining Europe: GHCN-Daily
 
 The core Stations-V5 writer remains unchanged. Dedicated compact national
@@ -64,10 +65,12 @@ import update_hungaromet_hungary_station_cache as hungary_hist
 import update_hungaromet_hungary_current as hungary_current_mod
 import update_met_eireann_ireland_station_cache as ireland_hist
 import update_met_eireann_ireland_current as ireland_current_mod
+import update_ilmateenistus_estonia_station_cache as estonia_hist
+import update_ilmateenistus_estonia_current as estonia_current_mod
 
 
 ACTIVE_GRACE_DAYS = 45
-NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI"}
+NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}
 OPPOSITE_EXTREMES_CACHE_VERSION = 1
 
 # The legacy Stations-V5 core only persists the conventional record direction
@@ -857,6 +860,33 @@ def fmi_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, cor
     return out
 
 
+def estonia_inventory_to_meta(inventory: dict[str, dict[str, Any]]) -> dict[str, core.StationMeta]:
+    out: dict[str, core.StationMeta] = {}
+    for raw_id, meta in inventory.items():
+        if not isinstance(meta, dict):
+            continue
+        sid = f"ILMATEENISTUS:{raw_id}"
+        station = _make_station_meta(
+            sid=sid,
+            raw_meta=meta,
+            lat_keys=("lat", "latitude"),
+            lon_keys=("lon", "longitude"),
+            elev_keys=("elevation_m", "elevation", "height"),
+            name_keys=("name",),
+            country_code="EN",
+            country="Estland",
+            source=estonia_hist.SOURCE,
+            quality_rule=(
+                "Estonian Environment Agency climate API: tägliche DTAX=Tmax und "
+                "DTAN=Tmin für das verifizierte aktive 25-Stationen-Netz. "
+                "Nichtnumerische Werte werden verworfen; Tmin>Tmax wird abgelehnt."
+            ),
+        )
+        if station is not None:
+            out[sid] = station
+    return out
+
+
 def hungary_inventory_to_meta(
     inventory: dict[str, dict[str, Any]],
     *,
@@ -1111,6 +1141,7 @@ def _load_compact_national_sources(
     force_belgium: bool,
     force_swiss: bool,
     force_fmi: bool,
+    force_estonia: bool,
     force_chmi: bool,
     force_hungary: bool,
     force_ireland: bool,
@@ -1188,6 +1219,17 @@ def _load_compact_national_sources(
     )
     fmi_base = fmi_hist.load_baseline(cache_dir, cutoff_year)
 
+    estonia_hist.build_baseline(
+        cache_dir,
+        cutoff_year,
+        force=force_estonia,
+        max_runtime_minutes=155.0,
+    )
+    estonia_base_path = estonia_hist.baseline_path(cache_dir, cutoff_year)
+    if not estonia_hist.valid_final(estonia_base_path, cutoff_year):
+        raise RuntimeError(f"Estland-Baseline unvollständig: {estonia_base_path}")
+    estonia_base = estonia_hist.load_pickle_gzip(estonia_base_path)
+
     chmi_hist.build_baseline(
         cache_dir,
         cutoff_year,
@@ -1251,6 +1293,11 @@ def _load_compact_national_sources(
     fmi_current_path = fmi_current_mod.build_current(cache_dir, current_year)
     fmi_cur = fmi_hist.load_pickle_gzip(fmi_current_path)
 
+    estonia_current_path = estonia_current_mod.build_current(cache_dir, current_year)
+    estonia_cur = estonia_hist.load_pickle_gzip(estonia_current_path)
+    if not isinstance(estonia_cur, dict) or estonia_cur.get("complete") is not True:
+        raise RuntimeError(f"Estland-Current unvollständig: {estonia_current_path}")
+
     chmi_current_path = chmi_current_mod.build_current(cache_dir, current_year, workers=12)
     chmi_cur = chmi_current_mod.load_current(cache_dir, current_year)
 
@@ -1271,6 +1318,7 @@ def _load_compact_national_sources(
         belgium_base, belgium_cur,
         swiss_base, swiss_cur,
         fmi_base, fmi_cur,
+        estonia_base, estonia_cur,
         chmi_base, chmi_cur,
         hungary_base, hungary_cur,
         ireland_base, ireland_cur,
@@ -1444,6 +1492,7 @@ def patch_index_metadata(
     belgium_current_count: int,
     swiss_current_count: int,
     fmi_current_count: int,
+    estonia_current_count: int,
     chmi_current_count: int,
     hungary_current_count: int,
     ireland_current_count: int,
@@ -1462,7 +1511,7 @@ def patch_index_metadata(
         "KMI/RMI Open Data (Belgien) + MeteoSwiss Open Data (Schweiz) + "
         "FMI Open Data (Finnland) + CHMI Open Data (Tschechien) + "
         "HungaroMet Open Data (Ungarn) + Met Éireann Climate Data Online (Irland) + "
-        "GHCN-Daily (übriges Europa)"
+        "Estonian Environment Agency climate API (Estland) + GHCN-Daily (übriges Europa)"
     )
     payload["sources"] = [
         {"name": core.DWD_SOURCE, "scope": "Deutschland", "url": core.DWD_BASE, "stations": counts.get(core.DWD_SOURCE, 0)},
@@ -1480,6 +1529,7 @@ def patch_index_metadata(
         {"name": chmi_hist.SOURCE, "scope": "Tschechien", "url": chmi_hist.PUBLIC_URL, "stations": counts.get(chmi_hist.SOURCE, 0)},
         {"name": hungary_hist.SOURCE, "scope": "Ungarn", "url": hungary_hist.PUBLIC_URL, "stations": counts.get(hungary_hist.SOURCE, 0)},
         {"name": ireland_hist.SOURCE, "scope": "Irland", "url": ireland_hist.PUBLIC_URL, "stations": counts.get(ireland_hist.SOURCE, 0)},
+        {"name": estonia_hist.SOURCE, "scope": "Estland", "url": estonia_hist.PUBLIC_URL, "stations": counts.get(estonia_hist.SOURCE, 0)},
         {"name": core.GHCN_SOURCE, "scope": "übriges Europa", "url": core.GHCN_BASE, "stations": counts.get(core.GHCN_SOURCE, 0)},
     ]
     payload["quality_rule"] = (
@@ -1498,6 +1548,7 @@ def patch_index_metadata(
         "Tschechien: CHMI Open Data tägliche TMA/TMI ausschließlich mit QUALITY=0 (Good). "
         "Ungarn: HungaroMet kontrollierte, nicht homogenisierte Original-Langreihen ab 1901 plus HABP_1D tn/tx; Q_tn/Q_tx sind derzeit reserviert, -999/fehlende und unplausible Werte werden verworfen. "
         "Irland: Met Éireann Climate Data Online maxtp/mintp; gmin/igmin werden ausgeschlossen; Republik Irland ohne Nordirland. "
+        "Estland: Estonian Environment Agency climate API DTAX/DTAN; nichtnumerische Werte verworfen, Tmin>Tmax abgelehnt. "
         "Übriges Europa: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
@@ -1509,12 +1560,13 @@ def patch_index_metadata(
         "FMI Finnland ab 1844, CHMI Tschechien bis zurück 1775 sowie HungaroMet Ungarn "
         "mit 10 kontrollierten Original-Langreihen ab 1901 und HABP_1D Stationsnetz vor allem ab 2002; "
         "Met Éireann Irland mit offiziellen täglichen maxtp/mintp-Reihen bis zurück 1939; "
+        "Estonian Environment Agency Estland für das verifizierte aktive 25-Stationen-Netz ab 1991 (Roomassaare ab 2007); "
         "GHCN-Daily für das übrige Europa. "
         f"Das laufende Jahr {current_year} wird bei jedem Workflow-Lauf separat aktualisiert."
     )
     payload["publication_scope"] = (
         "Europa vollständig: nationale Quellen für Deutschland, Frankreich, Spanien, Österreich, Polen, "
-        "Niederlande, Norwegen, Dänemark, Schweden, Belgien, die Schweiz, Finnland, Tschechien, Ungarn und Irland; GHCN-Daily für Rest-Europa"
+        "Niederlande, Norwegen, Dänemark, Schweden, Belgien, die Schweiz, Finnland, Tschechien, Ungarn, Irland und Estland; GHCN-Daily für Rest-Europa"
     )
     payload["coverage"] = {
         "Deutschland": {"source": core.DWD_SOURCE, "historical_complete": True},
@@ -1575,6 +1627,12 @@ def patch_index_metadata(
             "current_year_station_count": ireland_current_count,
             "history_note": "Met Éireann: offizielle tägliche maxtp/mintp-Lufttemperatur; gmin/igmin ausgeschlossen; nur Republik Irland.",
         },
+        "Estland": {
+            "source": estonia_hist.SOURCE,
+            "historical_complete": True,
+            "current_year_station_count": estonia_current_count,
+            "history_note": "Estonian Environment Agency: DTAX/DTAN für 25 verifizierte aktive Stationen; öffentliche Baseline ab 1991, Roomassaare ab 2007.",
+        },
         "Rest-Europa": {"source": core.GHCN_SOURCE, "historical_complete": True},
     }
 
@@ -1600,6 +1658,7 @@ def validate_payload(payload: dict) -> None:
         "Tschechien": chmi_hist.SOURCE,
         "Ungarn": hungary_hist.SOURCE,
         "Irland": ireland_hist.SOURCE,
+        "Estland": estonia_hist.SOURCE,
     }
     for country, source in expected.items():
         country_rows = [row for row in rows if row.get("country") == country]
@@ -1638,6 +1697,7 @@ def validate_payload(payload: dict) -> None:
         chmi_hist.SOURCE,
         hungary_hist.SOURCE,
         ireland_hist.SOURCE,
+        estonia_hist.SOURCE,
         core.GHCN_SOURCE,
     ):
         if counts.get(source, 0) <= 0:
@@ -1702,7 +1762,7 @@ def self_test() -> None:
     assert dmi_meta_test["DMI:06030"].source == dmi_hist.SOURCE
     assert dmi_meta_test["DMI:06030"].country == "Dänemark"
 
-    assert {"SW", "BE", "SZ", "FI", "EZ", "HU", "EI"}.issubset(NATIONAL_GHCN_CODES)
+    assert {"SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}.issubset(NATIONAL_GHCN_CODES)
 
     ireland_meta_test = ireland_inventory_to_meta(
         {"532": {"name": "Dublin Airport", "lat": 53.43, "lon": -6.25, "elevation_m": 71}},
@@ -1720,6 +1780,9 @@ def self_test() -> None:
     assert swiss_meta_test["METEOSWISS:BER"].country == "Schweiz"
     fmi_meta_test = fmi_inventory_to_meta({"100001": {"name": "Test FI", "lat": 60.2, "lon": 24.9, "elevation_m": 50}})
     assert fmi_meta_test["FMI:100001"].country == "Finnland"
+    estonia_meta_test = estonia_inventory_to_meta({"AJHARK01": {"name": "Tallinn-Harku", "lat": 59.398, "lon": 24.603}})
+    assert estonia_meta_test["ILMATEENISTUS:AJHARK01"].country == "Estland"
+    assert estonia_meta_test["ILMATEENISTUS:AJHARK01"].source == estonia_hist.SOURCE
     chmi_meta_test = chmi_inventory_to_meta({"0-203-X": {"name": "Praha", "lat": 50.08, "lon": 14.43, "elevation": 200}})
     assert chmi_meta_test["CHMI:0-203-X"].country == "Tschechien"
 
@@ -1793,6 +1856,7 @@ def main() -> int:
     parser.add_argument("--force-chmi-baseline", action="store_true")
     parser.add_argument("--force-hungary-baseline", action="store_true")
     parser.add_argument("--force-ireland-baseline", action="store_true")
+    parser.add_argument("--force-estonia-baseline", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -1816,7 +1880,7 @@ def main() -> int:
         "DWD Deutschland + Météo-France Frankreich + AEMET Spanien + GeoSphere Austria + "
         "IMGW Polen + KNMI Niederlande + MET Norway Frost + DMI Dänemark + "
         "SMHI Schweden + KMI/RMI Belgien + MeteoSwiss Schweiz + FMI Finnland + "
-        "CHMI Tschechien + HungaroMet Ungarn + Met Éireann Irland + GHCN-Daily Rest-Europa."
+        "CHMI Tschechien + HungaroMet Ungarn + Met Éireann Irland + Estland Climate API + GHCN-Daily Rest-Europa."
     )
 
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
@@ -1839,10 +1903,10 @@ def main() -> int:
     ghcn_stations = {
         sid: meta
         for sid, meta in ghcn_all_stations.items()
-        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI"}
+        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}
     }
     log(
-        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH/FI/CZ/HU/IE: "
+        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH/FI/CZ/HU/IE/EE: "
         f"{len(ghcn_stations):,}"
     )
     if not ghcn_stations:
@@ -1901,6 +1965,8 @@ def main() -> int:
         swiss_cur_payload,
         fmi_base,
         fmi_cur_payload,
+        estonia_base,
+        estonia_cur_payload,
         chmi_base,
         chmi_cur_payload,
         hungary_base,
@@ -1918,6 +1984,7 @@ def main() -> int:
         force_belgium=force_all or args.force_belgium_baseline,
         force_swiss=force_all or args.force_swiss_baseline,
         force_fmi=force_all or args.force_fmi_baseline,
+        force_estonia=force_all or args.force_estonia_baseline,
         force_chmi=force_all or args.force_chmi_baseline,
         force_hungary=force_all or args.force_hungary_baseline,
         force_ireland=force_all or args.force_ireland_baseline,
@@ -1939,6 +2006,7 @@ def main() -> int:
     belgium_current = compact_records_to_core_current(belgium_cur_payload.get("records", {}), prefix="RMI")
     swiss_current = compact_records_to_core_current(swiss_cur_payload.get("records", {}), prefix="METEOSWISS")
     fmi_current = compact_records_to_core_current(fmi_cur_payload.get("records", {}), prefix="FMI")
+    estonia_current = compact_records_to_core_current(estonia_cur_payload.get("records", {}), prefix="ILMATEENISTUS")
     chmi_current = chmi_packed_to_core_current(chmi_cur_payload.get("stations", {}))
     hungary_current = compact_records_to_core_current(hungary_cur_payload.get("records", {}), prefix="HUNGAROMET")
     ireland_current = compact_records_to_core_current(ireland_cur_payload.get("records", {}), prefix="METEIREANN")
@@ -1954,6 +2022,7 @@ def main() -> int:
         ("KMI/RMI Belgien", belgium_current),
         ("MeteoSwiss Schweiz", swiss_current),
         ("FMI Finnland", fmi_current),
+        ("Estland Climate API", estonia_current),
         ("CHMI Tschechien", chmi_current),
         ("HungaroMet Ungarn", hungary_current),
         ("Met Éireann Irland", ireland_current),
@@ -1982,6 +2051,8 @@ def main() -> int:
     swiss_inventory.update(swiss_cur_payload.get("inventory", {}))
     fmi_inventory = dict(fmi_base.get("inventory", {}))
     fmi_inventory.update(fmi_cur_payload.get("inventory", {}))
+    estonia_inventory = dict(estonia_base.get("inventory", {}))
+    estonia_inventory.update(estonia_cur_payload.get("inventory", {}))
     chmi_inventory = chmi_payload_inventory(chmi_base, chmi_cur_payload)
     hungary_inventory = dict(hungary_base.get("inventory", {}))
     hungary_inventory.update(hungary_cur_payload.get("inventory", {}))
@@ -2020,6 +2091,7 @@ def main() -> int:
     belgium_stations = belgium_inventory_to_meta(belgium_inventory)
     swiss_stations = swiss_inventory_to_meta(swiss_inventory)
     fmi_stations = fmi_inventory_to_meta(fmi_inventory)
+    estonia_stations = estonia_inventory_to_meta(estonia_inventory)
     chmi_stations = chmi_inventory_to_meta(chmi_inventory)
 
     hungary_record_ids = set(str(x) for x in hungary_base.get("records", {}))
@@ -2064,7 +2136,7 @@ def main() -> int:
 
     if (not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations
             or not smhi_stations or not belgium_stations or not swiss_stations
-            or not fmi_stations or not chmi_stations or not hungary_stations
+            or not fmi_stations or not estonia_stations or not chmi_stations or not hungary_stations
             or not ireland_stations):
         raise RuntimeError(
             "Nationale Metadaten unvollständig: "
@@ -2072,7 +2144,7 @@ def main() -> int:
             f"Frost={len(frost_stations)}, DMI={len(dmi_stations)}, "
             f"SMHI={len(smhi_stations)}, Belgien={len(belgium_stations)}, "
             f"MeteoSwiss={len(swiss_stations)}, FMI={len(fmi_stations)}, "
-            f"CHMI={len(chmi_stations)}, HungaroMet={len(hungary_stations)}, "
+            f"Estland={len(estonia_stations)}, CHMI={len(chmi_stations)}, HungaroMet={len(hungary_stations)}, "
             f"MetEireann={len(ireland_stations)}"
         )
 
@@ -2089,6 +2161,7 @@ def main() -> int:
     stations.update(belgium_stations)
     stations.update(swiss_stations)
     stations.update(fmi_stations)
+    stations.update(estonia_stations)
     stations.update(chmi_stations)
     stations.update(hungary_stations)
     stations.update(ireland_stations)
@@ -2106,6 +2179,7 @@ def main() -> int:
     states.update(compact_records_to_core_states(belgium_base.get("records", {}), prefix="RMI"))
     states.update(compact_records_to_core_states(swiss_base.get("records", {}), prefix="METEOSWISS"))
     states.update(compact_records_to_core_states(fmi_base.get("records", {}), prefix="FMI"))
+    states.update(compact_records_to_core_states(estonia_base.get("records", {}), prefix="ILMATEENISTUS"))
     states.update(chmi_packed_to_core_states(chmi_base.get("stations", {})))
     states.update(compact_records_to_core_states(hungary_base.get("records", {}), prefix="HUNGAROMET"))
     states.update(compact_records_to_core_states(ireland_base.get("records", {}), prefix="METEIREANN"))
@@ -2123,6 +2197,7 @@ def main() -> int:
     current.update(belgium_current)
     current.update(swiss_current)
     current.update(fmi_current)
+    current.update(estonia_current)
     current.update(chmi_current)
     current.update(hungary_current)
     current.update(ireland_current)
@@ -2149,6 +2224,7 @@ def main() -> int:
         belgium_current_count=len(belgium_current),
         swiss_current_count=len(swiss_current),
         fmi_current_count=len(fmi_current),
+        estonia_current_count=len(estonia_current),
         chmi_current_count=len(chmi_current),
         hungary_current_count=len(hungary_current),
         ireland_current_count=len(ireland_current),
