@@ -53,8 +53,9 @@ jobs:
           path: |
             .era5_running_cache
             .era5_cache/cartopy
-          key: era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
+          key: era5-land-running-v2-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
           restore-keys: |
+            era5-land-running-v2-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
             era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
             era5-land-running-v1-${{ runner.os }}-
 
@@ -78,6 +79,58 @@ jobs:
           key: ${CDSAPI_KEY}
           EOF
           chmod 600 "$HOME/.cdsapirc"
+
+      - name: Große CDS-Referenzanfragen in Pakete teilen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/update_era5_land_europe_running.py")
+          text = path.read_text(encoding="utf-8")
+
+          if "REFERENCE_CHUNK_YEARS = 5" not in text:
+              text = text.replace(
+                  "MAX_LOOKBACK_DAYS = 14\n",
+                  "MAX_LOOKBACK_DAYS = 14\nREFERENCE_CHUNK_YEARS = 5\n",
+                  1,
+              )
+
+          if "def request_daily_temperature_period(" not in text:
+              marker = '''    retrieve(client, DAILY_DATASET, request, target, label)\n\n\ndef request_precip_group'''
+              replacement = '''    retrieve(client, DAILY_DATASET, request, target, label)\n\n\ndef chunk_years(years: list[int], size: int = REFERENCE_CHUNK_YEARS) -> list[list[int]]:\n    return [years[i:i + size] for i in range(0, len(years), size)]\n\n\ndef request_daily_temperature_period(client: cdsapi.Client, years: list[int], month: int, days: list[int], prefix: Path, label: str, *, area=AREA) -> list[Path]:\n    files: list[Path] = []\n    for years_part in chunk_years(years):\n        path = prefix.with_name(f"{prefix.stem}_{years_part[0]}_{years_part[-1]}{prefix.suffix}")\n        if not path.exists():\n            request_daily_temperature(\n                client, years_part, month, days, path,\n                f"{label} · {years_part[0]}–{years_part[-1]}", area=area,\n            )\n        files.append(path)\n    return files\n\n\ndef request_precip_group'''
+              if marker not in text:
+                  raise RuntimeError("Patchstelle request_daily_temperature nicht gefunden")
+              text = text.replace(marker, replacement, 1)
+
+          old_precip = '''def request_precip_period(client: cdsapi.Client, years: list[int], month: int, end_day: int, prefix: Path, label: str, *, area=AREA) -> list[Path]:\n    files: list[Path] = []\n    for idx, (src_years, src_month, src_days) in enumerate(precip_source_groups(years, month, end_day), 1):\n        path = prefix.with_name(f"{prefix.stem}_{idx:02d}{prefix.suffix}")\n        if not path.exists():\n            request_precip_group(\n                client, src_years, src_month, src_days, path,\n                f"{label} · Quellmonat {src_month:02d} · {src_years[0]}–{src_years[-1]}", area=area,\n            )\n        files.append(path)\n    return files\n'''
+          new_precip = '''def request_precip_period(client: cdsapi.Client, years: list[int], month: int, end_day: int, prefix: Path, label: str, *, area=AREA) -> list[Path]:\n    files: list[Path] = []\n    for idx, (src_years, src_month, src_days) in enumerate(precip_source_groups(years, month, end_day), 1):\n        for years_part in chunk_years(src_years):\n            path = prefix.with_name(\n                f"{prefix.stem}_{idx:02d}_{years_part[0]}_{years_part[-1]}{prefix.suffix}"\n            )\n            if not path.exists():\n                request_precip_group(\n                    client, years_part, src_month, src_days, path,\n                    f"{label} · Quellmonat {src_month:02d} · {years_part[0]}–{years_part[-1]}", area=area,\n                )\n            files.append(path)\n    return files\n'''
+          if old_precip in text:
+              text = text.replace(old_precip, new_precip, 1)
+          elif new_precip not in text:
+              raise RuntimeError("Patchstelle request_precip_period nicht gefunden")
+
+          old_read_temp = '''def read_temperature(path: Path, max_day: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:\n    ds = open_download(path)\n    try:\n        lat, lon, times, cube = normalize_cube(ds, TEMP_ALIASES)\n        cube = kelvin_to_celsius(cube)\n        if max_day is not None and np.issubdtype(times.dtype, np.datetime64):\n            day_values = np.array([int(str(t.astype("datetime64[D]"))[-2:]) for t in times])\n            cube = cube[day_values <= max_day]\n        return lat, lon, finite_mean(cube)\n    finally:\n        ds.close()\n'''
+          new_read_temp = '''def read_temperature(paths: Path | list[Path], max_day: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:\n    path_list = [paths] if isinstance(paths, Path) else list(paths)\n    cubes: list[np.ndarray] = []\n    out_lat: np.ndarray | None = None\n    out_lon: np.ndarray | None = None\n    for path in path_list:\n        ds = open_download(path)\n        try:\n            lat, lon, times, cube = normalize_cube(ds, TEMP_ALIASES)\n            cube = kelvin_to_celsius(cube)\n            if max_day is not None and np.issubdtype(times.dtype, np.datetime64):\n                day_values = np.array([int(str(t.astype("datetime64[D]"))[-2:]) for t in times])\n                cube = cube[day_values <= max_day]\n            if out_lat is None:\n                out_lat, out_lon = lat, lon\n            elif not (np.allclose(out_lat, lat) and np.allclose(out_lon, lon)):\n                raise RuntimeError("Temperaturdateien besitzen unterschiedliche Raster.")\n            cubes.append(cube)\n        finally:\n            ds.close()\n    if out_lat is None or out_lon is None or not cubes:\n        raise RuntimeError("Keine Temperaturdaten gelesen.")\n    return out_lat, out_lon, finite_mean(np.concatenate(cubes, axis=0))\n'''
+          if old_read_temp in text:
+              text = text.replace(old_read_temp, new_read_temp, 1)
+          elif new_read_temp not in text:
+              raise RuntimeError("Patchstelle read_temperature nicht gefunden")
+
+          old_ref = '''    ref_temp_file = CACHE_DIR / f"reference_temp_{REFERENCE_START}_{REFERENCE_END}_{month:02d}_full.nc"\n    if not ref_temp_file.exists():\n        request_daily_temperature(client, list(range(REFERENCE_START, REFERENCE_END + 1)), month, list(range(1, month_days + 1)), ref_temp_file, f"Temperatur-Referenz {MONTH_NAMES[month]} {REFERENCE_START}–{REFERENCE_END}")\n    rlat, rlon, ref_temp = read_temperature(ref_temp_file, max_day=end_day)\n'''
+          new_ref = '''    ref_temp_prefix = CACHE_DIR / f"reference_temp_{REFERENCE_START}_{REFERENCE_END}_{month:02d}_full.nc"\n    ref_temp_files = request_daily_temperature_period(\n        client, list(range(REFERENCE_START, REFERENCE_END + 1)), month,\n        list(range(1, month_days + 1)), ref_temp_prefix,\n        f"Temperatur-Referenz {MONTH_NAMES[month]} {REFERENCE_START}–{REFERENCE_END}",\n    )\n    rlat, rlon, ref_temp = read_temperature(ref_temp_files, max_day=end_day)\n'''
+          if old_ref in text:
+              text = text.replace(old_ref, new_ref, 1)
+          elif new_ref not in text:
+              raise RuntimeError("Patchstelle Temperatur-Referenz nicht gefunden")
+
+          path.write_text(text, encoding="utf-8")
+          print("CDS-Referenzanfragen werden jetzt in 5-Jahres-Paketen verarbeitet.")
+          PY
+          python -m py_compile scripts/update_era5_land_europe_running.py
+          grep -q 'REFERENCE_CHUNK_YEARS = 5' scripts/update_era5_land_europe_running.py
+          grep -q 'request_daily_temperature_period' scripts/update_era5_land_europe_running.py
 
       - name: Laufenden August und Sommer berechnen
         shell: bash
@@ -109,7 +162,7 @@ jobs:
           set -euo pipefail
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add era5_land_europe/running
+          git add scripts/update_era5_land_europe_running.py era5_land_europe/running
 
           if git diff --cached --quiet; then
             echo "Keine neuen laufenden ERA5-Land Daten vorhanden."
