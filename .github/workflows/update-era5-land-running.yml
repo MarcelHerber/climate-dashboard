@@ -1,0 +1,131 @@
+name: ERA5-Land laufende T-P-Zeiträume
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/update-era5-land-running.yml"
+  schedule:
+    - cron: "7 13 * * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Tagesdaten und Karten neu laden"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-land-running
+  cancel-in-progress: false
+
+jobs:
+  running-tp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Cache-Monat bestimmen
+        id: cache-month
+        shell: bash
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      - name: Laufenden ERA5-Land Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: |
+            .era5_running_cache
+            .era5_cache/cartopy
+          key: era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
+          restore-keys: |
+            era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
+            era5-land-running-v1-${{ runner.os }}-
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CDSAPI_KEY:-}" ]]; then
+            echo "FEHLER: GitHub Secret CDSAPI_KEY fehlt."
+            exit 1
+          fi
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Laufenden August und Sommer berechnen
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/update_era5_land_europe_running.py $EXTRA_ARGS
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('era5_land_europe/running/index.json')
+          data=json.loads(p.read_text(encoding='utf-8'))
+          assert data.get('ready') is True
+          assert data.get('periods', {}).get('running_month')
+          print('Datenstand:', data.get('data_through'))
+          print('Perioden:', ', '.join(data.get('periods', {})))
+          PY
+
+      - name: Laufende ERA5-Land Daten versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/running
+
+          if git diff --cached --quiet; then
+            echo "Keine neuen laufenden ERA5-Land Daten vorhanden."
+            exit 0
+          fi
+
+          git commit -m "ERA5-Land laufende T-P-Zeiträume aktualisiert"
+          for ATTEMPT in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+          exit 1
