@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build ARSO Slovenia station metadata from official Agromet metadata CSVs.
 
-STEP 8c ONLY.
+STEP 8d ONLY.
 
 Primary metadata sources are now the two official ARSO Agromet station
 metadata files from the SAME product family as the temperature month tables:
@@ -25,7 +25,8 @@ Matching policy:
 3. exact normalized name in the other Agromet CSV;
 4. conservative, explicit aliases only where ARSO itself uses a shorter
    historic display name;
-5. fuzzy suggestions are PRINTED ONLY and never auto-accepted.
+5. exact normalized station name in the national GIS layer;
+6. fuzzy suggestions are PRINTED ONLY and never auto-accepted.
 
 No Europe integration happens here.
 """
@@ -50,7 +51,7 @@ from urllib.parse import urlencode
 
 import update_arso_slovenia_station_cache as core
 
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 
 AGROMET_CURRENT_META = (
@@ -501,6 +502,73 @@ def fuzzy_suggestions(
     return out
 
 
+
+def index_gis_by_name(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        n = norm_name(row.get("IME_POSTAJE"))
+        if n:
+            out[n].append(row)
+    return dict(out)
+
+
+def choose_gis_name_row(
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Conservative exact-name GIS matcher.
+
+    Multiple layer rows are common because ARSO stores different station/type
+    periods. We accept only when all usable rows are geographically coherent:
+    maximum pairwise spread <= 0.03 degrees in both latitude and longitude.
+    Then the usual GIS row ranking chooses the representative row.
+    """
+    usable = [row for row in rows if gis_coord(row) is not None]
+    if not usable:
+        return None, []
+
+    coords = [gis_coord(row) for row in usable]
+    lats = [c[0] for c in coords if c is not None]
+    lons = [c[1] for c in coords if c is not None]
+
+    if (max(lats) - min(lats)) > 0.03 or (max(lons) - min(lons)) > 0.03:
+        return None, usable
+
+    return choose_gis_row(usable), usable
+
+
+# Independent ARSO 1971-2000 normal-table references for three historical IDs.
+# These are deliberately low precision (degree + minute) and are used only as
+# a plausibility cross-check, never as the coordinate source itself.
+HISTORICAL_NORMAL_REFS = {
+    "045": (46 + 17 / 60, 13 + 54 / 60, 547.0),  # Stara Fužina
+    "334": (46 + 40 / 60, 16 + 0 / 60, 232.0),   # Gornja Radgona
+    "349": (46 + 30 / 60, 16 + 14 / 60, 272.0),  # Podgradje
+}
+
+
+def historical_ref_ok(
+    sid: str,
+    row: dict[str, Any],
+) -> bool:
+    ref = HISTORICAL_NORMAL_REFS.get(sid)
+    if ref is None:
+        return True
+
+    coord = gis_coord(row)
+    if coord is None:
+        return False
+
+    lat, lon, elev = coord
+    rlat, rlon, relev = ref
+
+    if abs(lat - rlat) > 0.05 or abs(lon - rlon) > 0.05:
+        return False
+    if elev is not None and abs(float(elev) - relev) > 120.0:
+        return False
+    return True
+
 def build_metadata(
     inventory: dict[str, dict[str, Any]],
     current_rows: list[dict[str, Any]],
@@ -515,6 +583,7 @@ def build_metadata(
         sid = station_id(row.get("ST_POSTAJE"))
         if sid:
             gis_by_sid[sid].append(row)
+    gis_by_name = index_gis_by_name(gis_rows)
 
     all_meta_rows = current_rows + historical_rows
 
@@ -595,6 +664,41 @@ def build_metadata(
             methods[method] += 1
             continue
 
+        # 5) Exact normalized name in the national official GIS layer.
+        # Try the literal inventory name first, then only the conservative
+        # aliases already used above. Fuzzy GIS matches are never accepted.
+        gis_names = [wanted] + NAME_ALIASES.get(wanted, [])
+        gis_accepted = None
+        gis_ambiguous = []
+
+        for gis_name in gis_names:
+            candidate, candidate_rows = choose_gis_name_row(
+                gis_by_name.get(gis_name, [])
+            )
+            if candidate is not None and historical_ref_ok(sid, candidate):
+                gis_accepted = candidate
+                break
+            if candidate_rows:
+                gis_ambiguous.extend(candidate_rows)
+
+        if gis_accepted is not None:
+            lat, lon, elev = gis_coord(gis_accepted)
+            metadata[sid] = {
+                "station_id": sid,
+                "name": inv_name,
+                "lat": lat,
+                "lon": lon,
+                "elevation_m": elev,
+                "match_method": "gis_exact_name",
+                "metadata_name": gis_accepted.get("IME_POSTAJE"),
+                "metadata_source": GIS_LAYER,
+                "matched_gis_station_id": station_id(
+                    gis_accepted.get("ST_POSTAJE")
+                ),
+            }
+            methods["gis_exact_name"] += 1
+            continue
+
         unresolved.append(
             {
                 "station_id": sid,
@@ -609,6 +713,14 @@ def build_metadata(
                         "source": x.get("source"),
                     }
                     for x in ambiguity
+                ],
+                "ambiguous_gis_exact_name_rows": [
+                    {
+                        "gis_station_id": station_id(x.get("ST_POSTAJE")),
+                        "name": x.get("IME_POSTAJE"),
+                        "coord": gis_coord(x),
+                    }
+                    for x in gis_ambiguous
                 ],
                 "suggestions": fuzzy_suggestions(wanted, all_meta_rows),
             }
@@ -657,7 +769,7 @@ def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, 
 def run(cache_dir: Path) -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V3 ===", flush=True)
+    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V4 ===", flush=True)
     print("Primär: offizielle Agromet-Metadaten-CSV 1961-2016 + 2017-heute")
     print("Sekundär: nationaler ARSO-GIS-Layer mit exakter Stations-ID")
 
@@ -722,7 +834,7 @@ def run(cache_dir: Path) -> int:
 
     print()
     print("=" * 88)
-    print("ARSO SLOWENIEN · METADATEN V3 STATUS")
+    print("ARSO SLOWENIEN · METADATEN V4 STATUS")
     print("=" * 88)
     print(json.dumps(status, indent=2, ensure_ascii=False))
 
@@ -793,6 +905,11 @@ def self_test() -> int:
             "start_year": 1961,
             "end_year": 2006,
         },
+        "349": {
+            "name": "PODGRADJE",
+            "start_year": 1961,
+            "end_year": 2001,
+        },
     }
 
     current_rows = parsed
@@ -807,18 +924,30 @@ def self_test() -> int:
             "raw": [],
         }
     ]
+    gis_fixture = [
+        {
+            "OBJECTID": 99,
+            "ST_POSTAJE": 999,
+            "IME_POSTAJE": "PODGRADJE",
+            "DAT_KON_TIPA": "2001",
+            "Z": 272,
+            "GEO_SIR": 46.50,
+            "GEO_DOL": 16.2333,
+        }
+    ]
     result = build_metadata(
         inventory,
         current_rows,
         historical_rows,
-        [],
+        gis_fixture,
     )
-    assert len(result["metadata"]) == 3
+    assert len(result["metadata"]) == 4
     assert result["metadata"]["816"]["match_method"] == "agromet_current_exact_name"
     assert result["metadata"]["102"]["match_method"] == "agromet_historical_official_alias"
+    assert result["metadata"]["349"]["match_method"] == "gis_exact_name"
     assert result["unresolved"] == []
 
-    print("ARSO Slovenia station-metadata v3 self-test OK")
+    print("ARSO Slovenia station-metadata v4 self-test OK")
     return 0
 
 
