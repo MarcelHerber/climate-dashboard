@@ -3199,7 +3199,7 @@ let europeStationLastRows=[];
 let europeStationSearchTimer=null;
 const europeStationCalendarCache=new Map();
 const EUROPE_STATION_RAW_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/";
-const EUROPE_STATION_DATA_URL=`${EUROPE_STATION_RAW_BASE}europe_stations/index.json`;
+const EUROPE_STATION_DATA_URL="europe_stations/index.json";
 let stationRecordsData=null;
 let stationRecordsLoading=null;
 let stationStreakIndex=null;
@@ -13234,8 +13234,32 @@ function initEuropeStationControls(){
 function populateEuropeStationCountries(){
   const select=document.getElementById("europeStationCountry");if(!select||!europeStationData)return;const current=select.value;const countries=[...new Set((europeStationData.stations||[]).map(s=>s.country).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));select.innerHTML='<option value="">Alle Länder</option>'+countries.map(c=>`<option value="${europeStationEscapeHtml(String(c))}">${europeStationEscapeHtml(String(c))}</option>`).join("");if(countries.includes(current))select.value=current;
 }
+async function preloadEuropeStationData(){
+  if(europeStationLoaded&&europeStationData)return europeStationData;
+  if(europeStationLoading)return europeStationLoading;
+  europeStationLoading=(async()=>{
+    try{
+      const response=await fetch(`${EUROPE_STATION_DATA_URL}?v=${Date.now()}`,{cache:"no-store"});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const payload=await response.json();
+      if(![1,2,3,4,5].includes(Number(payload?.payload_version)))console.warn("Unerwartete Stations-Payload-Version",payload?.payload_version);
+      europeStationData=payload;
+      populateEuropeStationCountries();
+      initEuropeStationControls();
+      europeStationLoaded=true;
+      return payload;
+    }catch(error){
+      console.warn("Europa-Stationsdaten konnten beim Seitenstart nicht vorgeladen werden",error);
+      setEuropeStationStatus("Stationsdaten fehlen oder konnten nicht geladen werden. Bitte den Europa-Workflow prüfen.","warn");
+      throw error;
+    }finally{
+      europeStationLoading=null;
+    }
+  })();
+  return europeStationLoading;
+}
 async function ensureEuropeStationMap(){
-  initEuropeStationMap();window.setTimeout(()=>europeStationMap?.invalidateSize(),80);if(europeStationLoaded){renderEuropeStations();return;}if(europeStationLoading)return europeStationLoading;
+  initEuropeStationMap();window.setTimeout(()=>europeStationMap?.invalidateSize(),80);if(europeStationLoaded){renderEuropeStations();return;}if(europeStationLoading){await europeStationLoading;if(europeStationLoaded)await renderEuropeStations();return;}
   europeStationLoading=(async()=>{
     try{
       const response=await fetch(`${EUROPE_STATION_DATA_URL}?v=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();if(![1,2,3,4,5].includes(Number(payload?.payload_version)))console.warn("Unerwartete Stations-Payload-Version",payload?.payload_version);europeStationData=payload;populateEuropeStationCountries();initEuropeStationControls();europeStationLoaded=true;await renderEuropeStations();
@@ -13372,6 +13396,7 @@ function initializeDashboardState(){
 }
 
 initializeChartExportButtons();
+preloadEuropeStationData().catch(()=>{});
 initializeDashboardState();
 
 
