@@ -1,4 +1,4 @@
-name: Probe ARSO Slovenia station metadata
+name: Probe ARSO Slovenia station metadata v2
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: arso-slovenia-station-metadata
+  group: arso-slovenia-station-metadata-v2
   cancel-in-progress: false
 
 jobs:
@@ -28,13 +28,13 @@ jobs:
         shell: bash
         run: mkdir -p .cache/europe-stations
 
-      - name: ARSO-Metadaten-Cache wiederherstellen
+      - name: ARSO-Metadaten-V2-Cache wiederherstellen
         uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
-          key: arso-slovenia-station-metadata-v1-${{ github.run_id }}
+          key: arso-slovenia-station-metadata-v2-${{ github.run_id }}
           restore-keys: |
-            arso-slovenia-station-metadata-v1-
+            arso-slovenia-station-metadata-v2-
 
       - name: Offline-Selbsttest
         shell: bash
@@ -42,20 +42,20 @@ jobs:
           set -euo pipefail
           python scripts/update_arso_slovenia_station_metadata.py --self-test
 
-      - name: Offizielle ARSO-Stationsmetadaten abgleichen
+      - name: Nationale ARSO-Stationsmetadaten abgleichen
         shell: bash
         run: |
           set -euo pipefail
           python scripts/update_arso_slovenia_station_metadata.py
 
-      - name: ARSO-Metadaten-Cache sichern
+      - name: ARSO-Metadaten-V2-Cache sichern
         if: always()
         uses: actions/cache/save@v5
         with:
           path: .cache/europe-stations
-          key: arso-slovenia-station-metadata-v1-${{ github.run_id }}
+          key: arso-slovenia-station-metadata-v2-${{ github.run_id }}
 
-      - name: Metadaten-Probe prüfen
+      - name: Metadaten-V2-Probe prüfen
         shell: bash
         run: |
           set -euo pipefail
@@ -65,8 +65,9 @@ jobs:
 
           status_path = pathlib.Path(
               ".cache/europe-stations/"
-              "arso_slovenia_station_metadata_status_v1.json"
+              "arso_slovenia_station_metadata_status_v2.json"
           )
+
           if not status_path.exists():
               raise SystemExit(f"Status fehlt: {status_path}")
 
@@ -74,11 +75,13 @@ jobs:
               status_path.read_text(encoding="utf-8")
           )
 
-          print("=== ARSO SLOVENIA METADATA PROBE STATUS ===")
+          print("=== ARSO SLOVENIA METADATA V2 STATUS ===")
           print(json.dumps(status, indent=2, ensure_ascii=False))
 
           if not status.get("complete_probe"):
-              raise SystemExit("ARSO-Metadaten-Probe nicht vollständig.")
+              raise SystemExit(
+                  "ARSO-Metadaten-V2-Probe nicht vollständig."
+              )
 
           if int(status.get("inventory_count", 0)) != 74:
               raise SystemExit(
@@ -87,17 +90,19 @@ jobs:
 
           if int(status.get("gis_row_count", 0)) <= 0:
               raise SystemExit(
-                  "Offizieller ARSO-GIS-Layer lieferte keine Datensätze."
+                  "Nationaler ARSO-GIS-Layer lieferte keine Datensätze."
               )
 
-          if int(status.get("coordinate_id_count", 0)) <= 0:
+          if int(status.get("known_station_checks_ok", 0)) != 3:
               raise SystemExit(
-                  "Keine ARSO-ID konnte mit Koordinaten verknüpft werden."
+                  "Bekannte ARSO-Stationskoordinaten stimmen nicht "
+                  "vollständig überein."
               )
 
-          if int(status.get("known_station_checks_ok", 0)) < 2:
+          if int(status.get("coordinate_id_count", 0)) < 60:
               raise SystemExit(
-                  "Zu wenige bekannte Stationskoordinaten stimmen überein."
+                  "Weniger als 60/74 Agromet-IDs besitzen Koordinaten; "
+                  "Metadatenabgleich noch nicht integrationsreif."
               )
 
           metadata_file = pathlib.Path(status["metadata_file"])
@@ -106,5 +111,5 @@ jobs:
                   f"Metadaten-Datei fehlt: {metadata_file}"
               )
 
-          print("ARSO Slovenia Metadaten-Probe technisch OK.")
+          print("ARSO Slovenia Metadaten V2 technisch OK.")
           PY
