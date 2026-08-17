@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build ARSO Slovenia station metadata from official Agromet metadata CSVs.
 
-STEP 8e ONLY.
+STEP 8f ONLY.
 
 Primary metadata sources are now the two official ARSO Agromet station
 metadata files from the SAME product family as the temperature month tables:
@@ -52,7 +52,7 @@ from urllib.parse import urlencode
 
 import update_arso_slovenia_station_cache as core
 
-FORMAT_VERSION = 5
+FORMAT_VERSION = 6
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 
 AGROMET_CURRENT_META = (
@@ -69,6 +69,10 @@ GIS_LAYER = (
     "Atlasokolja_intranet_D96/MapServer/81"
 )
 GIS_QUERY = GIS_LAYER + "/query"
+GHCN_STATIONS_URL = (
+    "https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt"
+)
+
 GIS_FIELDS = [
     "OBJECTID",
     "IDMM",
@@ -607,11 +611,104 @@ def historical_ref_ok(
         return False
     return True
 
+
+def parse_ghcn_stations(raw: bytes) -> list[dict[str, Any]]:
+    """Parse NOAA GHCN-Daily fixed-width station metadata."""
+    text = raw.decode("utf-8", errors="replace")
+    rows = []
+    for line in text.splitlines():
+        if len(line) < 71:
+            continue
+        sid = line[0:11].strip()
+        lat = parse_number(line[12:20])
+        lon = parse_number(line[21:30])
+        elev = parse_number(line[31:37])
+        name = line[41:71].strip()
+
+        if not sid or not name or not valid_coord(lat, lon):
+            continue
+
+        rows.append(
+            {
+                "ghcn_id": sid,
+                "name": name,
+                "norm_name": norm_name(name),
+                "lat": float(lat),
+                "lon": float(lon),
+                "elevation_m": valid_elevation(elev),
+            }
+        )
+    return rows
+
+
+def load_ghcn_stations() -> list[dict[str, Any]]:
+    raw = core.http_bytes(GHCN_STATIONS_URL)
+    rows = parse_ghcn_stations(raw)
+    if not rows:
+        raise RuntimeError("NOAA GHCN-Stationsmetadaten konnten nicht gelesen werden.")
+    return rows
+
+
+def ghcn_crosswalk_for_turski_vrh(
+    ghcn_rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Strict independent crosswalk for ARSO 346 Turški Vrh only.
+
+    Requirements:
+    - exact normalized name TURSKI VRH, or a name beginning with it;
+    - location inside Slovenia bounding box;
+    - GHCN elevation within 100 m of ARSO's documented 280 m;
+    - all surviving candidates must refer to essentially the same location.
+    """
+    wanted = "turski vrh"
+    candidates = []
+
+    for row in ghcn_rows:
+        name = row.get("norm_name", "")
+        if not (name == wanted or name.startswith(wanted + " ")):
+            continue
+
+        lat = row.get("lat")
+        lon = row.get("lon")
+        elev = row.get("elevation_m")
+
+        if not valid_coord(lat, lon):
+            continue
+
+        if elev is not None and abs(float(elev) - 280.0) > 100.0:
+            continue
+
+        candidates.append(row)
+
+    if not candidates:
+        return None, []
+
+    lats = [float(x["lat"]) for x in candidates]
+    lons = [float(x["lon"]) for x in candidates]
+
+    # Reject if NOAA contains geographically distinct namesakes.
+    if (max(lats) - min(lats)) > 0.05 or (max(lons) - min(lons)) > 0.05:
+        return None, candidates
+
+    # Prefer closest elevation to ARSO's 280 m, then shortest name.
+    chosen = min(
+        candidates,
+        key=lambda x: (
+            abs(float(x["elevation_m"]) - 280.0)
+            if x.get("elevation_m") is not None
+            else 9999.0,
+            len(x.get("name", "")),
+        ),
+    )
+    return chosen, candidates
+
+
 def build_metadata(
     inventory: dict[str, dict[str, Any]],
     current_rows: list[dict[str, Any]],
     historical_rows: list[dict[str, Any]],
     gis_rows: list[dict[str, Any]],
+    ghcn_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     current_by_name = index_by_name(current_rows)
     hist_by_name = index_by_name(historical_rows)
@@ -755,6 +852,35 @@ def build_metadata(
             methods["arso_historical_normals"] += 1
             continue
 
+        # 7) Independent NOAA GHCN crosswalk, intentionally restricted to
+        # the one remaining historical ARSO station 346 Turški Vrh.
+        if sid == "346" and ghcn_rows:
+            ghcn_match, ghcn_candidates = ghcn_crosswalk_for_turski_vrh(
+                ghcn_rows
+            )
+            if ghcn_match is not None:
+                metadata[sid] = {
+                    "station_id": sid,
+                    "name": inv_name,
+                    "lat": float(ghcn_match["lat"]),
+                    "lon": float(ghcn_match["lon"]),
+                    "elevation_m": (
+                        float(ghcn_match["elevation_m"])
+                        if ghcn_match.get("elevation_m") is not None
+                        else 280.0
+                    ),
+                    "match_method": "noaa_ghcn_crosswalk",
+                    "metadata_name": ghcn_match["name"],
+                    "metadata_source": GHCN_STATIONS_URL,
+                    "matched_gis_station_id": None,
+                    "matched_ghcn_station_id": ghcn_match["ghcn_id"],
+                    "arso_documented_elevation_m": 280.0,
+                }
+                methods["noaa_ghcn_crosswalk"] += 1
+                continue
+        else:
+            ghcn_candidates = []
+
         unresolved.append(
             {
                 "station_id": sid,
@@ -777,6 +903,16 @@ def build_metadata(
                         "coord": gis_coord(x),
                     }
                     for x in gis_ambiguous
+                ],
+                "ghcn_candidates": [
+                    {
+                        "ghcn_id": x.get("ghcn_id"),
+                        "name": x.get("name"),
+                        "lat": x.get("lat"),
+                        "lon": x.get("lon"),
+                        "elevation_m": x.get("elevation_m"),
+                    }
+                    for x in ghcn_candidates
                 ],
                 "suggestions": fuzzy_suggestions(wanted, all_meta_rows),
             }
@@ -825,24 +961,27 @@ def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, 
 def run(cache_dir: Path) -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V5 ===", flush=True)
+    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V6 ===", flush=True)
     print("Primär: offizielle Agromet-Metadaten-CSV 1961-2016 + 2017-heute")
     print("Sekundär: nationaler ARSO-GIS-Layer mit exakter Stations-ID")
 
     inventory, inventory_source = core.load_inventory()
     current_rows, historical_rows = load_agromet_metadata()
     gis_rows = load_gis_rows()
+    ghcn_rows = load_ghcn_stations()
 
     print(f"Agromet-Inventar: {len(inventory):,}")
     print(f"Current-Metadatenzeilen: {len(current_rows):,}")
     print(f"Historische Metadatenzeilen: {len(historical_rows):,}")
     print(f"Nationale GIS-Zeilen: {len(gis_rows):,}")
+    print(f"NOAA GHCN-Stationszeilen: {len(ghcn_rows):,}")
 
     result = build_metadata(
         inventory,
         current_rows,
         historical_rows,
         gis_rows,
+        ghcn_rows,
     )
     checks = known_station_checks(result["metadata"])
 
@@ -856,6 +995,7 @@ def run(cache_dir: Path) -> int:
         "agromet_current_metadata_source": AGROMET_CURRENT_META,
         "agromet_historical_metadata_source": AGROMET_HIST_META,
         "gis_fallback_source": GIS_LAYER,
+        "ghcn_crosswalk_source": GHCN_STATIONS_URL,
         "inventory_count": len(inventory),
         "coordinate_id_count": coordinate_count,
         "unresolved_count": len(unresolved),
@@ -882,6 +1022,7 @@ def run(cache_dir: Path) -> int:
         "agromet_current_metadata_rows": len(current_rows),
         "agromet_historical_metadata_rows": len(historical_rows),
         "gis_row_count": len(gis_rows),
+        "ghcn_station_row_count": len(ghcn_rows),
         "known_station_checks_ok": sum(1 for x in checks if x["ok"]),
         "known_station_checks_total": len(checks),
         "updated_utc": datetime.now(UTC).isoformat(),
@@ -890,7 +1031,7 @@ def run(cache_dir: Path) -> int:
 
     print()
     print("=" * 88)
-    print("ARSO SLOWENIEN · METADATEN V5 STATUS")
+    print("ARSO SLOWENIEN · METADATEN V6 STATUS")
     print("=" * 88)
     print(json.dumps(status, indent=2, ensure_ascii=False))
 
@@ -928,7 +1069,38 @@ def run(cache_dir: Path) -> int:
     return 0
 
 
+def make_ghcn_fixture_line(
+    station_id: str,
+    lat: float,
+    lon: float,
+    elev: float,
+    name: str,
+) -> str:
+    # NOAA GHCN fixed-width format fields used by parse_ghcn_stations().
+    return (
+        f"{station_id:<11} "
+        f"{lat:8.4f} "
+        f"{lon:9.4f} "
+        f"{elev:6.1f} "
+        f"{'':2} "
+        f"{name:<30}"
+    )
+
+
 def self_test() -> int:
+    ghcn_fixture = (
+        make_ghcn_fixture_line(
+            "SIX00000001", 46.3550, 16.0560, 280.0, "TURSKI VRH"
+        )
+        + "\n"
+    ).encode("utf-8")
+    ghcn_rows = parse_ghcn_stations(ghcn_fixture)
+    assert len(ghcn_rows) == 1
+    crosswalk, candidates = ghcn_crosswalk_for_turski_vrh(ghcn_rows)
+    assert crosswalk is not None
+    assert crosswalk["ghcn_id"] == "SIX00000001"
+    assert len(candidates) == 1
+
     # CSV parser: semicolon + decimal comma style.
     fixture = (
         "postaja;geo. širina;geo. dolžina;nadmorska višina\n"
@@ -971,6 +1143,11 @@ def self_test() -> int:
             "start_year": 1961,
             "end_year": 2002,
         },
+        "346": {
+            "name": "Turški Vrh",
+            "start_year": 1961,
+            "end_year": 2003,
+        },
     }
 
     current_rows = parsed
@@ -1001,16 +1178,19 @@ def self_test() -> int:
         current_rows,
         historical_rows,
         gis_fixture,
+        ghcn_rows,
     )
-    assert len(result["metadata"]) == 5
+    assert len(result["metadata"]) == 6
     assert result["metadata"]["816"]["match_method"] == "agromet_current_exact_name"
     assert result["metadata"]["102"]["match_method"] == "agromet_historical_official_alias"
     assert result["metadata"]["349"]["match_method"] == "gis_exact_name"
     assert result["metadata"]["045"]["match_method"] == "arso_historical_normals"
     assert abs(result["metadata"]["045"]["lat"] - 46.2833333333) < 1e-6
+    assert result["metadata"]["346"]["match_method"] == "noaa_ghcn_crosswalk"
+    assert result["metadata"]["346"]["matched_ghcn_station_id"] == "SIX00000001"
     assert result["unresolved"] == []
 
-    print("ARSO Slovenia station-metadata v5 self-test OK")
+    print("ARSO Slovenia station-metadata v6 self-test OK")
     return 0
 
 
