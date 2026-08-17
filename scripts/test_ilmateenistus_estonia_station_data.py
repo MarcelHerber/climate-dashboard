@@ -66,35 +66,111 @@ def _api_get(
     if query:
         url += "?" + query
 
-    headers = {
-        "Accept": "application/json",
-        "Accept-Profile": PROFILE,
-        "User-Agent": USER_AGENT,
-    }
+    header_modes = [
+        (
+            "Accept-Profile",
+            {
+                "Accept": "application/json",
+                "Accept-Profile": PROFILE,
+                "User-Agent": USER_AGENT,
+            },
+        ),
+        (
+            "default schema",
+            {
+                "Accept": "application/json",
+                "User-Agent": USER_AGENT,
+            },
+        ),
+    ]
 
     last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            req = Request(url, headers=headers)
-            with urlopen(req, timeout=timeout) as response:
-                payload = response.read().decode("utf-8", errors="replace")
-            data = json.loads(payload)
-            if not isinstance(data, list):
-                raise RuntimeError(f"Unexpected API payload type: {type(data).__name__}")
-            return [row for row in data if isinstance(row, dict)]
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
-            last_error = exc
-            if attempt == attempts:
-                break
-            sleep_seconds = min(8, 1.5 * attempt)
-            print(
-                f"WARN API request failed ({attempt}/{attempts}): {exc}; "
-                f"retry in {sleep_seconds:.1f}s",
-                file=sys.stderr,
-            )
-            time.sleep(sleep_seconds)
+    last_detail = ""
 
-    raise RuntimeError(f"API request failed after {attempts} attempts: {url}: {last_error}")
+    for mode_index, (mode_name, headers) in enumerate(header_modes):
+        for attempt in range(1, attempts + 1):
+            try:
+                req = Request(url, headers=headers)
+                with urlopen(req, timeout=timeout) as response:
+                    payload = response.read().decode("utf-8", errors="replace")
+                data = json.loads(payload)
+                if not isinstance(data, list):
+                    raise RuntimeError(
+                        f"Unexpected API payload type: {type(data).__name__}"
+                    )
+                if mode_index > 0:
+                    print(
+                        "INFO API accepted request without Accept-Profile; "
+                        "using the server default schema for this run.",
+                        file=sys.stderr,
+                    )
+                return [row for row in data if isinstance(row, dict)]
+
+            except HTTPError as exc:
+                last_error = exc
+                try:
+                    body = exc.read().decode("utf-8", errors="replace")
+                except Exception:
+                    body = ""
+                compact = " ".join(body.split())
+                last_detail = f"HTTP {exc.code}"
+                if compact:
+                    last_detail += f": {compact[:1200]}"
+
+                # The official documentation recommends Accept-Profile:
+                # apijahialad. In practice PostgREST can temporarily answer
+                # 406 when that exposed-schema profile is unavailable. The
+                # documented browser examples work via the default schema, so
+                # try that path immediately instead of retrying the same 406.
+                if exc.code == 406 and mode_index == 0:
+                    print(
+                        "WARN API returned 406 with Accept-Profile: apijahialad; "
+                        "retrying once via the server default schema.",
+                        file=sys.stderr,
+                    )
+                    if compact:
+                        print(f"API 406 response: {compact[:1200]}", file=sys.stderr)
+                    break
+
+                retryable = exc.code in {408, 425, 429, 500, 502, 503, 504}
+                if not retryable or attempt == attempts:
+                    break
+
+                sleep_seconds = min(8, 1.5 * attempt)
+                print(
+                    f"WARN API request failed in {mode_name} mode "
+                    f"({attempt}/{attempts}): {last_detail}; "
+                    f"retry in {sleep_seconds:.1f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(sleep_seconds)
+
+            except (URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
+                last_error = exc
+                last_detail = str(exc)
+                if attempt == attempts:
+                    break
+                sleep_seconds = min(8, 1.5 * attempt)
+                print(
+                    f"WARN API request failed in {mode_name} mode "
+                    f"({attempt}/{attempts}): {exc}; "
+                    f"retry in {sleep_seconds:.1f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(sleep_seconds)
+        else:
+            continue
+
+        # A 406 in profile mode deliberately falls through to the default
+        # schema mode. Any other terminal error should not silently switch.
+        if isinstance(last_error, HTTPError) and last_error.code == 406 and mode_index == 0:
+            continue
+        break
+
+    detail = f" ({last_detail})" if last_detail else ""
+    raise RuntimeError(
+        f"API request failed after fallback attempts: {url}: {last_error}{detail}"
+    )
 
 
 def _month_pairs(today: date, months_back: int) -> list[tuple[int, int]]:
