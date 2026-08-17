@@ -26,26 +26,15 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Europa-Workflow und Frontend patchen
+      - name: Europa-Stationen beim Seitenstart laden
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import re
 
-          workflow_path = Path('.github/workflows/update-europe-stations.yml')
-          html_path = Path('index.html')
-          workflow = workflow_path.read_text(encoding='utf-8')
-          html = html_path.read_text(encoding='utf-8')
-
-          # GitHub-Ausdrücke bewusst erst zur Laufzeit zusammensetzen.
-          # Dadurch interpretiert Actions sie nicht innerhalb dieses Patch-Workflows.
-          GH_OPEN = '$' + '{{'
-          GH_CLOSE = '}}'
-
-          def gh(expr):
-              return f'{GH_OPEN} {expr} {GH_CLOSE}'
+          path = Path('index.html')
+          html = path.read_text(encoding='utf-8')
 
           def replace_once(text, old, new, label):
               count = text.count(old)
@@ -53,71 +42,6 @@ jobs:
                   raise SystemExit(f'{label}: erwartet 1 Fundstelle, gefunden {count}')
               return text.replace(old, new, 1)
 
-          # ------------------------------------------------------------
-          # 1) Regulären Europa-Workflow um Estland + Slowenien ergänzen
-          # ------------------------------------------------------------
-          if 'force_estonia_baseline:' not in workflow:
-              anchor = '''      force_ireland_baseline:\n        description: "Nur Met Éireann Irland neu aufbauen"\n        required: false\n        default: false\n        type: boolean\n'''
-              addition = anchor + '''      force_estonia_baseline:\n        description: "Nur Estland neu aufbauen"\n        required: false\n        default: false\n        type: boolean\n      force_slovenia_baseline:\n        description: "Nur ARSO Slowenien neu aufbauen"\n        required: false\n        default: false\n        type: boolean\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Force-Inputs')
-
-          if 'europe-merge-ee-hist-' not in workflow:
-              anchor = '      - name: Cache-Bestand anzeigen\n'
-              cache_steps = f'''      - name: Estland-Historie ergänzen\n        uses: actions/cache/restore@v5\n        with:\n          path: .cache/europe-stations\n          key: europe-merge-ee-hist-{gh('steps.dates.outputs.base_year')}-{gh('github.run_id')}\n          restore-keys: |\n            ilmateenistus-estonia-v1-{gh('steps.dates.outputs.base_year')}-\n\n      - name: Estland-Current ergänzen\n        uses: actions/cache/restore@v5\n        with:\n          path: .cache/europe-stations\n          key: europe-merge-ee-current-{gh('steps.dates.outputs.year')}-{gh('github.run_id')}\n          restore-keys: |\n            ilmateenistus-estonia-current-v1-{gh('steps.dates.outputs.year')}-\n            ilmateenistus-estonia-v1-{gh('steps.dates.outputs.base_year')}-\n\n      - name: ARSO-Slowenien-Historie ergänzen\n        uses: actions/cache/restore@v5\n        with:\n          path: .cache/europe-stations\n          key: europe-merge-si-hist-{gh('steps.dates.outputs.base_year')}-{gh('github.run_id')}\n          restore-keys: |\n            arso-slovenia-v1-{gh('steps.dates.outputs.base_year')}-\n\n      - name: ARSO-Slowenien-Current ergänzen\n        uses: actions/cache/restore@v5\n        with:\n          path: .cache/europe-stations\n          key: europe-merge-si-current-{gh('steps.dates.outputs.year')}-{gh('github.run_id')}\n          restore-keys: |\n            arso-slovenia-current-{gh('steps.dates.outputs.year')}-v1-\n            arso-slovenia-v1-{gh('steps.dates.outputs.base_year')}-\n\n'''
-              workflow = replace_once(workflow, anchor, cache_steps + anchor, 'Cache-Restore')
-
-          if 'scripts/update_ilmateenistus_estonia_station_cache.py \\' not in workflow:
-              anchor = '''            scripts/update_met_eireann_ireland_station_cache.py \\\n            scripts/update_met_eireann_ireland_current.py\n'''
-              addition = '''            scripts/update_met_eireann_ireland_station_cache.py \\\n            scripts/update_met_eireann_ireland_current.py \\\n            scripts/update_ilmateenistus_estonia_station_cache.py \\\n            scripts/update_ilmateenistus_estonia_current.py \\\n            scripts/update_arso_slovenia_station_cache.py \\\n            scripts/update_arso_slovenia_current.py \\\n            scripts/update_arso_slovenia_station_metadata.py\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Dateiliste')
-
-          if 'python scripts/update_ilmateenistus_estonia_station_cache.py --self-test' not in workflow:
-              anchor = '''          python scripts/update_met_eireann_ireland_station_cache.py --self-test\n          python scripts/update_met_eireann_ireland_current.py --self-test\n          python scripts/update_europe_station_records_all_sources.py --self-test\n'''
-              addition = '''          python scripts/update_met_eireann_ireland_station_cache.py --self-test\n          python scripts/update_met_eireann_ireland_current.py --self-test\n          python scripts/update_ilmateenistus_estonia_station_cache.py --self-test\n          python scripts/update_ilmateenistus_estonia_current.py --self-test\n          python scripts/update_arso_slovenia_station_cache.py --self-test\n          python scripts/update_arso_slovenia_current.py --self-test\n          python scripts/update_arso_slovenia_station_metadata.py --self-test\n          python scripts/update_europe_station_records_all_sources.py --self-test\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Selftests')
-
-          if 'FORCE_ESTONIA_BASELINE:' not in workflow:
-              match = re.search(r'^(\s*)FORCE_IRELAND_BASELINE:.*$', workflow, re.M)
-              if not match:
-                  raise SystemExit('FORCE_IRELAND_BASELINE-Zeile nicht gefunden.')
-              indent = match.group(1)
-              addition = (
-                  match.group(0) + '\n'
-                  + f'{indent}FORCE_ESTONIA_BASELINE: {gh("github.event.inputs.force_estonia_baseline || \'false\'")}\n'
-                  + f'{indent}FORCE_SLOVENIA_BASELINE: {gh("github.event.inputs.force_slovenia_baseline || \'false\'")}'
-              )
-              workflow = workflow[:match.start()] + addition + workflow[match.end():]
-
-          if '--force-estonia-baseline' not in workflow:
-              anchor = '          [[ "$FORCE_IRELAND_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-ireland-baseline"\n'
-              addition = anchor + '''          [[ "$FORCE_ESTONIA_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-estonia-baseline"\n          [[ "$FORCE_SLOVENIA_BASELINE" == "true" ]] && EXTRA_ARGS="$EXTRA_ARGS --force-slovenia-baseline"\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Force-Args')
-
-          if '"Estland":"Estonian Environment Agency climate API"' not in workflow:
-              anchor = '              "Irland":"Met Éireann Climate Data Online",\n'
-              addition = anchor + '''              "Estland":"Estonian Environment Agency climate API",\n              "Slowenien":"ARSO Slovenia agrometeorological daily month tables",\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Länderprüfung')
-
-          if '"Estonian Environment Agency climate API","ARSO Slovenia agrometeorological daily month tables"' not in workflow:
-              anchor = '              "Met Éireann Climate Data Online","GHCN-Daily"\n'
-              addition = '''              "Met Éireann Climate Data Online","Estonian Environment Agency climate API",\n              "ARSO Slovenia agrometeorological daily month tables","GHCN-Daily"\n'''
-              workflow = replace_once(workflow, anchor, addition, 'Quellenprüfung')
-
-          old_forbidden = 'forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ","FI","EZ","HU","EI"}'
-          new_forbidden = 'forbidden={"GM","FR","SP","ES","AU","PL","NL","NO","DA","SW","BE","SZ","FI","EZ","HU","EI","EN","SI"}'
-          if old_forbidden in workflow:
-              workflow = workflow.replace(old_forbidden, new_forbidden, 1)
-          elif new_forbidden not in workflow:
-              raise SystemExit('GHCN-forbidden-Liste konnte nicht erweitert werden.')
-
-          if 'Slowenien enthält nicht exakt 73 ARSO-Stationen.' not in workflow:
-              anchor = '          print("Europa-Gesamtprüfung OK.")\n'
-              checks = '''          estonia=[x for x in rows if x.get("country")=="Estland"]\n          if len(estonia) != 25 or {x.get("source") for x in estonia} != {"Estonian Environment Agency climate API"}:\n              raise SystemExit(f"Estland unerwartet: {len(estonia)} Stationen / Quellen {sorted({x.get('source') for x in estonia})}")\n\n          slovenia=[x for x in rows if x.get("country")=="Slowenien"]\n          if len(slovenia) != 73:\n              raise SystemExit("Slowenien enthält nicht exakt 73 ARSO-Stationen.")\n          if {x.get("source") for x in slovenia} != {"ARSO Slovenia agrometeorological daily month tables"}:\n              raise SystemExit("Slowenien enthält eine falsche/gemischte Quelle.")\n          if any(str(x.get("id"))=="ARSO:346" for x in slovenia):\n              raise SystemExit("ARSO:346 darf nicht in der Europa-Ausgabe stehen.")\n\n'''
-              workflow = replace_once(workflow, anchor, checks + anchor, '73/25-Endprüfung')
-
-          # ------------------------------------------------------------
-          # 2) Europa-Stationsindex sofort beim Seitenstart laden
-          # ------------------------------------------------------------
           old_url = 'const EUROPE_STATION_DATA_URL=`${EUROPE_STATION_RAW_BASE}europe_stations/index.json`;'
           new_url = 'const EUROPE_STATION_DATA_URL="europe_stations/index.json";'
           if old_url in html:
@@ -125,8 +49,6 @@ jobs:
           elif new_url not in html:
               raise SystemExit('EUROPE_STATION_DATA_URL nicht gefunden.')
 
-          # Falls ein Preload schon läuft und der Tab sofort geöffnet wird,
-          # nach Abschluss trotzdem rendern statt nur das Promise zurückzugeben.
           old_wait = 'if(europeStationLoading)return europeStationLoading;'
           new_wait = 'if(europeStationLoading){await europeStationLoading;if(europeStationLoaded)await renderEuropeStations();return;}'
           if old_wait in html:
@@ -144,70 +66,44 @@ jobs:
               startup_new = '''initializeChartExportButtons();\npreloadEuropeStationData().catch(()=>{});\ninitializeDashboardState();\n'''
               html = replace_once(html, startup_anchor, startup_new, 'Frontend-Startup')
 
-          # ------------------------------------------------------------
-          # Finalchecks
-          # ------------------------------------------------------------
-          required_workflow = [
-              'force_estonia_baseline:',
-              'force_slovenia_baseline:',
-              'ilmateenistus-estonia-current-v1-',
-              'arso-slovenia-current-',
-              'python scripts/update_ilmateenistus_estonia_current.py --self-test',
-              'python scripts/update_arso_slovenia_station_metadata.py --self-test',
-              '--force-estonia-baseline',
-              '--force-slovenia-baseline',
-              'Slowenien enthält nicht exakt 73 ARSO-Stationen.',
-              'ARSO:346',
-              '"EN","SI"',
-          ]
-          for needle in required_workflow:
-              if needle not in workflow:
-                  raise SystemExit(f'Workflow-Marker fehlt: {needle}')
-
-          required_html = [
+          for needle in (
               'const EUROPE_STATION_DATA_URL="europe_stations/index.json";',
               'async function preloadEuropeStationData(){',
               'preloadEuropeStationData().catch',
               'if(europeStationLoading){await europeStationLoading;',
-          ]
-          for needle in required_html:
+          ):
               if needle not in html:
                   raise SystemExit(f'Frontend-Marker fehlt: {needle}')
 
-          workflow_path.write_text(workflow, encoding='utf-8')
-          html_path.write_text(html, encoding='utf-8')
-          print('Europa-Workflow + Frontend-Preload gepatcht.')
+          path.write_text(html, encoding='utf-8')
+          print('Europa-Stationsindex wird jetzt beim Seitenstart vorgeladen.')
           PY
 
-      - name: Änderungen prüfen
+      - name: Änderung prüfen
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'force_estonia_baseline:' .github/workflows/update-europe-stations.yml
-          grep -q 'force_slovenia_baseline:' .github/workflows/update-europe-stations.yml
-          grep -q 'Slowenien enthält nicht exakt 73 ARSO-Stationen.' .github/workflows/update-europe-stations.yml
-          grep -q 'ARSO:346' .github/workflows/update-europe-stations.yml
           grep -q 'async function preloadEuropeStationData()' index.html
           grep -q 'const EUROPE_STATION_DATA_URL="europe_stations/index.json";' index.html
           grep -q 'preloadEuropeStationData().catch' index.html
           git diff --check
-          echo 'Prüfung OK.'
+          echo 'Frontend-Prüfung OK.'
 
-      - name: Patch committen, Einmal-Workflow entfernen und pushen
+      - name: index.html committen und pushen
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add index.html .github/workflows/update-europe-stations.yml
-          git rm .github/workflows/fix-europe-workflow-and-preload.yml
+          git add index.html
 
-          echo '=== ÄNDERUNGEN ==='
-          git status --short
-          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo 'Keine Frontend-Änderung nötig.'
+            exit 0
+          fi
 
-          git commit -m "Preload Europe stations and complete Estonia Slovenia workflow [skip ci]"
+          git commit -m "Preload Europe station data on page load [skip ci]"
 
           PUSH_OK=false
           for ATTEMPT in 1 2 3; do
