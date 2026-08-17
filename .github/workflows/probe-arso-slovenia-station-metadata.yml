@@ -1,0 +1,110 @@
+name: Probe ARSO Slovenia station metadata
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arso-slovenia-station-metadata
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
+      - name: ARSO-Metadaten-Cache wiederherstellen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: arso-slovenia-station-metadata-v1-${{ github.run_id }}
+          restore-keys: |
+            arso-slovenia-station-metadata-v1-
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_arso_slovenia_station_metadata.py --self-test
+
+      - name: Offizielle ARSO-Stationsmetadaten abgleichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_arso_slovenia_station_metadata.py
+
+      - name: ARSO-Metadaten-Cache sichern
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-stations
+          key: arso-slovenia-station-metadata-v1-${{ github.run_id }}
+
+      - name: Metadaten-Probe prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pathlib
+
+          status_path = pathlib.Path(
+              ".cache/europe-stations/"
+              "arso_slovenia_station_metadata_status_v1.json"
+          )
+          if not status_path.exists():
+              raise SystemExit(f"Status fehlt: {status_path}")
+
+          status = json.loads(
+              status_path.read_text(encoding="utf-8")
+          )
+
+          print("=== ARSO SLOVENIA METADATA PROBE STATUS ===")
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete_probe"):
+              raise SystemExit("ARSO-Metadaten-Probe nicht vollständig.")
+
+          if int(status.get("inventory_count", 0)) != 74:
+              raise SystemExit(
+                  "ARSO-Agromet-Inventar ist unerwartet nicht 74."
+              )
+
+          if int(status.get("gis_row_count", 0)) <= 0:
+              raise SystemExit(
+                  "Offizieller ARSO-GIS-Layer lieferte keine Datensätze."
+              )
+
+          if int(status.get("coordinate_id_count", 0)) <= 0:
+              raise SystemExit(
+                  "Keine ARSO-ID konnte mit Koordinaten verknüpft werden."
+              )
+
+          if int(status.get("known_station_checks_ok", 0)) < 2:
+              raise SystemExit(
+                  "Zu wenige bekannte Stationskoordinaten stimmen überein."
+              )
+
+          metadata_file = pathlib.Path(status["metadata_file"])
+          if not metadata_file.exists():
+              raise SystemExit(
+                  f"Metadaten-Datei fehlt: {metadata_file}"
+              )
+
+          print("ARSO Slovenia Metadaten-Probe technisch OK.")
+          PY
