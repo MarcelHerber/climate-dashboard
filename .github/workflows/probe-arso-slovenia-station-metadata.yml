@@ -1,4 +1,4 @@
-name: Probe ARSO Slovenia station metadata v4
+name: Probe ARSO Slovenia station metadata v5
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: arso-slovenia-station-metadata-v4
+  group: arso-slovenia-station-metadata-v5
   cancel-in-progress: false
 
 jobs:
@@ -28,13 +28,13 @@ jobs:
         shell: bash
         run: mkdir -p .cache/europe-stations
 
-      - name: ARSO-Metadaten-V4-Cache wiederherstellen
+      - name: ARSO-Metadaten-V5-Cache wiederherstellen
         uses: actions/cache/restore@v5
         with:
           path: .cache/europe-stations
-          key: arso-slovenia-station-metadata-v4-${{ github.run_id }}
+          key: arso-slovenia-station-metadata-v5-${{ github.run_id }}
           restore-keys: |
-            arso-slovenia-station-metadata-v4-
+            arso-slovenia-station-metadata-v5-
 
       - name: Offline-Selbsttest
         shell: bash
@@ -48,14 +48,14 @@ jobs:
           set -euo pipefail
           python scripts/update_arso_slovenia_station_metadata.py
 
-      - name: ARSO-Metadaten-V4-Cache sichern
+      - name: ARSO-Metadaten-V5-Cache sichern
         if: always()
         uses: actions/cache/save@v5
         with:
           path: .cache/europe-stations
-          key: arso-slovenia-station-metadata-v4-${{ github.run_id }}
+          key: arso-slovenia-station-metadata-v5-${{ github.run_id }}
 
-      - name: Metadaten-V4-Probe prüfen
+      - name: Metadaten-V5-Probe prüfen
         shell: bash
         run: |
           set -euo pipefail
@@ -65,18 +65,18 @@ jobs:
 
           status_path = pathlib.Path(
               ".cache/europe-stations/"
-              "arso_slovenia_station_metadata_status_v4.json"
+              "arso_slovenia_station_metadata_status_v5.json"
           )
           if not status_path.exists():
               raise SystemExit(f"Status fehlt: {status_path}")
 
           status = json.loads(status_path.read_text(encoding="utf-8"))
 
-          print("=== ARSO SLOVENIA METADATA V4 STATUS ===")
+          print("=== ARSO SLOVENIA METADATA V5 STATUS ===")
           print(json.dumps(status, indent=2, ensure_ascii=False))
 
           if not status.get("complete_probe"):
-              raise SystemExit("ARSO-Metadaten-V4-Probe nicht vollständig.")
+              raise SystemExit("ARSO-Metadaten-V5-Probe nicht vollständig.")
 
           if int(status.get("inventory_count", 0)) != 74:
               raise SystemExit("ARSO-Agromet-Inventar ist nicht 74.")
@@ -88,7 +88,7 @@ jobs:
 
           if int(status.get("coordinate_id_count", 0)) != 74:
               raise SystemExit(
-                  "ARSO-Metadaten V4 sind noch nicht 74/74."
+                  "ARSO-Metadaten V5 sind noch nicht 74/74."
               )
 
           metadata_file = pathlib.Path(status["metadata_file"])
