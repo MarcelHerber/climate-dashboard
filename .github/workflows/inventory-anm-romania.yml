@@ -1,0 +1,42 @@
+name: Inventory ANM Romania
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Inventar-Skript prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/inventory_anm_romania.py
+          python scripts/inventory_anm_romania.py --self-test
+
+      - name: ANM Rumänien Stationsinventar
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/inventory_anm_romania.py --workers 8
+
+      - name: Inventar als Artifact speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: anm-romania-station-inventory
+          path: romania_anm_station_inventory.json
+          if-no-files-found: error
+          retention-days: 14
