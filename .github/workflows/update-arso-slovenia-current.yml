@@ -1,0 +1,102 @@
+name: Build ARSO Slovenia 2026 cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arso-slovenia-current-2026
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Cache-Verzeichnis anlegen
+        shell: bash
+        run: mkdir -p .cache/europe-stations
+
+      - name: Slowenien-2026-Cache wiederherstellen
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/europe-stations
+          key: arso-slovenia-current-2026-v1-${{ github.run_id }}
+          restore-keys: |
+            arso-slovenia-current-2026-v1-
+
+      - name: Offline-Selbsttest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_arso_slovenia_current.py --self-test
+
+      - name: ARSO-Slowenien-2026-Cache bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_arso_slovenia_current.py \
+            --year 2026 \
+            --workers 12
+
+      - name: Slowenien-2026-Cache sichern
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/europe-stations
+          key: arso-slovenia-current-2026-v1-${{ github.run_id }}
+
+      - name: Slowenien-2026-Cache prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pathlib
+
+          status_path = pathlib.Path(
+              ".cache/europe-stations/arso_slovenia_current_2026_status.json"
+          )
+          if not status_path.exists():
+              raise SystemExit(f"Status fehlt: {status_path}")
+
+          status = json.loads(status_path.read_text(encoding="utf-8"))
+
+          print("=== ARSO SLOVENIA 2026 STATUS ===")
+          print(json.dumps(status, indent=2, ensure_ascii=False))
+
+          if not status.get("complete"):
+              raise SystemExit("Slowenien-2026-Cache ist nicht vollständig.")
+
+          if int(status.get("eligible_station_count", 0)) <= 0:
+              raise SystemExit(
+                  "ARSO meldet keine für 2026 aktiven Stations-IDs."
+              )
+
+          if int(status.get("station_count", 0)) <= 0:
+              raise SystemExit(
+                  "Slowenien-2026-Cache enthält keine Stationsreihen."
+              )
+
+          if int(status.get("observation_days", 0)) <= 0:
+              raise SystemExit(
+                  "Slowenien-2026-Cache enthält keine Stationstage."
+              )
+
+          current = pathlib.Path(status["current_file"])
+          if not current.exists():
+              raise SystemExit(f"Current-Cache fehlt: {current}")
+
+          print("ARSO Slovenia 2026 Current-Cache vollständig OK.")
+          PY
