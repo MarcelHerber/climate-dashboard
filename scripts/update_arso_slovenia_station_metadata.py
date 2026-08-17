@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build ARSO Slovenia station metadata from official Agromet metadata CSVs.
 
-STEP 8d ONLY.
+STEP 8e ONLY.
 
 Primary metadata sources are now the two official ARSO Agromet station
 metadata files from the SAME product family as the temperature month tables:
@@ -26,7 +26,8 @@ Matching policy:
 4. conservative, explicit aliases only where ARSO itself uses a shorter
    historic display name;
 5. exact normalized station name in the national GIS layer;
-6. fuzzy suggestions are PRINTED ONLY and never auto-accepted.
+6. direct official ARSO historical-normal coordinate reference for three verified discontinued IDs;
+7. fuzzy suggestions are PRINTED ONLY and never auto-accepted.
 
 No Europe integration happens here.
 """
@@ -51,7 +52,7 @@ from urllib.parse import urlencode
 
 import update_arso_slovenia_station_cache as core
 
-FORMAT_VERSION = 4
+FORMAT_VERSION = 5
 CACHE_DIR_DEFAULT = Path(".cache/europe-stations")
 
 AGROMET_CURRENT_META = (
@@ -87,6 +88,8 @@ NAME_ALIASES = {
     "slap vipava": ["slap"],
     "podcetrtek i": ["podcetrtek"],
     "gornja radgona i": ["gornja radgona"],
+    # ARSO Agromet uses the longer current display name.
+    "turski vrh": ["turski vrh pri zavrcu"],
 }
 
 
@@ -541,6 +544,41 @@ def choose_gis_name_row(
 # Independent ARSO 1971-2000 normal-table references for three historical IDs.
 # These are deliberately low precision (degree + minute) and are used only as
 # a plausibility cross-check, never as the coordinate source itself.
+
+# Direct official ARSO climate-normal coordinates for historical stations
+# that no longer appear in the current ID/name metadata layers.
+#
+# Source PDFs:
+# 045 Stara Fužina:
+# https://meteo.arso.gov.si/uploads/probase/www/climate/table/en/by_location/stara-fuzina/climate-normals_71-00_stara-fuzina.pdf
+# 334 Gornja Radgona:
+# https://meteo.arso.gov.si/uploads/probase/www/climate/table/en/by_location/gornja-radgona/climate-normals_71-00_gornja-radgona.pdf
+# 349 Podgradje:
+# https://meteo.arso.gov.si/uploads/probase/www/climate/table/en/by_location/podgradje/climate-normals_71-00_podgradje.pdf
+OFFICIAL_HISTORICAL_COORDS = {
+    "045": {
+        "lat": 46 + 17 / 60,
+        "lon": 13 + 54 / 60,
+        "elevation_m": 547.0,
+        "metadata_name": "STARA FUŽINA",
+        "metadata_source": "ARSO climate normals 1971-2000",
+    },
+    "334": {
+        "lat": 46 + 40 / 60,
+        "lon": 16 + 0 / 60,
+        "elevation_m": 232.0,
+        "metadata_name": "GORNJA RADGONA",
+        "metadata_source": "ARSO climate normals 1971-2000",
+    },
+    "349": {
+        "lat": 46 + 30 / 60,
+        "lon": 16 + 14 / 60,
+        "elevation_m": 272.0,
+        "metadata_name": "PODGRADJE",
+        "metadata_source": "ARSO climate normals 1971-2000",
+    },
+}
+
 HISTORICAL_NORMAL_REFS = {
     "045": (46 + 17 / 60, 13 + 54 / 60, 547.0),  # Stara Fužina
     "334": (46 + 40 / 60, 16 + 0 / 60, 232.0),   # Gornja Radgona
@@ -699,6 +737,24 @@ def build_metadata(
             methods["gis_exact_name"] += 1
             continue
 
+        # 6) Direct historical ARSO climate-normal coordinate reference.
+        # Only three explicitly verified discontinued IDs are allowed here.
+        hist_ref = OFFICIAL_HISTORICAL_COORDS.get(sid)
+        if hist_ref is not None:
+            metadata[sid] = {
+                "station_id": sid,
+                "name": inv_name,
+                "lat": float(hist_ref["lat"]),
+                "lon": float(hist_ref["lon"]),
+                "elevation_m": float(hist_ref["elevation_m"]),
+                "match_method": "arso_historical_normals",
+                "metadata_name": hist_ref["metadata_name"],
+                "metadata_source": hist_ref["metadata_source"],
+                "matched_gis_station_id": None,
+            }
+            methods["arso_historical_normals"] += 1
+            continue
+
         unresolved.append(
             {
                 "station_id": sid,
@@ -769,7 +825,7 @@ def known_station_checks(metadata: dict[str, dict[str, Any]]) -> list[dict[str, 
 def run(cache_dir: Path) -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V4 ===", flush=True)
+    print("=== ARSO SLOWENIEN · STATIONSMETADATEN V5 ===", flush=True)
     print("Primär: offizielle Agromet-Metadaten-CSV 1961-2016 + 2017-heute")
     print("Sekundär: nationaler ARSO-GIS-Layer mit exakter Stations-ID")
 
@@ -834,7 +890,7 @@ def run(cache_dir: Path) -> int:
 
     print()
     print("=" * 88)
-    print("ARSO SLOWENIEN · METADATEN V4 STATUS")
+    print("ARSO SLOWENIEN · METADATEN V5 STATUS")
     print("=" * 88)
     print(json.dumps(status, indent=2, ensure_ascii=False))
 
@@ -910,6 +966,11 @@ def self_test() -> int:
             "start_year": 1961,
             "end_year": 2001,
         },
+        "045": {
+            "name": "STARA FUŽINA",
+            "start_year": 1961,
+            "end_year": 2002,
+        },
     }
 
     current_rows = parsed
@@ -941,13 +1002,15 @@ def self_test() -> int:
         historical_rows,
         gis_fixture,
     )
-    assert len(result["metadata"]) == 4
+    assert len(result["metadata"]) == 5
     assert result["metadata"]["816"]["match_method"] == "agromet_current_exact_name"
     assert result["metadata"]["102"]["match_method"] == "agromet_historical_official_alias"
     assert result["metadata"]["349"]["match_method"] == "gis_exact_name"
+    assert result["metadata"]["045"]["match_method"] == "arso_historical_normals"
+    assert abs(result["metadata"]["045"]["lat"] - 46.2833333333) < 1e-6
     assert result["unresolved"] == []
 
-    print("ARSO Slovenia station-metadata v4 self-test OK")
+    print("ARSO Slovenia station-metadata v5 self-test OK")
     return 0
 
 
