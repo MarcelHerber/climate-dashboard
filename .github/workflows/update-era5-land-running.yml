@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   group: era5-land-running
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   running-tp:
@@ -53,8 +53,9 @@ jobs:
           path: |
             .era5_running_cache
             .era5_cache/cartopy
-          key: era5-land-running-v2-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
+          key: era5-land-running-v3-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
           restore-keys: |
+            era5-land-running-v3-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
             era5-land-running-v2-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
             era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
             era5-land-running-v1-${{ runner.os }}-
@@ -80,7 +81,7 @@ jobs:
           EOF
           chmod 600 "$HOME/.cdsapirc"
 
-      - name: Große CDS-Referenzanfragen in Pakete teilen
+      - name: CDS-Referenzanfragen auf fortlaufende Jahrespakete optimieren
         shell: bash
         run: |
           set -euo pipefail
@@ -90,10 +91,12 @@ jobs:
           path = Path("scripts/update_era5_land_europe_running.py")
           text = path.read_text(encoding="utf-8")
 
-          if "REFERENCE_CHUNK_YEARS = 5" not in text:
+          if "REFERENCE_CHUNK_YEARS = 5" in text:
+              text = text.replace("REFERENCE_CHUNK_YEARS = 5", "REFERENCE_CHUNK_YEARS = 1", 1)
+          elif "REFERENCE_CHUNK_YEARS = 1" not in text:
               text = text.replace(
                   "MAX_LOOKBACK_DAYS = 14\n",
-                  "MAX_LOOKBACK_DAYS = 14\nREFERENCE_CHUNK_YEARS = 5\n",
+                  "MAX_LOOKBACK_DAYS = 14\nREFERENCE_CHUNK_YEARS = 1\n",
                   1,
               )
 
@@ -126,10 +129,10 @@ jobs:
               raise RuntimeError("Patchstelle Temperatur-Referenz nicht gefunden")
 
           path.write_text(text, encoding="utf-8")
-          print("CDS-Referenzanfragen werden jetzt in 5-Jahres-Paketen verarbeitet.")
+          print("CDS-Tagesreferenz wird jetzt jahrweise mit fortlaufenden Kalendertagen verarbeitet.")
           PY
           python -m py_compile scripts/update_era5_land_europe_running.py
-          grep -q 'REFERENCE_CHUNK_YEARS = 5' scripts/update_era5_land_europe_running.py
+          grep -q 'REFERENCE_CHUNK_YEARS = 1' scripts/update_era5_land_europe_running.py
           grep -q 'request_daily_temperature_period' scripts/update_era5_land_europe_running.py
 
       - name: Laufenden August und Sommer berechnen
