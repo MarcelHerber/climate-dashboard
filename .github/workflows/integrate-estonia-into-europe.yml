@@ -1,0 +1,101 @@
+name: Integrate Estonia into Europe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: integrate-estonia-into-europe
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Integrationspatch prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/integrate_estonia_into_europe.py --self-test
+
+      - name: Estland in Europa integrieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/integrate_estonia_into_europe.py
+
+      - name: Geänderte Python-Datei prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/update_europe_station_records_all_sources.py
+          python scripts/update_ilmateenistus_estonia_station_cache.py --self-test
+          python scripts/update_ilmateenistus_estonia_current.py --self-test
+          python scripts/update_europe_station_records_all_sources.py --self-test
+          git diff --check
+
+      - name: Integration kontrollieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'import update_ilmateenistus_estonia_station_cache as estonia_hist' scripts/update_europe_station_records_all_sources.py
+          grep -q 'Estland": estonia_hist.SOURCE' scripts/update_europe_station_records_all_sources.py
+          grep -q '"EN"}' scripts/update_europe_station_records_all_sources.py
+          grep -q 'force_estonia_baseline:' .github/workflows/update-europe-stations.yml
+          grep -q 'ilmateenistus-estonia-current-v1-' .github/workflows/update-europe-stations.yml
+          grep -q '"Estland":"Estonian Environment Agency climate API"' .github/workflows/update-europe-stations.yml
+          echo "Estland-Europa-Integration geprüft."
+
+      - name: Einmal-Helfer entfernen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm scripts/integrate_estonia_into_europe.py
+          git rm .github/workflows/integrate-estonia-into-europe.yml
+
+      - name: Änderungen committen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add scripts/update_europe_station_records_all_sources.py
+          git add .github/workflows/update-europe-stations.yml
+
+          echo "=== GEÄNDERTE DATEIEN ==="
+          git status --short
+          echo "=== DIFF STAT ==="
+          git diff --cached --stat
+
+          git commit -m "Integrate Estonia station records into Europe [skip ci]"
+
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin "${GITHUB_REF_NAME}"
+            if ! git rebase "origin/${GITHUB_REF_NAME}"; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              PUSH_OK=true
+              break
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+          [[ "$PUSH_OK" == "true" ]]
