@@ -39,8 +39,6 @@ ALL_VALUES_TOKEN = "AllValuesWML20"
 
 DATE_PREFIX_RE = re.compile(r"^((?:18|19|20)\d{2}-\d{2}-\d{2})")
 
-# Official ANM "essential meteorological stations" / RBSN list.
-# Source: Romanian open-data portal, institution: ANM.
 STATION_NAMES: dict[str, str] = {
     "15015": "Ocna Sugatag",
     "15020": "Botosani",
@@ -135,7 +133,7 @@ def metadata_url(station_code: str, element: str) -> str:
     token = MAX_TOKEN if element == "TMAX" else MIN_TOKEN
     return (
         f"{BASE}/ids/"
-        f"OM_Observation.EnvironmentalMonitoringFacility.{station_code}.{token}"
+        f"OM_Observation.EnvironmentalMonitoringFacility.{station_code}/{token}"
     )
 
 
@@ -301,7 +299,6 @@ def daily_series(station_code: str, element: str, cutoff_year: int) -> dict[str,
 
         value_c = to_celsius(raw_value)
 
-        # Very broad Romania-specific emergency guard only.
         if element == "TMAX":
             if not (-60.0 <= value_c <= 55.0):
                 continue
@@ -666,10 +663,10 @@ def self_test() -> None:
 
     assert to_celsius(299.15) == 26.0
     assert metadata_url("15020", "TMAX").endswith(
-        "EnvironmentalMonitoringFacility.15020.TemperatureMaximumDailyCLIMAT"
+        "EnvironmentalMonitoringFacility.15020/TemperatureMaximumDailyCLIMAT"
     )
     assert metadata_url("15020", "TMIN").endswith(
-        "EnvironmentalMonitoringFacility.15020.TemperatureMinimumDailyCLIMAT"
+        "EnvironmentalMonitoringFacility.15020/TemperatureMinimumDailyCLIMAT"
     )
 
     print("ANM Romania historical baseline self-test OK.")
@@ -678,7 +675,11 @@ def self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cache-dir", default=str(cache_dir_default()))
-    parser.add_argument("--cutoff-year", type=int, default=dt.datetime.now(dt.timezone.utc).year - 1)
+    parser.add_argument(
+        "--cutoff-year",
+        type=int,
+        default=dt.datetime.now(dt.timezone.utc).year - 1,
+    )
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--self-test", action="store_true")
