@@ -18,6 +18,7 @@ National sources:
 - Hungary: HungaroMet Open Data (original controlled long series + HABP_1D)
 - Ireland: Met Éireann Climate Data Online (daily maxtp/mintp)
 - Estonia: Estonian Environment Agency climate API (daily DTAX/DTAN)
+- Slovenia: ARSO Agromet official daily Tmin/Tmax month tables (73 map-ready IDs)
 - remaining Europe: GHCN-Daily
 
 The core Stations-V5 writer remains unchanged. Dedicated compact national
@@ -36,6 +37,8 @@ import json
 import math
 import os
 import re
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -67,10 +70,15 @@ import update_met_eireann_ireland_station_cache as ireland_hist
 import update_met_eireann_ireland_current as ireland_current_mod
 import update_ilmateenistus_estonia_station_cache as estonia_hist
 import update_ilmateenistus_estonia_current as estonia_current_mod
+import update_arso_slovenia_station_cache as slovenia_hist
+import update_arso_slovenia_current as slovenia_current_mod
+import update_arso_slovenia_station_metadata as slovenia_meta
 
 
 ACTIVE_GRACE_DAYS = 45
-NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}
+SLOVENIA_IGNORED_IDS = {"346"}
+SLOVENIA_EXPECTED_MAP_READY = 73
+NATIONAL_GHCN_CODES = {"GM", "FR", "SP", "ES", "AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN", "SI"}
 OPPOSITE_EXTREMES_CACHE_VERSION = 1
 
 # The legacy Stations-V5 core only persists the conventional record direction
@@ -955,6 +963,99 @@ def ireland_inventory_to_meta(
     return out
 
 
+
+def _slovenia_filter_records(records: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(raw_id): record
+        for raw_id, record in records.items()
+        if str(raw_id) not in SLOVENIA_IGNORED_IDS
+    }
+
+
+def _load_slovenia_map_metadata() -> dict[str, dict[str, Any]]:
+    # Resolve exactly the 73 accepted ARSO coordinates.
+    # NOAA/GHCN is deliberately not called here: ID 346 is now an intentional
+    # exclusion rather than a matching problem to solve.
+    inventory, _ = slovenia_hist.load_inventory()
+    current_meta, historical_meta = slovenia_meta.load_agromet_metadata()
+    gis_rows = slovenia_meta.load_gis_rows()
+
+    result = slovenia_meta.build_metadata(
+        inventory,
+        current_meta,
+        historical_meta,
+        gis_rows,
+        [],
+    )
+    metadata = result.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise RuntimeError("ARSO-Metadatenresultat ist kein Dictionary.")
+
+    inventory_ids = set(str(x) for x in inventory)
+    expected_ids = inventory_ids - SLOVENIA_IGNORED_IDS
+    actual_ids = set(str(x) for x in metadata)
+
+    if len(inventory) != 74:
+        raise RuntimeError(f"ARSO-Inventar hat {len(inventory)} statt 74 IDs.")
+    if not SLOVENIA_IGNORED_IDS.issubset(inventory_ids):
+        raise RuntimeError("ARSO-ID 346 fehlt unerwartet im Quellinventar.")
+    if actual_ids != expected_ids:
+        missing = sorted(expected_ids - actual_ids)
+        extra = sorted(actual_ids - expected_ids)
+        raise RuntimeError(
+            "ARSO-Metadaten sind nicht exakt die 73 freigegebenen IDs: "
+            f"missing={missing}, extra={extra}"
+        )
+    if len(metadata) != SLOVENIA_EXPECTED_MAP_READY:
+        raise RuntimeError(
+            f"ARSO: {len(metadata)} statt 73 kartierbare Stationen."
+        )
+    if "346" in metadata:
+        raise RuntimeError("ARSO 346 darf nicht veröffentlicht werden.")
+
+    return metadata
+
+
+def slovenia_metadata_to_meta(
+    metadata: dict[str, dict[str, Any]],
+) -> dict[str, core.StationMeta]:
+    out: dict[str, core.StationMeta] = {}
+
+    for raw_id, meta in metadata.items():
+        raw_id = str(raw_id)
+        if raw_id in SLOVENIA_IGNORED_IDS or not isinstance(meta, dict):
+            continue
+
+        sid = f"ARSO:{raw_id}"
+        station = _make_station_meta(
+            sid=sid,
+            raw_meta=meta,
+            lat_keys=("lat",),
+            lon_keys=("lon",),
+            elev_keys=("elevation_m",),
+            name_keys=("name", "metadata_name"),
+            country_code="SI",
+            country="Slowenien",
+            source=slovenia_hist.SOURCE,
+            quality_rule=(
+                "ARSO Slowenien: offizielle Agromet-Tageswerte Tmin/Tmax aus "
+                "monatlichen TXT-Tabellen; grobe Plausibilitäts-QC, Tmin>Tmax "
+                "wird verworfen. Von 74 Quell-IDs werden exakt 73 kartiert; "
+                "ID 346 Turški Vrh ist wegen fehlender verifizierter Koordinate "
+                "bewusst ausgeschlossen."
+            ),
+        )
+        if station is not None:
+            out[sid] = station
+
+    if len(out) != SLOVENIA_EXPECTED_MAP_READY:
+        raise RuntimeError(f"ARSO StationMeta: {len(out)} statt 73 Stationen.")
+    if "ARSO:346" in out:
+        raise RuntimeError("ARSO:346 wurde trotz Ausschluss erzeugt.")
+
+    return out
+
+
 def chmi_payload_inventory(base_payload: dict, current_payload: dict | None = None) -> dict[str, dict[str, Any]]:
     inventory: dict[str, dict[str, Any]] = {}
     for payload in (base_payload, current_payload or {}):
@@ -1129,6 +1230,51 @@ def _load_or_build_poland(cache_dir: Path, current_year: int, force: bool, worke
     return poland.load_baseline(cache_dir, cutoff_year)
 
 
+
+def _load_or_build_slovenia_baseline(
+    cache_dir: Path,
+    current_year: int,
+    force: bool,
+) -> dict:
+    cutoff_year = current_year - 1
+    path = slovenia_hist.baseline_path(cache_dir, cutoff_year)
+
+    if force or not slovenia_hist.valid_baseline(path, cutoff_year):
+        script = Path(__file__).with_name(
+            "update_arso_slovenia_station_cache.py"
+        )
+        cmd = [
+            sys.executable,
+            str(script),
+            "--cutoff-year",
+            str(cutoff_year),
+            "--workers",
+            "12",
+            "--batch-size",
+            "600",
+            "--max-runtime-minutes",
+            "300",
+        ]
+        if force:
+            cmd.append("--force")
+
+        log(
+            "Baue/aktualisiere ARSO-Slowenien-Baseline bis "
+            f"{cutoff_year} ..."
+        )
+        subprocess.run(cmd, check=True)
+
+    if not slovenia_hist.valid_baseline(path, cutoff_year):
+        raise RuntimeError(f"ARSO-Slowenien-Baseline unvollständig: {path}")
+
+    payload = slovenia_hist.load_pickle_gz(path)
+    if not isinstance(payload, dict) or payload.get("complete") is not True:
+        raise RuntimeError(f"ARSO-Slowenien-Baseline ungültig: {path}")
+
+    log(f"Verwende ARSO-Slowenien-Baseline: {path}")
+    return payload
+
+
 def _load_compact_national_sources(
     cache_dir: Path,
     current_year: int,
@@ -1142,6 +1288,7 @@ def _load_compact_national_sources(
     force_swiss: bool,
     force_fmi: bool,
     force_estonia: bool,
+    force_slovenia: bool,
     force_chmi: bool,
     force_hungary: bool,
     force_ireland: bool,
@@ -1230,6 +1377,12 @@ def _load_compact_national_sources(
         raise RuntimeError(f"Estland-Baseline unvollständig: {estonia_base_path}")
     estonia_base = estonia_hist.load_pickle_gzip(estonia_base_path)
 
+    slovenia_base = _load_or_build_slovenia_baseline(
+        cache_dir,
+        current_year,
+        force=force_slovenia,
+    )
+
     chmi_hist.build_baseline(
         cache_dir,
         cutoff_year,
@@ -1298,6 +1451,15 @@ def _load_compact_national_sources(
     if not isinstance(estonia_cur, dict) or estonia_cur.get("complete") is not True:
         raise RuntimeError(f"Estland-Current unvollständig: {estonia_current_path}")
 
+    slovenia_current_path = slovenia_current_mod.build_current(
+        cache_dir,
+        current_year,
+        workers=12,
+    )
+    slovenia_cur = slovenia_hist.load_pickle_gz(slovenia_current_path)
+    if not isinstance(slovenia_cur, dict) or slovenia_cur.get("complete") is not True:
+        raise RuntimeError(f"ARSO-Slowenien-Current unvollständig: {slovenia_current_path}")
+
     chmi_current_path = chmi_current_mod.build_current(cache_dir, current_year, workers=12)
     chmi_cur = chmi_current_mod.load_current(cache_dir, current_year)
 
@@ -1319,6 +1481,7 @@ def _load_compact_national_sources(
         swiss_base, swiss_cur,
         fmi_base, fmi_cur,
         estonia_base, estonia_cur,
+        slovenia_base, slovenia_cur,
         chmi_base, chmi_cur,
         hungary_base, hungary_cur,
         ireland_base, ireland_cur,
@@ -1493,6 +1656,7 @@ def patch_index_metadata(
     swiss_current_count: int,
     fmi_current_count: int,
     estonia_current_count: int,
+    slovenia_current_count: int,
     chmi_current_count: int,
     hungary_current_count: int,
     ireland_current_count: int,
@@ -1511,7 +1675,8 @@ def patch_index_metadata(
         "KMI/RMI Open Data (Belgien) + MeteoSwiss Open Data (Schweiz) + "
         "FMI Open Data (Finnland) + CHMI Open Data (Tschechien) + "
         "HungaroMet Open Data (Ungarn) + Met Éireann Climate Data Online (Irland) + "
-        "Estonian Environment Agency climate API (Estland) + GHCN-Daily (übriges Europa)"
+        "Estonian Environment Agency climate API (Estland) + "
+        "ARSO Agromet (Slowenien) + GHCN-Daily (übriges Europa)"
     )
     payload["sources"] = [
         {"name": core.DWD_SOURCE, "scope": "Deutschland", "url": core.DWD_BASE, "stations": counts.get(core.DWD_SOURCE, 0)},
@@ -1530,6 +1695,7 @@ def patch_index_metadata(
         {"name": hungary_hist.SOURCE, "scope": "Ungarn", "url": hungary_hist.PUBLIC_URL, "stations": counts.get(hungary_hist.SOURCE, 0)},
         {"name": ireland_hist.SOURCE, "scope": "Irland", "url": ireland_hist.PUBLIC_URL, "stations": counts.get(ireland_hist.SOURCE, 0)},
         {"name": estonia_hist.SOURCE, "scope": "Estland", "url": estonia_hist.PUBLIC_URL, "stations": counts.get(estonia_hist.SOURCE, 0)},
+        {"name": slovenia_hist.SOURCE, "scope": "Slowenien", "url": slovenia_hist.FORM_URL, "stations": counts.get(slovenia_hist.SOURCE, 0)},
         {"name": core.GHCN_SOURCE, "scope": "übriges Europa", "url": core.GHCN_BASE, "stations": counts.get(core.GHCN_SOURCE, 0)},
     ]
     payload["quality_rule"] = (
@@ -1549,6 +1715,7 @@ def patch_index_metadata(
         "Ungarn: HungaroMet kontrollierte, nicht homogenisierte Original-Langreihen ab 1901 plus HABP_1D tn/tx; Q_tn/Q_tx sind derzeit reserviert, -999/fehlende und unplausible Werte werden verworfen. "
         "Irland: Met Éireann Climate Data Online maxtp/mintp; gmin/igmin werden ausgeschlossen; Republik Irland ohne Nordirland. "
         "Estland: Estonian Environment Agency climate API DTAX/DTAN; nichtnumerische Werte verworfen, Tmin>Tmax abgelehnt. "
+        "Slowenien: ARSO Agromet tägliche Tmin/Tmax-Monatstabellen; grobe Plausibilitäts-QC und Tmin>Tmax verworfen; ID 346 Turški Vrh bewusst ohne Kartenintegration. "
         "Übriges Europa: GHCN-Daily TMAX/TMIN nur mit leerem Q-FLAG."
     )
     payload["history_scope"] = (
@@ -1561,12 +1728,13 @@ def patch_index_metadata(
         "mit 10 kontrollierten Original-Langreihen ab 1901 und HABP_1D Stationsnetz vor allem ab 2002; "
         "Met Éireann Irland mit offiziellen täglichen maxtp/mintp-Reihen bis zurück 1939; "
         "Estonian Environment Agency Estland für das verifizierte aktive 25-Stationen-Netz ab 1991 (Roomassaare ab 2007); "
+        "ARSO Slowenien mit offiziellen täglichen Tmin/Tmax-Reihen und 73 kartierbaren Quell-IDs (346 ausgeschlossen); "
         "GHCN-Daily für das übrige Europa. "
         f"Das laufende Jahr {current_year} wird bei jedem Workflow-Lauf separat aktualisiert."
     )
     payload["publication_scope"] = (
         "Europa vollständig: nationale Quellen für Deutschland, Frankreich, Spanien, Österreich, Polen, "
-        "Niederlande, Norwegen, Dänemark, Schweden, Belgien, die Schweiz, Finnland, Tschechien, Ungarn, Irland und Estland; GHCN-Daily für Rest-Europa"
+        "Niederlande, Norwegen, Dänemark, Schweden, Belgien, die Schweiz, Finnland, Tschechien, Ungarn, Irland, Estland und Slowenien; GHCN-Daily für Rest-Europa"
     )
     payload["coverage"] = {
         "Deutschland": {"source": core.DWD_SOURCE, "historical_complete": True},
@@ -1633,6 +1801,14 @@ def patch_index_metadata(
             "current_year_station_count": estonia_current_count,
             "history_note": "Estonian Environment Agency: DTAX/DTAN für 25 verifizierte aktive Stationen; öffentliche Baseline ab 1991, Roomassaare ab 2007.",
         },
+        "Slowenien": {
+            "source": slovenia_hist.SOURCE,
+            "historical_complete": True,
+            "current_year_station_count": slovenia_current_count,
+            "published_station_count": SLOVENIA_EXPECTED_MAP_READY,
+            "ignored_station_ids": sorted(SLOVENIA_IGNORED_IDS),
+            "history_note": "ARSO Agromet tägliche Tmin/Tmax-Monatstabellen; 73/74 Quell-IDs mit verifizierten Koordinaten. ID 346 Turški Vrh bewusst ausgeschlossen.",
+        },
         "Rest-Europa": {"source": core.GHCN_SOURCE, "historical_complete": True},
     }
 
@@ -1659,6 +1835,7 @@ def validate_payload(payload: dict) -> None:
         "Ungarn": hungary_hist.SOURCE,
         "Irland": ireland_hist.SOURCE,
         "Estland": estonia_hist.SOURCE,
+        "Slowenien": slovenia_hist.SOURCE,
     }
     for country, source in expected.items():
         country_rows = [row for row in rows if row.get("country") == country]
@@ -1668,6 +1845,17 @@ def validate_payload(payload: dict) -> None:
         if wrong:
             wrong_sources = sorted({row.get("source") for row in wrong})
             raise RuntimeError(f"{country} enthält falsche/gemischte Quellen: {wrong_sources}; erwartet {source}.")
+
+    slovenia_rows = [
+        row for row in rows
+        if row.get("country") == "Slowenien"
+    ]
+    if len(slovenia_rows) != SLOVENIA_EXPECTED_MAP_READY:
+        raise RuntimeError(
+            f"Slowenien enthält {len(slovenia_rows)} statt exakt 73 Stationen."
+        )
+    if any(str(row.get("id")) == "ARSO:346" for row in slovenia_rows):
+        raise RuntimeError("ARSO:346 darf nicht in der Europa-Ausgabe erscheinen.")
 
     ghcn_rows = [row for row in rows if row.get("source") == core.GHCN_SOURCE]
     if not ghcn_rows:
@@ -1698,6 +1886,7 @@ def validate_payload(payload: dict) -> None:
         hungary_hist.SOURCE,
         ireland_hist.SOURCE,
         estonia_hist.SOURCE,
+        slovenia_hist.SOURCE,
         core.GHCN_SOURCE,
     ):
         if counts.get(source, 0) <= 0:
@@ -1762,7 +1951,16 @@ def self_test() -> None:
     assert dmi_meta_test["DMI:06030"].source == dmi_hist.SOURCE
     assert dmi_meta_test["DMI:06030"].country == "Dänemark"
 
-    assert {"SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}.issubset(NATIONAL_GHCN_CODES)
+    assert {"SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN", "SI"}.issubset(NATIONAL_GHCN_CODES)
+    assert SLOVENIA_IGNORED_IDS == {"346"}
+    assert SLOVENIA_EXPECTED_MAP_READY == 73
+    assert "346" not in _slovenia_filter_records({"345": {}, "346": {}, "347": {}})
+    one_si = _make_station_meta(
+        sid="ARSO:192", raw_meta={"name": "Ljubljana", "lat": 46.06, "lon": 14.51, "elevation_m": 299},
+        lat_keys=("lat",), lon_keys=("lon",), elev_keys=("elevation_m",), name_keys=("name",),
+        country_code="SI", country="Slowenien", source=slovenia_hist.SOURCE, quality_rule="test"
+    )
+    assert one_si is not None and one_si.country == "Slowenien" and one_si.id == "ARSO:192"
 
     ireland_meta_test = ireland_inventory_to_meta(
         {"532": {"name": "Dublin Airport", "lat": 53.43, "lon": -6.25, "elevation_m": 71}},
@@ -1857,6 +2055,7 @@ def main() -> int:
     parser.add_argument("--force-hungary-baseline", action="store_true")
     parser.add_argument("--force-ireland-baseline", action="store_true")
     parser.add_argument("--force-estonia-baseline", action="store_true")
+    parser.add_argument("--force-slovenia-baseline", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -1880,7 +2079,7 @@ def main() -> int:
         "DWD Deutschland + Météo-France Frankreich + AEMET Spanien + GeoSphere Austria + "
         "IMGW Polen + KNMI Niederlande + MET Norway Frost + DMI Dänemark + "
         "SMHI Schweden + KMI/RMI Belgien + MeteoSwiss Schweiz + FMI Finnland + "
-        "CHMI Tschechien + HungaroMet Ungarn + Met Éireann Irland + Estland Climate API + GHCN-Daily Rest-Europa."
+        "CHMI Tschechien + HungaroMet Ungarn + Met Éireann Irland + Estland Climate API + ARSO Slowenien + GHCN-Daily Rest-Europa."
     )
 
     countries = core.parse_countries(core.read_url_text(core.COUNTRIES_URL))
@@ -1903,10 +2102,10 @@ def main() -> int:
     ghcn_stations = {
         sid: meta
         for sid, meta in ghcn_all_stations.items()
-        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN"}
+        if meta.country_code not in {"AU", "PL", "NL", "NO", "DA", "SW", "BE", "SZ", "FI", "EZ", "HU", "EI", "EN", "SI"}
     }
     log(
-        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH/FI/CZ/HU/IE/EE: "
+        f"GHCN-Metadaten Rest-Europa nach Ausschluss DE/FR/ES/AT/PL/NL/NO/DK/SE/BE/CH/FI/CZ/HU/IE/EE/SI: "
         f"{len(ghcn_stations):,}"
     )
     if not ghcn_stations:
@@ -1967,6 +2166,8 @@ def main() -> int:
         fmi_cur_payload,
         estonia_base,
         estonia_cur_payload,
+        slovenia_base,
+        slovenia_cur_payload,
         chmi_base,
         chmi_cur_payload,
         hungary_base,
@@ -1985,6 +2186,7 @@ def main() -> int:
         force_swiss=force_all or args.force_swiss_baseline,
         force_fmi=force_all or args.force_fmi_baseline,
         force_estonia=force_all or args.force_estonia_baseline,
+        force_slovenia=force_all or args.force_slovenia_baseline,
         force_chmi=force_all or args.force_chmi_baseline,
         force_hungary=force_all or args.force_hungary_baseline,
         force_ireland=force_all or args.force_ireland_baseline,
@@ -2007,6 +2209,10 @@ def main() -> int:
     swiss_current = compact_records_to_core_current(swiss_cur_payload.get("records", {}), prefix="METEOSWISS")
     fmi_current = compact_records_to_core_current(fmi_cur_payload.get("records", {}), prefix="FMI")
     estonia_current = compact_records_to_core_current(estonia_cur_payload.get("records", {}), prefix="ILMATEENISTUS")
+    slovenia_current = compact_records_to_core_current(
+        _slovenia_filter_records(slovenia_cur_payload.get("records", {})),
+        prefix="ARSO",
+    )
     chmi_current = chmi_packed_to_core_current(chmi_cur_payload.get("stations", {}))
     hungary_current = compact_records_to_core_current(hungary_cur_payload.get("records", {}), prefix="HUNGAROMET")
     ireland_current = compact_records_to_core_current(ireland_cur_payload.get("records", {}), prefix="METEIREANN")
@@ -2023,6 +2229,7 @@ def main() -> int:
         ("MeteoSwiss Schweiz", swiss_current),
         ("FMI Finnland", fmi_current),
         ("Estland Climate API", estonia_current),
+        ("ARSO Slowenien", slovenia_current),
         ("CHMI Tschechien", chmi_current),
         ("HungaroMet Ungarn", hungary_current),
         ("Met Éireann Irland", ireland_current),
@@ -2092,6 +2299,12 @@ def main() -> int:
     swiss_stations = swiss_inventory_to_meta(swiss_inventory)
     fmi_stations = fmi_inventory_to_meta(fmi_inventory)
     estonia_stations = estonia_inventory_to_meta(estonia_inventory)
+    slovenia_metadata = _load_slovenia_map_metadata()
+    slovenia_stations = slovenia_metadata_to_meta(slovenia_metadata)
+    log(
+        f"ARSO Slowenien Metadaten: {len(slovenia_stations)} Stationen; "
+        "ID 346 Turški Vrh bewusst ausgeschlossen."
+    )
     chmi_stations = chmi_inventory_to_meta(chmi_inventory)
 
     hungary_record_ids = set(str(x) for x in hungary_base.get("records", {}))
@@ -2136,7 +2349,7 @@ def main() -> int:
 
     if (not aemet_stations or not knmi_stations or not frost_stations or not dmi_stations
             or not smhi_stations or not belgium_stations or not swiss_stations
-            or not fmi_stations or not estonia_stations or not chmi_stations or not hungary_stations
+            or not fmi_stations or not estonia_stations or not slovenia_stations or not chmi_stations or not hungary_stations
             or not ireland_stations):
         raise RuntimeError(
             "Nationale Metadaten unvollständig: "
@@ -2144,7 +2357,7 @@ def main() -> int:
             f"Frost={len(frost_stations)}, DMI={len(dmi_stations)}, "
             f"SMHI={len(smhi_stations)}, Belgien={len(belgium_stations)}, "
             f"MeteoSwiss={len(swiss_stations)}, FMI={len(fmi_stations)}, "
-            f"Estland={len(estonia_stations)}, CHMI={len(chmi_stations)}, HungaroMet={len(hungary_stations)}, "
+            f"Estland={len(estonia_stations)}, Slowenien={len(slovenia_stations)}, CHMI={len(chmi_stations)}, HungaroMet={len(hungary_stations)}, "
             f"MetEireann={len(ireland_stations)}"
         )
 
@@ -2162,6 +2375,7 @@ def main() -> int:
     stations.update(swiss_stations)
     stations.update(fmi_stations)
     stations.update(estonia_stations)
+    stations.update(slovenia_stations)
     stations.update(chmi_stations)
     stations.update(hungary_stations)
     stations.update(ireland_stations)
@@ -2180,6 +2394,10 @@ def main() -> int:
     states.update(compact_records_to_core_states(swiss_base.get("records", {}), prefix="METEOSWISS"))
     states.update(compact_records_to_core_states(fmi_base.get("records", {}), prefix="FMI"))
     states.update(compact_records_to_core_states(estonia_base.get("records", {}), prefix="ILMATEENISTUS"))
+    states.update(compact_records_to_core_states(
+        _slovenia_filter_records(slovenia_base.get("records", {})),
+        prefix="ARSO",
+    ))
     states.update(chmi_packed_to_core_states(chmi_base.get("stations", {})))
     states.update(compact_records_to_core_states(hungary_base.get("records", {}), prefix="HUNGAROMET"))
     states.update(compact_records_to_core_states(ireland_base.get("records", {}), prefix="METEIREANN"))
@@ -2198,6 +2416,7 @@ def main() -> int:
     current.update(swiss_current)
     current.update(fmi_current)
     current.update(estonia_current)
+    current.update(slovenia_current)
     current.update(chmi_current)
     current.update(hungary_current)
     current.update(ireland_current)
@@ -2225,6 +2444,7 @@ def main() -> int:
         swiss_current_count=len(swiss_current),
         fmi_current_count=len(fmi_current),
         estonia_current_count=len(estonia_current),
+        slovenia_current_count=len(slovenia_current),
         chmi_current_count=len(chmi_current),
         hungary_current_count=len(hungary_current),
         ireland_current_count=len(ireland_current),
