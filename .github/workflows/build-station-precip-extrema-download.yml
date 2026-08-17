@@ -1,0 +1,54 @@
+name: Build station precip extrema download
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-station-precip-extrema-download.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Patch index.html
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          text=p.read_text(encoding='utf-8')
+          css_anchor='.station-precip-monthly-table .annual-cell{border-left:3px solid rgba(25,25,25,.58)!important;font-weight:700}'
+          css_add='''\n.station-precip-monthly-table td.station-precip-monthly-max{background:#dff3df!important;color:#124d1f;font-weight:700}\n.station-precip-monthly-table td.station-precip-monthly-min{background:#f0dfcf!important;color:#6e3b00;font-weight:700}'''
+          if 'station-precip-monthly-max' not in text:
+              if css_anchor not in text: raise SystemExit('CSS anchor missing')
+              text=text.replace(css_anchor,css_anchor+css_add,1)
+          start=text.find('function updateStationPrecipMonthlyTable(stationId){')
+          end=text.find('\nasync function updateStationPrecipitation(){',start)
+          if start<0 or end<0: raise SystemExit('JS function anchor missing')
+          new='''function stationPrecipMonthlyExtrema(rows){\n  const extrema=Array.from({length:12},()=>({min:null,max:null}));\n  for(let monthIndex=0;monthIndex<12;monthIndex++){\n    const values=rows.map(row=>row.months?.[monthIndex]).filter(value=>value!==null&&value!==undefined&&Number.isFinite(Number(value))).map(Number);\n    if(values.length) extrema[monthIndex]={min:Math.min(...values),max:Math.max(...values)};\n  }\n  return extrema;\n}\nfunction updateStationPrecipMonthlyTable(stationId){\n  const body=document.getElementById(\"stationPrecipMonthlyBody\");\n  if(!body) return;\n  const station=stationPrecipIndex?.stations?.find(item=>item.id===stationId);\n  const historical=Array.isArray(stationPrecipProfile?.monthly_history)?stationPrecipProfile.monthly_history.map(row=>({year:Number(row.year),months:Array.isArray(row.months)?row.months.slice(0,12):Array(12).fill(null),annual:row.annual,current:false})):[];\n  const current=stationPrecipCurrentMonthlyRow(stationId), currentYear=Number(stationPrecipIndex?.current_year);\n  const rows=historical.filter(r=>Number.isFinite(r.year)&&r.year!==currentYear).sort((a,b)=>b.year-a.year);\n  if(current) rows.unshift(current);\n  const title=document.getElementById(\"stationPrecipMonthlyTitle\"), subtitle=document.getElementById(\"stationPrecipMonthlySubtitle\"), note=document.getElementById(\"stationPrecipMonthlyNote\");\n  if(title) title.textContent=`Monatsniederschlag · ${station?.name||stationId}`;\n  if(subtitle){\n    const years=historical.map(r=>Number(r.year)).filter(Number.isFinite);\n    subtitle.textContent=`Monatssummen in mm · ${years.length?Math.min(...years)+\"–\":\"\"}${currentYear||\"\"} · neuestes Jahr oben`;\n  }\n  if(!rows.length){\n    body.innerHTML='<tr><td colspan=\"14\" class=\"no-value\">Noch keine Monatslisten im Stationsprofil vorhanden.</td></tr>';\n    if(note) note.textContent=\"Die historischen Monatslisten werden beim nächsten vollständigen Neuaufbau der Niederschlagsprofile erzeugt.\";\n    return;\n  }\n  const extrema=stationPrecipMonthlyExtrema(rows);\n  body.innerHTML=rows.map(row=>{\n    const cells=Array.from({length:12},(_,i)=>{\n      const raw=row.months?.[i];\n      const ok=raw!==null&&raw!==undefined&&Number.isFinite(Number(raw));\n      if(!ok) return '<td class=\"no-value\">-</td>';\n      const num=Number(raw);\n      const classes=[];\n      if(extrema[i].max!==null&&num===extrema[i].max) classes.push('station-precip-monthly-max');\n      if(extrema[i].min!==null&&num===extrema[i].min) classes.push('station-precip-monthly-min');\n      return `<td class=\"${classes.join(' ')}\">${stationPrecipMonthlyFormat(raw)}</td>`;\n    }).join(\"\");\n    const ok=row.annual!==null&&row.annual!==undefined&&Number.isFinite(Number(row.annual));\n    return `<tr class=\"${row.current?\"current-year\":\"\"}\"><td class=\"year-cell\">${row.year}</td>${cells}<td class=\"annual-cell ${ok?\"\":\"no-value\"}\">${ok?stationPrecipMonthlyFormat(row.annual):\"-\"}</td></tr>`;\n  }).join(\"\");\n  if(note) note.textContent=\"Monatsmaxima sind grün, Monatsminima braun markiert. Noch nicht begonnene oder unvollständige Monate werden mit '-' angezeigt. Die Jahressumme erscheint nur bei zwölf vollständigen Monaten.\";\n}\n'''
+          text=text[:start]+new+text[end:]
+          p.write_text(text,encoding='utf-8',newline='\n')
+          PY
+
+      - name: Validate
+        run: |
+          grep -q 'station-precip-monthly-max' index.html
+          grep -q 'station-precip-monthly-min' index.html
+          grep -q 'function stationPrecipMonthlyExtrema(rows)' index.html
+          grep -q "unvollständige Monate werden mit '-' angezeigt" index.html
+          git diff --check
+
+      - name: Upload complete replacement file
+        uses: actions/upload-artifact@v4
+        with:
+          name: station-precip-extrema-index
+          path: index.html
+          if-no-files-found: error
