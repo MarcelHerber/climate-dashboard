@@ -1,0 +1,34 @@
+name: Probe ANM Romania 4
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Probe-Skript prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/test_anm_romania_4.py
+          python scripts/test_anm_romania_4.py --self-test
+
+      - name: ANM Rumänien Stations-CLIMAT prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/test_anm_romania_4.py
