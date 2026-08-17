@@ -1041,6 +1041,8 @@ button.action:hover{background:#1f2937}
 .station-precip-monthly-table tr.current-year td{border-top:2px solid #222;border-bottom:2px solid #222}
 .station-precip-monthly-table td.no-value{background:#f1f3f5;color:#999}
 .station-precip-monthly-table .annual-cell{border-left:3px solid rgba(25,25,25,.58)!important;font-weight:700}
+.station-precip-monthly-table td.station-precip-monthly-max{background:#dff3df!important;color:#124d1f;font-weight:700}
+.station-precip-monthly-table td.station-precip-monthly-min{background:#f0dfcf!important;color:#6e3b00;font-weight:700}
 
 </style>
 </head>
@@ -7326,6 +7328,14 @@ function stationPrecipCurrentMonthlyRow(stationId){
   const annual=months.every(Number.isFinite)?Math.round(months.reduce((s,v)=>s+Number(v),0)*10)/10:null;
   return {year:currentYear,months,annual,current:true};
 }
+function stationPrecipMonthlyExtrema(rows){
+  const extrema=Array.from({length:12},()=>({min:null,max:null}));
+  for(let monthIndex=0;monthIndex<12;monthIndex++){
+    const values=rows.map(row=>Number(row.months?.[monthIndex])).filter(value=>Number.isFinite(value));
+    if(values.length) extrema[monthIndex]={min:Math.min(...values),max:Math.max(...values)};
+  }
+  return extrema;
+}
 function updateStationPrecipMonthlyTable(stationId){
   const body=document.getElementById("stationPrecipMonthlyBody");
   if(!body) return;
@@ -7345,13 +7355,24 @@ function updateStationPrecipMonthlyTable(stationId){
     if(note) note.textContent="Die historischen Monatslisten werden beim nächsten vollständigen Neuaufbau der Niederschlagsprofile erzeugt.";
     return;
   }
+  const extrema=stationPrecipMonthlyExtrema(rows);
   body.innerHTML=rows.map(row=>{
-    const cells=Array.from({length:12},(_,i)=>{const v=row.months?.[i],ok=Number.isFinite(Number(v));return `<td class="${ok?"":"no-value"}">${ok?stationPrecipMonthlyFormat(v):"–"}</td>`;}).join("");
-    const ok=Number.isFinite(Number(row.annual));
-    return `<tr class="${row.current?"current-year":""}"><td class="year-cell">${row.year}</td>${cells}<td class="annual-cell ${ok?"":"no-value"}">${ok?stationPrecipMonthlyFormat(row.annual):"–"}</td></tr>`;
+    const cells=Array.from({length:12},(_,i)=>{
+      const raw=row.months?.[i];
+      const ok=raw!==null&&raw!==undefined&&Number.isFinite(Number(raw));
+      if(!ok) return '<td class="no-value">-</td>';
+      const num=Number(raw);
+      const classes=[];
+      if(extrema[i].max!==null&&num===extrema[i].max) classes.push('station-precip-monthly-max');
+      if(extrema[i].min!==null&&num===extrema[i].min) classes.push('station-precip-monthly-min');
+      return `<td class="${classes.join(' ')}">${stationPrecipMonthlyFormat(raw)}</td>`;
+    }).join("");
+    const ok=row.annual!==null&&row.annual!==undefined&&Number.isFinite(Number(row.annual));
+    return `<tr class="${row.current?"current-year":""}"><td class="year-cell">${row.year}</td>${cells}<td class="annual-cell ${ok?"":"no-value"}">${ok?stationPrecipMonthlyFormat(row.annual):"-"}</td></tr>`;
   }).join("");
-  if(note) note.textContent="Nur vollständige Kalendermonate werden summiert; der 29. Februar zählt in Schaltjahren mit. Der laufende Monat bleibt bis zu seinem Abschluss „–“. Die Jahressumme erscheint nur bei zwölf vollständigen Monaten.";
+  if(note) note.textContent="Monatsmaxima sind grün, Monatsminima braun markiert. Noch nicht begonnene oder unvollständige Monate werden mit '-' angezeigt. Die Jahressumme erscheint nur bei zwölf vollständigen Monaten.";
 }
+
 async function updateStationPrecipitation(){
   if(!stationPrecipIndex) return;
   const stationId=document.getElementById("stationPrecipStationSelect").value;
