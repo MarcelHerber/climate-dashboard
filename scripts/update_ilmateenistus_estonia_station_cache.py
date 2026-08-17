@@ -32,7 +32,7 @@ from urllib.request import Request, urlopen
 API_ROOT = "https://keskkonnaandmed.envir.ee"
 DAILY_PATH = "/f_kliima_paev"
 STATION_PATH = "/f_kliima_jaam_vaatlus"
-PROFILE = "apijahialad"
+PROFILE = "apijahiala"
 
 SOURCE = "Estonian Environment Agency climate API"
 PUBLIC_URL = "https://keskkonnaportaal.ee/"
