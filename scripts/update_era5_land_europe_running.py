@@ -36,6 +36,7 @@ AREA = [72.0, -25.0, 34.0, 45.0]
 GRID = [0.5, 0.5]
 PAYLOAD_VERSION = 1
 MAX_LOOKBACK_DAYS = 14
+REFERENCE_CHUNK_YEARS = 1
 
 MONTH_NAMES = {
     1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
@@ -232,6 +233,23 @@ def request_daily_temperature(client: cdsapi.Client, years: list[int], month: in
     retrieve(client, DAILY_DATASET, request, target, label)
 
 
+def chunk_years(years: list[int], size: int = REFERENCE_CHUNK_YEARS) -> list[list[int]]:
+    return [years[i:i + size] for i in range(0, len(years), size)]
+
+
+def request_daily_temperature_period(client: cdsapi.Client, years: list[int], month: int, days: list[int], prefix: Path, label: str, *, area=AREA) -> list[Path]:
+    files: list[Path] = []
+    for years_part in chunk_years(years):
+        path = prefix.with_name(f"{prefix.stem}_{years_part[0]}_{years_part[-1]}{prefix.suffix}")
+        if not path.exists():
+            request_daily_temperature(
+                client, years_part, month, days, path,
+                f"{label} · {years_part[0]}–{years_part[-1]}", area=area,
+            )
+        files.append(path)
+    return files
+
+
 def request_precip_group(client: cdsapi.Client, years: list[int], month: int, days: list[int], target: Path, label: str, *, area=AREA) -> None:
     request = {
         "variable": ["total_precipitation"],
@@ -262,27 +280,42 @@ def precip_source_groups(years: list[int], month: int, end_day: int) -> list[tup
 def request_precip_period(client: cdsapi.Client, years: list[int], month: int, end_day: int, prefix: Path, label: str, *, area=AREA) -> list[Path]:
     files: list[Path] = []
     for idx, (src_years, src_month, src_days) in enumerate(precip_source_groups(years, month, end_day), 1):
-        path = prefix.with_name(f"{prefix.stem}_{idx:02d}{prefix.suffix}")
-        if not path.exists():
-            request_precip_group(
-                client, src_years, src_month, src_days, path,
-                f"{label} · Quellmonat {src_month:02d} · {src_years[0]}–{src_years[-1]}", area=area,
+        for years_part in chunk_years(src_years):
+            path = prefix.with_name(
+                f"{prefix.stem}_{idx:02d}_{years_part[0]}_{years_part[-1]}{prefix.suffix}"
             )
-        files.append(path)
+            if not path.exists():
+                request_precip_group(
+                    client, years_part, src_month, src_days, path,
+                    f"{label} · Quellmonat {src_month:02d} · {years_part[0]}–{years_part[-1]}", area=area,
+                )
+            files.append(path)
     return files
 
 
-def read_temperature(path: Path, max_day: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    ds = open_download(path)
-    try:
-        lat, lon, times, cube = normalize_cube(ds, TEMP_ALIASES)
-        cube = kelvin_to_celsius(cube)
-        if max_day is not None and np.issubdtype(times.dtype, np.datetime64):
-            day_values = np.array([int(str(t.astype("datetime64[D]"))[-2:]) for t in times])
-            cube = cube[day_values <= max_day]
-        return lat, lon, finite_mean(cube)
-    finally:
-        ds.close()
+def read_temperature(paths: Path | list[Path], max_day: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    path_list = [paths] if isinstance(paths, Path) else list(paths)
+    cubes: list[np.ndarray] = []
+    out_lat: np.ndarray | None = None
+    out_lon: np.ndarray | None = None
+    for path in path_list:
+        ds = open_download(path)
+        try:
+            lat, lon, times, cube = normalize_cube(ds, TEMP_ALIASES)
+            cube = kelvin_to_celsius(cube)
+            if max_day is not None and np.issubdtype(times.dtype, np.datetime64):
+                day_values = np.array([int(str(t.astype("datetime64[D]"))[-2:]) for t in times])
+                cube = cube[day_values <= max_day]
+            if out_lat is None:
+                out_lat, out_lon = lat, lon
+            elif not (np.allclose(out_lat, lat) and np.allclose(out_lon, lon)):
+                raise RuntimeError("Temperaturdateien besitzen unterschiedliche Raster.")
+            cubes.append(cube)
+        finally:
+            ds.close()
+    if out_lat is None or out_lon is None or not cubes:
+        raise RuntimeError("Keine Temperaturdaten gelesen.")
+    return out_lat, out_lon, finite_mean(np.concatenate(cubes, axis=0))
 
 
 def read_precip(paths: list[Path], target_month: int, max_day: int, reference_years: int | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -500,10 +533,13 @@ def main() -> int:
         request_daily_temperature(client, [year], month, list(range(1, end_day + 1)), cur_temp_file, f"Temperatur {year}-{month:02d}-01 bis {data_through}")
     lat, lon, cur_temp = read_temperature(cur_temp_file, max_day=end_day)
 
-    ref_temp_file = CACHE_DIR / f"reference_temp_{REFERENCE_START}_{REFERENCE_END}_{month:02d}_full.nc"
-    if not ref_temp_file.exists():
-        request_daily_temperature(client, list(range(REFERENCE_START, REFERENCE_END + 1)), month, list(range(1, month_days + 1)), ref_temp_file, f"Temperatur-Referenz {MONTH_NAMES[month]} {REFERENCE_START}–{REFERENCE_END}")
-    rlat, rlon, ref_temp = read_temperature(ref_temp_file, max_day=end_day)
+    ref_temp_prefix = CACHE_DIR / f"reference_temp_{REFERENCE_START}_{REFERENCE_END}_{month:02d}_full.nc"
+    ref_temp_files = request_daily_temperature_period(
+        client, list(range(REFERENCE_START, REFERENCE_END + 1)), month,
+        list(range(1, month_days + 1)), ref_temp_prefix,
+        f"Temperatur-Referenz {MONTH_NAMES[month]} {REFERENCE_START}–{REFERENCE_END}",
+    )
+    rlat, rlon, ref_temp = read_temperature(ref_temp_files, max_day=end_day)
     if not (np.allclose(lat, rlat) and np.allclose(lon, rlon)):
         raise RuntimeError("Aktuelles Temperaturfeld und Referenz besitzen unterschiedliche Raster.")
 
