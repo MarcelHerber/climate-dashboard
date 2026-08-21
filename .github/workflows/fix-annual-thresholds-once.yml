@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - fix-annual-thresholds
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
