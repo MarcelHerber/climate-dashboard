@@ -30,6 +30,11 @@ jobs:
       - name: Abhängigkeiten installieren
         run: python -m pip install requests
 
+      - name: Kenntage-Grenzwerte sicherstellen
+        run: |
+          set -euo pipefail
+          python scripts/fix_dwd_annual_thresholds.py
+
       - name: Jährliche Extremwerte bauen
         run: |
           set -euo pipefail
@@ -52,6 +57,7 @@ jobs:
               "txx",
               "summer_days_max",
               "hot_days_max",
+              "desert_days_max",
               "tropical_nights_max",
               "rr24x",
               "snox_ge_400",
@@ -65,6 +71,10 @@ jobs:
           assert d["data_start"] and d["data_through"]
           assert d["stats"]["kl_observations"] > 1_000_000
           assert d["stats"]["rr_observations"] > 1_000_000
+
+          assert d["metrics"]["summer_days_max"]["threshold"] == "TXK >= 25.0"
+          assert d["metrics"]["hot_days_max"]["threshold"] == "TXK >= 30.0"
+          assert d["metrics"]["desert_days_max"]["threshold"] == "TXK >= 35.0"
 
           bw = d["records"]["Baden-Württemberg"]
           assert "2003" in bw and "2015" in bw and "2024" in bw
@@ -98,7 +108,10 @@ jobs:
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/dwd_annual_extremes.json
+          git add -- \
+            scripts/build_dwd_annual_extremes.py \
+            jahresextremwerte.html \
+            data/dwd_annual_extremes.json
 
           if git diff --cached --quiet; then
             echo "Jährliche Extremwerte unverändert."
