@@ -59,20 +59,20 @@ METRICS = {
         "source": "DWD daily/kl · TXK",
     },
     "summer_days_max": {
-        "label": "max. Tage >25 °C",
-        "description": "Höchste Zahl der Tage mit TXK > 25,0 °C an einer Station",
+        "label": "max. Sommertage ≥25 °C",
+        "description": "Höchste Zahl der Tage mit TXK >= 25,0 °C an einer Station",
         "unit": "Tage",
         "kind": "station_year_count",
-        "threshold": "TXK > 25.0",
+        "threshold": "TXK >= 25.0",
         "direction": "desc",
         "source": "DWD daily/kl · TXK",
     },
     "hot_days_max": {
-        "label": "max. Tage >30 °C",
-        "description": "Höchste Zahl der Tage mit TXK > 30,0 °C an einer Station",
+        "label": "max. Hitzetage ≥30 °C",
+        "description": "Höchste Zahl der Tage mit TXK >= 30,0 °C an einer Station",
         "unit": "Tage",
         "kind": "station_year_count",
-        "threshold": "TXK > 30.0",
+        "threshold": "TXK >= 30.0",
         "direction": "desc",
         "source": "DWD daily/kl · TXK",
     },
@@ -413,10 +413,10 @@ class AnnualAccumulator:
 
             txk = values.get("txk")
             if txk is not None:
-                # Exakt wie in der Excel-Vorlage: strikt > 25 / > 30.
-                if float(txk) > 25.0:
+                # Korrekte klimatologische Definitionen: >=25 / >=30 / >=35 °C.
+                if float(txk) >= 25.0:
                     info["summer_days_max"] += 1
-                if float(txk) > 30.0:
+                if float(txk) >= 30.0:
                     info["hot_days_max"] += 1
                 if float(txk) >= 35.0:
                     info["desert_days_max"] += 1
@@ -779,12 +779,12 @@ def main() -> int:
     print("Gebiete: Deutschland + 16 Bundesländer", flush=True)
     print(f"Jahre: ab {START_YEAR}", flush=True)
     print(
-        "Parameter: TNn, TXx, >25, >30, Tmin>20, RR24x, "
+        "Parameter: TNn, TXx, >=25, >=30, >=35, Tropennächte, RR24x, "
         "SNOx >=400 m, SNOx <400 m",
         flush=True,
     )
     print(
-        "Kenntage werden strikt nach Excel als >25, >30 und >20 gezählt.",
+        "Kenntage: TXK >=25,0 °C, >=30,0 °C und >=35,0 °C; Tropennächte separat nach DWD-Stundenwertdefinition.",
         flush=True,
     )
 
@@ -939,8 +939,8 @@ def main() -> int:
         },
         "method_note": (
             "Rohdaten werden ab 1861 ausgewertet. Für spätere Jahreslisten ""beginnt jedes Gebiet frühestens 1881; liegt der erste tatsächlich ""vorhandene Jahreswert später, wird dieses spätere Jahr verwendet. ""TNn und TXx stammen aus TNK/TXK. "
-            "Die drei Kenntage werden entsprechend der Excel-Vorlage strikt "
-            "mit TXK >25,0 °C, TXK >30,0 °C und TXK >=35,0 °C gezählt. ""Tropennächte werden separat nach DWD-Definition aus ""TT_TU-Stundenwerten für 18–06 UTC mit Minimum >=20,0 °C übernommen; "
+            "Die drei temperaturbasierten Kenntage werden mit den korrekten "
+            "Schwellen TXK >=25,0 °C, TXK >=30,0 °C und TXK >=35,0 °C gezählt. ""Tropennächte werden separat nach DWD-Definition aus ""TT_TU-Stundenwerten für 18–06 UTC mit Minimum >=20,0 °C übernommen; "
             "pro Gebiet/Jahr wird die höchste Stationsanzahl gespeichert. "
             "RR24x verwendet das erweiterte tägliche DWD-RR-Netz (RS). "
             "SNOx verwendet SHK_TAG/SHK aus daily/kl und wird nach "
