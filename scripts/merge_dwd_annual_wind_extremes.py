@@ -24,6 +24,7 @@ def main() -> int:
     assert main_data["areas"] == wind_data["areas"]
     assert main_data["area_start_years"] == wind_data["area_start_years"]
     assert set(wind_data["metrics"]) == set(WIND_METRICS)
+    assert "desert_days_max" in main_data["metrics"]
 
     for metric in WIND_METRICS:
         main_data["metrics"][metric] = wind_data["metrics"][metric]
@@ -81,11 +82,13 @@ def main() -> int:
     if "FGx verwendet DWD daily/kl" not in note:
         main_data["method_note"] = note.rstrip() + wind_note
 
-    assert len(main_data["metrics"]) == 10
+    assert len(main_data["metrics"]) == 11
+    assert "desert_days_max" in main_data["metrics"]
     assert set(WIND_METRICS).issubset(main_data["metrics"])
 
     for area in main_data["areas"]:
         for row in main_data["records"][area].values():
+            assert "desert_days_max" in row
             assert "fgx_ge_400" in row
             assert "fgx_lt_400" in row
 

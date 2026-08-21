@@ -39,13 +39,14 @@ jobs:
 
           assert d["version"] >= 2
           assert len(d["areas"]) == 17
-          assert len(d["metrics"]) == 10
+          assert len(d["metrics"]) == 11
 
           expected = {
               "tnn",
               "txx",
               "summer_days_max",
               "hot_days_max",
+              "desert_days_max",
               "tropical_nights_max",
               "rr24x",
               "snox_ge_400",
@@ -54,6 +55,9 @@ jobs:
               "fgx_lt_400",
           }
           assert set(d["metrics"]) == expected
+          assert d["metrics"]["summer_days_max"]["threshold"] == "TXK >= 25.0"
+          assert d["metrics"]["hot_days_max"]["threshold"] == "TXK >= 30.0"
+          assert d["metrics"]["desert_days_max"]["threshold"] == "TXK >= 35.0"
 
           assert d["list_min_year"] == 1881
           assert len(d["area_start_years"]) == 17
@@ -62,6 +66,7 @@ jobs:
 
           bw = d["records"]["Baden-Württemberg"]
           for year in ("2003", "2015", "2024"):
+              assert bw[year]["desert_days_max"] is not None
               assert bw[year]["fgx_ge_400"] is not None
               assert bw[year]["fgx_lt_400"] is not None
 
