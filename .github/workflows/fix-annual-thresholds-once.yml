@@ -28,27 +28,8 @@ jobs:
           set -euo pipefail
           python scripts/fix_dwd_annual_thresholds.py
 
-      - name: Stage-1-Prüfliste synchronisieren
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('.github/workflows/build-dwd-annual-extremes-stage1.yml')
-          text = path.read_text(encoding='utf-8')
-          old = '              "hot_days_max",\n              "tropical_nights_max",'
-          new = '              "hot_days_max",\n              "desert_days_max",\n              "tropical_nights_max",'
-          if old in text:
-              text = text.replace(old, new, 1)
-              path.write_text(text, encoding='utf-8')
-          elif '              "desert_days_max",' not in text:
-              raise SystemExit('Stage-1-Prüfliste konnte nicht aktualisiert werden')
-          PY
-
-      - name: Temporäre Fix-Dateien entfernen
-        run: |
-          rm scripts/fix_dwd_annual_thresholds.py
-          rm .github/workflows/fix-annual-thresholds-once.yml
+      - name: Temporäres Fix-Skript entfernen
+        run: rm scripts/fix_dwd_annual_thresholds.py
 
       - name: Änderungen prüfen und committen
         run: |
@@ -58,12 +39,11 @@ jobs:
           grep -F 'if float(txk) >= 35.0:' scripts/build_dwd_annual_extremes.py
           grep -F '≥25 °C' jahresextremwerte.html
           grep -F '≥30 °C' jahresextremwerte.html
-          grep -F '"desert_days_max",' .github/workflows/build-dwd-annual-extremes-stage1.yml
 
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- scripts/build_dwd_annual_extremes.py jahresextremwerte.html .github/workflows/build-dwd-annual-extremes-stage1.yml
-          git rm --cached --ignore-unmatch scripts/fix_dwd_annual_thresholds.py .github/workflows/fix-annual-thresholds-once.yml || true
+          git add -- scripts/build_dwd_annual_extremes.py jahresextremwerte.html
+          git rm --cached --ignore-unmatch scripts/fix_dwd_annual_thresholds.py || true
 
           git commit -m "DWD-Kenntage-Grenzwerte korrigieren"
           git push origin HEAD:fix-annual-thresholds
