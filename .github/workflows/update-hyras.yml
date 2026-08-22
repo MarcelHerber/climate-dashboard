@@ -16,7 +16,7 @@ concurrency:
 jobs:
   hyras:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
@@ -45,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/hyras-data /tmp/hyras-work /tmp/hyras-existing
+          rm -rf /tmp/hyras-tmean-work /tmp/hyras-tmax-work /tmp/hyras-tmin-work
           mkdir -p /tmp/hyras-data /tmp/hyras-reference-cache
 
           git fetch origin hyras-data --depth=1 || true
@@ -52,13 +53,13 @@ jobs:
             git worktree add --detach /tmp/hyras-existing origin/hyras-data
 
             # Kompletten bestehenden Datenbranch übernehmen.
-            # Dadurch bleiben tmean/, tmax/, tmin/ und zukünftige
-            # Zusatzprodukte bei Niederschlagsupdates erhalten.
+            # Historie und Klimareferenzen werden von den Temperatur-Buildern
+            # wiederverwendet; nur der aktuelle Jahresstand wird neu berechnet.
             cp -a /tmp/hyras-existing/. /tmp/hyras-data/
             rm -rf /tmp/hyras-data/.git
           fi
 
-      - name: HYRAS aktuell, Historie und Mouseover-Raster bauen
+      - name: HYRAS Niederschlag aktuell, Historie und Mouseover-Raster bauen
         run: |
           python scripts/update_hyras_maps.py \
             --output /tmp/hyras-data \
@@ -73,17 +74,106 @@ jobs:
             --data-root /tmp/hyras-data \
             --factor 5
 
-      - name: Temperaturordner vor Veröffentlichung prüfen
+      - name: HYRAS Tmean aktuell aktualisieren
         run: |
           set -euo pipefail
-          for parameter in tmean tmax tmin; do
-            if [ -d "/tmp/hyras-existing/$parameter" ]; then
-              test -d "/tmp/hyras-data/$parameter"
-              echo "$parameter wurde erhalten."
-            else
-              echo "$parameter war vor diesem Lauf nicht auf hyras-data vorhanden."
-            fi
-          done
+          mkdir -p /tmp/hyras-tmean-work
+
+          # Ohne --force-history wird die vorhandene Historie wiederverwendet.
+          python scripts/build_hyras_tmean.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work \
+            --history-factor 5
+
+          # Aktuelle Gebietsmittel und Downloadkarten neu bauen; die vorhandene
+          # Klimakurve 1991-2020 wird ohne --force-climate wiederverwendet.
+          python scripts/build_hyras_tmean_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work
+
+          # Ergänzt records_file wieder im Regionen-Index und verwendet den
+          # vorhandenen Rekordbestand bis zum Vorjahr weiter.
+          python scripts/build_hyras_tmean_daily_records.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmean-work
+
+      - name: HYRAS Tmax aktuell aktualisieren
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-tmax-work
+
+          # Ohne --force-history-summary bleiben Klimakurve und Rekorde erhalten.
+          python scripts/build_hyras_tmax_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmax-work
+
+          python scripts/build_hyras_tmax_maps.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmax-work
+
+      - name: HYRAS Tmin aktuell aktualisieren
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-tmin-work
+
+          # Wie bei Tmax werden Historie, Klimakurve und Rekorde wiederverwendet.
+          python scripts/build_hyras_tmin_regions.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmin-work
+
+          python scripts/build_hyras_tmin_maps.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-tmin-work
+
+      - name: HYRAS-Datenstände vor Veröffentlichung prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("/tmp/hyras-data")
+
+          precip = json.loads((root / "hyras_index.json").read_text())
+          tmean = json.loads((root / "tmean/index.json").read_text())
+          tmean_regions = json.loads((root / "tmean/regions/index.json").read_text())
+          tmean_maps = json.loads((root / "tmean/regions/map_downloads.json").read_text())
+          tmax = json.loads((root / "tmax/regions/index.json").read_text())
+          tmax_maps = json.loads((root / "tmax/regions/map_downloads.json").read_text())
+          tmin = json.loads((root / "tmin/regions/index.json").read_text())
+          tmin_maps = json.loads((root / "tmin/regions/map_downloads.json").read_text())
+
+          checks = {
+              "Niederschlag": precip["data_through"],
+              "Tmean": tmean["data_through"],
+              "Tmean Gebiete": tmean_regions["data_through"],
+              "Tmean Karten": tmean_maps["data_through"],
+              "Tmax": tmax["data_through"],
+              "Tmax Karten": tmax_maps["data_through"],
+              "Tmin": tmin["data_through"],
+              "Tmin Karten": tmin_maps["data_through"],
+          }
+
+          if tmean["data_through"] != tmean_regions["data_through"]:
+              raise SystemExit("Tmean Raster- und Gebietsdatenstand weichen voneinander ab.")
+          if tmean["data_through"] != tmean_maps["data_through"]:
+              raise SystemExit("Tmean Raster- und Kartendatenstand weichen voneinander ab.")
+          if tmax["data_through"] != tmax_maps["data_through"]:
+              raise SystemExit("Tmax Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
+          if tmin["data_through"] != tmin_maps["data_through"]:
+              raise SystemExit("Tmin Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
+
+          for parameter, index in (("tmean", tmean), ("tmax", tmax), ("tmin", tmin)):
+              year = int(index["year"])
+              required = root / parameter / "regions" / f"current_{year}.json"
+              if not required.exists():
+                  raise SystemExit(f"Aktuelle Temperaturdatei fehlt: {required}")
+
+          print("HYRAS-Datenstände:")
+          for name, value in checks.items():
+              print(f"  {name}: {value}")
+          print("Temperaturprüfung OK.")
+          PY
 
       - name: hyras-data Branch veröffentlichen
         env:
@@ -97,7 +187,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "HYRAS 15.6 Klick-Zeitreihen und Maxima aktualisieren"
+          git commit -m "HYRAS Niederschlag und Temperatur aktuell halten"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin hyras-data
 
