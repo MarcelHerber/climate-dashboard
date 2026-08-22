@@ -2,9 +2,6 @@ name: HYRAS Flächenkarten aktualisieren
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/update-hyras.yml"
   schedule:
     - cron: "45 10 * * *"
 
@@ -38,7 +35,7 @@ jobs:
       - name: HYRAS-Live-Tageslogik im Generator sicherstellen
         run: python scripts/patch_hyras_live_daily.py
 
-      - name: Tagesreferenz 1991-2020 cachen
+      - name: Niederschlags-Tagesreferenz 1991-2020 cachen
         uses: actions/cache@v4
         with:
           path: /tmp/hyras-reference-cache
@@ -57,6 +54,37 @@ jobs:
             cp -a /tmp/hyras-existing/. /tmp/hyras-data/
             rm -rf /tmp/hyras-data/.git
           fi
+
+      - name: Aktuellen Temperatur-Referenzmonat bestimmen
+        id: tempref
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          idx=json.loads((Path('/tmp/hyras-data')/'tmean/index.json').read_text())
+          print('month='+str(idx['data_through'])[:7])
+          PY
+
+      - name: Tmean Tagesreferenz-Cache laden
+        id: cache-tmean
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-reference-cache/tmean_month_*.npz
+          key: hyras-temperature-live-reference-tmean-${{ steps.tempref.outputs.month }}-v1
+
+      - name: Tmax Tagesreferenz-Cache laden
+        id: cache-tmax
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-reference-cache/tmax_month_*.npz
+          key: hyras-temperature-live-reference-tmax-${{ steps.tempref.outputs.month }}-v1
+
+      - name: Tmin Tagesreferenz-Cache laden
+        id: cache-tmin
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-reference-cache/tmin_month_*.npz
+          key: hyras-temperature-live-reference-tmin-${{ steps.tempref.outputs.month }}-v1
 
       - name: HYRAS Niederschlag aktuell, Historie und Mouseover-Raster bauen
         run: |
@@ -110,48 +138,65 @@ jobs:
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmin-work
 
-      - name: HYRAS-Datenstände vor Veröffentlichung prüfen
+      - name: Temperatur-Tagesreferenzen prüfen
+        run: |
+          set -euo pipefail
+          test "${{ steps.cache-tmean.outputs.cache-hit }}" = "true"
+          test "${{ steps.cache-tmax.outputs.cache-hit }}" = "true"
+          test "${{ steps.cache-tmin.outputs.cache-hit }}" = "true"
+          ls -lh /tmp/hyras-temperature-reference-cache/
+
+      - name: Tagesgenaue Temperatur-Live-Anomalien bauen
+        run: |
+          python scripts/build_hyras_temperature_live_reference.py \
+            --data-root /tmp/hyras-data \
+            --reference-cache /tmp/hyras-temperature-reference-cache \
+            --parameter all
+
+      - name: HYRAS-Datenstände und Live-Anomalien prüfen
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path("/tmp/hyras-data")
-          precip = json.loads((root / "hyras_index.json").read_text())
-          tmean = json.loads((root / "tmean/index.json").read_text())
-          tmean_regions = json.loads((root / "tmean/regions/index.json").read_text())
-          tmean_maps = json.loads((root / "tmean/regions/map_downloads.json").read_text())
-          tmax = json.loads((root / "tmax/regions/index.json").read_text())
-          tmax_maps = json.loads((root / "tmax/regions/map_downloads.json").read_text())
-          tmin = json.loads((root / "tmin/regions/index.json").read_text())
-          tmin_maps = json.loads((root / "tmin/regions/map_downloads.json").read_text())
-          checks = {
-              "Niederschlag": precip["data_through"],
-              "Tmean": tmean["data_through"],
-              "Tmean Gebiete": tmean_regions["data_through"],
-              "Tmean Karten": tmean_maps["data_through"],
-              "Tmax": tmax["data_through"],
-              "Tmax Karten": tmax_maps["data_through"],
-              "Tmin": tmin["data_through"],
-              "Tmin Karten": tmin_maps["data_through"],
-          }
-          if tmean["data_through"] != tmean_regions["data_through"]:
-              raise SystemExit("Tmean Raster- und Gebietsdatenstand weichen voneinander ab.")
-          if tmean["data_through"] != tmean_maps["data_through"]:
-              raise SystemExit("Tmean Raster- und Kartendatenstand weichen voneinander ab.")
-          if tmax["data_through"] != tmax_maps["data_through"]:
-              raise SystemExit("Tmax Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
-          if tmin["data_through"] != tmin_maps["data_through"]:
-              raise SystemExit("Tmin Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
-          for parameter, index in (("tmean", tmean), ("tmax", tmax), ("tmin", tmin)):
-              year = int(index["year"])
-              required = root / parameter / "regions" / f"current_{year}.json"
-              if not required.exists():
-                  raise SystemExit(f"Aktuelle Temperaturdatei fehlt: {required}")
-          print("HYRAS-Datenstände:")
-          for name, value in checks.items():
-              print(f"  {name}: {value}")
-          print("Temperaturprüfung OK.")
+          root=Path('/tmp/hyras-data')
+          precip=json.loads((root/'hyras_index.json').read_text())
+          tmean=json.loads((root/'tmean/index.json').read_text())
+          tmean_regions=json.loads((root/'tmean/regions/index.json').read_text())
+          tmean_maps=json.loads((root/'tmean/regions/map_downloads.json').read_text())
+          tmax=json.loads((root/'tmax/regions/index.json').read_text())
+          tmax_maps=json.loads((root/'tmax/regions/map_downloads.json').read_text())
+          tmin=json.loads((root/'tmin/regions/index.json').read_text())
+          tmin_maps=json.loads((root/'tmin/regions/map_downloads.json').read_text())
+
+          if tmean['data_through']!=tmean_regions['data_through'] or tmean['data_through']!=tmean_maps['data_through']:
+              raise SystemExit('Tmean-Datenstände weichen voneinander ab.')
+          if tmax['data_through']!=tmax_maps['data_through']:
+              raise SystemExit('Tmax-Datenstände weichen voneinander ab.')
+          if tmin['data_through']!=tmin_maps['data_through']:
+              raise SystemExit('Tmin-Datenstände weichen voneinander ab.')
+
+          through=tmean['data_through']
+          for item in tmean['periods']:
+              if item.get('live') and item.get('end_date')==through:
+                  key=item['key']
+                  if not item.get('anomaly') or not tmean_maps['periods'].get(key,{}).get('anomaly'):
+                      raise SystemExit(f'Tmean Live-Anomalie fehlt: {key}')
+
+          for parameter,idx,maps in (('tmax',tmax,tmax_maps),('tmin',tmin,tmin_maps)):
+              through=idx['data_through']
+              for period in idx['periods']:
+                  if period.get('end_date')==through:
+                      key=period['key']
+                      if not maps['periods'].get(key,{}).get('anomaly'):
+                          raise SystemExit(f'{parameter} Live-Anomalie fehlt: {key}')
+
+          print('HYRAS-Datenstände:')
+          print('  Niederschlag:',precip['data_through'])
+          print('  Tmean:',tmean['data_through'])
+          print('  Tmax:',tmax['data_through'])
+          print('  Tmin:',tmin['data_through'])
+          print('Live-Anomalieprüfung OK.')
           PY
 
       - name: hyras-data Branch veröffentlichen
