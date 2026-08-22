@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: hyras-temperature-live-reference
@@ -88,3 +89,12 @@ jobs:
           set -euo pipefail
           ls -lh /tmp/hyras-temperature-reference-cache/
           test -n "$(find /tmp/hyras-temperature-reference-cache -maxdepth 1 -name '${{ matrix.parameter }}_month_*.npz' -print -quit)"
+
+  refresh-hyras:
+    needs: reference
+    runs-on: ubuntu-latest
+    steps:
+      - name: HYRAS Hauptworkflow mit neuen Temperaturreferenzen starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run update-hyras.yml --ref main
