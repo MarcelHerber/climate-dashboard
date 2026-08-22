@@ -1,0 +1,59 @@
+name: HYRAS Farbskalen-Vorschau rendern
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/render_hyras_tmean_palette_preview.py"
+      - ".github/workflows/render-hyras-palette-preview.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen hyras-data Stand übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-existing origin/hyras-data
+          cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Vorschau rendern
+        run: python scripts/render_hyras_tmean_palette_preview.py
+
+      - name: PNG in Repo übernehmen
+        run: |
+          set -euo pipefail
+          mkdir -p preview
+          cp /tmp/hyras_tmean_august_2026_diskret.png preview/hyras_tmean_august_2026_diskret.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add preview/hyras_tmean_august_2026_diskret.png preview/hyras_tmean_august_2026_diskret.b64
+          if git diff --cached --quiet; then
+            echo "Preview unverändert."
+            exit 0
+          fi
+          git commit -m "HYRAS Farbskalen-Vorschau aktualisieren"
+          git pull --rebase origin main
+          git push origin HEAD:main
