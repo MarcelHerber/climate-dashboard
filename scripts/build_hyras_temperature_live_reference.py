@@ -230,13 +230,11 @@ def tmean_anomaly_style():
     return cmap,BoundaryNorm(bounds,cmap.N,clip=True),bounds
 
 def draw_tmean_anomaly_legend(fig):
-    # Gleich breite Farbfelder wie in der bestätigten Referenzskala.
     ax=fig.add_axes([.055,.045,.89,.050])
     n=len(TMEAN_ANOMALY_COLORS)
     ax.set_xlim(0,n); ax.set_ylim(0,1)
     for i,color in enumerate(TMEAN_ANOMALY_COLORS):
         ax.add_patch(Rectangle((i,0.42),1,0.52,facecolor=color,edgecolor="white",linewidth=.8))
-    # Dünne schwarze Linie exakt bei 0, mittig im neutralen Feld.
     zero_index=TMEAN_ANOMALY_LEVELS.index(0.0)
     ax.plot([zero_index+.5,zero_index+.5],[.42,.94],color="black",linewidth=.8,zorder=5)
     labels=[]
@@ -283,6 +281,50 @@ def qwrite(path,arr):
     path.parent.mkdir(parents=True,exist_ok=True)
     with gzip.open(path,"wb",compresslevel=6) as f:f.write(q.tobytes(order="C"))
 
+def load_i16(path:Path,width:int,height:int):
+    with gzip.open(path,"rb") as f:
+        raw=f.read()
+    arr=np.frombuffer(raw,dtype="<i2")
+    if arr.size!=width*height:
+        raise RuntimeError(f"Rastergröße passt nicht: {path} ({arr.size} statt {width*height})")
+    arr=arr.reshape(height,width).astype(np.float32)
+    arr[arr==MISSING]=np.nan
+    arr/=SCALE
+    return arr
+
+def rerender_all_tmean_anomaly_maps(data_root:Path):
+    troot=data_root/"tmean"
+    idx_path=troot/"index.json"
+    maps_path=troot/"regions/map_downloads.json"
+    if not idx_path.exists() or not maps_path.exists():
+        return
+    idx=json.loads(idx_path.read_text(encoding="utf-8"))
+    maps=json.loads(maps_path.read_text(encoding="utf-8"))
+    width=int(idx["grid_1km"]["width"]); height=int(idx["grid_1km"]["height"])
+    ov=overlay_path(data_root)
+    count=0
+    for p in idx.get("periods",[]):
+        anomaly_rel=p.get("anomaly")
+        if not anomaly_rel:
+            continue
+        source=troot/str(anomaly_rel)
+        if not source.exists():
+            continue
+        key=str(p["key"])
+        target_rel=f"download_maps/{key}_anomaly.png"
+        arr=load_i16(source,width,height)
+        render(arr,troot/target_rel,CFG["tmean"],str(p.get("label",key)),str(p.get("start_date","")),str(p.get("end_date","")),ov)
+        mi=maps.setdefault("periods",{}).setdefault(key,{"label":p.get("label",key)})
+        mi["anomaly"]=target_rel
+        if p.get("reference_exact") is not None:
+            mi["reference_exact"]=bool(p.get("reference_exact"))
+        if p.get("reference_note"):
+            mi["reference_note"]=p.get("reference_note")
+        count+=1
+    maps["data_through"]=idx.get("data_through")
+    maps_path.write_text(json.dumps(maps,ensure_ascii=False,indent=2),encoding="utf-8")
+    print(f"Tmean: {count} Abweichungskarten mit finaler Skala neu gerendert.",flush=True)
+
 def parameter_state(data_root,c):
     if c.key=="tmean":
         idx_path=data_root/"tmean/index.json"; maps_path=data_root/"tmean/regions/map_downloads.json"; idx=json.loads(idx_path.read_text()); maps=json.loads(maps_path.read_text()); year=int(idx["year"]); through=str(idx["data_through"]); current_name=str(idx["current_source_file"])
@@ -304,8 +346,6 @@ def process(data_root,cache_root,work,c,reference_only=False,month_override=None
         if end!=through:continue
         if c.key=="tmean" and not bool(p.get("live")):continue
         mi=maps.setdefault("periods",{}).setdefault(key,{"label":p.get("label",key)})
-        # Tmean wird bewusst immer neu gerendert, damit Farbskalenänderungen
-        # sofort auf August/Sommer/Jahr aktuell übernommen werden.
         if c.key!="tmean" and mi.get("anomaly"):continue
         start=str(p["start_date"]); cur,x,y=current_mean(current,c,start,end)
         if not same_grid(x,y,ex,ey):raise RuntimeError(f"{c.key}: aktuelles Raster passt nicht")
@@ -323,6 +363,8 @@ def main():
     data_root=Path(args.data_root); cache_root=Path(args.reference_cache); params=("tmean","tmax","tmin") if args.parameter=="all" else (args.parameter,)
     for key in params: process(data_root,cache_root,Path(f"/tmp/hyras-{key}-live-ref"),CFG[key],args.build_reference_only,args.month)
     if not args.build_reference_only:
+        if "tmean" in params:
+            rerender_all_tmean_anomaly_maps(data_root)
         meta={"schema_version":1,"reference":"1991-2020","method":"Tagesgenaue Rasterreferenz für laufende Teilzeiträume; kompakte Monatscaches liegen im GitHub-Actions-Cache.","parameters":params}
         (data_root/"_temperature_reference.json").write_text(json.dumps(meta,ensure_ascii=False,indent=2))
     return 0
