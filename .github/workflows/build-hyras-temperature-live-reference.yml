@@ -1,0 +1,90 @@
+name: HYRAS Temperatur Tagesreferenz 1991-2020 bauen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build_hyras_temperature_live_reference.py"
+      - ".github/workflows/build-hyras-temperature-live-reference.yml"
+  schedule:
+    - cron: "15 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyras-temperature-live-reference
+  cancel-in-progress: false
+
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [tmean, tmax, tmin]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen hyras-data Stand übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-existing origin/hyras-data
+          cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Aktuellen Referenzmonat bestimmen
+        id: refmonth
+        env:
+          PARAMETER: ${{ matrix.parameter }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          p=os.environ['PARAMETER']
+          root=Path('/tmp/hyras-data')
+          if p=='tmean':
+              idx=json.loads((root/'tmean/index.json').read_text())
+          else:
+              idx=json.loads((root/p/'regions/index.json').read_text())
+          print('month='+str(idx['data_through'])[:7])
+          PY
+
+      - name: Tagesreferenz-Cache wiederherstellen
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-reference-cache/${{ matrix.parameter }}_month_*.npz
+          key: hyras-temperature-live-reference-${{ matrix.parameter }}-${{ steps.refmonth.outputs.month }}-v1
+
+      - name: Tagesreferenz 1991-2020 bauen
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          python scripts/build_hyras_temperature_live_reference.py \
+            --data-root /tmp/hyras-data \
+            --reference-cache /tmp/hyras-temperature-reference-cache \
+            --parameter "${{ matrix.parameter }}" \
+            --build-reference-only
+
+      - name: Cache prüfen
+        run: |
+          set -euo pipefail
+          ls -lh /tmp/hyras-temperature-reference-cache/
+          test -n "$(find /tmp/hyras-temperature-reference-cache -maxdepth 1 -name '${{ matrix.parameter }}_month_*.npz' -print -quit)"
