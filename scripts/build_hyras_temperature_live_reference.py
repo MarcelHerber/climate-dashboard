@@ -13,7 +13,8 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import BoundaryNorm, LinearSegmentedColormap, ListedColormap
+from matplotlib.patches import Rectangle
 import numpy as np
 from PIL import Image
 import requests
@@ -25,6 +26,28 @@ UA="climate-dashboard-hyras-live-reference/1.0 (+GitHub Actions; DWD Open Data)"
 MONTH_ABBR={1:"JAN",2:"FEB",3:"MAR",4:"APR",5:"MAY",6:"JUN",7:"JUL",8:"AUG",9:"SEP",10:"OCT",11:"NOV",12:"DEC"}
 MISSING=-32768
 SCALE=100
+
+# Final abgestimmte Tmean-Abweichungsskala.
+# Die Farben -6 ... +6 stammen aus der bestätigten Referenzskala;
+# bei -0.5 und +0.5 kommen zusätzliche sehr helle Zwischenklassen hinzu.
+TMEAN_ANOMALY_LEVELS=[-6.0,-5.0,-4.0,-3.0,-2.0,-1.0,-0.5,0.0,0.5,1.0,2.0,3.0,4.0,5.0,6.0]
+TMEAN_ANOMALY_COLORS=[
+    "#6B03C6",  # -6 violett
+    "#5E4FFC",  # -5 violett-blau
+    "#187DFD",  # -4 kräftiges Blau
+    "#70B1FB",  # -3 helleres Blau
+    "#C6E4FB",  # -2 blassblau
+    "#DDEBF9",  # -1 sehr hellblau
+    "#EDF4FA",  # -0.5 zusätzliches leichtes Blau
+    "#FDFCFC",  #  0 nahezu weiß
+    "#FDF0BC",  # +0.5 zusätzliches leichtes Gelb
+    "#FDE47C",  # +1 gelb
+    "#FDBD3E",  # +2 goldgelb
+    "#FC691C",  # +3 orange
+    "#F93A19",  # +4 rot-orange
+    "#E51B75",  # +5 dunkles Magenta
+    "#FC579B",  # +6 helleres Pink
+]
 
 @dataclass(frozen=True)
 class Config:
@@ -199,16 +222,60 @@ def overlay_path(data_root):
         return data_root/rel if rel else None
     except Exception:return None
 
+def tmean_anomaly_style():
+    levels=np.asarray(TMEAN_ANOMALY_LEVELS,dtype=float)
+    mids=(levels[:-1]+levels[1:])/2.0
+    bounds=np.concatenate(([levels[0]-0.5],mids,[levels[-1]+0.5]))
+    cmap=ListedColormap(TMEAN_ANOMALY_COLORS,name="hyras_tmean_anomaly_final")
+    return cmap,BoundaryNorm(bounds,cmap.N,clip=True),bounds
+
+def draw_tmean_anomaly_legend(fig):
+    # Gleich breite Farbfelder wie in der bestätigten Referenzskala.
+    ax=fig.add_axes([.055,.045,.89,.050])
+    n=len(TMEAN_ANOMALY_COLORS)
+    ax.set_xlim(0,n); ax.set_ylim(0,1)
+    for i,color in enumerate(TMEAN_ANOMALY_COLORS):
+        ax.add_patch(Rectangle((i,0.42),1,0.52,facecolor=color,edgecolor="white",linewidth=.8))
+    # Dünne schwarze Linie exakt bei 0, mittig im neutralen Feld.
+    zero_index=TMEAN_ANOMALY_LEVELS.index(0.0)
+    ax.plot([zero_index+.5,zero_index+.5],[.42,.94],color="black",linewidth=.8,zorder=5)
+    labels=[]
+    for value in TMEAN_ANOMALY_LEVELS:
+        if value==0:
+            labels.append("0")
+        elif abs(value)==0.5:
+            labels.append(f"{value:+.1f}")
+        else:
+            labels.append(f"{value:+.0f}" if value>0 else f"{value:.0f}")
+    for i,label in enumerate(labels):
+        ax.text(i+.5,.12,label,ha="center",va="center",fontsize=7.5)
+    ax.text(n+.12,.12,"K",ha="left",va="center",fontsize=8)
+    ax.axis("off")
+
 def render(arr,output,c,label,start,end,overlay):
-    cmap=LinearSegmentedColormap.from_list("anom",["#313695","#4575b4","#74add1","#abd9e9","#f7f7f7","#fdae61","#f46d43","#d73027","#a50026"])
-    fig=plt.figure(figsize=(7.4,9.4),dpi=150); ax=fig.add_axes([.055,.105,.89,.80]); im=ax.imshow(arr,cmap=cmap,vmin=-6,vmax=6,interpolation="nearest"); ax.set_axis_off()
+    tmean_discrete=c.key=="tmean"
+    if tmean_discrete:
+        cmap,map_norm,_=tmean_anomaly_style()
+    else:
+        cmap=LinearSegmentedColormap.from_list("anom",["#313695","#4575b4","#74add1","#abd9e9","#f7f7f7","#fdae61","#f46d43","#d73027","#a50026"])
+        map_norm=None
+    fig=plt.figure(figsize=(7.4,9.4),dpi=150)
+    ax=fig.add_axes([.055,.125,.89,.78] if tmean_discrete else [.055,.105,.89,.80])
+    if tmean_discrete:
+        im=ax.imshow(arr,cmap=cmap,norm=map_norm,interpolation="nearest")
+    else:
+        im=ax.imshow(arr,cmap=cmap,vmin=-6,vmax=6,interpolation="nearest")
+    ax.set_axis_off()
     if overlay and overlay.exists():
         ov=np.asarray(Image.open(overlay).convert("RGBA"));
         if ov.shape[:2]==arr.shape: ax.imshow(ov,interpolation="nearest")
     fig.suptitle(f"HYRAS {c.label} · {label}",fontsize=15,fontweight="bold",y=.965)
     fig.text(.5,.925,f"Abweichung zum Mittel 1991–2020 · {start} bis {end}",ha="center",fontsize=9)
-    cb=fig.colorbar(im,cax=fig.add_axes([.14,.055,.72,.025]),orientation="horizontal"); cb.set_label("K",fontsize=9)
-    fig.text(.055,.018,f"Quelle: Deutscher Wetterdienst · {c.source_label} · Referenz 1991–2020",fontsize=7,color="#555555")
+    if tmean_discrete:
+        draw_tmean_anomaly_legend(fig)
+    else:
+        cb=fig.colorbar(im,cax=fig.add_axes([.14,.055,.72,.025]),orientation="horizontal"); cb.set_label("K",fontsize=9)
+    fig.text(.055,.012,f"Quelle: Deutscher Wetterdienst · {c.source_label} · Referenz 1991–2020",fontsize=7,color="#555555")
     output.parent.mkdir(parents=True,exist_ok=True); fig.savefig(output,facecolor="white",bbox_inches="tight",pad_inches=.12); plt.close(fig)
 
 def qwrite(path,arr):
@@ -236,8 +303,10 @@ def process(data_root,cache_root,work,c,reference_only=False,month_override=None
         key=str(p["key"]); end=str(p.get("end_date",""))
         if end!=through:continue
         if c.key=="tmean" and not bool(p.get("live")):continue
-        mi=maps.setdefault("periods",{}).get(key)
-        if mi is None or mi.get("anomaly"):continue
+        mi=maps.setdefault("periods",{}).setdefault(key,{"label":p.get("label",key)})
+        # Tmean wird bewusst immer neu gerendert, damit Farbskalenänderungen
+        # sofort auf August/Sommer/Jahr aktuell übernommen werden.
+        if c.key!="tmean" and mi.get("anomaly"):continue
         start=str(p["start_date"]); cur,x,y=current_mean(current,c,start,end)
         if not same_grid(x,y,ex,ey):raise RuntimeError(f"{c.key}: aktuelles Raster passt nicht")
         ref=period_ref(c,start,end,daily_ref,work,ex,ey); anom=cur-ref
