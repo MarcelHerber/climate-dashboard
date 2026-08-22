@@ -2,6 +2,9 @@ name: HYRAS Flächenkarten aktualisieren
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/update-hyras.yml"
   schedule:
     - cron: "45 10 * * *"
 
@@ -51,10 +54,6 @@ jobs:
           git fetch origin hyras-data --depth=1 || true
           if git rev-parse --verify origin/hyras-data >/dev/null 2>&1; then
             git worktree add --detach /tmp/hyras-existing origin/hyras-data
-
-            # Kompletten bestehenden Datenbranch übernehmen.
-            # Historie und Klimareferenzen werden von den Temperatur-Buildern
-            # wiederverwendet; nur der aktuelle Jahresstand wird neu berechnet.
             cp -a /tmp/hyras-existing/. /tmp/hyras-data/
             rm -rf /tmp/hyras-data/.git
           fi
@@ -78,21 +77,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/hyras-tmean-work
-
-          # Ohne --force-history wird die vorhandene Historie wiederverwendet.
           python scripts/build_hyras_tmean.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmean-work \
             --history-factor 5
-
-          # Aktuelle Gebietsmittel und Downloadkarten neu bauen; die vorhandene
-          # Klimakurve 1991-2020 wird ohne --force-climate wiederverwendet.
           python scripts/build_hyras_tmean_regions.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmean-work
-
-          # Ergänzt records_file wieder im Regionen-Index und verwendet den
-          # vorhandenen Rekordbestand bis zum Vorjahr weiter.
           python scripts/build_hyras_tmean_daily_records.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmean-work
@@ -101,12 +92,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/hyras-tmax-work
-
-          # Ohne --force-history-summary bleiben Klimakurve und Rekorde erhalten.
           python scripts/build_hyras_tmax_regions.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmax-work
-
           python scripts/build_hyras_tmax_maps.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmax-work
@@ -115,12 +103,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/hyras-tmin-work
-
-          # Wie bei Tmax werden Historie, Klimakurve und Rekorde wiederverwendet.
           python scripts/build_hyras_tmin_regions.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmin-work
-
           python scripts/build_hyras_tmin_maps.py \
             --data-root /tmp/hyras-data \
             --work /tmp/hyras-tmin-work
@@ -131,9 +116,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-
           root = Path("/tmp/hyras-data")
-
           precip = json.loads((root / "hyras_index.json").read_text())
           tmean = json.loads((root / "tmean/index.json").read_text())
           tmean_regions = json.loads((root / "tmean/regions/index.json").read_text())
@@ -142,7 +125,6 @@ jobs:
           tmax_maps = json.loads((root / "tmax/regions/map_downloads.json").read_text())
           tmin = json.loads((root / "tmin/regions/index.json").read_text())
           tmin_maps = json.loads((root / "tmin/regions/map_downloads.json").read_text())
-
           checks = {
               "Niederschlag": precip["data_through"],
               "Tmean": tmean["data_through"],
@@ -153,7 +135,6 @@ jobs:
               "Tmin": tmin["data_through"],
               "Tmin Karten": tmin_maps["data_through"],
           }
-
           if tmean["data_through"] != tmean_regions["data_through"]:
               raise SystemExit("Tmean Raster- und Gebietsdatenstand weichen voneinander ab.")
           if tmean["data_through"] != tmean_maps["data_through"]:
@@ -162,13 +143,11 @@ jobs:
               raise SystemExit("Tmax Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
           if tmin["data_through"] != tmin_maps["data_through"]:
               raise SystemExit("Tmin Gebietsdaten und Karten weichen im Datenstand voneinander ab.")
-
           for parameter, index in (("tmean", tmean), ("tmax", tmax), ("tmin", tmin)):
               year = int(index["year"])
               required = root / parameter / "regions" / f"current_{year}.json"
               if not required.exists():
                   raise SystemExit(f"Aktuelle Temperaturdatei fehlt: {required}")
-
           print("HYRAS-Datenstände:")
           for name, value in checks.items():
               print(f"  {name}: {value}")
