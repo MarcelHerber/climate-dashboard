@@ -97,4 +97,4 @@ jobs:
       - name: HYRAS Hauptworkflow mit neuen Temperaturreferenzen starten
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run update-hyras.yml --ref main
+        run: gh workflow run update-hyras.yml --ref main --repo "$GITHUB_REPOSITORY"
