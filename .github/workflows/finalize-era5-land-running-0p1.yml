@@ -1,0 +1,99 @@
+name: ERA5-Land 0,1-Grad Running finalisieren
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-land-running
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Referenzmonat bestimmen
+        id: ref-month
+        shell: bash
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      - name: Fertigen 0,1-Grad-Referenzcache laden
+        id: reference-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-reference-v1-${{ steps.ref-month.outputs.month }}
+
+      - name: Referenzcache prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.reference-cache.outputs.cache-hit }}" = "true"
+          echo "0,1°-Referenzcache gefunden."
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Laufenden August und Sommer berechnen
+        run: python scripts/update_era5_land_europe_running_0p1.py
+
+      - name: Ergebnis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('era5_land_europe/running/index.json')
+          data=json.loads(p.read_text(encoding='utf-8'))
+          assert data.get('ready') is True
+          assert data.get('periods', {}).get('running_month')
+          assert data.get('grid', '').startswith('0,1°'), data.get('grid')
+          assert 'diskrete -8 bis +8 K Skala' in data.get('rendering_note', '')
+          print('Datenstand:', data.get('data_through'))
+          print('Raster:', data.get('grid'))
+          PY
+
+      - name: Laufende ERA5-Land Daten versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/running
+          if git diff --cached --quiet; then
+            echo "Keine neuen laufenden ERA5-Land Daten vorhanden."
+            exit 0
+          fi
+          git commit -m "ERA5-Land laufende T-P-Zeiträume 0,1 Grad aktualisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
