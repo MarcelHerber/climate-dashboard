@@ -1,0 +1,191 @@
+name: ERA5-Land 0,1-Grad-Referenz parallel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-era5-land-running-reference-0p1.yml"
+      - "scripts/build_era5_land_running_reference_shard.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    outputs:
+      data_through: ${{ steps.probe.outputs.data_through }}
+      month: ${{ steps.probe.outputs.month }}
+      month_key: ${{ steps.probe.outputs.month_key }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Aktuellen ERA5-Land-T-Tag bestimmen
+        id: probe
+        run: python scripts/build_era5_land_running_reference_shard.py --probe
+
+  reference:
+    needs: probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - variable: temperature
+            start: 1991
+            end: 1993
+          - variable: temperature
+            start: 1994
+            end: 1996
+          - variable: temperature
+            start: 1997
+            end: 1999
+          - variable: temperature
+            start: 2000
+            end: 2002
+          - variable: temperature
+            start: 2003
+            end: 2005
+          - variable: temperature
+            start: 2006
+            end: 2008
+          - variable: temperature
+            start: 2009
+            end: 2011
+          - variable: temperature
+            start: 2012
+            end: 2014
+          - variable: temperature
+            start: 2015
+            end: 2017
+          - variable: temperature
+            start: 2018
+            end: 2020
+          - variable: precipitation
+            start: 1991
+            end: 1993
+          - variable: precipitation
+            start: 1994
+            end: 1996
+          - variable: precipitation
+            start: 1997
+            end: 1999
+          - variable: precipitation
+            start: 2000
+            end: 2002
+          - variable: precipitation
+            start: 2003
+            end: 2005
+          - variable: precipitation
+            start: 2006
+            end: 2008
+          - variable: precipitation
+            start: 2009
+            end: 2011
+          - variable: precipitation
+            start: 2012
+            end: 2014
+          - variable: precipitation
+            start: 2015
+            end: 2017
+          - variable: precipitation
+            start: 2018
+            end: 2020
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Referenz-Shard bauen
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_land_running_reference_shard.py \
+            --variable "${{ matrix.variable }}" \
+            --month "${{ needs.probe.outputs.month }}" \
+            --start-year "${{ matrix.start }}" \
+            --end-year "${{ matrix.end }}"
+      - name: Referenz-Shard hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-running-0p1-${{ needs.probe.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
+          path: .era5_running_cache_0p1
+          include-hidden-files: true
+          retention-days: 2
+          if-no-files-found: error
+
+  publish-reference:
+    needs: [probe, reference]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Alle Referenz-Shards herunterladen
+        uses: actions/download-artifact@v5
+        with:
+          pattern: era5-running-0p1-${{ needs.probe.outputs.month_key }}-*
+          path: .era5_shards
+          merge-multiple: true
+      - name: Referenzcache validieren
+        run: |
+          set -euo pipefail
+          mkdir -p .era5_running_cache_0p1
+          cp -a .era5_shards/. .era5_running_cache_0p1/
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          month=os.environ['MONTH']
+          root=Path('.era5_running_cache_0p1')
+          temp=list(root.glob(f'reference_temp_1991_2020_{month}_full_*.nc'))
+          precip=list(root.glob(f'reference_precip_1991_2020_{month}_full_*.nc'))
+          print('Temperaturdateien:', len(temp))
+          print('Niederschlagsdateien:', len(precip))
+          assert len(temp) >= 30, len(temp)
+          assert len(precip) >= 30, len(precip)
+          assert all(p.stat().st_size > 0 for p in temp + precip)
+          PY
+        env:
+          MONTH: ${{ needs.probe.outputs.month }}
+      - name: Fertigen Monatscache speichern
+        uses: actions/cache/save@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-reference-v1-${{ needs.probe.outputs.month_key }}
