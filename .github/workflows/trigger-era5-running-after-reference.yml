@@ -1,0 +1,24 @@
+name: ERA5 Running nach Parallelreferenz starten
+
+on:
+  workflow_run:
+    workflows:
+      - "ERA5-Land 0,1-Grad-Referenz parallel"
+    types:
+      - completed
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 0,1-Grad-Finalisierung starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run finalize-era5-land-running-0p1.yml --ref main --repo "$GITHUB_REPOSITORY"
