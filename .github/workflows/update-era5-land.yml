@@ -1,6 +1,10 @@
 name: ERA5-Land Europa aktualisieren
 
 on:
+  push:
+    paths:
+      - "scripts/update_era5_land_europe_palette.py"
+      - ".github/workflows/update-era5-land.yml"
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
     # Der tägliche Lauf ist leichtgewichtig: Wenn kein neuer Zielmonat vorliegt,
@@ -90,7 +94,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
           fi
-          python scripts/update_era5_land_europe.py $EXTRA_ARGS
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/update_era5_land_europe_palette.py $EXTRA_ARGS
 
       - name: Historische Karten-Geometrie korrigieren
         shell: bash
