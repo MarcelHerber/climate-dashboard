@@ -11,11 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 MAIN_INDEX = ROOT / "era5_land_europe" / "index.json"
 RUNNING_INDEX = ROOT / "era5_land_europe" / "running" / "index.json"
 
-MONTH_NAMES = {
-    1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
-    7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember",
-}
-
 
 def atomic_json(path: Path, payload: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -24,6 +19,19 @@ def atomic_json(path: Path, payload: dict) -> None:
         encoding="utf-8",
     )
     os.replace(tmp, path)
+
+
+def expose_period(source: dict, running: dict) -> dict:
+    period = copy.deepcopy(source)
+    period.update({
+        "historical_only": False,
+        "analysis_ready": False,
+        "running_only": True,
+        "partial_daily": True,
+        "running_data_through": running.get("data_through"),
+        "parameters": ["temperature", "precipitation"],
+    })
+    return period
 
 
 def main() -> int:
@@ -35,64 +43,30 @@ def main() -> int:
     if running.get("ready") is not True:
         raise RuntimeError("Laufender ERA5-Land-Datensatz ist nicht bereit.")
 
-    source = (running.get("periods") or {}).get("running_month")
-    if not isinstance(source, dict):
-        raise RuntimeError("running_month fehlt im laufenden ERA5-Land-Index.")
-
-    start = str(source.get("date_start") or "")
-    try:
-        year = int(start[:4])
-        month = int(start[5:7])
-    except Exception as exc:
-        raise RuntimeError(f"Ungültiger laufender Monatsbeginn: {start!r}") from exc
-    if month not in MONTH_NAMES:
-        raise RuntimeError(f"Ungültiger Monat: {month}")
-
-    period_id = f"month_{month:02d}"
-    period = copy.deepcopy(source)
-    period.update({
-        "id": period_id,
-        # Bewusst ohne 'bis ...': Bei historischen Karten kann das Frontend
-        # dadurch sauber nur das Kartenjahr austauschen.
-        "label": f"{MONTH_NAMES[month]} {year}",
-        "year": year,
-        "months": [month],
-        "historical_only": False,
-        "analysis_ready": False,
-        "partial_daily": True,
-        "running_data_through": running.get("data_through"),
-        "running_label": source.get("label"),
-        "parameters": ["temperature", "precipitation"],
-    })
+    running_periods = running.get("periods") or {}
+    month = running_periods.get("running_month")
+    summer = running_periods.get("running_summer")
+    if not isinstance(month, dict) or not isinstance(summer, dict):
+        raise RuntimeError("running_month oder running_summer fehlt im laufenden ERA5-Land-Index.")
 
     periods = dict(main.get("periods") or {})
-    periods[period_id] = period
+    periods["running_month"] = expose_period(month, running)
+    periods["running_summer"] = expose_period(summer, running)
     main["periods"] = periods
-
-    history = dict(main.get("history_map") or {})
-    current_months = {
-        int(value)
-        for value in history.get("temperature_precipitation_current_months", [])
-        if str(value).isdigit()
-    }
-    current_months.add(month)
-    history["temperature_precipitation_current_year"] = year
-    history["temperature_precipitation_current_months"] = sorted(current_months)
-    main["history_map"] = history
 
     main["running"] = {
         "ready": True,
         "data_through": running.get("data_through"),
         "source_file": "era5_land_europe/running/index.json",
-        "current_period": period_id,
         "preliminary": bool(running.get("preliminary", True)),
-        "note": running.get("availability_note"),
+        "availability_note": running.get("availability_note"),
+        "reference_note": running.get("reference_note"),
     }
     main["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     atomic_json(MAIN_INDEX, main)
     print(
-        f"ERA5 Frontend: {MONTH_NAMES[month]} {year} als laufender Monat sichtbar · "
+        "ERA5 Frontend: laufender Monat und laufender Sommer bereitgestellt · "
         f"Daten bis {running.get('data_through')}"
     )
     return 0
