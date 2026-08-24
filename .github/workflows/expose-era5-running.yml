@@ -1,0 +1,94 @@
+name: ERA5 laufende Zeiträume im Frontend
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/expose_era5_running_month.py"
+      - "scripts/patch_era5_running_frontend.py"
+      - ".github/workflows/expose-era5-running.yml"
+  schedule:
+    # Nach dem täglichen ERA5-Land-T-Lauf (13:07 Europe/Berlin) mit reichlich Puffer.
+    - cron: "0 18 * * *"
+      timezone: "Europe/Berlin"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-running-frontend
+  cancel-in-progress: false
+
+jobs:
+  expose-running:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Laufende ERA5-Zeiträume in Hauptindex übernehmen
+        run: python scripts/expose_era5_running_month.py
+
+      - name: Laufende Zeiträume im Frontend ergänzen
+        run: python scripts/patch_era5_running_frontend.py
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("era5_land_europe/index.json").read_text(encoding="utf-8"))
+          assert data.get("periods", {}).get("running_month")
+          assert data.get("periods", {}).get("running_summer")
+          assert data["periods"]["running_month"].get("running_only") is True
+          html = Path("index.html").read_text(encoding="utf-8")
+          assert "// ERA5_RUNNING_FRONTEND_V1" in html
+          assert 'value="running_month"' in html
+          assert 'value="running_summer"' in html
+          print("Laufender Monat:", data["periods"]["running_month"].get("label"))
+          print("Laufender Sommer:", data["periods"]["running_summer"].get("label"))
+          print("Datenstand:", data.get("running", {}).get("data_through"))
+          PY
+
+      - name: Änderungen versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/index.json index.html
+
+          if git diff --cached --quiet; then
+            echo "Laufende ERA5-Zeiträume sind bereits aktuell im Frontend."
+            exit 0
+          fi
+
+          git commit -m "ERA5 laufende Zeiträume im Frontend aktualisiert"
+
+          for ATTEMPT in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+          exit 1
