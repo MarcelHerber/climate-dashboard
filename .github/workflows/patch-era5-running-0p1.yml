@@ -1,0 +1,106 @@
+name: ERA5 laufende Karten auf 0,1 Grad umstellen
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/patch-era5-running-0p1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Laufenden ERA5-Code und Workflow auf 0,1 Grad umstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          script = Path('scripts/update_era5_land_europe_running.py')
+          text = script.read_text(encoding='utf-8')
+
+          if 'GRID = [0.5, 0.5]' in text:
+              text = text.replace('GRID = [0.5, 0.5]', 'GRID = [0.1, 0.1]', 1)
+          elif 'GRID = [0.1, 0.1]' not in text:
+              raise RuntimeError('GRID-Zeile im ERA5-Running-Skript nicht gefunden')
+
+          text = text.replace(
+              '"grid": "0,5° (CDS-Regridding aus ERA5-Land 0,1°)",',
+              '"grid": "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)",',
+              1,
+          )
+
+          old_load = '''    spec.loader.exec_module(module)\n    return module\n'''
+          new_load = '''    spec.loader.exec_module(module)\n\n    # Temperaturabweichungen der laufenden Karten mit derselben diskreten\n    # -8...+8-K-Skala rendern wie die vollständigen Europa-Karten.\n    palette_path = ROOT / "scripts" / "update_era5_land_europe_palette.py"\n    palette_spec = importlib.util.spec_from_file_location("era5_running_palette", palette_path)\n    if palette_spec is None or palette_spec.loader is None:\n        raise RuntimeError(f"ERA5-Palettenmodul konnte nicht importiert werden: {palette_path}")\n    palette_module = importlib.util.module_from_spec(palette_spec)\n    sys.modules[palette_spec.name] = palette_module\n    palette_spec.loader.exec_module(palette_module)\n    module.render_map = palette_module.render_map\n    return module\n'''
+          if old_load in text:
+              text = text.replace(old_load, new_load, 1)
+          elif 'module.render_map = palette_module.render_map' not in text:
+              raise RuntimeError('load_core-Patchstelle nicht gefunden')
+
+          script.write_text(text, encoding='utf-8')
+
+          workflow = Path('.github/workflows/update-era5-land-running.yml')
+          wf = workflow.read_text(encoding='utf-8')
+
+          old_paths = '''    paths:\n      - ".github/workflows/update-era5-land-running.yml"\n'''
+          new_paths = '''    paths:\n      - ".github/workflows/update-era5-land-running.yml"\n      - "scripts/update_era5_land_europe_running.py"\n      - "scripts/update_era5_land_europe_palette.py"\n'''
+          if old_paths in wf:
+              wf = wf.replace(old_paths, new_paths, 1)
+          elif 'scripts/update_era5_land_europe_running.py' not in wf:
+              raise RuntimeError('Workflow-Pushpfade konnten nicht erweitert werden')
+
+          # Alter 0,5°-Cache darf für 0,1° keinesfalls wiederhergestellt werden.
+          wf = wf.replace('era5-land-running-v3-', 'era5-land-running-v4-')
+          wf = wf.replace('            era5-land-running-v2-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-\n', '')
+          wf = wf.replace('            era5-land-running-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-\n', '')
+          wf = wf.replace('            era5-land-running-v1-${{ runner.os }}-\n', '')
+
+          old_args = '''          EXTRA_ARGS=""\n          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then\n            EXTRA_ARGS="--force"\n          fi\n          python scripts/update_era5_land_europe_running.py $EXTRA_ARGS\n'''
+          new_args = '''          EXTRA_ARGS=""\n          if [[ "${{ github.event_name }}" == "push" ]]; then\n            EXTRA_ARGS="--force"\n          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then\n            EXTRA_ARGS="--force"\n          fi\n          python scripts/update_era5_land_europe_running.py $EXTRA_ARGS\n'''
+          if old_args in wf:
+              wf = wf.replace(old_args, new_args, 1)
+          elif 'if [[ "${{ github.event_name }}" == "push" ]]' not in wf:
+              raise RuntimeError('Workflow-Force-Patchstelle nicht gefunden')
+
+          workflow.write_text(wf, encoding='utf-8')
+          PY
+
+          python -m py_compile scripts/update_era5_land_europe_running.py
+          grep -q 'GRID = \[0.1, 0.1\]' scripts/update_era5_land_europe_running.py
+          grep -q 'module.render_map = palette_module.render_map' scripts/update_era5_land_europe_running.py
+          grep -q 'era5-land-running-v4-' .github/workflows/update-era5-land-running.yml
+
+      - name: Änderungen versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/update_era5_land_europe_running.py .github/workflows/update-era5-land-running.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "ERA5 laufende Europa-Karten auf 0,1 Grad"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: ERA5-Lauf mit leerem 0,1-Grad-Cache starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 3
+          gh workflow run update-era5-land-running.yml --ref main --repo "$GITHUB_REPOSITORY" -f force=true
