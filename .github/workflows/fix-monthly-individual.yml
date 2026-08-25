@@ -1,0 +1,49 @@
+name: Fix monthly individual implementation
+
+on:
+  push:
+    branches:
+      - feature/monthly-frequency-individual-bars
+    paths:
+      - .github/workflows/fix-monthly-individual.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/monthly-frequency-individual-bars
+      - name: Patch syntax and cache version
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          js = Path('monthly_frequency.js')
+          text = js.read_text(encoding='utf-8')
+          old = ';}}},scales:{x:{type:"linear"'
+          new = ';}}}},scales:{x:{type:"linear"'
+          if old not in text:
+              raise SystemExit('Expected chart fragment not found')
+          js.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          index = Path('index.html')
+          html = index.read_text(encoding='utf-8')
+          old_tag = '<script src="monthly_frequency.js?v=1"></script>'
+          new_tag = '<script src="monthly_frequency.js?v=2"></script>'
+          if old_tag not in html:
+              raise SystemExit('Expected script tag not found')
+          index.write_text(html.replace(old_tag, new_tag, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/fix-monthly-individual.yml
+      - name: Verify syntax before commit
+        run: node --check monthly_frequency.js
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monthly_frequency.js index.html .github/workflows/fix-monthly-individual.yml
+          git commit -m "Einzelbalken Syntax korrigieren und Cache aktualisieren"
+          git push origin HEAD:feature/monthly-frequency-individual-bars
