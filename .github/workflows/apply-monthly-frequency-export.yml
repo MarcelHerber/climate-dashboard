@@ -1,0 +1,105 @@
+name: Apply monthly frequency export
+
+on:
+  push:
+    branches:
+      - feature/monthly-frequency-export
+    paths:
+      - .github/workflows/apply-monthly-frequency-export.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/monthly-frequency-export
+      - name: Add PDF and PNG export
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('monthly_frequency.js')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace('/* MONTHLY_FREQUENCY_DISTRIBUTION_V2 */', '/* MONTHLY_FREQUENCY_DISTRIBUTION_V3 */', 1)
+
+          old = '''  function empiricalPercentile(values,value){if(!values.length||!Number.isFinite(value))return null;const below=values.filter(item=>item<value).length;const equal=values.filter(item=>item===value).length;return 100*(below+0.5*equal)/values.length;}\n\n  globalThis.__monthlyFrequencyTestApi={buildDistribution,buildIndividualBars,empiricalPercentile,average,sampleStdDev};'''
+          new = '''  function empiricalPercentile(values,value){if(!values.length||!Number.isFinite(value))return null;const below=values.filter(item=>item<value).length;const equal=values.filter(item=>item===value).length;return 100*(below+0.5*equal)/values.length;}\n  function exportSlug(value){return String(value??"").toLowerCase().replace(/ß/g,"ss").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")||"export";}\n  function exportFilename(area,period,rangeA,rangeB,extension){const ext=String(extension||"png").replace(/^\\./,"").toLowerCase();return `haeufigkeitsverteilung_${exportSlug(area)}_${exportSlug(period)}_${rangeA.start}-${rangeA.end}_vs_${rangeB.start}-${rangeB.end}.${ext}`;}\n\n  globalThis.__monthlyFrequencyTestApi={buildDistribution,buildIndividualBars,empiricalPercentile,average,sampleStdDev,exportFilename};'''
+          if old not in text:
+              raise SystemExit('helper anchor not found')
+          text = text.replace(old, new, 1)
+
+          old_css = '''  .monthly-frequency-note{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.5}\n'''
+          new_css = '''  .monthly-frequency-note{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.5}\n  .monthly-frequency-export-bar{display:flex;justify-content:flex-end;gap:8px;margin:-2px 0 14px}\n  .monthly-frequency-export-btn{appearance:none;border:1px solid #b9c0c7;border-radius:6px;padding:8px 12px;background:#fff;color:#223041;font:700 12px/1 Arial,sans-serif;cursor:pointer;box-shadow:0 1px 4px rgba(15,23,42,.08)}\n  .monthly-frequency-export-btn:hover{background:#f0f3f5;border-color:#8e969e}.monthly-frequency-export-btn:focus-visible{outline:3px solid rgba(40,100,180,.28);outline-offset:2px}.monthly-frequency-export-btn[disabled]{opacity:.55;cursor:wait}\n  .monthly-frequency-exporting .monthly-frequency-controls,.monthly-frequency-exporting .monthly-frequency-export-bar{display:none!important}\n  .monthly-frequency-exporting{background:#fff!important;box-shadow:none!important}\n'''
+          if old_css not in text:
+              raise SystemExit('css anchor not found')
+          text = text.replace(old_css, new_css, 1)
+
+          old_html = '''      </div>\n      <div id="monthlyFrequencySummary" class="summary-box">Häufigkeitsverteilung wird berechnet …</div>'''
+          new_html = '''      </div>\n      <div class="monthly-frequency-export-bar" aria-label="Export der Häufigkeitsverteilung"><button id="monthlyFrequencyPngButton" class="monthly-frequency-export-btn" type="button">PNG</button><button id="monthlyFrequencyPdfButton" class="monthly-frequency-export-btn" type="button">PDF</button></div>\n      <div id="monthlyFrequencySummary" class="summary-box">Häufigkeitsverteilung wird berechnet …</div>'''
+          if old_html not in text:
+              raise SystemExit('html anchor not found')
+          text = text.replace(old_html, new_html, 1)
+
+          render_anchor = '''  function render(){\n'''
+          export_code = r'''  function exportContext(){
+    const area=document.getElementById("monthlyAreaSelect")?.value||"Deutschland",selection=document.getElementById("monthSelect")?.value||"Jahr";
+    return {area,period:typeof periodLabel==="function"?periodLabel(selection):selection,rangeA:range("A"),rangeB:range("B")};
+  }
+  async function monthlyFrequencyExportCanvas(){
+    const node=document.getElementById("monthlyFrequencyView");if(!node)throw new Error("Exportbereich nicht gefunden.");if(typeof html2canvas!=="function")throw new Error("html2canvas ist nicht geladen.");
+    node.classList.add("monthly-frequency-exporting");
+    try{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return await html2canvas(node,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false});}
+    finally{node.classList.remove("monthly-frequency-exporting");}
+  }
+  function triggerDownload(href,filename){const link=document.createElement("a");link.href=href;link.download=filename;link.style.display="none";document.body.appendChild(link);link.click();link.remove();}
+  async function downloadMonthlyFrequencyPng(){
+    const canvas=await monthlyFrequencyExportCanvas(),context=exportContext(),filename=exportFilename(context.area,context.period,context.rangeA,context.rangeB,"png");
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png",1));if(!blob)throw new Error("PNG konnte nicht erzeugt werden.");const url=URL.createObjectURL(blob);try{triggerDownload(url,filename);}finally{setTimeout(()=>URL.revokeObjectURL(url),1500);}
+  }
+  async function downloadMonthlyFrequencyPdf(){
+    const canvas=await monthlyFrequencyExportCanvas(),jsPDFCtor=window.jspdf?.jsPDF;if(!jsPDFCtor)throw new Error("jsPDF ist nicht geladen.");
+    const pdf=new jsPDFCtor({orientation:"landscape",unit:"mm",format:"a4"}),pageWidth=pdf.internal.pageSize.getWidth(),pageHeight=pdf.internal.pageSize.getHeight(),margin=8,maxWidth=pageWidth-margin*2,maxHeight=pageHeight-margin*2,ratio=Math.min(maxWidth/canvas.width,maxHeight/canvas.height),width=canvas.width*ratio,height=canvas.height*ratio,x=(pageWidth-width)/2,y=(pageHeight-height)/2;
+    pdf.addImage(canvas.toDataURL("image/png"),"PNG",x,y,width,height,undefined,"FAST");const context=exportContext();pdf.save(exportFilename(context.area,context.period,context.rangeA,context.rangeB,"pdf"));
+  }
+  async function runExport(button,kind){
+    if(!button)return;const old=button.textContent;button.disabled=true;button.textContent=`${kind} …`;
+    try{if(kind==="PNG")await downloadMonthlyFrequencyPng();else await downloadMonthlyFrequencyPdf();}
+    catch(error){console.error(`Häufigkeitsverteilung ${kind}-Export:`,error);window.alert(`${kind} konnte nicht erstellt werden: ${error.message}`);}
+    finally{button.disabled=false;button.textContent=old;}
+  }
+
+'''
+          if render_anchor not in text:
+              raise SystemExit('render anchor not found')
+          text = text.replace(render_anchor, export_code + render_anchor, 1)
+
+          old_events = '''    document.getElementById("monthlyFrequencyScale").addEventListener("change",render);document.getElementById("monthlyFrequencyDisplay").addEventListener("change",render);document.getElementById("monthlyAreaSelect")?.addEventListener("change",()=>{if(mode==="frequency")render();});document.getElementById("monthSelect")?.addEventListener("change",()=>{if(mode==="frequency")render();});'''
+          new_events = '''    document.getElementById("monthlyFrequencyScale").addEventListener("change",render);document.getElementById("monthlyFrequencyDisplay").addEventListener("change",render);document.getElementById("monthlyFrequencyPngButton")?.addEventListener("click",event=>runExport(event.currentTarget,"PNG"));document.getElementById("monthlyFrequencyPdfButton")?.addEventListener("click",event=>runExport(event.currentTarget,"PDF"));document.getElementById("monthlyAreaSelect")?.addEventListener("change",()=>{if(mode==="frequency")render();});document.getElementById("monthSelect")?.addEventListener("change",()=>{if(mode==="frequency")render();});'''
+          if old_events not in text:
+              raise SystemExit('event anchor not found')
+          text = text.replace(old_events, new_events, 1)
+          path.write_text(text, encoding='utf-8')
+
+          index = Path('index.html')
+          index_text = index.read_text(encoding='utf-8')
+          new_index, count = re.subn(r'monthly_frequency\.js\?v=\d+', 'monthly_frequency.js?v=3', index_text, count=1)
+          if count != 1:
+              raise SystemExit('monthly_frequency cache anchor not found')
+          index.write_text(new_index, encoding='utf-8')
+          PY
+      - name: Verify syntax
+        run: node --check monthly_frequency.js
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monthly_frequency.js index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "PDF- und PNG-Export für Häufigkeitsverteilung ergänzen"
+          git push
