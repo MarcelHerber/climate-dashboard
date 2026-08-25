@@ -45,3 +45,4 @@ jobs:
           if(Math.abs(pct.pointsB[0].y-50)>1e-9) throw new Error('period B percent weight wrong');
           console.log('individual bar tests passed');
           NODE
+# Final verification trigger after syntax/cache patch.
