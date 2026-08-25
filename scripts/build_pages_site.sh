@@ -6,7 +6,7 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
-  monthly-frequency-preview.html
+  monthly_frequency.js
   dekadenrekorde.html
   jahresextremwerte.html
   feiertagsextremwerte.html
