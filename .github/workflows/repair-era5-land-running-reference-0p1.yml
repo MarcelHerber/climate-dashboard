@@ -1,0 +1,210 @@
+name: ERA5-Land 0,1-Grad-Referenz reparieren
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/repair-era5-land-running-reference-0p1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: era5-land-running-reference-repair-0p1
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.source.outputs.run_id }}
+      month: ${{ steps.source.outputs.month }}
+      month_key: ${{ steps.source.outputs.month_key }}
+      artifact_count: ${{ steps.source.outputs.artifact_count }}
+    steps:
+      - name: Letzten beendeten Parallel-Lauf mit Artifacts finden
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow build-era5-land-running-reference-0p1.yml \
+            --limit 10 \
+            --json databaseId,status,createdAt \
+            --jq '[.[] | select(.status == "completed")][0].databaseId')
+
+          if [[ -z "${RUN_ID:-}" || "$RUN_ID" == "null" ]]; then
+            echo "FEHLER: Kein beendeter Parallel-Lauf gefunden."
+            exit 1
+          fi
+
+          ARTIFACT_JSON=$(mktemp)
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" > "$ARTIFACT_JSON"
+          COUNT=$(jq '[.artifacts[] | select(.name | startswith("era5-running-0p1-"))] | length' "$ARTIFACT_JSON")
+          FIRST_NAME=$(jq -r '[.artifacts[] | select(.name | startswith("era5-running-0p1-"))][0].name // empty' "$ARTIFACT_JSON")
+
+          if (( COUNT < 30 )); then
+            echo "FEHLER: Der Quelllauf hat nur $COUNT passende Artifacts; erwartet werden mindestens 30."
+            exit 1
+          fi
+          if [[ ! "$FIRST_NAME" =~ ^era5-running-0p1-([0-9]{4}-[0-9]{2})- ]]; then
+            echo "FEHLER: Monatskennung konnte aus Artifact '$FIRST_NAME' nicht gelesen werden."
+            exit 1
+          fi
+
+          MONTH_KEY="${BASH_REMATCH[1]}"
+          MONTH="${MONTH_KEY#*-}"
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "month=$MONTH" >> "$GITHUB_OUTPUT"
+          echo "month_key=$MONTH_KEY" >> "$GITHUB_OUTPUT"
+          echo "artifact_count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Quelllauf: $RUN_ID · Monat: $MONTH_KEY · vorhandene Artifacts: $COUNT"
+
+  repair-temperature:
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 420
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: [1991, 1992, 1993, 1997, 1999, 2000, 2019, 2020]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Fehlendes Temperaturjahr ${{ matrix.year }} nachladen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_land_running_reference_shard.py \
+            --variable temperature \
+            --month "${{ needs.source.outputs.month }}" \
+            --start-year "${{ matrix.year }}" \
+            --end-year "${{ matrix.year }}"
+
+      - name: Repariertes Jahr als Artifact sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-running-0p1-repair-${{ needs.source.outputs.month_key }}-temperature-${{ matrix.year }}
+          path: .era5_running_cache_0p1
+          include-hidden-files: true
+          retention-days: 2
+          if-no-files-found: error
+
+  merge-reference:
+    needs: [source, repair-temperature]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Erfolgreiche Artifacts des ursprünglichen Laufs laden
+        uses: actions/download-artifact@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.source.outputs.run_id }}
+          pattern: era5-running-0p1-${{ needs.source.outputs.month_key }}-*
+          path: .era5_old
+          merge-multiple: true
+
+      - name: Nachgerechnete Temperaturjahre laden
+        uses: actions/download-artifact@v5
+        with:
+          pattern: era5-running-0p1-repair-${{ needs.source.outputs.month_key }}-temperature-*
+          path: .era5_repair
+          merge-multiple: true
+
+      - name: Vollständigen Referenzbestand zusammenführen und prüfen
+        env:
+          MONTH: ${{ needs.source.outputs.month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .era5_running_cache_0p1
+          cp -a .era5_old/. .era5_running_cache_0p1/
+          cp -a .era5_repair/. .era5_running_cache_0p1/
+
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          month = os.environ['MONTH']
+          root = Path('.era5_running_cache_0p1')
+          wanted = set(range(1991, 2021))
+
+          temp = sorted(root.glob(f'reference_temp_1991_2020_{month}_full_*.nc'))
+          precip = sorted(root.glob(f'reference_precip_1991_2020_{month}_full_*.nc'))
+
+          def years_from(paths):
+              years = set()
+              for path in paths:
+                  match = re.search(r'_(\d{4})_(\d{4})$', path.stem)
+                  if match:
+                      years.update(range(int(match.group(1)), int(match.group(2)) + 1))
+              return years
+
+          temp_years = years_from(temp)
+          precip_years = years_from(precip)
+          missing_temp = sorted(wanted - temp_years)
+          missing_precip = sorted(wanted - precip_years)
+
+          print('Temperaturdateien:', len(temp), 'Jahre:', len(temp_years))
+          print('Niederschlagsdateien:', len(precip), 'Jahre:', len(precip_years))
+          print('Fehlende Temperaturjahre:', missing_temp)
+          print('Fehlende Niederschlagsjahre:', missing_precip)
+
+          assert not missing_temp, missing_temp
+          assert not missing_precip, missing_precip
+          assert all(path.stat().st_size > 0 for path in temp + precip)
+          print('Referenz 1991–2020 vollständig.')
+          PY
+
+      - name: Vollständigen Monatscache speichern
+        uses: actions/cache/save@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-reference-v1-${{ needs.source.outputs.month_key }}
+
+      - name: 0,1-Grad-Finalisierung starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run finalize-era5-land-running-0p1.yml \
+            --ref main \
+            --repo "$GITHUB_REPOSITORY"
