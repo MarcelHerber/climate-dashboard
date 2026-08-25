@@ -13,6 +13,10 @@ permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: era5-land-running-reference-0p1
+  cancel-in-progress: true
+
 env:
   PYTHONUNBUFFERED: "1"
 
@@ -53,19 +57,39 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 10
       matrix:
         include:
-          - {variable: temperature, start: 1991, end: 1993}
-          - {variable: temperature, start: 1994, end: 1996}
-          - {variable: temperature, start: 1997, end: 1999}
-          - {variable: temperature, start: 2000, end: 2002}
-          - {variable: temperature, start: 2003, end: 2005}
-          - {variable: temperature, start: 2006, end: 2008}
-          - {variable: temperature, start: 2009, end: 2011}
-          - {variable: temperature, start: 2012, end: 2014}
-          - {variable: temperature, start: 2015, end: 2017}
-          - {variable: temperature, start: 2018, end: 2020}
+          - {variable: temperature, start: 1991, end: 1991}
+          - {variable: temperature, start: 1992, end: 1992}
+          - {variable: temperature, start: 1993, end: 1993}
+          - {variable: temperature, start: 1994, end: 1994}
+          - {variable: temperature, start: 1995, end: 1995}
+          - {variable: temperature, start: 1996, end: 1996}
+          - {variable: temperature, start: 1997, end: 1997}
+          - {variable: temperature, start: 1998, end: 1998}
+          - {variable: temperature, start: 1999, end: 1999}
+          - {variable: temperature, start: 2000, end: 2000}
+          - {variable: temperature, start: 2001, end: 2001}
+          - {variable: temperature, start: 2002, end: 2002}
+          - {variable: temperature, start: 2003, end: 2003}
+          - {variable: temperature, start: 2004, end: 2004}
+          - {variable: temperature, start: 2005, end: 2005}
+          - {variable: temperature, start: 2006, end: 2006}
+          - {variable: temperature, start: 2007, end: 2007}
+          - {variable: temperature, start: 2008, end: 2008}
+          - {variable: temperature, start: 2009, end: 2009}
+          - {variable: temperature, start: 2010, end: 2010}
+          - {variable: temperature, start: 2011, end: 2011}
+          - {variable: temperature, start: 2012, end: 2012}
+          - {variable: temperature, start: 2013, end: 2013}
+          - {variable: temperature, start: 2014, end: 2014}
+          - {variable: temperature, start: 2015, end: 2015}
+          - {variable: temperature, start: 2016, end: 2016}
+          - {variable: temperature, start: 2017, end: 2017}
+          - {variable: temperature, start: 2018, end: 2018}
+          - {variable: temperature, start: 2019, end: 2019}
+          - {variable: temperature, start: 2020, end: 2020}
           - {variable: precipitation, start: 1991, end: 1993}
           - {variable: precipitation, start: 1994, end: 1996}
           - {variable: precipitation, start: 1997, end: 1999}
@@ -150,9 +174,3 @@ jobs:
         with:
           path: .era5_running_cache_0p1
           key: era5-land-running-0p1-reference-v1-${{ needs.probe.outputs.month_key }}
-      - name: Laufende 0,1-Grad-Karten mit fertigem Cache starten
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh workflow run update-era5-land-running.yml --ref main --repo "$GITHUB_REPOSITORY" -f force=false
