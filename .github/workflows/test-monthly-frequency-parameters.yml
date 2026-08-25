@@ -8,6 +8,13 @@ on:
       - monthly_frequency.js
       - index.html
       - .github/workflows/test-monthly-frequency-parameters.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - monthly_frequency.js
+      - index.html
+      - .github/workflows/test-monthly-frequency-parameters.yml
 
 jobs:
   test:
