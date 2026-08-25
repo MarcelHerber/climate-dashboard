@@ -1,0 +1,31 @@
+name: Bump monthly frequency v4
+
+on:
+  push:
+    branches:
+      - feature/monthly-frequency-rain-sun
+    paths:
+      - .github/workflows/bump-monthly-frequency-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/monthly-frequency-rain-sun
+      - name: Update cache version
+        run: |
+          sed -i 's/monthly_frequency.js?v=3/monthly_frequency.js?v=4/' index.html
+          grep -q 'monthly_frequency.js?v=4' index.html
+      - name: Commit cache version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Cache-Version der Häufigkeitsverteilung auf v4 erhöhen"
+          git push
