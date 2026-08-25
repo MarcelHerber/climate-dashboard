@@ -1,13 +1,18 @@
 name: Test monthly individual bars
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - monthly_frequency.js
+      - .github/workflows/test-monthly-individual-bars.yml
   push:
     branches:
       - feature/monthly-frequency-individual-bars
     paths:
       - monthly_frequency.js
       - .github/workflows/test-monthly-individual-bars.yml
-  workflow_dispatch:
 
 jobs:
   test:
