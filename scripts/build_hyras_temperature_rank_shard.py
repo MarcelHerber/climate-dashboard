@@ -140,38 +140,116 @@ def _times_from_codes(year: int, codes: np.ndarray) -> np.ndarray:
     )
 
 
-def build_shard(*, parameter: str, start_year: int, end_year: int, target: date, factor: int,
-                cache_root: Path, work: Path, output: Path) -> None:
+def _collect_shard_fields(*, parameter: str, start_year: int, end_year: int,
+                          targets: list[date], factor: int,
+                          cache_root: Path, work: Path):
+    if not targets:
+        raise ValueError("Mindestens ein Zieldatum ist erforderlich")
     module = _source_module(parameter)
     years = np.arange(start_year, end_year + 1, dtype=int)
-    product_fields = {key: [] for key in PRODUCTS}
+    target_fields = {
+        target: {key: [] for key in PRODUCTS}
+        for target in targets
+    }
     x_ref = y_ref = None
 
     for year in years:
-        codes, packed, x, y = _build_year_cache(module, parameter, int(year), factor, cache_root, work)
+        codes, packed, x, y = _build_year_cache(
+            module, parameter, int(year), factor, cache_root, work
+        )
         if x_ref is None:
             x_ref, y_ref = x, y
-        elif x.shape != x_ref.shape or y.shape != y_ref.shape or not np.allclose(x, x_ref) or not np.allclose(y, y_ref):
+        elif (
+            x.shape != x_ref.shape
+            or y.shape != y_ref.shape
+            or not np.allclose(x, x_ref)
+            or not np.allclose(y, y_ref)
+        ):
             raise RuntimeError(f"HYRAS-{parameter}: Rasterabweichung im Jahr {year}")
+
         values = dequantize_temperature(packed)
         times = _times_from_codes(int(year), codes)
-        hist_target = date(int(year), target.month, target.day)
-        products = extract_products(times, values, hist_target)
-        for key in PRODUCTS:
-            product_fields[key].append(np.asarray(products[key], dtype=np.float32))
+        for target in targets:
+            hist_target = date(int(year), target.month, target.day)
+            products = extract_products(times, values, hist_target)
+            for key in PRODUCTS:
+                target_fields[target][key].append(
+                    np.asarray(products[key], dtype=np.float32)
+                )
 
     assert x_ref is not None and y_ref is not None
+    return years, x_ref, y_ref, target_fields
+
+
+def _save_shard(*, parameter: str, target: date, years, x, y,
+                product_fields, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         output,
         parameter=np.asarray(parameter),
         target_date=np.asarray(target.isoformat()),
         years=years,
-        x=np.asarray(x_ref, dtype=np.float64),
-        y=np.asarray(y_ref, dtype=np.float64),
-        **{key: np.stack(product_fields[key], axis=0).astype(np.float32) for key in PRODUCTS},
+        x=np.asarray(x, dtype=np.float64),
+        y=np.asarray(y, dtype=np.float64),
+        **{
+            key: np.stack(product_fields[key], axis=0).astype(np.float32)
+            for key in PRODUCTS
+        },
     )
-    print(f"Shard fertig: {parameter} {start_year}–{end_year} · {output}", flush=True)
+    print(
+        f"Shard fertig: {parameter} {int(years[0])}–{int(years[-1])} · "
+        f"{target.isoformat()} · {output}",
+        flush=True,
+    )
+
+
+def build_shard(*, parameter: str, start_year: int, end_year: int, target: date,
+                factor: int, cache_root: Path, work: Path, output: Path) -> None:
+    years, x, y, fields = _collect_shard_fields(
+        parameter=parameter,
+        start_year=start_year,
+        end_year=end_year,
+        targets=[target],
+        factor=factor,
+        cache_root=cache_root,
+        work=work,
+    )
+    _save_shard(
+        parameter=parameter,
+        target=target,
+        years=years,
+        x=x,
+        y=y,
+        product_fields=fields[target],
+        output=output,
+    )
+
+
+def build_shards(*, parameter: str, start_year: int, end_year: int,
+                 targets: list[date], factor: int, cache_root: Path,
+                 work: Path, output_dir: Path) -> None:
+    years, x, y, fields = _collect_shard_fields(
+        parameter=parameter,
+        start_year=start_year,
+        end_year=end_year,
+        targets=targets,
+        factor=factor,
+        cache_root=cache_root,
+        work=work,
+    )
+    for target in targets:
+        output = output_dir / (
+            f"{parameter}_{start_year}_{end_year}_{target.isoformat()}.npz"
+        )
+        _save_shard(
+            parameter=parameter,
+            target=target,
+            years=years,
+            x=x,
+            y=y,
+            product_fields=fields[target],
+            output=output,
+        )
 
 
 def main() -> int:
@@ -179,25 +257,55 @@ def main() -> int:
     ap.add_argument("--parameter", choices=sorted(PARAM_MODULES), required=True)
     ap.add_argument("--start-year", type=int, required=True)
     ap.add_argument("--end-year", type=int, required=True)
-    ap.add_argument("--target-date", required=True)
+    ap.add_argument("--target-date")
+    ap.add_argument(
+        "--target-dates",
+        help="Kommagetrennte Zieldaten; Caches werden pro Jahr nur einmal geladen.",
+    )
     ap.add_argument("--factor", type=int, default=DEFAULT_FACTOR)
     ap.add_argument("--cache-root", default="/tmp/hyras-temperature-rank-history")
     ap.add_argument("--work", default="/tmp/hyras-temperature-rank-work")
-    ap.add_argument("--output", required=True)
+    ap.add_argument("--output")
+    ap.add_argument("--output-dir")
     args = ap.parse_args()
+
     if args.factor < 1:
         raise SystemExit("--factor muss >= 1 sein")
-    target = date.fromisoformat(args.target_date)
-    build_shard(
+    if bool(args.target_date) == bool(args.target_dates):
+        raise SystemExit("Genau eines von --target-date oder --target-dates angeben")
+
+    common = dict(
         parameter=args.parameter,
         start_year=args.start_year,
         end_year=args.end_year,
-        target=target,
         factor=args.factor,
         cache_root=Path(args.cache_root),
         work=Path(args.work) / args.parameter,
-        output=Path(args.output),
     )
+
+    if args.target_dates:
+        if not args.output_dir:
+            raise SystemExit("--output-dir ist mit --target-dates erforderlich")
+        targets = [
+            date.fromisoformat(value.strip())
+            for value in args.target_dates.split(",")
+            if value.strip()
+        ]
+        if not targets:
+            raise SystemExit("--target-dates enthält kein gültiges Datum")
+        build_shards(
+            **common,
+            targets=targets,
+            output_dir=Path(args.output_dir),
+        )
+    else:
+        if not args.output:
+            raise SystemExit("--output ist mit --target-date erforderlich")
+        build_shard(
+            **common,
+            target=date.fromisoformat(args.target_date),
+            output=Path(args.output),
+        )
     return 0
 
 

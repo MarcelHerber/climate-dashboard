@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      target_date:
+        description: "Optionales Zieldatum für einen historischen Kartenstand (YYYY-MM-DD)"
+        required: false
+        type: string
+        default: ""
   workflow_run:
     workflows: ["HYRAS Flächenkarten aktualisieren"]
     types: [completed]
@@ -33,6 +38,7 @@ jobs:
     outputs:
       needed: ${{ steps.target.outputs.needed }}
       target_date: ${{ steps.target.outputs.target_date }}
+      target_dates: ${{ steps.target.outputs.target_dates }}
     steps:
       - name: Repository laden
         uses: actions/checkout@v4
@@ -57,6 +63,7 @@ jobs:
         shell: bash
         env:
           FORCE_INPUT: ${{ inputs.force || false }}
+          TARGET_DATE_INPUT: ${{ inputs.target_date || '' }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
@@ -65,23 +72,68 @@ jobs:
           git worktree add --detach /tmp/hyras-meta origin/hyras-data
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
+          from datetime import date, timedelta
           from pathlib import Path
+
           root=Path('/tmp/hyras-meta')
           paths={
               'tmean': root/'tmean/index.json',
               'tmax': root/'tmax/regions/index.json',
               'tmin': root/'tmin/regions/index.json',
           }
-          dates={name: str(json.loads(path.read_text(encoding='utf-8'))['data_through']) for name,path in paths.items()}
-          target=min(dates.values())
-          month=int(target[5:7]); year=int(target[:4])
+          dates={
+              name: str(json.loads(path.read_text(encoding='utf-8'))['data_through'])
+              for name,path in paths.items()
+          }
+          current=min(dates.values())
+          current_date=date.fromisoformat(current)
           old_path=root/'temperature_ranks/index.json'
-          old=json.loads(old_path.read_text(encoding='utf-8')).get('data_through') if old_path.exists() else None
-          force=(os.environ.get('FORCE_INPUT','false').lower()=='true' or os.environ.get('EVENT_NAME')=='push')
-          needed=(year==2026 and month in (6,7,8) and (force or old!=target))
-          print(f'target_date={target}')
-          print(f'needed={str(needed).lower()}')
-          print('HYRAS-Datenstände:', dates, 'gemeinsam:', target, 'vorhanden:', old, 'Build:', needed, 'Force:', force, file=os.sys.stderr)
+          old=json.loads(old_path.read_text(encoding='utf-8')) if old_path.exists() else {}
+          available=sorted({
+              str(value) for value in old.get('available_dates', [])
+              if isinstance(value, str) and value
+          })
+          manual=os.environ.get('TARGET_DATE_INPUT','').strip()
+          force=(
+              os.environ.get('FORCE_INPUT','false').lower()=='true'
+              or os.environ.get('EVENT_NAME')=='push'
+          )
+
+          if current_date.year != 2026 or current_date.month not in (6,7,8):
+              targets=[]
+          elif manual:
+              requested=date.fromisoformat(manual)
+              if requested.year != 2026 or requested.month not in (6,7,8):
+                  raise SystemExit('target_date muss im meteorologischen Sommer 2026 liegen')
+              if requested > current_date:
+                  raise SystemExit(f'target_date {requested} liegt hinter HYRAS-Datenstand {current_date}')
+              targets=[requested]
+          elif available:
+              cursor=date.fromisoformat(available[-1])+timedelta(days=1)
+              targets=[]
+              while cursor<=current_date:
+                  targets.append(cursor)
+                  cursor+=timedelta(days=1)
+              if not targets and force:
+                  targets=[current_date]
+          else:
+              cursor=max(date(2026,6,1),current_date-timedelta(days=2))
+              targets=[]
+              while cursor<=current_date:
+                  targets.append(cursor)
+                  cursor+=timedelta(days=1)
+
+          print(f'target_date={current}')
+          print('target_dates='+','.join(item.isoformat() for item in targets))
+          print(f'needed={str(bool(targets)).lower()}')
+          print(
+              'HYRAS-Datenstände:', dates,
+              'gemeinsam:', current,
+              'Archiv bisher:', available,
+              'Build-Zieldaten:', [item.isoformat() for item in targets],
+              'Force:', force,
+              file=os.sys.stderr,
+          )
           PY
 
   shards:
@@ -141,11 +193,11 @@ jobs:
             --parameter "${{ matrix.parameter }}" \
             --start-year "$START" \
             --end-year "$END" \
-            --target-date "${{ needs.prepare.outputs.target_date }}" \
+            --target-dates "${{ needs.prepare.outputs.target_dates }}" \
             --factor 1 \
             --cache-root /tmp/hyras-temperature-rank-history \
             --work /tmp/hyras-temperature-rank-work \
-            --output "/tmp/hyras-rank-shards/${{ matrix.parameter }}_${START}_${END}_${{ needs.prepare.outputs.target_date }}.npz"
+            --output-dir /tmp/hyras-rank-shards
 
       - name: Rangshard hochladen
         uses: actions/upload-artifact@v4
@@ -191,42 +243,57 @@ jobs:
           git fetch origin hyras-data --depth=1
           git worktree add -b hyras-rank-publish /tmp/hyras-rank-data origin/hyras-data
 
-      - name: Neun HYRAS-Temperatur-Rangkarten erzeugen
-        run: |
-          python scripts/build_hyras_temperature_rank_maps.py \
-            --data-root /tmp/hyras-rank-data \
-            --shard-dir /tmp/hyras-rank-shards \
-            --target-date "${{ needs.prepare.outputs.target_date }}" \
-            --factor 1 \
-            --work /tmp/hyras-temperature-rank-current
-
-      - name: Ergebnis prüfen
+      - name: HYRAS-Temperatur-Rangkarten erzeugen und archivieren
         shell: bash
         run: |
           set -euo pipefail
+          IFS=',' read -ra TARGETS <<< "${{ needs.prepare.outputs.target_dates }}"
+          for TARGET in "${TARGETS[@]}"; do
+            python scripts/build_hyras_temperature_rank_maps.py \
+              --data-root /tmp/hyras-rank-data \
+              --shard-dir /tmp/hyras-rank-shards \
+              --target-date "$TARGET" \
+              --factor 1 \
+              --work /tmp/hyras-temperature-rank-current
+          done
+
+      - name: Ergebnis prüfen
+        shell: bash
+        env:
+          TARGET_DATES: ${{ needs.prepare.outputs.target_dates }}
+          CURRENT_DATE: ${{ needs.prepare.outputs.target_date }}
+        run: |
+          set -euo pipefail
           python - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           root=Path('/tmp/hyras-rank-data')
           p=root/'temperature_ranks/index.json'
           d=json.loads(p.read_text(encoding='utf-8'))
           assert d['ready'] is True
-          assert d['data_through'] == '${{ needs.prepare.outputs.target_date }}'
+          assert d['data_through'] == os.environ['CURRENT_DATE']
           assert d['history_start'] == 1951
           assert d['history_end'] == 2025
           assert d['historical_years'] == 75
           assert d['total_rank_positions'] == 76
           assert d['resolution_km'] == 1
           assert set(d['parameters']) == {'tmean','tmax','tmin'}
+          targets=[v for v in os.environ['TARGET_DATES'].split(',') if v]
+          available=set(d.get('available_dates', []))
+          for target in targets:
+              assert target in available, (target, sorted(available))
+              for parameter in ('tmean','tmax','tmin'):
+                  for product in ('day','month_to_date','summer_to_date'):
+                      archive=root/'temperature_ranks'/'archive'/target/parameter/f'{product}_rank.png'
+                      assert archive.exists(), archive
           for parameter in d['parameters'].values():
               assert set(parameter['products']) == {'day','month_to_date','summer_to_date'}
               for item in parameter['products'].values():
                   assert (root/item['file']).exists(), item['file']
           files=list((root/'temperature_ranks').glob('*/*_rank.png'))
           assert len(files) == 9, len(files)
-          print('HYRAS-Rangkarten geprüft:', d['data_through'], 'Auflösung:', d['resolution_km'], 'km · PNGs:', len(files))
+          print('HYRAS-Rangkarten geprüft:', d['data_through'], 'Archivtage:', len(available), 'neu:', targets)
           PY
-
       - name: Rangkarten auf hyras-data veröffentlichen
         shell: bash
         run: |

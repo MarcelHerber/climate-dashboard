@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import shutil
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -212,58 +213,136 @@ def _render(
     plt.close(fig)
 
 
+def _load_previous_manifest(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def build_maps(*, data_root: Path, shard_dir: Path, target: date, factor: int, work: Path) -> dict[str, Any]:
     out_root = data_root / "temperature_ranks"
     out_root.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, Any] = {
-        "schema_version": 1,
+    index_path = out_root / "index.json"
+    previous = _load_previous_manifest(index_path)
+    target_key = target.isoformat()
+    previous_latest = str((previous or {}).get("data_through") or "")
+    publish_latest = not previous_latest or target_key >= previous_latest
+
+    available_dates = {
+        str(value)
+        for value in (previous or {}).get("available_dates", [])
+        if isinstance(value, str) and value
+    }
+    available_dates.add(target_key)
+
+    base_meta: dict[str, Any] = {
+        "schema_version": 2,
         "ready": True,
-        "data_through": target.isoformat(),
         "history_start": HISTORY_START,
         "history_end": HISTORY_END,
         "historical_years": HISTORY_END - HISTORY_START + 1,
         "total_rank_positions": HISTORY_END - HISTORY_START + 2,
         "rank_direction": "1 = wärmster",
         "resolution_km": factor,
-        "classes": [{"label": label, "color": color} for label, color in zip(RANK_CLASS_LABELS, RANK_COLORS)],
-        "parameters": {},
+        "classes": [
+            {"label": label, "color": color}
+            for label, color in zip(RANK_CLASS_LABELS, RANK_COLORS)
+        ],
+        "archive_pattern": (
+            "temperature_ranks/archive/{date}/{parameter}/{product}_rank.png"
+        ),
     }
 
     geojson = load_boundaries()
     if not geojson:
-        raise RuntimeError("Bundeslandgrenzen konnten für die HYRAS-Rangkarten nicht geladen werden")
+        raise RuntimeError(
+            "Bundeslandgrenzen konnten für die HYRAS-Rangkarten nicht geladen werden"
+        )
 
+    target_parameters: dict[str, Any] = {}
     for parameter in ("tmean", "tmax", "tmin"):
         hx, hy, history = _load_history(shard_dir, parameter, target)
-        cx, cy, current = _current_products(parameter, target, factor, work / parameter)
-        if cx.shape != hx.shape or cy.shape != hy.shape or not np.allclose(cx, hx) or not np.allclose(cy, hy):
-            raise RuntimeError(f"HYRAS-{parameter}: aktuelles und historisches Raster stimmen nicht überein")
+        cx, cy, current = _current_products(
+            parameter, target, factor, work / parameter
+        )
+        if (
+            cx.shape != hx.shape
+            or cy.shape != hy.shape
+            or not np.allclose(cx, hx)
+            or not np.allclose(cy, hy)
+        ):
+            raise RuntimeError(
+                f"HYRAS-{parameter}: aktuelles und historisches Raster "
+                "stimmen nicht überein"
+            )
         data_crs = guess_crs_from_xy(hx, hy)
-        parameter_payload = {"label": PARAM_LABELS[parameter], "products": {}}
+        parameter_payload = {
+            "label": PARAM_LABELS[parameter],
+            "products": {},
+        }
+
         for product in PRODUCTS:
             rank = rank_field(current[product], history[product])
-            rel = Path(parameter) / f"{product}_rank.png"
+            archive_rel = (
+                Path("archive")
+                / target_key
+                / parameter
+                / f"{product}_rank.png"
+            )
+            archive_path = out_root / archive_rel
             _render(
                 rank,
                 hx,
                 hy,
                 geojson,
                 data_crs,
-                out_root / rel,
+                archive_path,
                 parameter,
                 product,
                 target,
                 factor,
             )
+
+            latest_rel = Path(parameter) / f"{product}_rank.png"
+            if publish_latest:
+                latest_path = out_root / latest_rel
+                latest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(archive_path, latest_path)
+
             parameter_payload["products"][product] = {
-                "file": (Path("temperature_ranks") / rel).as_posix(),
+                "file": (Path("temperature_ranks") / latest_rel).as_posix(),
+                "archive_file": (
+                    Path("temperature_ranks") / archive_rel
+                ).as_posix(),
                 "label": period_label(product, target),
                 "stats": _rank_stats(rank),
             }
-            print(f"Render: {parameter} {product}", flush=True)
-        manifest["parameters"][parameter] = parameter_payload
+            print(
+                f"Render: {parameter} {product} · {target_key}",
+                flush=True,
+            )
 
-    (out_root / "index.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        target_parameters[parameter] = parameter_payload
+
+    if publish_latest:
+        manifest: dict[str, Any] = {
+            **base_meta,
+            "data_through": target_key,
+            "parameters": target_parameters,
+        }
+    else:
+        manifest = dict(previous or {})
+        manifest.update(base_meta)
+
+    manifest["available_dates"] = sorted(available_dates)
+    index_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     return manifest
 
 

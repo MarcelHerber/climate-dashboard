@@ -423,6 +423,17 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 
 
 /* HYRAS_TEMPERATURE_RANK_MAPS_V1 */
+/* HYRAS_TEMPERATURE_RANK_TIMELINE_V1 */
+.hyras-rank-timeline{margin:12px 0 16px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:#f8fafb}
+.hyras-rank-timeline-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.hyras-rank-timeline-head strong{font-size:14px}
+.hyras-rank-timeline-date{font-size:13px;font-weight:700;color:#394650;font-variant-numeric:tabular-nums}
+.hyras-rank-timeline-row{display:grid;grid-template-columns:auto auto auto minmax(180px,1fr);gap:8px;align-items:center}
+.hyras-rank-timeline-row button{min-height:36px;white-space:nowrap}
+.hyras-rank-timeline-row input[type="range"]{width:100%;min-width:0;accent-color:#ef7d00;cursor:pointer}
+.hyras-rank-timeline-row input[type="range"]:disabled{opacity:.5;cursor:not-allowed}
+.hyras-rank-timeline-note{margin-top:7px;font-size:11px;line-height:1.35;color:var(--muted)}
+@media(max-width:700px){.hyras-rank-timeline-row{grid-template-columns:1fr 1fr 1fr}.hyras-rank-timeline-row input[type="range"]{grid-column:1/-1}}
 .hyras-rank-card{margin-top:18px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
 .hyras-rank-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
 .hyras-rank-head h3{margin:0 0 5px;font-size:21px}.hyras-rank-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.5;max-width:900px}
@@ -2127,6 +2138,20 @@ button.action:hover{background:#1f2937}
     </div>
 
     <div id="hyrasRankStatus" class="hyras-rank-status">Rangkarten werden geladen …</div>
+
+    <div id="hyrasRankTimeline" class="hyras-rank-timeline">
+      <div class="hyras-rank-timeline-head">
+        <strong>Kartenstand durchklicken oder abspielen</strong>
+        <span id="hyrasRankTimelineDate" class="hyras-rank-timeline-date">–</span>
+      </div>
+      <div class="hyras-rank-timeline-row">
+        <button id="hyrasRankPrev" class="action" type="button" onclick="hyrasRankStep(-1)">◀ 1 Tag</button>
+        <button id="hyrasRankPlay" class="action" type="button" onclick="hyrasRankTogglePlay()">▶ Abspielen</button>
+        <button id="hyrasRankNext" class="action" type="button" onclick="hyrasRankStep(1)">1 Tag ▶</button>
+        <input id="hyrasRankSlider" type="range" min="0" max="0" value="0" step="1" aria-label="HYRAS-Rangkarten-Datum" oninput="hyrasRankSliderInput(this.value)">
+      </div>
+      <div class="hyras-rank-timeline-note">Tages-, Monats- und Sommerrang wechseln gemeinsam auf denselben HYRAS-Datenstand.</div>
+    </div>
 
     <div class="hyras-rank-grid">
       <article class="hyras-rank-panel">
@@ -11691,9 +11716,92 @@ function initHyrasControls(){
 }
 initHyrasControls();
 
-// HYRAS_TEMPERATURE_RANK_MAPS_V1
+// HYRAS_TEMPERATURE_RANK_MAPS_V2
+let hyrasRankManifest=null;
+let hyrasRankManifestLoading=null;
+let hyrasRankDates=[];
+let hyrasRankDateIndex=-1;
+let hyrasRankPlayTimer=null;
+const HYRAS_RANK_PLAY_DELAY=700;
+
+function hyrasRankManifestUrl(){
+  return `${HYRAS_DATA_BASE}/temperature_ranks/index.json?t=${Date.now()}`;
+}
+async function hyrasRankEnsureManifest(force=false){
+  if(hyrasRankManifestLoading)return hyrasRankManifestLoading;
+  if(hyrasRankManifest&&!force)return hyrasRankManifest;
+  hyrasRankManifestLoading=fetch(hyrasRankManifestUrl(),{cache:"no-store"})
+    .then(response=>{
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then(data=>{
+      hyrasRankManifest=data;
+      const dates=Array.isArray(data?.available_dates)
+        ?data.available_dates.filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(String(value))).sort()
+        :[];
+      const latest=String(data?.data_through||"");
+      if(latest&&!dates.includes(latest))dates.push(latest);
+      hyrasRankDates=[...new Set(dates)].sort();
+      hyrasRankDateIndex=hyrasRankDates.length?hyrasRankDates.length-1:-1;
+      hyrasRankUpdateTimelineControls();
+      return data;
+    })
+    .catch(error=>{
+      console.warn("HYRAS-Rangkarten-Manifest:",error);
+      hyrasRankManifest=null;
+      hyrasRankDates=[];
+      hyrasRankDateIndex=-1;
+      hyrasRankUpdateTimelineControls();
+      return null;
+    })
+    .finally(()=>{hyrasRankManifestLoading=null;});
+  return hyrasRankManifestLoading;
+}
+function hyrasRankSelectedDate(){
+  return hyrasRankDateIndex>=0?hyrasRankDates[hyrasRankDateIndex]:"";
+}
+function hyrasRankDisplayDate(value){
+  if(!value)return "aktueller Stand";
+  const date=new Date(`${value}T00:00:00`);
+  if(Number.isNaN(date.getTime()))return value;
+  return date.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+function hyrasRankStopPlay(){
+  if(hyrasRankPlayTimer!==null){
+    window.clearInterval(hyrasRankPlayTimer);
+    hyrasRankPlayTimer=null;
+  }
+  const button=document.getElementById("hyrasRankPlay");
+  if(button)button.textContent="▶ Abspielen";
+}
+function hyrasRankUpdateTimelineControls(){
+  const slider=document.getElementById("hyrasRankSlider");
+  const prev=document.getElementById("hyrasRankPrev");
+  const next=document.getElementById("hyrasRankNext");
+  const date=document.getElementById("hyrasRankTimelineDate");
+  const length=hyrasRankDates.length;
+  const index=length?Math.max(0,Math.min(hyrasRankDateIndex,length-1)):0;
+  if(slider){
+    slider.min="0";
+    slider.max=String(Math.max(0,length-1));
+    slider.value=String(index);
+    slider.disabled=length<2;
+  }
+  if(prev)prev.disabled=length<2||index<=0;
+  if(next)next.disabled=length<2||index>=length-1;
+  if(date){
+    date.textContent=length
+      ?`${hyrasRankDisplayDate(hyrasRankDates[index])} · ${index+1}/${length}`
+      :"aktueller Stand";
+  }
+}
 function hyrasRankImageUrl(parameter,period){
   return `${HYRAS_DATA_BASE}/temperature_ranks/${parameter}/${period}_rank.png?t=${Date.now()}`;
+}
+function hyrasRankArchiveUrl(parameter,period,date){
+  if(!date||!hyrasRankManifest?.archive_pattern)return hyrasRankImageUrl(parameter,period);
+  return `${HYRAS_DATA_BASE}/temperature_ranks/archive/${date}/${parameter}/${period}_rank.png?t=${Date.now()}`;
 }
 function hyrasRankParameterLabel(parameter){
   return ({tmean:"Tmean",tmax:"Tmax",tmin:"Tmin"})[parameter]||parameter;
@@ -11701,22 +11809,23 @@ function hyrasRankParameterLabel(parameter){
 function hyrasRankRender(parameter){
   const select=document.getElementById("hyrasRankParameterSelect");
   const chosen=["tmean","tmax","tmin"].includes(parameter)?parameter:(select?.value||"tmean");
-  if(select && select.value!==chosen)select.value=chosen;
+  if(select&&select.value!==chosen)select.value=chosen;
   const status=document.getElementById("hyrasRankStatus");
   const token=++hyrasRankRenderToken;
+  const selectedDate=hyrasRankSelectedDate();
   let pending=HYRAS_RANK_PERIODS.length;
   let loaded=0;
   let failed=0;
   if(status){
     status.className="hyras-rank-status";
-    status.textContent=`${hyrasRankParameterLabel(chosen)} · drei Rangkarten werden geladen …`;
+    status.textContent=`${hyrasRankParameterLabel(chosen)} · ${selectedDate?hyrasRankDisplayDate(selectedDate):"aktueller Stand"} · drei Rangkarten werden geladen …`;
   }
   HYRAS_RANK_PERIODS.forEach(item=>{
     const img=document.getElementById(item.imageId);
     const placeholder=document.getElementById(item.placeholderId);
     const open=document.getElementById(item.openId);
     if(!img||!placeholder||!open)return;
-    const url=hyrasRankImageUrl(chosen,item.key);
+    const url=hyrasRankArchiveUrl(chosen,item.key,selectedDate);
     img.hidden=true;
     img.removeAttribute("src");
     placeholder.hidden=false;
@@ -11726,39 +11835,81 @@ function hyrasRankRender(parameter){
     open.href="#";
     img.onload=()=>{
       if(token!==hyrasRankRenderToken)return;
-      loaded+=1;pending-=1;
+      loaded+=1;
+      pending-=1;
       img.hidden=false;
       placeholder.hidden=true;
       open.href=url;
       open.classList.remove("disabled");
-      if(status && pending===0){
+      if(status&&pending===0){
         status.className="hyras-rank-status";
-        status.textContent=failed?`${hyrasRankParameterLabel(chosen)} · ${loaded}/3 Rangkarten verfügbar`:`${hyrasRankParameterLabel(chosen)} · Tages-, Monats- und Sommerrang · Vergleich 1951–2026 (76 Jahre)`;
+        const when=selectedDate?hyrasRankDisplayDate(selectedDate):"aktueller Stand";
+        status.textContent=failed
+          ?`${hyrasRankParameterLabel(chosen)} · ${when} · ${loaded}/3 Rangkarten verfügbar`
+          :`${hyrasRankParameterLabel(chosen)} · ${when} · Tages-, Monats- und Sommerrang`;
       }
     };
     img.onerror=()=>{
       if(token!==hyrasRankRenderToken)return;
-      failed+=1;pending-=1;
+      failed+=1;
+      pending-=1;
       img.hidden=true;
       placeholder.hidden=false;
       placeholder.className="hyras-rank-placeholder error";
-      placeholder.textContent="Rangkarte noch nicht veröffentlicht. Nach dem nächsten HYRAS-Workflow erscheint sie hier automatisch.";
-      if(status && pending===0){
+      placeholder.textContent="Für diesen Kartenstand ist die Rangkarte noch nicht verfügbar.";
+      if(status&&pending===0){
         status.className="hyras-rank-status";
-        status.textContent=loaded?`${hyrasRankParameterLabel(chosen)} · ${loaded}/3 Rangkarten verfügbar`:`${hyrasRankParameterLabel(chosen)} · Rangkarten warten auf die Veröffentlichung im hyras-data-Branch`;
+        status.textContent=`${hyrasRankParameterLabel(chosen)} · ${loaded}/3 Rangkarten verfügbar`;
       }
     };
     img.src=url;
   });
+  hyrasRankUpdateTimelineControls();
+}
+function hyrasRankSetDateIndex(index){
+  if(!hyrasRankDates.length)return;
+  hyrasRankDateIndex=Math.max(0,Math.min(Number(index)||0,hyrasRankDates.length-1));
+  hyrasRankUpdateTimelineControls();
+  hyrasRankRender(document.getElementById("hyrasRankParameterSelect")?.value||"tmean");
+}
+function hyrasRankStep(delta){
+  hyrasRankStopPlay();
+  hyrasRankSetDateIndex(hyrasRankDateIndex+Number(delta||0));
+}
+function hyrasRankSliderInput(value){
+  hyrasRankStopPlay();
+  hyrasRankSetDateIndex(Number(value));
+}
+function hyrasRankTogglePlay(){
+  if(hyrasRankDates.length<2)return;
+  if(hyrasRankPlayTimer!==null){
+    hyrasRankStopPlay();
+    return;
+  }
+  if(hyrasRankDateIndex>=hyrasRankDates.length-1){
+    hyrasRankDateIndex=0;
+    hyrasRankRender(document.getElementById("hyrasRankParameterSelect")?.value||"tmean");
+  }
+  const button=document.getElementById("hyrasRankPlay");
+  if(button)button.textContent="⏸ Pause";
+  hyrasRankPlayTimer=window.setInterval(()=>{
+    if(hyrasRankDateIndex>=hyrasRankDates.length-1){
+      hyrasRankStopPlay();
+      return;
+    }
+    hyrasRankDateIndex++;
+    hyrasRankRender(document.getElementById("hyrasRankParameterSelect")?.value||"tmean");
+  },HYRAS_RANK_PLAY_DELAY);
 }
 function hyrasSyncRankFromMain(){
   const parameter=document.getElementById("hyrasParameterSelect")?.value;
   if(["tmean","tmax","tmin"].includes(parameter))hyrasRankRender(parameter);
 }
-function initHyrasTemperatureRanks(){
+async function initHyrasTemperatureRanks(){
   const select=document.getElementById("hyrasRankParameterSelect");
   select?.addEventListener("change",()=>hyrasRankRender(select.value));
   document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>window.setTimeout(hyrasSyncRankFromMain,0));
+  await hyrasRankEnsureManifest();
   hyrasRankRender(select?.value||"tmean");
 }
 initHyrasTemperatureRanks();
