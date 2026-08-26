@@ -57,6 +57,7 @@ jobs:
         shell: bash
         env:
           FORCE_INPUT: ${{ inputs.force || false }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           rm -rf /tmp/hyras-meta
@@ -76,11 +77,11 @@ jobs:
           month=int(target[5:7]); year=int(target[:4])
           old_path=root/'temperature_ranks/index.json'
           old=json.loads(old_path.read_text(encoding='utf-8')).get('data_through') if old_path.exists() else None
-          force=os.environ.get('FORCE_INPUT','false').lower()=='true'
+          force=(os.environ.get('FORCE_INPUT','false').lower()=='true' or os.environ.get('EVENT_NAME')=='push')
           needed=(year==2026 and month in (6,7,8) and (force or old!=target))
           print(f'target_date={target}')
           print(f'needed={str(needed).lower()}')
-          print('HYRAS-Datenstände:', dates, 'gemeinsam:', target, 'vorhanden:', old, 'Build:', needed, file=os.sys.stderr)
+          print('HYRAS-Datenstände:', dates, 'gemeinsam:', target, 'vorhanden:', old, 'Build:', needed, 'Force:', force, file=os.sys.stderr)
           PY
 
   shards:
@@ -127,8 +128,8 @@ jobs:
       - name: Historischen Sommer-Tagescache laden
         uses: actions/cache@v4
         with:
-          path: /tmp/hyras-temperature-rank-history/${{ matrix.parameter }}/factor5
-          key: hyras-temperature-rank-v1-factor5-${{ matrix.parameter }}-${{ matrix.shard }}
+          path: /tmp/hyras-temperature-rank-history/${{ matrix.parameter }}/factor1
+          key: hyras-temperature-rank-v2-factor1-${{ matrix.parameter }}-${{ matrix.shard }}
 
       - name: Historischen HYRAS-Rangshard bauen
         shell: bash
@@ -141,7 +142,7 @@ jobs:
             --start-year "$START" \
             --end-year "$END" \
             --target-date "${{ needs.prepare.outputs.target_date }}" \
-            --factor 5 \
+            --factor 1 \
             --cache-root /tmp/hyras-temperature-rank-history \
             --work /tmp/hyras-temperature-rank-work \
             --output "/tmp/hyras-rank-shards/${{ matrix.parameter }}_${START}_${END}_${{ needs.prepare.outputs.target_date }}.npz"
@@ -196,7 +197,7 @@ jobs:
             --data-root /tmp/hyras-rank-data \
             --shard-dir /tmp/hyras-rank-shards \
             --target-date "${{ needs.prepare.outputs.target_date }}" \
-            --factor 5 \
+            --factor 1 \
             --work /tmp/hyras-temperature-rank-current
 
       - name: Ergebnis prüfen
@@ -215,6 +216,7 @@ jobs:
           assert d['history_end'] == 2025
           assert d['historical_years'] == 75
           assert d['total_rank_positions'] == 76
+          assert d['resolution_km'] == 1
           assert set(d['parameters']) == {'tmean','tmax','tmin'}
           for parameter in d['parameters'].values():
               assert set(parameter['products']) == {'day','month_to_date','summer_to_date'}
@@ -222,7 +224,7 @@ jobs:
                   assert (root/item['file']).exists(), item['file']
           files=list((root/'temperature_ranks').glob('*/*_rank.png'))
           assert len(files) == 9, len(files)
-          print('HYRAS-Rangkarten geprüft:', d['data_through'], 'PNGs:', len(files))
+          print('HYRAS-Rangkarten geprüft:', d['data_through'], 'Auflösung:', d['resolution_km'], 'km · PNGs:', len(files))
           PY
 
       - name: Rangkarten auf hyras-data veröffentlichen
