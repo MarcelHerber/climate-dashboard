@@ -4683,7 +4683,7 @@ function stationClimateDaysNoDataBarValue(rows){
   const maximum=Math.max(0,...(rows||[])
     .filter(item=>!item.noData && Number.isFinite(Number(item.count)))
     .map(item=>Number(item.count)));
-  return Math.max(1,Math.ceil(maximum*.12));
+  return Math.max(1,Math.ceil(maximum*.50));
 }
 
 function stationClimateDaysNoDataTooltipLabel(row){
