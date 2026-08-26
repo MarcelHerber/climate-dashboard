@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+import calendar
+import numpy as np
+
+HISTORY_START = 1950
+HISTORY_END = 2025
+CURRENT_YEAR = 2026
+PRODUCTS = ('day', 'month_to_date', 'summer_to_date')
+
+
+def historical_years() -> np.ndarray:
+    return np.arange(HISTORY_START, HISTORY_END + 1, dtype=int)
+
+
+def product_filename(product: str) -> str:
+    if product not in PRODUCTS:
+        raise ValueError(f'Unbekanntes Rangprodukt: {product}')
+    return f'temperature_{product}_rank.png'
+
+
+def finite_mean(cube: np.ndarray) -> np.ndarray:
+    cube = np.asarray(cube, dtype=float)
+    if cube.ndim < 2 or cube.shape[0] == 0:
+        raise ValueError('cube braucht mindestens eine Zeitstufe')
+    with np.errstate(invalid='ignore'):
+        result = np.nanmean(cube, axis=0)
+    result[np.sum(np.isfinite(cube), axis=0) == 0] = np.nan
+    return result
+
+
+def extract_day_and_mtd(times: np.ndarray, cube: np.ndarray, target_day: int) -> tuple[np.ndarray, np.ndarray]:
+    cube = np.asarray(cube, dtype=float)
+    times = np.asarray(times)
+    if cube.ndim < 3:
+        raise ValueError('cube muss Zeit x Breite x Länge enthalten')
+    if cube.shape[0] != times.size:
+        raise ValueError('times und cube stimmen nicht überein')
+    if not 1 <= int(target_day) <= 31:
+        raise ValueError('target_day muss zwischen 1 und 31 liegen')
+
+    if np.issubdtype(times.dtype, np.datetime64):
+        dates = times.astype('datetime64[D]').astype(str)
+        days = np.asarray([int(text[-2:]) for text in dates], dtype=int)
+        mtd_mask = days <= int(target_day)
+        day_mask = days == int(target_day)
+    else:
+        if cube.shape[0] < target_day:
+            raise ValueError('Nicht genügend Zeitstufen für target_day')
+        mtd_mask = np.arange(cube.shape[0]) < int(target_day)
+        day_mask = np.arange(cube.shape[0]) == int(target_day) - 1
+
+    if not np.any(day_mask):
+        raise ValueError(f'Zieltag {target_day:02d} fehlt in den Tagesdaten')
+    return finite_mean(cube[day_mask]), finite_mean(cube[mtd_mask])
+
+
+def extract_year_day_mtd(times: np.ndarray, cube: np.ndarray, years: np.ndarray, target_day: int) -> tuple[np.ndarray, np.ndarray]:
+    times = np.asarray(times)
+    cube = np.asarray(cube, dtype=float)
+    years = np.asarray(years, dtype=int)
+    if not np.issubdtype(times.dtype, np.datetime64):
+        raise ValueError('extract_year_day_mtd braucht datetime64-Zeitstempel')
+    if cube.shape[0] != times.size:
+        raise ValueError('times und cube stimmen nicht überein')
+    date_strings = times.astype('datetime64[D]').astype(str)
+    time_years = np.asarray([int(text[:4]) for text in date_strings], dtype=int)
+    day_fields = []
+    mtd_fields = []
+    for year in years:
+        mask = time_years == int(year)
+        if not np.any(mask):
+            raise ValueError(f'Jahr {year} fehlt in den Tagesdaten')
+        day, mtd = extract_day_and_mtd(times[mask], cube[mask], target_day)
+        day_fields.append(day)
+        mtd_fields.append(mtd)
+    return np.stack(day_fields, axis=0), np.stack(mtd_fields, axis=0)
+
+
+def combine_summer_to_date(
+    complete_month_fields: dict[int, np.ndarray],
+    years: np.ndarray,
+    target_month: int,
+    target_day: int,
+    current_month_to_date: np.ndarray,
+) -> np.ndarray:
+    years = np.asarray(years, dtype=int)
+    mtd = np.asarray(current_month_to_date, dtype=float)
+    if target_month not in (6, 7, 8):
+        raise ValueError('Sommer-bis-heute ist nur für Juni, Juli oder August definiert')
+    if mtd.shape[0] != years.size:
+        raise ValueError('years und current_month_to_date stimmen nicht überein')
+
+    numerator = np.where(np.isfinite(mtd), mtd * float(target_day), 0.0)
+    denominator = np.where(np.isfinite(mtd), float(target_day), 0.0)
+
+    for month in range(6, target_month):
+        if month not in complete_month_fields:
+            raise ValueError(f'Vollständiger Sommermonat {month:02d} fehlt')
+        values = np.asarray(complete_month_fields[month], dtype=float)
+        if values.shape != mtd.shape:
+            raise ValueError('Sommermonatsfelder müssen dieselbe Form besitzen')
+        weights = np.asarray([calendar.monthrange(int(year), month)[1] for year in years], dtype=float)
+        weights = weights.reshape((years.size,) + (1,) * (values.ndim - 1))
+        valid = np.isfinite(values)
+        numerator += np.where(valid, values * weights, 0.0)
+        denominator += np.where(valid, weights, 0.0)
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        result = numerator / denominator
+    result[denominator == 0] = np.nan
+    return result

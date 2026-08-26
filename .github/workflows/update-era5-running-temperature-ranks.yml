@@ -1,0 +1,198 @@
+name: ERA5-Land laufende Temperatur-Rangkarten
+
+on:
+  push:
+    paths:
+      - "scripts/era5_running_temperature_rank.py"
+      - "scripts/build_era5_running_temperature_rank_shard.py"
+      - "scripts/build_era5_running_temperature_rank_maps.py"
+      - "tests/test_era5_running_temperature_rank.py"
+      - ".github/workflows/update-era5-running-temperature-ranks.yml"
+  schedule:
+    - cron: "25 15 * 6-8 *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rangkarten auch bei unverändertem Datenstand neu erzeugen"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-running-temperature-ranks
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.target.outputs.needed }}
+      target_date: ${{ steps.target.outputs.target_date }}
+      target_month: ${{ steps.target.outputs.target_month }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - id: target
+        shell: bash
+        env:
+          FORCE_INPUT: ${{ inputs.force || false }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          running=json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))
+          target=str(running['data_through'])
+          year=int(target[:4]); month=int(target[5:7])
+          if year != 2026 or month not in (6,7,8):
+              needed=False
+          else:
+              p=Path('era5_land_europe/running/temperature_ranks/index.json')
+              old=json.loads(p.read_text(encoding='utf-8')).get('data_through') if p.exists() else None
+              force=os.environ.get('FORCE_INPUT','false').lower()=='true' or os.environ.get('GITHUB_EVENT_NAME')=='push'
+              needed=force or old != target
+          out=Path(os.environ['GITHUB_OUTPUT'])
+          with out.open('a',encoding='utf-8') as fh:
+              fh.write(f'target_date={target}\n')
+              fh.write(f'target_month={target[5:7]}\n')
+              fh.write(f'needed={str(needed).lower()}\n')
+          print('Datenstand:',target,'Build nötig:',needed)
+          PY
+
+  shards:
+    needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard:
+          - { start: 1950, end: 1959 }
+          - { start: 1960, end: 1969 }
+          - { start: 1970, end: 1979 }
+          - { start: 1980, end: 1989 }
+          - { start: 1990, end: 1999 }
+          - { start: 2000, end: 2009 }
+          - { start: 2010, end: 2019 }
+          - { start: 2020, end: 2025 }
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 pytest
+      - name: Hilfsfunktionen testen
+        run: python -m pytest -q tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
+      - name: Historischen Tagescache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_cache
+          key: era5-running-temperature-rank-v1-${{ matrix.shard.start }}-${{ matrix.shard.end }}-m${{ needs.prepare.outputs.target_month }}
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Historischen Rang-Shard bauen
+        run: >-
+          python scripts/build_era5_running_temperature_rank_shard.py
+          --target-date "${{ needs.prepare.outputs.target_date }}"
+          --start-year ${{ matrix.shard.start }}
+          --end-year ${{ matrix.shard.end }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-running-rank-${{ matrix.shard.start }}-${{ matrix.shard.end }}
+          path: .era5_running_rank_shards/*.npz
+          if-no-files-found: error
+          retention-days: 2
+
+  finalize:
+    needs: [prepare, shards]
+    if: needs.prepare.outputs.needed == 'true' && needs.shards.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: era5-running-rank-*
+          path: .era5_running_rank_shards
+          merge-multiple: true
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Drei Rangkarten erzeugen
+        run: >-
+          python scripts/build_era5_running_temperature_rank_maps.py
+          --target-date "${{ needs.prepare.outputs.target_date }}"
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('era5_land_europe/running/temperature_ranks/index.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assert d['ready'] is True
+          assert d['data_through'] == '${{ needs.prepare.outputs.target_date }}'
+          assert d['historical_years'] == 76
+          assert d['total_rank_positions'] == 77
+          assert set(d['products']) == {'day','month_to_date','summer_to_date'}
+          for item in d['products'].values():
+              assert Path(item['file']).exists(), item['file']
+          print('Rangkarten geprüft:', d['data_through'])
+          PY
+      - name: Rangkarten versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/running/temperature_ranks
+          if git diff --cached --quiet; then
+            echo "Keine neuen Temperatur-Rangkarten."
+            exit 0
+          fi
+          git commit -m "ERA5 laufende Temperatur-Rangkarten aktualisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
