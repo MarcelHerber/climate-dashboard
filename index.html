@@ -422,6 +422,25 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 @media(max-width:700px){.hyras-map-frame{min-height:360px}}
 
 
+/* HYRAS_TEMPERATURE_RANK_MAPS_V1 */
+.hyras-rank-card{margin-top:18px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
+.hyras-rank-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.hyras-rank-head h3{margin:0 0 5px;font-size:21px}.hyras-rank-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.5;max-width:900px}
+.hyras-rank-control{min-width:205px}.hyras-rank-control select{width:100%}
+.hyras-rank-status{margin:0 0 13px;padding:9px 11px;border-radius:8px;background:#f3f8fb;border:1px solid #cbdde8;color:#34414a;font-size:12px}
+.hyras-rank-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.hyras-rank-panel{min-width:0;border:1px solid #d7dee3;border-radius:10px;background:#fbfcfd;padding:10px}
+.hyras-rank-panel h4{margin:1px 2px 7px;font-size:15px}.hyras-rank-panel .note{margin:0 2px 9px;font-size:11px}
+.hyras-rank-image-wrap{min-height:300px;display:flex;align-items:center;justify-content:center;border:1px solid #dce3e8;border-radius:8px;background:#f5f7f8;overflow:hidden}
+.hyras-rank-image-wrap img{display:block;width:100%;height:auto;max-height:720px;object-fit:contain;background:#fff}.hyras-rank-image-wrap img[hidden]{display:none}
+.hyras-rank-placeholder{padding:24px 16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.45}.hyras-rank-placeholder.error{color:#8b211a;background:#fff4f3}
+.hyras-rank-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.hyras-rank-actions a{display:inline-flex;padding:6px 9px;border:1px solid #b5bec6;border-radius:6px;background:#fff;color:#24313a;text-decoration:none;font-size:11px;font-weight:700}.hyras-rank-actions a:hover{background:#f4f6f7}.hyras-rank-actions a.disabled{pointer-events:none;opacity:.45}
+.hyras-rank-legend{display:grid;grid-template-columns:repeat(9,minmax(58px,1fr));gap:4px;margin-top:14px}.hyras-rank-legend-item{min-width:0;text-align:center}.hyras-rank-legend-swatch{height:16px;border:1px solid rgba(0,0,0,.15);border-radius:3px}.hyras-rank-legend-label{margin-top:3px;font-size:10px;color:#56616a;white-space:nowrap}
+.hyras-rank-foot{margin:9px 1px 0;color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:1100px){.hyras-rank-grid{grid-template-columns:1fr}.hyras-rank-image-wrap{min-height:360px}}
+@media(max-width:700px){.hyras-rank-card{padding:13px}.hyras-rank-control{width:100%}.hyras-rank-legend{grid-template-columns:repeat(3,1fr)}.hyras-rank-image-wrap{min-height:260px}}
+
+
 
 /* Version 15.6: HYRAS Klick-Zeitreihe + Kartenmaxima */
 .hyras-canvas-stage{position:relative;width:fit-content;max-width:100%;margin:0 auto}
@@ -2084,6 +2103,70 @@ button.action:hover{background:#1f2937}
   </div>
   <p class="note" style="margin-top:10px"><strong>Interaktiv:</strong> Maus über die Karte bewegen, um die Rasterwerte zu sehen. <strong>Klick auf die Karte:</strong> Der nächstgelegene 5-km-Analysepunkt wird gewählt und darunter erscheint seine Niederschlags-Zeitreihe seit 1931. Die roten Markierungen 1–3 zeigen die räumlich getrennten Maxima der aktuell dargestellten Karte.</p>
 
+  <section id="hyrasTemperatureRanks" class="hyras-rank-card" aria-labelledby="hyrasRankHeading">
+    <div class="hyras-rank-head">
+      <div>
+        <h3 id="hyrasRankHeading">Temperatur-Rangkarten 1951–heute</h3>
+        <p>Rang des aktuellen HYRAS-Temperaturrasters im Vergleich mit allen Jahren seit 1951. Rang 1 ist am wärmsten, Rang 76 am kältesten (Stand 2026).</p>
+      </div>
+      <div class="control-group hyras-rank-control">
+        <label for="hyrasRankParameterSelect">Temperaturparameter</label>
+        <select id="hyrasRankParameterSelect">
+          <option value="tmean">Tmean · Tagesmittel</option>
+          <option value="tmax">Tmax · Tagesmaximum</option>
+          <option value="tmin">Tmin · Tagesminimum</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="hyrasRankStatus" class="hyras-rank-status">Rangkarten werden geladen …</div>
+
+    <div class="hyras-rank-grid">
+      <article class="hyras-rank-panel">
+        <h4>Tagesrang</h4>
+        <p class="note">Aktueller HYRAS-Tag gegen denselben Kalendertag aller Jahre 1951–2026.</p>
+        <div class="hyras-rank-image-wrap">
+          <div id="hyrasRankDayPlaceholder" class="hyras-rank-placeholder">Tagesrang wird geladen …</div>
+          <img id="hyrasRankDayImage" alt="HYRAS Temperatur Tagesrang" hidden>
+        </div>
+        <div class="hyras-rank-actions"><a id="hyrasRankDayOpen" class="disabled" href="#" target="_blank" rel="noopener">PNG groß öffnen</a></div>
+      </article>
+
+      <article class="hyras-rank-panel">
+        <h4>Monatsrang bis heute</h4>
+        <p class="note">Monatsbeginn bis zum aktuellen HYRAS-Tag gegen denselben Teilzeitraum aller Jahre.</p>
+        <div class="hyras-rank-image-wrap">
+          <div id="hyrasRankMonthPlaceholder" class="hyras-rank-placeholder">Monatsrang wird geladen …</div>
+          <img id="hyrasRankMonthImage" alt="HYRAS Temperatur Monatsrang bis heute" hidden>
+        </div>
+        <div class="hyras-rank-actions"><a id="hyrasRankMonthOpen" class="disabled" href="#" target="_blank" rel="noopener">PNG groß öffnen</a></div>
+      </article>
+
+      <article class="hyras-rank-panel">
+        <h4>Sommerrang bis heute</h4>
+        <p class="note">1. Juni bis zum aktuellen HYRAS-Tag gegen denselben Sommerabschnitt aller Jahre.</p>
+        <div class="hyras-rank-image-wrap">
+          <div id="hyrasRankSummerPlaceholder" class="hyras-rank-placeholder">Sommerrang wird geladen …</div>
+          <img id="hyrasRankSummerImage" alt="HYRAS Temperatur Sommerrang bis heute" hidden>
+        </div>
+        <div class="hyras-rank-actions"><a id="hyrasRankSummerOpen" class="disabled" href="#" target="_blank" rel="noopener">PNG groß öffnen</a></div>
+      </article>
+    </div>
+
+    <div class="hyras-rank-legend" aria-label="Rangklassen">
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#D7198C"></div><div class="hyras-rank-legend-label">1</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#E53935"></div><div class="hyras-rank-legend-label">2</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#F57C00"></div><div class="hyras-rank-legend-label">3</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#F9C74F"></div><div class="hyras-rank-legend-label">4–9</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#FFF4DC"></div><div class="hyras-rank-legend-label">10–20</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#B8DDF0"></div><div class="hyras-rank-legend-label">21–40</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#4F8FCB"></div><div class="hyras-rank-legend-label">41–60</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#164A8A"></div><div class="hyras-rank-legend-label">61–75</div></div>
+      <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#4B176D"></div><div class="hyras-rank-legend-label">76</div></div>
+    </div>
+    <p class="hyras-rank-foot">Vergleichsbasis: HYRAS-DE Temperatur ab 1951. Für 2026 umfasst das Ranking 75 historische Jahre (1951–2025) plus das aktuelle Jahr = 76 Rangpositionen.</p>
+  </section>
+
   <div id="hyrasPointAnalysis" class="hyras-point-analysis" hidden>
     <div class="hyras-point-analysis-head">
       <div>
@@ -3097,6 +3180,12 @@ const CURRENT_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-
 const CURRENT_FAST_LIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/fast-live";
 const CURRENT_MAP_BOUNDARY_URL="https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
 const HYRAS_DATA_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/hyras-data";
+let hyrasRankRenderToken=0;
+const HYRAS_RANK_PERIODS=[
+  {key:"day",imageId:"hyrasRankDayImage",placeholderId:"hyrasRankDayPlaceholder",openId:"hyrasRankDayOpen"},
+  {key:"month_to_date",imageId:"hyrasRankMonthImage",placeholderId:"hyrasRankMonthPlaceholder",openId:"hyrasRankMonthOpen"},
+  {key:"summer_to_date",imageId:"hyrasRankSummerImage",placeholderId:"hyrasRankSummerPlaceholder",openId:"hyrasRankSummerOpen"}
+];
 let hyrasIndex=null;
 let hyrasLoading=null;
 let hyrasLastFetch=0;
@@ -11581,6 +11670,78 @@ function initHyrasControls(){
   hyrasHistoricalTypeControls();
 }
 initHyrasControls();
+
+// HYRAS_TEMPERATURE_RANK_MAPS_V1
+function hyrasRankImageUrl(parameter,period){
+  return `${HYRAS_DATA_BASE}/temperature_ranks/${parameter}/${period}_rank.png?t=${Date.now()}`;
+}
+function hyrasRankParameterLabel(parameter){
+  return ({tmean:"Tmean",tmax:"Tmax",tmin:"Tmin"})[parameter]||parameter;
+}
+function hyrasRankRender(parameter){
+  const select=document.getElementById("hyrasRankParameterSelect");
+  const chosen=["tmean","tmax","tmin"].includes(parameter)?parameter:(select?.value||"tmean");
+  if(select && select.value!==chosen)select.value=chosen;
+  const status=document.getElementById("hyrasRankStatus");
+  const token=++hyrasRankRenderToken;
+  let pending=HYRAS_RANK_PERIODS.length;
+  let loaded=0;
+  let failed=0;
+  if(status){
+    status.className="hyras-rank-status";
+    status.textContent=`${hyrasRankParameterLabel(chosen)} · drei Rangkarten werden geladen …`;
+  }
+  HYRAS_RANK_PERIODS.forEach(item=>{
+    const img=document.getElementById(item.imageId);
+    const placeholder=document.getElementById(item.placeholderId);
+    const open=document.getElementById(item.openId);
+    if(!img||!placeholder||!open)return;
+    const url=hyrasRankImageUrl(chosen,item.key);
+    img.hidden=true;
+    img.removeAttribute("src");
+    placeholder.hidden=false;
+    placeholder.className="hyras-rank-placeholder";
+    placeholder.textContent="Rangkarte wird geladen …";
+    open.classList.add("disabled");
+    open.href="#";
+    img.onload=()=>{
+      if(token!==hyrasRankRenderToken)return;
+      loaded+=1;pending-=1;
+      img.hidden=false;
+      placeholder.hidden=true;
+      open.href=url;
+      open.classList.remove("disabled");
+      if(status && pending===0){
+        status.className="hyras-rank-status";
+        status.textContent=failed?`${hyrasRankParameterLabel(chosen)} · ${loaded}/3 Rangkarten verfügbar`:`${hyrasRankParameterLabel(chosen)} · Tages-, Monats- und Sommerrang · Vergleich 1951–2026 (76 Jahre)`;
+      }
+    };
+    img.onerror=()=>{
+      if(token!==hyrasRankRenderToken)return;
+      failed+=1;pending-=1;
+      img.hidden=true;
+      placeholder.hidden=false;
+      placeholder.className="hyras-rank-placeholder error";
+      placeholder.textContent="Rangkarte noch nicht veröffentlicht. Nach dem nächsten HYRAS-Workflow erscheint sie hier automatisch.";
+      if(status && pending===0){
+        status.className="hyras-rank-status";
+        status.textContent=loaded?`${hyrasRankParameterLabel(chosen)} · ${loaded}/3 Rangkarten verfügbar`:`${hyrasRankParameterLabel(chosen)} · Rangkarten warten auf die Veröffentlichung im hyras-data-Branch`;
+      }
+    };
+    img.src=url;
+  });
+}
+function hyrasSyncRankFromMain(){
+  const parameter=document.getElementById("hyrasParameterSelect")?.value;
+  if(["tmean","tmax","tmin"].includes(parameter))hyrasRankRender(parameter);
+}
+function initHyrasTemperatureRanks(){
+  const select=document.getElementById("hyrasRankParameterSelect");
+  select?.addEventListener("change",()=>hyrasRankRender(select.value));
+  document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>window.setTimeout(hyrasSyncRankFromMain,0));
+  hyrasRankRender(select?.value||"tmean");
+}
+initHyrasTemperatureRanks();
 
 // ================= AKTUELL / DWD 10-MINUTEN =================
 function currentNum(value,unit="",digits=1){
