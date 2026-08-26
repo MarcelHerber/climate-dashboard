@@ -2037,6 +2037,13 @@ button.action:hover{background:#1f2937}
       <label for="hyrasPeriodSelect">Zeitraum</label>
       <select id="hyrasPeriodSelect"><option value="">Zeiträume werden geladen …</option></select>
     </div>
+    <div class="control-group" id="hyrasReferenceGroup">
+      <label for="hyrasReferenceSelect">Referenzmittel</label>
+      <select id="hyrasReferenceSelect">
+        <option value="1991-2020">1991–2020</option>
+        <option value="1961-1990">1961–1990</option>
+      </select>
+    </div>
     <div class="control-group">
       <label for="hyrasMetricSelect">Darstellung</label>
       <select id="hyrasMetricSelect">
@@ -9995,10 +10002,19 @@ async function hyrasFetchJson(path){
   if(!response.ok) throw new Error(`HYRAS-Datei ${path} nicht erreichbar (HTTP ${response.status})`);
   return response.json();
 }
+// HYRAS_REFERENCE_PERIOD_SELECTOR_V1
+function hyrasReferencePeriod(){return document.getElementById("hyrasReferenceSelect")?.value||"1991-2020";}
+function hyrasReferenceDisplay(){return hyrasReferencePeriod().replace("-","–");}
+function hyrasReferenceYears(){const parts=hyrasReferencePeriod().split("-").map(Number);return {start:parts[0]||1991,end:parts[1]||2020};}
+function hyrasReferenceSlug(){return hyrasReferencePeriod().replace("-","_");}
+function hyrasReferenceFiles(manifest){
+  const ref=hyrasReferencePeriod();
+  return manifest?.reference_files_by_period?.[ref]||manifest?.reference_files||{};
+}
 function hyrasMetricConfig(metric){
   if(metric==="sum") return {key:"sum",label:"Niederschlagssumme"};
   if(metric==="anomaly") return {key:"anomaly",label:"Abweichung in l/m²"};
-  return {key:"percent",label:"Prozent des Mittels 1991–2020"};
+  return {key:"percent",label:`Prozent des Mittels ${hyrasReferenceDisplay()}`};
 }
 function hyrasSelectedPeriod(){
   const periods=hyrasIndex?.periods||[];
@@ -10101,8 +10117,8 @@ async function hyrasLoadHistoricalMonth(year,month){
 }
 async function hyrasLoadHistoricalReference(month){
   const manifest=await hyrasLoadHistoricalManifest();
-  const path=manifest.reference_files?.[String(month)];
-  if(!path) throw new Error(`Referenzraster für Monat ${month} fehlt.`);
+  const path=hyrasReferenceFiles(manifest)?.[String(month)];
+  if(!path) throw new Error(`Referenzraster ${hyrasReferenceDisplay()} für Monat ${month} fehlt.`);
   const encoded=await hyrasLoadEncodedRaster(path);
   return hyrasDecodeEncodedRaster(encoded,manifest.value_scale||10);
 }
@@ -10192,18 +10208,19 @@ async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geo
 async function hyrasLoadPresetState(period){
   const info=period?.interactive;if(!info?.current)throw new Error("Interaktives 1-km-Raster fehlt für diesen Zeitraum.");
   const current=hyrasDecodeEncodedRaster(await hyrasLoadEncodedRaster(info.current),info.value_scale||10);let reference=null;
-  if(info.reference)reference=hyrasDecodeEncodedRaster(await hyrasLoadEncodedRaster(info.reference),info.value_scale||10);
-  return {current,reference,width:current.width,height:current.height,resolutionKm:1,key:period.key};
+  const referencePath=info.references?.[hyrasReferencePeriod()]||info.reference;
+  if(referencePath)reference=hyrasDecodeEncodedRaster(await hyrasLoadEncodedRaster(referencePath),info.value_scale||10);
+  return {current,reference,width:current.width,height:current.height,resolutionKm:1,key:period.key,referenceKey:hyrasReferencePeriod()};
 }
 async function hyrasRenderPresetMap(period){
-  if(!hyrasPresetState||hyrasPresetState.key!==period.key)hyrasPresetState=await hyrasLoadPresetState(period);
+  if(!hyrasPresetState||hyrasPresetState.key!==period.key||hyrasPresetState.referenceKey!==hyrasReferencePeriod())hyrasPresetState=await hyrasLoadPresetState(period);
   const interactive=hyrasIndex?.interactive||{};
-  await hyrasDrawInteractiveMap({state:hyrasPresetState,title:`HYRAS-Niederschlag · ${period.label||""}`,subtitle:`${period.date_label||""} · ${period.reference_exact?"Referenz 1991–2020":"aktueller HYRAS-Zeitraum"}`,boundaryOverlay:interactive.boundary_overlay_1km,geoLookup:interactive.geo_lookup_1km,downloadName:`hyras_${period.key}_${document.getElementById("hyrasMetricSelect")?.value||"sum"}.png`});
+  await hyrasDrawInteractiveMap({state:hyrasPresetState,title:`HYRAS-Niederschlag · ${period.label||""}`,subtitle:`${period.date_label||""} · ${period.reference_exact?`Referenz ${hyrasReferenceDisplay()}`:"aktueller HYRAS-Zeitraum"}`,boundaryOverlay:interactive.boundary_overlay_1km,geoLookup:interactive.geo_lookup_1km,downloadName:`hyras_${period.key}_${document.getElementById("hyrasMetricSelect")?.value||"sum"}_${hyrasReferenceSlug()}.png`});
 }
 async function hyrasRenderHistoricalMap(){
   if(!hyrasHistoricalState)return;
   const manifest=await hyrasLoadHistoricalManifest(),state=hyrasHistoricalState;
-  await hyrasDrawInteractiveMap({state,title:`HYRAS-Niederschlag · ${state.label}`,subtitle:`${state.dateLabel} · Referenz 1991–2020 · historisches HYRAS-1-km-Raster`,boundaryOverlay:manifest.boundary_overlay,geoLookup:manifest.geo_lookup,downloadName:`hyras_historisch_${state.year}_${state.type}_${document.getElementById("hyrasMetricSelect")?.value||"percent"}.png`});
+  await hyrasDrawInteractiveMap({state,title:`HYRAS-Niederschlag · ${state.label}`,subtitle:`${state.dateLabel} · Referenz ${hyrasReferenceDisplay()} · historisches HYRAS-1-km-Raster`,boundaryOverlay:manifest.boundary_overlay,geoLookup:manifest.geo_lookup,downloadName:`hyras_historisch_${state.year}_${state.type}_${document.getElementById("hyrasMetricSelect")?.value||"percent"}.png`});
 }
 async function hyrasApplyHistorical(){
   const msg=document.getElementById("hyrasHistoricalMessage");
@@ -10233,7 +10250,7 @@ async function hyrasApplyHistorical(){
     document.getElementById("hyrasReferenceMeanDetail").textContent="Mittel 1991–2020 · gleicher Kalendermonat/Zeitraum";
     document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
     const a=Number(stats.anomaly_mean_mm);document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(a)?`${a>=0?"+":""}${hyrasNum(a,"l/m²",1)} zum Mittel`:"–";
-    document.getElementById("hyrasReferenceNote").textContent=`Historische HYRAS-Auswertung ${manifest.first_year}–${manifest.last_year}: Monatssummen direkt im nativen ${manifest.web_sampling_km}-km-HYRAS-DE-PR-Raster. Referenz 1991–2020.`;
+    document.getElementById("hyrasReferenceNote").textContent=`Historische HYRAS-Auswertung ${manifest.first_year}–${manifest.last_year}: Monatssummen direkt im nativen ${manifest.web_sampling_km}-km-HYRAS-DE-PR-Raster. Referenz ${hyrasReferenceDisplay()}.`;
     [...document.getElementById("hyrasMetricSelect").options].forEach(o=>o.disabled=false);
     await hyrasRenderHistoricalMap();
     if(msg)msg.textContent=`Berechnet: ${label} · ${dateLabel} · Vergleich mit 1991–2020.`;
@@ -10271,8 +10288,8 @@ function hyrasZeroRaster(width,height){return {width,height,values:new Float32Ar
 async function hyrasCumulativeRaster(kind,iso,allowZero=false){
   const manifest=await hyrasLoadWebManifest();
   if(allowZero && iso<manifest.first_date) return hyrasZeroRaster(manifest.width,manifest.height);
-  const files=kind==="reference"?manifest.reference_files:manifest.current_files;
-  const path=files?.[iso];if(!path) throw new Error(`Für ${hyrasDate(iso)} liegt kein ${kind==="reference"?"Referenz-":"aktuelles "}Webraster vor.`);
+  const files=kind==="reference"?hyrasReferenceFiles(manifest):manifest.current_files;
+  const path=files?.[iso];if(!path) throw new Error(`Für ${hyrasDate(iso)} liegt kein ${kind==="reference"?`Referenzraster ${hyrasReferenceDisplay()} `:"aktuelles "}Webraster vor.`);
   const encoded=await hyrasLoadEncodedRaster(path);return hyrasDecodeEncodedRaster(encoded,manifest.value_scale||10);
 }
 function hyrasRangeDifference(endRaster,startRaster){
@@ -10365,7 +10382,7 @@ async function hyrasRenderLiveDailyPreset(period){
   const start=period?.start_date,end=period?.end_date;
   if(!start||!end)throw new Error("Laufender HYRAS-Zeitraum besitzt kein Start-/Enddatum.");
   if(start<manifest.first_date||end>manifest.last_date)throw new Error(`Tagesdaten verfügbar: ${hyrasDate(manifest.first_date)} bis ${hyrasDate(manifest.last_date)}.`);
-  const stateKey=`${period.key}|${start}|${end}|${manifest.data_through||manifest.last_date}`;
+  const stateKey=`${period.key}|${start}|${end}|${manifest.data_through||manifest.last_date}|${hyrasReferencePeriod()}`;
   if(!hyrasLivePresetState||hyrasLivePresetState.stateKey!==stateKey){
     const prev=hyrasPreviousIso(start);
     const [curEnd,curPrev,refEnd,refPrev]=await Promise.all([
@@ -10385,16 +10402,16 @@ async function hyrasRenderLiveDailyPreset(period){
   document.getElementById("hyrasCurrentMean").textContent=hyrasNum(stats.current_mean_mm,"l/m²",1);
   document.getElementById("hyrasCurrentMeanDetail").textContent=`HYRAS-Tagesdaten · Webraster ${state.resolutionKm} km`;
   document.getElementById("hyrasReferenceMean").textContent=hyrasNum(stats.reference_mean_mm,"l/m²",1);
-  document.getElementById("hyrasReferenceMeanDetail").textContent="exakter gleicher Kalenderabschnitt 1991–2020";
+  document.getElementById("hyrasReferenceMeanDetail").textContent=`exakter gleicher Kalenderabschnitt ${hyrasReferenceDisplay()}`;
   document.getElementById("hyrasPercentMean").textContent=hyrasNum(stats.percent_of_reference,"%",1);
   const anom=Number(stats.anomaly_mean_mm);
   document.getElementById("hyrasAnomalyMean").textContent=Number.isFinite(anom)?`${anom>=0?"+":""}${hyrasNum(anom,"l/m²",1)} zum Mittel`:"Abweichung nicht verfügbar";
   const note=document.getElementById("hyrasReferenceNote");
-  if(note)note.textContent=period.reference_note||"Tagesgenauer HYRAS-Vergleich mit exakt demselben Kalenderabschnitt 1991–2020.";
+  if(note)note.textContent=`Tagesgenauer HYRAS-Vergleich mit exakt demselben Kalenderabschnitt ${hyrasReferenceDisplay()}.`;
   await hyrasDrawInteractiveMap({
     state,
     title:`HYRAS-Niederschlag · ${period.label||"Aktueller Zeitraum"}`,
-    subtitle:`${period.date_label||`${hyrasDate(start)}–${hyrasDate(end)}`} · tagesgenaue Referenz 1991–2020`,
+    subtitle:`${period.date_label||`${hyrasDate(start)}–${hyrasDate(end)}`} · tagesgenaue Referenz ${hyrasReferenceDisplay()}`,
     boundaryOverlay:manifest.boundary_overlay,
     geoLookup:manifest.geo_lookup,
     downloadName:`hyras_${period.key}_${metricSelect?.value||"percent"}.png`,
@@ -10609,13 +10626,13 @@ async function hyrasTmeanEnsureLoaded(){
 function hyrasTmeanMetricOptions(hasAnomaly=true){
   const select=document.getElementById("hyrasMetricSelect");if(!select)return;
   const previous=select.value;
-  select.innerHTML='<option value="absolute">Temperatur (°C)</option><option value="anomaly">Abweichung 1991–2020 (K)</option>';
+  select.innerHTML=`<option value="absolute">Temperatur (°C)</option><option value="anomaly">Abweichung ${hyrasReferenceDisplay()} (K)</option>`;
   select.querySelector('option[value="anomaly"]').disabled=!hasAnomaly;
   select.value=(previous==="anomaly"&&hasAnomaly)?"anomaly":"absolute";
 }
 function hyrasRestorePrecipMetricOptions(){
   const select=document.getElementById("hyrasMetricSelect");if(!select)return;
-  select.innerHTML='<option value="percent">Prozent des Mittels 1991–2020</option><option value="sum">Niederschlagssumme</option><option value="anomaly">Abweichung in l/m²</option>';
+  select.innerHTML=`<option value="percent">Prozent des Mittels ${hyrasReferenceDisplay()}</option><option value="sum">Niederschlagssumme</option><option value="anomaly">Abweichung zu ${hyrasReferenceDisplay()} in l/m²</option>`;
   select.value="percent";
 }
 function hyrasTmeanDefaultPeriod(){
@@ -10682,8 +10699,8 @@ async function hyrasTmeanHistoricalRaster(selection,targetYear){
   return {values:out,valid,width:w,height:h,resolutionKm:Number(mf.resolution_km||5),targetYear};
 }
 async function hyrasTmeanHistoricalReference(type,month){
-  const mf=hyrasTmeanHistoryManifest,w=Number(mf.width),h=Number(mf.height),plane=w*h,sum=new Float64Array(plane),count=new Uint16Array(plane);
-  for(let year=1991;year<=2020;year++){
+  const mf=hyrasTmeanHistoryManifest,w=Number(mf.width),h=Number(mf.height),plane=w*h,sum=new Float64Array(plane),count=new Uint16Array(plane),refYears=hyrasReferenceYears();
+  for(let year=refYears.start;year<=refYears.end;year++){
     const selection=hyrasTmeanHistoricalSelection(year,type,month),state=await hyrasTmeanHistoricalRaster(selection,year);
     for(let i=0;i<plane;i++){if(state.valid[i]){sum[i]+=state.values[i];count[i]++;}}
   }
@@ -10811,11 +10828,13 @@ function hyrasTmeanSetKpis({label,dateLabel,currentMean,referenceMean,anomalyMea
 }
 async function hyrasTmeanRenderCurrent(period){
   const mode=document.getElementById("hyrasMetricSelect")?.value||"absolute",hasAnomaly=Boolean(period.anomaly);hyrasTmeanMetricOptions(hasAnomaly);const selectedMode=document.getElementById("hyrasMetricSelect")?.value||"absolute";
-  const path=selectedMode==="anomaly"?period.anomaly:period.absolute;if(!path)throw new Error("Für diesen laufenden Tmean-Zeitraum ist die Abweichung noch nicht verfügbar.");
+  const selectedReference=hyrasReferencePeriod();
+  const anomalyPath=period.anomaly_by_reference?.[selectedReference]||period.anomaly;
+  const path=selectedMode==="anomaly"?anomalyPath:period.absolute;if(!path)throw new Error(`Für diesen Tmean-Zeitraum ist die Abweichung zu ${hyrasReferenceDisplay()} noch nicht verfügbar.`);
   const raw=await hyrasTmeanLoadI16(path),w=Number(hyrasTmeanIndex.grid_1km.width),h=Number(hyrasTmeanIndex.grid_1km.height),raster=hyrasTmeanDecodePlane(raw,w,h,100,-32768,0,HYRAS_TMEAN_CURRENT_DISPLAY_FACTOR);
-  const stats=period.stats||{},anom=Number(stats.anomaly_mean_k),ref=Number(stats.reference_mean_c),cur=Number(stats.current_mean_c);
+  const refStats=period.stats_by_reference?.[selectedReference]||period.stats||{},stats=period.stats||{},anom=Number(refStats.anomaly_mean_k),ref=Number(refStats.reference_mean_c),cur=Number(stats.current_mean_c);
   hyrasTmeanSetKpis({label:period.label,dateLabel:`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,currentMean:cur,referenceMean:ref,anomalyMean:anom,live:Boolean(period.live),resolutionKm:2});
-  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${period.label}`,subtitle:`${selectedMode==="anomaly"?"Abweichung 1991–2020":"2-m-Temperaturmittel"} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,mode:selectedMode,resolutionKm:2});
+  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${period.label}`,subtitle:`${selectedMode==="anomaly"?`Abweichung ${hyrasReferenceDisplay()}`:"2-m-Temperaturmittel"} · ${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`,mode:selectedMode,resolutionKm:2});
   const note=document.getElementById("hyrasReferenceNote");if(note)note.textContent=period.reference_exact?"Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Abweichung gegenüber dem gleichen Zeitraum 1991–2020.":"Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Für laufende Teilzeiträume ist in dieser Stufe zunächst die absolute Temperatur verfügbar.";
 }
 async function hyrasTmeanApplyHistorical(){
@@ -10830,7 +10849,7 @@ async function hyrasTmeanRenderHistorical(){
   const state=hyrasTmeanHistoricalState;if(!state){const frame=document.getElementById("hyrasMapFrame");if(frame)frame.innerHTML='<div class="hyras-loading">Historisches Tmean-Jahr unten auswählen und „Anzeigen“ klicken.</div>';return;}
   hyrasTmeanMetricOptions(true);const mode=document.getElementById("hyrasMetricSelect")?.value||"absolute",raster=mode==="anomaly"?state.anomaly:state.current,cur=hyrasTmeanMean(state.current),ref=hyrasTmeanMean(state.reference),anom=cur-ref;
   hyrasTmeanSetKpis({label:state.label,dateLabel:`Historische HYRAS-Tmean-Karte · ${state.year}`,currentMean:cur,referenceMean:ref,anomalyMean:anom,live:false,resolutionKm:Number(hyrasTmeanHistoryManifest.resolution_km||5)});
-  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${state.label}`,subtitle:`${mode==="anomaly"?"Abweichung 1991–2020":"2-m-Temperaturmittel"} · Historie seit ${hyrasTmeanHistoryManifest.first_year}`,mode,resolutionKm:Number(hyrasTmeanHistoryManifest.resolution_km||5)});
+  await hyrasTmeanDrawMap(raster,{title:`HYRAS Tmean · ${state.label}`,subtitle:`${mode==="anomaly"?`Abweichung ${hyrasReferenceDisplay()}`:"2-m-Temperaturmittel"} · Historie seit ${hyrasTmeanHistoryManifest.first_year}`,mode,resolutionKm:Number(hyrasTmeanHistoryManifest.resolution_km||5)});
   const note=document.getElementById("hyrasReferenceNote");if(note)note.textContent=`Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Historische Karten ${hyrasTmeanHistoryManifest.first_year}–${hyrasTmeanHistoryManifest.last_year} auf ${hyrasTmeanHistoryManifest.resolution_km}-km-Analyseraster; Referenz 1991–2020.`;
 }
 
@@ -11035,7 +11054,7 @@ async function hyrasTmeanExportCurvePdf(event,region,period){
 function hyrasTmeanRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");if(!frame)return;
   if(hyrasTmeanRegionChart){hyrasTmeanRegionChart.destroy();hyrasTmeanRegionChart=null;}
-  const maps=hyrasTmeanMapDownloads?.periods?.[period.map_key]||{};
+  const mapsBase=hyrasTmeanMapDownloads?.periods?.[period.map_key]||{},maps={...mapsBase,anomaly:mapsBase.anomaly_by_reference?.[hyrasReferencePeriod()]||mapsBase.anomaly};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
@@ -11043,7 +11062,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmeanDownloadHref(maps.absolute)}" data-tmean-map="${maps.absolute}" data-tmean-filename="hyras_tmean_${period.map_key}_temperatur.png"`:""}>Temperaturkarte herunterladen</a>
-      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmeanDownloadHref(maps.anomaly)}" data-tmean-map="${maps.anomaly}" data-tmean-filename="hyras_tmean_${period.map_key}_abweichung_1991_2020.png"`:""}>Abweichungskarte 1991–2020 herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmeanDownloadHref(maps.anomaly)}" data-tmean-map="${maps.anomaly}" data-tmean-filename="hyras_tmean_${period.map_key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
       <a class="hyras-tmean-download" href="#" data-tmean-pdf="1">Kurve als PDF herunterladen</a>
     </div>
     <p class="hyras-tmean-region-note">${maps.anomaly?"Absolute Temperatur- und Anomaliekarte stehen als fertige PNGs bereit.":"Für diesen laufenden Zeitraum ist die absolute Temperaturkarte als fertige PNG verfügbar; die Gebietskurve nutzt trotzdem bereits die tagesgenaue 1991–2020-Referenz."}</p>
@@ -11387,7 +11406,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");
   if(!frame)return;
 
-  const maps=hyrasTmaxMapDownloads?.periods?.[period.key]||{};
+  const mapsBase=hyrasTmaxMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:mapsBase.anomaly_by_reference?.[hyrasReferencePeriod()]||mapsBase.anomaly};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
 
@@ -11412,7 +11431,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     </div>
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmaxMapHref(maps.absolute)}" data-tmax-map="${maps.absolute}" data-tmax-filename="hyras_tmax_${period.key}_temperatur.png"`:""}>Tmax-Karte herunterladen</a>
-      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte 1991–2020 herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
       <a class="hyras-tmean-download" href="#" data-tmax-pdf="1">Kurve als PDF herunterladen</a>
     </div>
     <p class="hyras-tmean-region-note">
@@ -11663,6 +11682,7 @@ function initHyrasControls(){
   document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>hyrasSwitchParameter());
   document.getElementById("hyrasTmeanRegionSelect")?.addEventListener("change",()=>renderHyras());
   document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
+  document.getElementById("hyrasReferenceSelect")?.addEventListener("change",()=>{hyrasPresetState=null;hyrasLivePresetState=null;hyrasHistoricalState=null;hyrasTmeanHistoricalState=null;hyrasRestorePrecipMetricOptions();const p=hyrasParameter();if(p==="precipitation"&&document.getElementById("hyrasPeriodSelect")?.value==="__historical__")hyrasApplyHistorical();else renderHyras();});
   document.getElementById("hyrasPeriodSelect")?.addEventListener("change",event=>{if(event.target.value!=="__custom__")hyrasCustomState=null;if(event.target.value!=="__historical__")hyrasHistoricalState=null;hyrasPresetState=null;hyrasLivePresetState=null;renderHyras();});
   document.getElementById("hyrasCustomApply")?.addEventListener("click",()=>hyrasApplyCustomRange());
   document.getElementById("hyrasHistoricalType")?.addEventListener("change",()=>hyrasHistoricalTypeControls());
@@ -13952,7 +13972,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
   const frame=document.getElementById("hyrasMapFrame");
   if(!frame)return;
 
-  const maps=hyrasTminMapDownloads?.periods?.[period.key]||{};
+  const mapsBase=hyrasTminMapDownloads?.periods?.[period.key]||{},maps={...mapsBase,anomaly:mapsBase.anomaly_by_reference?.[hyrasReferencePeriod()]||mapsBase.anomaly};
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
 
@@ -13981,7 +14001,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
     </div>
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTminMapHref(maps.absolute)}" data-tmin-map="${maps.absolute}" data-tmin-filename="hyras_tmin_${period.key}_temperatur.png"`:""}>Tmin-Karte herunterladen</a>
-      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTminMapHref(maps.anomaly)}" data-tmin-map="${maps.anomaly}" data-tmin-filename="hyras_tmin_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte 1991–2020 herunterladen</a>
+      <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTminMapHref(maps.anomaly)}" data-tmin-map="${maps.anomaly}" data-tmin-filename="hyras_tmin_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
       <a class="hyras-tmean-download" href="#" data-tmin-pdf="1">Kurve als PDF herunterladen</a>
     </div>
     <p class="hyras-tmean-region-note">
