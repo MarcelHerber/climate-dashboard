@@ -6,6 +6,12 @@ on:
       - "scripts/update_era5_land_europe_palette.py"
       - "scripts/add_era5_current_tp_months_palette.py"
       - "scripts/rerender_era5_temperature_anomalies_from_cache.py"
+      - "scripts/era5_temperature_rank.py"
+      - "scripts/build_era5_temperature_rank_maps.py"
+      - "scripts/patch_era5_temperature_rank_frontend.py"
+      - "tests/test_era5_temperature_rank.py"
+      - "tests/test_build_era5_temperature_rank_maps.py"
+      - "tests/test_era5_temperature_rank_frontend.py"
       - ".github/workflows/update-era5-land.yml"
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
@@ -70,7 +76,14 @@ jobs:
       - name: Python-Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
+
+      - name: Temperatur-Rangkarten testen
+        run: |
+          python -m pytest -q \
+            tests/test_era5_temperature_rank.py \
+            tests/test_build_era5_temperature_rank_maps.py \
+            tests/test_era5_temperature_rank_frontend.py
 
       # Pushes an Renderer/Palette/Workflow-Dateien sind reine Darstellungsänderungen.
       # Sie dürfen niemals CDS-Anfragen starten, sondern verwenden ausschließlich den Cache.
@@ -80,6 +93,18 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/rerender_era5_temperature_anomalies_from_cache.py
+
+      - name: Temperatur-Rangkarten nur aus Cache erzeugen
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_temperature_rank_maps.py
+
+      - name: Temperatur-Rangansicht im Frontend ergänzen
+        if: github.event_name == 'push'
+        shell: bash
+        run: python scripts/patch_era5_temperature_rank_frontend.py
 
       # Nur Zeitplan und manuelle Voll-Läufe dürfen den CDS konfigurieren/abfragen.
       - name: CDS API konfigurieren
@@ -135,6 +160,11 @@ jobs:
           fi
           python scripts/add_era5_current_tp_months_palette.py $EXTRA_ARGS
 
+      - name: Temperatur-Rangkarten erzeugen
+        if: github.event_name != 'push'
+        shell: bash
+        run: python scripts/build_era5_temperature_rank_maps.py
+
       - name: T/P-Monatsauswahl im Frontend ergänzen
         if: github.event_name != 'push'
         shell: bash
@@ -144,6 +174,11 @@ jobs:
         if: github.event_name != 'push'
         shell: bash
         run: python scripts/patch_era5_current_tp_frontend.py
+
+      - name: Temperatur-Rangansicht im Frontend ergänzen
+        if: github.event_name != 'push'
+        shell: bash
+        run: python scripts/patch_era5_temperature_rank_frontend.py
 
       - name: Monats- und Kartenjahr-Beschriftung synchronisieren
         if: github.event_name != 'push'
