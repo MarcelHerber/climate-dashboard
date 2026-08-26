@@ -1,7 +1,7 @@
 {
   "ready": true,
   "payload_version": 10,
-  "generated_at": "2026-08-25T16:24:35+00:00",
+  "generated_at": "2026-08-26T07:53:40+00:00",
   "latest_month_key": "2026-07",
   "data_through": "2026-07-31",
   "reference_period": "1991–2020",
@@ -1212,8 +1212,8 @@
         },
         "stats": {
           "current": 19.098037284069193,
-          "reference": 17.308668771506106,
-          "difference": 1.7893685125630867
+          "reference": 17.30866474959528,
+          "difference": 1.7893725344739124
         }
       },
       "precipitation": {
@@ -1229,8 +1229,8 @@
         },
         "stats": {
           "current": 61.58417181577174,
-          "reference": 69.5887279080075,
-          "percent": 88.49733809932933
+          "reference": 69.58872777729921,
+          "percent": 88.4973382655536
         }
       }
     },
@@ -1261,8 +1261,8 @@
         },
         "stats": {
           "current": 20.84005826681465,
-          "reference": 19.946988206740485,
-          "difference": 0.8930700600741659
+          "reference": 19.946985901268608,
+          "difference": 0.8930723655460433
         }
       },
       "precipitation": {
@@ -1278,8 +1278,8 @@
         },
         "stats": {
           "current": 63.042323841825905,
-          "reference": 67.92819388517246,
-          "percent": 92.80730170508323
+          "reference": 67.92819404031663,
+          "percent": 92.80730149311658
         }
       }
     },
@@ -1347,111 +1347,6 @@
         "temperature",
         "precipitation"
       ]
-    },
-    "running_month": {
-      "id": "running_month",
-      "label": "August 2026 bis 18.08.",
-      "date_start": "2026-08-01",
-      "date_end": "2026-08-18",
-      "year": 2026,
-      "partial_daily": true,
-      "temperature": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_absolute.png",
-          "unit": "°C",
-          "label": "Temperatur"
-        },
-        "anomaly": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_anomaly.png",
-          "unit": "K",
-          "label": "Abweichung 1991–2020"
-        },
-        "stats": {
-          "current": 21.47517636851243,
-          "reference": 20.035968666339503,
-          "difference": 1.4392077021729257
-        }
-      },
-      "precipitation": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_absolute.png",
-          "unit": "mm",
-          "label": "Niederschlag"
-        },
-        "percent": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_percent.png",
-          "unit": "%",
-          "label": "Prozent vom Mittel 1991–2020"
-        },
-        "stats": {
-          "current": 28.831848307698657,
-          "reference": 36.14929937152058,
-          "percent": 79.75769602443025
-        }
-      },
-      "historical_only": false,
-      "analysis_ready": false,
-      "running_only": true,
-      "running_data_through": "2026-08-18",
-      "parameters": [
-        "temperature",
-        "precipitation"
-      ]
-    },
-    "running_summer": {
-      "id": "running_summer",
-      "label": "Sommer 2026 bis 18.08.",
-      "date_start": "2026-06-01",
-      "date_end": "2026-08-18",
-      "year": 2026,
-      "partial_daily": true,
-      "temperature": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/temperature_running_summer_absolute.png",
-          "unit": "°C",
-          "label": "Temperatur"
-        },
-        "anomaly": {
-          "file": "era5_land_europe/running/maps/temperature_running_summer_anomaly.png",
-          "unit": "K",
-          "label": "Abweichung 1991–2020"
-        },
-        "stats": {
-          "current": 20.37829083766289,
-          "reference": 19.021004719704507,
-          "difference": 1.3572861179583846
-        }
-      },
-      "precipitation": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/precipitation_running_summer_absolute.png",
-          "unit": "mm",
-          "label": "Niederschlag"
-        },
-        "percent": {
-          "file": "era5_land_europe/running/maps/precipitation_running_summer_percent.png",
-          "unit": "%",
-          "label": "Prozent vom Mittel 1991–2020"
-        },
-        "stats": {
-          "current": 152.36038923199825,
-          "reference": 172.52185017965036,
-          "percent": 88.31367683185776
-        }
-      },
-      "completed_months": [
-        6,
-        7
-      ],
-      "partial_month": 8,
-      "historical_only": false,
-      "analysis_ready": false,
-      "running_only": true,
-      "running_data_through": "2026-08-18",
-      "parameters": [
-        "temperature",
-        "precipitation"
-      ]
     }
   },
   "tp_current_months": {
@@ -1469,13 +1364,5 @@
     ],
     "latest_complete_month": 7,
     "note": "Temperatur und Niederschlag sind im aktuellen ERA5-Land-Jahr für alle vollständig verfügbaren Monate einzeln auswählbar. Historische Jahre bleiben für dieselben Monate ab 1950 verfügbar."
-  },
-  "running": {
-    "ready": true,
-    "data_through": "2026-08-18",
-    "source_file": "era5_land_europe/running/index.json",
-    "preliminary": true,
-    "availability_note": "Laufende Zeiträume verwenden ERA5-Land-T und enden am jüngsten gemeinsam verfügbaren vollständigen UTC-Tag für Temperatur und Niederschlag.",
-    "reference_note": "Abweichungen und Niederschlagsprozente werden gegen exakt dieselben Kalendertage 1991–2020 berechnet."
   }
 }
