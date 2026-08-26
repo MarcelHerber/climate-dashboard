@@ -1,0 +1,61 @@
+name: Kenntage-Datenlücken sicher anwenden
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply_station_climate_gap_fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Kenntage-Block sicher patchen
+        run: python scripts/apply_station_climate_gap_fix.py
+
+      - name: JavaScript-Syntax prüfen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?![^>]*\\bsrc=)[^>]*>(.*?)</script>', html, flags=re.S|re.I)
+          Path('/tmp/dashboard-inline.js').write_text('\n'.join(scripts), encoding='utf-8')
+          print(f'{len(scripts)} Inline-Scriptblöcke extrahiert')
+          PY
+          node --check /tmp/dashboard-inline.js
+
+      - name: Diff absichern
+        run: |
+          git diff --check
+          git status --short
+          python - <<'PY'
+          import subprocess
+          changed = subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          if changed != ['index.html']:
+              raise SystemExit(f'Sicherheitsabbruch: unerwartete geänderte Dateien: {changed}')
+          diff = subprocess.check_output(['git','diff','--numstat','--','index.html'], text=True).strip()
+          print('index.html numstat:', diff)
+          adds, dels, _ = diff.split('\t')
+          if int(adds) > 120 or int(dels) > 80:
+              raise SystemExit(f'Sicherheitsabbruch: Diff zu groß ({adds} + / {dels} -).')
+          PY
+
+      - name: Änderung committen
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'Patch ist bereits vorhanden; kein Commit nötig.'
+            exit 0
+          fi
+          git config user.name 'climate-dashboard-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Stations-Kenntage: Datenlücken sichtbar markieren'
+          git push
