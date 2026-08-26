@@ -13,6 +13,11 @@ def historical_years() -> np.ndarray:
     return np.arange(HISTORY_START, HISTORY_END + 1, dtype=int)
 
 
+def daily_request_year_groups(years) -> tuple[tuple[int, ...], ...]:
+    values = tuple(int(year) for year in years)
+    return tuple((year,) for year in values)
+
+
 def product_filename(product: str) -> str:
     if product not in PRODUCTS:
         raise ValueError(f'Unbekanntes Rangprodukt: {product}')

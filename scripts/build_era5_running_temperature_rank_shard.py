@@ -15,6 +15,7 @@ from era5_running_temperature_rank import (
     HISTORY_END,
     HISTORY_START,
     combine_summer_to_date,
+    daily_request_year_groups,
     extract_day_and_mtd,
     extract_year_day_mtd,
 )
@@ -138,13 +139,27 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
     target_day = target.day
 
     month_days = calendar.monthrange(2024, month)[1]
-    daily_path = CACHE_DIR / f'rank_daily_{start_year}_{end_year}_{month:02d}_full.nc'
-    if not daily_path.exists():
-        running.request_daily_temperature(
-            client, years, month, list(range(1, month_days + 1)), daily_path,
-            f'Temperatur-Rang {start_year}–{end_year} · vollständiger {month:02d}. Monat',
-        )
-    lat_ref, lon_ref, day_stack, mtd_stack = read_daily_years(running, daily_path, years, target_day)
+    day_parts = []
+    mtd_parts = []
+    lat_ref = lon_ref = None
+    for year_group in daily_request_year_groups(years):
+        year = year_group[0]
+        daily_path = CACHE_DIR / f'rank_daily_{year}_{month:02d}_full.nc'
+        if not daily_path.exists():
+            running.request_daily_temperature(
+                client, list(year_group), month, list(range(1, month_days + 1)), daily_path,
+                f'Temperatur-Rang {year} · vollständiger {month:02d}. Monat',
+            )
+        lat, lon, day_stack, mtd_stack = read_daily_years(running, daily_path, list(year_group), target_day)
+        if lat_ref is None:
+            lat_ref, lon_ref = lat, lon
+        elif not (np.allclose(lat_ref, lat) and np.allclose(lon_ref, lon)):
+            raise RuntimeError('Tagesraster der Jahresabrufe stimmen nicht überein.')
+        day_parts.append(day_stack)
+        mtd_parts.append(mtd_stack)
+
+    day_stack = np.concatenate(day_parts, axis=0)
+    mtd_stack = np.concatenate(mtd_parts, axis=0)
 
     complete_months = list(range(6, month))
     complete_fields: dict[int, np.ndarray] = {}

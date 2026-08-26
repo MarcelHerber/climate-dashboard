@@ -9,6 +9,7 @@ from era5_running_temperature_rank import (
     historical_years,
     extract_day_and_mtd,
     combine_summer_to_date,
+    daily_request_year_groups,
     product_filename,
 )
 
@@ -27,6 +28,10 @@ def test_exactly_three_running_products():
         'temperature_month_to_date_rank.png',
         'temperature_summer_to_date_rank.png',
     ]
+
+
+def test_daily_requests_are_split_to_one_year_to_stay_below_cds_cost_limit():
+    assert daily_request_year_groups([1950, 1951, 1952]) == ((1950,), (1951,), (1952,))
 
 
 def test_extract_day_and_month_to_date():
