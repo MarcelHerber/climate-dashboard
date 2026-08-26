@@ -12462,6 +12462,24 @@ function era5EuropeMultiColor(stops,t){
   t=Math.max(0,Math.min(1,t));const p=t*(stops.length-1),i=Math.min(stops.length-2,Math.floor(p));return era5EuropeMix(stops[i],stops[i+1],p-i);
 }
 function era5EuropeHistoryScaleFor(entries,parameter,view){
+  // ERA5_TEMP_ANOMALY_DISCRETE_V1
+  if(parameter==="temperature"&&view==="anomaly"){
+    const min=-8,max=8,center=0;
+    const levels=[-8,-7,-6,-5,-4,-3,-2,-1,-.5,0,.5,1,2,3,4,5,6,7,8];
+    const boundaries=[-8.5,-7.5,-6.5,-5.5,-4.5,-3.5,-2.5,-1.5,-.75,-.25,.25,.75,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5];
+    const stops=["#3A006F","#51009E","#6B03C6","#5E4FFC","#187DFD","#70B1FB","#C6E4FB","#DDEBF9","#EDF4FA","#FDFCFC","#FDF0BC","#FDE47C","#FDBD3E","#FC691C","#F93A19","#E51B75","#FC579B","#FC83B4","#FDAFCB"];
+    const color=value=>{
+      if(!Number.isFinite(value))return "rgba(0,0,0,0)";
+      for(let i=0;i<stops.length;i++)if(value<boundaries[i+1])return stops[i];
+      return stops[stops.length-1];
+    };
+    const gradientStops=stops.flatMap((stop,index)=>{
+      const from=(100*index/stops.length).toFixed(4),to=(100*(index+1)/stops.length).toFixed(4);
+      return [`${stop} ${from}%`,`${stop} ${to}%`];
+    }).join(",");
+    const gradient=`linear-gradient(90deg,transparent 49.7%,#000 49.7%,#000 50.3%,transparent 50.3%),linear-gradient(90deg,${gradientStops})`;
+    return {min,max,center,stops,color,gradient,levels,boundaries,discrete:true};
+  }
   const vals=entries.map(e=>e.value).filter(Number.isFinite);let min=era5EuropeQuantile(vals,.02),max=era5EuropeQuantile(vals,.98),center=null,stops;
   if(view==="percentile"){min=0;max=100;stops=parameter.startsWith("snow_")?["#f7fbff","#9ecae1","#3182bd","#08306b"]:["#8c510a","#dfc27d","#f5f5f5","#80cdc1","#01665e"];}
   else if(view==="percent"){min=0;max=Math.max(200,era5EuropeQuantile(vals,.98));center=100;stops=["#8c510a","#dfc27d","#f5f5f5","#80cdc1","#01665e"];}
