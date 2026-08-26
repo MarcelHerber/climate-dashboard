@@ -6,6 +6,7 @@ on:
     branches:
       - main
     paths:
+      - "era5_land_europe/running/index.json"
       - "scripts/expose_era5_running_month.py"
       - "scripts/patch_era5_running_frontend.py"
       - ".github/workflows/expose-era5-running.yml"
