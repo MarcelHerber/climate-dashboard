@@ -1,6 +1,13 @@
 name: HYRAS Temperatur-Rangkarten aktualisieren
 
 on:
+  push:
+    paths:
+      - "scripts/hyras_temperature_rank.py"
+      - "scripts/build_hyras_temperature_rank_shard.py"
+      - "scripts/build_hyras_temperature_rank_maps.py"
+      - "tests/test_hyras_temperature_rank.py"
+      - ".github/workflows/update-hyras-temperature-ranks.yml"
   workflow_dispatch:
     inputs:
       force:
