@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "scripts/update_era5_land_europe_palette.py"
+      - "scripts/add_era5_current_tp_months_palette.py"
       - ".github/workflows/update-era5-land.yml"
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
@@ -119,7 +120,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
           fi
-          python scripts/add_era5_current_tp_months.py $EXTRA_ARGS
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python scripts/add_era5_current_tp_months_palette.py $EXTRA_ARGS
 
       - name: T/P-Monatsauswahl im Frontend ergänzen
         shell: bash
