@@ -1,0 +1,273 @@
+name: HYRAS Referenz 1961-1990 ergänzen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build_hyras_reference_1961_1990.py"
+      - "scripts/build_hyras_precip_reference_1961_1990_cache.py"
+      - "scripts/patch_hyras_reference_period_frontend.py"
+      - "tests/test_hyras_reference_periods.py"
+      - ".github/workflows/add-hyras-reference-1961-1990.yml"
+  workflow_run:
+    workflows: ["HYRAS Flächenkarten aktualisieren"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+group: null
+
+concurrency:
+  group: hyras-data
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten und Pytest installieren
+        run: |
+          pip install -r requirements-hyras.txt
+          pip install pytest
+
+      - name: Referenzlogik testen
+        run: pytest -q tests/test_hyras_reference_periods.py
+
+  reference-cache:
+    needs: tests
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [precipitation, tmean, tmax, tmin]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen hyras-data Stand übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-existing origin/hyras-data
+          cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Aktuellen Referenzmonat bestimmen
+        id: refmonth
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-data')
+          idx=json.loads((root/'hyras_index.json').read_text())
+          print('month='+str(idx['data_through'])[:7])
+          PY
+
+      - name: Referenzcache 1961-1990 wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-1961-1990-cache/${{ matrix.parameter }}
+          key: hyras-reference-1961-1990-${{ matrix.parameter }}-${{ steps.refmonth.outputs.month }}-v1
+          restore-keys: |
+            hyras-reference-1961-1990-${{ matrix.parameter }}-
+
+      - name: Niederschlags-Tagesreferenz 1961-1990 vollständig bauen
+        if: matrix.parameter == 'precipitation'
+        run: |
+          python -m scripts.build_hyras_precip_reference_1961_1990_cache \
+            --data-root /tmp/hyras-data \
+            --cache-root /tmp/hyras-reference-1961-1990-cache/precipitation \
+            --work /tmp/hyras-reference-1961-1990-work/precipitation
+
+      - name: Temperatur-Tagesreferenz 1961-1990 für laufenden Monat bauen
+        if: matrix.parameter != 'precipitation'
+        run: |
+          python -m scripts.build_hyras_reference_1961_1990 \
+            --data-root /tmp/hyras-data \
+            --cache-root /tmp/hyras-reference-1961-1990-cache \
+            --work /tmp/hyras-reference-1961-1990-work \
+            --parameter "${{ matrix.parameter }}" \
+            --build-reference-only
+
+      - name: Cache prüfen
+        run: |
+          set -euo pipefail
+          find "/tmp/hyras-reference-1961-1990-cache/${{ matrix.parameter }}" -maxdepth 1 -type f -name '*.npz' -print
+          test -n "$(find "/tmp/hyras-reference-1961-1990-cache/${{ matrix.parameter }}" -maxdepth 1 -type f -name '*.npz' -print -quit)"
+
+  publish:
+    needs: reference-cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen hyras-data Stand übernehmen
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-data /tmp/hyras-existing /tmp/hyras-reference-1961-1990-work
+          mkdir -p /tmp/hyras-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-existing origin/hyras-data
+          cp -a /tmp/hyras-existing/. /tmp/hyras-data/
+          rm -rf /tmp/hyras-data/.git
+
+      - name: Aktuellen Referenzmonat bestimmen
+        id: refmonth
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          idx=json.loads((Path('/tmp/hyras-data')/'hyras_index.json').read_text())
+          print('month='+str(idx['data_through'])[:7])
+          PY
+
+      - name: Niederschlags-Referenzcache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-1961-1990-cache/precipitation
+          key: hyras-reference-1961-1990-precipitation-${{ steps.refmonth.outputs.month }}-v1
+          restore-keys: |
+            hyras-reference-1961-1990-precipitation-
+
+      - name: Tmean-Referenzcache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-1961-1990-cache/tmean
+          key: hyras-reference-1961-1990-tmean-${{ steps.refmonth.outputs.month }}-v1
+          restore-keys: |
+            hyras-reference-1961-1990-tmean-
+
+      - name: Tmax-Referenzcache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-1961-1990-cache/tmax
+          key: hyras-reference-1961-1990-tmax-${{ steps.refmonth.outputs.month }}-v1
+          restore-keys: |
+            hyras-reference-1961-1990-tmax-
+
+      - name: Tmin-Referenzcache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-reference-1961-1990-cache/tmin
+          key: hyras-reference-1961-1990-tmin-${{ steps.refmonth.outputs.month }}-v1
+          restore-keys: |
+            hyras-reference-1961-1990-tmin-
+
+      - name: Referenz 1961-1990 in alle HYRAS-Produkte einbauen
+        run: |
+          python -m scripts.build_hyras_reference_1961_1990 \
+            --data-root /tmp/hyras-data \
+            --cache-root /tmp/hyras-reference-1961-1990-cache \
+            --work /tmp/hyras-reference-1961-1990-work \
+            --parameter all
+
+      - name: Zweite Referenz prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-data')
+          expected=['1991-2020','1961-1990']
+          precip=json.loads((root/'hyras_index.json').read_text())
+          web=json.loads((root/'hyras_web_manifest.json').read_text())
+          hist=json.loads((root/'hyras_historical_manifest.json').read_text())
+          if precip.get('references') != expected:
+              raise SystemExit(f"Niederschlagsreferenzen falsch: {precip.get('references')}")
+          for manifest,name in ((web,'Web'),(hist,'Historie')):
+              refs=manifest.get('reference_files_by_period') or {}
+              if not all(key in refs for key in expected):
+                  raise SystemExit(f"{name}: Referenzdateien fehlen: {list(refs)}")
+          for parameter,path in (
+              ('tmean',root/'tmean/regions/map_downloads.json'),
+              ('tmax',root/'tmax/regions/map_downloads.json'),
+              ('tmin',root/'tmin/regions/map_downloads.json'),
+          ):
+              maps=json.loads(path.read_text())
+              if '1961-1990' not in maps.get('references',[]):
+                  raise SystemExit(f"{parameter}: Referenz 1961-1990 fehlt")
+              if not any('1961-1990' in (p.get('anomaly_by_reference') or {}) for p in maps.get('periods',{}).values()):
+                  raise SystemExit(f"{parameter}: keine 1961-1990-Abweichungskarte")
+          print('HYRAS Referenz 1961-1990 vollständig vorhanden.')
+          PY
+
+      - name: hyras-data Branch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-data
+          rm -rf .git
+          git init
+          git checkout -b hyras-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "HYRAS Referenz 1961-1990 aktualisieren"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin hyras-data
+
+      - name: Referenzauswahl im Frontend einbauen
+        run: python scripts/patch_hyras_reference_period_frontend.py
+
+      - name: Frontend-Patch prüfen
+        run: |
+          set -euo pipefail
+          grep -q 'HYRAS_REFERENCE_PERIOD_SELECTOR_V1' index.html
+          grep -q 'value="1961-1990"' index.html
+
+      - name: Frontend veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "HYRAS-Referenzauswahl ist bereits aktuell."
+            exit 0
+          fi
+          git commit -m "HYRAS Referenz 1961-1990 auswählbar machen"
+          git pull --rebase origin main
+          git push origin HEAD:main
