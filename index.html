@@ -145,6 +145,54 @@ button.action{
   .chart-container.has-export-tools{padding-top:10px}
 }
 
+/* DAILY_TMAX_ANIMATION_V2 */
+.daily-animation-panel{
+  margin:0 0 14px;
+  padding:13px 14px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:#f8fafb;
+}
+.daily-animation-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:10px;
+}
+.daily-animation-head strong{font-size:14px}
+.daily-animation-date{
+  font-size:13px;
+  font-weight:700;
+  color:#394650;
+  font-variant-numeric:tabular-nums;
+}
+.daily-animation-row{
+  display:grid;
+  grid-template-columns:auto auto auto minmax(180px,1fr);
+  gap:8px;
+  align-items:center;
+}
+.daily-animation-row button{min-height:38px;white-space:nowrap}
+.daily-animation-row input[type="range"]{
+  width:100%;
+  min-width:0;
+  accent-color:#d7191c;
+  cursor:pointer;
+}
+.daily-animation-row input[type="range"]:disabled{opacity:.5;cursor:not-allowed}
+.daily-animation-hint{
+  margin-top:8px;
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.35;
+}
+@media(max-width:700px){
+  .daily-animation-row{grid-template-columns:1fr 1fr 1fr}
+  .daily-animation-row input[type="range"]{grid-column:1/-1}
+  .daily-animation-row button{padding-left:8px;padding-right:8px}
+}
 .stat-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
@@ -1904,7 +1952,22 @@ button.action:hover{background:#1f2937}
 
   <div id="dailySummary" class="summary-box">Tageshöchstwerte werden berechnet …</div>
 
-  <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+  <div class="chart-container">
+    <div id="dailyAnimationPanel" class="daily-animation-panel">
+      <div class="daily-animation-head">
+        <strong>Tagesverlauf durchklicken oder abspielen</strong>
+        <span id="dailyAnimationDate" class="daily-animation-date">–</span>
+      </div>
+      <div class="daily-animation-row">
+        <button id="dailyAnimationPrev" class="action" type="button" onclick="dailyAnimationStep(-1)">◀ 1 Tag</button>
+        <button id="dailyAnimationPlay" class="action" type="button" onclick="dailyAnimationToggle()">▶ Abspielen</button>
+        <button id="dailyAnimationNext" class="action" type="button" onclick="dailyAnimationStep(1)">1 Tag ▶</button>
+        <input id="dailyAnimationSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Tag im ausgewählten Zeitraum" oninput="dailyAnimationSliderInput(this.value)">
+      </div>
+      <div class="daily-animation-hint">Klimamittel und bisheriger Tagesrekord bleiben vollständig sichtbar; die rote Kurve wird bis zum gewählten Tag aufgebaut.</div>
+    </div>
+    <canvas id="dailyChart"></canvas>
+  </div>
   <div class="chart-container"><canvas id="dailyDeviationChart"></canvas></div>
   <div class="chart-container">
     <canvas id="dailyAllYearsChart"></canvas>
@@ -5654,6 +5717,130 @@ function dailySigned(value,digits=1){
   return `${sign}${value.toLocaleString("de-DE",{minimumFractionDigits:digits,maximumFractionDigits:digits})} °C`;
 }
 
+// DAILY_TMAX_ANIMATION_V2
+let dailyAnimationRows=[];
+let dailyAnimationValues=[];
+let dailyAnimationIndex=-1;
+let dailyAnimationTimer=null;
+const DAILY_ANIMATION_DELAY=500;
+
+function dailyAnimationStop(){
+  if(dailyAnimationTimer!==null){
+    window.clearInterval(dailyAnimationTimer);
+    dailyAnimationTimer=null;
+  }
+  const button=document.getElementById("dailyAnimationPlay");
+  if(button) button.textContent="▶ Abspielen";
+}
+
+function dailyAnimationUpdateControls(){
+  const slider=document.getElementById("dailyAnimationSlider");
+  const prev=document.getElementById("dailyAnimationPrev");
+  const next=document.getElementById("dailyAnimationNext");
+  const date=document.getElementById("dailyAnimationDate");
+  const length=dailyAnimationRows.length;
+
+  if(!length){
+    if(date) date.textContent="–";
+    if(slider) slider.disabled=true;
+    if(prev) prev.disabled=true;
+    if(next) next.disabled=true;
+    return;
+  }
+
+  const index=Math.max(0,Math.min(dailyAnimationIndex,length-1));
+
+  if(slider){
+    slider.min="0";
+    slider.max=String(length-1);
+    slider.value=String(index);
+    slider.disabled=length<2;
+  }
+  if(prev) prev.disabled=length<2||index<=0;
+  if(next) next.disabled=length<2||index>=length-1;
+
+  const row=dailyAnimationRows[index];
+  const value=dailyNumber(dailyAnimationValues[index]);
+  if(date){
+    const valueText=Number.isFinite(value)
+      ?value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" °C"
+      :"kein Wert";
+    date.textContent=dailyGermanDate(row.date,true)+" · "+valueText+" · "+(index+1)+"/"+length;
+  }
+}
+
+function dailyAnimationApply(animate=false){
+  if(!dailyChart||!dailyAnimationRows.length) return;
+  dailyAnimationIndex=Math.max(0,Math.min(dailyAnimationIndex,dailyAnimationRows.length-1));
+
+  dailyChart.data.datasets[0].data=dailyAnimationValues.map((value,index)=>
+    index<=dailyAnimationIndex?value:null
+  );
+  dailyChart.data.datasets[0].pointRadius=context=>
+    context.dataIndex===dailyAnimationIndex&&Number.isFinite(dailyNumber(dailyAnimationValues[dailyAnimationIndex]))?4:0;
+  dailyChart.data.datasets[0].pointHoverRadius=6;
+  dailyChart.update(animate?undefined:"none");
+  dailyAnimationUpdateControls();
+}
+
+function dailyAnimationConfigure(filtered,values){
+  dailyAnimationStop();
+  dailyAnimationRows=Array.isArray(filtered)?filtered.slice():[];
+  dailyAnimationValues=Array.isArray(values)?values.slice():[];
+
+  const validIndices=dailyAnimationValues
+    .map((value,index)=>Number.isFinite(dailyNumber(value))?index:-1)
+    .filter(index=>index>=0);
+
+  dailyAnimationIndex=validIndices.length
+    ?validIndices[validIndices.length-1]
+    :Math.max(0,dailyAnimationRows.length-1);
+
+  dailyAnimationApply(false);
+}
+
+function dailyAnimationSetIndex(index,animate=false){
+  if(!dailyAnimationRows.length) return;
+  dailyAnimationIndex=Math.max(0,Math.min(Number(index)||0,dailyAnimationRows.length-1));
+  dailyAnimationApply(animate);
+}
+
+function dailyAnimationStep(delta){
+  dailyAnimationStop();
+  dailyAnimationSetIndex(dailyAnimationIndex+Number(delta||0),true);
+}
+
+function dailyAnimationSliderInput(value){
+  dailyAnimationStop();
+  dailyAnimationSetIndex(Number(value),false);
+}
+
+function dailyAnimationToggle(){
+  if(!dailyAnimationRows.length) return;
+
+  if(dailyAnimationTimer!==null){
+    dailyAnimationStop();
+    return;
+  }
+
+  if(dailyAnimationIndex>=dailyAnimationRows.length-1){
+    dailyAnimationIndex=0;
+    dailyAnimationApply(false);
+  }
+
+  const button=document.getElementById("dailyAnimationPlay");
+  if(button) button.textContent="⏸ Pause";
+
+  dailyAnimationTimer=window.setInterval(()=>{
+    if(dailyAnimationIndex>=dailyAnimationRows.length-1){
+      dailyAnimationStop();
+      return;
+    }
+    dailyAnimationIndex++;
+    dailyAnimationApply(true);
+  },DAILY_ANIMATION_DELAY);
+}
+
 function dailyHistoricalRecordValues(filtered,excludedYear){
   const recordByDay=new Map();
   dailyData.forEach(item=>{
@@ -5813,6 +6000,8 @@ function updateDaily(){
       }
     }
   });
+
+  dailyAnimationConfigure(filtered,values);
 
   if(dailyDeviationChart) dailyDeviationChart.destroy();
   dailyDeviationChart=new Chart(document.getElementById("dailyDeviationChart"),{
