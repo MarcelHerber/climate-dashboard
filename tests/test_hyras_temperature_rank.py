@@ -110,8 +110,8 @@ def test_date_codes_store_month_and_day_only():
     assert date_codes(dates).tolist() == [601, 825]
 
 
-from scripts.build_hyras_temperature_rank_shard import historical_dates_for_target
-from scripts.build_hyras_temperature_rank_maps import period_label
+from scripts.build_hyras_temperature_rank_shard import DEFAULT_FACTOR, historical_dates_for_target
+from scripts.build_hyras_temperature_rank_maps import _plot_bounds, period_label
 
 
 def test_historical_dates_for_target_reuses_same_calendar_window():
@@ -126,3 +126,24 @@ def test_period_labels_make_running_windows_explicit():
     assert period_label("day", target) == "25.08.2026"
     assert period_label("month_to_date", target) == "01.–25.08.2026"
     assert period_label("summer_to_date", target) == "01.06.–25.08.2026"
+
+
+def test_temperature_rank_default_is_native_one_kilometre_grid():
+    assert DEFAULT_FACTOR == 1
+
+
+def test_rank_plot_bounds_follow_real_xy_coordinates_with_descending_y_axis():
+    x = np.array([10.0, 20.0, 30.0])
+    y = np.array([300.0, 200.0, 100.0])
+    rank = np.array([
+        [np.nan, 1.0, np.nan],
+        [2.0, 3.0, np.nan],
+        [np.nan, np.nan, np.nan],
+    ])
+
+    assert _plot_bounds(rank, x, y) == pytest.approx((9.0, 21.0, 197.0, 303.0))
+
+
+def test_rank_plot_rejects_transposed_or_mismatched_raster_shape():
+    with pytest.raises(RuntimeError, match="Rasterform"):
+        _plot_bounds(np.ones((2, 3)), np.arange(2.0), np.arange(3.0))
