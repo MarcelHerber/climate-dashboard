@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/update_era5_land_europe_palette.py"
       - "scripts/add_era5_current_tp_months_palette.py"
+      - "scripts/rerender_era5_temperature_anomalies_from_cache.py"
       - ".github/workflows/update-era5-land.yml"
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
@@ -71,7 +72,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
 
+      # Pushes an Renderer/Palette/Workflow-Dateien sind reine Darstellungsänderungen.
+      # Sie dürfen niemals CDS-Anfragen starten, sondern verwenden ausschließlich den Cache.
+      - name: Temperatur-Abweichungskarten nur aus Cache neu rendern
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/rerender_era5_temperature_anomalies_from_cache.py
+
+      # Nur Zeitplan und manuelle Voll-Läufe dürfen den CDS konfigurieren/abfragen.
       - name: CDS API konfigurieren
+        if: github.event_name != 'push'
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
         shell: bash
@@ -89,22 +101,22 @@ jobs:
           chmod 600 "$HOME/.cdsapirc"
 
       - name: ERA5-Land Europakarten erzeugen
+        if: github.event_name != 'push'
         shell: bash
         run: |
           EXTRA_ARGS=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
           fi
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            EXTRA_ARGS="--force"
-          fi
           python scripts/update_era5_land_europe_palette.py $EXTRA_ARGS
 
       - name: Historische Karten-Geometrie korrigieren
+        if: github.event_name != 'push'
         shell: bash
         run: python scripts/fix_era5_history_geometry.py
 
       - name: T/P-Monatsarchiv Januar bis Dezember ergänzen
+        if: github.event_name != 'push'
         shell: bash
         run: |
           EXTRA_ARGS=""
@@ -114,26 +126,27 @@ jobs:
           python scripts/build_era5_tp_all_months.py $EXTRA_ARGS
 
       - name: Aktuelle T/P-Monate Januar bis Datenstand ergänzen
+        if: github.event_name != 'push'
         shell: bash
         run: |
           EXTRA_ARGS=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
           fi
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            EXTRA_ARGS="--force"
-          fi
           python scripts/add_era5_current_tp_months_palette.py $EXTRA_ARGS
 
       - name: T/P-Monatsauswahl im Frontend ergänzen
+        if: github.event_name != 'push'
         shell: bash
         run: python scripts/patch_era5_tp_month_frontend.py
 
       - name: Aktuelle T/P-Monate im Frontend ergänzen
+        if: github.event_name != 'push'
         shell: bash
         run: python scripts/patch_era5_current_tp_frontend.py
 
       - name: Monats- und Kartenjahr-Beschriftung synchronisieren
+        if: github.event_name != 'push'
         shell: bash
         run: python scripts/fix_era5_period_year_labels.py
 
@@ -146,12 +159,12 @@ jobs:
           git add era5_land_europe index.html
 
           if git diff --cached --quiet; then
-            echo "Keine neuen ERA5-Land Monatsdaten vorhanden."
+            echo "Keine neuen ERA5-Land Änderungen vorhanden."
             exit 0
           fi
 
           # Kein [skip ci]: Der Push soll den normalen Pages-Workflow auslösen,
-          # damit neue ERA5-Monate automatisch auf der Website erscheinen.
+          # damit neue Karten automatisch auf der Website erscheinen.
           git commit -m "ERA5-Land Europa aktualisiert"
 
           PUSH_OK=false
