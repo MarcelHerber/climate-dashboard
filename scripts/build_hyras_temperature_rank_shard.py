@@ -24,7 +24,7 @@ PARAM_MODULES = {
     "tmax": "build_hyras_tmax_regions",
     "tmin": "build_hyras_tmin_regions",
 }
-DEFAULT_FACTOR = 5
+DEFAULT_FACTOR = 1
 
 
 def historical_dates_for_target(year: int, target: date) -> np.ndarray:
