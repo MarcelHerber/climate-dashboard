@@ -145,54 +145,6 @@ button.action{
   .chart-container.has-export-tools{padding-top:10px}
 }
 
-/* HYRAS_TMEAN_DAILY_ANIMATION_V1 */
-.hyras-daily-animation-panel{
-  margin:0 0 12px;
-  padding:12px 13px;
-  border:1px solid var(--border);
-  border-radius:8px;
-  background:#f8fafb;
-}
-.hyras-daily-animation-head{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  margin-bottom:9px;
-}
-.hyras-daily-animation-head strong{font-size:14px}
-.hyras-daily-animation-date{
-  font-size:13px;
-  font-weight:700;
-  color:#394650;
-  font-variant-numeric:tabular-nums;
-}
-.hyras-daily-animation-row{
-  display:grid;
-  grid-template-columns:auto auto auto minmax(180px,1fr);
-  gap:8px;
-  align-items:center;
-}
-.hyras-daily-animation-row button{min-height:36px;white-space:nowrap}
-.hyras-daily-animation-row input[type="range"]{
-  width:100%;
-  min-width:0;
-  accent-color:#111;
-  cursor:pointer;
-}
-.hyras-daily-animation-row input[type="range"]:disabled{opacity:.5;cursor:not-allowed}
-.hyras-daily-animation-hint{
-  margin-top:7px;
-  font-size:11px;
-  color:var(--muted);
-  line-height:1.35;
-}
-@media(max-width:700px){
-  .hyras-daily-animation-row{grid-template-columns:1fr 1fr 1fr}
-  .hyras-daily-animation-row input[type="range"]{grid-column:1/-1}
-  .hyras-daily-animation-row button{padding-left:8px;padding-right:8px}
-}
 .stat-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
@@ -11099,146 +11051,7 @@ async function hyrasTmeanExportCurvePdf(event,region,period){
   }
 }
 
-// HYRAS_TMEAN_DAILY_ANIMATION_V1
-let hyrasTmeanAnimationRows=[];
-let hyrasTmeanAnimationValues=[];
-let hyrasTmeanAnimationIndex=-1;
-let hyrasTmeanAnimationTimer=null;
-const HYRAS_TMEAN_ANIMATION_DELAY=500;
-
-function hyrasTmeanAnimationNumber(value){
-  if(value===null||value===undefined||value==="")return NaN;
-  const number=Number(value);
-  return Number.isFinite(number)?number:NaN;
-}
-
-function hyrasTmeanAnimationStop(){
-  if(hyrasTmeanAnimationTimer!==null){
-    window.clearInterval(hyrasTmeanAnimationTimer);
-    hyrasTmeanAnimationTimer=null;
-  }
-  const button=document.getElementById("hyrasTmeanAnimationPlay");
-  if(button)button.textContent="▶ Abspielen";
-}
-
-function hyrasTmeanAnimationUpdateControls(){
-  const slider=document.getElementById("hyrasTmeanAnimationSlider");
-  const prev=document.getElementById("hyrasTmeanAnimationPrev");
-  const next=document.getElementById("hyrasTmeanAnimationNext");
-  const date=document.getElementById("hyrasTmeanAnimationDate");
-  const length=hyrasTmeanAnimationRows.length;
-
-  if(!length){
-    if(date)date.textContent="–";
-    if(slider)slider.disabled=true;
-    if(prev)prev.disabled=true;
-    if(next)next.disabled=true;
-    return;
-  }
-
-  const index=Math.max(0,Math.min(hyrasTmeanAnimationIndex,length-1));
-  if(slider){
-    slider.min="0";
-    slider.max=String(length-1);
-    slider.value=String(index);
-    slider.disabled=length<2;
-  }
-  if(prev)prev.disabled=length<2||index<=0;
-  if(next)next.disabled=length<2||index>=length-1;
-
-  const row=hyrasTmeanAnimationRows[index]||{};
-  const value=hyrasTmeanAnimationNumber(hyrasTmeanAnimationValues[index]);
-  const normal=hyrasTmeanAnimationNumber(row.normal);
-  const valueText=Number.isFinite(value)
-    ?value.toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" °C"
-    :"kein Wert";
-  const anomalyText=Number.isFinite(value)&&Number.isFinite(normal)
-    ?` · Abweichung ${value-normal>=0?"+":""}${(value-normal).toFixed(2).replace(".",",")} K`
-    :"";
-  if(date)date.textContent=`${hyrasDate(row.date)} · ${valueText}${anomalyText} · ${index+1}/${length}`;
-}
-
-function hyrasTmeanAnimationApply(animate=false){
-  if(!hyrasTmeanRegionChart||!hyrasTmeanAnimationRows.length)return;
-  const dataset=hyrasTmeanRegionChart.data?.datasets?.[1];
-  if(!dataset)return;
-
-  hyrasTmeanAnimationIndex=Math.max(
-    0,
-    Math.min(hyrasTmeanAnimationIndex,hyrasTmeanAnimationRows.length-1)
-  );
-  dataset.data=hyrasTmeanAnimationValues.map((value,index)=>
-    index<=hyrasTmeanAnimationIndex?value:null
-  );
-  dataset.pointRadius=context=>
-    context.dataIndex===hyrasTmeanAnimationIndex&&
-    Number.isFinite(hyrasTmeanAnimationNumber(hyrasTmeanAnimationValues[hyrasTmeanAnimationIndex]))?4:0;
-  dataset.pointHoverRadius=6;
-  hyrasTmeanRegionChart.update(animate?undefined:"none");
-  hyrasTmeanAnimationUpdateControls();
-}
-
-function hyrasTmeanAnimationConfigure(rows,values){
-  hyrasTmeanAnimationStop();
-  hyrasTmeanAnimationRows=Array.isArray(rows)?rows.slice():[];
-  hyrasTmeanAnimationValues=Array.isArray(values)?values.slice():[];
-
-  const validIndices=hyrasTmeanAnimationValues
-    .map((value,index)=>Number.isFinite(hyrasTmeanAnimationNumber(value))?index:-1)
-    .filter(index=>index>=0);
-  hyrasTmeanAnimationIndex=validIndices.length
-    ?validIndices[validIndices.length-1]
-    :Math.max(0,hyrasTmeanAnimationRows.length-1);
-
-  hyrasTmeanAnimationApply(false);
-}
-
-function hyrasTmeanAnimationSetIndex(index,animate=false){
-  if(!hyrasTmeanAnimationRows.length)return;
-  hyrasTmeanAnimationIndex=Math.max(
-    0,
-    Math.min(Number(index)||0,hyrasTmeanAnimationRows.length-1)
-  );
-  hyrasTmeanAnimationApply(animate);
-}
-
-function hyrasTmeanAnimationStep(delta){
-  hyrasTmeanAnimationStop();
-  hyrasTmeanAnimationSetIndex(hyrasTmeanAnimationIndex+Number(delta||0),true);
-}
-
-function hyrasTmeanAnimationSliderInput(value){
-  hyrasTmeanAnimationStop();
-  hyrasTmeanAnimationSetIndex(Number(value),false);
-}
-
-function hyrasTmeanAnimationToggle(){
-  if(!hyrasTmeanAnimationRows.length)return;
-  if(hyrasTmeanAnimationTimer!==null){
-    hyrasTmeanAnimationStop();
-    return;
-  }
-
-  if(hyrasTmeanAnimationIndex>=hyrasTmeanAnimationRows.length-1){
-    hyrasTmeanAnimationIndex=0;
-    hyrasTmeanAnimationApply(false);
-  }
-
-  const button=document.getElementById("hyrasTmeanAnimationPlay");
-  if(button)button.textContent="⏸ Pause";
-
-  hyrasTmeanAnimationTimer=window.setInterval(()=>{
-    if(hyrasTmeanAnimationIndex>=hyrasTmeanAnimationRows.length-1){
-      hyrasTmeanAnimationStop();
-      return;
-    }
-    hyrasTmeanAnimationIndex++;
-    hyrasTmeanAnimationApply(true);
-  },HYRAS_TMEAN_ANIMATION_DELAY);
-}
-
 function hyrasTmeanRenderCurveChart(region,period,rows){
-  hyrasTmeanAnimationStop();
   const frame=document.getElementById("hyrasMapFrame");if(!frame)return;
   if(hyrasTmeanRegionChart){hyrasTmeanRegionChart.destroy();hyrasTmeanRegionChart=null;}
   const mapsBase=hyrasTmeanMapDownloads?.periods?.[period.map_key]||{},maps={...mapsBase,anomaly:mapsBase.anomaly_by_reference?.[hyrasReferencePeriod()]||mapsBase.anomaly};
@@ -11246,19 +11059,6 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
     <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen 1991–2020</p></div></div>
-    <div class="hyras-daily-animation-panel">
-      <div class="hyras-daily-animation-head">
-        <strong>Tagesverlauf durchklicken oder abspielen</strong>
-        <span id="hyrasTmeanAnimationDate" class="hyras-daily-animation-date">–</span>
-      </div>
-      <div class="hyras-daily-animation-row">
-        <button id="hyrasTmeanAnimationPrev" class="action" type="button" onclick="hyrasTmeanAnimationStep(-1)">◀ 1 Tag</button>
-        <button id="hyrasTmeanAnimationPlay" class="action" type="button" onclick="hyrasTmeanAnimationToggle()">▶ Abspielen</button>
-        <button id="hyrasTmeanAnimationNext" class="action" type="button" onclick="hyrasTmeanAnimationStep(1)">1 Tag ▶</button>
-        <input id="hyrasTmeanAnimationSlider" type="range" min="0" max="0" value="0" step="1" aria-label="Tag im HYRAS-Zeitraum" oninput="hyrasTmeanAnimationSliderInput(this.value)">
-      </div>
-      <div class="hyras-daily-animation-hint">Die ${hyrasTmeanRegionsIndex.year}-Kurve wird bis zum gewählten Tag aufgebaut; Klimamittel und historische Rekordlinien bleiben vollständig sichtbar.</div>
-    </div>
     <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmeanDownloadHref(maps.absolute)}" data-tmean-map="${maps.absolute}" data-tmean-filename="hyras_tmean_${period.map_key}_temperatur.png"`:""}>Temperaturkarte herunterladen</a>
@@ -11301,7 +11101,6 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
       scales:{x:{ticks:{maxTicksLimit:14}},y:{title:{display:true,text:"Temperatur (°C)"}}}
     }
   });
-  hyrasTmeanAnimationConfigure(rows,current);
 }
 // HYRAS_TMAX_FRONTEND_V1
 let hyrasTmaxRegionsIndex=null;
@@ -11805,7 +11604,6 @@ async function renderHyrasTmean(){
 
 
 async function hyrasSwitchParameter(){
-  hyrasTmeanAnimationStop();
   const temperatureParameter=hyrasParameter();
   const isTmean=temperatureParameter==="tmean";
   const isTmax=temperatureParameter==="tmax";
@@ -14377,7 +14175,6 @@ renderHyras=function(){
 
 const hyrasSwitchBeforeTmin=hyrasSwitchParameter;
 hyrasSwitchParameter=async function(){
-  hyrasTmeanAnimationStop();
   if(hyrasParameter()!=="tmin"){
     if(hyrasTminRegionChart){
       hyrasTminRegionChart.destroy();
