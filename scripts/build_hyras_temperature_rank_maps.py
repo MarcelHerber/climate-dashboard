@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from matplotlib.patches import Rectangle
 import numpy as np
-from PIL import Image
 import xarray as xr
 
 try:
@@ -23,12 +22,14 @@ try:
         RANK_COLORS, extract_products, historical_years, rank_field,
     )
     from build_hyras_temperature_rank_shard import DEFAULT_FACTOR, PARAM_MODULES, _unpack_prepared
+    from update_hyras_maps import draw_boundaries, guess_crs_from_xy, load_boundaries
 except ModuleNotFoundError:
     from scripts.hyras_temperature_rank import (
         HISTORY_END, HISTORY_START, PRODUCTS, RANK_BOUNDARIES, RANK_CLASS_LABELS,
         RANK_COLORS, extract_products, historical_years, rank_field,
     )
     from scripts.build_hyras_temperature_rank_shard import DEFAULT_FACTOR, PARAM_MODULES, _unpack_prepared
+    from scripts.update_hyras_maps import draw_boundaries, guess_crs_from_xy, load_boundaries
 
 PARAM_LABELS = {
     "tmean": "Tmean · 2-m-Temperaturmittel",
@@ -105,25 +106,26 @@ def _load_history(shard_dir: Path, parameter: str, target: date):
     return x_ref, y_ref, history
 
 
-def _boundary_overlay(data_root: Path, shape: tuple[int, int], factor: int):
-    idx_path = data_root / "hyras_index.json"
-    if not idx_path.exists():
-        return None
-    try:
-        rel = json.loads(idx_path.read_text(encoding="utf-8")).get("interactive", {}).get("boundary_overlay_1km")
-    except Exception:
-        return None
-    if not rel:
-        return None
-    path = data_root / rel
-    if not path.exists():
-        return None
-    image = Image.open(path).convert("RGBA")
-    arr = np.asarray(image)
-    sampled = arr[::factor, ::factor]
-    if sampled.shape[:2] == shape:
-        return sampled
-    return np.asarray(image.resize((shape[1], shape[0]), Image.Resampling.NEAREST))
+def _plot_bounds(rank: np.ndarray, x: np.ndarray, y: np.ndarray) -> tuple[float, float, float, float]:
+    rank = np.asarray(rank, dtype=float)
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if rank.shape != (y.size, x.size):
+        raise RuntimeError(
+            f"HYRAS-Rasterform {rank.shape} passt nicht zu y/x ({y.size}, {x.size})"
+        )
+    finite = np.isfinite(rank)
+    if not finite.any():
+        return float(np.nanmin(x)), float(np.nanmax(x)), float(np.nanmin(y)), float(np.nanmax(y))
+    rows = np.where(finite.any(axis=1))[0]
+    cols = np.where(finite.any(axis=0))[0]
+    xv = x[cols[0]:cols[-1] + 1]
+    yv = y[rows[0]:rows[-1] + 1]
+    xmin, xmax = float(np.nanmin(xv)), float(np.nanmax(xv))
+    ymin, ymax = float(np.nanmin(yv)), float(np.nanmax(yv))
+    padx = max((xmax - xmin) * 0.03, 1.0)
+    pady = max((ymax - ymin) * 0.03, 1.0)
+    return xmin - padx, xmax + padx, ymin - pady, ymax + pady
 
 
 def _rank_stats(rank: np.ndarray) -> dict[str, float | int | None]:
@@ -150,15 +152,42 @@ def _draw_legend(fig) -> None:
     ax.axis("off")
 
 
-def _render(rank: np.ndarray, overlay, output: Path, parameter: str, product: str, target: date, factor: int) -> None:
+def _render(
+    rank: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    geojson,
+    data_crs,
+    output: Path,
+    parameter: str,
+    product: str,
+    target: date,
+    factor: int,
+) -> None:
+    rank = np.asarray(rank, dtype=float)
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    xmin, xmax, ymin, ymax = _plot_bounds(rank, x, y)
+
     cmap = ListedColormap(RANK_COLORS, name="hyras_temperature_rank")
     norm = BoundaryNorm(RANK_BOUNDARIES, cmap.N, clip=True)
-    fig = plt.figure(figsize=(7.4, 9.4), dpi=150)
+    fig = plt.figure(figsize=(7.7, 9.4), dpi=200)
     ax = fig.add_axes([0.055, 0.12, 0.89, 0.79])
-    ax.imshow(np.ma.masked_invalid(rank), cmap=cmap, norm=norm, interpolation="nearest")
-    if overlay is not None and overlay.shape[:2] == rank.shape:
-        ax.imshow(overlay, interpolation="nearest")
+    ax.pcolormesh(
+        x,
+        y,
+        np.ma.masked_invalid(rank),
+        shading="auto",
+        cmap=cmap,
+        norm=norm,
+        rasterized=True,
+    )
+    draw_boundaries(ax, geojson, data_crs)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_aspect("equal")
     ax.set_axis_off()
+
     fig.suptitle(
         f"HYRAS {PARAM_LABELS[parameter]} · Historischer Rang",
         fontsize=14.5, fontweight="bold", y=0.965,
@@ -179,7 +208,7 @@ def _render(rank: np.ndarray, overlay, output: Path, parameter: str, product: st
         fontsize=7, color="#555555",
     )
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, facecolor="white", bbox_inches="tight", pad_inches=0.12)
+    fig.savefig(output, facecolor="white", bbox_inches="tight", pad_inches=0.12, dpi=200)
     plt.close(fig)
 
 
@@ -200,17 +229,32 @@ def build_maps(*, data_root: Path, shard_dir: Path, target: date, factor: int, w
         "parameters": {},
     }
 
+    geojson = load_boundaries()
+    if not geojson:
+        raise RuntimeError("Bundeslandgrenzen konnten für die HYRAS-Rangkarten nicht geladen werden")
+
     for parameter in ("tmean", "tmax", "tmin"):
         hx, hy, history = _load_history(shard_dir, parameter, target)
         cx, cy, current = _current_products(parameter, target, factor, work / parameter)
         if cx.shape != hx.shape or cy.shape != hy.shape or not np.allclose(cx, hx) or not np.allclose(cy, hy):
             raise RuntimeError(f"HYRAS-{parameter}: aktuelles und historisches Raster stimmen nicht überein")
+        data_crs = guess_crs_from_xy(hx, hy)
         parameter_payload = {"label": PARAM_LABELS[parameter], "products": {}}
         for product in PRODUCTS:
             rank = rank_field(current[product], history[product])
-            overlay = _boundary_overlay(data_root, rank.shape, factor)
             rel = Path(parameter) / f"{product}_rank.png"
-            _render(rank, overlay, out_root / rel, parameter, product, target, factor)
+            _render(
+                rank,
+                hx,
+                hy,
+                geojson,
+                data_crs,
+                out_root / rel,
+                parameter,
+                product,
+                target,
+                factor,
+            )
             parameter_payload["products"][product] = {
                 "file": (Path("temperature_ranks") / rel).as_posix(),
                 "label": period_label(product, target),
