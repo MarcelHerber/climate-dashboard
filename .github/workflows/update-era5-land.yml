@@ -6,6 +6,7 @@ on:
       - "scripts/update_era5_land_europe_palette.py"
       - "scripts/add_era5_current_tp_months_palette.py"
       - "scripts/rerender_era5_temperature_anomalies_from_cache.py"
+      - "scripts/apply_era5_history_temperature_palette.py"
       - ".github/workflows/update-era5-land.yml"
   schedule:
     # Monatsmittel werden rund fünf Tage nach Monatsende verfügbar.
@@ -149,6 +150,10 @@ jobs:
         if: github.event_name != 'push'
         shell: bash
         run: python scripts/fix_era5_period_year_labels.py
+
+      - name: Historische Temperatur-Anomalieskala anwenden
+        shell: bash
+        run: python scripts/apply_era5_history_temperature_palette.py
 
       - name: Änderungen versionieren
         shell: bash
