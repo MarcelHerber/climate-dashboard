@@ -1075,6 +1075,18 @@ button.action:hover{background:#1f2937}
 .hyras-tmean-anomaly-preview-link{display:block;padding:10px;text-align:center;text-decoration:none}
 .hyras-tmean-anomaly-preview img{display:block;width:100%;height:auto;max-height:760px;object-fit:contain;margin:0 auto;background:#fff;border-radius:7px}
 .hyras-tmean-anomaly-preview-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:12px}
+.hyras-daily-anomaly-panel{margin:16px 0 4px;border:1px solid #d8e0e5;border-radius:10px;background:#f7f9fa;overflow:hidden}
+.hyras-daily-anomaly-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid #d8e0e5;background:#fff}
+.hyras-daily-anomaly-head h4{margin:0 0 3px;font-size:16px}
+.hyras-daily-anomaly-head p{margin:0;color:var(--muted);font-size:11px;line-height:1.4}
+.hyras-daily-anomaly-controls{display:grid;grid-template-columns:auto minmax(150px,1fr) auto;align-items:center;gap:8px;padding:10px 12px;background:#fff;border-bottom:1px solid #e4e9ec}
+.hyras-daily-anomaly-controls button{min-height:34px}
+.hyras-daily-anomaly-controls input[type="range"]{width:100%}
+.hyras-daily-anomaly-date{grid-column:1/-1;text-align:center;font-size:12px;font-weight:800;color:#344a5e;font-variant-numeric:tabular-nums}
+.hyras-daily-anomaly-link{display:block;padding:10px;text-align:center;text-decoration:none}
+.hyras-daily-anomaly-link img{display:block;width:100%;height:auto;max-height:760px;object-fit:contain;margin:0 auto;background:#fff;border-radius:7px}
+.hyras-daily-anomaly-status{padding:8px 12px 11px;text-align:center;color:var(--muted);font-size:11px}
+@media(max-width:700px){.hyras-daily-anomaly-controls{grid-template-columns:auto 1fr auto}}
 .hyras-tmean-region-note{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:700px){.hyras-tmean-chart-wrap{height:390px}.hyras-tmean-download{width:100%;justify-content:center}}
 
@@ -10897,6 +10909,145 @@ async function hyrasTmeanRenderHistorical(){
   const note=document.getElementById("hyrasReferenceNote");if(note)note.textContent=`Quelle: Deutscher Wetterdienst · HYRAS-DE Tmean. Historische Karten ${hyrasTmeanHistoryManifest.first_year}–${hyrasTmeanHistoryManifest.last_year} auf ${hyrasTmeanHistoryManifest.resolution_km}-km-Analyseraster; Referenz 1991–2020.`;
 }
 
+const hyrasDailyAnomalyManifestCache=new Map();
+let hyrasDailyAnomalySelectedDate=null;
+function hyrasDailyAnomalyBase(parameter){return `${HYRAS_DATA_BASE}/${parameter}/regions`;}
+function hyrasDailyAnomalyParameterLabel(parameter){
+  return parameter==="tmax"?"Tmax":parameter==="tmin"?"Tmin":"Tmean";
+}
+function hyrasDailyAnomalyPanelHtml(parameter){
+  return `<div class="hyras-daily-anomaly-panel" id="hyrasDailyAnomalyPanel" data-parameter="${parameter}">
+    <div class="hyras-daily-anomaly-head">
+      <div>
+        <h4>Tägliche 2-m-Abweichung · ${hyrasDailyAnomalyParameterLabel(parameter)}</h4>
+        <p id="hyrasDailyAnomalyMeta">Tageskarte wird geladen …</p>
+      </div>
+    </div>
+    <div class="hyras-daily-anomaly-controls">
+      <button class="action" type="button" id="hyrasDailyAnomalyPrev" aria-label="Vorheriger Tag">◀</button>
+      <input id="hyrasDailyAnomalyRange" type="range" min="0" max="0" value="0" step="1" aria-label="Tag auswählen">
+      <button class="action" type="button" id="hyrasDailyAnomalyNext" aria-label="Nächster Tag">▶</button>
+      <div class="hyras-daily-anomaly-date" id="hyrasDailyAnomalyDate">–</div>
+    </div>
+    <a class="hyras-daily-anomaly-link" id="hyrasDailyAnomalyLink" target="_blank" rel="noopener">
+      <img id="hyrasDailyAnomalyImage" alt="HYRAS tägliche Temperaturabweichung" loading="eager">
+    </a>
+    <div class="hyras-daily-anomaly-status" id="hyrasDailyAnomalyStatus">Lade Tagesanomaliekarten …</div>
+  </div>`;
+}
+async function hyrasDailyAnomalyManifest(parameter){
+  if(hyrasDailyAnomalyManifestCache.has(parameter))return hyrasDailyAnomalyManifestCache.get(parameter);
+  const version=parameter==="tmean"
+    ?hyrasTmeanRegionsIndex?.data_through
+    :parameter==="tmax"
+      ?hyrasTmaxRegionsIndex?.data_through
+      :hyrasTminRegionsIndex?.data_through;
+  const response=await fetch(
+    `${hyrasDailyAnomalyBase(parameter)}/daily_anomaly_maps.json?v=${encodeURIComponent(version||"1")}`,
+    {cache:"no-store"}
+  );
+  if(!response.ok)throw new Error(`Tagesanomaliekarten fehlen (${response.status}).`);
+  const manifest=await response.json();
+  hyrasDailyAnomalyManifestCache.set(parameter,manifest);
+  return manifest;
+}
+function hyrasDailyAnomalyDateLabel(iso){
+  if(!iso)return "–";
+  const [y,m,d]=String(iso).split("-");
+  return `${d}.${m}.${y}`;
+}
+function hyrasDailyAnomalyRowsDates(rows,manifest){
+  if(!rows?.length)return [];
+  const first=rows[0]?.date;
+  const last=rows[rows.length-1]?.date;
+  return (manifest?.available_dates||[]).filter(date=>
+    (!first||date>=first)&&(!last||date<=last)
+  );
+}
+function hyrasDailyAnomalySetDate(parameter,manifest,dates,index){
+  const range=document.getElementById("hyrasDailyAnomalyRange");
+  const prev=document.getElementById("hyrasDailyAnomalyPrev");
+  const next=document.getElementById("hyrasDailyAnomalyNext");
+  const dateEl=document.getElementById("hyrasDailyAnomalyDate");
+  const meta=document.getElementById("hyrasDailyAnomalyMeta");
+  const status=document.getElementById("hyrasDailyAnomalyStatus");
+  const image=document.getElementById("hyrasDailyAnomalyImage");
+  const link=document.getElementById("hyrasDailyAnomalyLink");
+  if(!range||!dateEl||!image||!link)return;
+
+  const clamped=Math.max(0,Math.min(Number(index)||0,dates.length-1));
+  const iso=dates[clamped];
+  hyrasDailyAnomalySelectedDate=iso||null;
+  range.value=String(clamped);
+  if(prev)prev.disabled=clamped<=0;
+  if(next)next.disabled=clamped>=dates.length-1;
+  dateEl.textContent=iso?hyrasDailyAnomalyDateLabel(iso):"–";
+
+  const reference=hyrasReferencePeriod();
+  const rel=iso?manifest?.dates?.[iso]?.[reference]:null;
+  if(!rel){
+    image.removeAttribute("src");
+    link.removeAttribute("href");
+    if(meta)meta.textContent=`${iso?hyrasDailyAnomalyDateLabel(iso):"Kein Tag"} · Referenz ${hyrasReferenceDisplay()}`;
+    if(status)status.textContent="Für diesen Tag und diese Referenz ist keine Tagesanomaliekarte verfügbar.";
+    return;
+  }
+  const src=`${hyrasDailyAnomalyBase(parameter)}/${rel}?v=${encodeURIComponent(manifest?.data_through||"1")}`;
+  image.src=src;
+  image.alt=`HYRAS ${hyrasDailyAnomalyParameterLabel(parameter)} Tagesabweichung ${hyrasDailyAnomalyDateLabel(iso)} gegenüber ${hyrasReferenceDisplay()}`;
+  link.href=src;
+  if(meta)meta.textContent=`${hyrasDailyAnomalyDateLabel(iso)} · Abweichung gegenüber ${hyrasReferenceDisplay()} · eigene Tages-Skala ±18 K`;
+  if(status)status.textContent=`Nur Tagesanomalien: Skala −18 bis +18 K · Darstellung ca. ${manifest?.resolution_km||5} km`;
+}
+async function hyrasDailyAnomalyMount(parameter,rows){
+  const panel=document.getElementById("hyrasDailyAnomalyPanel");
+  if(!panel)return;
+  const status=document.getElementById("hyrasDailyAnomalyStatus");
+  const image=document.getElementById("hyrasDailyAnomalyImage");
+  try{
+    const manifest=await hyrasDailyAnomalyManifest(parameter);
+    const dates=hyrasDailyAnomalyRowsDates(rows,manifest);
+    const range=document.getElementById("hyrasDailyAnomalyRange");
+    const prev=document.getElementById("hyrasDailyAnomalyPrev");
+    const next=document.getElementById("hyrasDailyAnomalyNext");
+    if(!dates.length){
+      if(image)image.removeAttribute("src");
+      if(status)status.textContent="Für den gewählten Zeitraum liegen noch keine täglichen Anomaliekarten vor.";
+      const meta=document.getElementById("hyrasDailyAnomalyMeta");
+      if(meta)meta.textContent="Tageskarten sind derzeit für den Sommerzeitraum verfügbar.";
+      if(range)range.disabled=true;
+      if(prev)prev.disabled=true;
+      if(next)next.disabled=true;
+      return;
+    }
+    let initial=dates.length-1;
+    if(hyrasDailyAnomalySelectedDate&&dates.includes(hyrasDailyAnomalySelectedDate)){
+      initial=dates.indexOf(hyrasDailyAnomalySelectedDate);
+    }
+    if(range){
+      range.disabled=false;
+      range.min="0";
+      range.max=String(dates.length-1);
+      range.step="1";
+      range.addEventListener("input",()=>hyrasDailyAnomalySetDate(parameter,manifest,dates,Number(range.value)));
+    }
+    if(prev)prev.addEventListener("click",()=>{
+      const current=Number(range?.value||0);
+      hyrasDailyAnomalySetDate(parameter,manifest,dates,current-1);
+    });
+    if(next)next.addEventListener("click",()=>{
+      const current=Number(range?.value||0);
+      hyrasDailyAnomalySetDate(parameter,manifest,dates,current+1);
+    });
+    hyrasDailyAnomalySetDate(parameter,manifest,dates,initial);
+  }catch(error){
+    console.warn("HYRAS Tagesanomalien:",error);
+    if(image)image.removeAttribute("src");
+    const meta=document.getElementById("hyrasDailyAnomalyMeta");
+    if(meta)meta.textContent="Tagesanomaliekarten werden noch aufgebaut.";
+    if(status)status.textContent="Noch nicht verfügbar – bitte nach Abschluss des HYRAS-Tageskarten-Workflows neu laden.";
+  }
+}
 function hyrasTmeanRegionsBase(){return `${HYRAS_DATA_BASE}/tmean/regions`;}
 async function hyrasTmeanRegionsFetch(path){
   const response=await fetch(`${hyrasTmeanRegionsBase()}/${path}?v=${encodeURIComponent(hyrasTmeanRegionsIndex?.data_through||"1")}`);
@@ -11120,6 +11271,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
     <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p></div></div>
     <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
+    ${hyrasDailyAnomalyPanelHtml("tmean")}
     ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
@@ -11149,6 +11301,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
     "click",
     event=>hyrasTmeanExportCurvePdf(event,region,period)
   );
+  hyrasDailyAnomalyMount("tmean",rows);
   const labels=rows.map(r=>{const [,m,d]=r.date.split("-");return `${d}.${m}.`;});
   const climate=rows.map(r=>r.normal),current=rows.map(r=>r.current),recordMax=rows.map(r=>r.recordMax),recordMin=rows.map(r=>r.recordMin);
   const recordFirst=Number(hyrasTmeanRegionsIndex.records_first_year||hyrasTmeanRegionsRecords?.first_year||1951),recordLast=Number(hyrasTmeanRegionsIndex.records_last_year||hyrasTmeanRegionsRecords?.last_year||2025);
@@ -11513,6 +11666,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTmaxRegionCanvas"></canvas>
     </div>
+    ${hyrasDailyAnomalyPanelHtml("tmax")}
     ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
@@ -11548,6 +11702,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     "click",
     event=>hyrasTmaxExportCurvePdf(event,region,period)
   );
+  hyrasDailyAnomalyMount("tmax",rows);
 
   const labels=rows.map(row=>{
     const [,month,day]=row.date.split("-");
@@ -11778,7 +11933,7 @@ function initHyrasControls(){
   document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>hyrasSwitchParameter());
   document.getElementById("hyrasTmeanRegionSelect")?.addEventListener("change",()=>renderHyras());
   document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
-  document.getElementById("hyrasReferenceSelect")?.addEventListener("change",()=>{hyrasPresetState=null;hyrasLivePresetState=null;hyrasHistoricalState=null;hyrasTmeanHistoricalState=null;hyrasTmeanRegionsClimateReference=null;hyrasTmaxRegionsClimateReference=null;hyrasTminRegionsClimateReference=null;hyrasRestorePrecipMetricOptions();const p=hyrasParameter();if(p==="precipitation"&&document.getElementById("hyrasPeriodSelect")?.value==="__historical__")hyrasApplyHistorical();else renderHyras();});
+  document.getElementById("hyrasReferenceSelect")?.addEventListener("change",()=>{hyrasPresetState=null;hyrasLivePresetState=null;hyrasHistoricalState=null;hyrasTmeanHistoricalState=null;hyrasTmeanRegionsClimateReference=null;hyrasTmaxRegionsClimateReference=null;hyrasTminRegionsClimateReference=null;hyrasDailyAnomalySelectedDate=null;hyrasRestorePrecipMetricOptions();const p=hyrasParameter();if(p==="precipitation"&&document.getElementById("hyrasPeriodSelect")?.value==="__historical__")hyrasApplyHistorical();else renderHyras();});
   document.getElementById("hyrasPeriodSelect")?.addEventListener("change",event=>{if(event.target.value!=="__custom__")hyrasCustomState=null;if(event.target.value!=="__historical__")hyrasHistoricalState=null;hyrasPresetState=null;hyrasLivePresetState=null;renderHyras();});
   document.getElementById("hyrasCustomApply")?.addEventListener("click",()=>hyrasApplyCustomRange());
   document.getElementById("hyrasHistoricalType")?.addEventListener("change",()=>hyrasHistoricalTypeControls());
@@ -14549,6 +14704,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTminRegionCanvas"></canvas>
     </div>
+    ${hyrasDailyAnomalyPanelHtml("tmin")}
     ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
       <div class="hyras-tmean-anomaly-preview-head">
         <div>
@@ -14585,6 +14741,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
     "click",
     event=>hyrasTminExportCurvePdf(event,region,period)
   );
+  hyrasDailyAnomalyMount("tmin",rows);
 
   const labels=rows.map(row=>{
     const [,month,day]=row.date.split("-");

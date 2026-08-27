@@ -1,0 +1,248 @@
+name: HYRAS tägliche Temperaturabweichungen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build_hyras_daily_anomaly_reference.py"
+      - "scripts/build_hyras_daily_anomaly_maps.py"
+      - ".github/workflows/update-hyras-daily-anomaly-maps.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      target_date: ${{ steps.target.outputs.target_date }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Gemeinsamen HYRAS-Datenstand bestimmen
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-anomaly-meta
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-daily-anomaly-meta origin/hyras-data
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          root=Path("/tmp/hyras-daily-anomaly-meta")
+          dates=[]
+          for parameter in ("tmean","tmax","tmin"):
+              path=root/parameter/"regions"/"index.json"
+              data=json.loads(path.read_text(encoding="utf-8"))
+              dates.append(str(data["data_through"]))
+          print("target_date="+min(dates))
+          PY
+
+  reference:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        parameter: [tmean, tmax, tmin]
+        shard:
+          - "1961-1965"
+          - "1966-1970"
+          - "1971-1975"
+          - "1976-1980"
+          - "1981-1985"
+          - "1986-1990"
+          - "1991-1995"
+          - "1996-2000"
+          - "2001-2005"
+          - "2006-2010"
+          - "2011-2015"
+          - "2016-2020"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Historischen Sommer-Tagescache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-rank-history/${{ matrix.parameter }}/factor1
+          key: hyras-temperature-rank-v2-factor1-${{ matrix.parameter }}-${{ matrix.shard }}
+
+      - name: Referenzbeitrag berechnen
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=- read -r START END <<< "${{ matrix.shard }}"
+          mkdir -p /tmp/hyras-daily-anomaly-reference
+          python scripts/build_hyras_daily_anomaly_reference.py \
+            --parameter "${{ matrix.parameter }}" \
+            --start-year "$START" \
+            --end-year "$END" \
+            --display-factor 5 \
+            --cache-root /tmp/hyras-temperature-rank-history \
+            --work /tmp/hyras-daily-anomaly-reference-work \
+            --output "/tmp/hyras-daily-anomaly-reference/daily_anomaly_ref_${{ matrix.parameter }}_${START}_${END}.npz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyras-daily-anomaly-ref-${{ matrix.parameter }}-${{ matrix.shard }}
+          path: /tmp/hyras-daily-anomaly-reference/*.npz
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 2
+
+  render:
+    needs: [prepare, reference]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [tmean, tmax, tmin]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Referenzshards herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-daily-anomaly-ref-${{ matrix.parameter }}-*
+          path: /tmp/hyras-daily-anomaly-reference
+          merge-multiple: true
+
+      - name: hyras-data Stand übernehmen
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-anomaly-data
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-daily-anomaly-data origin/hyras-data
+
+      - name: Tagesanomaliekarten rendern
+        run: |
+          python scripts/build_hyras_daily_anomaly_maps.py \
+            --parameter "${{ matrix.parameter }}" \
+            --data-root /tmp/hyras-daily-anomaly-data \
+            --shard-dir /tmp/hyras-daily-anomaly-reference \
+            --target-date "${{ needs.prepare.outputs.target_date }}" \
+            --work /tmp/hyras-daily-anomaly-current
+
+      - name: Parameter-Ausgabe sammeln
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "/tmp/hyras-daily-anomaly-output/${{ matrix.parameter }}/regions"
+          cp -a "/tmp/hyras-daily-anomaly-data/${{ matrix.parameter }}/regions/daily_anomalies" "/tmp/hyras-daily-anomaly-output/${{ matrix.parameter }}/regions/"
+          cp "/tmp/hyras-daily-anomaly-data/${{ matrix.parameter }}/regions/daily_anomaly_maps.json" "/tmp/hyras-daily-anomaly-output/${{ matrix.parameter }}/regions/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyras-daily-anomaly-maps-${{ matrix.parameter }}
+          path: /tmp/hyras-daily-anomaly-output
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 2
+
+  publish:
+    needs: [prepare, render]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Kartenartefakte herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-daily-anomaly-maps-*
+          path: /tmp/hyras-daily-anomaly-output
+          merge-multiple: true
+
+      - name: hyras-data laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-anomaly-publish
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-daily-anomaly-publish /tmp/hyras-daily-anomaly-publish origin/hyras-data
+
+      - name: Tagesanomaliekarten einbauen und prüfen
+        shell: bash
+        env:
+          TARGET_DATE: ${{ needs.prepare.outputs.target_date }}
+        run: |
+          set -euo pipefail
+          cp -a /tmp/hyras-daily-anomaly-output/. /tmp/hyras-daily-anomaly-publish/
+          python - <<'PY'
+          import json, os
+          from datetime import date
+          from pathlib import Path
+          root=Path("/tmp/hyras-daily-anomaly-publish")
+          target=date.fromisoformat(os.environ["TARGET_DATE"])
+          for parameter in ("tmean","tmax","tmin"):
+              manifest=json.loads((root/parameter/"regions"/"daily_anomaly_maps.json").read_text(encoding="utf-8"))
+              assert manifest["data_through"] == target.isoformat()
+              assert manifest["scale"]["min"] == -18
+              assert manifest["scale"]["max"] == 18
+              assert manifest["references"] == ["1991-2020","1961-1990"]
+              assert manifest["available_dates"][0] == f"{target.year}-06-01"
+              assert manifest["available_dates"][-1] == target.isoformat()
+              for day in (manifest["available_dates"][0], manifest["available_dates"][-1]):
+                  for ref in manifest["references"]:
+                      rel=manifest["dates"][day][ref]
+                      assert (root/parameter/"regions"/rel).exists(), (parameter,day,ref,rel)
+          print("Tagesanomaliekarten vollständig geprüft.")
+          PY
+
+      - name: hyras-data veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-daily-anomaly-publish
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmean/regions/daily_anomalies tmean/regions/daily_anomaly_maps.json
+          git add tmax/regions/daily_anomalies tmax/regions/daily_anomaly_maps.json
+          git add tmin/regions/daily_anomalies tmin/regions/daily_anomaly_maps.json
+          if git diff --cached --quiet; then
+            echo "Keine neuen Tagesanomaliekarten."
+            exit 0
+          fi
+          git commit -m "HYRAS tägliche Temperaturabweichungskarten aktualisieren"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
