@@ -1068,6 +1068,13 @@ button.action:hover{background:#1f2937}
 .hyras-tmean-download{display:inline-flex;align-items:center;padding:9px 12px;border-radius:7px;background:#344a5e;color:#fff;text-decoration:none;font-size:12px;font-weight:800}
 .hyras-tmean-download:hover{background:#263948}
 .hyras-tmean-download.disabled{pointer-events:none;opacity:.42;background:#8a949c}
+.hyras-tmean-anomaly-preview{margin:16px 0 4px;border:1px solid #d8e0e5;border-radius:10px;background:#f7f9fa;overflow:hidden}
+.hyras-tmean-anomaly-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 13px;border-bottom:1px solid #d8e0e5;background:#fff}
+.hyras-tmean-anomaly-preview-head h4{margin:0 0 3px;font-size:16px}
+.hyras-tmean-anomaly-preview-head p{margin:0;color:var(--muted);font-size:11px;line-height:1.4}
+.hyras-tmean-anomaly-preview-link{display:block;padding:10px;text-align:center;text-decoration:none}
+.hyras-tmean-anomaly-preview img{display:block;width:100%;height:auto;max-height:760px;object-fit:contain;margin:0 auto;background:#fff;border-radius:7px}
+.hyras-tmean-anomaly-preview-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:12px}
 .hyras-tmean-region-note{margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:700px){.hyras-tmean-chart-wrap{height:390px}.hyras-tmean-download{width:100%;justify-content:center}}
 
@@ -10958,6 +10965,11 @@ function hyrasTmeanSetCurveKpis(region,period,rows){
 }
 // HYRAS_TMEAN_MAP_DOWNLOAD_FIX_V2
 function hyrasTmeanDownloadHref(path){return path?`${HYRAS_DATA_BASE}/tmean/${path}`:"#";}
+function hyrasTemperaturePreviewHref(url,version){
+  if(!url||url==="#")return "#";
+  const separator=url.includes("?")?"&":"?";
+  return `${url}${separator}v=${encodeURIComponent(version||"1")}`;
+}
 async function hyrasTmeanForceMapDownload(event,path,filename){
   if(event)event.preventDefault();
   if(!path)return;
@@ -11096,6 +11108,17 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
     <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen 1991–2020</p></div></div>
     <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
+    ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
+      <div class="hyras-tmean-anomaly-preview-head">
+        <div>
+          <h4>2-m-Temperaturabweichung</h4>
+          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+        </div>
+      </div>
+      <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTmeanDownloadHref(maps.anomaly),hyrasTmeanRegionsIndex?.data_through)}" target="_blank" rel="noopener">
+        <img src="${hyrasTemperaturePreviewHref(hyrasTmeanDownloadHref(maps.anomaly),hyrasTmeanRegionsIndex?.data_through)}" alt="HYRAS 2-m-Temperaturabweichung ${period.label} gegenüber ${hyrasReferenceDisplay()}" loading="eager">
+      </a>
+    </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Abweichungskarte verfügbar.</div></div>`}
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmeanDownloadHref(maps.absolute)}" data-tmean-map="${maps.absolute}" data-tmean-filename="hyras_tmean_${period.map_key}_temperatur.png"`:""}>Temperaturkarte herunterladen</a>
       <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmeanDownloadHref(maps.anomaly)}" data-tmean-map="${maps.anomaly}" data-tmean-filename="hyras_tmean_${period.map_key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
@@ -11465,6 +11488,17 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTmaxRegionCanvas"></canvas>
     </div>
+    ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
+      <div class="hyras-tmean-anomaly-preview-head">
+        <div>
+          <h4>2-m-Tmax-Abweichung</h4>
+          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+        </div>
+      </div>
+      <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTmaxMapHref(maps.anomaly),hyrasTmaxRegionsIndex?.data_through)}" target="_blank" rel="noopener">
+        <img src="${hyrasTemperaturePreviewHref(hyrasTmaxMapHref(maps.anomaly),hyrasTmaxRegionsIndex?.data_through)}" alt="HYRAS 2-m-Tmax-Abweichung ${period.label} gegenüber ${hyrasReferenceDisplay()}" loading="eager">
+      </a>
+    </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Tmax-Abweichungskarte verfügbar.</div></div>`}
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTmaxMapHref(maps.absolute)}" data-tmax-map="${maps.absolute}" data-tmax-filename="hyras_tmax_${period.key}_temperatur.png"`:""}>Tmax-Karte herunterladen</a>
       <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTmaxMapHref(maps.anomaly)}" data-tmax-map="${maps.anomaly}" data-tmax-filename="hyras_tmax_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
@@ -14476,6 +14510,17 @@ function hyrasTminRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-chart-wrap">
       <canvas id="hyrasTminRegionCanvas"></canvas>
     </div>
+    ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
+      <div class="hyras-tmean-anomaly-preview-head">
+        <div>
+          <h4>2-m-Tmin-Abweichung</h4>
+          <p>${period.label} · Abweichung gegenüber ${hyrasReferenceDisplay()}</p>
+        </div>
+      </div>
+      <a class="hyras-tmean-anomaly-preview-link" href="${hyrasTemperaturePreviewHref(hyrasTminMapHref(maps.anomaly),hyrasTminRegionsIndex?.data_through)}" target="_blank" rel="noopener">
+        <img src="${hyrasTemperaturePreviewHref(hyrasTminMapHref(maps.anomaly),hyrasTminRegionsIndex?.data_through)}" alt="HYRAS 2-m-Tmin-Abweichung ${period.label} gegenüber ${hyrasReferenceDisplay()}" loading="eager">
+      </a>
+    </div>`:`<div class="hyras-tmean-anomaly-preview"><div class="hyras-tmean-anomaly-preview-empty">Für diesen Zeitraum ist keine fertige Tmin-Abweichungskarte verfügbar.</div></div>`}
     <div class="hyras-tmean-downloads">
       <a class="${absClass}" ${maps.absolute?`href="${hyrasTminMapHref(maps.absolute)}" data-tmin-map="${maps.absolute}" data-tmin-filename="hyras_tmin_${period.key}_temperatur.png"`:""}>Tmin-Karte herunterladen</a>
       <a class="${anomClass}" ${maps.anomaly?`href="${hyrasTminMapHref(maps.anomaly)}" data-tmin-map="${maps.anomaly}" data-tmin-filename="hyras_tmin_${period.key}_abweichung_1991_2020.png"`:""}>Abweichungskarte ${hyrasReferenceDisplay()} herunterladen</a>
