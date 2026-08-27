@@ -5,15 +5,18 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
+from pyproj import Transformer
 
 PERIOD_KEYS=tuple([f"month_{m:02d}" for m in range(1,13)]+["spring","summer","autumn","winter","year"])
 COLS=5
 ROWS=4
 VALUE_SCALE=100
 MISSING=-32768
+BOUNDARY_URL="https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json"
 ABS_STOPS={
     "tmean":[(-25,"#313695"),(-15,"#4575b4"),(-5,"#74add1"),(0,"#abd9e9"),(5,"#e0f3f8"),(10,"#ffffbf"),(15,"#fee090"),(20,"#fdae61"),(25,"#f46d43"),(30,"#d73027"),(38,"#a50026")],
     "tmax":[(-20,"#313695"),(-10,"#4575b4"),(0,"#74add1"),(5,"#abd9e9"),(10,"#e0f3f8"),(15,"#ffffbf"),(20,"#fee090"),(25,"#fdae61"),(30,"#f46d43"),(35,"#d73027"),(45,"#a50026")],
@@ -91,6 +94,59 @@ def colorize(q:np.ndarray,parameter:str,mode:str,reference_q:np.ndarray|None=Non
     if np.any(valid):
         canvas[valid]=mapped[valid]
     return Image.fromarray(canvas,"RGB")
+
+
+def load_boundary_geojson()->dict:
+    request=Request(
+        BOUNDARY_URL,
+        headers={"User-Agent":"climate-dashboard-hyras-sprites/1.0"},
+    )
+    with urlopen(request,timeout=45) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def boundary_from_geojson(data:dict,x:np.ndarray,y:np.ndarray)->Image.Image:
+    w,h=len(x),len(y)
+    xmin,xmax=float(np.nanmin(x)),float(np.nanmax(x))
+    ymin,ymax=float(np.nanmin(y)),float(np.nanmax(y))
+    if xmax<=xmin or ymax<=ymin:
+        raise RuntimeError("Ungültige HYRAS-Koordinaten für Bundeslandgrenzen")
+
+    transformer=Transformer.from_crs("EPSG:4326","EPSG:3035",always_xy=True)
+    overlay=Image.new("RGBA",(w,h),(0,0,0,0))
+    draw=ImageDraw.Draw(overlay)
+
+    def pixel_points(ring):
+        if len(ring)<2:
+            return []
+        lon=np.asarray([p[0] for p in ring],dtype=float)
+        lat=np.asarray([p[1] for p in ring],dtype=float)
+        px,py=transformer.transform(lon,lat)
+        cols=(np.asarray(px)-xmin)/(xmax-xmin)*(w-1)
+        rows=(ymax-np.asarray(py))/(ymax-ymin)*(h-1)
+        return [
+            (float(col),float(row))
+            for col,row in zip(cols,rows)
+            if np.isfinite(col) and np.isfinite(row)
+        ]
+
+    line_count=0
+    for feature in data.get("features",[]):
+        geometry=feature.get("geometry") or {}
+        gtype=geometry.get("type")
+        coords=geometry.get("coordinates") or []
+        polygons=coords if gtype=="MultiPolygon" else [coords] if gtype=="Polygon" else []
+        for polygon in polygons:
+            for ring in polygon:
+                points=pixel_points(ring)
+                if len(points)>=2:
+                    draw.line(points,fill=(0,0,0,255),width=2,joint="curve")
+                    line_count+=1
+
+    if line_count==0 or overlay.getchannel("A").getbbox() is None:
+        raise RuntimeError("Bundeslandgrenzen konnten nicht auf das HYRAS-Gitter gezeichnet werden")
+    print(f"Bundeslandgrenzen gerastert: {line_count} Linien · {w}×{h} px",flush=True)
+    return overlay
 
 
 def _boost_alpha(mask:Image.Image,target_max:int)->Image.Image:
@@ -188,7 +244,10 @@ def main()->int:
         if ref["x"].shape!=current["x"].shape or ref["y"].shape!=current["y"].shape or not np.allclose(ref["x"],current["x"]) or not np.allclose(ref["y"],current["y"]):
             raise RuntimeError(f"Referenz {name} besitzt anderes Raster")
 
-    boundary=Image.open(args.boundary).convert("RGBA") if args.boundary else None
+    if args.boundary:
+        boundary=Image.open(args.boundary).convert("RGBA")
+    else:
+        boundary=boundary_from_geojson(load_boundary_geojson(),current["x"],current["y"])
     out=Path(args.output_dir)
     modes=[
         ("absolute",None),
