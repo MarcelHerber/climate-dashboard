@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 PERIOD_KEYS=tuple([f"month_{m:02d}" for m in range(1,13)]+["spring","summer","autumn","winter","year"])
 COLS=5
@@ -93,13 +93,40 @@ def colorize(q:np.ndarray,parameter:str,mode:str,reference_q:np.ndarray|None=Non
     return Image.fromarray(canvas,"RGB")
 
 
+def _boost_alpha(mask:Image.Image,target_max:int)->Image.Image:
+    arr=np.asarray(mask,dtype=np.uint8)
+    peak=int(arr.max()) if arr.size else 0
+    if peak<=0:
+        return Image.new("L",mask.size,0)
+    scaled=np.clip(
+        np.rint(arr.astype(np.float32)*(float(target_max)/peak)),
+        0,
+        target_max,
+    ).astype(np.uint8)
+    return Image.fromarray(scaled,"L")
+
+
 def overlay_boundary(image:Image.Image,boundary:Image.Image|None)->Image.Image:
     if boundary is None:
         return image
     if boundary.size!=image.size:
         raise RuntimeError(f"Grenzoverlay {boundary.size} passt nicht zum Raster {image.size}")
+
+    # Zweistufige Bundeslandgrenzen: ein schmaler heller Saum hält die Linie
+    # auch auf sehr dunklen Temperaturfarben sichtbar, die dunkle Kernlinie
+    # bleibt zugleich auf hellen/weißen Flächen klar erkennbar.
+    mask=boundary.getchannel("A")
+    halo_mask=_boost_alpha(mask.filter(ImageFilter.MaxFilter(3)),190)
+    core_mask=_boost_alpha(mask,245)
+
     base=image.convert("RGBA")
-    base.alpha_composite(boundary)
+    halo=Image.new("RGBA",image.size,(255,255,255,0))
+    halo.putalpha(halo_mask)
+    base.alpha_composite(halo)
+
+    core=Image.new("RGBA",image.size,(24,28,32,0))
+    core.putalpha(core_mask)
+    base.alpha_composite(core)
     return base.convert("RGB")
 
 
