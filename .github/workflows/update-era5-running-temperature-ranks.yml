@@ -76,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -116,6 +116,7 @@ jobs:
           path: .era5_running_rank_shards/*.npz
           if-no-files-found: error
           retention-days: 14
+          include-hidden-files: true
 
   finalize:
     needs: [prepare, shards]
