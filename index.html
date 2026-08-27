@@ -3258,6 +3258,7 @@ let hyrasTmeanExportObjectUrl=null;
 let hyrasTmeanRegionsIndex=null;
 let hyrasTmeanRegionsCurrent=null;
 let hyrasTmeanRegionsClimate=null;
+let hyrasTmeanRegionsClimateReference=null;
 let hyrasTmeanMapDownloads=null;
 // HYRAS_TMEAN_DAILY_RECORDS_V1
 let hyrasTmeanRegionsRecords=null;
@@ -6142,7 +6143,7 @@ function updateExtremeDashboard(){
     data:{labels:cumulativeLabels,datasets:[
       {label:"Historisches Maximum",data:historicalMax,borderColor:"rgba(100,100,100,.35)",backgroundColor:"rgba(130,130,130,.18)",borderWidth:1,pointRadius:0,fill:"+1",tension:0},
       {label:"Historisches Minimum",data:historicalMin,borderColor:"rgba(100,100,100,.35)",borderWidth:1,pointRadius:0,fill:false,tension:0},
-      {label:"Mittel 1991–2020",data:climateMean,borderColor:"#111",borderDash:[7,5],borderWidth:2,pointRadius:0,tension:0},
+      {label:`Mittel ${hyrasReferenceDisplay()}`,data:climateMean,borderColor:"#111",borderDash:[7,5],borderWidth:2,pointRadius:0,tension:0},
       {label:String(currentYear),data:currentCumulative,borderColor:metric.color,backgroundColor:metric.color,borderWidth:3,pointRadius:0,tension:0,spanGaps:false}
     ]},
     options:{
@@ -6631,7 +6632,7 @@ async function updateStationClimateDays(){
         datasets:[
           ...historicalCumulativeDatasets,
           {
-            label:"Mittel 1991–2020",
+            label:`Mittel ${hyrasReferenceDisplay()}`,
             data:climateCumulative,
             borderColor:"#202020",
             borderWidth:2.2,
@@ -7660,7 +7661,7 @@ async function updateStationPrecipitation(){
       );
     }
     datasets.push(
-      {label:"Mittel 1991–2020",data:climate,borderColor:"#111",borderWidth:2,borderDash:[8,5],pointRadius:0,fill:false,tension:.12},
+      {label:`Mittel ${hyrasReferenceDisplay()}`,data:climate,borderColor:"#111",borderWidth:2,borderDash:[8,5],pointRadius:0,fill:false,tension:.12},
       {label:String(stationPrecipIndex.current_year),data:currentCumulative,borderColor:"#c53030",backgroundColor:"rgba(197,48,48,.08)",borderWidth:3,pointRadius:0,spanGaps:true,fill:false,tension:.12}
     );
     stationPrecipChart=new Chart(document.getElementById("stationPrecipChart"),{
@@ -10913,10 +10914,21 @@ async function hyrasTmeanRegionsEnsureLoaded(){
       hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.map_downloads_file),
       hyrasTmeanRegionsFetch(hyrasTmeanRegionsIndex.records_file),
     ]);
-    hyrasTmeanRegionsCurrent=current;hyrasTmeanRegionsClimate=climate;hyrasTmeanMapDownloads=maps;hyrasTmeanRegionsRecords=records;
+    hyrasTmeanRegionsCurrent=current;hyrasTmeanRegionsClimate=climate;hyrasTmeanRegionsClimateReference=String(climate?.reference||hyrasTmeanRegionsIndex?.default_reference||"1991-2020");hyrasTmeanMapDownloads=maps;hyrasTmeanRegionsRecords=records;
     return hyrasTmeanRegionsIndex;
   })().finally(()=>{hyrasTmeanRegionsLoading=null;});
   return hyrasTmeanRegionsLoading;
+}
+async function hyrasTmeanEnsureClimateReference(){
+  const reference=hyrasReferencePeriod();
+  if(hyrasTmeanRegionsClimate&&hyrasTmeanRegionsClimateReference===reference)return hyrasTmeanRegionsClimate;
+  const path=hyrasTmeanRegionsIndex?.climate_files_by_reference?.[reference]
+    ||(reference==="1991-2020"?hyrasTmeanRegionsIndex?.climate_file:null);
+  if(!path)throw new Error(`Tmean-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
+  const climate=await hyrasTmeanRegionsFetch(path);
+  hyrasTmeanRegionsClimate=climate;
+  hyrasTmeanRegionsClimateReference=reference;
+  return climate;
 }
 function hyrasTmeanPopulateRegions(){
   const select=document.getElementById("hyrasTmeanRegionSelect");if(!select||!hyrasTmeanRegionsIndex)return;
@@ -10958,10 +10970,10 @@ function hyrasTmeanSetCurveKpis(region,period,rows){
   document.getElementById("hyrasPeriodStat").textContent=period.label;
   document.getElementById("hyrasDataThrough").textContent=`${hyrasDate(period.start_date)}–${hyrasDate(period.end_date)}`;
   setHeading("hyrasCurrentMean",`Mittel ${hyrasTmeanRegionsIndex.year}`);document.getElementById("hyrasCurrentMean").textContent=hyrasTmeanFmt(current);document.getElementById("hyrasCurrentMeanDetail").textContent=region;
-  setHeading("hyrasReferenceMean","Mittel 1991–2020");document.getElementById("hyrasReferenceMean").textContent=hyrasTmeanFmt(normal);document.getElementById("hyrasReferenceMeanDetail").textContent="exakt dieselben Kalendertage";
+  setHeading("hyrasReferenceMean",`Mittel ${hyrasReferenceDisplay()}`);document.getElementById("hyrasReferenceMean").textContent=hyrasTmeanFmt(normal);document.getElementById("hyrasReferenceMeanDetail").textContent="exakt dieselben Kalendertage";
   setHeading("hyrasPercentMean","Abweichung");document.getElementById("hyrasPercentMean").textContent=hyrasTmeanFmt(anom,"K",true);
   setHeading("hyrasAnomalyMean","Datentage");document.getElementById("hyrasAnomalyMean").textContent=String(rows.filter(r=>Number.isFinite(r.current)).length);
-  document.getElementById("hyrasReferenceNote").textContent=hyrasTmeanRegionsIndex.method_note||"HYRAS-Tmean-Gebietsmittel, Referenz 1991–2020.";
+  document.getElementById("hyrasReferenceNote").textContent=hyrasTmeanRegionsIndex.method_note||`HYRAS-Tmean-Gebietsmittel, Referenz ${hyrasReferenceDisplay()}.`;
 }
 // HYRAS_TMEAN_MAP_DOWNLOAD_FIX_V2
 function hyrasTmeanDownloadHref(path){return path?`${HYRAS_DATA_BASE}/tmean/${path}`:"#";}
@@ -11057,7 +11069,7 @@ async function hyrasTmeanExportCurvePdf(event,region,period){
     pdf.setFont("helvetica","normal");
     pdf.setFontSize(9.5);
     pdf.setTextColor(85,95,105);
-    pdf.text(`${period?.label||""} | taegliches HYRAS-Gebietsmittel gegen 1991-2020`,margin,21);
+    pdf.text(`${period?.label||""} | taegliches HYRAS-Gebietsmittel gegen ${hyrasReferencePeriod()}`,margin,21);
 
     const imageTop=27;
     const footerHeight=12;
@@ -11106,7 +11118,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
   const absClass=maps.absolute?"hyras-tmean-download":"hyras-tmean-download disabled";
   const anomClass=maps.anomaly?"hyras-tmean-download":"hyras-tmean-download disabled";
   frame.innerHTML=`<div class="hyras-tmean-region-panel">
-    <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen 1991–2020</p></div></div>
+    <div class="hyras-tmean-region-head"><div><h3>Temperaturmittel – ${region}</h3><p>${period.label} · tägliches HYRAS-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p></div></div>
     <div class="hyras-tmean-chart-wrap"><canvas id="hyrasTmeanRegionCanvas"></canvas></div>
     ${maps.anomaly?`<div class="hyras-tmean-anomaly-preview">
       <div class="hyras-tmean-anomaly-preview-head">
@@ -11143,7 +11155,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
   hyrasTmeanRegionChart=new Chart(document.getElementById("hyrasTmeanRegionCanvas"),{
     type:"line",
     data:{labels,datasets:[
-      {label:"Mittel 1991–2020",data:climate,borderColor:"#666",borderWidth:2,pointRadius:0,tension:.08,spanGaps:false},
+      {label:`Mittel ${hyrasReferenceDisplay()}`,data:climate,borderColor:"#666",borderWidth:2,pointRadius:0,tension:.08,spanGaps:false},
       {label:`${hyrasTmeanRegionsIndex.year}`,data:current,borderColor:"#111",borderWidth:2.4,pointRadius:0,tension:.08,spanGaps:false,fill:{target:0,above:"rgba(210,55,45,.28)",below:"rgba(55,115,190,.28)"}},
       {label:`Historisches Maximum ${recordFirst}–${recordLast}`,data:recordMax,borderColor:"#b42318",backgroundColor:"transparent",borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:.04,spanGaps:false},
       {label:`Historisches Minimum ${recordFirst}–${recordLast}`,data:recordMin,borderColor:"#1f5f99",backgroundColor:"transparent",borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:.04,spanGaps:false}
@@ -11165,6 +11177,7 @@ function hyrasTmeanRenderCurveChart(region,period,rows){
 let hyrasTmaxRegionsIndex=null;
 let hyrasTmaxRegionsCurrent=null;
 let hyrasTmaxRegionsClimate=null;
+let hyrasTmaxRegionsClimateReference=null;
 let hyrasTmaxRegionsRecords=null;
 // HYRAS_TMAX_MAP_DOWNLOADS_V1
 let hyrasTmaxMapDownloads=null;
@@ -11197,12 +11210,24 @@ async function hyrasTmaxRegionsEnsureLoaded(){
     ]);
     hyrasTmaxRegionsCurrent=current;
     hyrasTmaxRegionsClimate=climate;
+    hyrasTmaxRegionsClimateReference=String(climate?.reference||hyrasTmaxRegionsIndex?.default_reference||"1991-2020");
     hyrasTmaxRegionsRecords=records;
     hyrasTmaxMapDownloads=maps;
     return hyrasTmaxRegionsIndex;
   })().finally(()=>{hyrasTmaxRegionsLoading=null;});
 
   return hyrasTmaxRegionsLoading;
+}
+async function hyrasTmaxEnsureClimateReference(){
+  const reference=hyrasReferencePeriod();
+  if(hyrasTmaxRegionsClimate&&hyrasTmaxRegionsClimateReference===reference)return hyrasTmaxRegionsClimate;
+  const path=hyrasTmaxRegionsIndex?.climate_files_by_reference?.[reference]
+    ||(reference==="1991-2020"?hyrasTmaxRegionsIndex?.climate_file:null);
+  if(!path)throw new Error(`Tmax-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
+  const climate=await hyrasTmaxRegionsFetch(path);
+  hyrasTmaxRegionsClimate=climate;
+  hyrasTmaxRegionsClimateReference=reference;
+  return climate;
 }
 function hyrasTmaxPopulateRegions(){
   const select=document.getElementById("hyrasTmeanRegionSelect");
@@ -11298,7 +11323,7 @@ function hyrasTmaxSetCurveKpis(region,period,rows){
   document.getElementById("hyrasCurrentMean").textContent=hyrasTmaxFmt(current);
   document.getElementById("hyrasCurrentMeanDetail").textContent=region;
 
-  setHeading("hyrasReferenceMean","Mittel 1991–2020");
+  setHeading("hyrasReferenceMean",`Mittel ${hyrasReferenceDisplay()}`);
   document.getElementById("hyrasReferenceMean").textContent=hyrasTmaxFmt(normal);
   document.getElementById("hyrasReferenceMeanDetail").textContent=
     "exakt dieselben Kalendertage";
@@ -11313,7 +11338,7 @@ function hyrasTmaxSetCurveKpis(region,period,rows){
 
   document.getElementById("hyrasReferenceNote").textContent=
     hyrasTmaxRegionsIndex.method_note||
-    "HYRAS-Tmax-Gebietsmittel, Referenz 1991–2020.";
+    `HYRAS-Tmax-Gebietsmittel, Referenz ${hyrasReferenceDisplay()}.`;
 }
 function hyrasTmaxPdfFilenamePart(value){
   return String(value||"")
@@ -11371,7 +11396,7 @@ async function hyrasTmaxExportCurvePdf(event,region,period){
     pdf.setFontSize(9.5);
     pdf.setTextColor(85,95,105);
     pdf.text(
-      `${period?.label||""} | taegliches HYRAS-Tmax-Gebietsmittel gegen 1991-2020`,
+      `${period?.label||""} | taegliches HYRAS-Tmax-Gebietsmittel gegen ${hyrasReferencePeriod()}`,
       margin,
       21
     );
@@ -11482,7 +11507,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-region-head">
       <div>
         <h3>Tagesmaximum – ${region}</h3>
-        <p>${period.label} · tägliches HYRAS-Tmax-Gebietsmittel gegen 1991–2020</p>
+        <p>${period.label} · tägliches HYRAS-Tmax-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p>
       </div>
     </div>
     <div class="hyras-tmean-chart-wrap">
@@ -11552,7 +11577,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
         labels,
         datasets:[
           {
-            label:"Mittel 1991–2020",
+            label:`Mittel ${hyrasReferenceDisplay()}`,
             data:climate,
             borderColor:"#666",
             borderWidth:2,
@@ -11648,6 +11673,7 @@ function hyrasTmaxRenderCurveChart(region,period,rows){
 async function renderHyrasTmax(){
   try{
     await hyrasTmaxRegionsEnsureLoaded();
+    await hyrasTmaxEnsureClimateReference();
     const region=hyrasTmaxRegionName();
     const period=hyrasTmaxCurvePeriod();
     if(!period)return;
@@ -11667,7 +11693,7 @@ async function renderHyrasTmean(){
     hyrasTmaxRegionChart=null;
   }
   try{
-    await hyrasTmeanRegionsEnsureLoaded();const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
+    await hyrasTmeanRegionsEnsureLoaded();await hyrasTmeanEnsureClimateReference();const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
     const rows=hyrasTmeanCurveRows(region,period);hyrasTmeanSetCurveKpis(region,period,rows);hyrasTmeanRenderCurveChart(region,period,rows);
   }catch(error){console.error("HYRAS Tmean Gebietskurven:",error);const frame=document.getElementById("hyrasMapFrame");if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;}
 }
@@ -11694,14 +11720,14 @@ async function hyrasSwitchParameter(){
       await hyrasTmeanRegionsEnsureLoaded();
       hyrasTmeanPopulateRegions();
       hyrasTmeanPopulateCurvePeriods();
-      if(status)status.textContent=`Tmean · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmeanRegionsIndex.data_through)} · Referenz 1991–2020`;
+      if(status)status.textContent=`Tmean · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmeanRegionsIndex.data_through)} · Referenz ${hyrasReferenceDisplay()}`;
       await renderHyrasTmean();
     }else{
       if(status)status.textContent="HYRAS Tmax Gebietskurven werden geladen …";
       await hyrasTmaxRegionsEnsureLoaded();
       hyrasTmaxPopulateRegions();
       hyrasTmaxPopulateCurvePeriods();
-      if(status)status.textContent=`Tmax · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmaxRegionsIndex.data_through)} · Referenz 1991–2020`;
+      if(status)status.textContent=`Tmax · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmaxRegionsIndex.data_through)} · Referenz ${hyrasReferenceDisplay()}`;
       await renderHyrasTmax();
     }
   }else{
@@ -11752,7 +11778,7 @@ function initHyrasControls(){
   document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>hyrasSwitchParameter());
   document.getElementById("hyrasTmeanRegionSelect")?.addEventListener("change",()=>renderHyras());
   document.getElementById("hyrasMetricSelect")?.addEventListener("change",()=>renderHyras());
-  document.getElementById("hyrasReferenceSelect")?.addEventListener("change",()=>{hyrasPresetState=null;hyrasLivePresetState=null;hyrasHistoricalState=null;hyrasTmeanHistoricalState=null;hyrasRestorePrecipMetricOptions();const p=hyrasParameter();if(p==="precipitation"&&document.getElementById("hyrasPeriodSelect")?.value==="__historical__")hyrasApplyHistorical();else renderHyras();});
+  document.getElementById("hyrasReferenceSelect")?.addEventListener("change",()=>{hyrasPresetState=null;hyrasLivePresetState=null;hyrasHistoricalState=null;hyrasTmeanHistoricalState=null;hyrasTmeanRegionsClimateReference=null;hyrasTmaxRegionsClimateReference=null;hyrasTminRegionsClimateReference=null;hyrasRestorePrecipMetricOptions();const p=hyrasParameter();if(p==="precipitation"&&document.getElementById("hyrasPeriodSelect")?.value==="__historical__")hyrasApplyHistorical();else renderHyras();});
   document.getElementById("hyrasPeriodSelect")?.addEventListener("change",event=>{if(event.target.value!=="__custom__")hyrasCustomState=null;if(event.target.value!=="__historical__")hyrasHistoricalState=null;hyrasPresetState=null;hyrasLivePresetState=null;renderHyras();});
   document.getElementById("hyrasCustomApply")?.addEventListener("click",()=>hyrasApplyCustomRange());
   document.getElementById("hyrasHistoricalType")?.addEventListener("change",()=>hyrasHistoricalTypeControls());
@@ -14194,6 +14220,7 @@ initializeDashboardState();
 let hyrasTminRegionsIndex=null;
 let hyrasTminRegionsCurrent=null;
 let hyrasTminRegionsClimate=null;
+let hyrasTminRegionsClimateReference=null;
 let hyrasTminRegionsRecords=null;
 // HYRAS_TMIN_MAP_DOWNLOADS_V1
 let hyrasTminMapDownloads=null;
@@ -14226,12 +14253,24 @@ async function hyrasTminRegionsEnsureLoaded(){
     ]);
     hyrasTminRegionsCurrent=current;
     hyrasTminRegionsClimate=climate;
+    hyrasTminRegionsClimateReference=String(climate?.reference||hyrasTminRegionsIndex?.default_reference||"1991-2020");
     hyrasTminRegionsRecords=records;
     hyrasTminMapDownloads=maps;
     return hyrasTminRegionsIndex;
   })().finally(()=>{hyrasTminRegionsLoading=null;});
 
   return hyrasTminRegionsLoading;
+}
+async function hyrasTminEnsureClimateReference(){
+  const reference=hyrasReferencePeriod();
+  if(hyrasTminRegionsClimate&&hyrasTminRegionsClimateReference===reference)return hyrasTminRegionsClimate;
+  const path=hyrasTminRegionsIndex?.climate_files_by_reference?.[reference]
+    ||(reference==="1991-2020"?hyrasTminRegionsIndex?.climate_file:null);
+  if(!path)throw new Error(`Tmin-Gebietskurve für Referenz ${hyrasReferenceDisplay()} ist noch nicht veröffentlicht.`);
+  const climate=await hyrasTminRegionsFetch(path);
+  hyrasTminRegionsClimate=climate;
+  hyrasTminRegionsClimateReference=reference;
+  return climate;
 }
 function hyrasTminPopulateRegions(){
   const select=document.getElementById("hyrasTmeanRegionSelect");
@@ -14320,7 +14359,7 @@ function hyrasTminSetCurveKpis(region,period,rows){
   document.getElementById("hyrasCurrentMean").textContent=hyrasTminFmt(current);
   document.getElementById("hyrasCurrentMeanDetail").textContent=region;
 
-  setHeading("hyrasReferenceMean","Mittel 1991–2020");
+  setHeading("hyrasReferenceMean",`Mittel ${hyrasReferenceDisplay()}`);
   document.getElementById("hyrasReferenceMean").textContent=hyrasTminFmt(normal);
   document.getElementById("hyrasReferenceMeanDetail").textContent="exakt dieselben Kalendertage";
 
@@ -14333,7 +14372,7 @@ function hyrasTminSetCurveKpis(region,period,rows){
 
   document.getElementById("hyrasReferenceNote").textContent=
     hyrasTminRegionsIndex.method_note||
-    "HYRAS-Tmin-Gebietsmittel, Referenz 1991–2020.";
+    `HYRAS-Tmin-Gebietsmittel, Referenz ${hyrasReferenceDisplay()}.`;
 }
 function hyrasTminPdfFilenamePart(value){
   return String(value||"")
@@ -14391,7 +14430,7 @@ async function hyrasTminExportCurvePdf(event,region,period){
     pdf.setFontSize(9.5);
     pdf.setTextColor(85,95,105);
     pdf.text(
-      `${period?.label||""} | taegliches HYRAS-Tmin-Gebietsmittel gegen 1991-2020`,
+      `${period?.label||""} | taegliches HYRAS-Tmin-Gebietsmittel gegen ${hyrasReferencePeriod()}`,
       margin,
       21
     );
@@ -14504,7 +14543,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
     <div class="hyras-tmean-region-head">
       <div>
         <h3>Tagesminimum – ${region}</h3>
-        <p>${period.label} · tägliches HYRAS-Tmin-Gebietsmittel gegen 1991–2020</p>
+        <p>${period.label} · tägliches HYRAS-Tmin-Gebietsmittel gegen ${hyrasReferenceDisplay()}</p>
       </div>
     </div>
     <div class="hyras-tmean-chart-wrap">
@@ -14575,7 +14614,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
         labels,
         datasets:[
           {
-            label:"Mittel 1991–2020",
+            label:`Mittel ${hyrasReferenceDisplay()}`,
             data:climate,
             borderColor:"#666",
             borderWidth:2,
@@ -14671,6 +14710,7 @@ function hyrasTminRenderCurveChart(region,period,rows){
 async function renderHyrasTmin(){
   try{
     await hyrasTminRegionsEnsureLoaded();
+    await hyrasTminEnsureClimateReference();
     const region=hyrasTminRegionName();
     const period=hyrasTminCurvePeriod();
     if(!period)return;
@@ -14729,7 +14769,7 @@ hyrasSwitchParameter=async function(){
 
   if(status){
     status.textContent=
-      `Tmin · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTminRegionsIndex.data_through)} · Referenz 1991–2020`;
+      `Tmin · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTminRegionsIndex.data_through)} · Referenz ${hyrasReferenceDisplay()}`;
   }
   await renderHyrasTmin();
 };

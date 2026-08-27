@@ -1,0 +1,143 @@
+name: HYRAS Gebietskurven Referenz 1961-1990 ergänzen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build_hyras_region_reference_1961_1990.py"
+      - ".github/workflows/add-hyras-region-reference-1961-1990.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [tmean, tmax, tmin]
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Regionale Klimakurve 1961-1990 bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "/tmp/hyras-region-reference/${{ matrix.parameter }}"
+          python scripts/build_hyras_region_reference_1961_1990.py \
+            --parameter "${{ matrix.parameter }}" \
+            --work /tmp/hyras-region-reference-work \
+            --output "/tmp/hyras-region-reference/${{ matrix.parameter }}/climate_1961_1990.json"
+
+      - name: Referenzkurve hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-region-reference-${{ matrix.parameter }}
+          path: /tmp/hyras-region-reference/${{ matrix.parameter }}/climate_1961_1990.json
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Referenzkurven herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-region-reference-*
+          path: /tmp/hyras-region-reference-artifacts
+
+      - name: hyras-data laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-region-reference-data
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-region-reference-publish /tmp/hyras-region-reference-data origin/hyras-data
+
+      - name: Referenzkurven einbauen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data=Path('/tmp/hyras-region-reference-data')
+          artifacts=Path('/tmp/hyras-region-reference-artifacts')
+          expected=['1991-2020','1961-1990']
+
+          for parameter in ('tmean','tmax','tmin'):
+              matches=list(artifacts.glob(f'hyras-region-reference-{parameter}/climate_1961_1990.json'))
+              if len(matches) != 1:
+                  raise SystemExit(f'{parameter}: Referenzartefakt nicht eindeutig: {matches}')
+
+              regions=data/parameter/'regions'
+              target=regions/'climate_1961_1990.json'
+              target.write_bytes(matches[0].read_bytes())
+
+              climate=json.loads(target.read_text(encoding='utf-8'))
+              if climate.get('reference') != '1961-1990':
+                  raise SystemExit(f'{parameter}: falsche Referenz')
+              if len((climate.get('regions') or {}).get('Deutschland', {})) < 365:
+                  raise SystemExit(f'{parameter}: Deutschland-Kurve unvollständig')
+
+              index_path=regions/'index.json'
+              index=json.loads(index_path.read_text(encoding='utf-8'))
+              default=index.get('climate_file') or 'climate_1991_2020.json'
+              by_ref=dict(index.get('climate_files_by_reference') or {})
+              by_ref['1991-2020']=default
+              by_ref['1961-1990']='climate_1961_1990.json'
+              index['climate_files_by_reference']=by_ref
+              index['references']=expected
+              index['default_reference']='1991-2020'
+              index_path.write_text(
+                  json.dumps(index, ensure_ascii=False, indent=2),
+                  encoding='utf-8',
+              )
+
+          print('Regionale HYRAS-Klimakurven 1961-1990 eingebaut.')
+          PY
+
+      - name: hyras-data veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-region-reference-data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmean/regions tmax/regions tmin/regions
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen."
+            exit 0
+          fi
+          git commit -m "HYRAS Gebietskurven Referenz 1961-1990 ergänzen"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
