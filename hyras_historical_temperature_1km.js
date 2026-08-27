@@ -153,7 +153,7 @@
     const style=document.createElement("style");
     style.id="hyrasHistoricalTemperature1kmStyle";
     style.textContent=`
-      .hyras-hist1km-wrap{width:100%;padding:12px;background:#fff}
+      .hyras-historical-range.hyras-historical-temperature-visible{display:flex!important}\n      .hyras-hist1km-wrap{width:100%;padding:12px;background:#fff}
       .hyras-hist1km-title{text-align:center;font-size:20px;font-weight:800;margin:4px 0}
       .hyras-hist1km-subtitle{text-align:center;color:#4b5563;font-size:13px;margin:0 0 10px}
       .hyras-hist1km-map{width:min(100%,820px);margin:0 auto;background-repeat:no-repeat;background-color:#fff;border-radius:4px}
@@ -291,12 +291,13 @@
 
   async function syncParameterControls(){
     const p=parameter();
+    const box=historicalBox();
     if(!isTemperature(p)){
       historicalState=null;
+      if(box)box.classList.remove("hyras-historical-temperature-visible");
       return;
     }
-    const box=historicalBox();
-    if(box)box.style.display="";
+    if(box)box.classList.add("hyras-historical-temperature-visible");
     const group=metricGroup();
     if(group&&!historicalState)group.style.display="none";
 
