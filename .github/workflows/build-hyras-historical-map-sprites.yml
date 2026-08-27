@@ -283,6 +283,10 @@ jobs:
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add historical_temperature_maps_1km/index.json
+          if git diff --cached --quiet; then
+            echo "Sprite-Index ist bereits aktuell – nichts zu committen."
+            exit 0
+          fi
           git commit -m "HYRAS historische 1-km-Kartenindex aktualisiert"
           git fetch origin hyras-data
           git rebase origin/hyras-data
