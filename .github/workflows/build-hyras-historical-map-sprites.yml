@@ -1,0 +1,283 @@
+name: HYRAS historische 1-km-Kartensprites bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: "Erstes Jahr"
+        required: true
+        type: number
+        default: 1951
+      end_year:
+        description: "Letztes Jahr"
+        required: true
+        type: number
+        default: 2025
+      parameter:
+        description: "Parameter"
+        required: true
+        type: choice
+        options:
+          - all
+          - tmean
+          - tmax
+          - tmin
+        default: all
+      force:
+        description: "Vorhandene Sprites neu erzeugen"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-historical-map-sprites-1km
+  cancel-in-progress: false
+
+env:
+  PERIOD_TAG: hyras-period-archive-1km
+  MAP_TAG: hyras-historical-maps-1km
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      needed: ${{ steps.plan.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Sprite-Logik testen
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-hyras.txt pytest
+          python -m pytest -q tests/test_hyras_historical_map_sprites.py
+
+      - name: Release sicherstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$MAP_TAG" >/dev/null 2>&1; then
+            gh release create "$MAP_TAG"               --title "HYRAS historische 1-km-Kartensprites"               --notes "Browserfreundliche 1-km-Kartensprites für historische Tmean/Tmax/Tmin-Perioden, abgeleitet aus dem vollständigen HYRAS-Periodenarchiv."
+          fi
+
+      - name: Matrix bestimmen
+        id: plan
+        env:
+          START_YEAR: ${{ inputs.start_year }}
+          END_YEAR: ${{ inputs.end_year }}
+          PARAMETER: ${{ inputs.parameter }}
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+
+          start=int(os.environ['START_YEAR'])
+          end=int(os.environ['END_YEAR'])
+          if start < 1951 or end < start or end > 2025:
+              raise SystemExit(f'Ungültiger Bereich: {start}–{end}')
+          selected=os.environ['PARAMETER']
+          parameters=['tmean','tmax','tmin'] if selected=='all' else [selected]
+          force=os.environ.get('FORCE','false').lower()=='true'
+
+          existing=set()
+          if not force:
+              rid=subprocess.check_output([
+                  'gh','api',
+                  f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{os.environ["MAP_TAG"]}',
+                  '--jq','.id'
+              ],text=True).strip()
+              raw=subprocess.check_output([
+                  'gh','api','--paginate',
+                  f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/{rid}/assets?per_page=100',
+                  '--jq','.[].name'
+              ],text=True)
+              existing={line.strip() for line in raw.splitlines() if line.strip()}
+
+          include=[]
+          for parameter in parameters:
+              for year in range(start,end+1):
+                  expected=[
+                      f'hyras-historical-{parameter}-{year}-absolute-1km.png',
+                      f'hyras-historical-{parameter}-{year}-anomaly_1961-1990-1km.png',
+                      f'hyras-historical-{parameter}-{year}-anomaly_1991-2020-1km.png',
+                  ]
+                  if force or not all(name in existing for name in expected):
+                      include.append({'parameter':parameter,'year':year})
+
+          print('matrix='+json.dumps({'include':include},separators=(',',':')))
+          print('needed='+('true' if include else 'false'))
+          print('Geplante Sprite-Jobs:',len(include),file=os.sys.stderr)
+          PY
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-hyras.txt
+
+      - name: Periodenarchive laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARAMETER: ${{ matrix.parameter }}
+          YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-sprites/in /tmp/hyras-sprites/out
+          gh release download "$PERIOD_TAG"             --pattern "hyras-periods-${PARAMETER}-${YEAR}-1km.npz"             --dir /tmp/hyras-sprites/in --skip-existing
+          gh release download "$PERIOD_TAG"             --pattern "hyras-period-reference-${PARAMETER}-1961-1990-1km.npz"             --dir /tmp/hyras-sprites/in --skip-existing
+          gh release download "$PERIOD_TAG"             --pattern "hyras-period-reference-${PARAMETER}-1991-2020-1km.npz"             --dir /tmp/hyras-sprites/in --skip-existing
+
+      - name: 1-km-Kartensprites rendern
+        env:
+          PARAMETER: ${{ matrix.parameter }}
+          YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOUNDARY=""
+          if [ -f "hyras/boundary_overlay_1km.png" ]; then
+            BOUNDARY="--boundary hyras/boundary_overlay_1km.png"
+          elif [ -f "boundary_overlay_1km.png" ]; then
+            BOUNDARY="--boundary boundary_overlay_1km.png"
+          fi
+          python scripts/build_hyras_historical_map_sprites.py             --parameter "$PARAMETER"             --year "$YEAR"             --archive "/tmp/hyras-sprites/in/hyras-periods-${PARAMETER}-${YEAR}-1km.npz"             --reference-1961 "/tmp/hyras-sprites/in/hyras-period-reference-${PARAMETER}-1961-1990-1km.npz"             --reference-1991 "/tmp/hyras-sprites/in/hyras-period-reference-${PARAMETER}-1991-2020-1km.npz"             $BOUNDARY             --output-dir /tmp/hyras-sprites/out             --repository "$GITHUB_REPOSITORY"
+
+      - name: Sprites prüfen
+        env:
+          PARAMETER: ${{ matrix.parameter }}
+          YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from PIL import Image
+          root=Path('/tmp/hyras-sprites/out')
+          p=os.environ['PARAMETER']; y=int(os.environ['YEAR'])
+          meta=json.loads((root/f'hyras-historical-{p}-{y}-1km.json').read_text())
+          assert meta['resolution_km']==1
+          assert len(meta['sprite_layout']['period_keys'])==17
+          assert len(meta['sprites'])==3
+          for item in meta['sprites'].values():
+              path=root/item['file']
+              assert path.exists() and path.stat().st_size==item['bytes']
+              with Image.open(path) as im:
+                  assert im.size==(meta['width']*5,meta['height']*4)
+          print('Sprites geprüft:',p,y)
+          PY
+
+      - name: Sprites hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$MAP_TAG" /tmp/hyras-sprites/out/*.png --clobber
+
+      - name: Metadaten hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-historical-map-meta-${{ matrix.parameter }}-${{ matrix.year }}
+          path: /tmp/hyras-sprites/out/*.json
+          retention-days: 3
+
+  finalize:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.needed == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-historical-map-meta-*
+          path: /tmp/hyras-sprites-final/meta
+          merge-multiple: true
+
+      - name: hyras-data laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-map-sprites-publish /tmp/hyras-sprites-final/data origin/hyras-data
+
+      - name: Sprite-Index aktualisieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/hyras-sprites-final/data')
+          meta_root=Path('/tmp/hyras-sprites-final/meta')
+          out=root/'historical_temperature_maps_1km'
+          out.mkdir(parents=True,exist_ok=True)
+          ip=out/'index.json'
+          if ip.exists():
+              index=json.loads(ip.read_text(encoding='utf-8'))
+          else:
+              index={
+                  'schema_version':1,
+                  'resolution_km':1,
+                  'release_tag':'hyras-historical-maps-1km',
+                  'period_keys':[f'month_{m:02d}' for m in range(1,13)]+['spring','summer','autumn','winter','year'],
+                  'references':['1961-1990','1991-2020'],
+                  'parameters':{'tmean':{},'tmax':{},'tmin':{}},
+              }
+
+          for path in sorted(meta_root.glob('*.json')):
+              meta=json.loads(path.read_text(encoding='utf-8'))
+              index.setdefault('parameters',{}).setdefault(meta['parameter'],{})[str(meta['year'])]=meta
+
+          years=[int(y) for values in index.get('parameters',{}).values() for y in values]
+          index['archive_entries']=sum(len(v) for v in index.get('parameters',{}).values())
+          index['first_year']=min(years) if years else None
+          index['last_year']=max(years) if years else None
+          index['note']='Browserfreundliche 1-km-Kartensprites aus dem vollständigen historischen HYRAS-Temperaturarchiv.'
+          ip.write_text(json.dumps(index,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('Sprite-Index:',index['archive_entries'],'Jahresarchive')
+          PY
+
+      - name: Sprite-Index veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-sprites-final/data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historical_temperature_maps_1km/index.json
+          git commit -m "HYRAS historische 1-km-Kartenindex aktualisiert"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
