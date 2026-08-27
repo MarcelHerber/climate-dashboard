@@ -2159,7 +2159,7 @@ button.action:hover{background:#1f2937}
       <div class="hyras-rank-timeline-note">Tages-, Monats- und Sommerrang wechseln gemeinsam auf denselben HYRAS-Datenstand.</div>
       <div class="hyras-rank-timeline-tools">
         <button id="hyrasRankPreload" class="action" type="button" onclick="hyrasRankPreloadAll()">⚡ Alle Karten vorladen</button>
-        <button id="hyrasRankDownload" class="action" type="button" onclick="hyrasRankDownloadAnimation()">⬇ Animation herunterladen</button>
+        <button id="hyrasRankDownload" class="action" type="button" onclick="hyrasRankDownloadAnimation()">⬇ MP4 herunterladen</button>
         <span id="hyrasRankActionStatus" class="hyras-rank-action-status">Bereit</span>
       </div>
     </div>
@@ -11980,10 +11980,19 @@ function hyrasRankDrawExportFrame(ctx,canvas,drawables,dateText,parameter,positi
     );
   });
 }
-function hyrasRankBestWebmMime(){
-  if(typeof MediaRecorder==="undefined")return "";
-  const candidates=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
-  return candidates.find(type=>!MediaRecorder.isTypeSupported||MediaRecorder.isTypeSupported(type))||"";
+function hyrasRankBestMp4Format(){
+  if(typeof MediaRecorder==="undefined")return null;
+  const candidates=[
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4;codecs=avc1",
+    "video/mp4"
+  ];
+  const mime=candidates.find(type=>
+    typeof MediaRecorder.isTypeSupported!=="function"
+      ?type==="video/mp4"
+      :MediaRecorder.isTypeSupported(type)
+  );
+  return mime?{mime,extension:"mp4",label:"MP4"}:null;
 }
 async function hyrasRankDownloadAnimation(){
   if(hyrasRankDownloadActive||hyrasRankPreloadActive)return;
@@ -11991,18 +12000,43 @@ async function hyrasRankDownloadAnimation(){
     hyrasRankSetActionStatus("Zu wenige Animationstage für einen Download","error");
     return;
   }
-  const mime=hyrasRankBestWebmMime();
+  const format=hyrasRankBestMp4Format();
   const testCanvas=document.createElement("canvas");
-  if(!mime||typeof testCanvas.captureStream!=="function"){
-    hyrasRankSetActionStatus("Videoexport wird von diesem Browser nicht unterstützt","error");
+  if(!format||typeof testCanvas.captureStream!=="function"){
+    hyrasRankSetActionStatus("MP4-Export wird von diesem Browser nicht unterstützt","error");
     return;
   }
 
   const parameter=document.getElementById("hyrasRankParameterSelect")?.value||"tmean";
+  const first=hyrasRankDates[0];
+  const last=hyrasRankDates[hyrasRankDates.length-1];
+  const fileName=`hyras-rangkarten_${parameter}_${first}_bis_${last}.mp4`;
+  let saveHandle=null;
+
+  if(typeof window.showSaveFilePicker==="function"){
+    try{
+      saveHandle=await window.showSaveFilePicker({
+        id:"hyras-rank-animation",
+        suggestedName:fileName,
+        startIn:"downloads",
+        types:[{
+          description:"MP4-Video",
+          accept:{"video/mp4":[".mp4"]}
+        }]
+      });
+    }catch(error){
+      if(error?.name==="AbortError"){
+        hyrasRankSetActionStatus("Download abgebrochen");
+        return;
+      }
+      console.warn("Speichern-unter-Dialog nicht verfügbar:",error);
+    }
+  }
+
   hyrasRankStopPlay();
   hyrasRankDownloadActive=true;
   hyrasRankSetToolButtonsDisabled(true);
-  hyrasRankSetActionStatus(`${hyrasRankParameterLabel(parameter)} · Animation wird vorbereitet …`,"busy");
+  hyrasRankSetActionStatus(`${hyrasRankParameterLabel(parameter)} · MP4 wird vorbereitet …`,"busy");
 
   const canvas=document.createElement("canvas");
   canvas.width=1920;
@@ -12011,7 +12045,7 @@ async function hyrasRankDownloadAnimation(){
   if(!ctx){
     hyrasRankDownloadActive=false;
     hyrasRankSetToolButtonsDisabled(false);
-    hyrasRankSetActionStatus("Videocanvas konnte nicht erstellt werden","error");
+    hyrasRankSetActionStatus("MP4-Canvas konnte nicht erstellt werden","error");
     return;
   }
 
@@ -12019,12 +12053,12 @@ async function hyrasRankDownloadAnimation(){
   const chunks=[];
   let recorder;
   try{
-    recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:6000000});
+    recorder=new MediaRecorder(stream,{mimeType:format.mime,videoBitsPerSecond:6000000});
   }catch(error){
     stream.getTracks().forEach(track=>track.stop());
     hyrasRankDownloadActive=false;
     hyrasRankSetToolButtonsDisabled(false);
-    hyrasRankSetActionStatus("Videoencoder konnte nicht gestartet werden","error");
+    hyrasRankSetActionStatus("MP4-Encoder konnte nicht gestartet werden","error");
     return;
   }
 
@@ -12037,7 +12071,7 @@ async function hyrasRankDownloadAnimation(){
     for(let index=0;index<hyrasRankDates.length;index++){
       const date=hyrasRankDates[index];
       hyrasRankSetActionStatus(
-        `${hyrasRankParameterLabel(parameter)} · Video ${index+1}/${hyrasRankDates.length} · ${hyrasRankDisplayDate(date)}`,
+        `${hyrasRankParameterLabel(parameter)} · MP4 ${index+1}/${hyrasRankDates.length} · ${hyrasRankDisplayDate(date)}`,
         "busy"
       );
       const urls=HYRAS_RANK_PERIODS.map(item=>hyrasRankArchiveUrl(parameter,item.key,date));
@@ -12055,7 +12089,7 @@ async function hyrasRankDownloadAnimation(){
   }catch(error){
     failed=true;
     console.error("HYRAS-Animationsdownload:",error);
-    hyrasRankSetActionStatus(`Videoexport abgebrochen: ${error.message}`,"error");
+    hyrasRankSetActionStatus(`MP4-Export abgebrochen: ${error.message}`,"error");
   }finally{
     if(recorder.state!=="inactive")recorder.stop();
     await stopped;
@@ -12063,23 +12097,33 @@ async function hyrasRankDownloadAnimation(){
   }
 
   if(!failed&&chunks.length){
-    const blob=new Blob(chunks,{type:mime});
-    const url=URL.createObjectURL(blob);
-    const link=document.createElement("a");
-    const first=hyrasRankDates[0];
-    const last=hyrasRankDates[hyrasRankDates.length-1];
-    link.href=url;
-    link.download=`hyras-rangkarten_${parameter}_${first}_bis_${last}.webm`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(()=>URL.revokeObjectURL(url),15000);
-    hyrasRankSetActionStatus(
-      `${hyrasRankParameterLabel(parameter)} · WebM mit ${hyrasRankDates.length} Tagen erstellt`,
-      "done"
-    );
+    const actualMime=recorder.mimeType||format.mime||"video/mp4";
+    const blob=new Blob(chunks,{type:actualMime});
+    try{
+      if(saveHandle){
+        const writable=await saveHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      }else{
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a");
+        link.href=url;
+        link.download=fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(()=>URL.revokeObjectURL(url),15000);
+      }
+      hyrasRankSetActionStatus(
+        `${hyrasRankParameterLabel(parameter)} · MP4 mit ${hyrasRankDates.length} Tagen gespeichert`,
+        "done"
+      );
+    }catch(error){
+      console.error("HYRAS-MP4 speichern:",error);
+      hyrasRankSetActionStatus(`MP4 konnte nicht gespeichert werden: ${error.message}`,"error");
+    }
   }else if(!failed){
-    hyrasRankSetActionStatus("Videoexport lieferte keine Daten","error");
+    hyrasRankSetActionStatus("MP4-Export lieferte keine Daten","error");
   }
 
   hyrasRankDownloadActive=false;
