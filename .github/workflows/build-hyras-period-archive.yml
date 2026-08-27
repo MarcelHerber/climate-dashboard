@@ -1,0 +1,422 @@
+name: HYRAS 1-km-Periodenarchiv bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: "Erstes Archivjahr"
+        required: true
+        type: number
+        default: 1951
+      end_year:
+        description: "Letztes Archivjahr"
+        required: true
+        type: number
+        default: 2025
+      parameter:
+        description: "Parameter"
+        required: true
+        type: choice
+        options:
+          - all
+          - tmean
+          - tmax
+          - tmin
+        default: all
+      force:
+        description: "Vorhandene Periodenarchive neu erzeugen"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-period-archive-1km
+  cancel-in-progress: false
+
+env:
+  DAILY_TAG: hyras-daily-archive-1km
+  PERIOD_TAG: hyras-period-archive-1km
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      needed: ${{ steps.plan.outputs.needed }}
+      reference_matrix: ${{ steps.plan.outputs.reference_matrix }}
+      build_references: ${{ steps.plan.outputs.build_references }}
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Periodenlogik testen
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-hyras.txt pytest
+          python -m pytest -q tests/test_hyras_historical_period_archive.py
+
+      - name: Release sicherstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$PERIOD_TAG" >/dev/null 2>&1; then
+            gh release create "$PERIOD_TAG" \
+              --title "HYRAS 1-km-Periodenarchiv" \
+              --notes "12 Monate, vier meteorologische Jahreszeiten und Gesamtjahr für Tmean/Tmax/Tmin im nativen 1-km-HYRAS-Raster."
+          fi
+
+      - name: Matrix bestimmen
+        id: plan
+        env:
+          START_YEAR: ${{ inputs.start_year }}
+          END_YEAR: ${{ inputs.end_year }}
+          PARAMETER: ${{ inputs.parameter }}
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+
+          start=int(os.environ['START_YEAR'])
+          end=int(os.environ['END_YEAR'])
+          if start < 1951 or end < start or end > 2025:
+              raise SystemExit(f'Ungültiger historischer Bereich: {start}–{end}')
+          selected=os.environ['PARAMETER']
+          parameters=['tmean','tmax','tmin'] if selected=='all' else [selected]
+          force=os.environ.get('FORCE','false').lower()=='true'
+
+          existing=set()
+          if not force:
+              release_id=subprocess.check_output([
+                  'gh','api',
+                  f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{os.environ["PERIOD_TAG"]}',
+                  '--jq','.id',
+              ],text=True).strip()
+              raw=subprocess.check_output([
+                  'gh','api','--paginate',
+                  f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/{release_id}/assets?per_page=100',
+                  '--jq','.[].name',
+              ],text=True)
+              existing={line.strip() for line in raw.splitlines() if line.strip()}
+
+          include=[]
+          for parameter in parameters:
+              missing=[
+                  year for year in range(start,end+1)
+                  if force or f'hyras-periods-{parameter}-{year}-1km.npz' not in existing
+              ]
+              for pos in range(0,len(missing),10):
+                  years=missing[pos:pos+10]
+                  if years:
+                      include.append({
+                          'parameter':parameter,
+                          'years':','.join(map(str,years)),
+                          'first_year':years[0],
+                          'last_year':years[-1],
+                      })
+
+          build_refs=start<=1961 and end>=2020 and bool(include)
+          reference_include=[
+              {'parameter':parameter,'reference':reference}
+              for parameter in parameters
+              for reference in ('1961-1990','1991-2020')
+          ] if build_refs else []
+
+          print('matrix='+json.dumps({'include':include},separators=(',',':')))
+          print('needed='+('true' if include else 'false'))
+          print('build_references='+('true' if build_refs else 'false'))
+          print('reference_matrix='+json.dumps({'include':reference_include},separators=(',',':')))
+          print('Geplante Perioden-Shards:',len(include),file=os.sys.stderr)
+          PY
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Benötigte 1-km-Tagesarchive laden
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARAMETER: ${{ matrix.parameter }}
+          YEARS: ${{ matrix.years }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-period/daily /tmp/hyras-period/out
+          IFS=',' read -ra YEAR_LIST <<< "$YEARS"
+          FIRST="${YEAR_LIST[0]}"
+          if (( FIRST > 1951 )); then
+            PREV=$((FIRST-1))
+            gh release download "$DAILY_TAG" \
+              --pattern "hyras-${PARAMETER}-${PREV}-1km.npz" \
+              --dir /tmp/hyras-period/daily --skip-existing
+          fi
+          for YEAR in "${YEAR_LIST[@]}"; do
+            gh release download "$DAILY_TAG" \
+              --pattern "hyras-${PARAMETER}-${YEAR}-1km.npz" \
+              --dir /tmp/hyras-period/daily --skip-existing
+          done
+
+      - name: 17 Perioden pro Jahr bauen
+        env:
+          PARAMETER: ${{ matrix.parameter }}
+          YEARS: ${{ matrix.years }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra YEAR_LIST <<< "$YEARS"
+          for YEAR in "${YEAR_LIST[@]}"; do
+            EXTRA=()
+            if (( YEAR > 1951 )); then
+              PREV=$((YEAR-1))
+              EXTRA+=(--previous-daily-archive "/tmp/hyras-period/daily/hyras-${PARAMETER}-${PREV}-1km.npz")
+            fi
+            python scripts/build_hyras_historical_period_archive.py year \
+              --parameter "$PARAMETER" \
+              --year "$YEAR" \
+              --daily-archive "/tmp/hyras-period/daily/hyras-${PARAMETER}-${YEAR}-1km.npz" \
+              "${EXTRA[@]}" \
+              --output-dir /tmp/hyras-period/out \
+              --repository "$GITHUB_REPOSITORY"
+          done
+
+      - name: Periodenarchive prüfen
+        env:
+          PARAMETER: ${{ matrix.parameter }}
+          YEARS: ${{ matrix.years }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          import numpy as np
+
+          root=Path('/tmp/hyras-period/out')
+          parameter=os.environ['PARAMETER']
+          for year in [int(v) for v in os.environ['YEARS'].split(',') if v]:
+              meta=json.loads((root/f'hyras-periods-{parameter}-{year}-1km.json').read_text())
+              archive=root/meta['archive_file']
+              assert meta['resolution_km']==1
+              assert len(meta['period_keys'])==17
+              assert meta['archive_bytes']==archive.stat().st_size
+              with np.load(archive,allow_pickle=False) as data:
+                  values=np.asarray(data['values'])
+                  keys=[str(v) for v in np.asarray(data['period_keys']).tolist()]
+                  assert values.shape==(17,meta['height'],meta['width'])
+                  assert keys[:12]==[f'month_{m:02d}' for m in range(1,13)]
+                  assert keys[-5:]==['spring','summer','autumn','winter','year']
+                  if year==1951:
+                      assert np.all(values[keys.index('winter')]==-32768)
+              print('Geprüft:',archive.name)
+          PY
+
+      - name: Periodenarchive als Release-Assets hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$PERIOD_TAG" /tmp/hyras-period/out/*.npz --clobber
+
+      - name: Kleine Metadaten-Artefakte hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-period-meta-${{ matrix.parameter }}-${{ matrix.first_year }}-${{ matrix.last_year }}
+          path: /tmp/hyras-period/out/*.json
+          if-no-files-found: error
+          retention-days: 3
+
+  references:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.build_references == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJson(needs.prepare.outputs.reference_matrix) }}
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Referenzjahre laden und Referenz bauen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARAMETER: ${{ matrix.parameter }}
+          REFERENCE: ${{ matrix.reference }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-ref/in /tmp/hyras-ref/out
+          IFS=- read -r START END <<< "$REFERENCE"
+          for YEAR in $(seq "$START" "$END"); do
+            gh release download "$PERIOD_TAG" \
+              --pattern "hyras-periods-${PARAMETER}-${YEAR}-1km.npz" \
+              --dir /tmp/hyras-ref/in --skip-existing
+          done
+          python scripts/build_hyras_historical_period_archive.py reference \
+            --parameter "$PARAMETER" \
+            --start-year "$START" \
+            --end-year "$END" \
+            --input-dir /tmp/hyras-ref/in \
+            --output-dir /tmp/hyras-ref/out \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Referenz als Release-Asset hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$PERIOD_TAG" /tmp/hyras-ref/out/*.npz --clobber
+
+      - name: Referenz-Metadaten hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-period-reference-meta-${{ matrix.parameter }}-${{ matrix.reference }}
+          path: /tmp/hyras-ref/out/*.json
+          if-no-files-found: error
+          retention-days: 3
+
+  finalize:
+    needs: [prepare, build, references]
+    if: >-
+      always() &&
+      needs.prepare.outputs.needed == 'true' &&
+      needs.build.result == 'success' &&
+      (needs.references.result == 'success' || needs.references.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Metadaten herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-period-*meta-*
+          path: /tmp/hyras-final/meta
+          merge-multiple: true
+
+      - name: hyras-data Branch laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-final/data
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-period-publish /tmp/hyras-final/data origin/hyras-data
+
+      - name: Historischen Periodenindex aktualisieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-final/data')
+          meta_root=Path('/tmp/hyras-final/meta')
+          out=root/'historical_period_archive_1km'
+          out.mkdir(parents=True,exist_ok=True)
+          index_path=out/'index.json'
+          if index_path.exists():
+              index=json.loads(index_path.read_text(encoding='utf-8'))
+          else:
+              index={
+                  'schema_version':1,
+                  'resolution_km':1,
+                  'unit':'°C',
+                  'value_scale':100,
+                  'missing_value':-32768,
+                  'release_tag':'hyras-period-archive-1km',
+                  'period_keys':[f'month_{m:02d}' for m in range(1,13)]+['spring','summer','autumn','winter','year'],
+                  'parameters':{'tmean':{},'tmax':{},'tmin':{}},
+                  'references':{'tmean':{},'tmax':{},'tmin':{}},
+              }
+
+          for path in sorted(meta_root.glob('*.json')):
+              meta=json.loads(path.read_text(encoding='utf-8'))
+              parameter=meta['parameter']
+              if 'reference' in meta:
+                  index.setdefault('references',{}).setdefault(parameter,{})[meta['reference']]=meta
+              else:
+                  index.setdefault('parameters',{}).setdefault(parameter,{})[str(meta['year'])]=meta
+
+          years=[int(y) for values in index.get('parameters',{}).values() for y in values]
+          index['archive_entries']=sum(len(v) for v in index.get('parameters',{}).values())
+          index['reference_entries']=sum(len(v) for v in index.get('references',{}).values())
+          index['first_year']=min(years) if years else None
+          index['last_year']=max(years) if years else None
+          index['available_references']=sorted({
+              ref for refs in index.get('references',{}).values() for ref in refs
+          })
+          index['winter_definition']='DJF; Winter endet im ausgewählten Jahr. Winter 1951 ist mangels Dezember 1950 nicht verfügbar.'
+          index['note']='Historisches 1-km-HYRAS-Temperaturarchiv: 12 Monate, Frühling, Sommer, Herbst, Winter und Gesamtjahr.'
+          index_path.write_text(json.dumps(index,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('Periodenindex:',index['archive_entries'],'Jahresarchive ·',index['reference_entries'],'Referenzen')
+          PY
+
+      - name: Periodenindex auf hyras-data veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-final/data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historical_period_archive_1km/index.json
+          if git diff --cached --quiet; then
+            echo "Keine Änderung am historischen HYRAS-Periodenindex."
+            exit 0
+          fi
+          git commit -m "HYRAS 1-km-Periodenarchivindex aktualisiert"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
