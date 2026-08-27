@@ -1,6 +1,8 @@
 name: DWD jährliche Extremwerte Stufe 1
 
 on:
+  schedule:
+    - cron: "15 6 * * *"
   workflow_dispatch:
 
 permissions:
