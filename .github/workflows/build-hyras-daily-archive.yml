@@ -1,0 +1,313 @@
+name: HYRAS 1-km-Tagesarchiv bauen
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: "Erstes Archivjahr"
+        required: true
+        type: number
+        default: 1951
+      end_year:
+        description: "Letztes Archivjahr"
+        required: true
+        type: number
+        default: 2025
+      parameter:
+        description: "Parameter"
+        required: true
+        type: choice
+        options:
+          - all
+          - tmean
+          - tmax
+          - tmin
+        default: all
+      force:
+        description: "Vorhandene Release-Assets neu erzeugen"
+        required: false
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: ["HYRAS Flächenkarten aktualisieren"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-daily-archive-1km
+  cancel-in-progress: false
+
+env:
+  ARCHIVE_TAG: hyras-daily-archive-1km
+
+jobs:
+  prepare:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      needed: ${{ steps.plan.outputs.needed }}
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Archivlogik testen
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-hyras.txt pytest
+          python -m pytest -q tests/test_hyras_daily_archive.py
+
+      - name: Release für das 1-km-Archiv sicherstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$ARCHIVE_TAG" >/dev/null 2>&1; then
+            gh release create "$ARCHIVE_TAG" \
+              --title "HYRAS 1-km-Tagesarchiv" \
+              --notes "Vollständige tägliche HYRAS-DE-Tmean/Tmax/Tmin-Raster im nativen 1-km-Gitter. Historische Jahre ab 1951; laufendes Jahr wird fortgeschrieben."
+          fi
+
+      - name: Archiv-Matrix bestimmen
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          START_YEAR: ${{ inputs.start_year || 1951 }}
+          END_YEAR: ${{ inputs.end_year || 2025 }}
+          PARAMETER: ${{ inputs.parameter || 'all' }}
+          FORCE: ${{ inputs.force || false }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, subprocess
+          from datetime import datetime, timezone
+
+          event = os.environ['EVENT_NAME']
+          force = os.environ.get('FORCE','false').lower() == 'true'
+          current_year = datetime.now(timezone.utc).year
+
+          if event == 'workflow_run':
+              years = [current_year]
+              parameters = ['tmean','tmax','tmin']
+              force = True
+          else:
+              start = int(os.environ['START_YEAR'])
+              end = int(os.environ['END_YEAR'])
+              if start < 1951 or end < start or end > current_year:
+                  raise SystemExit(f'Ungültiger Jahresbereich: {start}–{end}')
+              years = list(range(start, end + 1))
+              p = os.environ.get('PARAMETER','all')
+              parameters = ['tmean','tmax','tmin'] if p == 'all' else [p]
+
+          existing = set()
+          if not force:
+              release_id = subprocess.check_output(
+                  [
+                      'gh','api',
+                      f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/tags/{os.environ["ARCHIVE_TAG"]}',
+                      '--jq','.id',
+                  ],
+                  text=True,
+              ).strip()
+              raw = subprocess.check_output(
+                  [
+                      'gh','api','--paginate',
+                      f'repos/{os.environ["GITHUB_REPOSITORY"]}/releases/{release_id}/assets?per_page=100',
+                      '--jq','.[].name',
+                  ],
+                  text=True,
+              )
+              existing = {line.strip() for line in raw.splitlines() if line.strip()}
+
+          include = []
+          for parameter in parameters:
+              for year in years:
+                  name = f'hyras-{parameter}-{year}-1km.npz'
+                  if force or name not in existing:
+                      include.append({'parameter': parameter, 'year': year})
+
+          print('matrix=' + json.dumps({'include': include}, separators=(',',':')))
+          print('needed=' + ('true' if include else 'false'))
+          print('Geplante Archive:', len(include), file=os.sys.stderr)
+          PY
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.neeeded == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: 1-km-Jahresarchiv erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-daily-archive/out
+          python scripts/build_hyras_daily_archive.py \
+            --parameter "${{ matrix.parameter }}" \
+            --year "${{ matrix.year }}" \
+            --output-dir /tmp/hyras-daily-archive/out \
+            --work /tmp/hyras-daily-archive/work \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Archiv prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib, numpy as np
+          parameter='${{ matrix.parameter }}'
+          year=int('${{ matrix.year }}')
+          root=pathlib.Path('/tmp/hyras-daily-archive/out')
+          archive=root/f'hyras-{parameter}-{year}-1km.npz'
+          meta=json.loads((root/f'hyras-{parameter}-{year}-1km.json').read_text())
+          assert meta['resolution_km'] == 1
+          assert meta['parameter'] == parameter
+          assert meta['year'] == year
+          assert meta['archive_bytes'] == archive.stat().st_size
+          with np.load(archive, allow_pickle=False) as data:
+              values=np.asarray(data['values'])
+              assert values.ndim == 3
+              assert values.shape[0] == meta['days']
+              assert values.shape[1] == meta['height']
+              assert values.shape[2] == meta['width']
+              assert int(np.asarray(data['resolution_km']).item()) == 1
+          print('Archiv geprüft:', archive.name, meta['days'], 'Tage')
+          PY
+
+      - name: Jahresarchiv als Release-Asset hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$ARCHIVE_TAG" \
+            "/tmp/hyras-daily-archive/out/hyras-${{ matrix.parameter }}-${{ matrix.year }}-1km.npz" \
+            --clobber
+
+      - name: Kleines Metadaten-Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-daily-archive-meta-${{ matrix.parameter }}-${{ matrix.year }}
+          path: /tmp/hyras-daily-archive/out/hyras-${{ matrix.parameter }}-${{ matrix.year }}-1km.json
+          if-no-files-found: error
+          retention-days: 3
+
+  finalize:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.needed == 'true' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Metadaten herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-daily-archive-meta-*
+          path: /tmp/hyras-daily-archive/meta
+          merge-multiple: true
+
+      - name: hyras-data Branch laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-archive/data
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-daily-archive-publish /tmp/hyras-daily-archive/data origin/hyras-data
+
+      - name: Archivindex aktualisieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data_root=Path('/tmp/hyras-daily-archive/data')
+          meta_root=Path('/tmp/hyras-daily-archive/meta')
+          out_dir=data_root/'daily_archive_1km'
+          out_dir.mkdir(parents=True, exist_ok=True)
+          index_path=out_dir/'index.json'
+          if index_path.exists():
+              index=json.loads(index_path.read_text(encoding='utf-8'))
+          else:
+              index={
+                 'schema_version': 1,
+                  'resolution_km': 1,
+                  'unit': '°C',
+                  'value_scale': 100,
+                  'missing_value': -32768,
+                  'release_tag': 'hyras-daily-archive-1km',
+                  'parameters': {'tmean': {}, 'tmax': {}, 'tmin': {}},
+              }
+
+          for path in sorted(meta_root.glob('*.json')):
+              meta=json.loads(path.read_text(encoding='utf-8'))
+              parameter=meta['parameter']
+              year=str(meta['year'])
+              index.setdefault('parameters', {}).setdefault(parameter, {})[year]=meta
+
+          all_through=[]
+          for parameter, years in index.get('parameters', {}).items():
+              if years:
+                  all_through.extend(item['data_through'] for item in years.values())
+          index['archive_entries']=sum(len(v) for v in index.get('parameters', {}).values())
+          index['data_through']=max(all_through) if all_through else None
+          index['note']=(
+              '1-km HYRAS-DE daily raster archive. Large yearly NPZ files are stored as '
+              'GitHub Release assets; this index remains on the hyras-data branch.'
+          )
+          index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding='utf-8')
+          print('Archivindex:', index['archive_entries'], 'Jahresdateien')
+          PY
+
+      - name: Archivindex auf hyras-data veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-daily-archive/data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add daily_archive_1km/index.json
+          if git diff --cached --quiet; then
+            echo "Keine Änderung am HYRAS-Tagesarchivindex."
+            exit 0
+          fi
+          git commit -m "HYRAS 1-km-Tagesarchivindex aktualisiert"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
