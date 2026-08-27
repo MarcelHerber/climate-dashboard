@@ -433,6 +433,12 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .hyras-rank-timeline-row input[type="range"]{width:100%;min-width:0;accent-color:#ef7d00;cursor:pointer}
 .hyras-rank-timeline-row input[type="range"]:disabled{opacity:.5;cursor:not-allowed}
 .hyras-rank-timeline-note{margin-top:7px;font-size:11px;line-height:1.35;color:var(--muted)}
+.hyras-rank-timeline-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid #dfe6ea}
+.hyras-rank-timeline-tools button{min-height:36px}
+.hyras-rank-action-status{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hyras-rank-action-status.busy{font-weight:700;color:#345066}
+.hyras-rank-action-status.done{font-weight:700;color:#2d6a3f}
+.hyras-rank-action-status.error{font-weight:700;color:#9b2d25}
 @media(max-width:700px){.hyras-rank-timeline-row{grid-template-columns:1fr 1fr 1fr}.hyras-rank-timeline-row input[type="range"]{grid-column:1/-1}}
 .hyras-rank-card{margin-top:18px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
 .hyras-rank-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
@@ -2151,6 +2157,11 @@ button.action:hover{background:#1f2937}
         <input id="hyrasRankSlider" type="range" min="0" max="0" value="0" step="1" aria-label="HYRAS-Rangkarten-Datum" oninput="hyrasRankSliderInput(this.value)">
       </div>
       <div class="hyras-rank-timeline-note">Tages-, Monats- und Sommerrang wechseln gemeinsam auf denselben HYRAS-Datenstand.</div>
+      <div class="hyras-rank-timeline-tools">
+        <button id="hyrasRankPreload" class="action" type="button" onclick="hyrasRankPreloadAll()">⚡ Alle Karten vorladen</button>
+        <button id="hyrasRankDownload" class="action" type="button" onclick="hyrasRankDownloadAnimation()">⬇ Animation herunterladen</button>
+        <span id="hyrasRankActionStatus" class="hyras-rank-action-status">Bereit</span>
+      </div>
     </div>
 
     <div class="hyras-rank-grid">
@@ -11722,7 +11733,12 @@ let hyrasRankManifestLoading=null;
 let hyrasRankDates=[];
 let hyrasRankDateIndex=-1;
 let hyrasRankPlayTimer=null;
+let hyrasRankPreloadActive=false;
+let hyrasRankDownloadActive=false;
+const hyrasRankPreloadedUrls=new Set();
 const HYRAS_RANK_PLAY_DELAY=700;
+const HYRAS_RANK_PRELOAD_CONCURRENCY=4;
+const HYRAS_RANK_EXPORT_FRAME_MS=400;
 
 function hyrasRankManifestUrl(){
   return `${HYRAS_DATA_BASE}/temperature_ranks/index.json?t=${Date.now()}`;
@@ -11801,7 +11817,273 @@ function hyrasRankImageUrl(parameter,period){
 }
 function hyrasRankArchiveUrl(parameter,period,date){
   if(!date||!hyrasRankManifest?.archive_pattern)return hyrasRankImageUrl(parameter,period);
-  return `${HYRAS_DATA_BASE}/temperature_ranks/archive/${date}/${parameter}/${period}_rank.png?t=${Date.now()}`;
+  return `${HYRAS_DATA_BASE}/temperature_ranks/archive/${date}/${parameter}/${period}_rank.png`;
+}
+function hyrasRankSetActionStatus(text,state=""){
+  const status=document.getElementById("hyrasRankActionStatus");
+  if(!status)return;
+  status.textContent=text;
+  status.className=`hyras-rank-action-status${state?` ${state}`:""}`;
+}
+function hyrasRankSetToolButtonsDisabled(disabled){
+  for(const id of ["hyrasRankPreload","hyrasRankDownload"]){
+    const button=document.getElementById(id);
+    if(button)button.disabled=Boolean(disabled);
+  }
+}
+function hyrasRankAnimationUrls(parameter){
+  return hyrasRankDates.flatMap(date=>
+    HYRAS_RANK_PERIODS.map(item=>hyrasRankArchiveUrl(parameter,item.key,date))
+  );
+}
+async function hyrasRankWarmUrl(url){
+  if(hyrasRankPreloadedUrls.has(url))return true;
+  const response=await fetch(url,{cache:"force-cache",mode:"cors"});
+  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  await response.blob();
+  hyrasRankPreloadedUrls.add(url);
+  return true;
+}
+async function hyrasRankRunPool(items,concurrency,worker,onProgress){
+  let cursor=0;
+  let done=0;
+  let failed=0;
+  async function runner(){
+    while(true){
+      const index=cursor++;
+      if(index>=items.length)return;
+      try{await worker(items[index],index);}
+      catch(error){failed+=1;console.warn("HYRAS-Rangkarte:",items[index],error);}
+      done+=1;
+      onProgress?.(done,items.length,failed);
+    }
+  }
+  const count=Math.min(Math.max(1,concurrency),Math.max(1,items.length));
+  await Promise.all(Array.from({length:count},()=>runner()));
+  return {done,failed};
+}
+async function hyrasRankPreloadAll(options={}){
+  if(hyrasRankPreloadActive||hyrasRankDownloadActive)return false;
+  const parameter=document.getElementById("hyrasRankParameterSelect")?.value||"tmean";
+  const urls=hyrasRankAnimationUrls(parameter);
+  if(!urls.length){
+    hyrasRankSetActionStatus("Keine Animationstage verfügbar","error");
+    return false;
+  }
+  hyrasRankPreloadActive=true;
+  hyrasRankSetToolButtonsDisabled(true);
+  const total=urls.length;
+  const already=urls.filter(url=>hyrasRankPreloadedUrls.has(url)).length;
+  if(!options.silent)hyrasRankSetActionStatus(
+    already===total
+      ?`${hyrasRankParameterLabel(parameter)} · ${total} Karten bereits vorgeladen`
+      :`${hyrasRankParameterLabel(parameter)} · Vorladen 0/${total}`,
+    already===total?"done":"busy"
+  );
+  let result={done:already,failed:0};
+  try{
+    const pending=urls.filter(url=>!hyrasRankPreloadedUrls.has(url));
+    if(pending.length){
+      const pool=await hyrasRankRunPool(
+        pending,
+        HYRAS_RANK_PRELOAD_CONCURRENCY,
+        url=>hyrasRankWarmUrl(url),
+        (done,pendingTotal,failed)=>{
+          const overall=already+done;
+          if(!options.silent)hyrasRankSetActionStatus(
+            `${hyrasRankParameterLabel(parameter)} · Vorladen ${overall}/${total}${failed?` · ${failed} Fehler`:""}`,
+            "busy"
+          );
+        }
+      );
+      result={done:already+pool.done,failed:pool.failed};
+    }
+    if(!options.silent){
+      hyrasRankSetActionStatus(
+        result.failed
+          ?`${hyrasRankParameterLabel(parameter)} · ${result.done-result.failed}/${total} Karten vorgeladen · ${result.failed} Fehler`
+          :`${hyrasRankParameterLabel(parameter)} · ${total} Karten vorgeladen`,
+        result.failed?"error":"done"
+      );
+    }
+    return result.failed===0;
+  }finally{
+    hyrasRankPreloadActive=false;
+    hyrasRankSetToolButtonsDisabled(false);
+  }
+}
+async function hyrasRankFetchDrawable(url){
+  const response=await fetch(url,{cache:"force-cache",mode:"cors"});
+  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  const blob=await response.blob();
+  hyrasRankPreloadedUrls.add(url);
+  if(typeof createImageBitmap==="function"){
+    const bitmap=await createImageBitmap(blob);
+    return {image:bitmap,width:bitmap.width,height:bitmap.height,close:()=>bitmap.close?.()};
+  }
+  const objectUrl=URL.createObjectURL(blob);
+  const image=await new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error("Bild konnte nicht dekodiert werden"));
+    img.src=objectUrl;
+  });
+  return {image,width:image.naturalWidth,height:image.naturalHeight,close:()=>URL.revokeObjectURL(objectUrl)};
+}
+function hyrasRankDrawExportFrame(ctx,canvas,drawables,dateText,parameter,position,total){
+  const width=canvas.width;
+  const height=canvas.height;
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,width,height);
+  ctx.fillStyle="#17232b";
+  ctx.font="700 42px Arial, sans-serif";
+  ctx.textAlign="left";
+  ctx.fillText(`HYRAS Temperatur-Rangkarten · ${hyrasRankParameterLabel(parameter)}`,52,58);
+  ctx.fillStyle="#53616a";
+  ctx.font="26px Arial, sans-serif";
+  ctx.fillText(`${hyrasRankDisplayDate(dateText)} · ${position}/${total} · Vergleich 1951–2026`,52,96);
+
+  const labels=["Tagesrang","Monatsrang bis heute","Sommerrang bis heute"];
+  const gap=24;
+  const left=48;
+  const top=142;
+  const bottom=42;
+  const colWidth=(width-left*2-gap*2)/3;
+  const boxHeight=height-top-bottom;
+
+  drawables.forEach((drawable,index)=>{
+    const x=left+index*(colWidth+gap);
+    ctx.fillStyle="#f6f8f9";
+    ctx.fillRect(x,top,colWidth,boxHeight);
+    ctx.strokeStyle="#d6dee3";
+    ctx.lineWidth=2;
+    ctx.strokeRect(x,top,colWidth,boxHeight);
+    ctx.fillStyle="#24313a";
+    ctx.font="700 24px Arial, sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText(labels[index],x+colWidth/2,top+36);
+
+    const pad=16;
+    const areaX=x+pad;
+    const areaY=top+54;
+    const areaW=colWidth-pad*2;
+    const areaH=boxHeight-70;
+    const scale=Math.min(areaW/drawable.width,areaH/drawable.height);
+    const drawW=drawable.width*scale;
+    const drawH=drawable.height*scale;
+    ctx.drawImage(
+      drawable.image,
+      areaX+(areaW-drawW)/2,
+      areaY+(areaH-drawH)/2,
+      drawW,
+      drawH
+    );
+  });
+}
+function hyrasRankBestWebmMime(){
+  if(typeof MediaRecorder==="undefined")return "";
+  const candidates=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
+  return candidates.find(type=>!MediaRecorder.isTypeSupported||MediaRecorder.isTypeSupported(type))||"";
+}
+async function hyrasRankDownloadAnimation(){
+  if(hyrasRankDownloadActive||hyrasRankPreloadActive)return;
+  if(hyrasRankDates.length<2){
+    hyrasRankSetActionStatus("Zu wenige Animationstage für einen Download","error");
+    return;
+  }
+  const mime=hyrasRankBestWebmMime();
+  const testCanvas=document.createElement("canvas");
+  if(!mime||typeof testCanvas.captureStream!=="function"){
+    hyrasRankSetActionStatus("Videoexport wird von diesem Browser nicht unterstützt","error");
+    return;
+  }
+
+  const parameter=document.getElementById("hyrasRankParameterSelect")?.value||"tmean";
+  hyrasRankStopPlay();
+  hyrasRankDownloadActive=true;
+  hyrasRankSetToolButtonsDisabled(true);
+  hyrasRankSetActionStatus(`${hyrasRankParameterLabel(parameter)} · Animation wird vorbereitet …`,"busy");
+
+  const canvas=document.createElement("canvas");
+  canvas.width=1920;
+  canvas.height=1080;
+  const ctx=canvas.getContext("2d",{alpha:false});
+  if(!ctx){
+    hyrasRankDownloadActive=false;
+    hyrasRankSetToolButtonsDisabled(false);
+    hyrasRankSetActionStatus("Videocanvas konnte nicht erstellt werden","error");
+    return;
+  }
+
+  const stream=canvas.captureStream(25);
+  const chunks=[];
+  let recorder;
+  try{
+    recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:6000000});
+  }catch(error){
+    stream.getTracks().forEach(track=>track.stop());
+    hyrasRankDownloadActive=false;
+    hyrasRankSetToolButtonsDisabled(false);
+    hyrasRankSetActionStatus("Videoencoder konnte nicht gestartet werden","error");
+    return;
+  }
+
+  recorder.ondataavailable=event=>{if(event.data?.size)chunks.push(event.data);};
+  const stopped=new Promise(resolve=>recorder.addEventListener("stop",resolve,{once:true}));
+  recorder.start(1000);
+
+  let failed=false;
+  try{
+    for(let index=0;index<hyrasRankDates.length;index++){
+      const date=hyrasRankDates[index];
+      hyrasRankSetActionStatus(
+        `${hyrasRankParameterLabel(parameter)} · Video ${index+1}/${hyrasRankDates.length} · ${hyrasRankDisplayDate(date)}`,
+        "busy"
+      );
+      const urls=HYRAS_RANK_PERIODS.map(item=>hyrasRankArchiveUrl(parameter,item.key,date));
+      const drawables=await Promise.all(urls.map(url=>hyrasRankFetchDrawable(url)));
+      try{
+        hyrasRankDrawExportFrame(
+          ctx,canvas,drawables,date,parameter,index+1,hyrasRankDates.length
+        );
+        await new Promise(resolve=>window.setTimeout(resolve,HYRAS_RANK_EXPORT_FRAME_MS));
+      }finally{
+        drawables.forEach(item=>item.close?.());
+      }
+    }
+    await new Promise(resolve=>window.setTimeout(resolve,700));
+  }catch(error){
+    failed=true;
+    console.error("HYRAS-Animationsdownload:",error);
+    hyrasRankSetActionStatus(`Videoexport abgebrochen: ${error.message}`,"error");
+  }finally{
+    if(recorder.state!=="inactive")recorder.stop();
+    await stopped;
+    stream.getTracks().forEach(track=>track.stop());
+  }
+
+  if(!failed&&chunks.length){
+    const blob=new Blob(chunks,{type:mime});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    const first=hyrasRankDates[0];
+    const last=hyrasRankDates[hyrasRankDates.length-1];
+    link.href=url;
+    link.download=`hyras-rangkarten_${parameter}_${first}_bis_${last}.webm`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(url),15000);
+    hyrasRankSetActionStatus(
+      `${hyrasRankParameterLabel(parameter)} · WebM mit ${hyrasRankDates.length} Tagen erstellt`,
+      "done"
+    );
+  }else if(!failed){
+    hyrasRankSetActionStatus("Videoexport lieferte keine Daten","error");
+  }
+
+  hyrasRankDownloadActive=false;
+  hyrasRankSetToolButtonsDisabled(false);
 }
 function hyrasRankParameterLabel(parameter){
   return ({tmean:"Tmean",tmax:"Tmax",tmin:"Tmin"})[parameter]||parameter;
@@ -11907,7 +12189,7 @@ function hyrasSyncRankFromMain(){
 }
 async function initHyrasTemperatureRanks(){
   const select=document.getElementById("hyrasRankParameterSelect");
-  select?.addEventListener("change",()=>hyrasRankRender(select.value));
+  select?.addEventListener("change",()=>{hyrasRankStopPlay();hyrasRankSetActionStatus("Bereit");hyrasRankRender(select.value);});
   document.getElementById("hyrasParameterSelect")?.addEventListener("change",()=>window.setTimeout(hyrasSyncRankFromMain,0));
   await hyrasRankEnsureManifest();
   hyrasRankRender(select?.value||"tmean");
