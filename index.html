@@ -11875,7 +11875,7 @@ async function hyrasSwitchParameter(){
   if(panel)panel.hidden=true;
   hyrasHistoricalState=null;hyrasCustomState=null;hyrasPresetState=null;hyrasLivePresetState=null;
   if(isTmean||isTmax){
-    if(custom)custom.style.display="none";if(historical)historical.style.display="none";if(metricGroup)metricGroup.style.display="none";if(regionGroup)regionGroup.hidden=false;
+    if(custom)custom.style.display="none";if(historical)historical.style.display="";if(metricGroup)metricGroup.style.display="none";if(regionGroup)regionGroup.hidden=false;
     const oldLink=document.getElementById("hyrasOpenImage");if(oldLink)oldLink.style.display="none";
     const status=document.getElementById("hyrasStatus");
 
@@ -14919,7 +14919,7 @@ hyrasSwitchParameter=async function(){
 
   if(panel)panel.hidden=true;
   if(custom)custom.style.display="none";
-  if(historical)historical.style.display="none";
+  if(historical)historical.style.display="";
   if(metricGroup)metricGroup.style.display="none";
   if(regionGroup)regionGroup.hidden=false;
 
