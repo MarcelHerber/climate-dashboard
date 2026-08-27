@@ -1,0 +1,298 @@
+name: HYRAS Temperatur-Rangkarten Sommerarchiv auffüllen
+
+on:
+  push:
+    paths:
+      - "scripts/build_hyras_temperature_rank_backfill_current.py"
+      - "scripts/build_hyras_temperature_rank_backfill_shard.py"
+      - "scripts/finalize_hyras_temperature_rank_backfill.py"
+      - ".github/workflows/backfill-hyras-temperature-ranks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-data
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.target.outputs.needed }}
+      target_date: ${{ steps.target.outputs.target_date }}
+      missing_count: ${{ steps.target.outputs.missing_count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: HYRAS-Datenstand und fehlende Archivtage bestimmen
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-backfill-meta
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-backfill-meta origin/hyras-data
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from datetime import date, timedelta
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-backfill-meta')
+          source_paths={
+              'tmean': root/'tmean/index.json',
+              'tmax': root/'tmax/regions/index.json',
+              'tmin': root/'tmin/regions/index.json',
+          }
+          source_dates={
+              key: str(json.loads(path.read_text(encoding='utf-8'))['data_through'])
+              for key,path in source_paths.items()
+          }
+          target=min(source_dates.values())
+          target_date=date.fromisoformat(target)
+          if target_date.year != 2026 or target_date.month not in (6,7,8):
+              print(f'target_date={target}')
+              print('missing_count=0')
+              print('needed=false')
+              raise SystemExit(0)
+
+          rank_index=root/'temperature_ranks/index.json'
+          rank=json.loads(rank_index.read_text(encoding='utf-8'))
+          available=set(rank.get('available_dates', []))
+
+          expected=[]
+          cursor=date(2026,6,1)
+          while cursor<=target_date:
+              expected.append(cursor.isoformat())
+              cursor+=timedelta(days=1)
+          missing=[value for value in expected if value not in available]
+
+          print(f'target_date={target}')
+          print(f'missing_count={len(missing)}')
+          print(f'needed={str(bool(missing)).lower()}')
+          print(
+              'HYRAS-Datenstände:', source_dates,
+              'gemeinsam:', target,
+              'Archivtage:', len(available),
+              'fehlend:', len(missing),
+              'erste fehlende:', missing[:5],
+              file=__import__('sys').stderr,
+          )
+          PY
+
+  current:
+    needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        parameter: [tmean, tmax, tmin]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen Sommer-Produktstack bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-rank-backfill-current
+          python scripts/build_hyras_temperature_rank_backfill_current.py \
+            --parameter "${{ matrix.parameter }}" \
+            --target-date "${{ needs.prepare.outputs.target_date }}" \
+            --factor 1 \
+            --work /tmp/hyras-rank-backfill-current-work \
+            --output "/tmp/hyras-rank-backfill-current/current_${{ matrix.parameter }}_${{ needs.prepare.outputs.target_date }}.npz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyras-rank-backfill-current-${{ matrix.parameter }}
+          path: /tmp/hyras-rank-backfill-current/*.npz
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 2
+
+  shards:
+    needs: [prepare, current]
+    if: needs.prepare.outputs.needed == 'true' && needs.current.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        parameter: [tmean, tmax, tmin]
+        shard:
+          - "1951-1955"
+          - "1956-1960"
+          - "1961-1965"
+          - "1966-1970"
+          - "1971-1975"
+          - "1976-1980"
+          - "1981-1985"
+          - "1986-1990"
+          - "1991-1995"
+          - "1996-2000"
+          - "2001-2005"
+          - "2006-2010"
+          - "2011-2015"
+          - "2016-2020"
+          - "2021-2025"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuellen Produktstack herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: hyras-rank-backfill-current-${{ matrix.parameter }}
+          path: /tmp/hyras-rank-backfill-current
+
+      - name: Historischen Sommer-Tagescache laden
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-temperature-rank-history/${{ matrix.parameter }}/factor1
+          key: hyras-temperature-rank-v2-factor1-${{ matrix.parameter }}-${{ matrix.shard }}
+
+      - name: Historischen Rangbeitrag berechnen
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=- read -r START END <<< "${{ matrix.shard }}"
+          CURRENT_FILE=$(find /tmp/hyras-rank-backfill-current -name 'current_*.npz' -type f | head -n 1)
+          mkdir -p /tmp/hyras-rank-backfill-shards
+          python scripts/build_hyras_temperature_rank_backfill_shard.py \
+            --parameter "${{ matrix.parameter }}" \
+            --start-year "$START" \
+            --end-year "$END" \
+            --current-file "$CURRENT_FILE" \
+            --factor 1 \
+            --cache-root /tmp/hyras-temperature-rank-history \
+            --work /tmp/hyras-temperature-rank-backfill-work \
+            --output "/tmp/hyras-rank-backfill-shards/contrib_${{ matrix.parameter }}_${START}_${END}.npz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hyras-rank-backfill-counts-${{ matrix.parameter }}-${{ matrix.shard }}
+          path: /tmp/hyras-rank-backfill-shards/*.npz
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 2
+
+  finalize:
+    needs: [prepare, current, shards]
+    if: needs.prepare.outputs.needed == 'true' && needs.current.result == 'success' && needs.shards.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: HYRAS-Abhängigkeiten installieren
+        run: pip install -r requirements-hyras.txt
+
+      - name: Aktuelle Produktstacks herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-rank-backfill-current-*
+          path: /tmp/hyras-rank-backfill-current
+          merge-multiple: true
+
+      - name: Historische Rangbeiträge herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hyras-rank-backfill-counts-*
+          path: /tmp/hyras-rank-backfill-shards
+          merge-multiple: true
+
+      - name: hyras-data Branch laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-rank-backfill-data
+          git fetch origin hyras-data --depth=1
+          git worktree add -b hyras-rank-backfill-publish /tmp/hyras-rank-backfill-data origin/hyras-data
+
+      - name: Fehlende Sommertage rendern
+        run: |
+          python scripts/finalize_hyras_temperature_rank_backfill.py \
+            --data-root /tmp/hyras-rank-backfill-data \
+            --shard-dir /tmp/hyras-rank-backfill-shards \
+            --current-dir /tmp/hyras-rank-backfill-current \
+            --target-date "${{ needs.prepare.outputs.target_date }}" \
+            --factor 1
+
+      - name: Vollständigkeit prüfen
+        shell: bash
+        env:
+          TARGET_DATE: ${{ needs.prepare.outputs.target_date }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from datetime import date, timedelta
+          from pathlib import Path
+
+          root=Path('/tmp/hyras-rank-backfill-data')
+          data=json.loads((root/'temperature_ranks/index.json').read_text(encoding='utf-8'))
+          target=date.fromisoformat(os.environ['TARGET_DATE'])
+          expected=[]
+          cursor=date(2026,6,1)
+          while cursor<=target:
+              expected.append(cursor.isoformat())
+              cursor+=timedelta(days=1)
+          assert data.get('available_dates') == expected
+          for day in expected:
+              for parameter in ('tmean','tmax','tmin'):
+                  for product in ('day','month_to_date','summer_to_date'):
+                      path=root/'temperature_ranks'/'archive'/day/parameter/f'{product}_rank.png'
+                      assert path.exists(), path
+          print('Sommerarchiv vollständig:', len(expected), 'Tage bis', target)
+          PY
+
+      - name: Sommerarchiv veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/hyras-rank-backfill-data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add temperature_ranks
+          if git diff --cached --quiet; then
+            echo "Keine neuen Archivkarten."
+            exit 0
+          fi
+          git commit -m "HYRAS Temperatur-Rangkarten Sommerarchiv aufgefüllt"
+          git fetch origin hyras-data
+          git rebase origin/hyras-data
+          git push origin HEAD:hyras-data
