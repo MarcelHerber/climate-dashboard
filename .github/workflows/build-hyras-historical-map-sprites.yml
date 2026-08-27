@@ -1,6 +1,11 @@
 name: HYRAS historische 1-km-Kartensprites bauen
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/build_hyras_historical_map_sprites.py"
   workflow_dispatch:
     inputs:
       start_year:
@@ -73,10 +78,10 @@ jobs:
       - name: Matrix bestimmen
         id: plan
         env:
-          START_YEAR: ${{ inputs.start_year }}
-          END_YEAR: ${{ inputs.end_year }}
-          PARAMETER: ${{ inputs.parameter }}
-          FORCE: ${{ inputs.force }}
+          START_YEAR: ${{ github.event_name == 'workflow_dispatch' && inputs.start_year || 1951 }}
+          END_YEAR: ${{ github.event_name == 'workflow_dispatch' && inputs.end_year || 2025 }}
+          PARAMETER: ${{ github.event_name == 'workflow_dispatch' && inputs.parameter || 'all' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || true }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
