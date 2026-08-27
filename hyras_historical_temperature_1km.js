@@ -15,8 +15,8 @@
     tmin:[-30,-20,-10,-5,0,5,10,15,20,25,30]
   };
   const ABS_COLORS=["#313695","#4575b4","#74add1","#abd9e9","#e0f3f8","#ffffbf","#fee090","#fdae61","#f46d43","#d73027","#a50026"];
-  const ANOM_LEGEND=[-6,-4,-2,-1,0,1,2,4,6];
-  const ANOM_COLORS=["#313695","#4575b4","#74add1","#abd9e9","#f7f7f7","#fdae61","#f46d43","#d73027","#a50026"];
+  const ANOM_LEGEND=[-6,-5,-4,-3,-2,-1,-0.5,0,0.5,1,2,3,4,5,6];
+  const ANOM_COLORS=["#6B03C6","#5E4FFC","#187DFD","#70B1FB","#C6E4FB","#DDEBF9","#EDF4FA","#FDFCFC","#FDF0BC","#FDE47C","#FDBD3E","#FC691C","#F93A19","#E51B75","#FC579B"];
 
   let archiveIndex=null;
   let archiveLoading=null;
