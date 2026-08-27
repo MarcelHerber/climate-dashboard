@@ -44,6 +44,16 @@
   function metricGroup(){
     return document.getElementById("hyrasMetricSelect")?.closest(".control-group")||null;
   }
+  function historicalMetricGroup(){
+    return document.getElementById("hyrasHistoricalTemperatureMetricGroup");
+  }
+  function historicalMetricSelect(){
+    return document.getElementById("hyrasHistoricalTemperatureMetric");
+  }
+  function historicalMetric(){
+    const value=historicalMetricSelect()?.value;
+    return value==="anomaly"?"anomaly":"absolute";
+  }
   function statusElement(){
     return document.getElementById("hyrasStatus");
   }
@@ -215,9 +225,9 @@
       );
     }
 
-    setTemperatureMetricOptions(historicalState.mode);
-    const mode=document.getElementById("hyrasMetricSelect")?.value||"absolute";
+    const mode=historicalMetric();
     historicalState.mode=mode;
+    setTemperatureMetricOptions(mode);
     const spriteKey=mode==="anomaly"?`anomaly_${reference()}`:"absolute";
     const sprite=meta?.sprites?.[spriteKey];
     if(!sprite?.url)throw new Error(`Kartensprite ${spriteKey} fehlt für ${period.label}.`);
@@ -266,11 +276,8 @@
       if(!Number.isFinite(period.year))throw new Error("Bitte ein historisches Jahr auswählen.");
       if(!index?.parameters?.[p]?.[String(period.year)])throw new Error(`Jahr ${period.year} fehlt für ${PARAM_LABELS[p]}.`);
 
-      const select=document.getElementById("hyrasMetricSelect");
-      const previousMode=(select?.value==="anomaly"||select?.value==="absolute")?select.value:"absolute";
+      const previousMode=historicalMetric();
       historicalState={parameter:p,period,mode:previousMode};
-      const group=metricGroup();
-      if(group)group.style.display="";
       setTemperatureMetricOptions(previousMode);
 
       if(msg){
@@ -293,12 +300,15 @@
     const p=parameter();
     const box=historicalBox();
     if(box)box.style.removeProperty("display");
+    const histMetricGroup=historicalMetricGroup();
     if(!isTemperature(p)){
       historicalState=null;
+      if(histMetricGroup)histMetricGroup.style.display="none";
       return;
     }
+    if(histMetricGroup)histMetricGroup.style.display="";
     const group=metricGroup();
-    if(group&&!historicalState)group.style.display="none";
+    if(group)group.style.display="none";
 
     const msg=messageElement();
     if(msg){
@@ -356,6 +366,13 @@
       if(value==="absolute"||value==="anomaly")historicalState.mode=value;
     }
   },true);
+
+  historicalMetricSelect()?.addEventListener("change",()=>{
+    if(historicalState&&isTemperature()){
+      historicalState.mode=historicalMetric();
+      renderHistoricalTemperature().catch(error=>console.error("HYRAS historische Darstellung:",error));
+    }
+  });
 
   document.getElementById("hyrasPeriodSelect")?.addEventListener("change",()=>{
     if(!historicalState||!isTemperature())return;
