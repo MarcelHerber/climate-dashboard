@@ -11002,18 +11002,24 @@ function hyrasDailyAnomalySetDate(parameter,manifest,dates,index){
 async function hyrasDailyAnomalyMount(parameter,rows){
   const panel=document.getElementById("hyrasDailyAnomalyPanel");
   if(!panel)return;
-  const status=document.getElementById("hyrasDailyAnomalyStatus");
-  const image=document.getElementById("hyrasDailyAnomalyImage");
+  const mountedPanel=panel;
+  const status=panel.querySelector("#hyrasDailyAnomalyStatus");
+  const image=panel.querySelector("#hyrasDailyAnomalyImage");
   try{
     const manifest=await hyrasDailyAnomalyManifest(parameter);
+
+    // Falls während des Ladens neu gerendert wurde, darf dieser alte
+    // Initialisierungslauf keine Handler an die neue Box hängen.
+    if(document.getElementById("hyrasDailyAnomalyPanel")!==mountedPanel)return;
+
     const dates=hyrasDailyAnomalyRowsDates(rows,manifest);
-    const range=document.getElementById("hyrasDailyAnomalyRange");
-    const prev=document.getElementById("hyrasDailyAnomalyPrev");
-    const next=document.getElementById("hyrasDailyAnomalyNext");
+    const range=panel.querySelector("#hyrasDailyAnomalyRange");
+    const prev=panel.querySelector("#hyrasDailyAnomalyPrev");
+    const next=panel.querySelector("#hyrasDailyAnomalyNext");
     if(!dates.length){
       if(image)image.removeAttribute("src");
       if(status)status.textContent="Für den gewählten Zeitraum liegen noch keine täglichen Anomaliekarten vor.";
-      const meta=document.getElementById("hyrasDailyAnomalyMeta");
+      const meta=panel.querySelector("#hyrasDailyAnomalyMeta");
       if(meta)meta.textContent="Tageskarten sind derzeit für den Sommerzeitraum verfügbar.";
       if(range)range.disabled=true;
       if(prev)prev.disabled=true;
@@ -11029,21 +11035,24 @@ async function hyrasDailyAnomalyMount(parameter,rows){
       range.min="0";
       range.max=String(dates.length-1);
       range.step="1";
-      range.addEventListener("input",()=>hyrasDailyAnomalySetDate(parameter,manifest,dates,Number(range.value)));
+      range.oninput=()=>hyrasDailyAnomalySetDate(
+        parameter,manifest,dates,Number(range.value)
+      );
     }
-    if(prev)prev.addEventListener("click",()=>{
+    if(prev)prev.onclick=()=>{
       const current=Number(range?.value||0);
       hyrasDailyAnomalySetDate(parameter,manifest,dates,current-1);
-    });
-    if(next)next.addEventListener("click",()=>{
+    };
+    if(next)next.onclick=()=>{
       const current=Number(range?.value||0);
       hyrasDailyAnomalySetDate(parameter,manifest,dates,current+1);
-    });
+    };
     hyrasDailyAnomalySetDate(parameter,manifest,dates,initial);
   }catch(error){
     console.warn("HYRAS Tagesanomalien:",error);
+    if(document.getElementById("hyrasDailyAnomalyPanel")!==mountedPanel)return;
     if(image)image.removeAttribute("src");
-    const meta=document.getElementById("hyrasDailyAnomalyMeta");
+    const meta=panel.querySelector("#hyrasDailyAnomalyMeta");
     if(meta)meta.textContent="Tagesanomaliekarten werden noch aufgebaut.";
     if(status)status.textContent="Noch nicht verfügbar – bitte nach Abschluss des HYRAS-Tageskarten-Workflows neu laden.";
   }
