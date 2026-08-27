@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "scripts/build_hyras_historical_map_sprites.py"
+      - ".github/workflows/build-hyras-historical-map-sprites.yml"
   workflow_dispatch:
     inputs:
       start_year:
