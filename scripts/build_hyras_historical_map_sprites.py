@@ -19,7 +19,8 @@ ABS_STOPS={
     "tmax":[(-20,"#313695"),(-10,"#4575b4"),(0,"#74add1"),(5,"#abd9e9"),(10,"#e0f3f8"),(15,"#ffffbf"),(20,"#fee090"),(25,"#fdae61"),(30,"#f46d43"),(35,"#d73027"),(45,"#a50026")],
     "tmin":[(-30,"#313695"),(-20,"#4575b4"),(-10,"#74add1"),(-5,"#abd9e9"),(0,"#e0f3f8"),(5,"#ffffbf"),(10,"#fee090"),(15,"#fdae61"),(20,"#f46d43"),(25,"#d73027"),(30,"#a50026")],
 }
-ANOM_STOPS=[(-6,"#313695"),(-4,"#4575b4"),(-2,"#74add1"),(-1,"#abd9e9"),(0,"#f7f7f7"),(1,"#fdae61"),(2,"#f46d43"),(4,"#d73027"),(6,"#a50026")]
+ANOM_LEVELS=[-6.,-5.,-4.,-3.,-2.,-1.,-.5,0.,.5,1.,2.,3.,4.,5.,6.]
+ANOM_COLORS=["#6B03C6","#5E4FFC","#187DFD","#70B1FB","#C6E4FB","#DDEBF9","#EDF4FA","#FDFCFC","#FDF0BC","#FDE47C","#FDBD3E","#FC691C","#F93A19","#E51B75","#FC579B"]
 
 
 def rgb(hex_value:str)->tuple[int,int,int]:
@@ -67,20 +68,27 @@ def interpolate(values:np.ndarray,stops:list[tuple[float,str]])->np.ndarray:
     return out.reshape(values.shape+(3,))
 
 
+def anomaly_colors(values:np.ndarray)->np.ndarray:
+    levels=np.asarray(ANOM_LEVELS,dtype=np.float32)
+    mids=(levels[:-1]+levels[1:])/2.0
+    codes=np.digitize(np.asarray(values,dtype=np.float32),mids,right=False)
+    palette=np.asarray([rgb(c) for c in ANOM_COLORS],dtype=np.uint8)
+    return palette[np.clip(codes,0,len(palette)-1)]
+
+
 def colorize(q:np.ndarray,parameter:str,mode:str,reference_q:np.ndarray|None=None)->Image.Image:
     valid=q!=MISSING
     if mode=="absolute":
         values=q.astype(np.float32)/VALUE_SCALE
-        stops=ABS_STOPS[parameter]
+        mapped=interpolate(values,ABS_STOPS[parameter])
     else:
         if reference_q is None:
             raise ValueError("Referenz fehlt")
         valid &= reference_q!=MISSING
         values=(q.astype(np.float32)-reference_q.astype(np.float32))/VALUE_SCALE
-        stops=ANOM_STOPS
+        mapped=anomaly_colors(values)
     canvas=np.full(q.shape+(3,),255,dtype=np.uint8)
     if np.any(valid):
-        mapped=interpolate(values,stops)
         canvas[valid]=mapped[valid]
     return Image.fromarray(canvas,"RGB")
 
@@ -113,11 +121,11 @@ def build_sprite(current:dict,reference:dict|None,parameter:str,mode:str,boundar
     h,w=current["values"].shape[1:]
     sprite=Image.new("RGB",(w*COLS,h*ROWS),(255,255,255))
     for i,key in enumerate(PERIOD_KEYS):
-        q=current["values"][i]
+        q=np.flipud(current["values"][i])
         if not current["available"][i]:
             cell=Image.new("RGB",(w,h),(232,235,238))
         else:
-            ref=reference["values"][i] if reference is not None else None
+            ref=np.flipud(reference["values"][i]) if reference is not None else None
             cell=colorize(q,parameter,mode,ref)
             cell=overlay_boundary(cell,boundary)
         sprite.paste(cell,((i%COLS)*w,(i//COLS)*h))
