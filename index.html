@@ -2127,6 +2127,13 @@ button.action:hover{background:#1f2937}
         <option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option>
       </select>
     </div>
+    <div class="control-group" id="hyrasHistoricalTemperatureMetricGroup" style="display:none">
+      <label for="hyrasHistoricalTemperatureMetric">Darstellung</label>
+      <select id="hyrasHistoricalTemperatureMetric">
+        <option value="absolute">Temperatur (°C)</option>
+        <option value="anomaly">Abweichung zum Referenzmittel (K)</option>
+      </select>
+    </div>
     <button id="hyrasHistoricalApply" class="hyras-custom-apply" type="button">Historische Karte anzeigen</button>
     <p id="hyrasHistoricalMessage" class="hyras-custom-message"><strong>Historische Auswahl:</strong> Monat, Jahreszeit oder Gesamtjahr gegen 1991–2020. Die historischen Monats-, Jahreszeiten- und Jahreskarten nutzen das native HYRAS-1-km-Raster.</p>
   </div>
