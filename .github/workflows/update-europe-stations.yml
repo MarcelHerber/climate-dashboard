@@ -8,8 +8,6 @@ on:
     paths:
       - "scripts/dwd_daily_map.py"
       - "scripts/update_europe_station_records_all_sources.py"
-      - "dwd_station_daily_map.js"
-      - "dwd_station_daily_map.css"
       - ".github/workflows/update-europe-stations.yml"
   workflow_dispatch:
     inputs:
