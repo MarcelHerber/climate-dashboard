@@ -14416,7 +14416,25 @@ function initializeMobileTabNavigation(){
     option.textContent=button.textContent.trim();
     select.appendChild(option);
   });
-  select.addEventListener("change",()=>switchTab(select.value));
+  [
+    ["jahresextremwerte.html","Jahresextreme"],
+    ["dekadenrekorde.html","Dekadenrekorde"],
+    ["feiertagsextremwerte.html","Feiertags-Extreme"]
+  ].forEach(([href,label])=>{
+    const option=document.createElement("option");
+    option.value=href;
+    option.textContent=label;
+    option.dataset.page="external";
+    select.appendChild(option);
+  });
+  select.addEventListener("change",()=>{
+    const option=select.options[select.selectedIndex];
+    if(option?.dataset.page==="external"){
+      window.location.href=option.value;
+      return;
+    }
+    switchTab(select.value);
+  });
   select.value=dashboardState.tab||document.querySelector(".tab-content.active")?.id||"overview";
 }
 
