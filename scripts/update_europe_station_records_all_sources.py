@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any
 
 import update_europe_station_records as core
+import dwd_daily_map as dwd_daily_map
 import update_geosphere_austria_station_cache as austria
 import update_imgw_poland_station_cache as poland
 import update_aemet_spain_station_cache as aemet_hist
@@ -193,6 +194,7 @@ def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_
                     if cutoff_year is not None and year > cutoff_year:
                         continue
                     date_int = int(datestr)
+                    mmdd = f"{datestr[4:6]}-{datestr[6:8]}"
                     for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
                         if not key:
                             continue
@@ -203,6 +205,8 @@ def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_
                         block["opposite_abs"] = _update_opposite_record(
                             block.get("opposite_abs"), value, date_int, element
                         )
+                        if dwd_daily_map.REFERENCE_START <= year <= dwd_daily_map.REFERENCE_END:
+                            dwd_daily_map.add_climatology_value(block, mmdd, value)
     return state
 
 
@@ -2122,7 +2126,7 @@ def main() -> int:
     )
     dwd_cache = cache_dir / (
         f"dwd_germany_kl_baseline_through_{cutoff_year}_v{core.DWD_BASELINE_FORMAT_VERSION}"
-        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}.pkl.gz"
+        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}_clim_v{dwd_daily_map.CACHE_VERSION}.pkl.gz"
     )
     mf_cache = cache_dir / (
         f"meteofrance_daily_baseline_through_{cutoff_year}_v{core.MF_BASELINE_FORMAT_VERSION}"
@@ -2426,6 +2430,14 @@ def main() -> int:
         shutil.rmtree(output_dir)
 
     core.merge_and_write(output_dir, stations, states, current, current_year)
+    dwd_daily_map.write_daily_map(
+        output_dir / "dwd_daily_map",
+        stations=dwd_stations,
+        baseline=dwd_baseline,
+        current=dwd_current,
+        current_year=current_year,
+        station_listing_text=dwd_text,
+    )
     payload = patch_index_metadata(
         output_dir,
         current_year=current_year,
