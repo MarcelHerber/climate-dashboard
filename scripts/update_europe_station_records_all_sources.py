@@ -44,7 +44,6 @@ from pathlib import Path
 from typing import Any
 
 import update_europe_station_records as core
-import dwd_daily_map as dwd_daily_map
 import update_geosphere_austria_station_cache as austria
 import update_imgw_poland_station_cache as poland
 import update_aemet_spain_station_cache as aemet_hist
@@ -170,12 +169,8 @@ def _parse_dly_station_with_opposite(stream, cutoff_year: int) -> dict:
 
 def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_year=None) -> dict:
     state = _CORE_PARSE_DWD_PRODUCT_BYTES(data, cutoff_year=cutoff_year, exact_year=exact_year)
-    historical = exact_year is None
-    if historical:
-        state.setdefault("TMEAN", {"clim_1991_2020": {}})
-    else:
-        state.setdefault("TMEAN", {})
-
+    if exact_year is not None:
+        return state
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         candidates = [name for name in zf.namelist() if re.search(r"produkt_klima_tag_.*\.txt$", name, re.I)]
         if not candidates:
@@ -187,10 +182,7 @@ def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_
                 if not reader.fieldnames:
                     continue
                 fmap = {str(k).strip(): k for k in reader.fieldnames if k is not None}
-                date_key = fmap.get("MESS_DATUM")
-                tx_key = fmap.get("TXK")
-                tn_key = fmap.get("TNK")
-                tm_key = fmap.get("TMK")
+                date_key, tx_key, tn_key = fmap.get("MESS_DATUM"), fmap.get("TXK"), fmap.get("TNK")
                 if not date_key:
                     continue
                 for row in reader:
@@ -200,33 +192,17 @@ def _parse_dwd_product_bytes_with_opposite(data: bytes, cutoff_year=None, exact_
                     year = int(datestr[:4])
                     if cutoff_year is not None and year > cutoff_year:
                         continue
-                    if exact_year is not None and year != exact_year:
-                        continue
                     date_int = int(datestr)
-                    mmdd = f"{datestr[4:6]}-{datestr[6:8]}"
-
-                    if historical:
-                        for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
-                            if not key:
-                                continue
-                            value = core.dwd_float_to_tenths(row.get(key, ""))
-                            if value is None:
-                                continue
-                            block = state[element]
-                            block["opposite_abs"] = _update_opposite_record(
-                                block.get("opposite_abs"), value, date_int, element
-                            )
-                            if dwd_daily_map.REFERENCE_START <= year <= dwd_daily_map.REFERENCE_END:
-                                dwd_daily_map.add_climatology_value(block, mmdd, value)
-
-                    if tm_key:
-                        tm_value = core.dwd_float_to_tenths(row.get(tm_key, ""))
-                        if tm_value is not None:
-                            if historical:
-                                if dwd_daily_map.REFERENCE_START <= year <= dwd_daily_map.REFERENCE_END:
-                                    dwd_daily_map.add_climatology_value(state["TMEAN"], mmdd, tm_value)
-                            else:
-                                state["TMEAN"][mmdd] = (tm_value, date_int)
+                    for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
+                        if not key:
+                            continue
+                        value = core.dwd_float_to_tenths(row.get(key, ""))
+                        if value is None:
+                            continue
+                        block = state[element]
+                        block["opposite_abs"] = _update_opposite_record(
+                            block.get("opposite_abs"), value, date_int, element
+                        )
     return state
 
 def _parse_mf_stream_with_opposite(fileobj, *, cutoff_year=None, exact_year=None):
@@ -2145,7 +2121,7 @@ def main() -> int:
     )
     dwd_cache = cache_dir / (
         f"dwd_germany_kl_baseline_through_{cutoff_year}_v{core.DWD_BASELINE_FORMAT_VERSION}"
-        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}_clim_v{dwd_daily_map.CACHE_VERSION}.pkl.gz"
+        f"_opposite_v{OPPOSITE_EXTREMES_CACHE_VERSION}.pkl.gz"
     )
     mf_cache = cache_dir / (
         f"meteofrance_daily_baseline_through_{cutoff_year}_v{core.MF_BASELINE_FORMAT_VERSION}"
@@ -2449,14 +2425,6 @@ def main() -> int:
         shutil.rmtree(output_dir)
 
     core.merge_and_write(output_dir, stations, states, current, current_year)
-    dwd_daily_map.write_daily_map(
-        output_dir / "dwd_daily_map",
-        stations=dwd_stations,
-        baseline=dwd_baseline,
-        current=dwd_current,
-        current_year=current_year,
-        station_listing_text=dwd_text,
-    )
     payload = patch_index_metadata(
         output_dir,
         current_year=current_year,
