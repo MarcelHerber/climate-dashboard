@@ -1051,6 +1051,24 @@ button.action:hover{background:#1f2937}
 .era5-europe-kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.35px;color:#68737b;font-weight:800}.era5-europe-kpi .value{font-size:20px;font-weight:850;color:#1f2a31;margin:5px 0 2px}.era5-europe-kpi .detail{font-size:11px;color:var(--muted);line-height:1.4}
 .era5-europe-info{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.era5-europe-info>div{border:1px solid #dfe5e9;border-radius:9px;background:#f8fafb;padding:11px 13px;font-size:11px;line-height:1.5;color:#526068}
 .era5-europe-controls .control-group select{min-width:210px}
+
+/* Laufende Temperatur-Ränge 2026 */
+.era5-running-rank-card{margin-top:14px;border:1px solid #d8e0e5;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.era5-running-rank-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:14px 16px 10px;flex-wrap:wrap;border-bottom:1px solid #e5e9ec}
+.era5-running-rank-head h3{margin:0 0 4px;font-size:20px}.era5-running-rank-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.era5-running-rank-tabs{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.era5-running-rank-tab{border:1px solid #cfd8dd;background:#f6f8f9;color:#334149;border-radius:8px;padding:8px 11px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.era5-running-rank-tab:hover{background:#eef3f5}.era5-running-rank-tab.active{background:#253746;color:#fff;border-color:#253746}
+.era5-running-rank-status{padding:10px 16px 0;color:var(--muted);font-size:11px;line-height:1.45}
+.era5-running-rank-kpis{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:10px;padding:12px 16px}
+.era5-running-rank-kpi{border:1px solid #dfe5e9;border-radius:9px;background:#f8fafb;padding:11px 12px;min-width:0}
+.era5-running-rank-kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.35px;color:#68737b;font-weight:800}.era5-running-rank-kpi .value{font-size:19px;font-weight:850;color:#1f2a31;margin:5px 0 2px}.era5-running-rank-kpi .detail{font-size:11px;color:var(--muted);line-height:1.4}
+.era5-running-rank-image-wrap{position:relative;background:#eef3f5;min-height:300px;display:flex;align-items:center;justify-content:center;border-top:1px solid #e5e9ec}
+.era5-running-rank-image{display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;background:#fff}
+.era5-running-rank-foot{margin:0;padding:10px 16px 13px;color:var(--muted);font-size:11px;line-height:1.5;border-top:1px solid #edf0f2}
+@media(max-width:900px){.era5-running-rank-kpis{grid-template-columns:1fr 1fr}.era5-running-rank-image-wrap{min-height:260px}}
+@media(max-width:560px){.era5-running-rank-kpis{grid-template-columns:1fr}.era5-running-rank-tabs{width:100%}.era5-running-rank-tab{flex:1 1 auto}.era5-running-rank-image-wrap{min-height:220px}}
+
 @media(max-width:900px){.era5-europe-kpis{grid-template-columns:1fr 1fr}.era5-europe-info{grid-template-columns:1fr}.era5-europe-image-wrap{min-height:280px}}
 @media(max-width:560px){.era5-europe-kpis{grid-template-columns:1fr}.era5-europe-controls .control-group,.era5-europe-controls select{width:100%}.era5-europe-image-wrap{min-height:220px}}
 .era5-europe-image-stage{position:relative;width:100%;line-height:0;background:#fff}.era5-europe-image{cursor:crosshair;max-height:none}.era5-europe-history-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;opacity:.9}.era5-europe-history-badge{position:absolute;left:12px;top:12px;z-index:4;background:rgba(255,255,255,.94);border:1px solid rgba(90,104,112,.24);border-radius:8px;padding:7px 9px;font-size:10px;line-height:1.3;color:#334149;pointer-events:none;box-shadow:0 2px 7px rgba(0,0,0,.08)}.era5-europe-history-legend{position:absolute;left:14%;right:11%;bottom:4.4%;z-index:4;display:flex;align-items:center;gap:8px;font-size:10px;line-height:1;color:#38464e;pointer-events:none}.era5-europe-history-gradient{height:13px;flex:1;border:1px solid rgba(55,65,71,.35);border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.08)}.era5-europe-click-hint{position:absolute;right:12px;top:12px;z-index:3;background:rgba(255,255,255,.92);border:1px solid rgba(90,104,112,.24);border-radius:8px;padding:7px 9px;font-size:10px;line-height:1.3;color:#47545b;pointer-events:none;box-shadow:0 2px 7px rgba(0,0,0,.08)}.era5-europe-point-marker{position:absolute;width:16px;height:16px;border:3px solid #fff;border-radius:50%;background:#1f2933;box-shadow:0 0 0 2px rgba(31,41,51,.65),0 2px 6px rgba(0,0,0,.35);transform:translate(-50%,-50%);z-index:7;pointer-events:none;display:none}
@@ -1466,6 +1484,28 @@ button.action:hover{background:#1f2937}
     </div>
     <div id="era5EuropeImageWrap" class="era5-europe-image-wrap"><div class="era5-europe-loading">Karte wird geladen …</div></div>
   </div>
+  <section id="era5RunningTemperatureRanks" class="era5-running-rank-card" aria-labelledby="era5RunningRankTitle">
+    <div class="era5-running-rank-head">
+      <div>
+        <h3 id="era5RunningRankTitle">Temperatur-Rang 2026</h3>
+        <p id="era5RunningRankSubtitle">Laufende Einordnung der 2-m-Temperatur gegenüber 1950–2025.</p>
+      </div>
+      <div class="era5-running-rank-tabs" role="group" aria-label="Temperatur-Rang Zeitraum wählen">
+        <button class="era5-running-rank-tab active" type="button" data-era5-running-rank-product="day" aria-pressed="true">Tag</button>
+        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="month_to_date" aria-pressed="false">Monat bis heute</button>
+        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="summer_to_date" aria-pressed="false">Sommer bis heute</button>
+      </div>
+    </div>
+    <div id="era5RunningRankStatus" class="era5-running-rank-status">Rangkarte wird geladen …</div>
+    <div class="era5-running-rank-kpis">
+      <div class="era5-running-rank-kpi"><div class="label">Zeitraum</div><div id="era5RunningRankPeriod" class="value">–</div><div id="era5RunningRankPeriodDetail" class="detail">–</div></div>
+      <div class="era5-running-rank-kpi"><div class="label">Rang 1</div><div id="era5RunningRankRank1" class="value">–</div><div class="detail">Anteil der gültigen Landfläche mit wärmstem Rang</div></div>
+      <div class="era5-running-rank-kpi"><div class="label">Top 3</div><div id="era5RunningRankTop3" class="value">–</div><div id="era5RunningRankTop3Detail" class="detail">–</div></div>
+    </div>
+    <div id="era5RunningRankImageWrap" class="era5-running-rank-image-wrap"><div class="era5-europe-loading">Rangkarte wird geladen …</div></div>
+    <p id="era5RunningRankFoot" class="era5-running-rank-foot">Rang 1 = wärmster Wert im Vergleich 1950–2025 plus 2026.</p>
+  </section>
+
   <div id="era5EuropeRanking" class="era5-ranking-card">
     <div class="era5-ranking-head">
       <div><h3 id="era5EuropeRankingTitle">Europa-Rankings &amp; Extreme</h3><p id="era5EuropeRankingSubtitle">Die 1°-Gitterpunktanalyse wird geladen …</p></div>
@@ -3333,6 +3373,10 @@ let mapsInitialized=false;
 
 let era5EuropeIndex=null;
 let era5EuropeLoading=null;
+let era5RunningTemperatureRanks=null;
+let era5RunningTemperatureRanksLoading=null;
+let era5RunningTemperatureRankProduct="day";
+const ERA5_RUNNING_TEMPERATURE_RANKS_INDEX="era5_land_europe/running/temperature_ranks/index.json";
 let era5EuropeAnalysis=null;
 let era5EuropeAnalysisLoading=null;
 let era5EuropeSelectedPoint=null;
@@ -3424,7 +3468,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="current") ensureCurrentConditions();
   if(tab==="stationObservations") ensureStationObservationsLoaded();
   if(tab==="hyras") ensureHyrasLoaded();
-  if(tab==="era5Europe") ensureEra5EuropeLoaded();
+  if(tab==="era5Europe"){ensureEra5EuropeLoaded();ensureEra5RunningTemperatureRanksLoaded().catch(()=>{});}
   if(tab==="europeStations") ensureEuropeStationMap();
   if(tab==="monthly") window.setTimeout(()=>{
     updateMonthly();
@@ -13558,6 +13602,66 @@ async function renderEra5EuropeHistorical(){
   const source=document.getElementById("era5EuropeSource");if(source)source.textContent=`Quelle: ${era5EuropeIndex.source}. ${era5EuropeIndex.history_map?.note||"Historische sichtbare Karte auf 0,1°."} ${era5EuropeIndex.history_map?.tp_all_months_note||""}`.trim();
   if(clickable){if(era5EuropeSelectedPoint)renderEra5EuropePointAnalysis();renderEra5EuropeRankings();}else era5EuropeShowMonthlyRankingPending(meta,period,year);
 }
+function era5RunningRankPercent(value){
+  return Number.isFinite(Number(value))?Number(value).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" %":"–";
+}
+function era5RunningRankSetStatus(message,state=""){
+  const el=document.getElementById("era5RunningRankStatus");if(!el)return;
+  el.textContent=message;
+  el.style.color=state==="error"?"#a33d32":state==="ok"?"#3f7652":"";
+}
+function renderEra5RunningTemperatureRanks(){
+  const data=era5RunningTemperatureRanks;
+  if(!data?.ready||!data.products)return;
+  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
+  era5RunningTemperatureRankProduct=key;
+  const product=data.products[key],stats=product.stats||{};
+  document.querySelectorAll("[data-era5-running-rank-product]").forEach(button=>{
+    const active=button.dataset.era5RunningRankProduct===key;
+    button.classList.toggle("active",active);
+    button.setAttribute("aria-pressed",active?"true":"false");
+  });
+  const year=Number(data.current_year)||String(data.data_through||"").slice(0,4)||"2026";
+  const title=document.getElementById("era5RunningRankTitle");if(title)title.textContent=`Temperatur-Rang ${year}`;
+  const subtitle=document.getElementById("era5RunningRankSubtitle");if(subtitle)subtitle.textContent=product.note||"Laufende Einordnung der 2-m-Temperatur gegenüber 1950–2025.";
+  const period=document.getElementById("era5RunningRankPeriod");if(period)period.textContent=product.label||data.data_through||"–";
+  const periodDetail=document.getElementById("era5RunningRankPeriodDetail");if(periodDetail)periodDetail.textContent=`Datenstand ${data.data_through||"–"}`;
+  const rank1=document.getElementById("era5RunningRankRank1");if(rank1)rank1.textContent=era5RunningRankPercent(stats.rank1_area_percent);
+  const top3=document.getElementById("era5RunningRankTop3");if(top3)top3.textContent=era5RunningRankPercent(stats.top3_area_percent);
+  const top3Detail=document.getElementById("era5RunningRankTop3Detail");if(top3Detail)top3Detail.textContent=`${Number(product.comparison_years)||Number(data.historical_years)||76} historische Jahre · insgesamt ${Number(product.total_rank_positions)||Number(data.total_rank_positions)||77} Rangpositionen`;
+  const foot=document.getElementById("era5RunningRankFoot");if(foot)foot.textContent=`${product.rank_direction||data.rank_direction||"1 = wärmster"} · Vergleich ${product.history_start||data.history_start||1950}–${product.history_end||data.history_end||2025} plus ${year} · ${data.grid||"0,1° ERA5-Land"}.`;
+  const wrap=document.getElementById("era5RunningRankImageWrap");
+  if(wrap&&product.file){
+    const img=document.createElement("img");
+    img.className="era5-running-rank-image";
+    img.alt=`ERA5-Land Temperatur-Rangkarte ${product.label||""}`.trim();
+    img.loading="lazy";
+    img.addEventListener("error",()=>{wrap.innerHTML='<div class="era5-europe-loading">Rangkarte konnte nicht geladen werden.</div>';});
+    img.src=`${ERA5_EUROPE_RAW_BASE}${product.file}?v=${encodeURIComponent(data.data_through||Date.now())}`;
+    wrap.replaceChildren(img);
+  }
+  era5RunningRankSetStatus(`Datenstand ${data.data_through||"–"} · ${data.grid||"ERA5-Land"} · Rang 1 = wärmster`,"ok");
+}
+async function ensureEra5RunningTemperatureRanksLoaded(force=false){
+  if(era5RunningTemperatureRanks&&!force){renderEra5RunningTemperatureRanks();return era5RunningTemperatureRanks;}
+  if(era5RunningTemperatureRanksLoading&&!force)return era5RunningTemperatureRanksLoading;
+  era5RunningRankSetStatus("Temperatur-Rangkarten werden geladen …");
+  const url=`${ERA5_EUROPE_RAW_BASE}${ERA5_RUNNING_TEMPERATURE_RANKS_INDEX}?ts=${Date.now()}`;
+  era5RunningTemperatureRanksLoading=fetch(url,{cache:"no-store"}).then(async response=>{
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    era5RunningTemperatureRanks=await response.json();
+    if(!era5RunningTemperatureRanks?.ready)throw new Error("Rangdaten sind noch nicht bereit");
+    renderEra5RunningTemperatureRanks();
+    return era5RunningTemperatureRanks;
+  }).catch(error=>{
+    console.error("ERA5-Land Temperatur-Rangkarten konnten nicht geladen werden:",error);
+    era5RunningRankSetStatus(`Temperatur-Rangkarten konnten nicht geladen werden: ${error.message}`,"error");
+    const wrap=document.getElementById("era5RunningRankImageWrap");if(wrap)wrap.innerHTML='<div class="era5-europe-loading">Keine Rangkarte verfügbar.</div>';
+    throw error;
+  }).finally(()=>{era5RunningTemperatureRanksLoading=null;});
+  return era5RunningTemperatureRanksLoading;
+}
+
 async function ensureEra5EuropeLoaded(force=false){
   if(era5EuropeIndex && !force){renderEra5Europe();return era5EuropeIndex;}
   if(era5EuropeLoading && !force)return era5EuropeLoading;
@@ -13916,6 +14020,17 @@ function initEra5EuropeControls(){
   parameter.addEventListener("change",()=>{era5EuropeUpdateSoilLayerVisibility();era5EuropeUpdatePeriodOptions();era5EuropeUpdateMapYearOptions();era5EuropeUpdateViewOptions();renderEra5Europe();});soilLayer?.addEventListener("change",()=>{renderEra5Europe();});period.addEventListener("change",()=>{era5EuropeUpdateMapYearOptions();era5EuropeUpdateViewOptions();renderEra5Europe();});mapYear?.addEventListener("change",()=>{era5EuropeUpdateViewOptions();renderEra5Europe();});view.addEventListener("change",renderEra5Europe);download?.addEventListener("click",downloadEra5EuropeMap);compare?.addEventListener("change",renderEra5EuropePointAnalysis);clear?.addEventListener("click",clearEra5EuropePoint);
 }
 initEra5EuropeControls();
+function initEra5RunningTemperatureRankControls(){
+  document.querySelectorAll("[data-era5-running-rank-product]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      const product=button.dataset.era5RunningRankProduct;
+      if(!product||product===era5RunningTemperatureRankProduct)return;
+      era5RunningTemperatureRankProduct=product;
+      renderEra5RunningTemperatureRanks();
+    });
+  });
+}
+initEra5RunningTemperatureRankControls();
 function europeStationEscapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]||ch));}
 function europeStationNormalize(value){return String(value??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("de-DE").trim();}
 function setEuropeStationStatus(message,state=""){
