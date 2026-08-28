@@ -1060,6 +1060,13 @@ button.action:hover{background:#1f2937}
 .era5-running-rank-tab{border:1px solid #cfd8dd;background:#f6f8f9;color:#334149;border-radius:8px;padding:8px 11px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
 .era5-running-rank-tab:hover{background:#eef3f5}.era5-running-rank-tab.active{background:#253746;color:#fff;border-color:#253746}
 .era5-running-rank-status{padding:10px 16px 0;color:var(--muted);font-size:11px;line-height:1.45}
+.era5-running-rank-timeline{margin:10px 16px 0;padding:11px 12px;border:1px solid #dfe5e9;border-radius:9px;background:#f8fafb}
+.era5-running-rank-timeline-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.era5-running-rank-timeline-head strong{font-size:13px}.era5-running-rank-timeline-date{font-size:12px;font-weight:750;color:#3d4a52;font-variant-numeric:tabular-nums}
+.era5-running-rank-timeline-row{display:grid;grid-template-columns:auto auto auto minmax(180px,1fr);gap:8px;align-items:center}
+.era5-running-rank-timeline-row button{min-height:34px;white-space:nowrap}.era5-running-rank-timeline-row input[type="range"]{width:100%;min-width:0;accent-color:#253746;cursor:pointer}
+.era5-running-rank-timeline-row input[type="range"]:disabled{opacity:.5;cursor:not-allowed}.era5-running-rank-timeline-note{margin-top:7px;font-size:10px;line-height:1.4;color:var(--muted)}
+@media(max-width:700px){.era5-running-rank-timeline-row{grid-template-columns:1fr 1fr 1fr}.era5-running-rank-timeline-row input[type="range"]{grid-column:1/-1}}
 .era5-running-rank-downloads{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 0}
 .era5-running-rank-downloads .action{white-space:nowrap}
 .era5-running-rank-kpis{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:10px;padding:12px 16px}
@@ -1500,6 +1507,19 @@ button.action:hover{background:#1f2937}
       </div>
     </div>
     <div id="era5RunningRankStatus" class="era5-running-rank-status">Rangkarte wird geladen …</div>
+    <div id="era5RunningRankTimeline" class="era5-running-rank-timeline">
+      <div class="era5-running-rank-timeline-head">
+        <strong>Kartenstände durchklicken oder abspielen</strong>
+        <span id="era5RunningRankTimelineDate" class="era5-running-rank-timeline-date">–</span>
+      </div>
+      <div class="era5-running-rank-timeline-row">
+        <button id="era5RunningRankPrev" class="action" type="button">◀ 1 Tag</button>
+        <button id="era5RunningRankPlay" class="action" type="button">▶ Abspielen</button>
+        <button id="era5RunningRankNext" class="action" type="button">1 Tag ▶</button>
+        <input id="era5RunningRankSlider" type="range" min="0" max="0" value="0" step="1" aria-label="ERA5-Rangkarten-Datum">
+      </div>
+      <div class="era5-running-rank-timeline-note">Das Archiv wächst mit jedem erfolgreichen täglichen Lauf. Die gewählte Rangart bleibt beim Durchklicken erhalten.</div>
+    </div>
     <div class="era5-running-rank-downloads">
       <button id="era5RunningRankDownloadPng" class="action" type="button">PNG herunterladen</button>
       <button id="era5RunningRankDownloadPdf" class="action" type="button">PDF herunterladen</button>
@@ -3382,7 +3402,13 @@ let era5EuropeIndex=null;
 let era5EuropeLoading=null;
 let era5RunningTemperatureRanks=null;
 let era5RunningTemperatureRanksLoading=null;
+let era5RunningTemperatureRanksDisplay=null;
 let era5RunningTemperatureRankProduct="day";
+let era5RunningRankDates=[];
+let era5RunningRankDateIndex=-1;
+let era5RunningRankPlayTimer=null;
+let era5RunningRankPlayBusy=false;
+const era5RunningRankArchiveCache=new Map();
 const ERA5_RUNNING_TEMPERATURE_RANKS_INDEX="era5_land_europe/running/temperature_ranks/index.json";
 let era5EuropeAnalysis=null;
 let era5EuropeAnalysisLoading=null;
@@ -13617,6 +13643,107 @@ function era5RunningRankSetStatus(message,state=""){
   el.textContent=message;
   el.style.color=state==="error"?"#a33d32":state==="ok"?"#3f7652":"";
 }
+function era5RunningRankDisplayDate(value){
+  if(!value)return "aktueller Stand";
+  const date=new Date(`${value}T00:00:00`);
+  if(Number.isNaN(date.getTime()))return value;
+  return date.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+function era5RunningRankStopPlay(){
+  if(era5RunningRankPlayTimer!==null){
+    window.clearInterval(era5RunningRankPlayTimer);
+    era5RunningRankPlayTimer=null;
+  }
+  era5RunningRankPlayBusy=false;
+  const button=document.getElementById("era5RunningRankPlay");
+  if(button)button.textContent="▶ Abspielen";
+}
+function era5RunningRankUpdateTimeline(){
+  const slider=document.getElementById("era5RunningRankSlider");
+  const prev=document.getElementById("era5RunningRankPrev");
+  const next=document.getElementById("era5RunningRankNext");
+  const label=document.getElementById("era5RunningRankTimelineDate");
+  const length=era5RunningRankDates.length;
+  const index=length?Math.max(0,Math.min(era5RunningRankDateIndex,length-1)):0;
+  if(slider){
+    slider.min="0";
+    slider.max=String(Math.max(0,length-1));
+    slider.value=String(index);
+    slider.disabled=length<2;
+  }
+  if(prev)prev.disabled=length<2||index<=0;
+  if(next)next.disabled=length<2||index>=length-1;
+  if(label){
+    label.textContent=length
+      ?`${era5RunningRankDisplayDate(era5RunningRankDates[index])} · ${index+1}/${length}`
+      :"Noch kein Archivstand";
+  }
+}
+function era5RunningRankArchiveIndexUrl(date){
+  const pattern=era5RunningTemperatureRanks?.archive_index_pattern
+    ||"era5_land_europe/running/temperature_ranks/archive/{date}/index.json";
+  return `${ERA5_EUROPE_RAW_BASE}${pattern.replace("{date}",date)}?v=${encodeURIComponent(date)}`;
+}
+async function era5RunningRankSelectIndex(index,{manual=false}={}){
+  const length=era5RunningRankDates.length;
+  if(!length)return;
+  const next=Math.max(0,Math.min(Number(index)||0,length-1));
+  if(manual)era5RunningRankStopPlay();
+  era5RunningRankDateIndex=next;
+  era5RunningRankUpdateTimeline();
+  const date=era5RunningRankDates[next];
+  if(date===era5RunningTemperatureRanks?.data_through){
+    era5RunningTemperatureRanksDisplay=era5RunningTemperatureRanks;
+    renderEra5RunningTemperatureRanks();
+    return;
+  }
+  if(era5RunningRankArchiveCache.has(date)){
+    era5RunningTemperatureRanksDisplay=era5RunningRankArchiveCache.get(date);
+    renderEra5RunningTemperatureRanks();
+    return;
+  }
+  era5RunningRankSetStatus(`Archivstand ${era5RunningRankDisplayDate(date)} wird geladen …`);
+  try{
+    const response=await fetch(era5RunningRankArchiveIndexUrl(date),{cache:"force-cache"});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const payload=await response.json();
+    if(!payload?.ready)throw new Error("Archivstand ist nicht bereit");
+    era5RunningRankArchiveCache.set(date,payload);
+    if(era5RunningRankDates[era5RunningRankDateIndex]!==date)return;
+    era5RunningTemperatureRanksDisplay=payload;
+    renderEra5RunningTemperatureRanks();
+  }catch(error){
+    console.error("ERA5-Rangarchiv:",error);
+    era5RunningRankSetStatus(`Archivstand konnte nicht geladen werden: ${error.message}`,"error");
+  }
+}
+function era5RunningRankStep(delta){
+  if(!era5RunningRankDates.length)return;
+  era5RunningRankSelectIndex(era5RunningRankDateIndex+Number(delta||0),{manual:true});
+}
+function era5RunningRankSliderInput(value){
+  era5RunningRankSelectIndex(Number(value),{manual:true});
+}
+function era5RunningRankTogglePlay(){
+  if(era5RunningRankPlayTimer!==null){
+    era5RunningRankStopPlay();
+    return;
+  }
+  if(era5RunningRankDates.length<2)return;
+  const button=document.getElementById("era5RunningRankPlay");
+  if(button)button.textContent="⏸ Pause";
+  era5RunningRankPlayTimer=window.setInterval(async()=>{
+    if(era5RunningRankPlayBusy)return;
+    era5RunningRankPlayBusy=true;
+    try{
+      const next=era5RunningRankDateIndex>=era5RunningRankDates.length-1?0:era5RunningRankDateIndex+1;
+      await era5RunningRankSelectIndex(next);
+    }finally{
+      era5RunningRankPlayBusy=false;
+    }
+  },850);
+}
+
 function era5RunningRankProducts(data){
   const products={...(data?.products||{})};
   if(!products.season_to_date&&products.summer_to_date){
@@ -13625,7 +13752,7 @@ function era5RunningRankProducts(data){
   return products;
 }
 function era5RunningRankCurrentProduct(){
-  const data=era5RunningTemperatureRanks;
+  const data=era5RunningTemperatureRanksDisplay||era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return null;
   const products=era5RunningRankProducts(data);
   const key=products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:(products.year_to_date?"year_to_date":"day");
@@ -13653,12 +13780,11 @@ async function downloadEra5RunningRankPng(){
   if(button)button.disabled=true;
   try{
     const {data,key,blob}=await era5RunningRankFetchBlob();
-    const url=URL.createObjectURL(blob);
+    const dataUrl=await era5RunningRankBlobToPngDataUrl(blob);
     const link=document.createElement("a");
-    link.href=url;
+    link.href=dataUrl;
     link.download=`${era5RunningRankDownloadBaseName(key,data)}.png`;
     document.body.appendChild(link);link.click();link.remove();
-    URL.revokeObjectURL(url);
   }catch(error){
     console.error("ERA5-Rangkarte PNG:",error);
     era5RunningRankSetStatus(`PNG-Download fehlgeschlagen: ${error.message}`,"error");
@@ -13666,13 +13792,28 @@ async function downloadEra5RunningRankPng(){
     if(button)button.disabled=false;
   }
 }
+async function era5RunningRankBlobToPngDataUrl(blob){
+  const source=URL.createObjectURL(blob);
+  try{
+    const image=await new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(img);
+      img.onerror=()=>reject(new Error("Rangkarte konnte nicht dekodiert werden."));
+      img.src=source;
+    });
+    const canvas=document.createElement("canvas");
+    canvas.width=image.naturalWidth||image.width;
+    canvas.height=image.naturalHeight||image.height;
+    const ctx=canvas.getContext("2d");
+    if(!ctx)throw new Error("PNG-Canvas konnte nicht erstellt werden.");
+    ctx.drawImage(image,0,0);
+    return canvas.toDataURL("image/png");
+  }finally{
+    URL.revokeObjectURL(source);
+  }
+}
 function era5RunningRankBlobToDataUrl(blob){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=()=>resolve(reader.result);
-    reader.onerror=()=>reject(new Error("PNG konnte nicht für PDF gelesen werden."));
-    reader.readAsDataURL(blob);
-  });
+  return era5RunningRankBlobToPngDataUrl(blob);
 }
 function era5RunningRankImageSize(dataUrl){
   return new Promise((resolve,reject)=>{
@@ -13706,7 +13847,7 @@ async function downloadEra5RunningRankPdf(){
   }
 }
 function renderEra5RunningTemperatureRanks(){
-  const data=era5RunningTemperatureRanks;
+  const data=era5RunningTemperatureRanksDisplay||era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return;
   const products=era5RunningRankProducts(data);
   const key=products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
@@ -13755,6 +13896,15 @@ async function ensureEra5RunningTemperatureRanksLoaded(force=false){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     era5RunningTemperatureRanks=await response.json();
     if(!era5RunningTemperatureRanks?.ready)throw new Error("Rangdaten sind noch nicht bereit");
+    const dates=Array.isArray(era5RunningTemperatureRanks.available_dates)
+      ?era5RunningTemperatureRanks.available_dates.filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(String(value))).sort()
+      :[];
+    const latest=String(era5RunningTemperatureRanks.data_through||"");
+    if(latest&&!dates.includes(latest))dates.push(latest);
+    era5RunningRankDates=[...new Set(dates)].sort();
+    era5RunningRankDateIndex=era5RunningRankDates.length?era5RunningRankDates.length-1:-1;
+    era5RunningTemperatureRanksDisplay=era5RunningTemperatureRanks;
+    era5RunningRankUpdateTimeline();
     renderEra5RunningTemperatureRanks();
     return era5RunningTemperatureRanks;
   }).catch(error=>{
@@ -14135,6 +14285,10 @@ function initEra5RunningTemperatureRankControls(){
   });
   document.getElementById("era5RunningRankDownloadPng")?.addEventListener("click",downloadEra5RunningRankPng);
   document.getElementById("era5RunningRankDownloadPdf")?.addEventListener("click",downloadEra5RunningRankPdf);
+  document.getElementById("era5RunningRankPrev")?.addEventListener("click",()=>era5RunningRankStep(-1));
+  document.getElementById("era5RunningRankNext")?.addEventListener("click",()=>era5RunningRankStep(1));
+  document.getElementById("era5RunningRankPlay")?.addEventListener("click",era5RunningRankTogglePlay);
+  document.getElementById("era5RunningRankSlider")?.addEventListener("input",event=>era5RunningRankSliderInput(event.target.value));
 }
 initEra5RunningTemperatureRankControls();
 function europeStationEscapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]||ch));}

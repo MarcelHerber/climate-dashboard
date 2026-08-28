@@ -106,7 +106,7 @@ jobs:
       - name: Python-Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow pytest
       - name: Hilfsfunktionen testen
         run: python -m pytest -q tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
 
@@ -187,7 +187,7 @@ jobs:
       - name: Python-Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow pytest
       - uses: actions/download-artifact@v4
         with:
           pattern: era5-running-rank-*

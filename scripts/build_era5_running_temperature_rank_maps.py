@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 from build_era5_running_temperature_rank_shard import (
     CORE_PATH,
@@ -34,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHARD_DIR = ROOT / '.era5_running_rank_shards'
 OUT_DIR = ROOT / 'era5_land_europe' / 'running' / 'temperature_ranks'
 INDEX_PATH = OUT_DIR / 'index.json'
+ARCHIVE_DIR = OUT_DIR / 'archive'
 
 
 def default_target_date() -> date:
@@ -196,6 +198,40 @@ def period_note(product: str, target: date, history_start: int, history_end: int
     raise ValueError(product)
 
 
+def archive_rank_payload(target: date, payload: dict) -> list[str]:
+    archive_dir = ARCHIVE_DIR / target.isoformat()
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archived_products = {}
+
+    for product, item in payload['products'].items():
+        source = ROOT / str(item['file'])
+        if not source.exists():
+            raise RuntimeError(f'Rangkarte für Archiv fehlt: {source}')
+        destination = archive_dir / f'{source.stem}.webp'
+        with Image.open(source) as image:
+            image.convert('RGB').save(destination, 'WEBP', lossless=True, method=6)
+        archived_item = dict(item)
+        archived_item['file'] = destination.relative_to(ROOT).as_posix()
+        archived_products[product] = archived_item
+
+    archived_payload = dict(payload)
+    archived_payload['products'] = archived_products
+    archived_payload['archived'] = True
+    archived_payload['archive_format'] = 'lossless-webp'
+    archive_index = archive_dir / 'index.json'
+    archive_index.write_text(
+        json.dumps(archived_payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n',
+        encoding='utf-8',
+    )
+
+    dates = sorted(
+        path.parent.name
+        for path in ARCHIVE_DIR.glob('????-??-??/index.json')
+        if path.parent.name[:4].isdigit()
+    )
+    return dates
+
+
 def build_maps(target: date, shard_dir: Path = SHARD_DIR) -> Path:
     if target.year <= HISTORY_START:
         raise ValueError(f'Zieljahr muss nach {HISTORY_START} liegen.')
@@ -271,8 +307,17 @@ def build_maps(target: date, shard_dir: Path = SHARD_DIR) -> Path:
         'rank_direction': '1 = wärmster',
         'products': products,
     }
+    available_dates = archive_rank_payload(target, payload)
+    payload['available_dates'] = available_dates
+    payload['archive_index_pattern'] = (
+        'era5_land_europe/running/temperature_ranks/archive/{date}/index.json'
+    )
+    payload['archive_image_format'] = 'lossless-webp'
     INDEX_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n', encoding='utf-8')
-    print(f'Fertig: {len(active_products)} laufende Temperatur-Rangkarten für {target}.')
+    print(
+        f'Fertig: {len(active_products)} laufende Temperatur-Rangkarten für {target} · '
+        f'{len(available_dates)} Archivstände.'
+    )
     return INDEX_PATH
 
 
