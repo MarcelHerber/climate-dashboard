@@ -5,6 +5,7 @@ import argparse
 import calendar
 import importlib.util
 import json
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -12,19 +13,22 @@ from pathlib import Path
 import numpy as np
 
 from era5_running_temperature_rank import (
-    HISTORY_END,
     HISTORY_START,
     combine_summer_to_date,
+    combine_year_to_date,
     daily_request_year_groups,
-    extract_day_and_mtd,
     extract_year_day_mtd,
+    products_for_month,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNING_PATH = ROOT / 'scripts' / 'update_era5_land_europe_running.py'
 CORE_PATH = ROOT / 'scripts' / 'update_era5_land_europe.py'
 RUNNING_INDEX = ROOT / 'era5_land_europe' / 'running' / 'index.json'
-CACHE_DIR = ROOT / '.era5_running_rank_cache'
+LEGACY_CACHE_DIR = ROOT / '.era5_running_rank_cache'
+DAILY_CACHE_DIR = ROOT / '.era5_running_rank_daily_cache'
+MONTHLY_CACHE_DIR = ROOT / '.era5_running_rank_monthly_cache'
+CURRENT_CACHE_DIR = ROOT / '.era5_running_rank_current_cache'
 SHARD_DIR = ROOT / '.era5_running_rank_shards'
 
 
@@ -42,8 +46,8 @@ def load_modules():
     running = load_module(RUNNING_PATH, 'era5_running_rank_daily_core')
     core = load_module(CORE_PATH, 'era5_running_rank_monthly_core')
     running.GRID = [0.1, 0.1]
-    running.CACHE_DIR = CACHE_DIR
-    core.CACHE_DIR = CACHE_DIR
+    running.CACHE_DIR = DAILY_CACHE_DIR
+    core.CACHE_DIR = MONTHLY_CACHE_DIR
     return running, core
 
 
@@ -63,6 +67,25 @@ def _drop_extra_dims(da, keep: set[str]):
             else:
                 raise RuntimeError(f'Unerwartete Dimension {dim}={da.sizes.get(dim)}')
     return da
+
+
+def request_monthly_temperature(core, client, years: list[int], months: list[int], target: Path) -> None:
+    if not years or not months:
+        raise ValueError('years und months dürfen nicht leer sein')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = {
+        'product_type': ['monthly_averaged_reanalysis'],
+        'variable': ['2m_temperature'],
+        'year': [f'{year:04d}' for year in years],
+        'month': [f'{month:02d}' for month in months],
+        'time': ['00:00'],
+        'data_format': 'netcdf',
+        'download_format': 'unarchived',
+        'area': core.AREA,
+    }
+    label = f'Temperatur-Monatsmittel {years[0]}–{years[-1]} · Monate {months[0]:02d}–{months[-1]:02d}'
+    print(f'CDS Monatsmittel Temperatur: Jahre {years[0]}–{years[-1]}, Monate {months[0]:02d}–{months[-1]:02d}')
+    core.retrieve_with_retry(client, request, target, label)
 
 
 def read_monthly_temperature(core, path: Path, years: list[int], months: list[int]):
@@ -102,6 +125,10 @@ def read_monthly_temperature(core, path: Path, years: list[int], months: list[in
                     by_key[(year, month)] = values[idx]
                     idx += 1
 
+        missing = [(year, month) for year in years for month in months if (year, month) not in by_key]
+        if missing:
+            raise RuntimeError(f'Monatsfelder fehlen: {missing[:8]}')
+
         fields = {
             month: np.stack([by_key[(year, month)] for year in years], axis=0).astype(np.float32)
             for month in months
@@ -122,15 +149,27 @@ def read_daily_years(running, path: Path, years: list[int], target_day: int):
         ds.close()
 
 
-def build_shard(target: date, start_year: int, end_year: int) -> Path:
-    if target.year != 2026:
-        raise ValueError(f'Diese erste Rangserie ist für 2026 gebaut, nicht für {target.year}.')
-    if target.month not in (6, 7, 8):
-        raise ValueError('Sommer-Rangkarten werden nur für Juni bis August erzeugt.')
-    if start_year < HISTORY_START or end_year > HISTORY_END or start_year > end_year:
-        raise ValueError(f'Ungültiger Historienbereich: {start_year}–{end_year}')
+def maybe_restore_legacy_daily(year: int, month: int, target: Path) -> bool:
+    if target.exists():
+        return True
+    legacy = LEGACY_CACHE_DIR / f'rank_daily_{year}_{month:02d}_full.nc'
+    if not legacy.exists():
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(legacy, target)
+    print(f'Übernehme vorhandenen Tagescache: {legacy.name}')
+    return True
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def build_shard(target: date, start_year: int, end_year: int) -> Path:
+    history_end = target.year - 1
+    if target.year <= HISTORY_START:
+        raise ValueError(f'Zieljahr muss nach {HISTORY_START} liegen.')
+    if start_year < HISTORY_START or end_year > history_end or start_year > end_year:
+        raise ValueError(f'Ungültiger Historienbereich: {start_year}–{end_year}; erwartet {HISTORY_START}–{history_end}')
+
+    DAILY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    MONTHLY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     SHARD_DIR.mkdir(parents=True, exist_ok=True)
     running, core = load_modules()
     client = running.cds_client()
@@ -138,16 +177,21 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
     month = target.month
     target_day = target.day
 
-    month_days = calendar.monthrange(2024, month)[1]
     day_parts = []
     mtd_parts = []
     lat_ref = lon_ref = None
     for year_group in daily_request_year_groups(years):
         year = year_group[0]
-        daily_path = CACHE_DIR / f'rank_daily_{year}_{month:02d}_full.nc'
+        daily_path = DAILY_CACHE_DIR / f'rank_daily_{year}_{month:02d}_full.nc'
+        maybe_restore_legacy_daily(year, month, daily_path)
         if not daily_path.exists():
+            month_days = calendar.monthrange(year, month)[1]
             running.request_daily_temperature(
-                client, list(year_group), month, list(range(1, month_days + 1)), daily_path,
+                client,
+                list(year_group),
+                month,
+                list(range(1, month_days + 1)),
+                daily_path,
                 f'Temperatur-Rang {year} · vollständiger {month:02d}. Monat',
             )
         lat, lon, day_stack, mtd_stack = read_daily_years(running, daily_path, list(year_group), target_day)
@@ -161,19 +205,15 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
     day_stack = np.concatenate(day_parts, axis=0)
     mtd_stack = np.concatenate(mtd_parts, axis=0)
 
-    complete_months = list(range(6, month))
-    complete_fields: dict[int, np.ndarray] = {}
-    if complete_months:
-        monthly_path = CACHE_DIR / (
-            f'rank_monthly_{start_year}_{end_year}_' + '_'.join(f'{m:02d}' for m in complete_months) + '.nc'
-        )
-        if not monthly_path.exists():
-            core.request_monthly_file(client, years, complete_months, monthly_path)
-        mlat, mlon, complete_fields = read_monthly_temperature(core, monthly_path, years, complete_months)
-        if not (np.allclose(lat_ref, mlat) and np.allclose(lon_ref, mlon)):
-            raise RuntimeError('Tages- und Monatsraster stimmen nicht überein.')
+    all_months = list(range(1, 13))
+    monthly_path = MONTHLY_CACHE_DIR / f'rank_monthly_{start_year}_{end_year}_01_12.nc'
+    if not monthly_path.exists():
+        request_monthly_temperature(core, client, years, all_months, monthly_path)
+    mlat, mlon, complete_fields = read_monthly_temperature(core, monthly_path, years, all_months)
+    if not (np.allclose(lat_ref, mlat) and np.allclose(lon_ref, mlon)):
+        raise RuntimeError('Tages- und Monatsraster stimmen nicht überein.')
 
-    summer_stack = combine_summer_to_date(
+    year_stack = combine_year_to_date(
         complete_fields,
         np.asarray(years, dtype=int),
         month,
@@ -181,18 +221,30 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
         mtd_stack,
     ).astype(np.float32)
 
+    payload = {
+        'target_date': np.asarray(target.isoformat()),
+        'years': np.asarray(years, dtype=np.int16),
+        'lat': np.asarray(lat_ref, dtype=np.float32),
+        'lon': np.asarray(lon_ref, dtype=np.float32),
+        'day': day_stack,
+        'month_to_date': mtd_stack,
+        'year_to_date': year_stack,
+    }
+    if 'summer_to_date' in products_for_month(month):
+        payload['summer_to_date'] = combine_summer_to_date(
+            complete_fields,
+            np.asarray(years, dtype=int),
+            month,
+            target_day,
+            mtd_stack,
+        ).astype(np.float32)
+
     out = SHARD_DIR / f'temperature_rank_{start_year}_{end_year}_{target.isoformat()}.npz'
-    np.savez_compressed(
-        out,
-        target_date=np.asarray(target.isoformat()),
-        years=np.asarray(years, dtype=np.int16),
-        lat=np.asarray(lat_ref, dtype=np.float32),
-        lon=np.asarray(lon_ref, dtype=np.float32),
-        day=day_stack,
-        month_to_date=mtd_stack,
-        summer_to_date=summer_stack,
+    np.savez_compressed(out, **payload)
+    print(
+        f'Rang-Shard fertig: {start_year}–{end_year} · {target} · '
+        f'{", ".join(products_for_month(month))} · {out.stat().st_size/1024/1024:.1f} MiB'
     )
-    print(f'Rang-Shard fertig: {start_year}–{end_year} · {target} · {out.stat().st_size/1024/1024:.1f} MiB')
     return out
 
 

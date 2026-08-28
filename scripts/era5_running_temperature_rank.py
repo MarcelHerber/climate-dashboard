@@ -4,13 +4,25 @@ import calendar
 import numpy as np
 
 HISTORY_START = 1950
-HISTORY_END = 2025
 CURRENT_YEAR = 2026
-PRODUCTS = ('day', 'month_to_date', 'summer_to_date')
+BASE_PRODUCTS = ('day', 'month_to_date', 'year_to_date')
+PRODUCTS = BASE_PRODUCTS + ('summer_to_date',)
 
 
-def historical_years() -> np.ndarray:
-    return np.arange(HISTORY_START, HISTORY_END + 1, dtype=int)
+def historical_years(current_year: int = CURRENT_YEAR) -> np.ndarray:
+    current_year = int(current_year)
+    if current_year <= HISTORY_START:
+        raise ValueError(f'current_year muss nach {HISTORY_START} liegen')
+    return np.arange(HISTORY_START, current_year, dtype=int)
+
+
+def products_for_month(month: int) -> tuple[str, ...]:
+    month = int(month)
+    if not 1 <= month <= 12:
+        raise ValueError('month muss zwischen 1 und 12 liegen')
+    if 6 <= month <= 8:
+        return BASE_PRODUCTS + ('summer_to_date',)
+    return BASE_PRODUCTS
 
 
 def daily_request_year_groups(years) -> tuple[tuple[int, ...], ...]:
@@ -28,13 +40,21 @@ def finite_mean(cube: np.ndarray) -> np.ndarray:
     cube = np.asarray(cube, dtype=float)
     if cube.ndim < 2 or cube.shape[0] == 0:
         raise ValueError('cube braucht mindestens eine Zeitstufe')
-    with np.errstate(invalid='ignore'):
-        result = np.nanmean(cube, axis=0)
-    result[np.sum(np.isfinite(cube), axis=0) == 0] = np.nan
+    valid = np.isfinite(cube)
+    count = np.sum(valid, axis=0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        result = np.nansum(cube, axis=0) / count
+    result[count == 0] = np.nan
     return result
 
 
-def extract_day_and_mtd(times: np.ndarray, cube: np.ndarray, target_day: int) -> tuple[np.ndarray, np.ndarray]:
+def extract_day_and_mtd(
+    times: np.ndarray,
+    cube: np.ndarray,
+    target_day: int,
+    *,
+    allow_missing_day: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
     cube = np.asarray(cube, dtype=float)
     times = np.asarray(times)
     if cube.ndim < 3:
@@ -51,13 +71,23 @@ def extract_day_and_mtd(times: np.ndarray, cube: np.ndarray, target_day: int) ->
         day_mask = days == int(target_day)
     else:
         if cube.shape[0] < target_day:
-            raise ValueError('Nicht genügend Zeitstufen für target_day')
-        mtd_mask = np.arange(cube.shape[0]) < int(target_day)
-        day_mask = np.arange(cube.shape[0]) == int(target_day) - 1
+            if not allow_missing_day:
+                raise ValueError('Nicht genügend Zeitstufen für target_day')
+            mtd_mask = np.arange(cube.shape[0]) < int(target_day)
+            day_mask = np.zeros(cube.shape[0], dtype=bool)
+        else:
+            mtd_mask = np.arange(cube.shape[0]) < int(target_day)
+            day_mask = np.arange(cube.shape[0]) == int(target_day) - 1
 
+    if not np.any(mtd_mask):
+        raise ValueError(f'Keine Zeitstufen bis Zieltag {target_day:02d}')
     if not np.any(day_mask):
-        raise ValueError(f'Zieltag {target_day:02d} fehlt in den Tagesdaten')
-    return finite_mean(cube[day_mask]), finite_mean(cube[mtd_mask])
+        if not allow_missing_day:
+            raise ValueError(f'Zieltag {target_day:02d} fehlt in den Tagesdaten')
+        day = np.full(cube.shape[1:], np.nan, dtype=float)
+    else:
+        day = finite_mean(cube[day_mask])
+    return day, finite_mean(cube[mtd_mask])
 
 
 def extract_year_day_mtd(times: np.ndarray, cube: np.ndarray, years: np.ndarray, target_day: int) -> tuple[np.ndarray, np.ndarray]:
@@ -76,35 +106,46 @@ def extract_year_day_mtd(times: np.ndarray, cube: np.ndarray, years: np.ndarray,
         mask = time_years == int(year)
         if not np.any(mask):
             raise ValueError(f'Jahr {year} fehlt in den Tagesdaten')
-        day, mtd = extract_day_and_mtd(times[mask], cube[mask], target_day)
+        day, mtd = extract_day_and_mtd(
+            times[mask],
+            cube[mask],
+            target_day,
+            allow_missing_day=True,
+        )
         day_fields.append(day)
         mtd_fields.append(mtd)
     return np.stack(day_fields, axis=0), np.stack(mtd_fields, axis=0)
 
 
-def combine_summer_to_date(
+def combine_period_to_date(
     complete_month_fields: dict[int, np.ndarray],
     years: np.ndarray,
+    start_month: int,
     target_month: int,
     target_day: int,
     current_month_to_date: np.ndarray,
 ) -> np.ndarray:
     years = np.asarray(years, dtype=int)
     mtd = np.asarray(current_month_to_date, dtype=float)
-    if target_month not in (6, 7, 8):
-        raise ValueError('Sommer-bis-heute ist nur für Juni, Juli oder August definiert')
+    start_month = int(start_month)
+    target_month = int(target_month)
+    target_day = int(target_day)
+    if not 1 <= start_month <= target_month <= 12:
+        raise ValueError('Ungültiger Monatsbereich')
+    if not 1 <= target_day <= 31:
+        raise ValueError('target_day muss zwischen 1 und 31 liegen')
     if mtd.shape[0] != years.size:
         raise ValueError('years und current_month_to_date stimmen nicht überein')
 
     numerator = np.where(np.isfinite(mtd), mtd * float(target_day), 0.0)
     denominator = np.where(np.isfinite(mtd), float(target_day), 0.0)
 
-    for month in range(6, target_month):
+    for month in range(start_month, target_month):
         if month not in complete_month_fields:
-            raise ValueError(f'Vollständiger Sommermonat {month:02d} fehlt')
+            raise ValueError(f'Vollständiger Monat {month:02d} fehlt')
         values = np.asarray(complete_month_fields[month], dtype=float)
         if values.shape != mtd.shape:
-            raise ValueError('Sommermonatsfelder müssen dieselbe Form besitzen')
+            raise ValueError('Monatsfelder müssen dieselbe Form besitzen')
         weights = np.asarray([calendar.monthrange(int(year), month)[1] for year in years], dtype=float)
         weights = weights.reshape((years.size,) + (1,) * (values.ndim - 1))
         valid = np.isfinite(values)
@@ -115,3 +156,39 @@ def combine_summer_to_date(
         result = numerator / denominator
     result[denominator == 0] = np.nan
     return result
+
+
+def combine_year_to_date(
+    complete_month_fields: dict[int, np.ndarray],
+    years: np.ndarray,
+    target_month: int,
+    target_day: int,
+    current_month_to_date: np.ndarray,
+) -> np.ndarray:
+    return combine_period_to_date(
+        complete_month_fields,
+        years,
+        1,
+        target_month,
+        target_day,
+        current_month_to_date,
+    )
+
+
+def combine_summer_to_date(
+    complete_month_fields: dict[int, np.ndarray],
+    years: np.ndarray,
+    target_month: int,
+    target_day: int,
+    current_month_to_date: np.ndarray,
+) -> np.ndarray:
+    if int(target_month) not in (6, 7, 8):
+        raise ValueError('Sommer-bis-heute ist nur für Juni, Juli oder August definiert')
+    return combine_period_to_date(
+        complete_month_fields,
+        years,
+        6,
+        target_month,
+        target_day,
+        current_month_to_date,
+    )

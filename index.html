@@ -1494,7 +1494,7 @@ button.action:hover{background:#1f2937}
       </div>
       <div class="era5-running-rank-tabs" role="group" aria-label="Temperatur-Rang Zeitraum wählen">
         <button class="era5-running-rank-tab active" type="button" data-era5-running-rank-product="day" aria-pressed="true">Tag</button>
-        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="month_to_date" aria-pressed="false">Monat bis heute</button>
+        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="month_to_date" aria-pressed="false">Monat bis heute</button>\n        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="year_to_date" aria-pressed="false">Jahr bis heute</button>
         <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="summer_to_date" aria-pressed="false">Sommer bis heute</button>
       </div>
     </div>
@@ -13619,7 +13619,7 @@ function era5RunningRankSetStatus(message,state=""){
 function era5RunningRankCurrentProduct(){
   const data=era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return null;
-  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
+  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:(data.products.year_to_date?"year_to_date":"day");
   const product=data.products[key];
   if(!product?.file)return null;
   return {data,key,product};
@@ -13703,7 +13703,10 @@ function renderEra5RunningTemperatureRanks(){
   era5RunningTemperatureRankProduct=key;
   const product=data.products[key],stats=product.stats||{};
   document.querySelectorAll("[data-era5-running-rank-product]").forEach(button=>{
-    const active=button.dataset.era5RunningRankProduct===key;
+    const productKey=button.dataset.era5RunningRankProduct;
+    const available=Boolean(data.products[productKey]);
+    const active=available&&productKey===key;
+    button.hidden=!available;
     button.classList.toggle("active",active);
     button.setAttribute("aria-pressed",active?"true":"false");
   });

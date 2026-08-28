@@ -125,7 +125,7 @@ def rank_style(total:int):
     return cmap,norm,boundaries,ticks,labels
 
 
-def render_rank_map(core,rank:np.ndarray,lat:np.ndarray,lon:np.ndarray,*,label:str,year:int,history_start:int,history_end:int,filename:Path)->None:
+def render_rank_map(core,rank:np.ndarray,lat:np.ndarray,lon:np.ndarray,*,label:str,year:int,history_start:int,history_end:int,filename:Path,total_rank_positions:int|None=None)->None:
     filename.parent.mkdir(parents=True,exist_ok=True)
     core.cartopy.config['data_dir']=str(core.CARTOPY_DIR);core.CARTOPY_DIR.mkdir(parents=True,exist_ok=True)
     total=history_end-history_start+2

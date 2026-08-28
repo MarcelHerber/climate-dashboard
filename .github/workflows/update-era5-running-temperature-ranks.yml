@@ -6,10 +6,11 @@ on:
       - "scripts/era5_running_temperature_rank.py"
       - "scripts/build_era5_running_temperature_rank_shard.py"
       - "scripts/build_era5_running_temperature_rank_maps.py"
+      - "scripts/build_era5_temperature_rank_maps.py"
       - "tests/test_era5_running_temperature_rank.py"
       - ".github/workflows/update-era5-running-temperature-ranks.yml"
   schedule:
-    - cron: "25 15 * 6-8 *"
+    - cron: "25 15 * * *"
       timezone: "Europe/Berlin"
   workflow_dispatch:
     inputs:
@@ -32,7 +33,11 @@ jobs:
     outputs:
       needed: ${{ steps.target.outputs.needed }}
       target_date: ${{ steps.target.outputs.target_date }}
+      target_year: ${{ steps.target.outputs.target_year }}
       target_month: ${{ steps.target.outputs.target_month }}
+      history_end: ${{ steps.target.outputs.history_end }}
+      history_count: ${{ steps.target.outputs.history_count }}
+      history_years: ${{ steps.target.outputs.history_years }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -45,22 +50,39 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-          running=json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))
-          target=str(running['data_through'])
-          year=int(target[:4]); month=int(target[5:7])
-          if year != 2026 or month not in (6,7,8):
-              needed=False
+
+          history_start = 1950
+          running = json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))
+          target = str(running['data_through'])
+          year = int(target[:4])
+          month = int(target[5:7])
+          years = list(range(history_start, year))
+          if not years:
+              needed = False
           else:
-              p=Path('era5_land_europe/running/temperature_ranks/index.json')
-              old=json.loads(p.read_text(encoding='utf-8')).get('data_through') if p.exists() else None
-              force=os.environ.get('FORCE_INPUT','false').lower()=='true' or os.environ.get('GITHUB_EVENT_NAME')=='push'
-              needed=force or old != target
-          out=Path(os.environ['GITHUB_OUTPUT'])
-          with out.open('a',encoding='utf-8') as fh:
+              p = Path('era5_land_europe/running/temperature_ranks/index.json')
+              old = json.loads(p.read_text(encoding='utf-8')).get('data_through') if p.exists() else None
+              force = (
+                  os.environ.get('FORCE_INPUT', 'false').lower() == 'true'
+                  or os.environ.get('GITHUB_EVENT_NAME') == 'push'
+              )
+              needed = force or old != target
+
+          out = Path(os.environ['GITHUB_OUTPUT'])
+          with out.open('a', encoding='utf-8') as fh:
               fh.write(f'target_date={target}\n')
-              fh.write(f'target_month={target[5:7]}\n')
+              fh.write(f'target_year={year}\n')
+              fh.write(f'target_month={month:02d}\n')
+              fh.write(f'history_end={year - 1}\n')
+              fh.write(f'history_count={len(years)}\n')
+              fh.write('history_years=' + json.dumps(years, separators=(',', ':')) + '\n')
               fh.write(f'needed={str(needed).lower()}\n')
-          print('Datenstand:',target,'Build nötig:',needed)
+          print(
+              'Datenstand:', target,
+              'Historie:', f'{history_start}–{year - 1}',
+              'Jahre:', len(years),
+              'Build nötig:', needed,
+          )
           PY
 
   shards:
@@ -70,7 +92,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        year: [1950, 1951, 1952, 1953, 1954, 1955, 1956, 1957, 1958, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+        year: ${{ fromJSON(needs.prepare.outputs.history_years) }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -87,11 +109,27 @@ jobs:
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
       - name: Hilfsfunktionen testen
         run: python -m pytest -q tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
-      - name: Historischen Tagescache wiederherstellen
+
+      - id: daily-cache
+        name: Historischen Tagescache wiederherstellen
         uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m${{ needs.prepare.outputs.target_month }}
+
+      - name: Alten Tagescache als Fallback laden
+        if: steps.daily-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
         with:
           path: .era5_running_rank_cache
           key: era5-running-temperature-rank-v2-${{ matrix.year }}-m${{ needs.prepare.outputs.target_month }}
+
+      - name: Historische Monatsmittel wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_monthly_cache
+          key: era5-running-temperature-rank-monthly-v1-${{ matrix.year }}
+
       - name: CDS API konfigurieren
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -104,12 +142,14 @@ jobs:
           key: ${CDSAPI_KEY}
           EOF
           chmod 600 "$HOME/.cdsapirc"
+
       - name: Historischen Rang-Shard bauen
         run: >-
           python scripts/build_era5_running_temperature_rank_shard.py
           --target-date "${{ needs.prepare.outputs.target_date }}"
           --start-year ${{ matrix.year }}
           --end-year ${{ matrix.year }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: era5-running-rank-${{ matrix.year }}-${{ matrix.year }}
@@ -122,7 +162,7 @@ jobs:
     needs: [prepare, shards]
     if: needs.prepare.outputs.needed == 'true' && needs.shards.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v6
         with:
@@ -141,6 +181,13 @@ jobs:
           pattern: era5-running-rank-*
           path: .era5_running_rank_shards
           merge-multiple: true
+
+      - name: Aktuelle vollständige Monatsmittel wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_current_cache
+          key: era5-running-temperature-rank-current-v1-${{ needs.prepare.outputs.target_year }}-before-m${{ needs.prepare.outputs.target_month }}
+
       - name: CDS API konfigurieren
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -153,28 +200,42 @@ jobs:
           key: ${CDSAPI_KEY}
           EOF
           chmod 600 "$HOME/.cdsapirc"
-      - name: Drei Rangkarten erzeugen
+
+      - name: Laufende Rangkarten erzeugen
         run: >-
           python scripts/build_era5_running_temperature_rank_maps.py
           --target-date "${{ needs.prepare.outputs.target_date }}"
+
       - name: Ergebnis prüfen
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
+          import sys
           from pathlib import Path
-          p=Path('era5_land_europe/running/temperature_ranks/index.json')
-          d=json.loads(p.read_text(encoding='utf-8'))
+
+          sys.path.insert(0, 'scripts')
+          from era5_running_temperature_rank import products_for_month
+
+          p = Path('era5_land_europe/running/temperature_ranks/index.json')
+          d = json.loads(p.read_text(encoding='utf-8'))
+          expected_products = set(products_for_month(int('${{ needs.prepare.outputs.target_month }}')))
+          history_count = int('${{ needs.prepare.outputs.history_count }}')
           assert d['ready'] is True
           assert d['data_through'] == '${{ needs.prepare.outputs.target_date }}'
-          assert d['historical_years'] == 76
-          assert d['total_rank_positions'] == 77
-          assert set(d['products']) == {'day','month_to_date','summer_to_date'}
+          assert d['history_start'] == 1950
+          assert d['history_end'] == int('${{ needs.prepare.outputs.history_end }}')
+          assert d['historical_years'] == history_count
+          assert d['total_rank_positions'] == history_count + 1
+          assert set(d['products']) == expected_products
           for item in d['products'].values():
               assert Path(item['file']).exists(), item['file']
-          print('Rangkarten geprüft:', d['data_through'])
+              assert item['comparison_years'] >= 1
+              assert item['total_rank_positions'] == item['comparison_years'] + 1
+          print('Rangkarten geprüft:', d['data_through'], sorted(expected_products))
           PY
+
       - name: Rangkarten versionieren
         shell: bash
         run: |
