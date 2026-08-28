@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/build_dwd_annual_extremes.py \
-            --output data/dwd_annual_extremes.json \
+            --output data/dwd_annual_extremes_stage1.json \
             --max-workers 10
 
       - name: Datenbasis prüfen
@@ -46,7 +46,7 @@ jobs:
           import json
           from pathlib import Path
 
-          p = Path("data/dwd_annual_extremes.json")
+          p = Path("data/dwd_annual_extremes_stage1.json")
           d = json.loads(p.read_text(encoding="utf-8"))
 
           expected = {
@@ -105,7 +105,7 @@ jobs:
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/dwd_annual_extremes.json
+          git add data/dwd_annual_extremes_stage1.json
 
           if git diff --cached --quiet; then
             echo "Jährliche Extremwerte unverändert."
@@ -116,5 +116,5 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-          echo "Datenbasis veröffentlicht."
-          echo "Frontend und Wind folgen bewusst in getrennten Schritten."
+          echo "Stufe-1-Zwischendatei veröffentlicht."
+          echo "Die öffentliche Hauptdatei bleibt bis zum Wind-Merge unverändert."
