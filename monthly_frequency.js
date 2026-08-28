@@ -546,4 +546,4 @@
 })();
 
 /* DWD_DAILY_MAP_LOADER_V1 */
-(()=>{if(typeof document==="undefined")return;if(document.querySelector('script[data-dwd-daily-map]'))return;const s=document.createElement("script");s.src="dwd_station_daily_map.js?v=1";s.dataset.dwdDailyMap="1";document.body.appendChild(s)})();
+(()=>{if(typeof document==="undefined")return;if(document.querySelector('script[data-dwd-daily-map]'))return;const s=document.createElement("script");s.src="dwd_station_daily_map.js?v=3";s.dataset.dwdDailyMap="1";document.body.appendChild(s)})();

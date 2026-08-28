@@ -2,7 +2,7 @@
 const BASE="europe_stations/dwd_daily_map/",MODES={tmax_anom:["Tmax-Anomalie",3,"anom"],tmean_anom:["Tmean-Anomalie",12,"anom"],tmin_anom:["Tmin-Anomalie",4,"anom"],tmax:["Tmax",1,"tmax"],tmean:["Tmean",11,"tmean"],tmin:["Tmin",2,"tmin"],records:["Stationsrekorde",null,"records"]};
 let idx=null,map=null,layer=null,renderer=null,cache=new Map(),selected=null,bound=false;
 const $=id=>document.getElementById(id),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const tenth=v=>Number.isFinite(Number(v))?Number(v)/10:null;
+const tenth=v=>(v===null||v===undefined||v==="")?null:(Number.isFinite(Number(v))?Number(v)/10:null);
 const temp=v=>tenth(v)==null?"–":tenth(v).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" °C";
 const anom=v=>tenth(v)==null?"–":(tenth(v)>0?"+":"")+tenth(v).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" K";
 const datefmt=v=>v?new Date(v+"T12:00:00").toLocaleDateString("de-DE"):"–";
