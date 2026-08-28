@@ -130,6 +130,18 @@ jobs:
           path: .era5_running_rank_monthly_cache
           key: era5-running-temperature-rank-monthly-v1-${{ matrix.year }}
 
+      - id: relative-years
+        name: Vorjahr bestimmen
+        shell: bash
+        run: echo "previous_year=$(( ${{ matrix.year }} - 1 ))" >> "$GITHUB_OUTPUT"
+
+      - name: Vorjahres-Dezember für Winter wiederherstellen
+        if: (needs.prepare.outputs.target_month == '01' || needs.prepare.outputs.target_month == '02') && matrix.year != 1950
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_monthly_cache
+          key: era5-running-temperature-rank-monthly-v1-${{ steps.relative-years.outputs.previous_year }}
+
       - name: CDS API konfigurieren
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -201,7 +213,7 @@ jobs:
           EOF
           chmod 600 "$HOME/.cdsapirc"
 
-      - name: Laufende Rangkarten erzeugen
+      - name: Vier laufende Rangkarten erzeugen
         run: >-
           python scripts/build_era5_running_temperature_rank_maps.py
           --target-date "${{ needs.prepare.outputs.target_date }}"

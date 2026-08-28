@@ -115,13 +115,26 @@ def history_temperature_period(archive:dict,months:list[int])->tuple[np.ndarray,
 
 def rank_style(total:int):
     from matplotlib.colors import BoundaryNorm,ListedColormap
-    boundaries=list(RANK_BOUNDARIES);labels=list(RANK_CLASS_LABELS)
-    if total!=77:
-        boundaries[-1]=float(total)+0.5
-        labels[-1]='77' if total==77 else (f'77–{total}' if total>77 else str(total))
-    cmap=ListedColormap(RANK_COLORS,name='era5_europe_temperature_rank')
+    total=max(1,int(total))
+    ranges=[
+        (1,1),(2,2),(3,3),(4,9),(10,20),(21,40),(41,60),(61,76),(77,None),
+    ]
+    colors=[]
+    labels=[]
+    ticks=[]
+    boundaries=[0.5]
+    for index,(start,end) in enumerate(ranges):
+        if start>total:
+            break
+        stop=total if end is None else min(int(end),total)
+        if stop<start:
+            continue
+        colors.append(RANK_COLORS[index])
+        labels.append(str(start) if start==stop else f'{start}–{stop}')
+        ticks.append((start+stop)/2.0)
+        boundaries.append(float(stop)+0.5)
+    cmap=ListedColormap(colors,name='era5_europe_temperature_rank')
     norm=BoundaryNorm(boundaries,cmap.N,clip=True)
-    ticks=[1,2,3,6.5,15,30.5,50.5,(61+min(76,total))/2,min(77,total)]
     return cmap,norm,boundaries,ticks,labels
 
 

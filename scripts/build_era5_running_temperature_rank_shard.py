@@ -14,11 +14,12 @@ import numpy as np
 
 from era5_running_temperature_rank import (
     HISTORY_START,
-    combine_summer_to_date,
+    combine_season_to_date,
     combine_year_to_date,
     daily_request_year_groups,
     extract_year_day_mtd,
     products_for_month,
+    season_for_month,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,6 +162,29 @@ def maybe_restore_legacy_daily(year: int, month: int, target: Path) -> bool:
     return True
 
 
+def previous_december_fields(core, client, years: list[int], lat_ref: np.ndarray, lon_ref: np.ndarray) -> np.ndarray:
+    fields = []
+    for year in years:
+        if year <= HISTORY_START:
+            fields.append(np.full((lat_ref.size, lon_ref.size), np.nan, dtype=np.float32))
+            continue
+        previous_year = year - 1
+        annual_path = MONTHLY_CACHE_DIR / f'rank_monthly_{previous_year}_{previous_year}_01_12.nc'
+        if annual_path.exists():
+            mlat, mlon, annual = read_monthly_temperature(core, annual_path, [previous_year], list(range(1, 13)))
+            december = annual[12][0]
+        else:
+            december_path = MONTHLY_CACHE_DIR / f'rank_monthly_{previous_year}_{previous_year}_12_12.nc'
+            if not december_path.exists():
+                request_monthly_temperature(core, client, [previous_year], [12], december_path)
+            mlat, mlon, month_fields = read_monthly_temperature(core, december_path, [previous_year], [12])
+            december = month_fields[12][0]
+        if not (np.allclose(lat_ref, mlat) and np.allclose(lon_ref, mlon)):
+            raise RuntimeError(f'Vorjahres-Dezember {previous_year} liegt auf einem abweichenden Raster.')
+        fields.append(np.asarray(december, dtype=np.float32))
+    return np.stack(fields, axis=0)
+
+
 def build_shard(target: date, start_year: int, end_year: int) -> Path:
     history_end = target.year - 1
     if target.year <= HISTORY_START:
@@ -221,6 +245,19 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
         mtd_stack,
     ).astype(np.float32)
 
+    season_key, season_name, _ = season_for_month(month)
+    previous_december = None
+    if season_key == 'winter' and month in (1, 2):
+        previous_december = previous_december_fields(core, client, years, lat_ref, lon_ref)
+    season_stack = combine_season_to_date(
+        complete_fields,
+        np.asarray(years, dtype=int),
+        month,
+        target_day,
+        mtd_stack,
+        previous_december=previous_december,
+    ).astype(np.float32)
+
     payload = {
         'target_date': np.asarray(target.isoformat()),
         'years': np.asarray(years, dtype=np.int16),
@@ -228,16 +265,11 @@ def build_shard(target: date, start_year: int, end_year: int) -> Path:
         'lon': np.asarray(lon_ref, dtype=np.float32),
         'day': day_stack,
         'month_to_date': mtd_stack,
+        'season_to_date': season_stack,
         'year_to_date': year_stack,
+        'season_key': np.asarray(season_key),
+        'season_name': np.asarray(season_name),
     }
-    if 'summer_to_date' in products_for_month(month):
-        payload['summer_to_date'] = combine_summer_to_date(
-            complete_fields,
-            np.asarray(years, dtype=int),
-            month,
-            target_day,
-            mtd_stack,
-        ).astype(np.float32)
 
     out = SHARD_DIR / f'temperature_rank_{start_year}_{end_year}_{target.isoformat()}.npz'
     np.savez_compressed(out, **payload)

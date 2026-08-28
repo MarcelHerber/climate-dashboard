@@ -5,8 +5,14 @@ import numpy as np
 
 HISTORY_START = 1950
 CURRENT_YEAR = 2026
-BASE_PRODUCTS = ('day', 'month_to_date', 'year_to_date')
-PRODUCTS = BASE_PRODUCTS + ('summer_to_date',)
+PRODUCTS = ('day', 'month_to_date', 'season_to_date', 'year_to_date')
+
+SEASONS = {
+    'spring': {'name': 'Frühling', 'start_month': 3, 'months': (3, 4, 5)},
+    'summer': {'name': 'Sommer', 'start_month': 6, 'months': (6, 7, 8)},
+    'autumn': {'name': 'Herbst', 'start_month': 9, 'months': (9, 10, 11)},
+    'winter': {'name': 'Winter', 'start_month': 12, 'months': (12, 1, 2)},
+}
 
 
 def historical_years(current_year: int = CURRENT_YEAR) -> np.ndarray:
@@ -16,13 +22,25 @@ def historical_years(current_year: int = CURRENT_YEAR) -> np.ndarray:
     return np.arange(HISTORY_START, current_year, dtype=int)
 
 
-def products_for_month(month: int) -> tuple[str, ...]:
+def season_for_month(month: int) -> tuple[str, str, int]:
     month = int(month)
-    if not 1 <= month <= 12:
+    if month in (3, 4, 5):
+        key = 'spring'
+    elif month in (6, 7, 8):
+        key = 'summer'
+    elif month in (9, 10, 11):
+        key = 'autumn'
+    elif month in (12, 1, 2):
+        key = 'winter'
+    else:
         raise ValueError('month muss zwischen 1 und 12 liegen')
-    if 6 <= month <= 8:
-        return BASE_PRODUCTS + ('summer_to_date',)
-    return BASE_PRODUCTS
+    meta = SEASONS[key]
+    return key, str(meta['name']), int(meta['start_month'])
+
+
+def products_for_month(month: int) -> tuple[str, ...]:
+    season_for_month(month)
+    return PRODUCTS
 
 
 def daily_request_year_groups(years) -> tuple[tuple[int, ...], ...]:
@@ -169,6 +187,80 @@ def combine_year_to_date(
         complete_month_fields,
         years,
         1,
+        target_month,
+        target_day,
+        current_month_to_date,
+    )
+
+
+def combine_winter_to_date(
+    complete_month_fields: dict[int, np.ndarray],
+    previous_december: np.ndarray,
+    years: np.ndarray,
+    target_month: int,
+    target_day: int,
+    current_month_to_date: np.ndarray,
+) -> np.ndarray:
+    years = np.asarray(years, dtype=int)
+    mtd = np.asarray(current_month_to_date, dtype=float)
+    previous_december = np.asarray(previous_december, dtype=float)
+    target_month = int(target_month)
+    if target_month not in (1, 2):
+        raise ValueError('Winter über Jahreswechsel ist nur für Januar/Februar definiert')
+    if previous_december.shape != mtd.shape:
+        raise ValueError('Vorjahres-Dezember und MTD müssen dieselbe Form besitzen')
+    if mtd.shape[0] != years.size:
+        raise ValueError('years und current_month_to_date stimmen nicht überein')
+
+    previous_valid = np.isfinite(previous_december)
+    numerator = np.where(previous_valid, previous_december * 31.0, 0.0)
+    denominator = np.where(previous_valid, 31.0, 0.0)
+
+    for month in range(1, target_month):
+        if month not in complete_month_fields:
+            raise ValueError(f'Vollständiger Wintermonat {month:02d} fehlt')
+        values = np.asarray(complete_month_fields[month], dtype=float)
+        weights = np.asarray([calendar.monthrange(int(year), month)[1] for year in years], dtype=float)
+        weights = weights.reshape((years.size,) + (1,) * (values.ndim - 1))
+        valid = np.isfinite(values)
+        numerator += np.where(valid, values * weights, 0.0)
+        denominator += np.where(valid, weights, 0.0)
+
+    current_valid = np.isfinite(mtd)
+    numerator += np.where(current_valid, mtd * float(target_day), 0.0)
+    denominator += np.where(current_valid, float(target_day), 0.0)
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        result = numerator / denominator
+    result[(denominator == 0) | ~previous_valid] = np.nan
+    return result
+
+
+def combine_season_to_date(
+    complete_month_fields: dict[int, np.ndarray],
+    years: np.ndarray,
+    target_month: int,
+    target_day: int,
+    current_month_to_date: np.ndarray,
+    *,
+    previous_december: np.ndarray | None = None,
+) -> np.ndarray:
+    key, _, start_month = season_for_month(target_month)
+    if key != 'winter' or int(target_month) == 12:
+        return combine_period_to_date(
+            complete_month_fields,
+            years,
+            start_month,
+            target_month,
+            target_day,
+            current_month_to_date,
+        )
+    if previous_december is None:
+        raise ValueError('Für Januar/Februar wird der Dezember des Vorjahres benötigt')
+    return combine_winter_to_date(
+        complete_month_fields,
+        previous_december,
+        years,
         target_month,
         target_day,
         current_month_to_date,

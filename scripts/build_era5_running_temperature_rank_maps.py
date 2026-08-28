@@ -21,11 +21,12 @@ from build_era5_running_temperature_rank_shard import (
 from build_era5_temperature_rank_maps import render_rank_map
 from era5_running_temperature_rank import (
     HISTORY_START,
-    combine_summer_to_date,
+    combine_season_to_date,
     combine_year_to_date,
     historical_years,
     product_filename,
     products_for_month,
+    season_for_month,
 )
 from era5_temperature_rank import area_weighted_fraction, temperature_rank_field
 
@@ -115,9 +116,29 @@ def current_fields(target: date):
         if not (np.allclose(lat, mlat) and np.allclose(lon, mlon)):
             raise RuntimeError('Aktuelles Tages- und Monatsraster stimmen nicht überein.')
 
+    season_key, _, _ = season_for_month(target.month)
+    previous_december = None
+    if season_key == 'winter' and target.month in (1, 2):
+        previous_year = target.year - 1
+        december_path = CURRENT_CACHE_DIR / f'rank_current_monthly_{previous_year}_12_12.nc'
+        if not december_path.exists():
+            request_monthly_temperature(core, client, [previous_year], [12], december_path)
+        dlat, dlon, december_fields = read_monthly_temperature(core, december_path, [previous_year], [12])
+        if not (np.allclose(lat, dlat) and np.allclose(lon, dlon)):
+            raise RuntimeError('Aktueller Vorjahres-Dezember liegt auf einem abweichenden Raster.')
+        previous_december = december_fields[12]
+
     result = {
         'day': day_field,
         'month_to_date': mtd_field,
+        'season_to_date': combine_season_to_date(
+            complete_fields,
+            np.asarray([target.year], dtype=int),
+            target.month,
+            target.day,
+            mtd_field[None, ...],
+            previous_december=previous_december,
+        )[0].astype(np.float32),
         'year_to_date': combine_year_to_date(
             complete_fields,
             np.asarray([target.year], dtype=int),
@@ -126,14 +147,6 @@ def current_fields(target: date):
             mtd_field[None, ...],
         )[0].astype(np.float32),
     }
-    if 'summer_to_date' in products_for_month(target.month):
-        result['summer_to_date'] = combine_summer_to_date(
-            complete_fields,
-            np.asarray([target.year], dtype=int),
-            target.month,
-            target.day,
-            mtd_field[None, ...],
-        )[0].astype(np.float32)
     return lat, lon, result
 
 
@@ -142,10 +155,12 @@ def period_label(product: str, target: date) -> str:
         return target.strftime('%d.%m.%Y')
     if product == 'month_to_date':
         return f'01.–{target.day:02d}.{target.month:02d}.{target.year}'
+    if product == 'season_to_date':
+        season_key, season_name, start_month = season_for_month(target.month)
+        start_year = target.year - 1 if season_key == 'winter' and target.month in (1, 2) else target.year
+        return f'{season_name} · 01.{start_month:02d}.{start_year}–{target.day:02d}.{target.month:02d}.{target.year}'
     if product == 'year_to_date':
         return f'01.01.–{target.day:02d}.{target.month:02d}.{target.year}'
-    if product == 'summer_to_date':
-        return f'01.06.–{target.day:02d}.{target.month:02d}.{target.year}'
     raise ValueError(product)
 
 
@@ -161,14 +176,21 @@ def period_note(product: str, target: date, history_start: int, history_end: int
             f'Vergleich 01.–{target.day:02d}.{target.month:02d}. mit demselben Monatsabschnitt '
             f'{history_start}–{history_end}.'
         )
+    if product == 'season_to_date':
+        season_key, season_name, start_month = season_for_month(target.month)
+        if season_key == 'winter' and target.month in (1, 2):
+            return (
+                f'Vergleich des laufenden Winters ab 01.12. des Vorjahres bis {target.day:02d}.{target.month:02d}. '
+                f'mit demselben Winterabschnitt {history_start}–{history_end}. '
+                f'Für den Winter {history_start} fehlt Dezember {history_start - 1}; dieser Winter wird deshalb ausgelassen.'
+            )
+        return (
+            f'Vergleich {season_name} ab 01.{start_month:02d}. bis {target.day:02d}.{target.month:02d}. '
+            f'mit demselben Jahreszeitenabschnitt {history_start}–{history_end}.'
+        )
     if product == 'year_to_date':
         return (
             f'Vergleich 01.01.–{target.day:02d}.{target.month:02d}. mit demselben Jahresabschnitt '
-            f'{history_start}–{history_end}.'
-        )
-    if product == 'summer_to_date':
-        return (
-            f'Vergleich 01.06.–{target.day:02d}.{target.month:02d}. mit demselben Sommerabschnitt '
             f'{history_start}–{history_end}.'
         )
     raise ValueError(product)
@@ -213,6 +235,14 @@ def build_maps(target: date, shard_dir: Path = SHARD_DIR) -> Path:
             'file': filename.relative_to(ROOT).as_posix(),
             'label': period_label(product, target),
             'unit': 'Rang',
+            **(
+                {
+                    'season_key': season_for_month(target.month)[0],
+                    'season_name': season_for_month(target.month)[1],
+                }
+                if product == 'season_to_date'
+                else {}
+            ),
             'history_start': history_start,
             'history_end': history_end,
             'comparison_years': comparison_years,

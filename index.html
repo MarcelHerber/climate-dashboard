@@ -1494,8 +1494,9 @@ button.action:hover{background:#1f2937}
       </div>
       <div class="era5-running-rank-tabs" role="group" aria-label="Temperatur-Rang Zeitraum wählen">
         <button class="era5-running-rank-tab active" type="button" data-era5-running-rank-product="day" aria-pressed="true">Tag</button>
-        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="month_to_date" aria-pressed="false">Monat bis heute</button>\n        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="year_to_date" aria-pressed="false">Jahr bis heute</button>
-        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="summer_to_date" aria-pressed="false">Sommer bis heute</button>
+        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="month_to_date" aria-pressed="false">Monat bis heute</button>
+        <button id="era5RunningRankSeasonButton" class="era5-running-rank-tab" type="button" data-era5-running-rank-product="season_to_date" aria-pressed="false">Jahreszeit bis heute</button>
+        <button class="era5-running-rank-tab" type="button" data-era5-running-rank-product="year_to_date" aria-pressed="false">Jahr bis heute</button>
       </div>
     </div>
     <div id="era5RunningRankStatus" class="era5-running-rank-status">Rangkarte wird geladen …</div>
@@ -13616,16 +13617,24 @@ function era5RunningRankSetStatus(message,state=""){
   el.textContent=message;
   el.style.color=state==="error"?"#a33d32":state==="ok"?"#3f7652":"";
 }
+function era5RunningRankProducts(data){
+  const products={...(data?.products||{})};
+  if(!products.season_to_date&&products.summer_to_date){
+    products.season_to_date={...products.summer_to_date,season_key:"summer",season_name:"Sommer"};
+  }
+  return products;
+}
 function era5RunningRankCurrentProduct(){
   const data=era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return null;
-  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:(data.products.year_to_date?"year_to_date":"day");
-  const product=data.products[key];
+  const products=era5RunningRankProducts(data);
+  const key=products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:(products.year_to_date?"year_to_date":"day");
+  const product=products[key];
   if(!product?.file)return null;
   return {data,key,product};
 }
 function era5RunningRankDownloadBaseName(key,data){
-  const names={day:"tag",month_to_date:"monat_bis_heute",summer_to_date:"sommer_bis_heute"};
+  const names={day:"tag",month_to_date:"monat_bis_heute",season_to_date:"jahreszeit_bis_heute",year_to_date:"jahr_bis_heute"};
   const date=String(data?.data_through||"aktuell").replace(/[^0-9-]/g,"");
   return `era5_temperatur_rang_${names[key]||key}_${date||"aktuell"}`;
 }
@@ -13699,12 +13708,18 @@ async function downloadEra5RunningRankPdf(){
 function renderEra5RunningTemperatureRanks(){
   const data=era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return;
-  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
+  const products=era5RunningRankProducts(data);
+  const key=products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
   era5RunningTemperatureRankProduct=key;
-  const product=data.products[key],stats=product.stats||{};
+  const product=products[key],stats=product.stats||{};
+  const seasonButton=document.getElementById("era5RunningRankSeasonButton");
+  if(seasonButton){
+    const seasonName=products.season_to_date?.season_name||"Jahreszeit";
+    seasonButton.textContent=`${seasonName} bis heute`;
+  }
   document.querySelectorAll("[data-era5-running-rank-product]").forEach(button=>{
     const productKey=button.dataset.era5RunningRankProduct;
-    const available=Boolean(data.products[productKey]);
+    const available=Boolean(products[productKey]);
     const active=available&&productKey===key;
     button.hidden=!available;
     button.classList.toggle("active",active);
