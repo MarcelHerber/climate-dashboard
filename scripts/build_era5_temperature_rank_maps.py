@@ -141,7 +141,7 @@ def rank_style(total:int):
 def render_rank_map(core,rank:np.ndarray,lat:np.ndarray,lon:np.ndarray,*,label:str,year:int,history_start:int,history_end:int,filename:Path,total_rank_positions:int|None=None)->None:
     filename.parent.mkdir(parents=True,exist_ok=True)
     core.cartopy.config['data_dir']=str(core.CARTOPY_DIR);core.CARTOPY_DIR.mkdir(parents=True,exist_ok=True)
-    total=history_end-history_start+2
+    total=int(total_rank_positions) if total_rank_positions is not None else history_end-history_start+2
     cmap,norm,boundaries,ticks,labels=rank_style(total)
     fig=core.plt.figure(figsize=(13.2,8.1),dpi=150)
     ax=fig.add_axes([0.07,0.18,0.89,0.66],projection=core.ccrs.PlateCarree())
