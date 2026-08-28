@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+STAGE1_PATH = Path("data/dwd_annual_extremes_stage1.json")
 MAIN_PATH = Path("data/dwd_annual_extremes.json")
 WIND_PATH = Path("data/dwd_annual_wind_extremes.json")
 
@@ -11,12 +12,12 @@ WIND_METRICS = ("fgx_ge_400", "fgx_lt_400")
 
 
 def main() -> int:
-    if not MAIN_PATH.is_file():
-        raise SystemExit(f"Fehlt: {MAIN_PATH}")
+    if not STAGE1_PATH.is_file():
+        raise SystemExit(f"Fehlt: {STAGE1_PATH}")
     if not WIND_PATH.is_file():
         raise SystemExit(f"Fehlt: {WIND_PATH}")
 
-    main_data = json.loads(MAIN_PATH.read_text(encoding="utf-8"))
+    main_data = json.loads(STAGE1_PATH.read_text(encoding="utf-8"))
     wind_data = json.loads(WIND_PATH.read_text(encoding="utf-8"))
 
     assert len(main_data["areas"]) == 17
