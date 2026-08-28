@@ -1,0 +1,164 @@
+name: Update DWD daily station map
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_dwd_daily_map.py"
+      - "scripts/dwd_daily_map.py"
+      - ".github/workflows/update-dwd-daily-map.yml"
+  workflow_dispatch:
+    inputs:
+      force_baseline:
+        description: "Historischen DWD-Tageskarten-Cache neu aufbauen"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # Täglich 05:35 UTC = 07:35 MESZ / 06:35 MEZ.
+    - cron: "35 5 * * *"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-dwd-daily-map
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Laufparameter bestimmen
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR=$(date -u +%Y)
+          BASE_YEAR=$((YEAR - 1))
+          MAP_CACHE_VERSION=$(python - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          import dwd_daily_map
+          print(dwd_daily_map.CACHE_VERSION)
+          PY
+          )
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "base_year=$BASE_YEAR" >> "$GITHUB_OUTPUT"
+          echo "map_cache_version=$MAP_CACHE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: DWD-Tageskarten-Cache laden
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/dwd-daily-map
+          key: dwd-daily-map-v${{ steps.vars.outputs.map_cache_version }}-${{ steps.vars.outputs.base_year }}
+
+      - name: Skripte und Selbsttests prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile             scripts/update_dwd_daily_map.py             scripts/dwd_daily_map.py             scripts/update_europe_station_records.py
+          python scripts/update_dwd_daily_map.py --self-test
+          python scripts/dwd_daily_map.py --self-test
+
+      - name: DWD-Tageskarte aktualisieren
+        shell: bash
+        env:
+          FORCE_BASELINE: ${{ github.event.inputs.force_baseline || 'false' }}
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          [[ "$FORCE_BASELINE" == "true" ]] && EXTRA_ARGS="--force-baseline"
+          python scripts/update_dwd_daily_map.py             --year "${{ steps.vars.outputs.year }}"             --output europe_stations/dwd_daily_map             --cache-dir .cache/dwd-daily-map             --workers 8             $EXTRA_ARGS
+
+      - name: DWD-Tageskarten-Cache sichern
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/dwd-daily-map
+          key: dwd-daily-map-v${{ steps.vars.outputs.map_cache_version }}-${{ steps.vars.outputs.base_year }}
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s europe_stations/dwd_daily_map/index.json
+          python - <<'PY'
+          import gzip, json
+          from pathlib import Path
+
+          p=json.loads(Path("europe_stations/dwd_daily_map/index.json").read_text(encoding="utf-8"))
+          if p.get("ready") is not True:
+              raise SystemExit("DWD Tageskarte ist nicht ready.")
+          if "TMK" not in str(p.get("source","")):
+              raise SystemExit("TMK fehlt im Index.")
+
+          day=p["data_through"][5:]
+          path=Path("europe_stations/dwd_daily_map/calendar")/(day+".json.gz")
+          with gzip.open(path,"rt",encoding="utf-8") as f:
+              rows=json.load(f).get("rows",[])
+
+          tmean=sum(1 for r in rows if len(r)>=14 and r[11] is not None)
+          anom=sum(1 for r in rows if len(r)>=14 and r[12] is not None)
+          print("Datenstand:",p["data_through"],"Stationen:",p["station_count"],"Tmean:",tmean,"Tmean-Anomalie:",anom)
+          if tmean <= 0 or anom <= 0:
+              raise SystemExit("Tmean-Prüfung fehlgeschlagen.")
+          PY
+
+      - name: DWD-Tageskartendaten committen
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add europe_stations/dwd_daily_map
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen an der DWD-Tageskarte."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "Update DWD daily station map [skip ci]"
+
+          PUSH_OK=false
+          for ATTEMPT in 1 2 3; do
+            echo "Push-Versuch ${ATTEMPT}/3 ..."
+            git fetch origin "${GITHUB_REF_NAME}"
+            if ! git rebase "origin/${GITHUB_REF_NAME}"; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              PUSH_OK=true
+              break
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+          [[ "$PUSH_OK" == "true" ]]
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Neuen Datenstand auf Pages veröffentlichen
+        if: steps.commit.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api             --method POST             "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages-only.yml/dispatches"             -f ref=main
+          echo "Pages-Deploy angestoßen."
