@@ -1,0 +1,258 @@
+name: ERA5-Land Temperatur-Ränge Monats-Backfill
+
+on:
+  push:
+    paths:
+      - ".github/workflows/backfill-era5-running-temperature-ranks.yml"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Monat 2026 für das Rangarchiv"
+        required: true
+        type: choice
+        default: "01"
+        options: ["01","02","03","04","05","06","07","08","09","10","11","12"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-running-temperature-ranks
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.plan.outputs.needed }}
+      target_year: ${{ steps.plan.outputs.target_year }}
+      target_month: ${{ steps.plan.outputs.target_month }}
+      end_day: ${{ steps.plan.outputs.end_day }}
+      history_years: ${{ steps.plan.outputs.history_years }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - id: plan
+        shell: bash
+        env:
+          REQUESTED_MONTH: ${{ inputs.month || '01' }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import calendar,json,os
+          from datetime import date
+          from pathlib import Path
+          target_year=2026
+          month=int(os.environ.get('REQUESTED_MONTH') or '01')
+          source=date.fromisoformat(str(json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))['data_through']))
+          rank_path=Path('era5_land_europe/running/temperature_ranks/index.json')
+          rank=json.loads(rank_path.read_text(encoding='utf-8')) if rank_path.exists() else {}
+          available=set(rank.get('available_dates', []))
+          if source.year<target_year or (source.year==target_year and month>source.month):
+              end_day=0
+              expected=[]
+          else:
+              end_day=source.day if (source.year==target_year and month==source.month) else calendar.monthrange(target_year,month)[1]
+              expected=[date(target_year,month,d).isoformat() for d in range(1,end_day+1)]
+          missing=[d for d in expected if d not in available]
+          years=list(range(1950,target_year))
+          out=Path(os.environ['GITHUB_OUTPUT'])
+          with out.open('a',encoding='utf-8') as fh:
+              fh.write(f'needed={str(bool(missing)).lower()}\n')
+              fh.write(f'target_year={target_year}\n')
+              fh.write(f'target_month={month:02d}\n')
+              fh.write(f'end_day={end_day}\n')
+              fh.write('history_years='+json.dumps(years,separators=(',',':'))+'\n')
+          print('Quelle:',source,'Backfill:',f'{target_year}-{month:02d}','Tage:',len(expected),'fehlend:',len(missing),'erste:',missing[:5])
+          PY
+
+  current:
+    needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 pytest
+      - name: Backfill testen
+        run: python -m pytest -q tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
+      - name: Aktuellen Monatscache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_backfill_current_cache
+          key: era5-running-rank-backfill-current-v1-${{ needs.prepare.outputs.target_year }}-m${{ needs.prepare.outputs.target_month }}-d${{ needs.prepare.outputs.end_day }}
+      - name: CDS konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "${CDSAPI_KEY}" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Aktuellen Monatsstack bauen
+        run: |
+          mkdir -p .era5_running_rank_backfill_current
+          python scripts/build_era5_temperature_rank_backfill_current.py             --year "${{ needs.prepare.outputs.target_year }}"             --month "${{ needs.prepare.outputs.target_month }}"             --end-day "${{ needs.prepare.outputs.end_day }}"             --output ".era5_running_rank_backfill_current/current_${{ needs.prepare.outputs.target_year }}_${{ needs.prepare.outputs.target_month }}.npz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-rank-backfill-current-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}
+          path: .era5_running_rank_backfill_current/*.npz
+          if-no-files-found: error
+          retention-days: 4
+          include-hidden-files: true
+
+  shards:
+    needs: [prepare,current]
+    if: needs.prepare.outputs.needed == 'true' && needs.current.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.history_years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4
+      - uses: actions/download-artifact@v4
+        with:
+          name: era5-rank-backfill-current-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}
+          path: .era5_running_rank_backfill_current
+      - id: daily-cache
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m${{ needs.prepare.outputs.target_month }}
+      - name: Alten Tagescache als Fallback laden
+        if: steps.daily-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_cache
+          key: era5-running-temperature-rank-v2-${{ matrix.year }}-m${{ needs.prepare.outputs.target_month }}
+      - name: Historische Monatsmittel laden
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_monthly_cache
+          key: era5-running-temperature-rank-monthly-v1-${{ matrix.year }}
+      - id: previous
+        shell: bash
+        run: echo "year=$(( ${{ matrix.year }} - 1 ))" >> "$GITHUB_OUTPUT"
+      - name: Vorjahres-Monatsmittel für Winter laden
+        if: (needs.prepare.outputs.target_month == '01' || needs.prepare.outputs.target_month == '02') && matrix.year != 1950
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_monthly_cache
+          key: era5-running-temperature-rank-monthly-v1-${{ steps.previous.outputs.year }}
+      - name: CDS konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "${CDSAPI_KEY}" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Historischen Monatsbeitrag bauen
+        shell: bash
+        run: |
+          CURRENT_FILE=$(find .era5_running_rank_backfill_current -name 'current_*.npz' -type f | head -n 1)
+          mkdir -p .era5_running_rank_backfill_shards
+          python scripts/build_era5_temperature_rank_backfill_shard.py             --year "${{ matrix.year }}"             --current-file "$CURRENT_FILE"             --output ".era5_running_rank_backfill_shards/contrib_${{ matrix.year }}.npz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-rank-backfill-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}-${{ matrix.year }}
+          path: .era5_running_rank_backfill_shards/*.npz
+          if-no-files-found: error
+          retention-days: 4
+          include-hidden-files: true
+
+  finalize:
+    needs: [prepare,current,shards]
+    if: needs.prepare.outputs.needed == 'true' && needs.current.result == 'success' && needs.shards.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+      - uses: actions/download-artifact@v4
+        with:
+          name: era5-rank-backfill-current-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}
+          path: .era5_running_rank_backfill_current
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: era5-rank-backfill-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}-*
+          path: .era5_running_rank_backfill_shards
+          merge-multiple: true
+      - name: Monatsarchiv rendern
+        run: python scripts/finalize_era5_temperature_rank_backfill.py --current-dir .era5_running_rank_backfill_current --shard-dir .era5_running_rank_backfill_shards --data-root .
+      - name: Monatsarchiv prüfen
+        shell: bash
+        env:
+          TARGET_YEAR: ${{ needs.prepare.outputs.target_year }}
+          TARGET_MONTH: ${{ needs.prepare.outputs.target_month }}
+          END_DAY: ${{ needs.prepare.outputs.end_day }}
+        run: |
+          python - <<'PY'
+          import json,os
+          from datetime import date
+          from pathlib import Path
+          year=int(os.environ['TARGET_YEAR']);month=int(os.environ['TARGET_MONTH']);end=int(os.environ['END_DAY'])
+          root=Path('era5_land_europe/running/temperature_ranks')
+          manifest=json.loads((root/'index.json').read_text(encoding='utf-8'))
+          available=set(manifest.get('available_dates',[]))
+          products=('day','month_to_date','season_to_date','year_to_date')
+          expected=[date(year,month,d).isoformat() for d in range(1,end+1)]
+          assert all(d in available for d in expected)
+          for d in expected:
+              archive=root/'archive'/d
+              data=json.loads((archive/'index.json').read_text(encoding='utf-8'))
+              assert set(data['products'])==set(products)
+              for p in products:
+                  f=archive/f'temperature_{p}_rank.webp'
+                  assert f.exists() and f.stat().st_size>0,f
+          print('Monatsarchiv geprüft:',expected[0],'bis',expected[-1],len(expected),'Tage')
+          PY
+      - name: Monatsarchiv veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/running/temperature_ranks
+          if git diff --cached --quiet; then
+            echo "Keine neuen Archivkarten."
+            exit 0
+          fi
+          git commit -m "ERA5 Temperatur-Rangarchiv ${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }} aufgefüllt"
+          git pull --rebase origin main
+          git push origin HEAD:main
