@@ -83,7 +83,7 @@ jobs:
       - name: Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 pytest
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
       - name: Backfill testen
         run: python -m pytest -q tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
       - name: Aktuellen Monatscache wiederherstellen
@@ -133,7 +133,7 @@ jobs:
       - name: Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
       - uses: actions/download-artifact@v4
         with:
           name: era5-rank-backfill-current-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}
