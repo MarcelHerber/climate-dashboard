@@ -7,6 +7,8 @@ mkdir -p _site/data
 required_root_files=(
   index.html
   monthly_frequency.js
+  dwd_station_daily_map.js
+  dwd_station_daily_map.css
   hyras_historical_temperature_1km.js
   dekadenrekorde.html
   jahresextremwerte.html
