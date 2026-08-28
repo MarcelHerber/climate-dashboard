@@ -1,6 +1,11 @@
 name: DWD jährliche Extremwerte Wind zusammenführen
 
 on:
+  workflow_run:
+    workflows:
+      - "DWD jährliche Extremwerte Wind Stufe 2"
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -12,6 +17,7 @@ concurrency:
 
 jobs:
   merge:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
