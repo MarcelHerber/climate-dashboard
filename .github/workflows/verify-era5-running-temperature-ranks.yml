@@ -1,0 +1,87 @@
+name: ERA5-Land Temperatur-Ränge prüfen
+
+on:
+  push:
+    paths:
+      - "scripts/verify_era5_running_temperature_rank_sample.py"
+      - ".github/workflows/verify-era5-running-temperature-ranks.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      source_run_id: ${{ steps.latest.outputs.source_run_id }}
+    steps:
+      - id: latest
+        name: Letzten erfolgreichen Ranglauf finden
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100"             --jq '[.workflow_runs[] | select(.name == "ERA5-Land laufende Temperatur-Rangkarten" and .conclusion == "success")][0].id')"
+          test -n "$run_id"
+          echo "source_run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Prüfe Ranglauf $run_id"
+
+  verify:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [1950, 1980, 2003, 2025]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Python-Pakete installieren
+        run: python -m pip install numpy xarray netCDF4
+      - name: Rangshard aus dem letzten erfolgreichen Lauf laden
+        uses: actions/download-artifact@v4
+        with:
+          name: era5-running-rank-${{ matrix.year }}-${{ matrix.year }}
+          path: .verify_rank_artifact
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.prepare.outputs.source_run_id }}
+      - id: target
+        name: Zielmonat aus Shard lesen
+        shell: bash
+        run: |
+          set -euo pipefail
+          month="$(python - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          p=next(Path('.verify_rank_artifact').glob('*.npz'))
+          with np.load(p, allow_pickle=False) as d:
+              target=str(np.asarray(d['target_date']).item())
+          print(target[5:7])
+          PY
+          )"
+          echo "month=$month" >> "$GITHUB_OUTPUT"
+      - id: cache
+        name: Rohdaten-Cache wiederherstellen
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_cache
+          key: era5-running-temperature-rank-v2-${{ matrix.year }}-m${{ steps.target.outputs.month }}
+      - name: Cache-Vollständigkeit prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.cache.outputs.cache-hit }}" = "true"
+          test -f ".era5_running_rank_cache/rank_daily_${{ matrix.year }}_${{ steps.target.outputs.month }}_full.nc"
+          test -f ".era5_running_rank_cache/rank_monthly_${{ matrix.year }}_${{ matrix.year }}_06_07.nc"
+      - name: Rohdaten unabhängig gegen Shard rechnen
+        run: >-
+          python scripts/verify_era5_running_temperature_rank_sample.py
+          --year ${{ matrix.year }}
