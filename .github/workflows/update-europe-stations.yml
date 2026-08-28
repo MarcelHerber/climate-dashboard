@@ -1,6 +1,16 @@
 name: Update Europe station records
 
 on:
+  # DWD-Tageskarte automatisch beim Einbau/Ändern einmal aktualisieren.
+  # Daten-Commits unter europe_stations/ lösen keinen neuen Lauf aus.
+  push:
+    branches: [main]
+    paths:
+      - "scripts/dwd_daily_map.py"
+      - "scripts/update_europe_station_records_all_sources.py"
+      - "dwd_station_daily_map.js"
+      - "dwd_station_daily_map.css"
+      - ".github/workflows/update-europe-stations.yml"
   workflow_dispatch:
     inputs:
       force_baseline:
@@ -362,6 +372,7 @@ jobs:
           python scripts/update_met_eireann_ireland_station_cache.py --self-test
           python scripts/update_met_eireann_ireland_current.py --self-test
           python scripts/update_europe_station_records_all_sources.py --self-test
+          python scripts/dwd_daily_map.py --self-test
 
       - name: Alle Europa-Stationsquellen aktualisieren
         shell: bash
@@ -427,6 +438,7 @@ jobs:
           test -s europe_stations/index.json
           test -s europe_stations/calendar/01-01.json.gz
           test -s europe_stations/calendar/12-31.json.gz
+          test -s europe_stations/dwd_daily_map/index.json
 
           python - <<'PY'
           import json
