@@ -1060,6 +1060,8 @@ button.action:hover{background:#1f2937}
 .era5-running-rank-tab{border:1px solid #cfd8dd;background:#f6f8f9;color:#334149;border-radius:8px;padding:8px 11px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
 .era5-running-rank-tab:hover{background:#eef3f5}.era5-running-rank-tab.active{background:#253746;color:#fff;border-color:#253746}
 .era5-running-rank-status{padding:10px 16px 0;color:var(--muted);font-size:11px;line-height:1.45}
+.era5-running-rank-downloads{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 0}
+.era5-running-rank-downloads .action{white-space:nowrap}
 .era5-running-rank-kpis{display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:10px;padding:12px 16px}
 .era5-running-rank-kpi{border:1px solid #dfe5e9;border-radius:9px;background:#f8fafb;padding:11px 12px;min-width:0}
 .era5-running-rank-kpi .label{font-size:10px;text-transform:uppercase;letter-spacing:.35px;color:#68737b;font-weight:800}.era5-running-rank-kpi .value{font-size:19px;font-weight:850;color:#1f2a31;margin:5px 0 2px}.era5-running-rank-kpi .detail{font-size:11px;color:var(--muted);line-height:1.4}
@@ -1497,6 +1499,10 @@ button.action:hover{background:#1f2937}
       </div>
     </div>
     <div id="era5RunningRankStatus" class="era5-running-rank-status">Rangkarte wird geladen …</div>
+    <div class="era5-running-rank-downloads">
+      <button id="era5RunningRankDownloadPng" class="action" type="button">PNG herunterladen</button>
+      <button id="era5RunningRankDownloadPdf" class="action" type="button">PDF herunterladen</button>
+    </div>
     <div class="era5-running-rank-kpis">
       <div class="era5-running-rank-kpi"><div class="label">Zeitraum</div><div id="era5RunningRankPeriod" class="value">–</div><div id="era5RunningRankPeriodDetail" class="detail">–</div></div>
       <div class="era5-running-rank-kpi"><div class="label">Rang 1</div><div id="era5RunningRankRank1" class="value">–</div><div class="detail">Anteil der gültigen Landfläche mit wärmstem Rang</div></div>
@@ -13610,6 +13616,86 @@ function era5RunningRankSetStatus(message,state=""){
   el.textContent=message;
   el.style.color=state==="error"?"#a33d32":state==="ok"?"#3f7652":"";
 }
+function era5RunningRankCurrentProduct(){
+  const data=era5RunningTemperatureRanks;
+  if(!data?.ready||!data.products)return null;
+  const key=data.products[era5RunningTemperatureRankProduct]?era5RunningTemperatureRankProduct:"day";
+  const product=data.products[key];
+  if(!product?.file)return null;
+  return {data,key,product};
+}
+function era5RunningRankDownloadBaseName(key,data){
+  const names={day:"tag",month_to_date:"monat_bis_heute",summer_to_date:"sommer_bis_heute"};
+  const date=String(data?.data_through||"aktuell").replace(/[^0-9-]/g,"");
+  return `era5_temperatur_rang_${names[key]||key}_${date||"aktuell"}`;
+}
+async function era5RunningRankFetchBlob(){
+  const current=era5RunningRankCurrentProduct();
+  if(!current)throw new Error("Keine ERA5-Rangkarte ausgewählt.");
+  const url=`${ERA5_EUROPE_RAW_BASE}${current.product.file}?v=${encodeURIComponent(current.data.data_through||Date.now())}`;
+  const response=await fetch(url,{cache:"no-store"});
+  if(!response.ok)throw new Error(`Rangkarte nicht erreichbar (HTTP ${response.status})`);
+  const blob=await response.blob();
+  if(!blob.size)throw new Error("Die Rangkarte ist leer.");
+  return {...current,blob};
+}
+async function downloadEra5RunningRankPng(){
+  const button=document.getElementById("era5RunningRankDownloadPng");
+  if(button)button.disabled=true;
+  try{
+    const {data,key,blob}=await era5RunningRankFetchBlob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download=`${era5RunningRankDownloadBaseName(key,data)}.png`;
+    document.body.appendChild(link);link.click();link.remove();
+    URL.revokeObjectURL(url);
+  }catch(error){
+    console.error("ERA5-Rangkarte PNG:",error);
+    era5RunningRankSetStatus(`PNG-Download fehlgeschlagen: ${error.message}`,"error");
+  }finally{
+    if(button)button.disabled=false;
+  }
+}
+function era5RunningRankBlobToDataUrl(blob){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=()=>reject(new Error("PNG konnte nicht für PDF gelesen werden."));
+    reader.readAsDataURL(blob);
+  });
+}
+function era5RunningRankImageSize(dataUrl){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve({width:img.naturalWidth||img.width,height:img.naturalHeight||img.height});
+    img.onerror=()=>reject(new Error("Bildgröße konnte nicht bestimmt werden."));
+    img.src=dataUrl;
+  });
+}
+async function downloadEra5RunningRankPdf(){
+  const button=document.getElementById("era5RunningRankDownloadPdf");
+  if(button)button.disabled=true;
+  try{
+    const {data,key,blob}=await era5RunningRankFetchBlob();
+    const dataUrl=await era5RunningRankBlobToDataUrl(blob);
+    const size=await era5RunningRankImageSize(dataUrl);
+    const jsPDFCtor=window.jspdf?.jsPDF;
+    if(!jsPDFCtor)throw new Error("PDF-Bibliothek ist nicht verfügbar.");
+    const pdf=new jsPDFCtor({orientation:"landscape",unit:"mm",format:"a4",compress:true});
+    const pageWidth=pdf.internal.pageSize.getWidth(),pageHeight=pdf.internal.pageSize.getHeight();
+    const margin=8,maxWidth=pageWidth-2*margin,maxHeight=pageHeight-2*margin;
+    const scale=Math.min(maxWidth/size.width,maxHeight/size.height);
+    const width=size.width*scale,height=size.height*scale;
+    pdf.addImage(dataUrl,"PNG",(pageWidth-width)/2,(pageHeight-height)/2,width,height,undefined,"FAST");
+    pdf.save(`${era5RunningRankDownloadBaseName(key,data)}.pdf`);
+  }catch(error){
+    console.error("ERA5-Rangkarte PDF:",error);
+    era5RunningRankSetStatus(`PDF-Download fehlgeschlagen: ${error.message}`,"error");
+  }finally{
+    if(button)button.disabled=false;
+  }
+}
 function renderEra5RunningTemperatureRanks(){
   const data=era5RunningTemperatureRanks;
   if(!data?.ready||!data.products)return;
@@ -14029,6 +14115,8 @@ function initEra5RunningTemperatureRankControls(){
       renderEra5RunningTemperatureRanks();
     });
   });
+  document.getElementById("era5RunningRankDownloadPng")?.addEventListener("click",downloadEra5RunningRankPng);
+  document.getElementById("era5RunningRankDownloadPdf")?.addEventListener("click",downloadEra5RunningRankPdf);
 }
 initEra5RunningTemperatureRankControls();
 function europeStationEscapeHtml(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]||ch));}
