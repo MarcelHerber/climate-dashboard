@@ -117,6 +117,23 @@ jobs:
           print("Datenstand:",p["data_through"],"Stationen:",p["station_count"],"Tmean:",tmean,"Tmean-Anomalie:",anom)
           if tmean <= 0 or anom <= 0:
               raise SystemExit("Tmean-Prüfung fehlgeschlagen.")
+
+          climate_path=Path("europe_stations/dwd_daily_map/climate_days.json")
+          if not climate_path.is_file():
+              raise SystemExit("climate_days.json fehlt.")
+          climate=json.loads(climate_path.read_text(encoding="utf-8"))
+          expected={"summer_days","hot_days","very_hot_days","tropical_nights","frost_days","ice_days"}
+          metrics=climate.get("metrics",{})
+          missing=expected-set(metrics)
+          if missing:
+              raise SystemExit(f"Kenntage fehlen: {sorted(missing)}")
+          for key in sorted(expected):
+              rows=metrics[key].get("rows",[])
+              if not rows:
+                  raise SystemExit(f"Keine Stationsdaten für Kenntag {key}.")
+              if not any(len(r)>=4 and r[2] is not None and r[3] is not None for r in rows):
+                  raise SystemExit(f"Keine Rekordabstände für Kenntag {key}.")
+              print(key,":",len(rows),"Stationen")
           PY
 
       - name: DWD-Tageskartendaten committen
