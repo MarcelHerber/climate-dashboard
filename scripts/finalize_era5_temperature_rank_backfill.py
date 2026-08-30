@@ -136,7 +136,7 @@ def render_entry(
     rank1 = area_weighted_fraction(rank <= 1, valid, lat)
     top3 = area_weighted_fraction(rank <= 3, valid, lat)
     item = {
-        'file': destination.relative_to(ROOT).as_posix(),
+        'file': destination.resolve().relative_to(ROOT.resolve()).as_posix(),
         'label': period_label(product, target),
         'unit': 'Rang',
         'history_start': history_start,
@@ -160,6 +160,71 @@ def render_entry(
     return item
 
 
+
+def save_month_data_archive(
+    *,
+    current: dict,
+    greater: np.ndarray,
+    valid_count: np.ndarray,
+    years: np.ndarray,
+    rank_root: Path,
+) -> tuple[Path, dict]:
+    year = int(current['year'])
+    month = int(current['month'])
+    history_start = int(years[0])
+    history_end = int(years[-1])
+    archive_dir = rank_root / 'data_archive'
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = archive_dir / f'{year}-{month:02d}.npz'
+
+    encoded: dict[str, np.ndarray] = {}
+    for product_index, product in enumerate(PRODUCTS):
+        current_stack = np.asarray(current['products'][product], dtype=np.float32)
+        valid = (
+            (valid_count[:, product_index] > 0)
+            & np.isfinite(current_stack)
+        )
+        rank = 1 + greater[:, product_index]
+        encoded[product] = np.where(valid, rank, 0).astype(np.uint8)
+
+    np.savez_compressed(
+        archive_path,
+        schema_version=np.asarray(1, dtype=np.int16),
+        year=np.asarray(year, dtype=np.int16),
+        month=np.asarray(month, dtype=np.int8),
+        target_dates=np.asarray(current['target_dates']),
+        lat=np.asarray(current['lat'], dtype=np.float32),
+        lon=np.asarray(current['lon'], dtype=np.float32),
+        history_start=np.asarray(history_start, dtype=np.int16),
+        history_end=np.asarray(history_end, dtype=np.int16),
+        historical_years=np.asarray(years.size, dtype=np.int16),
+        missing_value=np.asarray(0, dtype=np.uint8),
+        rank_direction=np.asarray('1 = wärmster'),
+        **encoded,
+    )
+    meta = {
+        'file': archive_path.resolve().relative_to(ROOT.resolve()).as_posix(),
+        'format': 'npz-uint8-ranks',
+        'missing_value': 0,
+        'grid': '0,1° ERA5-Land',
+        'history_start': history_start,
+        'history_end': history_end,
+        'historical_years': int(years.size),
+        'products': list(PRODUCTS),
+        'first_date': str(current['target_dates'][0]),
+        'last_date': str(current['target_dates'][-1]),
+        'days': int(current['target_dates'].size),
+        'bytes': int(archive_path.stat().st_size),
+    }
+    print(
+        f'Datenarchiv gespeichert: {archive_path.name} · '
+        f'{meta["days"]} Tage · {meta["bytes"]/1024/1024:.1f} MiB',
+        flush=True,
+    )
+    return archive_path, meta
+
+
+
 def finalize_month(current_dir: Path, shard_dir: Path, data_root: Path) -> list[str]:
     current = load_current(current_dir)
     years, greater, valid_count = load_contributions(shard_dir, current)
@@ -172,6 +237,13 @@ def finalize_month(current_dir: Path, shard_dir: Path, data_root: Path) -> list[
     history_start = int(years[0])
     history_end = int(years[-1])
     core = load_module(CORE_PATH, 'era5_rank_backfill_renderer')
+    data_archive_path, data_archive_meta = save_month_data_archive(
+        current=current,
+        greater=greater,
+        valid_count=valid_count,
+        years=years,
+        rank_root=rank_root,
+    )
     created_dates: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix='era5-rank-backfill-render-') as tmp:
@@ -216,6 +288,12 @@ def finalize_month(current_dir: Path, shard_dir: Path, data_root: Path) -> list[
                 'total_rank_positions': int(years.size + 1),
                 'grid': '0,1° ERA5-Land',
                 'rank_direction': '1 = wärmster',
+                'data_archive': {
+                    'file': data_archive_meta['file'],
+                    'format': data_archive_meta['format'],
+                    'missing_value': 0,
+                    'day_index': int(date_index),
+                },
                 'products': products,
             }
             (archive_dir / 'index.json').write_text(
@@ -237,10 +315,19 @@ def finalize_month(current_dir: Path, shard_dir: Path, data_root: Path) -> list[
         'era5_land_europe/running/temperature_ranks/archive/{date}/index.json'
     )
     main_manifest['archive_image_format'] = 'lossless-webp'
+    main_manifest['data_archive_pattern'] = (
+        'era5_land_europe/running/temperature_ranks/data_archive/{year}-{month}.npz'
+    )
+    data_archives = dict(main_manifest.get('data_archives') or {})
+    data_archives[f"{current['year']}-{current['month']:02d}"] = data_archive_meta
+    main_manifest['data_archives'] = data_archives
     index_path.write_text(
         json.dumps(main_manifest, ensure_ascii=False, indent=2, allow_nan=False) + '\n',
         encoding='utf-8',
     )
+
+    if not data_archive_path.exists() or data_archive_path.stat().st_size <= 0:
+        raise RuntimeError(f'Datenarchiv fehlt oder ist leer: {data_archive_path}')
 
     for target_text in created_dates:
         archive_dir = rank_root / 'archive' / target_text
