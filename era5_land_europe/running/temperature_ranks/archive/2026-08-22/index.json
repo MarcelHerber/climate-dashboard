@@ -10,7 +10,7 @@
   "rank_direction": "1 = wärmster",
   "products": {
     "day": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_day_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-22/temperature_day_rank.webp",
       "label": "22.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -28,7 +28,7 @@
       }
     },
     "month_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_month_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-22/temperature_month_to_date_rank.webp",
       "label": "01.–22.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -46,7 +46,7 @@
       }
     },
     "season_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_season_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-22/temperature_season_to_date_rank.webp",
       "label": "Sommer · 01.06.2026–22.08.2026",
       "unit": "Rang",
       "season_key": "summer",
@@ -66,7 +66,7 @@
       }
     },
     "year_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_year_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-22/temperature_year_to_date_rank.webp",
       "label": "01.01.–22.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -84,10 +84,6 @@
       }
     }
   },
-  "available_dates": [
-    "2026-08-21",
-    "2026-08-22"
-  ],
-  "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
-  "archive_image_format": "lossless-webp"
+  "archived": true,
+  "archive_format": "lossless-webp"
 }
