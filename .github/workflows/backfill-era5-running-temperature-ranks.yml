@@ -4,17 +4,20 @@ on:
   push:
     paths:
       - ".github/workflows/backfill-era5-running-temperature-ranks.yml"
+  schedule:
+    - cron: "17 6 * * *"
   workflow_dispatch:
     inputs:
       month:
         description: "Monat 2026 für das Rangarchiv"
         required: true
         type: choice
-        default: "02"
+        default: "03"
         options: ["01","02","03","04","05","06","07","08","09","10","11","12"]
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: era5-running-temperature-ranks
@@ -36,25 +39,43 @@ jobs:
       - id: plan
         shell: bash
         env:
-          REQUESTED_MONTH: ${{ inputs.month || '02' }}
+          REQUESTED_MONTH: ${{ inputs.month || '' }}
+          TRIGGER_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           python - <<'PY'
           import calendar,json,os
           from datetime import date
           from pathlib import Path
+
           target_year=2026
-          month=int(os.environ.get('REQUESTED_MONTH') or '01')
+          trigger=os.environ.get('TRIGGER_EVENT','')
+          requested=(os.environ.get('REQUESTED_MONTH') or '').strip()
           source=date.fromisoformat(str(json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))['data_through']))
           rank_path=Path('era5_land_europe/running/temperature_ranks/index.json')
           rank=json.loads(rank_path.read_text(encoding='utf-8')) if rank_path.exists() else {}
           available=set(rank.get('available_dates', []))
-          if source.year<target_year or (source.year==target_year and month>source.month):
-              end_day=0
-              expected=[]
+
+          def expected_for(month):
+              if source.year<target_year or (source.year==target_year and month>source.month):
+                  return []
+              end=source.day if (source.year==target_year and month==source.month) else calendar.monthrange(target_year,month)[1]
+              return [date(target_year,month,d).isoformat() for d in range(1,end+1)]
+
+          if requested:
+              month=int(requested)
+          elif trigger=='push':
+              month=3
           else:
-              end_day=source.day if (source.year==target_year and month==source.month) else calendar.monthrange(target_year,month)[1]
-              expected=[date(target_year,month,d).isoformat() for d in range(1,end_day+1)]
+              month=12
+              for candidate in range(3,13):
+                  expected_candidate=expected_for(candidate)
+                  if any(d not in available for d in expected_candidate):
+                      month=candidate
+                      break
+
+          expected=expected_for(month)
+          end_day=len(expected)
           missing=[d for d in expected if d not in available]
           years=list(range(1950,target_year))
           out=Path(os.environ['GITHUB_OUTPUT'])
@@ -64,7 +85,14 @@ jobs:
               fh.write(f'target_month={month:02d}\n')
               fh.write(f'end_day={end_day}\n')
               fh.write('history_years='+json.dumps(years,separators=(',',':'))+'\n')
-          print('Quelle:',source,'Backfill:',f'{target_year}-{month:02d}','Tage:',len(expected),'fehlend:',len(missing),'erste:',missing[:5])
+          print(
+              'Quelle:',source,
+              'Trigger:',trigger,
+              'Backfill:',f'{target_year}-{month:02d}',
+              'Tage:',len(expected),
+              'fehlend:',len(missing),
+              'erste:',missing[:5]
+          )
           PY
 
   current:
@@ -287,3 +315,58 @@ jobs:
           git commit -m "ERA5 Temperatur-Rangarchiv ${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }} aufgefüllt"
           git pull --rebase origin main
           git push origin HEAD:main
+
+
+  start-next-month:
+    needs: [prepare,finalize]
+    if: needs.finalize.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Nächsten Monat direkt starten oder auf ERA5 warten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_YEAR: ${{ needs.prepare.outputs.target_year }}
+          TARGET_MONTH: ${{ needs.prepare.outputs.target_month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$TARGET_MONTH" == "12" ]]; then
+            echo "Backfill-Kette vollständig bis Dezember 2026. Endziel: 2026-12-31."
+            exit 0
+          fi
+
+          NEXT_MONTH=$(printf "%02d" $((10#$TARGET_MONTH + 1)))
+
+          SOURCE=$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))['data_through'])
+          PY
+          )
+
+          SOURCE_MONTH=$(python - <<PY
+          from datetime import date
+          print(date.fromisoformat("$SOURCE").month)
+          PY
+          )
+
+          if (( 10#$NEXT_MONTH > SOURCE_MONTH )); then
+            echo "Monat $NEXT_MONTH ist noch nicht in ERA5 verfügbar (Quelle bis $SOURCE)."
+            echo "Der tägliche Zeitplan nimmt die Kette automatisch wieder auf, sobald Daten vorliegen."
+            exit 0
+          fi
+
+          echo "Starte automatisch Monat $NEXT_MONTH nach erfolgreichem Monat $TARGET_MONTH."
+          python - <<PY > "$RUNNER_TEMP/dispatch.json"
+          import json
+          print(json.dumps({"ref":"main","inputs":{"month":"$NEXT_MONTH"}}))
+          PY
+
+          gh api             --method POST             -H "Accept: application/vnd.github+json"             "/repos/$GITHUB_REPOSITORY/actions/workflows/backfill-era5-running-temperature-ranks.yml/dispatches"             --input "$RUNNER_TEMP/dispatch.json"
+
+          echo "Monat $NEXT_MONTH wurde angestoßen."
