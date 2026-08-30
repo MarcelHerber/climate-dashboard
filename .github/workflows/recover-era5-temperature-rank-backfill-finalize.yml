@@ -1,0 +1,124 @@
+name: ERA5 Temperatur-Rangarchive Finalize wiederholen
+
+on:
+  push:
+    paths:
+      - ".github/workflows/recover-era5-temperature-rank-backfill-finalize.yml"
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Workflow-Run mit vollständigen Backfill-Artefakten"
+        required: true
+        default: "33158530729"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: era5-running-temperature-ranks
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || '33158530729' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib cartopy pillow
+
+      - name: Aktuellen Januar-Stack aus Ursprungsrun laden
+        uses: actions/download-artifact@v4
+        with:
+          name: era5-rank-backfill-current-2026-01
+          path: .era5_running_rank_backfill_current
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Historische Januar-Beiträge aus Ursprungsrun laden
+        uses: actions/download-artifact@v4
+        with:
+          pattern: era5-rank-backfill-2026-01-*
+          path: .era5_running_rank_backfill_shards
+          merge-multiple: true
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Januar-Archiv inklusive 0,1°-Datenpaket rendern
+        run: |
+          python scripts/finalize_era5_temperature_rank_backfill.py             --current-dir .era5_running_rank_backfill_current             --shard-dir .era5_running_rank_backfill_shards             --data-root .
+
+      - name: Januar-Archiv vollständig prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import date
+          from pathlib import Path
+          import numpy as np
+
+          root=Path('era5_land_europe/running/temperature_ranks')
+          manifest=json.loads((root/'index.json').read_text(encoding='utf-8'))
+          expected=[date(2026,1,d).isoformat() for d in range(1,32)]
+          available=set(manifest.get('available_dates', []))
+          assert all(d in available for d in expected)
+
+          data_path=root/'data_archive'/'2026-01.npz'
+          assert data_path.exists() and data_path.stat().st_size>0
+          with np.load(data_path, allow_pickle=False) as data:
+              assert data['target_dates'].astype(str).tolist()==expected
+              assert data['lat'].ndim==1 and data['lon'].ndim==1
+              for product in ('day','month_to_date','season_to_date','year_to_date'):
+                  arr=data[product]
+                  assert arr.shape[0]==31
+                  assert arr.dtype==np.uint8
+              assert int(data['missing_value'])==0
+
+          for d in expected:
+              archive=root/'archive'/d
+              payload=json.loads((archive/'index.json').read_text(encoding='utf-8'))
+              assert payload['data_archive']['file'].endswith('data_archive/2026-01.npz')
+              for product in ('day','month_to_date','season_to_date','year_to_date'):
+                  path=archive/f'temperature_{product}_rank.webp'
+                  assert path.exists() and path.stat().st_size>0
+
+          meta=(manifest.get('data_archives') or {}).get('2026-01')
+          assert meta and meta['days']==31
+          print(
+              'Januar vollständig:',
+              len(expected),
+              'Tage · Datenarchiv',
+              round(data_path.stat().st_size/1024/1024,1),
+              'MiB'
+          )
+          PY
+
+      - name: Januar-Archiv veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add era5_land_europe/running/temperature_ranks
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen zu veröffentlichen."
+            exit 0
+          fi
+          git commit -m "ERA5 Temperatur-Rangarchiv Januar 2026 finalisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
