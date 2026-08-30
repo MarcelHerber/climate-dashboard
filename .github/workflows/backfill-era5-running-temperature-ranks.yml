@@ -10,7 +10,7 @@ on:
         description: "Monat 2026 für das Rangarchiv"
         required: true
         type: choice
-        default: "01"
+        default: "02"
         options: ["01","02","03","04","05","06","07","08","09","10","11","12"]
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
       - id: plan
         shell: bash
         env:
-          REQUESTED_MONTH: ${{ inputs.month || '01' }}
+          REQUESTED_MONTH: ${{ inputs.month || '02' }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -226,6 +226,8 @@ jobs:
           import json,os
           from datetime import date
           from pathlib import Path
+          import numpy as np
+
           year=int(os.environ['TARGET_YEAR']);month=int(os.environ['TARGET_MONTH']);end=int(os.environ['END_DAY'])
           root=Path('era5_land_europe/running/temperature_ranks')
           manifest=json.loads((root/'index.json').read_text(encoding='utf-8'))
@@ -233,14 +235,43 @@ jobs:
           products=('day','month_to_date','season_to_date','year_to_date')
           expected=[date(year,month,d).isoformat() for d in range(1,end+1)]
           assert all(d in available for d in expected)
-          for d in expected:
+
+          data_path=root/'data_archive'/f'{year}-{month:02d}.npz'
+          assert data_path.exists() and data_path.stat().st_size>0,data_path
+          with np.load(data_path,allow_pickle=False) as archive_data:
+              assert archive_data['target_dates'].astype(str).tolist()==expected
+              lat=archive_data['lat'];lon=archive_data['lon']
+              assert lat.ndim==1 and lon.ndim==1
+              assert int(archive_data['year'])==year
+              assert int(archive_data['month'])==month
+              assert int(archive_data['missing_value'])==0
+              for p in products:
+                  arr=archive_data[p]
+                  assert arr.dtype==np.uint8,(p,arr.dtype)
+                  assert arr.shape==(end,lat.size,lon.size),(p,arr.shape)
+                  assert int(arr.max())<=77,(p,int(arr.max()))
+
+          month_key=f'{year}-{month:02d}'
+          month_meta=(manifest.get('data_archives') or {}).get(month_key)
+          assert month_meta,month_key
+          assert month_meta['file']==f'era5_land_europe/running/temperature_ranks/data_archive/{month_key}.npz'
+          assert int(month_meta['days'])==end
+
+          for day_index,d in enumerate(expected):
               archive=root/'archive'/d
               data=json.loads((archive/'index.json').read_text(encoding='utf-8'))
               assert set(data['products'])==set(products)
+              assert data['data_archive']['file']==month_meta['file']
+              assert int(data['data_archive']['day_index'])==day_index
               for p in products:
                   f=archive/f'temperature_{p}_rank.webp'
                   assert f.exists() and f.stat().st_size>0,f
-          print('Monatsarchiv geprüft:',expected[0],'bis',expected[-1],len(expected),'Tage')
+
+          print(
+              'Monatsarchiv geprüft:',expected[0],'bis',expected[-1],
+              len(expected),'Tage · 0,1°-Datenarchiv',
+              round(data_path.stat().st_size/1024/1024,1),'MiB'
+          )
           PY
       - name: Monatsarchiv veröffentlichen
         shell: bash
