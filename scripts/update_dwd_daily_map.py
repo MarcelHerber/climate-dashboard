@@ -19,11 +19,12 @@ _CORE_PARSE_DWD_PRODUCT_BYTES = core.parse_dwd_product_bytes
 
 
 def parse_dwd_daily_map_product(data: bytes, cutoff_year=None, exact_year=None) -> dict:
-    """Parse DWD KL TXK/TNK plus TMK and 1991-2020 calendar-day normals."""
+    """Parse DWD KL TXK/TNK/TMK, normals and annual climate-day records."""
     state = _CORE_PARSE_DWD_PRODUCT_BYTES(data, cutoff_year=cutoff_year, exact_year=exact_year)
     historical = exact_year is None
     state["TMEAN"] = {"clim_1991_2020": {}} if historical else {}
 
+    annual = {}
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         members = [n for n in zf.namelist() if re.search(r"produkt_klima_tag_.*\.txt$", n, re.I)]
         if not members:
@@ -56,14 +57,25 @@ def parse_dwd_daily_map_product(data: bytes, cutoff_year=None, exact_year=None) 
 
                     date_int = int(datestr)
                     mmdd = f"{datestr[4:6]}-{datestr[6:8]}"
+                    tx = core.dwd_float_to_tenths(row.get(tx_key, "")) if tx_key else None
+                    tn = core.dwd_float_to_tenths(row.get(tn_key, "")) if tn_key else None
 
-                    if historical and dwd_daily_map.REFERENCE_START <= year <= dwd_daily_map.REFERENCE_END:
-                        for element, key in (("TMAX", tx_key), ("TMIN", tn_key)):
-                            if not key:
-                                continue
-                            value = core.dwd_float_to_tenths(row.get(key, ""))
-                            if value is not None:
-                                dwd_daily_map.add_climatology_value(state[element], mmdd, value)
+                    if historical:
+                        yr = annual.setdefault(year, {"TMAX_valid":0,"TMIN_valid":0,**{k:0 for k in dwd_daily_map.CLIMATE_DAY_DEFS}})
+                        if tx is not None:
+                            yr["TMAX_valid"] += 1
+                        if tn is not None:
+                            yr["TMIN_valid"] += 1
+                        for key, definition in dwd_daily_map.CLIMATE_DAY_DEFS.items():
+                            value = tx if definition["element"] == "TMAX" else tn
+                            if dwd_daily_map.climate_day_hit(definition, value):
+                                yr[key] += 1
+
+                        if dwd_daily_map.REFERENCE_START <= year <= dwd_daily_map.REFERENCE_END:
+                            if tx is not None:
+                                dwd_daily_map.add_climatology_value(state["TMAX"], mmdd, tx)
+                            if tn is not None:
+                                dwd_daily_map.add_climatology_value(state["TMIN"], mmdd, tn)
 
                     if tm_key:
                         value = core.dwd_float_to_tenths(row.get(tm_key, ""))
@@ -74,6 +86,19 @@ def parse_dwd_daily_map_product(data: bytes, cutoff_year=None, exact_year=None) 
                                 dwd_daily_map.add_climatology_value(state["TMEAN"], mmdd, value)
                         else:
                             state["TMEAN"][mmdd] = (value, date_int)
+
+    if historical:
+        climate_days = {}
+        for key, definition in dwd_daily_map.CLIMATE_DAY_DEFS.items():
+            valid_key = definition["element"] + "_valid"
+            eligible = [(year, values[key]) for year, values in annual.items()
+                        if int(values.get(valid_key, 0)) >= dwd_daily_map.MIN_ANNUAL_VALID_DAYS]
+            if not eligible:
+                continue
+            record = max(count for _, count in eligible)
+            years = sorted(year for year, count in eligible if count == record)
+            climate_days[key] = {"record": int(record), "years": years, "eligible_years": len(eligible)}
+        state["CLIMATE_DAYS"] = climate_days
 
     return state
 
@@ -135,6 +160,7 @@ def self_test() -> None:
     assert hist["TMAX"]["clim_1991_2020"]["08-28"] == [250, 1]
     assert hist["TMIN"]["clim_1991_2020"]["08-28"] == [120, 1]
     assert hist["TMEAN"]["clim_1991_2020"]["08-28"] == [185, 1]
+    assert "CLIMATE_DAYS" in hist
 
     cur = parse_dwd_daily_map_product(data, exact_year=2026)
     assert cur["TMAX"]["08-28"] == (310, 20260828)
