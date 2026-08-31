@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "scripts/era5_running_temperature_rank.py"
+      - "scripts/probe_era5_running_temperature_date.py"
       - "scripts/build_era5_running_temperature_rank_shard.py"
       - "scripts/build_era5_running_temperature_rank_maps.py"
       - "scripts/build_era5_temperature_rank_maps.py"
@@ -42,18 +43,48 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Probe-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Temperatur-Verfügbarkeitscache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_temperature_probe
+          key: era5-running-temperature-probe-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            era5-running-temperature-probe-v1-${{ runner.os }}-
+      - id: probe
+        name: Neuesten ERA5-Land-Temperaturtag bestimmen
+        run: python scripts/probe_era5_running_temperature_date.py --github-output "$GITHUB_OUTPUT"
       - id: target
         shell: bash
         env:
           FORCE_INPUT: ${{ inputs.force || false }}
+          PROBED_TARGET: ${{ steps.probe.outputs.target_date }}
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
 
           history_start = 1950
-          running = json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))
-          target = str(running['data_through'])
+          target = str(os.environ['PROBED_TARGET'])
           year = int(target[:4])
           month = int(target[5:7])
           years = list(range(history_start, year))
@@ -78,7 +109,7 @@ jobs:
               fh.write('history_years=' + json.dumps(years, separators=(',', ':')) + '\n')
               fh.write(f'needed={str(needed).lower()}\n')
           print(
-              'Datenstand:', target,
+              'Temperatur-Datenstand:', target,
               'Historie:', f'{history_start}–{year - 1}',
               'Jahre:', len(years),
               'Build nötig:', needed,
