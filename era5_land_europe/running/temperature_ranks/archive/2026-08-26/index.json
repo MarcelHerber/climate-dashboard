@@ -10,7 +10,7 @@
   "rank_direction": "1 = wärmster",
   "products": {
     "day": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_day_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-26/temperature_day_rank.webp",
       "label": "26.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -28,7 +28,7 @@
       }
     },
     "month_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_month_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-26/temperature_month_to_date_rank.webp",
       "label": "01.–26.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -46,7 +46,7 @@
       }
     },
     "season_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_season_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-26/temperature_season_to_date_rank.webp",
       "label": "Sommer · 01.06.2026–26.08.2026",
       "unit": "Rang",
       "season_key": "summer",
@@ -66,7 +66,7 @@
       }
     },
     "year_to_date": {
-      "file": "era5_land_europe/running/temperature_ranks/temperature_year_to_date_rank.png",
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-08-26/temperature_year_to_date_rank.webp",
       "label": "01.01.–26.08.2026",
       "unit": "Rang",
       "history_start": 1950,
@@ -84,93 +84,6 @@
       }
     }
   },
-  "available_dates": [
-    "2026-01-01",
-    "2026-01-02",
-    "2026-01-03",
-    "2026-01-04",
-    "2026-01-05",
-    "2026-01-06",
-    "2026-01-07",
-    "2026-01-08",
-    "2026-01-09",
-    "2026-01-10",
-    "2026-01-11",
-    "2026-01-12",
-    "2026-01-13",
-    "2026-01-14",
-    "2026-01-15",
-    "2026-01-16",
-    "2026-01-17",
-    "2026-01-18",
-    "2026-01-19",
-    "2026-01-20",
-    "2026-01-21",
-    "2026-01-22",
-    "2026-01-23",
-    "2026-01-24",
-    "2026-01-25",
-    "2026-01-26",
-    "2026-01-27",
-    "2026-01-28",
-    "2026-01-29",
-    "2026-01-30",
-    "2026-01-31",
-    "2026-02-01",
-    "2026-02-02",
-    "2026-02-03",
-    "2026-02-04",
-    "2026-02-05",
-    "2026-02-06",
-    "2026-02-07",
-    "2026-02-08",
-    "2026-02-09",
-    "2026-02-10",
-    "2026-02-11",
-    "2026-02-12",
-    "2026-02-13",
-    "2026-02-14",
-    "2026-02-15",
-    "2026-02-16",
-    "2026-02-17",
-    "2026-02-18",
-    "2026-02-19",
-    "2026-02-20",
-    "2026-02-21",
-    "2026-02-22",
-    "2026-02-23",
-    "2026-02-24",
-    "2026-02-25",
-    "2026-02-26",
-    "2026-02-27",
-    "2026-02-28",
-    "2026-08-21",
-    "2026-08-22",
-    "2026-08-24",
-    "2026-08-26"
-  ],
-  "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
-  "archive_image_format": "lossless-webp",
-  "data_archive_pattern": "era5_land_europe/running/temperature_ranks/data_archive/{year}-{month}.npz",
-  "data_archives": {
-    "2026-02": {
-      "file": "era5_land_europe/running/temperature_ranks/data_archive/2026-02.npz",
-      "format": "npz-uint8-ranks",
-      "missing_value": 0,
-      "grid": "0,1° ERA5-Land",
-      "history_start": 1950,
-      "history_end": 2025,
-      "historical_years": 76,
-      "products": [
-        "day",
-        "month_to_date",
-        "season_to_date",
-        "year_to_date"
-      ],
-      "first_date": "2026-02-01",
-      "last_date": "2026-02-28",
-      "days": 28,
-      "bytes": 5600250
-    }
-  }
+  "archived": true,
+  "archive_format": "lossless-webp"
 }
