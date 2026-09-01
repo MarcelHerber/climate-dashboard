@@ -1,0 +1,95 @@
+{
+  "ready": true,
+  "archived": true,
+  "archive_format": "lossless-webp",
+  "data_through": "2026-02-04",
+  "current_year": 2026,
+  "history_start": 1950,
+  "history_end": 2025,
+  "historical_years": 76,
+  "total_rank_positions": 77,
+  "grid": "0,1° ERA5-Land",
+  "rank_direction": "1 = wärmster",
+  "data_archive": {
+    "file": "era5_land_europe/running/temperature_ranks/data_archive/2026-02.npz",
+    "format": "npz-uint8-ranks",
+    "missing_value": 0,
+    "day_index": 3
+  },
+  "products": {
+    "day": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-02-04/temperature_day_rank.webp",
+      "label": "04.02.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich des 04.02. mit demselben Kalendertag 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 0.8101239822294742,
+        "top3_area_percent": 3.2765165919659283,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 76
+      }
+    },
+    "month_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-02-04/temperature_month_to_date_rank.webp",
+      "label": "01.–04.02.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.–04.02. mit demselben Monatsabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 1.158667460568706,
+        "top3_area_percent": 6.49891726546337,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 77
+      }
+    },
+    "season_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-02-04/temperature_season_to_date_rank.webp",
+      "label": "Winter · 01.12.2025–04.02.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 75,
+      "total_rank_positions": 76,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich des laufenden Winters ab 01.12. des Vorjahres bis 04.02. mit demselben Winterabschnitt 1950–2025. Für den Winter 1950 fehlt Dezember 1949; dieser Winter wird deshalb ausgelassen.",
+      "stats": {
+        "rank1_area_percent": 0.38362145948018883,
+        "top3_area_percent": 1.366427166451679,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 64
+      },
+      "season_key": "winter",
+      "season_name": "Winter"
+    },
+    "year_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-02-04/temperature_year_to_date_rank.webp",
+      "label": "01.01.–04.02.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.01.–04.02. mit demselben Jahresabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 0.005164907800869515,
+        "top3_area_percent": 0.19759970454918674,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 77
+      }
+    }
+  }
+}
