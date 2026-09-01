@@ -1,0 +1,122 @@
+name: ERA5 Ranghistorie Sep-Dez vorwärmen
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Monat zum Vorwärmen"
+        required: true
+        type: choice
+        default: "09"
+        options: ["09","10","11","12"]
+  push:
+    paths:
+      - ".github/workflows/warm-era5-temperature-rank-cache.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: era5-temperature-rank-cache-warmup
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      month: ${{ steps.plan.outputs.month }}
+      years: ${{ steps.plan.outputs.years }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - id: plan
+        shell: bash
+        env:
+          REQUESTED_MONTH: ${{ inputs.month || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          requested=(os.environ.get('REQUESTED_MONTH') or '').strip()
+          event=os.environ.get('EVENT_NAME','')
+          month=int(requested) if requested else 9
+          if month not in (9,10,11,12):
+              raise SystemExit(f'Ungültiger Warmup-Monat: {month}')
+          years=list(range(1950,2026))
+          out=Path(os.environ['GITHUB_OUTPUT'])
+          with out.open('a',encoding='utf-8') as fh:
+              fh.write(f'month={month:02d}\n')
+              fh.write('years='+json.dumps(years,separators=(',',':'))+'\n')
+          print('Warmup-Monat:',f'{month:02d}','Historie: 1950–2025')
+          PY
+
+  warm:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m${{ needs.prepare.outputs.month }}
+      - name: CDS konfigurieren
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "${CDSAPI_KEY}" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Historischen Tagescache vorwärmen
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >-
+          python scripts/warm_era5_temperature_rank_daily_cache.py
+          --year ${{ matrix.year }}
+          --month ${{ needs.prepare.outputs.month }}
+
+  start-next:
+    needs: [prepare,warm]
+    if: needs.warm.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nächsten Warmup-Monat anstoßen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MONTH: ${{ needs.prepare.outputs.month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$MONTH" == "12" ]]; then
+            echo "Warmup September bis Dezember vollständig."
+            exit 0
+          fi
+          NEXT=$(printf "%02d" $((10#$MONTH + 1)))
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/warm-era5-temperature-rank-cache.yml/dispatches" \
+            -f ref=main \
+            -f inputs[month]="$NEXT"
+          echo "Warmup Monat $NEXT angestoßen."
