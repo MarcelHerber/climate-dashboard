@@ -48,6 +48,18 @@ jobs:
             fi
           done
 
+      - name: Cloudflare Account ID bereinigen
+        shell: bash
+        run: |
+          set -euo pipefail
+          clean_id="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          if [[ ! "$clean_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo "FEHLER: CLOUDFLARE_ACCOUNT_ID enthält ungültige Zeichen."
+            exit 1
+          fi
+          echo "::add-mask::$clean_id"
+          echo "CLOUDFLARE_ACCOUNT_ID=$clean_id" >> "$GITHUB_ENV"
+
       - name: Alpenwetter-Worker veröffentlichen
         run: npx wrangler deploy --config alpenwetter-worker/wrangler.toml
 
