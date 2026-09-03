@@ -39,6 +39,10 @@ export default {
       return proxyRatings(url);
     }
 
+    if (url.pathname === "/api/archive") {
+      return proxyArchive();
+    }
+
     if (url.pathname !== "/") {
       return new Response("Nicht gefunden", {
         status: 404,
@@ -192,7 +196,10 @@ async function proxyRatings(url) {
   const requested = String(url.searchParams.get("date") || "").trim();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : isoDate(new Date());
 
-  for (let offset = 0; offset <= 10; offset += 1) {
+  const exact = url.searchParams.get("exact") === "1";
+  const maxOffset = exact ? 0 : 10;
+
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
     const candidateDate = shiftDate(date, -offset);
     const candidates = [
       `https://static.avalanche.report/eaws_bulletins/${candidateDate}/${candidateDate}.ratings.json`,
@@ -224,6 +231,42 @@ async function proxyRatings(url) {
     error: "Für das gewählte Datum und die zehn Tage davor wurden keine zusammengefassten Lawinenwarnstufen gefunden.",
     requestedDate: date,
   }, 404);
+}
+
+
+async function proxyArchive() {
+  const sourceUrl = "https://static.avalanche.report/eaws_bulletins/";
+
+  try {
+    const response = await fetch(sourceUrl, {
+      cf: { cacheTtl: 21600, cacheEverything: true },
+      headers: { "User-Agent": "ClimateDashboard-Alpenwetter/1.0" },
+    });
+
+    if (!response.ok) {
+      return jsonResponse({ error: "Lawinenarchiv konnte nicht geladen werden.", status: response.status }, 502);
+    }
+
+    const html = await response.text();
+    const matches = html.match(/\b20\d{2}-\d{2}-\d{2}\//g) || [];
+    const dates = [...new Set(matches.map((value) => value.slice(0, 10)))]
+      .filter((value) => /^20\d{2}-\d{2}-\d{2}$/.test(value))
+      .sort();
+
+    return jsonResponse({
+      dates,
+      count: dates.length,
+      firstDate: dates[0] || null,
+      lastDate: dates[dates.length - 1] || null,
+      source: "avalanche.report / EAWS",
+      sourceUrl,
+    });
+  } catch (error) {
+    return jsonResponse({
+      error: "Lawinenarchiv konnte nicht geladen werden.",
+      detail: String(error?.message || error),
+    }, 502);
+  }
 }
 
 function isAlpineFeature(feature) {
@@ -328,7 +371,7 @@ function loginPage(hasError) {
 }
 
 function protectedPage() {
-  return htmlResponse(`<!doctype html>
+  return htmlResponse(\`<!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8">
@@ -345,17 +388,26 @@ function protectedPage() {
     .badge { display: inline-block; margin-left: 10px; vertical-align: middle; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; background: #1d3a2f; color: #bdf2d5; padding: 5px 8px; border-radius: 999px; }
     main { width: min(1320px, calc(100% - 32px)); margin: 24px auto 48px; }
     .card { border: 1px solid #263449; background: #131d2c; border-radius: 16px; padding: 20px; box-shadow: 0 10px 35px rgba(0,0,0,.14); }
-    .intro { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 16px; }
+    .intro { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 14px; }
     .intro p, .muted { color: #aebed1; line-height: 1.5; }
-    .controls { display: grid; grid-template-columns: minmax(160px, 210px) minmax(210px, 260px) auto 1fr; gap: 12px; align-items: end; margin: 16px 0; }
+    .tabs { display: flex; gap: 8px; margin: 0 0 18px; border-bottom: 1px solid #263449; padding-bottom: 12px; }
+    .tab { border: 1px solid #33445c; background: #111b2b; color: #b8c7d9; padding: 9px 14px; border-radius: 9px; font: inherit; font-weight: 800; cursor: pointer; }
+    .tab.active { background: #eef3f8; color: #101827; border-color: #eef3f8; }
+    .view[hidden] { display: none !important; }
+
+    .controls { display: grid; grid-template-columns: auto minmax(160px, 210px) minmax(210px, 260px) auto 1fr; gap: 10px; align-items: end; margin: 16px 0; }
+    .date-nav { display: flex; gap: 6px; }
+    .date-nav button { min-width: 42px; padding-inline: 10px; }
     .control label { display: block; font-size: 12px; font-weight: 800; color: #9fb0c5; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
     input, select { width: 100%; border: 1px solid #3a4b63; border-radius: 9px; padding: 10px 11px; background: #0d1624; color: #fff; font: inherit; }
     button { border: 1px solid #3a4b63; background: #172235; color: #eef3f8; padding: 10px 13px; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
-    button:hover { background: #21304a; }
+    button:hover:not(:disabled) { background: #21304a; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
     .primary { background: #eef3f8; color: #101827; border-color: #eef3f8; }
-    .primary:hover { background: #dbe4ee; }
+    .primary:hover:not(:disabled) { background: #dbe4ee; }
     .status { min-height: 42px; display: flex; align-items: center; padding: 10px 12px; border-radius: 10px; background: #0e1726; border: 1px solid #233146; color: #b8c7d9; font-size: 14px; }
     .status.error { border-color: #7d3942; color: #ffd2d8; background: #33191e; }
+
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; margin-top: 16px; }
     .map-card { padding: 12px; overflow: hidden; }
     .map-shell { position: relative; min-height: 560px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 54% 46%, #24344a 0, #172335 35%, #0e1725 78%); border: 1px solid #263449; }
@@ -378,18 +430,45 @@ function protectedPage() {
     .rating-grid div:nth-child(even) { text-align: right; font-weight: 800; }
     .source-note { margin-top: 14px; font-size: 12px; color: #8195ac; line-height: 1.5; }
     .empty { color: #8fa2b9; line-height: 1.55; }
-    @media (max-width: 900px) {
-      .controls { grid-template-columns: 1fr 1fr; }
+
+    .archive-head { display: grid; grid-template-columns: auto minmax(120px, 150px) minmax(150px, 190px) auto 1fr; gap: 10px; align-items: end; margin-bottom: 18px; }
+    .archive-head .nav-month { display: flex; gap: 6px; }
+    .archive-summary { align-self: stretch; display: flex; align-items: center; padding: 10px 12px; border: 1px solid #263449; background: #0e1726; border-radius: 10px; color: #aebed1; font-size: 13px; }
+    .calendar { border: 1px solid #27364a; border-radius: 14px; overflow: hidden; background: #0d1624; }
+    .weekday-row, .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+    .weekday { padding: 10px 6px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: #8498b0; border-bottom: 1px solid #27364a; }
+    .day-cell { min-height: 92px; border-right: 1px solid #202e40; border-bottom: 1px solid #202e40; padding: 7px; background: #101a29; position: relative; }
+    .day-cell:nth-child(7n) { border-right: 0; }
+    .day-cell.empty-day { background: #0a121d; }
+    .day-number { font-size: 12px; font-weight: 800; color: #72869f; }
+    .day-cell.available { background: #142235; cursor: pointer; }
+    .day-cell.available:hover { background: #1b2d46; }
+    .day-cell.available .day-number { color: #f1f5f9; }
+    .day-cell.selected { outline: 2px solid #eef3f8; outline-offset: -2px; z-index: 1; }
+    .available-pill { position: absolute; left: 7px; right: 7px; bottom: 7px; border-radius: 999px; padding: 5px 6px; background: #1d3a2f; color: #bdf2d5; font-size: 10px; font-weight: 850; text-align: center; }
+    .missing-pill { position: absolute; left: 7px; right: 7px; bottom: 7px; color: #5e7189; font-size: 10px; text-align: center; }
+    .archive-note { margin-top: 14px; color: #8296ad; font-size: 12px; line-height: 1.5; }
+
+    @media (max-width: 980px) {
+      .controls { grid-template-columns: auto 1fr 1fr; }
+      .status { grid-column: 1 / -1; }
       .layout { grid-template-columns: 1fr; }
       .detail { min-height: auto; }
+      .archive-head { grid-template-columns: auto 1fr 1fr; }
+      .archive-summary { grid-column: 1 / -1; }
     }
-    @media (max-width: 560px) {
+    @media (max-width: 620px) {
       header { padding: 15px 16px; }
       h1 { font-size: 20px; }
       main { width: min(100% - 20px, 1320px); }
       .intro { display: block; }
-      .controls { grid-template-columns: 1fr; }
+      .controls, .archive-head { grid-template-columns: 1fr; }
+      .date-nav, .nav-month { width: 100%; }
+      .date-nav button, .nav-month button { flex: 1; }
       .map-shell, #avalancheMap { min-height: 420px; }
+      .day-cell { min-height: 64px; padding: 5px; }
+      .available-pill, .missing-pill { display: none; }
+      .weekday { font-size: 9px; }
     }
   </style>
 </head>
@@ -404,57 +483,112 @@ function protectedPage() {
       <div class="intro">
         <div>
           <h2>Lawinengefahr im Alpenraum</h2>
-          <p class="muted">EAWS-Warnregionen mit der jeweils gewählten Gefahrenstufe. Weiß bzw. grau bedeutet: für diese Ansicht liegt keine Einstufung vor.</p>
+          <p class="muted">EAWS-Warnregionen mit Tagesansicht und historischem Archiv. Die Archivansicht lädt einen ausgewählten Tag exakt, ohne auf einen älteren Warnstand zurückzufallen.</p>
         </div>
       </div>
 
-      <div class="controls">
-        <div class="control">
-          <label for="forecastDate">Datum</label>
-          <input id="forecastDate" type="date">
-        </div>
-        <div class="control">
-          <label for="ratingMode">Darstellung</label>
-          <select id="ratingMode">
-            <option value="">Höchste Warnstufe</option>
-            <option value="am">Vormittag</option>
-            <option value="pm">Nachmittag</option>
-            <option value="high">Hochlagen</option>
-            <option value="low">Tieflagen</option>
-            <option value="high:am">Hochlagen · Vormittag</option>
-            <option value="high:pm">Hochlagen · Nachmittag</option>
-            <option value="low:am">Tieflagen · Vormittag</option>
-            <option value="low:pm">Tieflagen · Nachmittag</option>
-          </select>
-        </div>
-        <button id="reloadButton" class="primary" type="button">Laden</button>
-        <div id="status" class="status">Lawinendaten werden vorbereitet …</div>
-      </div>
+      <nav class="tabs" aria-label="Alpenwetter-Ansichten">
+        <button id="mapTab" class="tab active" type="button">Karte</button>
+        <button id="archiveTab" class="tab" type="button">Archiv</button>
+      </nav>
 
-      <div class="layout">
-        <section class="card map-card">
-          <div class="map-shell">
-            <div class="map-label">Alpenraum · EAWS-Regionen</div>
-            <svg id="avalancheMap" viewBox="0 0 1000 600" role="img" aria-label="Karte der Lawinenwarnstufen im Alpenraum"></svg>
+      <section id="mapView" class="view">
+        <div class="controls">
+          <div class="date-nav">
+            <button id="prevDayButton" type="button" title="Vorheriger Archivtag">←</button>
+            <button id="nextDayButton" type="button" title="Nächster Archivtag">→</button>
           </div>
-          <div class="legend" aria-label="Legende">
-            <span class="legend-item"><span class="swatch" style="background:#d8d8d8"></span>keine Einstufung</span>
-            <span class="legend-item"><span class="swatch" style="background:#7ecb55"></span>1 gering</span>
-            <span class="legend-item"><span class="swatch" style="background:#f3df3f"></span>2 mäßig</span>
-            <span class="legend-item"><span class="swatch" style="background:#f39b33"></span>3 erheblich</span>
-            <span class="legend-item"><span class="swatch" style="background:#df413b"></span>4 groß</span>
-            <span class="legend-item"><span class="swatch" style="background:#262626"></span>5 sehr groß</span>
+          <div class="control">
+            <label for="forecastDate">Datum</label>
+            <input id="forecastDate" type="date">
           </div>
-        </section>
+          <div class="control">
+            <label for="ratingMode">Darstellung</label>
+            <select id="ratingMode">
+              <option value="">Höchste Warnstufe</option>
+              <option value="am">Vormittag</option>
+              <option value="pm">Nachmittag</option>
+              <option value="high">Hochlagen</option>
+              <option value="low">Tieflagen</option>
+              <option value="high:am">Hochlagen · Vormittag</option>
+              <option value="high:pm">Hochlagen · Nachmittag</option>
+              <option value="low:am">Tieflagen · Vormittag</option>
+              <option value="low:pm">Tieflagen · Nachmittag</option>
+            </select>
+          </div>
+          <button id="reloadButton" class="primary" type="button">Laden</button>
+          <div id="status" class="status">Lawinendaten werden vorbereitet …</div>
+        </div>
 
-        <aside class="card detail">
-          <h3>Regionsdetails</h3>
-          <div id="detailContent" class="empty">Klicke auf eine Warnregion in der Karte, um die verfügbaren Warnstufen anzuzeigen.</div>
-          <div class="source-note">
-            Quelle: EAWS / avalanche.report. Die Karte ist eine Übersicht; maßgeblich bleibt der jeweilige offizielle Lawinenwarndienst und dessen Bulletin.
+        <div class="layout">
+          <section class="card map-card">
+            <div class="map-shell">
+              <div class="map-label">Alpenraum · EAWS-Regionen</div>
+              <svg id="avalancheMap" viewBox="0 0 1000 600" role="img" aria-label="Karte der Lawinenwarnstufen im Alpenraum"></svg>
+            </div>
+            <div class="legend" aria-label="Legende">
+              <span class="legend-item"><span class="swatch" style="background:#d8d8d8"></span>keine Einstufung</span>
+              <span class="legend-item"><span class="swatch" style="background:#7ecb55"></span>1 gering</span>
+              <span class="legend-item"><span class="swatch" style="background:#f3df3f"></span>2 mäßig</span>
+              <span class="legend-item"><span class="swatch" style="background:#f39b33"></span>3 erheblich</span>
+              <span class="legend-item"><span class="swatch" style="background:#df413b"></span>4 groß</span>
+              <span class="legend-item"><span class="swatch" style="background:#262626"></span>5 sehr groß</span>
+            </div>
+          </section>
+
+          <aside class="card detail">
+            <h3>Regionsdetails</h3>
+            <div id="detailContent" class="empty">Klicke auf eine Warnregion in der Karte, um die verfügbaren Warnstufen anzuzeigen.</div>
+            <div class="source-note">
+              Quelle: EAWS / avalanche.report. Die Karte ist eine Übersicht; maßgeblich bleibt der jeweilige offizielle Lawinenwarndienst und dessen Bulletin.
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="archiveView" class="view" hidden>
+        <div class="archive-head">
+          <div class="nav-month">
+            <button id="prevMonthButton" type="button" title="Vorheriger Monat">←</button>
+            <button id="nextMonthButton" type="button" title="Nächster Monat">→</button>
           </div>
-        </aside>
-      </div>
+          <div class="control">
+            <label for="archiveYear">Jahr</label>
+            <select id="archiveYear"></select>
+          </div>
+          <div class="control">
+            <label for="archiveMonth">Monat</label>
+            <select id="archiveMonth">
+              <option value="0">Januar</option>
+              <option value="1">Februar</option>
+              <option value="2">März</option>
+              <option value="3">April</option>
+              <option value="4">Mai</option>
+              <option value="5">Juni</option>
+              <option value="6">Juli</option>
+              <option value="7">August</option>
+              <option value="8">September</option>
+              <option value="9">Oktober</option>
+              <option value="10">November</option>
+              <option value="11">Dezember</option>
+            </select>
+          </div>
+          <button id="todayArchiveButton" type="button">Aktueller Monat</button>
+          <div id="archiveSummary" class="archive-summary">Archivindex wird geladen …</div>
+        </div>
+
+        <div class="calendar">
+          <div class="weekday-row">
+            <div class="weekday">Mo</div><div class="weekday">Di</div><div class="weekday">Mi</div>
+            <div class="weekday">Do</div><div class="weekday">Fr</div><div class="weekday">Sa</div><div class="weekday">So</div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </div>
+
+        <div class="archive-note">
+          Grün markierte Tage sind im öffentlichen EAWS-/avalanche.report-Tagesarchiv vorhanden. Beim Anklicken wird genau dieser Tag geladen. Einzelne Tagesordner können unvollständig sein; in diesem Fall zeigt die Karte keine Einstufung statt einen anderen Tag zu verwenden.
+        </div>
+      </section>
     </section>
   </main>
 
@@ -464,23 +598,18 @@ function protectedPage() {
 
       var NS = "http://www.w3.org/2000/svg";
       var MAP_BOUNDS = { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 };
-      var COLORS = {
-        0: "#d8d8d8",
-        1: "#7ecb55",
-        2: "#f3df3f",
-        3: "#f39b33",
-        4: "#df413b",
-        5: "#262626"
+      var COLORS = { 0:"#d8d8d8", 1:"#7ecb55", 2:"#f3df3f", 3:"#f39b33", 4:"#df413b", 5:"#262626" };
+      var LABELS = { 0:"keine Einstufung", 1:"gering", 2:"mäßig", 3:"erheblich", 4:"groß", 5:"sehr groß" };
+      var state = {
+        regions: null,
+        ratingsPayload: null,
+        selectedId: null,
+        archive: null,
+        archiveSet: new Set(),
+        archiveYear: null,
+        archiveMonth: null,
+        exactDateMode: false
       };
-      var LABELS = {
-        0: "keine Einstufung",
-        1: "gering",
-        2: "mäßig",
-        3: "erheblich",
-        4: "groß",
-        5: "sehr groß"
-      };
-      var state = { regions: null, ratingsPayload: null, selectedId: null };
 
       var dateInput = document.getElementById("forecastDate");
       var modeSelect = document.getElementById("ratingMode");
@@ -488,22 +617,214 @@ function protectedPage() {
       var statusEl = document.getElementById("status");
       var mapEl = document.getElementById("avalancheMap");
       var detailEl = document.getElementById("detailContent");
+      var mapTab = document.getElementById("mapTab");
+      var archiveTab = document.getElementById("archiveTab");
+      var mapView = document.getElementById("mapView");
+      var archiveView = document.getElementById("archiveView");
+      var archiveYearSelect = document.getElementById("archiveYear");
+      var archiveMonthSelect = document.getElementById("archiveMonth");
+      var calendarGrid = document.getElementById("calendarGrid");
+      var archiveSummary = document.getElementById("archiveSummary");
+      var prevDayButton = document.getElementById("prevDayButton");
+      var nextDayButton = document.getElementById("nextDayButton");
 
-      dateInput.value = new Date().toISOString().slice(0, 10);
+      var todayIso = new Date().toISOString().slice(0, 10);
+      dateInput.value = todayIso;
 
-      reloadButton.addEventListener("click", loadAll);
-      dateInput.addEventListener("change", loadAll);
+      mapTab.addEventListener("click", function () { switchView("map"); });
+      archiveTab.addEventListener("click", function () { switchView("archive"); loadArchive(); });
+      reloadButton.addEventListener("click", function () { state.exactDateMode = false; loadAll(false); });
+      dateInput.addEventListener("change", function () { state.exactDateMode = false; loadAll(false); });
       modeSelect.addEventListener("change", function () {
         renderMap();
         if (state.selectedId) renderDetail(state.selectedId);
       });
+
+      document.getElementById("prevMonthButton").addEventListener("click", function () { moveArchiveMonth(-1); });
+      document.getElementById("nextMonthButton").addEventListener("click", function () { moveArchiveMonth(1); });
+      document.getElementById("todayArchiveButton").addEventListener("click", function () {
+        var now = new Date();
+        state.archiveYear = now.getUTCFullYear();
+        state.archiveMonth = now.getUTCMonth();
+        syncArchiveSelectors();
+        renderCalendar();
+      });
+      archiveYearSelect.addEventListener("change", function () {
+        state.archiveYear = Number(archiveYearSelect.value);
+        renderCalendar();
+      });
+      archiveMonthSelect.addEventListener("change", function () {
+        state.archiveMonth = Number(archiveMonthSelect.value);
+        renderCalendar();
+      });
+      prevDayButton.addEventListener("click", function () { moveAvailableDay(-1); });
+      nextDayButton.addEventListener("click", function () { moveAvailableDay(1); });
+
+      function switchView(which) {
+        var archive = which === "archive";
+        mapView.hidden = archive;
+        archiveView.hidden = !archive;
+        mapTab.classList.toggle("active", !archive);
+        archiveTab.classList.toggle("active", archive);
+      }
 
       function setStatus(text, isError) {
         statusEl.textContent = text;
         statusEl.className = isError ? "status error" : "status";
       }
 
-      async function loadAll() {
+      async function loadArchive() {
+        if (state.archive) {
+          renderCalendar();
+          return;
+        }
+
+        archiveSummary.textContent = "Archivindex wird geladen …";
+        try {
+          var response = await fetch("/api/archive", { credentials: "same-origin" });
+          var payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || ("HTTP " + response.status));
+
+          state.archive = payload;
+          state.archiveSet = new Set(payload.dates || []);
+
+          var basis = dateInput.value || payload.lastDate || todayIso;
+          var parts = basis.split("-");
+          state.archiveYear = Number(parts[0]);
+          state.archiveMonth = Number(parts[1]) - 1;
+
+          fillArchiveYears();
+          syncArchiveSelectors();
+          renderCalendar();
+          updateDayNavigation();
+
+          archiveSummary.textContent =
+            (payload.count || 0) + " Archivtage · " +
+            (payload.firstDate ? formatDate(payload.firstDate) : "–") + " bis " +
+            (payload.lastDate ? formatDate(payload.lastDate) : "–");
+        } catch (error) {
+          archiveSummary.textContent = "Archiv konnte nicht geladen werden: " + String(error && error.message ? error.message : error);
+        }
+      }
+
+      function fillArchiveYears() {
+        var years = {};
+        (state.archive.dates || []).forEach(function (iso) { years[iso.slice(0, 4)] = true; });
+        var list = Object.keys(years).sort(function (a, b) { return Number(b) - Number(a); });
+        archiveYearSelect.innerHTML = "";
+        list.forEach(function (year) {
+          var option = document.createElement("option");
+          option.value = year;
+          option.textContent = year;
+          archiveYearSelect.appendChild(option);
+        });
+      }
+
+      function syncArchiveSelectors() {
+        archiveYearSelect.value = String(state.archiveYear);
+        archiveMonthSelect.value = String(state.archiveMonth);
+      }
+
+      function moveArchiveMonth(delta) {
+        if (!state.archiveYear && state.archiveYear !== 0) return;
+        var d = new Date(Date.UTC(state.archiveYear, state.archiveMonth + delta, 1));
+        state.archiveYear = d.getUTCFullYear();
+        state.archiveMonth = d.getUTCMonth();
+        syncArchiveSelectors();
+        renderCalendar();
+      }
+
+      function renderCalendar() {
+        if (!state.archive) return;
+        calendarGrid.innerHTML = "";
+
+        var year = state.archiveYear;
+        var month = state.archiveMonth;
+        var first = new Date(Date.UTC(year, month, 1));
+        var days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        var mondayOffset = (first.getUTCDay() + 6) % 7;
+
+        for (var i = 0; i < mondayOffset; i += 1) {
+          var blank = document.createElement("div");
+          blank.className = "day-cell empty-day";
+          calendarGrid.appendChild(blank);
+        }
+
+        for (var day = 1; day <= days; day += 1) {
+          (function (dayNumber) {
+            var iso = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(dayNumber).padStart(2, "0");
+            var available = state.archiveSet.has(iso);
+            var cell = document.createElement("div");
+            cell.className = "day-cell" + (available ? " available" : "") + (dateInput.value === iso ? " selected" : "");
+            cell.innerHTML =
+              '<div class="day-number">' + dayNumber + '</div>' +
+              (available ? '<div class="available-pill">Daten vorhanden</div>' : '<div class="missing-pill">–</div>');
+
+            if (available) {
+              cell.tabIndex = 0;
+              cell.setAttribute("role", "button");
+              cell.setAttribute("aria-label", formatDate(iso) + " öffnen");
+              cell.addEventListener("click", function () { openArchiveDate(iso); });
+              cell.addEventListener("keydown", function (event) {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openArchiveDate(iso);
+                }
+              });
+            }
+            calendarGrid.appendChild(cell);
+          })(day);
+        }
+      }
+
+      async function openArchiveDate(iso) {
+        dateInput.value = iso;
+        state.exactDateMode = true;
+        switchView("map");
+        await loadAll(true);
+        renderCalendar();
+      }
+
+      function moveAvailableDay(direction) {
+        if (!state.archive || !state.archive.dates || !state.archive.dates.length) return;
+        var dates = state.archive.dates;
+        var current = dateInput.value;
+        var index = dates.indexOf(current);
+
+        if (index === -1) {
+          index = direction < 0
+            ? findPreviousDateIndex(dates, current)
+            : findNextDateIndex(dates, current);
+        } else {
+          index += direction;
+        }
+
+        if (index < 0 || index >= dates.length) return;
+        openArchiveDate(dates[index]);
+      }
+
+      function findPreviousDateIndex(dates, current) {
+        for (var i = dates.length - 1; i >= 0; i -= 1) if (dates[i] < current) return i;
+        return -1;
+      }
+
+      function findNextDateIndex(dates, current) {
+        for (var i = 0; i < dates.length; i += 1) if (dates[i] > current) return i;
+        return dates.length;
+      }
+
+      function updateDayNavigation() {
+        if (!state.archive || !state.archive.dates) {
+          prevDayButton.disabled = true;
+          nextDayButton.disabled = true;
+          return;
+        }
+        var current = dateInput.value;
+        prevDayButton.disabled = findPreviousDateIndex(state.archive.dates, current) < 0;
+        nextDayButton.disabled = findNextDateIndex(state.archive.dates, current) >= state.archive.dates.length;
+      }
+
+      async function loadAll(exact) {
         setStatus("EAWS-Regionen und Warnstufen werden geladen …", false);
         reloadButton.disabled = true;
 
@@ -514,17 +835,20 @@ function protectedPage() {
             state.regions = await regionResponse.json();
           }
 
-          var selectedDate = dateInput.value || new Date().toISOString().slice(0, 10);
-          var ratingResponse = await fetch("/api/ratings?date=" + encodeURIComponent(selectedDate), { credentials: "same-origin" });
-          state.ratingsPayload = await ratingResponse.json();
+          var selectedDate = dateInput.value || todayIso;
+          var exactParam = exact ? "&exact=1" : "";
+          var ratingResponse = await fetch("/api/ratings?date=" + encodeURIComponent(selectedDate) + exactParam, { credentials: "same-origin" });
+          var ratingPayload = await ratingResponse.json();
 
           if (!ratingResponse.ok) {
             state.ratingsPayload = {
               requestedDate: selectedDate,
               dataDate: null,
               ratings: { maxDangerRatings: {} },
-              error: state.ratingsPayload && state.ratingsPayload.error
+              error: ratingPayload && ratingPayload.error
             };
+          } else {
+            state.ratingsPayload = ratingPayload;
           }
 
           renderMap();
@@ -534,10 +858,13 @@ function protectedPage() {
           var mappedCount = countRatedRegions();
           var dateInfo = state.ratingsPayload.dataDate
             ? "Datenstand " + formatDate(state.ratingsPayload.dataDate)
-            : "keine Warnstufendatei gefunden";
+            : "für diesen Tag keine Warnstufendatei gefunden";
           var fallback = Number(state.ratingsPayload.fallbackDays || 0);
-          var fallbackInfo = fallback > 0 ? " · " + fallback + " Tag(e) zurückgegriffen" : "";
-          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo, false);
+          var fallbackInfo = !exact && fallback > 0 ? " · " + fallback + " Tag(e) zurückgegriffen" : "";
+          var modeInfo = exact ? " · Archivtag exakt" : "";
+          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo, false);
+
+          updateDayNavigation();
         } catch (error) {
           setStatus("Laden fehlgeschlagen: " + String(error && error.message ? error.message : error), true);
         } finally {
@@ -584,7 +911,7 @@ function protectedPage() {
       function uniqueRegionIds() {
         var ids = {};
         var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
-        features.forEach(function (f) { ids[featureId(f)] = true; });
+        features.forEach(function (feature) { ids[featureId(feature)] = true; });
         return Object.keys(ids);
       }
 
@@ -639,7 +966,7 @@ function protectedPage() {
 
       function renderDetail(id) {
         var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
-        var feature = features.find(function (f) { return featureId(f) === id; });
+        var feature = features.find(function (item) { return featureId(item) === id; });
         var name = feature ? featureName(feature) : id;
         var danger = dangerForId(id);
         var color = COLORS[danger] || COLORS[0];
@@ -675,9 +1002,7 @@ function protectedPage() {
       function geometryToPath(geometry) {
         if (!geometry || !geometry.coordinates) return "";
         if (geometry.type === "Polygon") return polygonToPath(geometry.coordinates);
-        if (geometry.type === "MultiPolygon") {
-          return geometry.coordinates.map(polygonToPath).join(" ");
-        }
+        if (geometry.type === "MultiPolygon") return geometry.coordinates.map(polygonToPath).join(" ");
         return "";
       }
 
@@ -717,11 +1042,12 @@ function protectedPage() {
           .replace(/'/g, "&#039;");
       }
 
-      loadAll();
+      loadArchive();
+      loadAll(false);
     })();
   </script>
 </body>
-</html>`);
+</html>\`);
 }
 
 function htmlResponse(body, status = 200) {
