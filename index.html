@@ -2543,7 +2543,7 @@ button.action:hover{background:#1f2937}
 
 <!-- ================= STATIONSPROFIL ================= -->
 <div id="stationProfile" class="tab-content">
-  <div class="section-header"><h2>Stationsprofil</h2><p>Eine Station auswählen und Temperatur, Kenntage, Hitzewellen, Rekorde und Niederschlag zentral zusammenführen.</p><span class="section-status">DWD-KL-Stationsnetz · aktuelle Werte vorläufig</span></div>
+  <div class="section-header"><h2>Stationsprofil</h2><p>Eine Station auswählen und Temperatur, meteorologische Summen, Kenntage, Hitzewellen, Rekorde und Niederschlag zentral zusammenführen.</p><span class="section-status">DWD-KL-Stationsnetz · aktuelle Werte vorläufig</span></div>
   <div id="stationProfileLoading" class="record-loading">Stationsprofil wird beim ersten Öffnen geladen …</div>
   <div id="stationProfileContent" hidden>
     <div class="controls">
@@ -2592,6 +2592,17 @@ button.action:hover{background:#1f2937}
 
     <div id="stationProfileStageContent">
       <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Meteorologische Summen</div><h2>Grünlandtemperatursumme (GTS)</h2></div><p class="note">Aus dem DWD-Tagesmittel TMK: nur positive Werte; Januar × 0,5 · Februar × 0,75 · ab März × 1,0.</p></div>
+        <div class="profile-overview-grid">
+          <div class="profile-overview-card"><div class="label" id="stationProfileGtsCurrentLabel">GTS aktuelles Jahr</div><div id="stationProfileGtsCurrentValue" class="value">–</div><div id="stationProfileGtsCurrentDetail" class="detail">wird berechnet …</div></div>
+          <div class="profile-overview-card"><div class="label">Mittel 1991–2020 bis Datenstand</div><div id="stationProfileGtsMeanValue" class="value">–</div><div id="stationProfileGtsMeanDetail" class="detail">gleicher Kalendertag</div></div>
+          <div class="profile-overview-card"><div class="label" id="stationProfileGtsThresholdLabel">200 K aktuelles Jahr</div><div id="stationProfileGtsThresholdValue" class="value">–</div><div id="stationProfileGtsThresholdDetail" class="detail">Vegetationsschwelle</div></div>
+          <div class="profile-overview-card"><div class="label">Typischer 200-K-Termin</div><div id="stationProfileGtsThresholdMeanValue" class="value">–</div><div id="stationProfileGtsThresholdMeanDetail" class="detail">Median 1991–2020</div></div>
+        </div>
+        <div class="chart-container"><canvas id="stationProfileGtsChart"></canvas></div>
+        <p id="stationProfileGtsRecordNote" class="note"></p>
+      </section>
+      <section class="profile-section">
         <div class="profile-section-heading"><div><div class="profile-kicker">Sommer & Hitze</div><h2>Sommerereignisse</h2></div><p class="note">Oben: bis zum aktuellen Datenstand im Kalender. Unten: Gesamtjahreswerte ohne Hochrechnung.</p></div>
         <div id="stationProfileSummerCards" class="profile-event-grid"></div>
       </section>
@@ -2625,7 +2636,7 @@ button.action:hover{background:#1f2937}
       <section class="profile-section">
         <div class="profile-section-heading"><div><div class="profile-kicker">Methodik</div><h2>Definitionen und Datenquellen</h2></div></div>
         <div class="profile-method-grid">
-          <div class="profile-method-card"><h3>Temperatur und Klimaereignisse</h3><div id="stationProfileMethodTemp">DWD CDC, tägliche KL-Stationswerte. Sommertage: Tmax ≥ 25 °C; Hitzetage: Tmax ≥ 30 °C; Wüstentage: Tmax ≥ 35 °C; Tropennächte: Tmin ≥ 20 °C; Frosttage: Tmin &lt; 0 °C; Eistage: Tmax &lt; 0 °C.</div></div>
+          <div class="profile-method-card"><h3>Temperatur, GTS und Klimaereignisse</h3><div id="stationProfileMethodTemp">DWD CDC, tägliche KL-Stationswerte. GTS: Summe positiver Tagesmitteltemperaturen (TMK), Januar × 0,5, Februar × 0,75, ab März × 1,0; 200 K markieren den klassischen Vegetationsbeginn. Sommertage: Tmax ≥ 25 °C; Hitzetage: Tmax ≥ 30 °C; Wüstentage: Tmax ≥ 35 °C; Tropennächte: Tmin ≥ 20 °C; Frosttage: Tmin &lt; 0 °C; Eistage: Tmax &lt; 0 °C.</div></div>
           <div class="profile-method-card"><h3>Niederschlag und Hitzewellen</h3><div id="stationProfileMethodOther">Niederschlag aus dem erweiterten DWD-RR-/more_precip-Netz. Hitzewelle im Dashboard: mindestens drei aufeinanderfolgende Tage mit Tmax ≥ 30 °C.</div></div>
         </div>
       </section>
@@ -8749,7 +8760,8 @@ const CHART_EXPORT_FALLBACK_TITLES={
   stationClimateDaysCumulativeChart:"Stations-Kenntage - Akkumuliert",
   stationClimateDaysBarChart:"Stations-Kenntage - Jahres- und Saisonwerte",
   stationHeatwavesBubbleChart:"Stations-Hitzewellen - Intensität und Schweregrad",
-  stationHeatwavesBarChart:"Stations-Hitzewellen - Anzahl pro Jahr"
+  stationHeatwavesBarChart:"Stations-Hitzewellen - Anzahl pro Jahr",
+  stationProfileGtsChart:"Stationsprofil - Grünlandtemperatursumme"
 };
 
 function chartExportTitle(chart,canvas){
@@ -9276,6 +9288,7 @@ let stationProfileRequestId=0;
 let stationProfileSummerAnnualChart=null;
 let stationProfileWinterAnnualChart=null;
 let stationProfileTemperatureChart=null;
+let stationProfileGtsChart=null;
 let stationProfileMap=null;
 let stationProfileMapLayer=null;
 let stationProfilePrecipIndex=null;
@@ -10054,6 +10067,161 @@ async function renderStationProfileClimate(){
   initializeChartExportButtons();
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileClimate().catch(error=>console.error('Stationsprofil Kenntage:',error)));
+
+// ================= VERSION 12.2a: STATIONSPROFIL – GRÜNLANDTEMPERATURSUMME =================
+function stationProfileGtsPayload(){
+  return stationProfileProfile?.temperature_sums?.gts||null;
+}
+function stationProfileGtsFactor(month){
+  if(Number(month)===1)return .5;
+  if(Number(month)===2)return .75;
+  return 1;
+}
+function stationProfileGtsHistoricalRows(){
+  return (stationProfileGtsPayload()?.years||[]).map(row=>({
+    year:Number(row[0]),
+    total:Number(row[1]),
+    validDays:Number(row[2]),
+    thresholdDate:row[3]||null
+  })).filter(row=>Number.isFinite(row.year)&&Number.isFinite(row.total));
+}
+function stationProfileCurrentGts(){
+  const year=Number(stationClimateDaysIndex?.current_year);
+  const through=String(stationClimateDaysIndex?.data_through||"");
+  const labels=stationClimateDaysIndex?.labels||[];
+  const id=document.getElementById('stationProfileStationSelect')?.value;
+  const curve=Array(labels.length).fill(null);
+  let total=0,missingDays=0,thresholdDate=null,missingBeforeThreshold=0;
+  if(!id||!Number.isFinite(year))return {curve,total:null,missingDays:0,thresholdDate:null,missingBeforeThreshold:0};
+
+  for(let index=0;index<labels.length;index++){
+    const iso=`${year}-${labels[index]}`;
+    if(through&&iso>through)break;
+    const pair=stationClimateDaysPair(id,iso);
+    const rawTm=pair?.[4];
+    const tm=(rawTm===null||rawTm===undefined||rawTm==="")?null:Number(rawTm)/10;
+    if(!Number.isFinite(tm)){
+      missingDays+=1;
+      curve[index]=null;
+      continue;
+    }
+    const month=Number(labels[index].slice(0,2));
+    if(tm>0)total+=tm*stationProfileGtsFactor(month);
+    total=Math.round(total*10)/10;
+    curve[index]=total;
+    if(!thresholdDate&&total>=200){
+      thresholdDate=iso;
+      missingBeforeThreshold=missingDays;
+    }
+  }
+  return {curve,total:Math.round(total*10)/10,missingDays,thresholdDate,missingBeforeThreshold};
+}
+function stationProfileGtsThresholdStats(rows,startYear=null,endYear=null){
+  const labels=stationClimateDaysIndex?.labels||[];
+  const items=rows.filter(row=>{
+    if(!row.thresholdDate)return false;
+    if(Number.isFinite(startYear)&&row.year<startYear)return false;
+    if(Number.isFinite(endYear)&&row.year>endYear)return false;
+    return true;
+  }).map(row=>({...row,index:labels.indexOf(String(row.thresholdDate).slice(5))})).filter(row=>row.index>=0).sort((a,b)=>a.index-b.index||a.year-b.year);
+  if(!items.length)return {count:0,medianDate:null,earliest:null,latest:null};
+  const middle=(items.length-1)/2;
+  const medianIndex=Number.isInteger(middle)?items[middle].index:Math.round((items[Math.floor(middle)].index+items[Math.ceil(middle)].index)/2);
+  const medianLabel=labels[Math.max(0,Math.min(labels.length-1,medianIndex))]||null;
+  return {
+    count:items.length,
+    medianDate:medianLabel?`2000-${medianLabel}`:null,
+    earliest:items[0],
+    latest:items[items.length-1]
+  };
+}
+function stationProfileGtsValue(value){
+  return Number.isFinite(Number(value))?`${Number(value).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`:'–';
+}
+async function renderStationProfileGts(){
+  const canvas=document.getElementById('stationProfileGtsChart');
+  if(!canvas||!stationProfileProfile||!stationClimateDaysIndex)return;
+  await loadStationClimateDaysCurrentMonths();
+
+  const payload=stationProfileGtsPayload();
+  const year=Number(stationClimateDaysIndex.current_year);
+  const through=stationClimateDaysIndex.data_through;
+  document.getElementById('stationProfileGtsCurrentLabel').textContent=`GTS ${year}`;
+  document.getElementById('stationProfileGtsThresholdLabel').textContent=`200 K ${year}`;
+
+  if(!payload){
+    document.getElementById('stationProfileGtsCurrentValue').textContent='–';
+    document.getElementById('stationProfileGtsCurrentDetail').textContent='Für diese Station liegen noch keine GTS-Daten vor.';
+    document.getElementById('stationProfileGtsMeanValue').textContent='–';
+    document.getElementById('stationProfileGtsThresholdValue').textContent='–';
+    document.getElementById('stationProfileGtsThresholdMeanValue').textContent='–';
+    document.getElementById('stationProfileGtsRecordNote').textContent='';
+    if(stationProfileGtsChart){stationProfileGtsChart.destroy();stationProfileGtsChart=null;}
+    return;
+  }
+
+  const current=stationProfileCurrentGts();
+  const cutoff=stationProfileCutoffIndex();
+  const referenceCurve=payload.reference_mean_cumulative||[];
+  const referenceValue=Number(referenceCurve[cutoff]);
+  const history=stationProfileGtsHistoricalRows();
+  const referenceThreshold=stationProfileGtsThresholdStats(history,1991,2020);
+  const allThreshold=stationProfileGtsThresholdStats(history);
+
+  document.getElementById('stationProfileGtsCurrentValue').textContent=stationProfileGtsValue(current.total);
+  document.getElementById('stationProfileGtsCurrentDetail').textContent=`Stand ${dailyGermanDate(through,true)} · ${current.missingDays} fehlende TMK-Tage`;
+  document.getElementById('stationProfileGtsMeanValue').textContent=stationProfileGtsValue(referenceValue);
+  document.getElementById('stationProfileGtsMeanDetail').textContent=`1991–2020 bis ${dailyGermanDate(through,false)} · ${payload.reference_years||referenceThreshold.count} Referenzjahre`;
+
+  if(current.thresholdDate){
+    document.getElementById('stationProfileGtsThresholdValue').textContent=dailyGermanDate(current.thresholdDate,false);
+    document.getElementById('stationProfileGtsThresholdDetail').textContent=current.missingBeforeThreshold
+      ?`200 K anhand verfügbarer TMK-Werte · ${current.missingBeforeThreshold} Tag(e) davor ohne TMK`
+      :'200-K-Schwelle erreicht';
+  }else{
+    document.getElementById('stationProfileGtsThresholdValue').textContent='noch nicht';
+    document.getElementById('stationProfileGtsThresholdDetail').textContent=Number.isFinite(current.total)?`${stationProfileGtsValue(current.total)} von 200 K erreicht`:'keine aktuelle TMK-Reihe';
+  }
+
+  document.getElementById('stationProfileGtsThresholdMeanValue').textContent=referenceThreshold.medianDate?dailyGermanDate(referenceThreshold.medianDate,false):'–';
+  document.getElementById('stationProfileGtsThresholdMeanDetail').textContent=referenceThreshold.count?`Median aus ${referenceThreshold.count} Jahren 1991–2020`:'kein vollständiger Referenzzeitraum';
+
+  if(allThreshold.earliest&&allThreshold.latest){
+    document.getElementById('stationProfileGtsRecordNote').innerHTML=
+      `<strong>200-K-Rekorde seit Messbeginn:</strong> frühestens ${dailyGermanDate(allThreshold.earliest.thresholdDate,false)} ${allThreshold.earliest.year}, `+
+      `spätestens ${dailyGermanDate(allThreshold.latest.thresholdDate,false)} ${allThreshold.latest.year}. `+
+      `Historische GTS-Jahreswerte werden nur bei mindestens ${Math.round(Number(payload.minimum_year_coverage||.98)*100)} % TMK-Datenvollständigkeit verwendet.`;
+  }else{
+    document.getElementById('stationProfileGtsRecordNote').textContent='Für 200-K-Rekorde sind nicht genügend vollständige historische TMK-Jahre vorhanden.';
+  }
+
+  const labels=(stationClimateDaysIndex.labels||[]).map(stationClimateDaysDateLabel);
+  const thresholdLine=labels.map(()=>200);
+  if(stationProfileGtsChart)stationProfileGtsChart.destroy();
+  stationProfileGtsChart=new Chart(canvas,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:`GTS ${year}`,data:current.curve,borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,.10)',borderWidth:2.8,pointRadius:0,spanGaps:false,fill:false,tension:0},
+      {label:'Mittel 1991–2020',data:referenceCurve,borderColor:'#333',borderDash:[7,5],borderWidth:2,pointRadius:0,spanGaps:true,fill:false,tension:0},
+      {label:'Vegetationsschwelle 200 K',data:thresholdLine,borderColor:'rgba(177,107,0,.75)',borderDash:[3,4],borderWidth:1.5,pointRadius:0,spanGaps:true,fill:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{
+        title:{display:true,text:`Grünlandtemperatursumme ${year} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},
+        subtitle:{display:true,text:'Positive DWD-Tagesmittel (TMK): Januar × 0,5 · Februar × 0,75 · ab März × 1,0',color:'#666'},
+        datalabels:{display:false},
+        tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:12,maxRotation:0}},
+        y:{beginAtZero:true,title:{display:true,text:'GTS (K)'}}
+      }
+    }
+  });
+  initializeChartExportButtons();
+}
+window.addEventListener('stationprofilechange',()=>renderStationProfileGts().catch(error=>console.error('Stationsprofil GTS:',error)));
 
 // ================= VERSION 12.3: STATIONSPROFIL – TEMPERATUR UND EXTREME =================
 function stationProfileCurrentTemperatureRows(){
