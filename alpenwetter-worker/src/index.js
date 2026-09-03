@@ -184,7 +184,7 @@ async function proxyRegions() {
       return jsonResponse({ error: "Regionsdaten konnten nicht geladen werden.", status: response.status }, 502);
     }
     const data = await response.json();
-    const features = Array.isArray(data?.features) ? data.features.filter(isAlpineFeature) : [];
+    const features = Array.isArray(data?.features) ? data.features : [];
     return jsonResponse({
       type: "FeatureCollection",
       features,
@@ -426,6 +426,9 @@ function protectedPage() {
     .card { border: 1px solid #263449; background: #131d2c; border-radius: 16px; padding: 20px; box-shadow: 0 10px 35px rgba(0,0,0,.14); }
     .intro { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 14px; }
     .intro p, .muted { color: #aebed1; line-height: 1.5; }
+    .scope-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+    .scope-tab { border: 1px solid #425673; background: #0d1726; color: #c2d0e1; padding: 10px 16px; border-radius: 10px; font: inherit; font-weight: 850; cursor: pointer; }
+    .scope-tab.active { background: #23466f; color: #ffffff; border-color: #6e9bd0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
     .tabs { display: flex; gap: 8px; margin: 0 0 18px; border-bottom: 1px solid #263449; padding-bottom: 12px; }
     .tab { border: 1px solid #33445c; background: #111b2b; color: #b8c7d9; padding: 9px 14px; border-radius: 9px; font: inherit; font-weight: 800; cursor: pointer; }
     .tab.active { background: #eef3f8; color: #101827; border-color: #eef3f8; }
@@ -528,10 +531,15 @@ function protectedPage() {
     <section class="card">
       <div class="intro">
         <div>
-          <h2>Lawinengefahr im Alpenraum</h2>
-          <p class="muted">EAWS-Warnregionen mit Tagesansicht und historischem Archiv. Die Archivansicht lädt einen ausgewählten Tag exakt, ohne auf einen älteren Warnstand zurückzufallen.</p>
+          <h2 id="pageHeading">Lawinengefahr im Alpenraum</h2>
+          <p class="muted">EAWS-Warnregionen für Alpenraum und Europa mit Tagesansicht und historischem Archiv. Die Archivansicht lädt einen ausgewählten Tag exakt, ohne auf einen älteren Warnstand zurückzufallen.</p>
         </div>
       </div>
+
+      <nav class="scope-tabs" aria-label="Kartengebiet">
+        <button id="alpsScopeButton" class="scope-tab active" type="button">Alpenraum</button>
+        <button id="europeScopeButton" class="scope-tab" type="button">Europa</button>
+      </nav>
 
       <nav class="tabs" aria-label="Alpenwetter-Ansichten">
         <button id="mapTab" class="tab active" type="button">Karte</button>
@@ -574,7 +582,7 @@ function protectedPage() {
         <div class="layout">
           <section class="card map-card">
             <div class="map-shell" id="mapShell">
-              <div class="map-label">Alpenraum · EAWS-Regionen</div>
+              <div id="mapLabel" class="map-label">Alpenraum · EAWS-Regionen</div>
               <div class="map-toolbar" aria-label="Kartennavigation">
                 <button id="zoomOutButton" type="button" title="Herauszoomen" aria-label="Herauszoomen">−</button>
                 <button id="zoomInButton" type="button" title="Hineinzoomen" aria-label="Hineinzoomen">+</button>
@@ -653,22 +661,45 @@ function protectedPage() {
       "use strict";
 
       var NS = "http://www.w3.org/2000/svg";
-      var DEFAULT_MAP_BOUNDS = { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 };
-      var MAP_BOUNDS = Object.assign({}, DEFAULT_MAP_BOUNDS);
+      var SCOPE_CONFIG = {
+        alps: {
+          label: "Alpenraum",
+          heading: "Lawinengefahr im Alpenraum",
+          bounds: { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 },
+          cities: [
+            { name:"Genf", lon:6.1432, lat:46.2044, dx:10, dy:-9, anchor:"start" },
+            { name:"Grenoble", lon:5.7245, lat:45.1885, dx:10, dy:-9, anchor:"start" },
+            { name:"Turin", lon:7.6869, lat:45.0703, dx:10, dy:-9, anchor:"start" },
+            { name:"Mailand", lon:9.1900, lat:45.4642, dx:10, dy:18, anchor:"start" },
+            { name:"Zürich", lon:8.5417, lat:47.3769, dx:10, dy:-9, anchor:"start" },
+            { name:"München", lon:11.5820, lat:48.1351, dx:10, dy:-9, anchor:"start" },
+            { name:"Innsbruck", lon:11.4041, lat:47.2692, dx:10, dy:-9, anchor:"start" },
+            { name:"Bozen", lon:11.3548, lat:46.4983, dx:10, dy:18, anchor:"start" },
+            { name:"Salzburg", lon:13.0550, lat:47.8095, dx:10, dy:-9, anchor:"start" },
+            { name:"Ljubljana", lon:14.5058, lat:46.0569, dx:-10, dy:-9, anchor:"end" }
+          ]
+        },
+        europe: {
+          label: "Europa",
+          heading: "Lawinengefahr in Europa",
+          bounds: { minLon: -25.5, maxLon: 35.5, minLat: 34.0, maxLat: 72.8 },
+          cities: [
+            { name:"Reykjavík", lon:-21.9426, lat:64.1466, dx:10, dy:-9, anchor:"start" },
+            { name:"Edinburgh", lon:-3.1883, lat:55.9533, dx:10, dy:-9, anchor:"start" },
+            { name:"Oslo", lon:10.7522, lat:59.9139, dx:10, dy:-9, anchor:"start" },
+            { name:"Stockholm", lon:18.0686, lat:59.3293, dx:10, dy:-9, anchor:"start" },
+            { name:"Helsinki", lon:24.9384, lat:60.1699, dx:10, dy:18, anchor:"start" },
+            { name:"Andorra", lon:1.5218, lat:42.5063, dx:10, dy:-9, anchor:"start" },
+            { name:"Genf", lon:6.1432, lat:46.2044, dx:10, dy:-9, anchor:"start" },
+            { name:"Innsbruck", lon:11.4041, lat:47.2692, dx:10, dy:-9, anchor:"start" },
+            { name:"Krakau", lon:19.9450, lat:50.0647, dx:10, dy:-9, anchor:"start" },
+            { name:"Ljubljana", lon:14.5058, lat:46.0569, dx:10, dy:18, anchor:"start" }
+          ]
+        }
+      };
+      var MAP_BOUNDS = Object.assign({}, SCOPE_CONFIG.alps.bounds);
       var COLORS = { 0:"#d8d8d8", 1:"#7ecb55", 2:"#f3df3f", 3:"#f39b33", 4:"#df413b", 5:"#262626" };
       var LABELS = { 0:"keine Einstufung", 1:"gering", 2:"mäßig", 3:"erheblich", 4:"groß", 5:"sehr groß" };
-      var CITIES = [
-        { name:"Genf", lon:6.1432, lat:46.2044, dx:10, dy:-9, anchor:"start" },
-        { name:"Grenoble", lon:5.7245, lat:45.1885, dx:10, dy:-9, anchor:"start" },
-        { name:"Turin", lon:7.6869, lat:45.0703, dx:10, dy:-9, anchor:"start" },
-        { name:"Mailand", lon:9.1900, lat:45.4642, dx:10, dy:18, anchor:"start" },
-        { name:"Zürich", lon:8.5417, lat:47.3769, dx:10, dy:-9, anchor:"start" },
-        { name:"München", lon:11.5820, lat:48.1351, dx:10, dy:-9, anchor:"start" },
-        { name:"Innsbruck", lon:11.4041, lat:47.2692, dx:10, dy:-9, anchor:"start" },
-        { name:"Bozen", lon:11.3548, lat:46.4983, dx:10, dy:18, anchor:"start" },
-        { name:"Salzburg", lon:13.0550, lat:47.8095, dx:10, dy:-9, anchor:"start" },
-        { name:"Ljubljana", lon:14.5058, lat:46.0569, dx:-10, dy:-9, anchor:"end" }
-      ];
       var SVG_WIDTH = 1000;
       var SVG_HEIGHT = 600;
       var MIN_VIEW_WIDTH = 180;
@@ -676,6 +707,7 @@ function protectedPage() {
       var state = {
         regions: null,
         ratingsPayload: null,
+        scope: "alps",
         selectedId: null,
         archive: null,
         archiveSet: new Set(),
@@ -697,6 +729,10 @@ function protectedPage() {
         }
       };
 
+      var pageHeading = document.getElementById("pageHeading");
+      var mapLabel = document.getElementById("mapLabel");
+      var alpsScopeButton = document.getElementById("alpsScopeButton");
+      var europeScopeButton = document.getElementById("europeScopeButton");
       var dateInput = document.getElementById("forecastDate");
       var modeSelect = document.getElementById("ratingMode");
       var reloadButton = document.getElementById("reloadButton");
@@ -723,6 +759,8 @@ function protectedPage() {
       var todayIso = new Date().toISOString().slice(0, 10);
       dateInput.value = todayIso;
 
+      alpsScopeButton.addEventListener("click", function () { setMapScope("alps"); });
+      europeScopeButton.addEventListener("click", function () { setMapScope("europe"); });
       mapTab.addEventListener("click", function () { switchView("map"); });
       archiveTab.addEventListener("click", function () { switchView("archive"); loadArchive(); });
       reloadButton.addEventListener("click", function () { state.exactDateMode = false; loadAll(false); });
@@ -761,6 +799,46 @@ function protectedPage() {
         archiveView.hidden = !archive;
         mapTab.classList.toggle("active", !archive);
         archiveTab.classList.toggle("active", archive);
+      }
+
+      function scopeConfig() {
+        return SCOPE_CONFIG[state.scope] || SCOPE_CONFIG.alps;
+      }
+
+      function scopeRegionLabel() {
+        return state.scope === "europe" ? "Europa-Regionen" : "Alpenregionen";
+      }
+
+      function setMapScope(scope) {
+        state.scope = scope === "europe" ? "europe" : "alps";
+        var config = scopeConfig();
+
+        alpsScopeButton.classList.toggle("active", state.scope === "alps");
+        europeScopeButton.classList.toggle("active", state.scope === "europe");
+        pageHeading.textContent = config.heading;
+        mapLabel.textContent = config.label + " · EAWS-Regionen";
+        mapEl.setAttribute(
+          "aria-label",
+          state.scope === "europe"
+            ? "Karte der Lawinenwarnstufen in Europa"
+            : "Karte der Lawinenwarnstufen im Alpenraum"
+        );
+
+        state.selectedId = null;
+        detailEl.className = "empty";
+        detailEl.textContent = "Klicke auf eine Warnregion in der Karte, um die verfügbaren Warnstufen anzuzeigen.";
+        MAP_BOUNDS = Object.assign({}, config.bounds);
+        resetMapView();
+        renderMap();
+
+        if (state.regions) {
+          setStatus(
+            config.label + " · " + uniqueRegionIds().length + " Warnregionen · " +
+            countRatedRegions() + " mit Einstufung · Darstellung " +
+            modeSelect.options[modeSelect.selectedIndex].text,
+            false
+          );
+        }
       }
 
       function setStatus(text, isError) {
@@ -1030,7 +1108,7 @@ function protectedPage() {
           var fallback = Number(state.ratingsPayload.fallbackDays || 0);
           var fallbackInfo = !exact && fallback > 0 ? " · " + fallback + " Tag(e) zurückgegriffen" : "";
           var modeInfo = exact ? " · Archivtag exakt" : "";
-          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo + " · Detail-/Höhenflächen bevorzugt", false);
+          setStatus(regionCount + " " + scopeRegionLabel() + " · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo + " · Detail-/Höhenflächen bevorzugt", false);
 
           updateDayNavigation();
         } catch (error) {
@@ -1108,10 +1186,32 @@ function protectedPage() {
         return true;
       }
 
+      function isAlpineClientFeature(feature) {
+        var p = (feature && feature.properties) || {};
+        var id = String(p.id || p.region_id || p.regionId || p.code || "");
+        if (/^(AT-|CH|DE-BY|SI)/.test(id)) return true;
+
+        var bounds = clientGeometryBounds(feature && feature.geometry);
+        if (!bounds) return false;
+
+        var intersectsAlps =
+          bounds.maxLon >= 4.0 &&
+          bounds.minLon <= 16.3 &&
+          bounds.maxLat >= 43.4 &&
+          bounds.minLat <= 49.2;
+
+        if (/^IT-/.test(id)) return intersectsAlps && bounds.maxLat >= 44.4;
+        if (/^FR/.test(id)) return intersectsAlps && bounds.maxLon >= 4.5 && bounds.minLon <= 8.5;
+        return false;
+      }
+
       function activeFeatures() {
         var all = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
         var iso = selectedGeometryDate();
-        return all.filter(function (feature) { return featureValidForDate(feature, iso); });
+        return all.filter(function (feature) {
+          if (!featureValidForDate(feature, iso)) return false;
+          return state.scope === "europe" || isAlpineClientFeature(feature);
+        });
       }
 
       function featureElevation(feature) {
@@ -1453,8 +1553,8 @@ function protectedPage() {
           maxLat = Math.max(maxLat, bounds.maxLat);
         });
 
-        // Die beschrifteten Referenzorte gehören ebenfalls vollständig in den Ausschnitt.
-        CITIES.forEach(function (city) {
+        // Die beschrifteten Referenzorte des aktiven Kartengebiets gehören ebenfalls in den Ausschnitt.
+        scopeConfig().cities.forEach(function (city) {
           minLon = Math.min(minLon, city.lon);
           maxLon = Math.max(maxLon, city.lon);
           minLat = Math.min(minLat, city.lat);
@@ -1462,7 +1562,7 @@ function protectedPage() {
         });
 
         if (![minLon, maxLon, minLat, maxLat].every(Number.isFinite)) {
-          MAP_BOUNDS = Object.assign({}, DEFAULT_MAP_BOUNDS);
+          MAP_BOUNDS = Object.assign({}, scopeConfig().bounds);
           return;
         }
 
@@ -1538,7 +1638,7 @@ function protectedPage() {
         layer.setAttribute("aria-label", "Wichtige Orte");
         layer.setAttribute("pointer-events", "none");
 
-        CITIES.forEach(function (city) {
+        scopeConfig().cities.forEach(function (city) {
           var xy = project(city.lon, city.lat);
           if (xy[0] < 0 || xy[0] > 1000 || xy[1] < 0 || xy[1] > 600) return;
 
@@ -1634,7 +1734,8 @@ function protectedPage() {
           var canvas = await buildExportCanvas();
           var selectedDate = dateInput.value || todayIso;
           var modeSlug = exportModeSlug();
-          var filenameBase = "lawinenwarnkarte_" + selectedDate + "_" + modeSlug;
+          var scopeSlug = state.scope === "europe" ? "europa" : "alpenraum";
+          var filenameBase = "lawinenwarnkarte_" + scopeSlug + "_" + selectedDate + "_" + modeSlug;
 
           if (format === "pdf") {
             var pdfBlob = await canvasToSinglePagePdf(canvas);
@@ -1675,7 +1776,7 @@ function protectedPage() {
         ctx.fillStyle = "#101827";
         ctx.font = "700 44px Arial, sans-serif";
         ctx.textBaseline = "top";
-        ctx.fillText("Lawinenwarnkarte Alpenraum", padding, titleTop);
+        ctx.fillText("Lawinenwarnkarte " + scopeConfig().label, padding, titleTop);
 
         ctx.fillStyle = "#475569";
         ctx.font = "24px Arial, sans-serif";
@@ -1728,7 +1829,7 @@ function protectedPage() {
           ? modeSelect.options[modeSelect.selectedIndex].text
           : "Höchste Warnstufe";
 
-        var text = "Datenstand: " + formatDate(dataDate) + " · Darstellung: " + modeLabel;
+        var text = "Bereich: " + scopeConfig().label + " · Datenstand: " + formatDate(dataDate) + " · Darstellung: " + modeLabel;
         var fallback = Number(payload.fallbackDays || 0);
         if (!state.exactDateMode && fallback > 0 && dataDate !== requested) {
           text += " · angefragt: " + formatDate(requested);
