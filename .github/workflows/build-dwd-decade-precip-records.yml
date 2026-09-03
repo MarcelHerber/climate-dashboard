@@ -2,15 +2,10 @@ name: DWD Niederschlags-Dekadenrekorde
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "scripts/build_dwd_decade_precip_records.py"
-      - ".github/workflows/build-dwd-decade-precip-records.yml"
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: dwd-decade-precip-records
@@ -82,6 +77,7 @@ jobs:
           PY
 
       - name: Niederschlags-Datenbasis versionieren
+        id: publish
         run: |
           set -euo pipefail
 
@@ -92,12 +88,22 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "Niederschlags-Dekadenrekorde sind unverändert."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git commit -m "DWD Niederschlags-Dekadenrekorde aktualisiert"
           git pull --rebase origin main
           git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
           echo "Niederschlags-Datenbasis nach main veröffentlicht."
-          echo "Frontend wird im nächsten Schritt erweitert."
+
+      - name: GitHub Pages mit Niederschlagsdaten neu bauen
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-only-Workflow wurde gestartet."
