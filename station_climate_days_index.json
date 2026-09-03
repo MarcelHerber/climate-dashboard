@@ -1,6 +1,6 @@
 {
   "ready": true,
-  "generated_at": "2026-09-03T13:43:28+00:00",
+  "generated_at": "2026-09-03T14:13:20+00:00",
   "current_year": 2026,
   "data_through": "2026-09-02",
   "labels": [
@@ -458,6 +458,21 @@
       "definition": "Tmin ≥ 20 °C",
       "bit": 6,
       "color": "#b32f75"
+    }
+  ],
+  "temperature_sums": [
+    {
+      "id": "gts",
+      "label": "Grünlandtemperatursumme",
+      "short_label": "GTS",
+      "unit": "K",
+      "threshold": 200.0,
+      "definition": "Summe der positiven DWD-Tagesmitteltemperaturen (TMK): Januar × 0,5, Februar × 0,75, ab März × 1,0.",
+      "month_factors": {
+        "1": 0.5,
+        "2": 0.75,
+        "3-12": 1.0
+      }
     }
   ],
   "periods": [
@@ -102809,6 +102824,6 @@
     "reference_station_count": 462,
     "minimum_station_count": 300,
     "profile_count": 488,
-    "historical_built_at": "2026-08-11T09:41:46+00:00"
+    "historical_built_at": "2026-09-03T14:13:08+00:00"
   }
 }
