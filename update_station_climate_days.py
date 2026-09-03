@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 7
+STATE_VERSION = 8
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -410,9 +410,17 @@ def build_gts_payload(
     """Berechnet die historische Grünlandtemperatursumme aus DWD-TMK.
 
     Nur positive Tagesmittel gehen ein. Januar wird mit 0,5 und Februar mit
-    0,75 gewichtet; ab März gilt Faktor 1,0. Jahreswerte werden nur für Jahre
-    mit mindestens MIN_PERIOD_COVERAGE gültigen TMK-Tagen ausgegeben.
+    0,75 gewichtet; ab März gilt Faktor 1,0.
+
+    Für die Jahreswerte bleibt die strenge Gesamtjahresabdeckung erhalten.
+    Zusätzlich werden für das Stationsdiagramm die exakten kumulativen
+    Frühjahrsverläufe aller Jahre gespeichert. Sobald vor Erreichen von
+    200 K ein TMK-Tag fehlt, wird die betreffende historische Kurve ab dort
+    nicht weitergeführt, weil die exakte Summe danach unbekannt wäre.
     """
+
+    chart_extra_days = 10
+    storage_extra_days = 31
 
     by_year: dict[int, dict[date, float]] = defaultdict(dict)
     for day, raw_value in tmean_by_day.items():
@@ -425,18 +433,20 @@ def build_gts_payload(
 
     rows: list[list[Any]] = []
     reference_curves: list[list[float | None]] = []
+    historical_curves_full: list[tuple[int, list[float | None]]] = []
+    threshold_dates: list[list[Any]] = []
+    threshold_indices: list[int] = []
 
     for year in sorted(by_year):
         values = by_year[year]
         expected_days = date(year, 12, 31).timetuple().tm_yday
         minimum_valid = int(expected_days * MIN_PERIOD_COVERAGE + 0.999999)
         valid_days = len(values)
-        if valid_days < minimum_valid:
-            continue
 
-        total = 0.0
+        annual_total = 0.0
+        exact_total = 0.0
+        exact = True
         threshold_date: str | None = None
-        complete_to_date = True
         curve: list[float | None] = [None] * 365
         day = date(year, 1, 1)
         end = date(year, 12, 31)
@@ -444,21 +454,49 @@ def build_gts_payload(
         while day <= end:
             tmean = values.get(day)
             if tmean is None:
-                complete_to_date = False
-            elif tmean > 0.0:
-                total += tmean * gts_month_factor(day.month)
+                exact = False
+            else:
+                increment = tmean * gts_month_factor(day.month) if tmean > 0.0 else 0.0
+                annual_total += increment
+                if exact:
+                    exact_total += increment
 
-            if threshold_date is None and complete_to_date and total >= 200.0:
+            if threshold_date is None and exact and exact_total >= 200.0:
                 threshold_date = day.isoformat()
+                threshold_day_index = non_leap_index(day)
+                if threshold_day_index is None:
+                    threshold_day_index = non_leap_index(day + timedelta(days=1))
+                if threshold_day_index is not None:
+                    threshold_indices.append(threshold_day_index)
+                    threshold_dates.append([year, threshold_date])
 
             index = non_leap_index(day)
-            if index is not None:
-                curve[index] = round(total, 1)
+            if index is not None and exact:
+                curve[index] = round(exact_total, 1)
             day += timedelta(days=1)
 
-        rows.append([year, round(total, 1), valid_days, threshold_date])
-        if REFERENCE_START <= year <= REFERENCE_END:
-            reference_curves.append(curve)
+        historical_curves_full.append((year, curve))
+
+        if valid_days >= minimum_valid:
+            rows.append([year, round(annual_total, 1), valid_days, threshold_date])
+            if REFERENCE_START <= year <= REFERENCE_END:
+                # Die Referenzkurve bleibt über das Gesamtjahr verfügbar, damit
+                # der bestehende Vergleich bis zum aktuellen Datenstand funktioniert.
+                reference_curve: list[float | None] = [None] * 365
+                running = 0.0
+                reference_exact = True
+                day = date(year, 1, 1)
+                while day <= end:
+                    tmean = values.get(day)
+                    if tmean is None:
+                        reference_exact = False
+                    elif reference_exact and tmean > 0.0:
+                        running += tmean * gts_month_factor(day.month)
+                    index = non_leap_index(day)
+                    if index is not None and reference_exact:
+                        reference_curve[index] = round(running, 1)
+                    day += timedelta(days=1)
+                reference_curves.append(reference_curve)
 
     reference_mean_cumulative: list[float | None] = []
     for index in range(365):
@@ -470,6 +508,32 @@ def build_gts_payload(
         reference_mean_cumulative.append(
             round(sum(values) / len(values), 1) if values else None
         )
+
+    if threshold_indices:
+        latest_threshold_index = max(threshold_indices)
+        chart_end_index = min(364, latest_threshold_index + chart_extra_days)
+        storage_end_index = min(364, latest_threshold_index + storage_extra_days)
+    else:
+        chart_end_index = min(364, 120)
+        storage_end_index = min(364, 150)
+
+    historical_curves: list[list[Any]] = []
+    historical_daily_min: list[float | None] = []
+    historical_daily_max: list[float | None] = []
+
+    for year, curve in historical_curves_full:
+        sliced = curve[: storage_end_index + 1]
+        if any(value is not None for value in sliced):
+            historical_curves.append([year, sliced])
+
+    for index in range(storage_end_index + 1):
+        values = [
+            curve[index]
+            for _year, curve in historical_curves_full
+            if curve[index] is not None
+        ]
+        historical_daily_min.append(round(min(values), 1) if values else None)
+        historical_daily_max.append(round(max(values), 1) if values else None)
 
     specification = TEMPERATURE_SUMS[0]
     return {
@@ -485,8 +549,18 @@ def build_gts_payload(
         "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
         "reference_years": len(reference_curves),
         "reference_mean_cumulative": reference_mean_cumulative,
+        "threshold_dates": threshold_dates,
+        "historical_curves": historical_curves,
+        "historical_daily_min": historical_daily_min,
+        "historical_daily_max": historical_daily_max,
+        "chart_extra_days": chart_extra_days,
+        "chart_end_index": chart_end_index,
+        "storage_end_index": storage_end_index,
+        "historical_curve_rule": (
+            "Exakte kumulative GTS ab 1. Januar. Nach dem ersten fehlenden TMK-Tag "
+            "wird eine historische Kurve nicht weitergeführt."
+        ),
     }
-
 
 def build_profile_payload(
     station_id: str,
