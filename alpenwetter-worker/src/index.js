@@ -645,6 +645,18 @@ function protectedPage() {
       var MAP_BOUNDS = { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 };
       var COLORS = { 0:"#d8d8d8", 1:"#7ecb55", 2:"#f3df3f", 3:"#f39b33", 4:"#df413b", 5:"#262626" };
       var LABELS = { 0:"keine Einstufung", 1:"gering", 2:"mäßig", 3:"erheblich", 4:"groß", 5:"sehr groß" };
+      var CITIES = [
+        { name:"Genf", lon:6.1432, lat:46.2044, dx:10, dy:-9, anchor:"start" },
+        { name:"Grenoble", lon:5.7245, lat:45.1885, dx:10, dy:-9, anchor:"start" },
+        { name:"Turin", lon:7.6869, lat:45.0703, dx:10, dy:-9, anchor:"start" },
+        { name:"Mailand", lon:9.1900, lat:45.4642, dx:10, dy:18, anchor:"start" },
+        { name:"Zürich", lon:8.5417, lat:47.3769, dx:10, dy:-9, anchor:"start" },
+        { name:"München", lon:11.5820, lat:48.1351, dx:10, dy:-9, anchor:"start" },
+        { name:"Innsbruck", lon:11.4041, lat:47.2692, dx:10, dy:-9, anchor:"start" },
+        { name:"Bozen", lon:11.3548, lat:46.4983, dx:10, dy:18, anchor:"start" },
+        { name:"Salzburg", lon:13.0550, lat:47.8095, dx:10, dy:-9, anchor:"start" },
+        { name:"Ljubljana", lon:14.5058, lat:46.0569, dx:-10, dy:-9, anchor:"end" }
+      ];
       var state = {
         regions: null,
         ratingsPayload: null,
@@ -1011,6 +1023,48 @@ function protectedPage() {
           message.textContent = "Keine EAWS-Regionsgeometrien geladen";
           mapEl.appendChild(message);
         }
+
+        renderCityMarkers();
+      }
+
+      function renderCityMarkers() {
+        var layer = document.createElementNS(NS, "g");
+        layer.setAttribute("aria-label", "Wichtige Orte");
+        layer.setAttribute("pointer-events", "none");
+
+        CITIES.forEach(function (city) {
+          var xy = project(city.lon, city.lat);
+          if (xy[0] < 0 || xy[0] > 1000 || xy[1] < 0 || xy[1] > 600) return;
+
+          var marker = document.createElementNS(NS, "circle");
+          marker.setAttribute("cx", xy[0].toFixed(1));
+          marker.setAttribute("cy", xy[1].toFixed(1));
+          marker.setAttribute("r", "5");
+          marker.setAttribute("fill", "#ffffff");
+          marker.setAttribute("stroke", "#0f172a");
+          marker.setAttribute("stroke-width", "2.4");
+          marker.setAttribute("vector-effect", "non-scaling-stroke");
+          layer.appendChild(marker);
+
+          var label = document.createElementNS(NS, "text");
+          label.setAttribute("x", (xy[0] + city.dx).toFixed(1));
+          label.setAttribute("y", (xy[1] + city.dy).toFixed(1));
+          label.setAttribute("text-anchor", city.anchor || "start");
+          label.setAttribute("dominant-baseline", "middle");
+          label.setAttribute("font-family", "Arial, sans-serif");
+          label.setAttribute("font-size", "15");
+          label.setAttribute("font-weight", "700");
+          label.setAttribute("fill", "#ffffff");
+          label.setAttribute("stroke", "#0f172a");
+          label.setAttribute("stroke-width", "3.5");
+          label.setAttribute("paint-order", "stroke fill");
+          label.setAttribute("stroke-linejoin", "round");
+          label.setAttribute("vector-effect", "non-scaling-stroke");
+          label.textContent = city.name;
+          layer.appendChild(label);
+        });
+
+        mapEl.appendChild(layer);
       }
 
       function renderDetail(id) {
