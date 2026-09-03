@@ -2,6 +2,12 @@ name: Alpenwetter Worker veröffentlichen
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "alpenwetter-worker/**"
+      - ".github/workflows/deploy-alpenwetter-worker.yml"
 
 permissions:
   contents: read
