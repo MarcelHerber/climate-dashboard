@@ -47,6 +47,15 @@ for file in "${required_data_files[@]}"; do
   cp "$file" "_site/data/$(basename "$file")"
 done
 
+# Dekadenrekorde · Tagesniederschlag. Die Datenbasis wird in einem separaten
+# DWD-RR-Workflow erzeugt und nach erfolgreichem Lauf hier mit veröffentlicht.
+if [[ -s data/dwd_decade_precip_records.json ]]; then
+  cp data/dwd_decade_precip_records.json _site/data/
+  echo "Niederschlags-Dekadenrekorde in Pages-Artefakt übernommen."
+else
+  echo "HINWEIS: data/dwd_decade_precip_records.json ist noch nicht vorhanden."
+fi
+
 # Geschützter Alpenwetter-Bereich: Die URL selbst ist nicht vertraulich.
 # Sie wird nach erfolgreichem Cloudflare-Deploy automatisch erzeugt.
 if [[ -s data/alpenwetter_endpoint.json ]]; then
