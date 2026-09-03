@@ -1029,7 +1029,7 @@ function protectedPage() {
           var fallback = Number(state.ratingsPayload.fallbackDays || 0);
           var fallbackInfo = !exact && fallback > 0 ? " · " + fallback + " Tag(e) zurückgegriffen" : "";
           var modeInfo = exact ? " · Archivtag exakt" : "";
-          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo + " · historische Regionsgeometrie berücksichtigt", false);
+          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo + " · Detail-/Höhenflächen bevorzugt", false);
 
           updateDayNavigation();
         } catch (error) {
@@ -1115,8 +1115,21 @@ function protectedPage() {
 
       function featureElevation(feature) {
         var p = (feature && feature.properties) || {};
-        var value = String(p.elevation || p.altitude || "").toLowerCase().trim();
-        return value === "high" || value === "low" ? value : "";
+        var candidates = [
+          p.elevation,
+          p.altitude,
+          p.level,
+          p.elevation_class,
+          p.elevationClass,
+          p.band
+        ];
+
+        for (var i = 0; i < candidates.length; i += 1) {
+          var value = String(candidates[i] == null ? "" : candidates[i]).toLowerCase().trim();
+          if (value === "high" || value === "upper" || value === "above") return "high";
+          if (value === "low" || value === "lower" || value === "below") return "low";
+        }
+        return "";
       }
 
       function dangerForKey(key) {
@@ -1163,6 +1176,56 @@ function protectedPage() {
         if (!mode || !requestedElevation || !elevation) keys.push(id);
 
         return firstDanger(keys);
+      }
+
+      function renderableFeatures() {
+        var groups = {};
+        activeFeatures().forEach(function (feature) {
+          var id = featureId(feature);
+          if (!groups[id]) groups[id] = [];
+          groups[id].push(feature);
+        });
+
+        var output = [];
+
+        Object.keys(groups).forEach(function (id) {
+          var group = groups[id];
+          var detailed = group.filter(function (feature) {
+            return !!featureElevation(feature);
+          });
+          var detailedRated = detailed.filter(function (feature) {
+            return dangerForFeature(feature) > 0;
+          });
+
+          // Sobald echte Höhenflächen mit Warnwerten existieren, wird die grobe
+          // Gesamtfläche nicht mehr gezeichnet. Ebenso werden unbewertete
+          // Höhenflächen ausgeblendet, damit sie keine farbigen Details verdecken.
+          if (detailedRated.length) {
+            detailedRated.forEach(function (feature) { output.push(feature); });
+            return;
+          }
+
+          var rated = group.filter(function (feature) {
+            return dangerForFeature(feature) > 0;
+          });
+
+          // Gibt es wenigstens eine bewertete Fläche, zeichnen wir nur diese.
+          // Grau bleibt damit nur dort sichtbar, wo für die Region wirklich
+          // überhaupt keine Einstufung vorliegt.
+          if (rated.length) {
+            rated.forEach(function (feature) { output.push(feature); });
+            return;
+          }
+
+          group.forEach(function (feature) { output.push(feature); });
+        });
+
+        // Grobe Flächen zuerst, Höhen-/Detailflächen zuletzt.
+        output.sort(function (a, b) {
+          return Number(!!featureElevation(a)) - Number(!!featureElevation(b));
+        });
+
+        return output;
       }
 
       function uniqueRegionIds() {
@@ -1344,7 +1407,7 @@ function protectedPage() {
       function renderMap() {
         while (mapEl.firstChild) mapEl.removeChild(mapEl.firstChild);
         appendDanger5Pattern();
-        var features = activeFeatures();
+        var features = renderableFeatures();
 
         features.forEach(function (feature) {
           var id = featureId(feature);
