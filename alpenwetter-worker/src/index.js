@@ -457,9 +457,9 @@ function protectedPage() {
     .map-toolbar .map-reset { min-width: 66px; font-size: 12px; }
     #avalancheMap { width: 100%; height: auto; min-height: 560px; display: block; }
     #avalancheMap path { transition: opacity .12s ease, stroke-width .12s ease; cursor: pointer; }
-    #avalancheMap path:hover { opacity: .86; stroke-width: 1.8; }
+    #avalancheMap path:hover { opacity: 1; stroke-width: 1.8; }
     #avalancheMap path.danger-5 { stroke: #ffffff; stroke-width: 2.6; }
-    #avalancheMap path.danger-5:hover { opacity: .95; stroke-width: 3.2; }
+    #avalancheMap path.danger-5:hover { opacity: 1; stroke-width: 3.2; }
     #avalancheMap path.selected { stroke: #fff; stroke-width: 3.4; }
     .map-label { position: absolute; left: 14px; top: 12px; background: rgba(10,18,30,.86); border: 1px solid #2b3a50; border-radius: 9px; padding: 8px 10px; font-size: 12px; color: #b7c6d7; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
