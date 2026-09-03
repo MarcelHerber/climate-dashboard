@@ -450,7 +450,11 @@ function protectedPage() {
 
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; margin-top: 16px; }
     .map-card { padding: 12px; overflow: hidden; }
-    .map-shell { position: relative; min-height: 560px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 54% 46%, #42566f 0, #2a3b52 38%, #1a2636 78%); border: 1px solid #33445c; }
+    .map-shell { position: relative; min-height: 560px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 54% 46%, #42566f 0, #2a3b52 38%, #1a2636 78%); border: 1px solid #33445c; cursor: grab; touch-action: none; user-select: none; }
+    .map-shell.dragging { cursor: grabbing; }
+    .map-toolbar { position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; gap: 6px; }
+    .map-toolbar button { min-width: 42px; height: 38px; padding: 7px 10px; background: rgba(10,18,30,.9); border-color: #44556d; box-shadow: 0 5px 18px rgba(0,0,0,.2); }
+    .map-toolbar .map-reset { min-width: 66px; font-size: 12px; }
     #avalancheMap { width: 100%; height: auto; min-height: 560px; display: block; }
     #avalancheMap path { transition: opacity .12s ease, stroke-width .12s ease; cursor: pointer; }
     #avalancheMap path:hover { opacity: .86; stroke-width: 1.8; }
@@ -569,8 +573,13 @@ function protectedPage() {
 
         <div class="layout">
           <section class="card map-card">
-            <div class="map-shell">
+            <div class="map-shell" id="mapShell">
               <div class="map-label">Alpenraum · EAWS-Regionen</div>
+              <div class="map-toolbar" aria-label="Kartennavigation">
+                <button id="zoomOutButton" type="button" title="Herauszoomen" aria-label="Herauszoomen">−</button>
+                <button id="zoomInButton" type="button" title="Hineinzoomen" aria-label="Hineinzoomen">+</button>
+                <button id="zoomResetButton" class="map-reset" type="button" title="Kartenausschnitt zurücksetzen">Reset</button>
+              </div>
               <svg id="avalancheMap" viewBox="0 0 1000 600" role="img" aria-label="Karte der Lawinenwarnstufen im Alpenraum"></svg>
             </div>
             <div class="legend" aria-label="Legende">
@@ -579,7 +588,7 @@ function protectedPage() {
               <span class="legend-item"><span class="swatch" style="background:#f3df3f"></span>2 mäßig</span>
               <span class="legend-item"><span class="swatch" style="background:#f39b33"></span>3 erheblich</span>
               <span class="legend-item"><span class="swatch" style="background:#df413b"></span>4 groß</span>
-              <span class="legend-item"><span class="swatch" style="background:#262626;border:2px solid #ffffff"></span>5 sehr groß</span>
+              <span class="legend-item"><span class="swatch" style="background:repeating-linear-gradient(135deg,#262626 0 7px,#ffffff 7px 9px);border:2px solid #ffffff"></span>5 sehr groß</span>
             </div>
           </section>
 
@@ -659,6 +668,10 @@ function protectedPage() {
         { name:"Salzburg", lon:13.0550, lat:47.8095, dx:10, dy:-9, anchor:"start" },
         { name:"Ljubljana", lon:14.5058, lat:46.0569, dx:-10, dy:-9, anchor:"end" }
       ];
+      var SVG_WIDTH = 1000;
+      var SVG_HEIGHT = 600;
+      var MIN_VIEW_WIDTH = 180;
+
       var state = {
         regions: null,
         ratingsPayload: null,
@@ -667,7 +680,20 @@ function protectedPage() {
         archiveSet: new Set(),
         archiveYear: null,
         archiveMonth: null,
-        exactDateMode: false
+        exactDateMode: false,
+        suppressRegionClickUntil: 0,
+        viewBox: {
+          x: 0,
+          y: 0,
+          width: SVG_WIDTH,
+          height: SVG_HEIGHT,
+          dragging: false,
+          moved: false,
+          startClientX: 0,
+          startClientY: 0,
+          startX: 0,
+          startY: 0
+        }
       };
 
       var dateInput = document.getElementById("forecastDate");
@@ -675,6 +701,10 @@ function protectedPage() {
       var reloadButton = document.getElementById("reloadButton");
       var statusEl = document.getElementById("status");
       var mapEl = document.getElementById("avalancheMap");
+      var mapShell = document.getElementById("mapShell");
+      var zoomInButton = document.getElementById("zoomInButton");
+      var zoomOutButton = document.getElementById("zoomOutButton");
+      var zoomResetButton = document.getElementById("zoomResetButton");
       var detailEl = document.getElementById("detailContent");
       var mapTab = document.getElementById("mapTab");
       var archiveTab = document.getElementById("archiveTab");
@@ -722,6 +752,7 @@ function protectedPage() {
       nextDayButton.addEventListener("click", function () { moveAvailableDay(1); });
       exportPngButton.addEventListener("click", function () { exportLawinenkarte("png"); });
       exportPdfButton.addEventListener("click", function () { exportLawinenkarte("pdf"); });
+      bindMapNavigation();
 
       function switchView(which) {
         var archive = which === "archive";
@@ -982,8 +1013,173 @@ function protectedPage() {
         return uniqueRegionIds().filter(function (id) { return dangerForId(id) > 0; }).length;
       }
 
+      function appendDanger5Pattern() {
+        var defs = document.createElementNS(NS, "defs");
+        var pattern = document.createElementNS(NS, "pattern");
+        pattern.setAttribute("id", "danger5Pattern");
+        pattern.setAttribute("patternUnits", "userSpaceOnUse");
+        pattern.setAttribute("width", "12");
+        pattern.setAttribute("height", "12");
+        pattern.setAttribute("patternTransform", "rotate(45)");
+
+        var background = document.createElementNS(NS, "rect");
+        background.setAttribute("x", "0");
+        background.setAttribute("y", "0");
+        background.setAttribute("width", "12");
+        background.setAttribute("height", "12");
+        background.setAttribute("fill", "#262626");
+        pattern.appendChild(background);
+
+        var stripe = document.createElementNS(NS, "line");
+        stripe.setAttribute("x1", "1");
+        stripe.setAttribute("y1", "-2");
+        stripe.setAttribute("x2", "1");
+        stripe.setAttribute("y2", "14");
+        stripe.setAttribute("stroke", "#ffffff");
+        stripe.setAttribute("stroke-width", "2.4");
+        stripe.setAttribute("opacity", "0.95");
+        pattern.appendChild(stripe);
+
+        defs.appendChild(pattern);
+        mapEl.appendChild(defs);
+      }
+
+      function clampViewBox() {
+        var vb = state.viewBox;
+        vb.width = Math.max(MIN_VIEW_WIDTH, Math.min(SVG_WIDTH, vb.width));
+        vb.height = vb.width * SVG_HEIGHT / SVG_WIDTH;
+
+        if (vb.height > SVG_HEIGHT) {
+          vb.height = SVG_HEIGHT;
+          vb.width = vb.height * SVG_WIDTH / SVG_HEIGHT;
+        }
+
+        vb.x = Math.max(0, Math.min(SVG_WIDTH - vb.width, vb.x));
+        vb.y = Math.max(0, Math.min(SVG_HEIGHT - vb.height, vb.y));
+      }
+
+      function applyViewBox() {
+        clampViewBox();
+        mapEl.setAttribute(
+          "viewBox",
+          state.viewBox.x.toFixed(2) + " " +
+          state.viewBox.y.toFixed(2) + " " +
+          state.viewBox.width.toFixed(2) + " " +
+          state.viewBox.height.toFixed(2)
+        );
+      }
+
+      function resetMapView() {
+        state.viewBox.x = 0;
+        state.viewBox.y = 0;
+        state.viewBox.width = SVG_WIDTH;
+        state.viewBox.height = SVG_HEIGHT;
+        applyViewBox();
+      }
+
+      function zoomMapAt(svgX, svgY, factor) {
+        var vb = state.viewBox;
+        var nextWidth = Math.max(MIN_VIEW_WIDTH, Math.min(SVG_WIDTH, vb.width * factor));
+        var nextHeight = nextWidth * SVG_HEIGHT / SVG_WIDTH;
+        var relX = vb.width ? (svgX - vb.x) / vb.width : 0.5;
+        var relY = vb.height ? (svgY - vb.y) / vb.height : 0.5;
+
+        vb.x = svgX - relX * nextWidth;
+        vb.y = svgY - relY * nextHeight;
+        vb.width = nextWidth;
+        vb.height = nextHeight;
+        applyViewBox();
+      }
+
+      function screenToSvg(clientX, clientY) {
+        var rect = mapEl.getBoundingClientRect();
+        return {
+          x: state.viewBox.x + ((clientX - rect.left) / rect.width) * state.viewBox.width,
+          y: state.viewBox.y + ((clientY - rect.top) / rect.height) * state.viewBox.height
+        };
+      }
+
+      function bindMapNavigation() {
+        zoomInButton.addEventListener("click", function (event) {
+          event.stopPropagation();
+          zoomMapAt(
+            state.viewBox.x + state.viewBox.width / 2,
+            state.viewBox.y + state.viewBox.height / 2,
+            0.8
+          );
+        });
+
+        zoomOutButton.addEventListener("click", function (event) {
+          event.stopPropagation();
+          zoomMapAt(
+            state.viewBox.x + state.viewBox.width / 2,
+            state.viewBox.y + state.viewBox.height / 2,
+            1.25
+          );
+        });
+
+        zoomResetButton.addEventListener("click", function (event) {
+          event.stopPropagation();
+          resetMapView();
+        });
+
+        mapEl.addEventListener("wheel", function (event) {
+          event.preventDefault();
+          var point = screenToSvg(event.clientX, event.clientY);
+          zoomMapAt(point.x, point.y, event.deltaY < 0 ? 0.84 : 1.18);
+        }, { passive: false });
+
+        mapShell.addEventListener("pointerdown", function (event) {
+          if (event.target.closest && event.target.closest(".map-toolbar")) return;
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          if (state.viewBox.width >= SVG_WIDTH - 0.01) return;
+
+          state.viewBox.dragging = true;
+          state.viewBox.moved = false;
+          state.viewBox.startClientX = event.clientX;
+          state.viewBox.startClientY = event.clientY;
+          state.viewBox.startX = state.viewBox.x;
+          state.viewBox.startY = state.viewBox.y;
+          mapShell.classList.add("dragging");
+
+          try { mapShell.setPointerCapture(event.pointerId); } catch (_) {}
+        });
+
+        mapShell.addEventListener("pointermove", function (event) {
+          if (!state.viewBox.dragging) return;
+
+          var rect = mapEl.getBoundingClientRect();
+          var pixelDx = event.clientX - state.viewBox.startClientX;
+          var pixelDy = event.clientY - state.viewBox.startClientY;
+          if (Math.abs(pixelDx) + Math.abs(pixelDy) > 4) state.viewBox.moved = true;
+
+          state.viewBox.x = state.viewBox.startX - (pixelDx / rect.width) * state.viewBox.width;
+          state.viewBox.y = state.viewBox.startY - (pixelDy / rect.height) * state.viewBox.height;
+          applyViewBox();
+        });
+
+        function stopDragging(event) {
+          if (!state.viewBox.dragging) return;
+          if (state.viewBox.moved) state.suppressRegionClickUntil = Date.now() + 180;
+          state.viewBox.dragging = false;
+          state.viewBox.moved = false;
+          mapShell.classList.remove("dragging");
+          try { mapShell.releasePointerCapture(event.pointerId); } catch (_) {}
+        }
+
+        mapShell.addEventListener("pointerup", stopDragging);
+        mapShell.addEventListener("pointercancel", stopDragging);
+
+        mapEl.addEventListener("dblclick", function (event) {
+          event.preventDefault();
+          var point = screenToSvg(event.clientX, event.clientY);
+          zoomMapAt(point.x, point.y, 0.72);
+        });
+      }
+
       function renderMap() {
         while (mapEl.firstChild) mapEl.removeChild(mapEl.firstChild);
+        appendDanger5Pattern();
         var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
 
         features.forEach(function (feature) {
@@ -994,7 +1190,7 @@ function protectedPage() {
 
           var path = document.createElementNS(NS, "path");
           path.setAttribute("d", pathData);
-          path.setAttribute("fill", COLORS[danger] || COLORS[0]);
+          path.setAttribute("fill", danger === 5 ? "url(#danger5Pattern)" : (COLORS[danger] || COLORS[0]));
           path.setAttribute("fill-rule", "evenodd");
           path.setAttribute("stroke", danger === 5 ? "#ffffff" : "#31435b");
           path.setAttribute("stroke-width", danger === 5 ? "2.6" : "0.8");
@@ -1008,6 +1204,7 @@ function protectedPage() {
           path.appendChild(title);
 
           path.addEventListener("click", function () {
+            if (Date.now() < state.suppressRegionClickUntil) return;
             state.selectedId = id;
             renderMap();
             renderDetail(id);
@@ -1028,6 +1225,7 @@ function protectedPage() {
         }
 
         renderCityMarkers();
+        applyViewBox();
       }
 
       function renderCityMarkers() {
@@ -1076,6 +1274,9 @@ function protectedPage() {
         var name = feature ? featureName(feature) : id;
         var danger = dangerForId(id);
         var color = COLORS[danger] || COLORS[0];
+        var dangerBadgeStyle = danger === 5
+          ? "background:repeating-linear-gradient(135deg,#262626 0 7px,#ffffff 7px 9px);color:#ffffff;border-color:#ffffff"
+          : "background:" + color + ";" + (danger >= 4 ? "color:#ffffff" : "color:#111111");
 
         var rows = [
           ["Maximum", dangerValue(id, "")],
@@ -1098,7 +1299,7 @@ function protectedPage() {
           '<div class="region-id">' + escapeHtml(id) + '</div>' +
           '<h3>' + escapeHtml(name) + '</h3>' +
           '<div class="danger-big">' +
-            '<div class="danger-number" style="background:' + color + '">' + (danger || "–") + '</div>' +
+            '<div class="danger-number" style="' + dangerBadgeStyle + '">' + (danger || "–") + '</div>' +
             '<div class="danger-copy"><strong>' + (danger ? "Stufe " + danger + " · " + LABELS[danger] : "Keine Einstufung") + '</strong>' +
             '<span>' + escapeHtml(modeSelect.options[modeSelect.selectedIndex].text) + '</span></div>' +
           '</div>' +
@@ -1245,11 +1446,34 @@ function protectedPage() {
         items.forEach(function (item) {
           var level = item[0];
           var label = item[1];
-          ctx.fillStyle = COLORS[level] || COLORS[0];
-          ctx.fillRect(cursorX, y, 34, 26);
-          ctx.strokeStyle = level === 5 ? "#ffffff" : "#475569";
-          ctx.lineWidth = level === 5 ? 3 : 1.5;
-          ctx.strokeRect(cursorX, y, 34, 26);
+          if (level === 5) {
+            ctx.fillStyle = "#262626";
+            ctx.fillRect(cursorX, y, 34, 26);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(cursorX, y, 34, 26);
+            ctx.clip();
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            for (var sx = cursorX - 28; sx < cursorX + 48; sx += 8) {
+              ctx.beginPath();
+              ctx.moveTo(sx, y + 26);
+              ctx.lineTo(sx + 26, y);
+              ctx.stroke();
+            }
+            ctx.restore();
+
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(cursorX, y, 34, 26);
+          } else {
+            ctx.fillStyle = COLORS[level] || COLORS[0];
+            ctx.fillRect(cursorX, y, 34, 26);
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(cursorX, y, 34, 26);
+          }
 
           ctx.fillStyle = "#334155";
           ctx.fillText(label, cursorX + 46, y + 13);
