@@ -956,7 +956,7 @@ function protectedPage() {
           var fallback = Number(state.ratingsPayload.fallbackDays || 0);
           var fallbackInfo = !exact && fallback > 0 ? " · " + fallback + " Tag(e) zurückgegriffen" : "";
           var modeInfo = exact ? " · Archivtag exakt" : "";
-          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo, false);
+          setStatus(regionCount + " Alpenregionen · " + mappedCount + " mit Einstufung · " + dateInfo + fallbackInfo + modeInfo + " · historische Regionsgeometrie berücksichtigt", false);
 
           updateDayNavigation();
         } catch (error) {
@@ -1002,15 +1002,108 @@ function protectedPage() {
         return Number.isFinite(value) && value >= 1 && value <= 5 ? Math.round(value) : 0;
       }
 
+      function selectedGeometryDate() {
+        var payload = state.ratingsPayload || {};
+        return payload.dataDate || dateInput.value || todayIso;
+      }
+
+      function normalizeIsoDate(value) {
+        if (value === undefined || value === null || value === "") return "";
+        var match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+        return match ? match[0] : "";
+      }
+
+      function featureValidForDate(feature, iso) {
+        var p = (feature && feature.properties) || {};
+        var from = normalizeIsoDate(
+          p.valid_from !== undefined ? p.valid_from :
+          p.validFrom !== undefined ? p.validFrom :
+          p.start_date !== undefined ? p.start_date :
+          p.startDate
+        );
+        var until = normalizeIsoDate(
+          p.valid_until !== undefined ? p.valid_until :
+          p.validUntil !== undefined ? p.validUntil :
+          p.end_date !== undefined ? p.end_date :
+          p.endDate
+        );
+
+        if (from && iso < from) return false;
+        if (until && iso > until) return false;
+        return true;
+      }
+
+      function activeFeatures() {
+        var all = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
+        var iso = selectedGeometryDate();
+        return all.filter(function (feature) { return featureValidForDate(feature, iso); });
+      }
+
+      function featureElevation(feature) {
+        var p = (feature && feature.properties) || {};
+        var value = String(p.elevation || p.altitude || "").toLowerCase().trim();
+        return value === "high" || value === "low" ? value : "";
+      }
+
+      function dangerForKey(key) {
+        var ratings = getRatings();
+        var raw = ratings[key];
+        if (raw === undefined || raw === null || raw === "") return 0;
+        var value = Number(raw);
+        return Number.isFinite(value) && value >= 1 && value <= 5 ? Math.round(value) : 0;
+      }
+
+      function firstDanger(keys) {
+        for (var i = 0; i < keys.length; i += 1) {
+          var value = dangerForKey(keys[i]);
+          if (value) return value;
+        }
+        return 0;
+      }
+
+      function dangerForFeature(feature) {
+        var id = featureId(feature);
+        var elevation = featureElevation(feature);
+        var mode = modeSelect.value || "";
+        var requestedElevation = "";
+        var timePart = "";
+
+        if (mode === "high" || mode === "low") {
+          requestedElevation = mode;
+        } else if (mode.indexOf("high:") === 0 || mode.indexOf("low:") === 0) {
+          var modeParts = mode.split(":");
+          requestedElevation = modeParts[0];
+          timePart = modeParts[1] || "";
+        } else if (mode === "am" || mode === "pm") {
+          timePart = mode;
+        }
+
+        if (requestedElevation && elevation && elevation !== requestedElevation) return 0;
+
+        var effectiveElevation = requestedElevation || elevation;
+        var keys = [];
+
+        if (effectiveElevation && timePart) keys.push(id + ":" + effectiveElevation + ":" + timePart);
+        if (timePart) keys.push(id + ":" + timePart);
+        if (effectiveElevation) keys.push(id + ":" + effectiveElevation);
+        if (!mode || !requestedElevation || !elevation) keys.push(id);
+
+        return firstDanger(keys);
+      }
+
       function uniqueRegionIds() {
         var ids = {};
-        var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
-        features.forEach(function (feature) { ids[featureId(feature)] = true; });
+        activeFeatures().forEach(function (feature) { ids[featureId(feature)] = true; });
         return Object.keys(ids);
       }
 
       function countRatedRegions() {
-        return uniqueRegionIds().filter(function (id) { return dangerForId(id) > 0; }).length;
+        var rated = {};
+        activeFeatures().forEach(function (feature) {
+          var id = featureId(feature);
+          if (dangerForFeature(feature) > 0) rated[id] = true;
+        });
+        return Object.keys(rated).length;
       }
 
       function appendDanger5Pattern() {
@@ -1177,11 +1270,11 @@ function protectedPage() {
       function renderMap() {
         while (mapEl.firstChild) mapEl.removeChild(mapEl.firstChild);
         appendDanger5Pattern();
-        var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
+        var features = activeFeatures();
 
         features.forEach(function (feature) {
           var id = featureId(feature);
-          var danger = dangerForId(id);
+          var danger = dangerForFeature(feature);
           var pathData = geometryToPath(feature.geometry);
           if (!pathData) return;
 
@@ -1266,11 +1359,19 @@ function protectedPage() {
       }
 
       function renderDetail(id) {
-        var features = state.regions && Array.isArray(state.regions.features) ? state.regions.features : [];
+        var features = activeFeatures();
         var feature = features.find(function (item) { return featureId(item) === id; });
         var name = feature ? featureName(feature) : id;
         var danger = dangerForId(id);
         var color = COLORS[danger] || COLORS[0];
+        var featureElevationValue = featureElevation(feature);
+        var featureProps = (feature && feature.properties) || {};
+        var thresholdValue = Number(featureProps.threshold);
+        var elevationInfo = "";
+        if (featureElevationValue) {
+          elevationInfo = featureElevationValue === "high" ? "Hochlage" : "Tieflage";
+          if (Number.isFinite(thresholdValue)) elevationInfo += " · Grenze " + Math.round(thresholdValue) + " m";
+        }
         var dangerBadgeStyle = danger === 5
           ? "background:repeating-linear-gradient(135deg,#262626 0 7px,#ffffff 7px 9px);color:#ffffff;border-color:#ffffff"
           : "background:" + color + ";" + (danger >= 4 ? "color:#ffffff" : "color:#111111");
@@ -1298,7 +1399,9 @@ function protectedPage() {
           '<div class="danger-big">' +
             '<div class="danger-number" style="' + dangerBadgeStyle + '">' + (danger || "–") + '</div>' +
             '<div class="danger-copy"><strong>' + (danger ? "Stufe " + danger + " · " + LABELS[danger] : "Keine Einstufung") + '</strong>' +
-            '<span>' + escapeHtml(modeSelect.options[modeSelect.selectedIndex].text) + '</span></div>' +
+            '<span>' + escapeHtml(modeSelect.options[modeSelect.selectedIndex].text) + '</span>' +
+            (elevationInfo ? '<span>' + escapeHtml(elevationInfo) + '</span>' : '') +
+            '</div>' +
           '</div>' +
           '<div class="rating-grid">' + rowHtml + '</div>';
       }
