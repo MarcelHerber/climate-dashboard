@@ -35,6 +35,10 @@ export default {
       return proxyRegions();
     }
 
+    if (url.pathname === "/api/countries") {
+      return proxyCountries();
+    }
+
     if (url.pathname === "/api/ratings") {
       return proxyRatings(url);
     }
@@ -193,6 +197,51 @@ async function proxyRegions() {
     });
   } catch (error) {
     return jsonResponse({ error: "Regionsdaten konnten nicht geladen werden.", detail: String(error?.message || error) }, 502);
+  }
+}
+
+async function proxyCountries() {
+  const sourceUrl = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
+
+  try {
+    const response = await fetch(sourceUrl, {
+      cf: { cacheTtl: 86400, cacheEverything: true },
+      headers: { "User-Agent": "ClimateDashboard-Alpenwetter/1.0" },
+    });
+
+    if (!response.ok) {
+      return jsonResponse({
+        error: "Ländergrenzen konnten nicht geladen werden.",
+        status: response.status,
+      }, 502);
+    }
+
+    const data = await response.json();
+    const europeBounds = { minLon: -25.5, maxLon: 35.5, minLat: 34.0, maxLat: 72.8 };
+    const features = Array.isArray(data?.features)
+      ? data.features.filter((feature) => {
+          const bounds = geometryBounds(feature?.geometry);
+          if (!bounds) return false;
+          return (
+            bounds.maxLon >= europeBounds.minLon &&
+            bounds.minLon <= europeBounds.maxLon &&
+            bounds.maxLat >= europeBounds.minLat &&
+            bounds.minLat <= europeBounds.maxLat
+          );
+        })
+      : [];
+
+    return jsonResponse({
+      type: "FeatureCollection",
+      features,
+      source: "Natural Earth · Admin 0 Countries · 1:110m",
+      sourceUrl: "https://www.naturalearthdata.com/",
+    });
+  } catch (error) {
+    return jsonResponse({
+      error: "Ländergrenzen konnten nicht geladen werden.",
+      detail: String(error?.message || error),
+    }, 502);
   }
 }
 
@@ -604,7 +653,7 @@ function protectedPage() {
             <h3>Regionsdetails</h3>
             <div id="detailContent" class="empty">Klicke auf eine Warnregion in der Karte, um die verfügbaren Warnstufen anzuzeigen.</div>
             <div class="source-note">
-              Quelle: EAWS / avalanche.report. Die Karte ist eine Übersicht; maßgeblich bleibt der jeweilige offizielle Lawinenwarndienst und dessen Bulletin.
+              Quelle Lawinenwarnung: EAWS / avalanche.report. Europa-Ländergrenzen: Natural Earth. Die Karte ist eine Übersicht; maßgeblich bleibt der jeweilige offizielle Lawinenwarndienst und dessen Bulletin.
             </div>
           </aside>
         </div>
@@ -706,6 +755,7 @@ function protectedPage() {
 
       var state = {
         regions: null,
+        countries: null,
         ratingsPayload: null,
         scope: "alps",
         selectedId: null,
@@ -837,6 +887,27 @@ function protectedPage() {
             countRatedRegions() + " mit Einstufung · Darstellung " +
             modeSelect.options[modeSelect.selectedIndex].text,
             false
+          );
+        }
+
+        if (state.scope === "europe" && !state.countries) {
+          loadCountryBorders();
+        }
+      }
+
+      async function loadCountryBorders() {
+        try {
+          var countryResult = await fetchJsonChecked("/api/countries", null, "Natural-Earth-Ländergrenzen");
+          if (!countryResult.response.ok) {
+            throw new Error("Ländergrenzen: HTTP " + countryResult.response.status);
+          }
+          state.countries = countryResult.payload;
+          if (state.scope === "europe") renderMap();
+        } catch (error) {
+          setStatus(
+            "Europa-Karte geladen, Ländergrenzen konnten aber nicht ergänzt werden: " +
+            String(error && error.message ? error.message : error),
+            true
           );
         }
       }
@@ -1629,8 +1700,42 @@ function protectedPage() {
           mapEl.appendChild(message);
         }
 
+        renderCountryBorders();
         renderCityMarkers();
         applyViewBox();
+      }
+
+      function renderCountryBorders() {
+        if (state.scope !== "europe") return;
+
+        var countries =
+          state.countries && Array.isArray(state.countries.features)
+            ? state.countries.features
+            : [];
+
+        if (!countries.length) return;
+
+        var layer = document.createElementNS(NS, "g");
+        layer.setAttribute("aria-label", "Europäische Ländergrenzen");
+        layer.setAttribute("pointer-events", "none");
+
+        countries.forEach(function (feature) {
+          var pathData = geometryToPath(feature && feature.geometry);
+          if (!pathData) return;
+
+          var path = document.createElementNS(NS, "path");
+          path.setAttribute("d", pathData);
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke", "#d9e0e8");
+          path.setAttribute("stroke-width", "1.15");
+          path.setAttribute("stroke-opacity", "0.82");
+          path.setAttribute("stroke-linejoin", "round");
+          path.setAttribute("stroke-linecap", "round");
+          path.setAttribute("vector-effect", "non-scaling-stroke");
+          layer.appendChild(path);
+        });
+
+        mapEl.appendChild(layer);
       }
 
       function renderCityMarkers() {
