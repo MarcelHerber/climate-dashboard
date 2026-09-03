@@ -653,7 +653,8 @@ function protectedPage() {
       "use strict";
 
       var NS = "http://www.w3.org/2000/svg";
-      var MAP_BOUNDS = { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 };
+      var DEFAULT_MAP_BOUNDS = { minLon: 4.0, maxLon: 16.3, minLat: 43.4, maxLat: 49.2 };
+      var MAP_BOUNDS = Object.assign({}, DEFAULT_MAP_BOUNDS);
       var COLORS = { 0:"#d8d8d8", 1:"#7ecb55", 2:"#f3df3f", 3:"#f39b33", 4:"#df413b", 5:"#262626" };
       var LABELS = { 0:"keine Einstufung", 1:"gering", 2:"mäßig", 3:"erheblich", 4:"groß", 5:"sehr groß" };
       var CITIES = [
@@ -1404,9 +1405,86 @@ function protectedPage() {
         });
       }
 
+      function clientGeometryBounds(geometry) {
+        if (!geometry || !geometry.coordinates) return null;
+
+        var minLon = Infinity;
+        var maxLon = -Infinity;
+        var minLat = Infinity;
+        var maxLat = -Infinity;
+
+        function visit(node) {
+          if (!Array.isArray(node)) return;
+
+          if (
+            node.length >= 2 &&
+            typeof node[0] === "number" &&
+            typeof node[1] === "number"
+          ) {
+            minLon = Math.min(minLon, node[0]);
+            maxLon = Math.max(maxLon, node[0]);
+            minLat = Math.min(minLat, node[1]);
+            maxLat = Math.max(maxLat, node[1]);
+            return;
+          }
+
+          node.forEach(visit);
+        }
+
+        visit(geometry.coordinates);
+
+        return Number.isFinite(minLon)
+          ? { minLon: minLon, maxLon: maxLon, minLat: minLat, maxLat: maxLat }
+          : null;
+      }
+
+      function updateMapBounds(features) {
+        var minLon = Infinity;
+        var maxLon = -Infinity;
+        var minLat = Infinity;
+        var maxLat = -Infinity;
+
+        (features || []).forEach(function (feature) {
+          var bounds = clientGeometryBounds(feature && feature.geometry);
+          if (!bounds) return;
+          minLon = Math.min(minLon, bounds.minLon);
+          maxLon = Math.max(maxLon, bounds.maxLon);
+          minLat = Math.min(minLat, bounds.minLat);
+          maxLat = Math.max(maxLat, bounds.maxLat);
+        });
+
+        // Die beschrifteten Referenzorte gehören ebenfalls vollständig in den Ausschnitt.
+        CITIES.forEach(function (city) {
+          minLon = Math.min(minLon, city.lon);
+          maxLon = Math.max(maxLon, city.lon);
+          minLat = Math.min(minLat, city.lat);
+          maxLat = Math.max(maxLat, city.lat);
+        });
+
+        if (![minLon, maxLon, minLat, maxLat].every(Number.isFinite)) {
+          MAP_BOUNDS = Object.assign({}, DEFAULT_MAP_BOUNDS);
+          return;
+        }
+
+        var lonSpan = Math.max(0.5, maxLon - minLon);
+        var latSpan = Math.max(0.5, maxLat - minLat);
+        var lonPad = Math.max(0.18, lonSpan * 0.035);
+        var latPad = Math.max(0.14, latSpan * 0.045);
+
+        MAP_BOUNDS = {
+          minLon: minLon - lonPad,
+          maxLon: maxLon + lonPad,
+          minLat: minLat - latPad,
+          maxLat: maxLat + latPad
+        };
+      }
+
       function renderMap() {
         while (mapEl.firstChild) mapEl.removeChild(mapEl.firstChild);
         appendDanger5Pattern();
+
+        var active = activeFeatures();
+        updateMapBounds(active);
         var features = renderableFeatures();
 
         features.forEach(function (feature) {
@@ -1725,6 +1803,8 @@ function protectedPage() {
           clone.setAttribute("xmlns", NS);
           clone.setAttribute("width", "1000");
           clone.setAttribute("height", "600");
+          clone.setAttribute("viewBox", "0 0 1000 600");
+          clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
           var xml = new XMLSerializer().serializeToString(clone);
           var encoded = utf8ToBase64(xml);
