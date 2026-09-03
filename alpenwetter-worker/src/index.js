@@ -43,6 +43,10 @@ export default {
       return proxyArchive();
     }
 
+    if (url.pathname === "/assets/eaws-logo.png") {
+      return proxyEawsLogo();
+    }
+
     if (url.pathname !== "/") {
       return new Response("Nicht gefunden", {
         status: 404,
@@ -269,6 +273,38 @@ async function proxyArchive() {
   }
 }
 
+async function proxyEawsLogo() {
+  const sourceUrl = "https://www.avalanches.org/wp-content/uploads/2022/04/EAWS_Logo-4c-900px-150x47.png";
+
+  try {
+    const response = await fetch(sourceUrl, {
+      cf: { cacheTtl: 86400, cacheEverything: true },
+      headers: { "User-Agent": "ClimateDashboard-Alpenwetter/1.0" },
+    });
+
+    if (!response.ok) {
+      return new Response("EAWS-Logo konnte nicht geladen werden.", {
+        status: 502,
+        headers: securityHeaders({ "Content-Type": "text/plain; charset=utf-8" }),
+      });
+    }
+
+    const body = await response.arrayBuffer();
+    return new Response(body, {
+      status: 200,
+      headers: securityHeaders({
+        "Content-Type": "image/png",
+        "Content-Disposition": 'inline; filename="eaws-logo.png"',
+      }),
+    });
+  } catch (error) {
+    return new Response("EAWS-Logo konnte nicht geladen werden.", {
+      status: 502,
+      headers: securityHeaders({ "Content-Type": "text/plain; charset=utf-8" }),
+    });
+  }
+}
+
 function isAlpineFeature(feature) {
   const p = feature?.properties || {};
   const id = String(p.id || p.region_id || p.regionId || "");
@@ -407,6 +443,10 @@ function protectedPage() {
     .primary:hover:not(:disabled) { background: #dbe4ee; }
     .status { min-height: 42px; display: flex; align-items: center; padding: 10px 12px; border-radius: 10px; background: #0e1726; border: 1px solid #233146; color: #b8c7d9; font-size: 14px; }
     .status.error { border-color: #7d3942; color: #ffd2d8; background: #33191e; }
+    .export-actions { display: flex; justify-content: flex-end; gap: 8px; margin: -4px 0 14px; }
+    .export-actions button { min-width: 132px; }
+    .export-actions .export-primary { background: #eef3f8; color: #101827; border-color: #eef3f8; }
+    .export-actions .export-primary:hover:not(:disabled) { background: #dbe4ee; }
 
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; margin-top: 16px; }
     .map-card { padding: 12px; overflow: hidden; }
@@ -520,6 +560,11 @@ function protectedPage() {
           <div id="status" class="status">Lawinendaten werden vorbereitet …</div>
         </div>
 
+        <div class="export-actions" aria-label="Kartenexport">
+          <button id="exportPngButton" type="button">PNG exportieren</button>
+          <button id="exportPdfButton" class="export-primary" type="button">PDF exportieren</button>
+        </div>
+
         <div class="layout">
           <section class="card map-card">
             <div class="map-shell">
@@ -627,6 +672,8 @@ function protectedPage() {
       var archiveSummary = document.getElementById("archiveSummary");
       var prevDayButton = document.getElementById("prevDayButton");
       var nextDayButton = document.getElementById("nextDayButton");
+      var exportPngButton = document.getElementById("exportPngButton");
+      var exportPdfButton = document.getElementById("exportPdfButton");
 
       var todayIso = new Date().toISOString().slice(0, 10);
       dateInput.value = todayIso;
@@ -659,6 +706,8 @@ function protectedPage() {
       });
       prevDayButton.addEventListener("click", function () { moveAvailableDay(-1); });
       nextDayButton.addEventListener("click", function () { moveAvailableDay(1); });
+      exportPngButton.addEventListener("click", function () { exportLawinenkarte("png"); });
+      exportPdfButton.addEventListener("click", function () { exportLawinenkarte("pdf"); });
 
       function switchView(which) {
         var archive = which === "archive";
@@ -999,6 +1048,295 @@ function protectedPage() {
           '<div class="rating-grid">' + rowHtml + '</div>';
       }
 
+      async function exportLawinenkarte(format) {
+        if (!state.regions || !mapEl || !mapEl.childNodes.length) {
+          setStatus("Export nicht möglich: Die Lawinenkarte ist noch nicht geladen.", true);
+          return;
+        }
+
+        exportPngButton.disabled = true;
+        exportPdfButton.disabled = true;
+
+        try {
+          var canvas = await buildExportCanvas();
+          var selectedDate = dateInput.value || todayIso;
+          var modeSlug = exportModeSlug();
+          var filenameBase = "lawinenwarnkarte_" + selectedDate + "_" + modeSlug;
+
+          if (format === "pdf") {
+            var pdfBlob = await canvasToSinglePagePdf(canvas);
+            downloadBlob(pdfBlob, filenameBase + ".pdf");
+          } else {
+            var pngBlob = await canvasToBlob(canvas, "image/png");
+            downloadBlob(pngBlob, filenameBase + ".png");
+          }
+
+          setStatus("Export erstellt: " + filenameBase + "." + format, false);
+        } catch (error) {
+          setStatus("Export fehlgeschlagen: " + String(error && error.message ? error.message : error), true);
+        } finally {
+          exportPngButton.disabled = false;
+          exportPdfButton.disabled = false;
+        }
+      }
+
+      async function buildExportCanvas() {
+        var canvas = document.createElement("canvas");
+        var ctx = canvas.getContext("2d");
+        var width = 1800;
+        var padding = 60;
+        var titleTop = 54;
+        var mapTop = 182;
+        var mapWidth = width - padding * 2;
+        var mapHeight = Math.round(mapWidth * 0.6);
+        var legendTop = mapTop + mapHeight + 34;
+        var footerTop = legendTop + 96;
+        var height = footerTop + 150;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.fillStyle = "#101827";
+        ctx.font = "700 44px Arial, sans-serif";
+        ctx.textBaseline = "top";
+        ctx.fillText("Lawinenwarnkarte Alpenraum", padding, titleTop);
+
+        ctx.fillStyle = "#475569";
+        ctx.font = "24px Arial, sans-serif";
+        ctx.fillText(exportMetaLine(), padding, titleTop + 58);
+
+        ctx.fillStyle = "#eef2f6";
+        ctx.fillRect(padding, mapTop, mapWidth, mapHeight);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(padding, mapTop, mapWidth, mapHeight);
+
+        var mapImage = await svgElementToImage(mapEl);
+        ctx.drawImage(mapImage, padding, mapTop, mapWidth, mapHeight);
+
+        drawExportLegend(ctx, padding, legendTop);
+
+        ctx.strokeStyle = "#d6dde6";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padding, footerTop);
+        ctx.lineTo(width - padding, footerTop);
+        ctx.stroke();
+
+        var logo = await loadExportImage("/assets/eaws-logo.png");
+        var logoWidth = 250;
+        var logoHeight = logoWidth * (logo.naturalHeight || logo.height) / (logo.naturalWidth || logo.width);
+        var footerY = footerTop + 32;
+        ctx.drawImage(logo, padding, footerY, logoWidth, logoHeight);
+
+        ctx.fillStyle = "#1f2937";
+        ctx.font = "700 24px Arial, sans-serif";
+        ctx.fillText("Quelle: EAWS / avalanche.report", padding + logoWidth + 28, footerY + 12);
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "20px Arial, sans-serif";
+        ctx.fillText(
+          "Übersichtsdarstellung. Maßgeblich bleiben die Bulletins der zuständigen offiziellen Lawinenwarndienste.",
+          padding + logoWidth + 28,
+          footerY + 52
+        );
+
+        return canvas;
+      }
+
+      function exportMetaLine() {
+        var requested = dateInput.value || todayIso;
+        var payload = state.ratingsPayload || {};
+        var dataDate = payload.dataDate || requested;
+        var modeLabel = modeSelect && modeSelect.options[modeSelect.selectedIndex]
+          ? modeSelect.options[modeSelect.selectedIndex].text
+          : "Höchste Warnstufe";
+
+        var text = "Datenstand: " + formatDate(dataDate) + " · Darstellung: " + modeLabel;
+        var fallback = Number(payload.fallbackDays || 0);
+        if (!state.exactDateMode && fallback > 0 && dataDate !== requested) {
+          text += " · angefragt: " + formatDate(requested);
+        }
+        return text;
+      }
+
+      function exportModeSlug() {
+        var value = modeSelect.value || "maximum";
+        return value
+          .replace(/:/g, "-")
+          .replace(/[^a-zA-Z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "maximum";
+      }
+
+      function drawExportLegend(ctx, x, y) {
+        var items = [
+          [0, "keine Einstufung"],
+          [1, "1 gering"],
+          [2, "2 mäßig"],
+          [3, "3 erheblich"],
+          [4, "4 groß"],
+          [5, "5 sehr groß"]
+        ];
+
+        var cursorX = x;
+        ctx.font = "21px Arial, sans-serif";
+        ctx.textBaseline = "middle";
+
+        items.forEach(function (item) {
+          var level = item[0];
+          var label = item[1];
+          ctx.fillStyle = COLORS[level] || COLORS[0];
+          ctx.fillRect(cursorX, y, 34, 26);
+          ctx.strokeStyle = "#475569";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(cursorX, y, 34, 26);
+
+          ctx.fillStyle = "#334155";
+          ctx.fillText(label, cursorX + 46, y + 13);
+
+          cursorX += level === 0 ? 250 : 190;
+        });
+      }
+
+      function svgElementToImage(svg) {
+        return new Promise(function (resolve, reject) {
+          var clone = svg.cloneNode(true);
+          clone.setAttribute("xmlns", NS);
+          clone.setAttribute("width", "1000");
+          clone.setAttribute("height", "600");
+
+          var xml = new XMLSerializer().serializeToString(clone);
+          var encoded = utf8ToBase64(xml);
+          var image = new Image();
+
+          image.onload = function () { resolve(image); };
+          image.onerror = function () { reject(new Error("SVG-Karte konnte für den Export nicht gerendert werden.")); };
+          image.src = "data:image/svg+xml;base64," + encoded;
+        });
+      }
+
+      function utf8ToBase64(value) {
+        var bytes = new TextEncoder().encode(value);
+        var binary = "";
+        for (var i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function loadExportImage(src) {
+        return new Promise(function (resolve, reject) {
+          var image = new Image();
+          image.onload = function () { resolve(image); };
+          image.onerror = function () { reject(new Error("EAWS-Logo konnte nicht geladen werden.")); };
+          image.src = src;
+        });
+      }
+
+      function canvasToBlob(canvas, type, quality) {
+        return new Promise(function (resolve, reject) {
+          canvas.toBlob(function (blob) {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas konnte nicht exportiert werden."));
+          }, type, quality);
+        });
+      }
+
+      function downloadBlob(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }
+
+      async function canvasToSinglePagePdf(canvas) {
+        var jpegBlob = await canvasToBlob(canvas, "image/jpeg", 0.94);
+        var jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
+
+        var pageWidth = 842;
+        var pageHeight = pageWidth * canvas.height / canvas.width;
+        var contentStream =
+          "q\\n" +
+          pageWidth.toFixed(3) + " 0 0 " + pageHeight.toFixed(3) + " 0 0 cm\\n" +
+          "/Im0 Do\\n" +
+          "Q\\n";
+
+        var encoderPdf = new TextEncoder();
+        var parts = [];
+        var offsets = [0];
+        var length = 0;
+
+        function pushBytes(bytes) {
+          parts.push(bytes);
+          length += bytes.length;
+        }
+
+        function pushText(text) {
+          pushBytes(encoderPdf.encode(text));
+        }
+
+        function startObject(number) {
+          offsets[number] = length;
+          pushText(String(number) + " 0 obj\\n");
+        }
+
+        pushText("%PDF-1.4\\n");
+
+        startObject(1);
+        pushText("<< /Type /Catalog /Pages 2 0 R >>\\nendobj\\n");
+
+        startObject(2);
+        pushText("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\\nendobj\\n");
+
+        startObject(3);
+        pushText(
+          "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
+          pageWidth.toFixed(3) + " " + pageHeight.toFixed(3) +
+          "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\\nendobj\\n"
+        );
+
+        startObject(4);
+        pushText(
+          "<< /Type /XObject /Subtype /Image /Width " + canvas.width +
+          " /Height " + canvas.height +
+          " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " +
+          jpegBytes.length + " >>\\nstream\\n"
+        );
+        pushBytes(jpegBytes);
+        pushText("\\nendstream\\nendobj\\n");
+
+        var contentBytes = encoderPdf.encode(contentStream);
+        startObject(5);
+        pushText("<< /Length " + contentBytes.length + " >>\\nstream\\n");
+        pushBytes(contentBytes);
+        pushText("endstream\\nendobj\\n");
+
+        var xrefOffset = length;
+        pushText("xref\\n0 6\\n");
+        pushText("0000000000 65535 f \\n");
+        for (var objectNumber = 1; objectNumber <= 5; objectNumber += 1) {
+          pushText(String(offsets[objectNumber]).padStart(10, "0") + " 00000 n \\n");
+        }
+        pushText(
+          "trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n" +
+          xrefOffset + "\\n%%EOF\\n"
+        );
+
+        var merged = new Uint8Array(length);
+        var position = 0;
+        parts.forEach(function (part) {
+          merged.set(part, position);
+          position += part.length;
+        });
+
+        return new Blob([merged], { type: "application/pdf" });
+      }
+
       function geometryToPath(geometry) {
         if (!geometry || !geometry.coordinates) return "";
         if (geometry.type === "Polygon") return polygonToPath(geometry.coordinates);
@@ -1060,7 +1398,7 @@ function htmlResponse(body, status = 200) {
 function securityHeaders(extra = {}) {
   const headers = new Headers(extra);
   headers.set("Cache-Control", "no-store, max-age=0");
-  headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   headers.set("Referrer-Policy", "no-referrer");
   headers.set("X-Content-Type-Options", "nosniff");
