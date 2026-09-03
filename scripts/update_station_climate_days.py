@@ -680,12 +680,9 @@ def winter_non_leap_index(day: date, season_end_year: int) -> int | None:
     if day.month == 2 and day.day == 29:
         return None
     start = date(season_end_year - 1, 11, 1)
-    cursor = start
-    index = 0
-    while cursor < day:
-        if not (cursor.month == 2 and cursor.day == 29):
-            index += 1
-        cursor += timedelta(days=1)
+    index = (day - start).days
+    if is_leap(season_end_year) and day > date(season_end_year, 2, 29):
+        index -= 1
     return index
 
 
