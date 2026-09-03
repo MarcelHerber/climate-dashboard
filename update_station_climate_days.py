@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 8
+STATE_VERSION = 7
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -39,6 +39,21 @@ HISTORICAL_REBUILD_DAYS = 45
 MIN_PERIOD_COVERAGE = 0.98
 REFERENCE_START = 1991
 REFERENCE_END = 2020
+
+TEMPERATURE_SUMS: list[dict[str, Any]] = [
+    {
+        "id": "gts",
+        "label": "Grünlandtemperatursumme",
+        "short_label": "GTS",
+        "unit": "K",
+        "threshold": 200.0,
+        "definition": (
+            "Summe der positiven DWD-Tagesmitteltemperaturen (TMK): "
+            "Januar × 0,5, Februar × 0,75, ab März × 1,0."
+        ),
+        "month_factors": {"1": 0.5, "2": 0.75, "3-12": 1.0},
+    }
+]
 
 # Die Namen entsprechen der gewünschten Dashboard-Terminologie. Bei 30, 35
 # und 40 °C werden zusätzlich die DWD-Bezeichnungen im Hinweis genannt.
@@ -303,151 +318,6 @@ def longest_runs_from_observations(observations, limit: int = 5) -> dict[str, li
     return result
 
 
-def record_progression_from_observations(observations) -> dict[str, list[dict[str, Any]]]:
-    """Kompakte historische Entwicklung des Stationsrekords je Kenntag.
-
-    Gespeichert wird nur eine abgeschlossene Serie, wenn ihre endgültige Länge den
-    bis dahin gültigen Stationsrekord strikt übertrifft. Dadurch entsteht eine echte
-    Rekord-Zeitachse statt einer Liste aller Serien. Monats- und Jahresgrenzen werden
-    nicht getrennt; Datenlücken bzw. fehlende relevante Messwerte beenden die Serie.
-    """
-    daily: dict[date, tuple[float | None, float | None]] = {}
-    for observation in observations:
-        daily[observation.day] = observation_temperatures(observation)
-
-    progression: dict[str, list[dict[str, Any]]] = {item["id"]: [] for item in CLIMATE_DAYS}
-    active: dict[str, tuple[date, date] | None] = {item["id"]: None for item in CLIMATE_DAYS}
-    records: dict[str, int] = {item["id"]: 0 for item in CLIMATE_DAYS}
-
-    def finish(metric: str) -> None:
-        run = active.get(metric)
-        if run is None:
-            return
-        duration = (run[1] - run[0]).days + 1
-        if duration > records[metric]:
-            progression[metric].append({
-                "duration": duration,
-                "start": run[0].isoformat(),
-                "end": run[1].isoformat(),
-                "record_date": run[1].isoformat(),
-                "previous_duration": records[metric] if records[metric] > 0 else None,
-                "improvement": duration - records[metric],
-                "preliminary": False,
-                "ongoing": False,
-            })
-            records[metric] = duration
-        active[metric] = None
-
-    previous_day: date | None = None
-    for day in sorted(daily):
-        if previous_day is not None and day != previous_day + timedelta(days=1):
-            for specification in CLIMATE_DAYS:
-                finish(specification["id"])
-        tx, tn = daily[day]
-        for specification in CLIMATE_DAYS:
-            metric = specification["id"]
-            occurs = metric_occurs(specification, tx, tn)
-            if occurs is True:
-                run = active.get(metric)
-                active[metric] = (day, day) if run is None else (run[0], day)
-            else:
-                finish(metric)
-        previous_day = day
-
-    for specification in CLIMATE_DAYS:
-        finish(specification["id"])
-    return progression
-
-
-def all_current_runs(
-    values: dict[date, tuple[int, int, int | None, int | None, int | None]],
-    data_through: date,
-    current_year: int,
-) -> dict[str, list[dict[str, Any]]]:
-    """Alle im aktuellen Jahr endenden Kenntage-Serien aus Recent-Daten.
-
-    Ein im Dezember des Vorjahres begonnener Lauf wird vollständig übernommen, sofern
-    er in das aktuelle Jahr hineinreicht. Er kann so als eine einzige Serie in die
-    Rekordentwicklung eingehen.
-    """
-    result: dict[str, list[dict[str, Any]]] = {item["id"]: [] for item in CLIMATE_DAYS}
-    active: dict[str, tuple[date, date] | None] = {item["id"]: None for item in CLIMATE_DAYS}
-
-    def finish(metric: str) -> None:
-        run = active.get(metric)
-        if run is None:
-            return
-        if run[1].year >= current_year:
-            result[metric].append({
-                "duration": (run[1] - run[0]).days + 1,
-                "start": run[0].isoformat(),
-                "end": run[1].isoformat(),
-                "record_date": run[1].isoformat(),
-                "preliminary": True,
-                "ongoing": run[1] == data_through,
-            })
-        active[metric] = None
-
-    previous_day: date | None = None
-    for day in sorted(day for day in values if day <= data_through):
-        if previous_day is not None and day != previous_day + timedelta(days=1):
-            for specification in CLIMATE_DAYS:
-                finish(specification["id"])
-        pair = values[day]
-        event_mask = int(pair[0]); valid_mask = int(pair[1])
-        for specification in CLIMATE_DAYS:
-            metric = specification["id"]
-            bit = 1 << int(specification["bit"])
-            occurs = bool(valid_mask & bit) and bool(event_mask & bit)
-            if occurs:
-                run = active.get(metric)
-                active[metric] = (day, day) if run is None else (run[0], day)
-            else:
-                finish(metric)
-        previous_day = day
-    for specification in CLIMATE_DAYS:
-        finish(specification["id"])
-    return result
-
-
-def recompute_record_progression(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Berechnet aus Kandidaten die strikt ansteigende Rekordentwicklung neu.
-
-    Enden mehrere Serien am selben Kalendertag, zählt nur die längste als Tagesstand.
-    """
-    best_by_date: dict[str, dict[str, Any]] = {}
-    for raw in rows:
-        if not isinstance(raw, dict):
-            continue
-        end = str(raw.get("record_date") or raw.get("end") or "")
-        duration = int(raw.get("duration", 0) or 0)
-        if not end or duration <= 0:
-            continue
-        candidate = dict(raw)
-        candidate["record_date"] = end
-        previous = best_by_date.get(end)
-        if previous is None or duration > int(previous.get("duration", 0) or 0):
-            best_by_date[end] = candidate
-
-    ordered = sorted(best_by_date.values(), key=lambda row: (
-        str(row.get("record_date", "")),
-        -int(row.get("duration", 0) or 0),
-        str(row.get("station_id", "")),
-    ))
-    result: list[dict[str, Any]] = []
-    record = 0
-    for raw in ordered:
-        duration = int(raw.get("duration", 0) or 0)
-        if duration <= record:
-            continue
-        row = dict(raw)
-        row["previous_duration"] = record if record > 0 else None
-        row["improvement"] = duration - record
-        result.append(row)
-        record = duration
-    return result
-
-
 def longest_runs_from_current_values(
     values: dict[date, tuple[int, int, int | None, int | None, int | None]],
     data_through: date,
@@ -500,76 +370,6 @@ def longest_runs_from_current_values(
     return result
 
 
-def ongoing_runs_from_current_values(
-    values: dict[date, tuple[int, int, int | None, int | None, int | None]],
-    data_through: date,
-) -> dict[str, dict[str, Any] | None]:
-    """Liefert je Kenntag die am global akzeptierten Datenstand noch laufende Serie.
-
-    Nur eine Serie, die *am data_through* selbst erfüllt ist, gilt als laufend. Fehlende
-    relevante Messwerte oder eine echte Kalenderlücke beenden die Folge. Da die Recent-
-    Daten mindestens das Vorjahr enthalten, können auch Dezember-Januar-Serien sauber
-    über den Jahreswechsel zurückverfolgt werden.
-    """
-    result: dict[str, dict[str, Any] | None] = {item["id"]: None for item in CLIMATE_DAYS}
-    pair = values.get(data_through)
-    if not pair or len(pair) < 2:
-        return result
-
-    occurrence_mask = int(pair[0])
-    valid_mask = int(pair[1])
-    for specification in CLIMATE_DAYS:
-        metric = specification["id"]
-        bit = 1 << int(specification["bit"])
-        if not (valid_mask & bit and occurrence_mask & bit):
-            continue
-
-        start = data_through
-        cursor = data_through - timedelta(days=1)
-        while True:
-            previous = values.get(cursor)
-            if not previous or len(previous) < 2:
-                break
-            previous_occurrence = int(previous[0])
-            previous_valid = int(previous[1])
-            if not (previous_valid & bit and previous_occurrence & bit):
-                break
-            start = cursor
-            cursor -= timedelta(days=1)
-
-        result[metric] = {
-            "duration": (data_through - start).days + 1,
-            "start": start.isoformat(),
-            "end": data_through.isoformat(),
-            "preliminary": True,
-            "ongoing": True,
-        }
-    return result
-
-
-def runs_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
-    first_start = str(first.get("start", ""))
-    first_end = str(first.get("end", ""))
-    second_start = str(second.get("start", ""))
-    second_end = str(second.get("end", ""))
-    if not all((first_start, first_end, second_start, second_end)):
-        return False
-    return not (first_end < second_start or second_end < first_start)
-
-
-def best_run(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not rows:
-        return None
-    return sorted(
-        (dict(row) for row in rows),
-        key=lambda row: (
-            -int(row.get("duration", 0)),
-            str(row.get("start", "")),
-            str(row.get("end", "")),
-        ),
-    )[0]
-
-
 def merge_run_lists(
     historical: list[dict[str, Any]],
     current: list[dict[str, Any]],
@@ -595,11 +395,105 @@ def observation_temperatures(observation) -> tuple[float | None, float | None]:
     )
 
 
+def gts_month_factor(month: int) -> float:
+    if month == 1:
+        return 0.5
+    if month == 2:
+        return 0.75
+    return 1.0
+
+
+def build_gts_payload(
+    tmean_by_day: dict[date, float | None],
+    current_year: int,
+) -> dict[str, Any]:
+    """Berechnet die historische Grünlandtemperatursumme aus DWD-TMK.
+
+    Nur positive Tagesmittel gehen ein. Januar wird mit 0,5 und Februar mit
+    0,75 gewichtet; ab März gilt Faktor 1,0. Jahreswerte werden nur für Jahre
+    mit mindestens MIN_PERIOD_COVERAGE gültigen TMK-Tagen ausgegeben.
+    """
+
+    by_year: dict[int, dict[date, float]] = defaultdict(dict)
+    for day, raw_value in tmean_by_day.items():
+        if day.year >= current_year or raw_value is None:
+            continue
+        value = float(raw_value)
+        if not (-60.0 <= value <= 60.0):
+            continue
+        by_year[day.year][day] = value
+
+    rows: list[list[Any]] = []
+    reference_curves: list[list[float | None]] = []
+
+    for year in sorted(by_year):
+        values = by_year[year]
+        expected_days = date(year, 12, 31).timetuple().tm_yday
+        minimum_valid = int(expected_days * MIN_PERIOD_COVERAGE + 0.999999)
+        valid_days = len(values)
+        if valid_days < minimum_valid:
+            continue
+
+        total = 0.0
+        threshold_date: str | None = None
+        complete_to_date = True
+        curve: list[float | None] = [None] * 365
+        day = date(year, 1, 1)
+        end = date(year, 12, 31)
+
+        while day <= end:
+            tmean = values.get(day)
+            if tmean is None:
+                complete_to_date = False
+            elif tmean > 0.0:
+                total += tmean * gts_month_factor(day.month)
+
+            if threshold_date is None and complete_to_date and total >= 200.0:
+                threshold_date = day.isoformat()
+
+            index = non_leap_index(day)
+            if index is not None:
+                curve[index] = round(total, 1)
+            day += timedelta(days=1)
+
+        rows.append([year, round(total, 1), valid_days, threshold_date])
+        if REFERENCE_START <= year <= REFERENCE_END:
+            reference_curves.append(curve)
+
+    reference_mean_cumulative: list[float | None] = []
+    for index in range(365):
+        values = [
+            curve[index]
+            for curve in reference_curves
+            if curve[index] is not None
+        ]
+        reference_mean_cumulative.append(
+            round(sum(values) / len(values), 1) if values else None
+        )
+
+    specification = TEMPERATURE_SUMS[0]
+    return {
+        "id": specification["id"],
+        "label": specification["label"],
+        "short_label": specification["short_label"],
+        "unit": specification["unit"],
+        "threshold": specification["threshold"],
+        "definition": specification["definition"],
+        "month_factors": specification["month_factors"],
+        "minimum_year_coverage": MIN_PERIOD_COVERAGE,
+        "years": rows,
+        "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
+        "reference_years": len(reference_curves),
+        "reference_mean_cumulative": reference_mean_cumulative,
+    }
+
+
 def build_profile_payload(
     station_id: str,
     observations,
     metadata: MetadataIndex,
     current_year: int,
+    tmean_by_day: dict[date, float | None] | None = None,
 ) -> tuple[StationProfile, dict[str, Any]] | None:
     # metric -> period -> year -> [count, valid_days]
     accumulators: dict[str, dict[str, dict[int, list[int]]]] = {
@@ -617,7 +511,6 @@ def build_profile_payload(
         item["id"]: defaultdict(list) for item in CLIMATE_DAYS
     }
     historical_longest_runs = longest_runs_from_observations(observations, limit=5)
-    historical_record_progression = record_progression_from_observations(observations)
     observed_years: set[int] = set()
     daily_tx_record_max: list[float | None] = [None] * 365
     daily_tn_record_min: list[float | None] = [None] * 365
@@ -728,6 +621,7 @@ def build_profile_payload(
         "coldest_nights": coldest_candidates[:20],
         "warmest_nights": warmest_night_candidates[:20],
     }
+    gts_payload = build_gts_payload(tmean_by_day or {}, current_year)
 
     # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
     # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
@@ -780,7 +674,6 @@ def build_profile_payload(
         "historical_event_days": historical_event_days_payload,
         "historical_curve_encoding": "non_leap_day_indices_v1",
         "longest_runs": historical_longest_runs,
-        "streak_record_progression": historical_record_progression,
         "streak_rule": (
             "Kalendertägliche Folgen ohne Schnitt an Monats- oder Jahresgrenzen; fehlende relevante "
             "Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Kalendertag."
@@ -788,6 +681,7 @@ def build_profile_payload(
         "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
         "temperature_reference_daily_mean": temperature_reference_daily_mean,
         "temperature_extremes": temperature_extremes,
+        "temperature_sums": {"gts": gts_payload},
     }
     return profile, payload
 
@@ -800,15 +694,37 @@ def process_historical_station(
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(HISTORICAL_URL, filename)
+        start_date = date(1800, 1, 1)
+        end_date = date(current_year - 1, 12, 31)
         observations = parse_station_zip(
             content,
             station_id,
             metadata,
-            date(1800, 1, 1),
-            date(current_year - 1, 12, 31),
+            start_date,
+            end_date,
             preliminary=False,
         )
-        return station_id, build_profile_payload(station_id, observations, metadata, current_year), None
+        historical_temperatures = parse_recent_kl_temperatures(
+            content,
+            start_date,
+            end_date,
+        )
+        tmean_by_day = {
+            day: tm
+            for day, (_tx, _tn, tm) in historical_temperatures.items()
+            if tm is not None
+        }
+        return (
+            station_id,
+            build_profile_payload(
+                station_id,
+                observations,
+                metadata,
+                current_year,
+                tmean_by_day=tmean_by_day,
+            ),
+            None,
+        )
     except NoUsableProductFileError as exc:
         return station_id, None, f"{filename}: {exc}"
     except Exception as exc:  # noqa: BLE001
@@ -1177,6 +1093,88 @@ def build_map_summaries(
         }
     return result
 
+
+def build_annual_climate_day_records(
+    root: Path,
+    profiles: list[StationProfile],
+    current_year: int,
+    map_summaries: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Kompakte Allzeit-Jahresrekorde der Kenntage je Station."""
+    result: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for profile in profiles:
+        profile_path = root / profile.file
+        if not profile_path.exists():
+            continue
+        try:
+            payload = read_json(profile_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        current_map = map_summaries.get(profile.station_id, {})
+        current_counts = current_map.get("current_counts") or {}
+        current_valid = current_map.get("valid_days") or {}
+        station_records: dict[str, dict[str, Any]] = {}
+
+        for specification in CLIMATE_DAYS:
+            metric_id = specification["id"]
+            entries = (
+                ((payload.get("counts") or {}).get(metric_id) or {}).get("year")
+                or []
+            )
+            historical = []
+            for item in entries:
+                if not isinstance(item, list) or len(item) < 3:
+                    continue
+                year = int(item[0])
+                if year >= current_year:
+                    continue
+                historical.append((year, int(item[1]), int(item[2])))
+
+            if not historical:
+                continue
+
+            historical_max = max(count for _, count, _ in historical)
+            historical_years = sorted(
+                year for year, count, _ in historical if count == historical_max
+            )
+            current_count = int(current_counts.get(metric_id) or 0)
+            valid_days = int(current_valid.get(metric_id) or 0)
+
+            # Nullrekorde vermeiden; ein positiver aktueller Wert gegen
+            # einen historischen Nullrekord bleibt dagegen relevant.
+            if historical_max <= 0 and current_count <= 0:
+                continue
+
+            record_count = historical_max
+            record_years = historical_years
+            status = "historical"
+
+            if current_count > historical_max:
+                record_count = current_count
+                record_years = [current_year]
+                status = "new_current"
+            elif current_count == historical_max and current_count > 0:
+                record_years = sorted(set(historical_years + [current_year]))
+                status = "tied_current"
+
+            station_records[metric_id] = {
+                "count": record_count,
+                "years": record_years,
+                "historical_count": historical_max,
+                "historical_years": historical_years,
+                "current_count": current_count,
+                "current_valid_days": valid_days,
+                "status": status,
+            }
+
+        if station_records:
+            result[profile.station_id] = station_records
+
+    return result
+
+
 def build_index(
     root: Path,
     profiles: list[StationProfile],
@@ -1189,227 +1187,23 @@ def build_index(
     states = sorted({profile.state for profile in profiles if profile.state})
     data_through = date.fromisoformat(current_status["data_through"])
     map_summaries = build_map_summaries(root, profiles, data_through, current_files)
+    annual_records_by_station = build_annual_climate_day_records(
+        root, profiles, current_year, map_summaries
+    )
 
     longest_by_station: dict[str, dict[str, dict[str, Any] | None]] = {}
-    national_streak_records: dict[str, list[dict[str, Any]]] = {
-        item["id"]: [] for item in CLIMATE_DAYS
-    }
-    historical_streak_pool: dict[str, list[dict[str, Any]]] = {
-        item["id"]: [] for item in CLIMATE_DAYS
-    }
-    active_streaks: dict[str, list[dict[str, Any]]] = {
-        item["id"]: [] for item in CLIMATE_DAYS
-    }
-    historical_progression_pool: dict[str, list[dict[str, Any]]] = {
-        item["id"]: [] for item in CLIMATE_DAYS
-    }
-    current_station_record_progression: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for profile in profiles:
-        station_values = values_by_station.get(profile.station_id, {})
         current_runs = longest_runs_from_current_values(
-            station_values, data_through, current_year, limit=5
+            values_by_station.get(profile.station_id, {}), data_through, current_year, limit=5
         )
-        ongoing_runs = ongoing_runs_from_current_values(station_values, data_through)
-
-        # Für die deutschlandweiten Top-20 werden nicht nur die beste Folge je Station,
-        # sondern die bis zu fünf längsten historischen Folgen aus dem Stationsprofil
-        # berücksichtigt. Dadurch kann eine Station mit mehreren außergewöhnlichen Serien
-        # mehrfach in der nationalen Rekordliste auftauchen.
-        historical_top_runs: dict[str, list[dict[str, Any]]] = {}
-        historical_progression: dict[str, list[dict[str, Any]]] = {}
-        try:
-            profile_payload = read_json(root / profile.file)
-            raw_longest = profile_payload.get("longest_runs", {})
-            raw_progression = profile_payload.get("streak_record_progression", {})
-            for specification in CLIMATE_DAYS:
-                metric_id = specification["id"]
-                rows = raw_longest.get(metric_id, [])
-                historical_top_runs[metric_id] = [dict(row) for row in rows if isinstance(row, dict)]
-                progression_rows = raw_progression.get(metric_id, [])
-                historical_progression[metric_id] = [
-                    dict(row) for row in progression_rows if isinstance(row, dict)
-                ]
-        except (OSError, json.JSONDecodeError, TypeError):
-            for specification in CLIMATE_DAYS:
-                metric_id = specification["id"]
-                best = profile.longest_runs.get(metric_id)
-                historical_top_runs[metric_id] = [dict(best)] if isinstance(best, dict) else []
-                historical_progression[metric_id] = []
-
-        current_all_runs = all_current_runs(station_values, data_through, current_year)
-        station_current_progression: dict[str, list[dict[str, Any]]] = {}
         merged_metrics: dict[str, dict[str, Any] | None] = {}
         for specification in CLIMATE_DAYS:
             metric = specification["id"]
-            historical_rows = historical_top_runs.get(metric, [])
-            progression_rows = historical_progression.get(metric, [])
-            for run in historical_rows:
-                historical_streak_pool[metric].append({
-                    **dict(run),
-                    "station_id": profile.station_id,
-                })
-            for run in progression_rows:
-                historical_progression_pool[metric].append({
-                    **dict(run),
-                    "station_id": profile.station_id,
-                })
-
-            # Historische Rekordstufen, die nur der bis 31.12. abgeschnittene Teil
-            # einer in das aktuelle Jahr hineinreichenden Serie sind, werden durch
-            # die vollständige Recent-Serie ersetzt. Danach wird die Stations-
-            # Rekordentwicklung chronologisch neu berechnet.
-            current_candidates = current_all_runs.get(metric, [])
-            historical_candidates = [
-                dict(run) for run in progression_rows
-                if not any(runs_overlap(run, current_run) for current_run in current_candidates)
-            ]
-            combined_progression = recompute_record_progression([
-                *historical_candidates,
-                *[dict(run) for run in current_candidates],
-            ])
-            station_current_progression[metric] = [
-                dict(run) for run in combined_progression if run.get("preliminary")
-            ]
-
-            merged = merge_run_lists(
-                historical_rows, current_runs.get(metric, []), limit=5
-            )
+            historical_best = profile.longest_runs.get(metric)
+            historical_rows = [historical_best] if historical_best else []
+            merged = merge_run_lists(historical_rows, current_runs.get(metric, []), limit=5)
             merged_metrics[metric] = merged[0] if merged else None
-            for run in merged:
-                national_streak_records[metric].append({
-                    **dict(run),
-                    "station_id": profile.station_id,
-                })
-
-            ongoing = ongoing_runs.get(metric)
-            if ongoing:
-                # Falls die laufende Folge bereits im Vorjahr begann, kann das Historical-
-                # Profil den bis 31.12. reichenden Teil derselben Folge enthalten. Dieser
-                # Teil ist kein eigenständiger alter Rekord und wird deshalb ausgeschlossen.
-                independent_history = [
-                    dict(run) for run in historical_rows
-                    if not runs_overlap(run, ongoing)
-                ]
-                station_record = best_run(independent_history)
-                active_streaks[metric].append({
-                    **dict(ongoing),
-                    "station_id": profile.station_id,
-                    "station_record_before": (
-                        int(station_record.get("duration", 0)) if station_record else None
-                    ),
-                    "station_record_start": station_record.get("start") if station_record else None,
-                    "station_record_end": station_record.get("end") if station_record else None,
-                })
         longest_by_station[profile.station_id] = merged_metrics
-        if any(station_current_progression.get(metric["id"]) for metric in CLIMATE_DAYS):
-            current_station_record_progression[profile.station_id] = station_current_progression
-
-    # Für jede laufende Serie den Deutschlandrekord vor dieser Serie bestimmen.
-    # Ein eventuell im Historical-Profil gespeicherter Vorjahresteil derselben laufenden
-    # Folge wird beim betreffenden Stationsstandort nicht als Vergleichsrekord gewertet.
-    for specification in CLIMATE_DAYS:
-        metric = specification["id"]
-        historical_rows = historical_streak_pool[metric]
-        for active in active_streaks[metric]:
-            eligible_national = [
-                row for row in historical_rows
-                if not (
-                    str(row.get("station_id")) == str(active.get("station_id"))
-                    and runs_overlap(row, active)
-                )
-            ]
-            national_record = best_run(eligible_national)
-            active["national_record_before"] = (
-                int(national_record.get("duration", 0)) if national_record else None
-            )
-            active["national_record_station_id"] = (
-                national_record.get("station_id") if national_record else None
-            )
-            active["national_record_start"] = national_record.get("start") if national_record else None
-            active["national_record_end"] = national_record.get("end") if national_record else None
-
-            duration = int(active.get("duration", 0))
-            station_record_duration = active.get("station_record_before")
-            national_record_duration = active.get("national_record_before")
-            active["station_gap"] = (
-                max(int(station_record_duration) - duration, 0)
-                if station_record_duration is not None else None
-            )
-            active["national_gap"] = (
-                max(int(national_record_duration) - duration, 0)
-                if national_record_duration is not None else None
-            )
-            active["station_record_tied"] = (
-                station_record_duration is not None and duration == int(station_record_duration)
-            )
-            active["station_record_broken"] = (
-                station_record_duration is not None and duration > int(station_record_duration)
-            )
-            active["national_record_tied"] = (
-                national_record_duration is not None and duration == int(national_record_duration)
-            )
-            active["national_record_broken"] = (
-                national_record_duration is not None and duration > int(national_record_duration)
-            )
-
-        active_streaks[metric].sort(key=lambda row: (
-            0 if row.get("national_record_broken") else
-            1 if row.get("national_record_tied") else
-            2 if row.get("station_record_broken") else
-            3 if row.get("station_record_tied") else
-            4,
-            10**9 if row.get("station_gap") is None else int(row.get("station_gap", 10**9)),
-            -int(row.get("duration", 0)),
-            str(row.get("station_id", "")),
-        ))
-
-    # Historische Entwicklung des Deutschlandrekords. Grundlage sind die echten
-    # Stations-Rekordstufen; eine Serie, die deutschlandweit einen Rekord bricht, ist
-    # zwangsläufig auch an ihrer Station eine neue Rekordserie. Aktuelle Rekordstufen
-    # werden ergänzt und eventuell überlappende 31.12.-Teilstücke derselben Serie entfernt.
-    national_streak_record_progression: dict[str, list[dict[str, Any]]] = {
-        item["id"]: [] for item in CLIMATE_DAYS
-    }
-    for specification in CLIMATE_DAYS:
-        metric = specification["id"]
-        current_rows: list[dict[str, Any]] = []
-        for station_id, metrics in current_station_record_progression.items():
-            for run in metrics.get(metric, []):
-                current_rows.append({**dict(run), "station_id": station_id})
-        historical_rows = [
-            dict(run) for run in historical_progression_pool[metric]
-            if not any(
-                str(run.get("station_id")) == str(current_run.get("station_id"))
-                and runs_overlap(run, current_run)
-                for current_run in current_rows
-            )
-        ]
-        national_streak_record_progression[metric] = recompute_record_progression([
-            *historical_rows, *current_rows
-        ])
-
-    # Echte nationale Top-20 einzelner Serien. Derselbe Stationsstandort darf mehrfach
-    # vorkommen, wenn dort mehrere der deutschlandweit längsten Folgen registriert wurden.
-    for specification in CLIMATE_DAYS:
-        metric = specification["id"]
-        unique: dict[tuple[str, str, str, int], dict[str, Any]] = {}
-        for run in national_streak_records[metric]:
-            key = (
-                str(run.get("station_id", "")),
-                str(run.get("start", "")),
-                str(run.get("end", "")),
-                int(run.get("duration", 0)),
-            )
-            previous = unique.get(key)
-            if previous is None or (previous.get("preliminary") and not run.get("preliminary")):
-                unique[key] = run
-        rows = list(unique.values())
-        rows.sort(key=lambda run: (
-            -int(run.get("duration", 0)),
-            str(run.get("start", "")),
-            str(run.get("station_id", "")),
-        ))
-        national_streak_records[metric] = rows[:20]
 
     index = {
         "ready": True,
@@ -1421,7 +1215,8 @@ def build_index(
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
         "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK und TMK)",
-        "current_payload_version": 7,
+        "current_payload_version": 4,
+        "annual_record_summary_version": 1,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
             "Das laufende Jahr stammt aus recent und ist vorläufig. Hitzetag entspricht dem DWD-Begriff "
@@ -1431,26 +1226,8 @@ def build_index(
             "Kenntage-Serien laufen über Monats- und Jahresgrenzen weiter. Fehlende für die jeweilige "
             "Metrik relevante Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Tag."
         ),
-        "national_streak_records": national_streak_records,
-        "national_streak_scope": (
-            "Deutschlandweite Top-20 einzelner Serien über alle in der Stations-Kenntage-Auswertung "
-            "enthaltenen Stationen; eine Station kann mit mehreren Serien vertreten sein."
-        ),
-        "active_streaks": active_streaks,
-        "active_streak_scope": (
-            "Aktuell laufende Kenntage-Serien enden am akzeptierten gemeinsamen Datenstand. "
-            "Stations- und Deutschlandrekorde beziehen sich auf abgeschlossene, unabhängige "
-            "historische Serien vor der jeweils laufenden Folge."
-        ),
-        "national_streak_record_progression": national_streak_record_progression,
-        "current_station_record_progression": current_station_record_progression,
-        "streak_progression_scope": (
-            "Die Rekordentwicklung zeigt nur echte Rekordstufen: Eine Serie erscheint, wenn ihre "
-            "endgültige Länge den bis dahin gültigen Rekord strikt übertrifft. Gleichstände werden "
-            "nicht als neue Stufe gezählt. Der nationale Verlauf bezieht sich auf das in der "
-            "Stations-Kenntage-Auswertung enthaltene DWD-Stationsnetz."
-        ),
         "climate_days": [dict(item) for item in CLIMATE_DAYS],
+        "temperature_sums": [dict(item) for item in TEMPERATURE_SUMS],
         "periods": PERIODS,
         "states": states,
         "current_files": [f"station_climate_days_current/{name}" for name in current_files],
@@ -1468,6 +1245,7 @@ def build_index(
                 "reference_years": profile.reference_years,
                 "file": profile.file,
                 "map": map_summaries.get(profile.station_id, {}),
+                "annual_records": annual_records_by_station.get(profile.station_id, {}),
                 "historical_longest_runs": profile.longest_runs,
                 "longest_runs": longest_by_station.get(profile.station_id, {}),
             }
