@@ -767,6 +767,72 @@ function protectedPage() {
         statusEl.className = isError ? "status error" : "status";
       }
 
+      function wait(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+      }
+
+      async function fetchJsonChecked(url, options, label) {
+        var lastError = null;
+
+        for (var attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            var fetchOptions = Object.assign(
+              { credentials: "same-origin", cache: "no-store" },
+              options || {}
+            );
+            fetchOptions.headers = Object.assign(
+              { "Accept": "application/json" },
+              (options && options.headers) || {}
+            );
+
+            var response = await fetch(url, fetchOptions);
+            var text = await response.text();
+            var trimmed = text.trim();
+            var contentType = String(response.headers.get("content-type") || "").toLowerCase();
+            var looksHtml = /^<!doctype\s+html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed);
+
+            if (looksHtml || (!contentType.includes("application/json") && trimmed.charAt(0) === "<")) {
+              var isLoginPage =
+                response.status === 401 ||
+                response.status === 403 ||
+                /Alpenwetter\s*·\s*Anmeldung|Bitte Kennwort eingeben|Kennwort nicht korrekt/i.test(text);
+
+              if (isLoginPage) {
+                throw new Error("Sitzung abgelaufen. Bitte die Seite neu laden und erneut anmelden.");
+              }
+
+              throw new Error(
+                (label || "API") +
+                " lieferte HTML statt JSON" +
+                (response.status ? " (HTTP " + response.status + ")" : "") +
+                "."
+              );
+            }
+
+            var payload;
+            try {
+              payload = JSON.parse(text);
+            } catch (parseError) {
+              throw new Error(
+                (label || "API") +
+                " lieferte ungültiges JSON: " +
+                String(parseError && parseError.message ? parseError.message : parseError)
+              );
+            }
+
+            return { response: response, payload: payload };
+          } catch (error) {
+            lastError = error;
+            if (attempt === 0) {
+              await wait(450);
+              continue;
+            }
+          }
+        }
+
+        throw lastError || new Error((label || "API") + " konnte nicht geladen werden.");
+      }
+
       async function loadArchive() {
         if (state.archive) {
           renderCalendar();
@@ -775,8 +841,9 @@ function protectedPage() {
 
         archiveSummary.textContent = "Archivindex wird geladen …";
         try {
-          var response = await fetch("/api/archive", { credentials: "same-origin" });
-          var payload = await response.json();
+          var archiveResult = await fetchJsonChecked("/api/archive", null, "Lawinenarchiv");
+          var response = archiveResult.response;
+          var payload = archiveResult.payload;
           if (!response.ok) throw new Error(payload.error || ("HTTP " + response.status));
 
           state.archive = payload;
@@ -924,15 +991,21 @@ function protectedPage() {
 
         try {
           if (!state.regions) {
-            var regionResponse = await fetch("/api/regions", { credentials: "same-origin" });
+            var regionResult = await fetchJsonChecked("/api/regions", null, "EAWS-Regionsdaten");
+            var regionResponse = regionResult.response;
             if (!regionResponse.ok) throw new Error("Regionsdaten: HTTP " + regionResponse.status);
-            state.regions = await regionResponse.json();
+            state.regions = regionResult.payload;
           }
 
           var selectedDate = dateInput.value || todayIso;
           var exactParam = exact ? "&exact=1" : "";
-          var ratingResponse = await fetch("/api/ratings?date=" + encodeURIComponent(selectedDate) + exactParam, { credentials: "same-origin" });
-          var ratingPayload = await ratingResponse.json();
+          var ratingResult = await fetchJsonChecked(
+            "/api/ratings?date=" + encodeURIComponent(selectedDate) + exactParam,
+            null,
+            "Lawinenwarnstufen"
+          );
+          var ratingResponse = ratingResult.response;
+          var ratingPayload = ratingResult.payload;
 
           if (!ratingResponse.ok) {
             state.ratingsPayload = {
@@ -960,7 +1033,8 @@ function protectedPage() {
 
           updateDayNavigation();
         } catch (error) {
-          setStatus("Laden fehlgeschlagen: " + String(error && error.message ? error.message : error), true);
+          var message = String(error && error.message ? error.message : error);
+          setStatus("Laden fehlgeschlagen: " + message, true);
         } finally {
           reloadButton.disabled = false;
         }
