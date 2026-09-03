@@ -1,0 +1,55 @@
+name: Alpenwetter Worker veröffentlichen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpenwetter-worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ALPENWETTER_PASSWORD: ${{ secrets.ALPENWETTER_PASSWORD }}
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Wrangler installieren
+        run: npm install --no-save wrangler@4
+
+      - name: Benötigte Secrets prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID ALPENWETTER_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "FEHLER: GitHub Actions Secret $name fehlt."
+              exit 1
+            fi
+          done
+
+      - name: Alpenwetter-Worker veröffentlichen
+        run: npx wrangler deploy --config alpenwetter-worker/wrangler.toml
+
+      - name: Alpenwetter-Kennwort als Cloudflare Secret setzen
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$ALPENWETTER_PASSWORD" | npx wrangler secret put ALPENWETTER_PASSWORD --config alpenwetter-worker/wrangler.toml
+
+      - name: Fertig
+        run: echo "Alpenwetter-Worker und Kennwort wurden veröffentlicht."
