@@ -9996,7 +9996,7 @@ async function updateStationProfileBase(){
   document.getElementById("stationProfileDataStatus").innerHTML=`<strong>Messwerte bis ${dailyGermanDate(stationClimateDaysIndex.data_through,true)}</strong>Aktuelle DWD-Werte vorläufig`;
   stationProfileRenderNearby(station);
   try{
-    const response=await dashboardFetch(station.file,{cache:"force-cache"});if(!response.ok) throw new Error(`HTTP ${response.status}`);const profile=await response.json();if(requestId!==stationProfileRequestId)return;stationProfileProfile=profile;stationProfileFillYearControls(station,profile);window.dispatchEvent(new CustomEvent("stationprofilechange"));
+    const response=await dashboardFetch(station.file,{cache:"no-store"});if(!response.ok) throw new Error(`HTTP ${response.status}`);const profile=await response.json();if(requestId!==stationProfileRequestId)return;stationProfileProfile=profile;stationProfileFillYearControls(station,profile);window.dispatchEvent(new CustomEvent("stationprofilechange"));
   }catch(error){if(requestId===stationProfileRequestId) document.getElementById("stationProfileDataStatus").innerHTML+=`<br><span style="color:#a12222">Historisches Profil: ${error.message}</span>`;}
 }
 async function openStationProfileDetail(tab){
