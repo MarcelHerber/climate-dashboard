@@ -10450,16 +10450,32 @@ async function renderStationProfileWarmthAndCold(){
     document.getElementById('stationProfileWarmthMinDetail').textContent=low?`Jahr ${low[0]}`:'keine vollständigen Jahre';
 
     const labels=rawLabels.map(stationClimateDaysDateLabel);
+    const warmthHistoricalDatasets=(warmth.historical_curves||[]).map((row,index)=>({
+      label:'Historische Einzeljahre',
+      temperatureSumHistorical:true,
+      temperatureSumLegend:index===0,
+      temperatureSumYear:Number(row[0]),
+      data:row[1]||[],
+      borderColor:'rgba(105,115,120,.22)',
+      borderWidth:.8,
+      pointRadius:0,
+      pointHoverRadius:2,
+      spanGaps:false,
+      fill:false,
+      tension:0,
+      order:10
+    }));
     if(stationProfileWarmthChart)stationProfileWarmthChart.destroy();
     stationProfileWarmthChart=new Chart(document.getElementById('stationProfileWarmthChart'),{
       type:'line',
       data:{labels,datasets:[
-        {label:'Historisches Minimum',data:warmth.historical_daily_min||[],borderColor:'#4c78a8',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
-        {label:'Historisches Maximum',data:warmth.historical_daily_max||[],borderColor:'#c66a2b',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
-        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0},
-        {label:`Wärmesumme ${year}`,data:warmthCurrent.curve,borderColor:'#b85d18',borderWidth:3,pointRadius:0,spanGaps:false,tension:0}
+        ...warmthHistoricalDatasets,
+        {label:'Historisches Minimum',data:warmth.historical_daily_min||[],borderColor:'#4c78a8',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0,order:5},
+        {label:'Historisches Maximum',data:warmth.historical_daily_max||[],borderColor:'#c66a2b',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0,order:5},
+        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0,order:3},
+        {label:`Wärmesumme ${year}`,data:warmthCurrent.curve,borderColor:'#b85d18',borderWidth:3,pointRadius:0,pointHoverRadius:3,spanGaps:false,tension:0,order:0}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Wärmesumme ${year} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Summe der TMK an Tagen mit Tagesmittel > 10 °C',color:'#666'},datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Wärmesumme (K)'}}}}
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'xy'},plugins:{title:{display:true,text:`Wärmesumme ${year} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Alle verfügbaren Messjahre · Summe der TMK an Tagen mit Tagesmittel > 10 °C',color:'#666'},datalabels:{display:false},legend:{labels:{filter:(item,data)=>{const dataset=data.datasets[item.datasetIndex];return !dataset?.temperatureSumHistorical||dataset?.temperatureSumLegend;}}},tooltip:{callbacks:{label:context=>{const dataset=context.dataset;const label=dataset.temperatureSumHistorical?`Wärmesumme ${dataset.temperatureSumYear}`:dataset.label;return `${label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`;}}}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Wärmesumme (K)'}}}}
     });
   }else{
     ['stationProfileWarmthCurrentValue','stationProfileWarmthMeanValue','stationProfileWarmthMaxValue','stationProfileWarmthMinValue'].forEach(id=>document.getElementById(id).textContent='–');
@@ -10495,16 +10511,32 @@ async function renderStationProfileWarmthAndCold(){
     document.getElementById('stationProfileColdSumMinValue').textContent=low?stationProfileGtsValue(low[1]):'–';
     document.getElementById('stationProfileColdSumMinDetail').textContent=low?`Winter ${stationProfileWinterSeasonLabel(low[0])}`:'keine vollständigen Winter';
 
+    const coldHistoricalDatasets=(cold.historical_curves||[]).map((row,index)=>({
+      label:'Historische Einzelwinter',
+      temperatureSumHistorical:true,
+      temperatureSumLegend:index===0,
+      temperatureSumSeasonEnd:Number(row[0]),
+      data:row[1]||[],
+      borderColor:'rgba(105,115,120,.22)',
+      borderWidth:.8,
+      pointRadius:0,
+      pointHoverRadius:2,
+      spanGaps:false,
+      fill:false,
+      tension:0,
+      order:10
+    }));
     if(stationProfileColdSumChart)stationProfileColdSumChart.destroy();
     stationProfileColdSumChart=new Chart(document.getElementById('stationProfileColdSumChart'),{
       type:'line',
       data:{labels:winterLabels.map(stationClimateDaysDateLabel),datasets:[
-        {label:'Historisches Minimum',data:cold.historical_daily_min||[],borderColor:'#7aa6c2',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
-        {label:'Historisches Maximum',data:cold.historical_daily_max||[],borderColor:'#405a8d',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
-        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0},
-        {label:`Winter ${seasonLabel}`,data:coldCurrent.curve,borderColor:'#315f8c',borderWidth:3,pointRadius:0,spanGaps:false,tension:0}
+        ...coldHistoricalDatasets,
+        {label:'Historisches Minimum',data:cold.historical_daily_min||[],borderColor:'#7aa6c2',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0,order:5},
+        {label:'Historisches Maximum',data:cold.historical_daily_max||[],borderColor:'#405a8d',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0,order:5},
+        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0,order:3},
+        {label:`Winter ${seasonLabel}`,data:coldCurrent.curve,borderColor:'#315f8c',borderWidth:3,pointRadius:0,pointHoverRadius:3,spanGaps:false,tension:0,order:0}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Kältesumme Winter ${seasonLabel} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Summe der Absolutbeträge negativer TMK vom 1. November bis 31. März',color:'#666'},datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}},scales:{x:{ticks:{maxTicksLimit:10,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Kältesumme (K)'}}}}
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'xy'},plugins:{title:{display:true,text:`Kältesumme Winter ${seasonLabel} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Alle verfügbaren Winter · Summe der Absolutbeträge negativer TMK vom 1. November bis 31. März',color:'#666'},datalabels:{display:false},legend:{labels:{filter:(item,data)=>{const dataset=data.datasets[item.datasetIndex];return !dataset?.temperatureSumHistorical||dataset?.temperatureSumLegend;}}},tooltip:{callbacks:{label:context=>{const dataset=context.dataset;const label=dataset.temperatureSumHistorical?`Winter ${stationProfileWinterSeasonLabel(dataset.temperatureSumSeasonEnd)}`:dataset.label;return `${label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`;}}}},scales:{x:{ticks:{maxTicksLimit:10,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Kältesumme (K)'}}}}
     });
   }else{
     ['stationProfileColdSumCurrentValue','stationProfileColdSumMeanValue','stationProfileColdSumMaxValue','stationProfileColdSumMinValue'].forEach(id=>document.getElementById(id).textContent='–');
