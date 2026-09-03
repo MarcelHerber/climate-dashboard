@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 9
+STATE_VERSION = 10
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -606,7 +606,7 @@ def build_warmth_sum_payload(
 
     rows: list[list[Any]] = []
     reference_curves: list[list[float | None]] = []
-    exact_curves: list[list[float | None]] = []
+    exact_curves: list[tuple[int, list[float | None]]] = []
 
     for year in sorted(by_year):
         values = by_year[year]
@@ -637,7 +637,7 @@ def build_warmth_sum_payload(
             day += timedelta(days=1)
 
         if any(value is not None for value in curve):
-            exact_curves.append(curve)
+            exact_curves.append((year, curve))
 
         if valid_days >= minimum_valid:
             rows.append([year, round(total, 1), valid_days])
@@ -666,8 +666,9 @@ def build_warmth_sum_payload(
         "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
         "reference_years": len(reference_curves),
         "reference_mean_cumulative": aggregate_curves(reference_curves, "mean"),
-        "historical_daily_min": aggregate_curves(exact_curves, "min"),
-        "historical_daily_max": aggregate_curves(exact_curves, "max"),
+        "historical_curves": [[year, curve] for year, curve in exact_curves],
+        "historical_daily_min": aggregate_curves([curve for _year, curve in exact_curves], "min"),
+        "historical_daily_max": aggregate_curves([curve for _year, curve in exact_curves], "max"),
         "historical_curve_rule": (
             "Die kumulative Tageskurve wird nach dem ersten fehlenden TMK-Tag "
             "nicht weitergeführt."
@@ -694,7 +695,7 @@ def build_cold_sum_payload(
 
     rows: list[list[Any]] = []
     reference_curves: list[list[float | None]] = []
-    exact_curves: list[list[float | None]] = []
+    exact_curves: list[tuple[int, list[float | None]]] = []
 
     available_years = sorted({day.year for day in tmean_by_day if day.year < current_year})
     if available_years:
@@ -738,7 +739,7 @@ def build_cold_sum_payload(
             day += timedelta(days=1)
 
         if any(value is not None for value in curve):
-            exact_curves.append(curve)
+            exact_curves.append((season_end_year, curve))
 
         if valid_days >= minimum_valid:
             rows.append([season_end_year, round(total, 1), valid_days])
@@ -767,8 +768,9 @@ def build_cold_sum_payload(
         "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
         "reference_years": len(reference_curves),
         "reference_mean_cumulative": aggregate_curves(reference_curves, "mean"),
-        "historical_daily_min": aggregate_curves(exact_curves, "min"),
-        "historical_daily_max": aggregate_curves(exact_curves, "max"),
+        "historical_curves": [[season_end_year, curve] for season_end_year, curve in exact_curves],
+        "historical_daily_min": aggregate_curves([curve for _season_end_year, curve in exact_curves], "min"),
+        "historical_daily_max": aggregate_curves([curve for _season_end_year, curve in exact_curves], "max"),
         "curve_length": 151,
         "historical_curve_rule": (
             "Die kumulative Winterkurve wird nach dem ersten fehlenden TMK-Tag "
