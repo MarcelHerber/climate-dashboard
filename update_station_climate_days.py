@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 8
+STATE_VERSION = 9
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -52,7 +52,28 @@ TEMPERATURE_SUMS: list[dict[str, Any]] = [
             "Januar × 0,5, Februar × 0,75, ab März × 1,0."
         ),
         "month_factors": {"1": 0.5, "2": 0.75, "3-12": 1.0},
-    }
+    },
+    {
+        "id": "warmth",
+        "label": "Wärmesumme",
+        "short_label": "Wärmesumme",
+        "unit": "K",
+        "threshold_temperature": 10.0,
+        "definition": "Summe der DWD-Tagesmitteltemperaturen (TMK) an Tagen mit TMK > 10 °C.",
+        "period": "Kalenderjahr",
+    },
+    {
+        "id": "cold",
+        "label": "Kältesumme",
+        "short_label": "Kältesumme",
+        "unit": "K",
+        "threshold_temperature": 0.0,
+        "definition": (
+            "Summe der Absolutbeträge negativer DWD-Tagesmitteltemperaturen (TMK) "
+            "vom 1. November bis 31. März."
+        ),
+        "period": "Winter 1. November bis 31. März",
+    },
 ]
 
 # Die Namen entsprechen der gewünschten Dashboard-Terminologie. Bei 30, 35
@@ -562,6 +583,204 @@ def build_gts_payload(
         ),
     }
 
+def temperature_sum_specification(sum_id: str) -> dict[str, Any]:
+    for item in TEMPERATURE_SUMS:
+        if item["id"] == sum_id:
+            return item
+    raise KeyError(sum_id)
+
+
+def build_warmth_sum_payload(
+    tmean_by_day: dict[date, float | None],
+    current_year: int,
+) -> dict[str, Any]:
+    """Wärmesumme nach der DWD-Definition: Summe der TMK > 10 °C."""
+
+    by_year: dict[int, dict[date, float]] = defaultdict(dict)
+    for day, raw_value in tmean_by_day.items():
+        if day.year >= current_year or raw_value is None:
+            continue
+        value = float(raw_value)
+        if -60.0 <= value <= 60.0:
+            by_year[day.year][day] = value
+
+    rows: list[list[Any]] = []
+    reference_curves: list[list[float | None]] = []
+    exact_curves: list[list[float | None]] = []
+
+    for year in sorted(by_year):
+        values = by_year[year]
+        expected_days = date(year, 12, 31).timetuple().tm_yday
+        minimum_valid = int(expected_days * MIN_PERIOD_COVERAGE + 0.999999)
+        valid_days = len(values)
+
+        total = 0.0
+        exact_total = 0.0
+        exact = True
+        curve: list[float | None] = [None] * 365
+        day = date(year, 1, 1)
+        end = date(year, 12, 31)
+
+        while day <= end:
+            tmean = values.get(day)
+            if tmean is None:
+                exact = False
+            else:
+                contribution = tmean if tmean > 10.0 else 0.0
+                total += contribution
+                if exact:
+                    exact_total += contribution
+
+            index = non_leap_index(day)
+            if index is not None and exact:
+                curve[index] = round(exact_total, 1)
+            day += timedelta(days=1)
+
+        if any(value is not None for value in curve):
+            exact_curves.append(curve)
+
+        if valid_days >= minimum_valid:
+            rows.append([year, round(total, 1), valid_days])
+            if REFERENCE_START <= year <= REFERENCE_END:
+                reference_curves.append(curve)
+
+    def aggregate_curves(curves: list[list[float | None]], mode: str) -> list[float | None]:
+        result: list[float | None] = []
+        for index in range(365):
+            values = [curve[index] for curve in curves if curve[index] is not None]
+            if not values:
+                result.append(None)
+            elif mode == "mean":
+                result.append(round(sum(values) / len(values), 1))
+            elif mode == "min":
+                result.append(round(min(values), 1))
+            else:
+                result.append(round(max(values), 1))
+        return result
+
+    specification = temperature_sum_specification("warmth")
+    return {
+        **specification,
+        "minimum_year_coverage": MIN_PERIOD_COVERAGE,
+        "years": rows,
+        "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
+        "reference_years": len(reference_curves),
+        "reference_mean_cumulative": aggregate_curves(reference_curves, "mean"),
+        "historical_daily_min": aggregate_curves(exact_curves, "min"),
+        "historical_daily_max": aggregate_curves(exact_curves, "max"),
+        "historical_curve_rule": (
+            "Die kumulative Tageskurve wird nach dem ersten fehlenden TMK-Tag "
+            "nicht weitergeführt."
+        ),
+    }
+
+
+def winter_non_leap_index(day: date, season_end_year: int) -> int | None:
+    """Index 0..150 für 1. November bis 31. März; 29. Februar wird ausgelassen."""
+    if day.month == 2 and day.day == 29:
+        return None
+    start = date(season_end_year - 1, 11, 1)
+    cursor = start
+    index = 0
+    while cursor < day:
+        if not (cursor.month == 2 and cursor.day == 29):
+            index += 1
+        cursor += timedelta(days=1)
+    return index
+
+
+def build_cold_sum_payload(
+    tmean_by_day: dict[date, float | None],
+    current_year: int,
+) -> dict[str, Any]:
+    """Kältesumme: Absolutbeträge negativer TMK vom 1. November bis 31. März."""
+
+    rows: list[list[Any]] = []
+    reference_curves: list[list[float | None]] = []
+    exact_curves: list[list[float | None]] = []
+
+    available_years = sorted({day.year for day in tmean_by_day if day.year < current_year})
+    if available_years:
+        first_end_year = min(available_years) + 1
+        last_end_year = min(current_year - 1, max(available_years))
+    else:
+        first_end_year = current_year
+        last_end_year = current_year - 1
+
+    for season_end_year in range(first_end_year, last_end_year + 1):
+        start = date(season_end_year - 1, 11, 1)
+        end = date(season_end_year, 3, 31)
+        expected_days = (end - start).days + 1
+        minimum_valid = int(expected_days * MIN_PERIOD_COVERAGE + 0.999999)
+
+        valid_days = 0
+        total = 0.0
+        exact_total = 0.0
+        exact = True
+        curve: list[float | None] = [None] * 151
+        day = start
+
+        while day <= end:
+            raw_value = tmean_by_day.get(day)
+            if raw_value is None:
+                exact = False
+            else:
+                tmean = float(raw_value)
+                if -60.0 <= tmean <= 60.0:
+                    valid_days += 1
+                    contribution = abs(tmean) if tmean < 0.0 else 0.0
+                    total += contribution
+                    if exact:
+                        exact_total += contribution
+                else:
+                    exact = False
+
+            index = winter_non_leap_index(day, season_end_year)
+            if index is not None and 0 <= index < 151 and exact:
+                curve[index] = round(exact_total, 1)
+            day += timedelta(days=1)
+
+        if any(value is not None for value in curve):
+            exact_curves.append(curve)
+
+        if valid_days >= minimum_valid:
+            rows.append([season_end_year, round(total, 1), valid_days])
+            if REFERENCE_START <= season_end_year <= REFERENCE_END:
+                reference_curves.append(curve)
+
+    def aggregate_curves(curves: list[list[float | None]], mode: str) -> list[float | None]:
+        result: list[float | None] = []
+        for index in range(151):
+            values = [curve[index] for curve in curves if curve[index] is not None]
+            if not values:
+                result.append(None)
+            elif mode == "mean":
+                result.append(round(sum(values) / len(values), 1))
+            elif mode == "min":
+                result.append(round(min(values), 1))
+            else:
+                result.append(round(max(values), 1))
+        return result
+
+    specification = temperature_sum_specification("cold")
+    return {
+        **specification,
+        "minimum_period_coverage": MIN_PERIOD_COVERAGE,
+        "seasons": rows,
+        "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
+        "reference_years": len(reference_curves),
+        "reference_mean_cumulative": aggregate_curves(reference_curves, "mean"),
+        "historical_daily_min": aggregate_curves(exact_curves, "min"),
+        "historical_daily_max": aggregate_curves(exact_curves, "max"),
+        "curve_length": 151,
+        "historical_curve_rule": (
+            "Die kumulative Winterkurve wird nach dem ersten fehlenden TMK-Tag "
+            "nicht weitergeführt; der 29. Februar wird für den Tagesvergleich ausgelassen."
+        ),
+    }
+
+
+
 def build_profile_payload(
     station_id: str,
     observations,
@@ -696,6 +915,8 @@ def build_profile_payload(
         "warmest_nights": warmest_night_candidates[:20],
     }
     gts_payload = build_gts_payload(tmean_by_day or {}, current_year)
+    warmth_payload = build_warmth_sum_payload(tmean_by_day or {}, current_year)
+    cold_payload = build_cold_sum_payload(tmean_by_day or {}, current_year)
 
     # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
     # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
@@ -755,7 +976,11 @@ def build_profile_payload(
         "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
         "temperature_reference_daily_mean": temperature_reference_daily_mean,
         "temperature_extremes": temperature_extremes,
-        "temperature_sums": {"gts": gts_payload},
+        "temperature_sums": {
+            "gts": gts_payload,
+            "warmth": warmth_payload,
+            "cold": cold_payload,
+        },
     }
     return profile, payload
 
@@ -1096,7 +1321,7 @@ def write_current_month_files(
 ) -> list[str]:
     output_dir = root / "station_climate_days_current"
     output_dir.mkdir(parents=True, exist_ok=True)
-    start_date = date(data_through.year - 1, 12, 1)
+    start_date = date(data_through.year - 1, 11, 1)
     written: list[str] = []
 
     for year, month in month_sequence(start_date, data_through):
