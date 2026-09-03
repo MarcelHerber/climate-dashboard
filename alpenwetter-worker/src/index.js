@@ -450,11 +450,13 @@ function protectedPage() {
 
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; margin-top: 16px; }
     .map-card { padding: 12px; overflow: hidden; }
-    .map-shell { position: relative; min-height: 560px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 54% 46%, #24344a 0, #172335 35%, #0e1725 78%); border: 1px solid #263449; }
+    .map-shell { position: relative; min-height: 560px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 54% 46%, #42566f 0, #2a3b52 38%, #1a2636 78%); border: 1px solid #33445c; }
     #avalancheMap { width: 100%; height: auto; min-height: 560px; display: block; }
     #avalancheMap path { transition: opacity .12s ease, stroke-width .12s ease; cursor: pointer; }
-    #avalancheMap path:hover { opacity: .82; stroke-width: 1.8; }
-    #avalancheMap path.selected { stroke: #fff; stroke-width: 3; }
+    #avalancheMap path:hover { opacity: .86; stroke-width: 1.8; }
+    #avalancheMap path.danger-5 { stroke: #ffffff; stroke-width: 2.6; }
+    #avalancheMap path.danger-5:hover { opacity: .95; stroke-width: 3.2; }
+    #avalancheMap path.selected { stroke: #fff; stroke-width: 3.4; }
     .map-label { position: absolute; left: 14px; top: 12px; background: rgba(10,18,30,.86); border: 1px solid #2b3a50; border-radius: 9px; padding: 8px 10px; font-size: 12px; color: #b7c6d7; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #b8c7d9; }
@@ -577,7 +579,7 @@ function protectedPage() {
               <span class="legend-item"><span class="swatch" style="background:#f3df3f"></span>2 mäßig</span>
               <span class="legend-item"><span class="swatch" style="background:#f39b33"></span>3 erheblich</span>
               <span class="legend-item"><span class="swatch" style="background:#df413b"></span>4 groß</span>
-              <span class="legend-item"><span class="swatch" style="background:#262626"></span>5 sehr groß</span>
+              <span class="legend-item"><span class="swatch" style="background:#262626;border:2px solid #ffffff"></span>5 sehr groß</span>
             </div>
           </section>
 
@@ -994,10 +996,11 @@ function protectedPage() {
           path.setAttribute("d", pathData);
           path.setAttribute("fill", COLORS[danger] || COLORS[0]);
           path.setAttribute("fill-rule", "evenodd");
-          path.setAttribute("stroke", "#31435b");
-          path.setAttribute("stroke-width", "0.8");
+          path.setAttribute("stroke", danger === 5 ? "#ffffff" : "#31435b");
+          path.setAttribute("stroke-width", danger === 5 ? "2.6" : "0.8");
           path.setAttribute("vector-effect", "non-scaling-stroke");
           path.setAttribute("data-region-id", id);
+          if (danger === 5) path.classList.add("danger-5");
           if (id === state.selectedId) path.classList.add("selected");
 
           var title = document.createElementNS(NS, "title");
@@ -1244,8 +1247,8 @@ function protectedPage() {
           var label = item[1];
           ctx.fillStyle = COLORS[level] || COLORS[0];
           ctx.fillRect(cursorX, y, 34, 26);
-          ctx.strokeStyle = "#475569";
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = level === 5 ? "#ffffff" : "#475569";
+          ctx.lineWidth = level === 5 ? 3 : 1.5;
           ctx.strokeRect(cursorX, y, 34, 26);
 
           ctx.fillStyle = "#334155";
