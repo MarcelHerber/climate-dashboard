@@ -2603,6 +2603,29 @@ button.action:hover{background:#1f2937}
         <div class="chart-container"><canvas id="stationProfileGtsChart"></canvas></div>
         <p id="stationProfileGtsRecordNote" class="note"></p>
       </section>
+
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Meteorologische Summen</div><h2>Wärmesumme</h2></div><p class="note">Summe der DWD-Tagesmitteltemperaturen (TMK) an Tagen mit TMK &gt; 10 °C.</p></div>
+        <div class="profile-overview-grid">
+          <div class="profile-overview-card"><div class="label" id="stationProfileWarmthCurrentLabel">Wärmesumme aktuelles Jahr</div><div id="stationProfileWarmthCurrentValue" class="value">–</div><div id="stationProfileWarmthCurrentDetail" class="detail">wird berechnet …</div></div>
+          <div class="profile-overview-card"><div class="label">Mittel 1991–2020 bis Datenstand</div><div id="stationProfileWarmthMeanValue" class="value">–</div><div id="stationProfileWarmthMeanDetail" class="detail">gleicher Kalendertag</div></div>
+          <div class="profile-overview-card"><div class="label">Höchste Jahressumme</div><div id="stationProfileWarmthMaxValue" class="value">–</div><div id="stationProfileWarmthMaxDetail" class="detail">seit Messbeginn</div></div>
+          <div class="profile-overview-card"><div class="label">Niedrigste Jahressumme</div><div id="stationProfileWarmthMinValue" class="value">–</div><div id="stationProfileWarmthMinDetail" class="detail">seit Messbeginn</div></div>
+        </div>
+        <div class="chart-container"><canvas id="stationProfileWarmthChart"></canvas></div>
+      </section>
+
+      <section class="profile-section">
+        <div class="profile-section-heading"><div><div class="profile-kicker">Meteorologische Summen</div><h2>Kältesumme</h2></div><p class="note">Absolutbeträge negativer DWD-Tagesmitteltemperaturen (TMK) vom 1. November bis 31. März.</p></div>
+        <div class="profile-overview-grid">
+          <div class="profile-overview-card"><div class="label" id="stationProfileColdSumCurrentLabel">Kältesumme aktueller Winter</div><div id="stationProfileColdSumCurrentValue" class="value">–</div><div id="stationProfileColdSumCurrentDetail" class="detail">wird berechnet …</div></div>
+          <div class="profile-overview-card"><div class="label">Mittel 1991–2020</div><div id="stationProfileColdSumMeanValue" class="value">–</div><div id="stationProfileColdSumMeanDetail" class="detail">gleicher Saisonzeitpunkt</div></div>
+          <div class="profile-overview-card"><div class="label">Strengster Winter</div><div id="stationProfileColdSumMaxValue" class="value">–</div><div id="stationProfileColdSumMaxDetail" class="detail">höchste Kältesumme</div></div>
+          <div class="profile-overview-card"><div class="label">Mildester Winter</div><div id="stationProfileColdSumMinValue" class="value">–</div><div id="stationProfileColdSumMinDetail" class="detail">niedrigste Kältesumme</div></div>
+        </div>
+        <div class="chart-container"><canvas id="stationProfileColdSumChart"></canvas></div>
+      </section>
+
       <section class="profile-section">
         <div class="profile-section-heading"><div><div class="profile-kicker">Sommer & Hitze</div><h2>Sommerereignisse</h2></div><p class="note">Oben: bis zum aktuellen Datenstand im Kalender. Unten: Gesamtjahreswerte ohne Hochrechnung.</p></div>
         <div id="stationProfileSummerCards" class="profile-event-grid"></div>
@@ -2637,7 +2660,7 @@ button.action:hover{background:#1f2937}
       <section class="profile-section">
         <div class="profile-section-heading"><div><div class="profile-kicker">Methodik</div><h2>Definitionen und Datenquellen</h2></div></div>
         <div class="profile-method-grid">
-          <div class="profile-method-card"><h3>Temperatur, GTS und Klimaereignisse</h3><div id="stationProfileMethodTemp">DWD CDC, tägliche KL-Stationswerte. GTS: Summe positiver Tagesmitteltemperaturen (TMK), Januar × 0,5, Februar × 0,75, ab März × 1,0; 200 K markieren den klassischen Vegetationsbeginn. Sommertage: Tmax ≥ 25 °C; Hitzetage: Tmax ≥ 30 °C; Wüstentage: Tmax ≥ 35 °C; Tropennächte: Tmin ≥ 20 °C; Frosttage: Tmin &lt; 0 °C; Eistage: Tmax &lt; 0 °C.</div></div>
+          <div class="profile-method-card"><h3>Temperatur und meteorologische Summen</h3><div id="stationProfileMethodTemp">DWD CDC, tägliche KL-Stationswerte. GTS: Summe positiver Tagesmitteltemperaturen (TMK), Januar × 0,5, Februar × 0,75, ab März × 1,0; 200 K markieren den klassischen Vegetationsbeginn. Wärmesumme: Summe der TMK an Tagen mit TMK &gt; 10 °C. Kältesumme: Summe der Absolutbeträge negativer TMK vom 1. November bis 31. März. Sommertage: Tmax ≥ 25 °C; Hitzetage: Tmax ≥ 30 °C; Wüstentage: Tmax ≥ 35 °C; Tropennächte: Tmin ≥ 20 °C; Frosttage: Tmin &lt; 0 °C; Eistage: Tmax &lt; 0 °C.</div></div>
           <div class="profile-method-card"><h3>Niederschlag und Hitzewellen</h3><div id="stationProfileMethodOther">Niederschlag aus dem erweiterten DWD-RR-/more_precip-Netz. Hitzewelle im Dashboard: mindestens drei aufeinanderfolgende Tage mit Tmax ≥ 30 °C.</div></div>
         </div>
       </section>
@@ -8786,7 +8809,9 @@ const CHART_EXPORT_FALLBACK_TITLES={
   stationClimateDaysBarChart:"Stations-Kenntage - Jahres- und Saisonwerte",
   stationHeatwavesBubbleChart:"Stations-Hitzewellen - Intensität und Schweregrad",
   stationHeatwavesBarChart:"Stations-Hitzewellen - Anzahl pro Jahr",
-  stationProfileGtsChart:"Stationsprofil - Grünlandtemperatursumme"
+  stationProfileGtsChart:"Stationsprofil - Grünlandtemperatursumme",
+  stationProfileWarmthChart:"Stationsprofil - Wärmesumme",
+  stationProfileColdSumChart:"Stationsprofil - Kältesumme"
 };
 
 function chartExportTitle(chart,canvas){
@@ -9314,6 +9339,8 @@ let stationProfileSummerAnnualChart=null;
 let stationProfileWinterAnnualChart=null;
 let stationProfileTemperatureChart=null;
 let stationProfileGtsChart=null;
+let stationProfileWarmthChart=null;
+let stationProfileColdSumChart=null;
 let stationProfileMap=null;
 let stationProfileMapLayer=null;
 let stationProfilePrecipIndex=null;
@@ -10307,6 +10334,186 @@ async function renderStationProfileGts(){
   initializeChartExportButtons();
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileGts().catch(error=>console.error('Stationsprofil GTS:',error)));
+
+// ================= VERSION 12.2b: STATIONSPROFIL – WÄRME- UND KÄLTESUMME =================
+function stationProfileTemperatureSumPayload(id){
+  return stationProfileProfile?.temperature_sums?.[id]||null;
+}
+function stationProfileCurrentWarmthSum(){
+  const year=Number(stationClimateDaysIndex?.current_year);
+  const through=String(stationClimateDaysIndex?.data_through||"");
+  const labels=stationClimateDaysIndex?.labels||[];
+  const id=document.getElementById('stationProfileStationSelect')?.value;
+  const curve=Array(labels.length).fill(null);
+  let total=0,exactTotal=0,missingDays=0,exact=true;
+  if(!id||!Number.isFinite(year))return {curve,total:null,missingDays:0};
+  for(let index=0;index<labels.length;index++){
+    const iso=`${year}-${labels[index]}`;
+    if(through&&iso>through)break;
+    const pair=stationClimateDaysPair(id,iso);
+    const rawTm=pair?.[4];
+    const tm=(rawTm===null||rawTm===undefined||rawTm==="")?null:Number(rawTm)/10;
+    if(!Number.isFinite(tm)){
+      missingDays+=1;
+      exact=false;
+      continue;
+    }
+    const contribution=tm>10?tm:0;
+    total+=contribution;
+    if(exact)exactTotal+=contribution;
+    curve[index]=exact?Math.round(exactTotal*10)/10:null;
+  }
+  return {curve,total:Math.round(total*10)/10,missingDays};
+}
+function stationProfileWinterLabels(){
+  const labels=[];
+  const cursor=new Date(Date.UTC(2000,10,1));
+  const end=new Date(Date.UTC(2001,2,31));
+  while(cursor<=end){
+    labels.push(`${String(cursor.getUTCMonth()+1).padStart(2,'0')}-${String(cursor.getUTCDate()).padStart(2,'0')}`);
+    cursor.setUTCDate(cursor.getUTCDate()+1);
+  }
+  return labels;
+}
+function stationProfileColdSeasonEndYear(){
+  const through=String(stationClimateDaysIndex?.data_through||'');
+  const year=Number(through.slice(0,4));
+  const month=Number(through.slice(5,7));
+  return month>=11?year+1:year;
+}
+function stationProfileCurrentColdSum(){
+  const id=document.getElementById('stationProfileStationSelect')?.value;
+  const through=String(stationClimateDaysIndex?.data_through||'');
+  const seasonEnd=stationProfileColdSeasonEndYear();
+  const labels=stationProfileWinterLabels();
+  const curve=Array(labels.length).fill(null);
+  let total=0,exactTotal=0,missingDays=0,exact=true;
+  if(!id||!Number.isFinite(seasonEnd))return {curve,total:null,missingDays:0,seasonEnd:null};
+  const startIso=`${seasonEnd-1}-11-01`;
+  const endIso=`${seasonEnd}-03-31`;
+  labels.forEach((label,index)=>{
+    const month=Number(label.slice(0,2));
+    const iso=`${month>=11?seasonEnd-1:seasonEnd}-${label}`;
+    if(iso<startIso||iso>endIso||iso>through)return;
+    const pair=stationClimateDaysPair(id,iso);
+    const rawTm=pair?.[4];
+    const tm=(rawTm===null||rawTm===undefined||rawTm==="")?null:Number(rawTm)/10;
+    if(!Number.isFinite(tm)){
+      missingDays+=1;
+      exact=false;
+      return;
+    }
+    const contribution=tm<0?Math.abs(tm):0;
+    total+=contribution;
+    if(exact)exactTotal+=contribution;
+    curve[index]=exact?Math.round(exactTotal*10)/10:null;
+  });
+  return {curve,total:Math.round(total*10)/10,missingDays,seasonEnd};
+}
+function stationProfileSumRecord(rows,mode='max'){
+  const valid=(rows||[]).filter(row=>Number.isFinite(Number(row?.[1])));
+  if(!valid.length)return null;
+  return valid.reduce((best,row)=>{
+    if(!best)return row;
+    return mode==='max'
+      ?(Number(row[1])>Number(best[1])?row:best)
+      :(Number(row[1])<Number(best[1])?row:best);
+  },null);
+}
+function stationProfileWinterSeasonLabel(endYear){
+  return Number.isFinite(Number(endYear))?`${Number(endYear)-1}/${String(Number(endYear)).slice(-2)}`:'–';
+}
+async function renderStationProfileWarmthAndCold(){
+  if(!stationProfileProfile||!stationClimateDaysIndex)return;
+  await loadStationClimateDaysCurrentMonths();
+
+  const year=Number(stationClimateDaysIndex.current_year);
+  const through=String(stationClimateDaysIndex.data_through||'');
+  const rawLabels=stationClimateDaysIndex.labels||[];
+
+  const warmth=stationProfileTemperatureSumPayload('warmth');
+  const warmthCurrent=stationProfileCurrentWarmthSum();
+  document.getElementById('stationProfileWarmthCurrentLabel').textContent=`Wärmesumme ${year}`;
+  if(warmth){
+    const cutoff=stationProfileCutoffIndex();
+    const ref=warmth.reference_mean_cumulative||[];
+    const refValue=Number(ref[cutoff]);
+    const high=stationProfileSumRecord(warmth.years,'max');
+    const low=stationProfileSumRecord(warmth.years,'min');
+    document.getElementById('stationProfileWarmthCurrentValue').textContent=stationProfileGtsValue(warmthCurrent.total);
+    document.getElementById('stationProfileWarmthCurrentDetail').textContent=`Stand ${dailyGermanDate(through,true)} · ${warmthCurrent.missingDays} fehlende TMK-Tage`;
+    document.getElementById('stationProfileWarmthMeanValue').textContent=stationProfileGtsValue(refValue);
+    document.getElementById('stationProfileWarmthMeanDetail').textContent=`1991–2020 bis ${dailyGermanDate(through,false)}`;
+    document.getElementById('stationProfileWarmthMaxValue').textContent=high?stationProfileGtsValue(high[1]):'–';
+    document.getElementById('stationProfileWarmthMaxDetail').textContent=high?`Jahr ${high[0]}`:'keine vollständigen Jahre';
+    document.getElementById('stationProfileWarmthMinValue').textContent=low?stationProfileGtsValue(low[1]):'–';
+    document.getElementById('stationProfileWarmthMinDetail').textContent=low?`Jahr ${low[0]}`:'keine vollständigen Jahre';
+
+    const labels=rawLabels.map(stationClimateDaysDateLabel);
+    if(stationProfileWarmthChart)stationProfileWarmthChart.destroy();
+    stationProfileWarmthChart=new Chart(document.getElementById('stationProfileWarmthChart'),{
+      type:'line',
+      data:{labels,datasets:[
+        {label:'Historisches Minimum',data:warmth.historical_daily_min||[],borderColor:'#4c78a8',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
+        {label:'Historisches Maximum',data:warmth.historical_daily_max||[],borderColor:'#c66a2b',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
+        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0},
+        {label:`Wärmesumme ${year}`,data:warmthCurrent.curve,borderColor:'#b85d18',borderWidth:3,pointRadius:0,spanGaps:false,tension:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Wärmesumme ${year} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Summe der TMK an Tagen mit Tagesmittel > 10 °C',color:'#666'},datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}},scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Wärmesumme (K)'}}}}
+    });
+  }else{
+    ['stationProfileWarmthCurrentValue','stationProfileWarmthMeanValue','stationProfileWarmthMaxValue','stationProfileWarmthMinValue'].forEach(id=>document.getElementById(id).textContent='–');
+    document.getElementById('stationProfileWarmthCurrentDetail').textContent='Historischer Cache noch nicht aufgebaut.';
+    if(stationProfileWarmthChart){stationProfileWarmthChart.destroy();stationProfileWarmthChart=null;}
+  }
+
+  const cold=stationProfileTemperatureSumPayload('cold');
+  const coldCurrent=stationProfileCurrentColdSum();
+  const seasonLabel=stationProfileWinterSeasonLabel(coldCurrent.seasonEnd);
+  document.getElementById('stationProfileColdSumCurrentLabel').textContent=`Kältesumme Winter ${seasonLabel}`;
+  if(cold){
+    const high=stationProfileSumRecord(cold.seasons,'max');
+    const low=stationProfileSumRecord(cold.seasons,'min');
+    const winterLabels=stationProfileWinterLabels();
+    let currentIndex=-1;
+    const month=Number(through.slice(5,7));
+    const throughSeasonEnd=month>=11?Number(through.slice(0,4))+1:Number(through.slice(0,4));
+    if(throughSeasonEnd===coldCurrent.seasonEnd){
+      currentIndex=winterLabels.indexOf(through.slice(5));
+      if(month>=4&&month<=10)currentIndex=winterLabels.length-1;
+    }
+    const ref=cold.reference_mean_cumulative||[];
+    const refValue=currentIndex>=0?Number(ref[currentIndex]):null;
+    document.getElementById('stationProfileColdSumCurrentValue').textContent=stationProfileGtsValue(coldCurrent.total);
+    document.getElementById('stationProfileColdSumCurrentDetail').textContent=coldCurrent.missingDays
+      ?`${coldCurrent.missingDays} fehlende TMK-Tage in der Saison`
+      :`1. November bis 31. März · ${seasonLabel}`;
+    document.getElementById('stationProfileColdSumMeanValue').textContent=stationProfileGtsValue(refValue);
+    document.getElementById('stationProfileColdSumMeanDetail').textContent=`Mittel 1991–2020 · gleicher Saisonzeitpunkt`;
+    document.getElementById('stationProfileColdSumMaxValue').textContent=high?stationProfileGtsValue(high[1]):'–';
+    document.getElementById('stationProfileColdSumMaxDetail').textContent=high?`Winter ${stationProfileWinterSeasonLabel(high[0])}`:'keine vollständigen Winter';
+    document.getElementById('stationProfileColdSumMinValue').textContent=low?stationProfileGtsValue(low[1]):'–';
+    document.getElementById('stationProfileColdSumMinDetail').textContent=low?`Winter ${stationProfileWinterSeasonLabel(low[0])}`:'keine vollständigen Winter';
+
+    if(stationProfileColdSumChart)stationProfileColdSumChart.destroy();
+    stationProfileColdSumChart=new Chart(document.getElementById('stationProfileColdSumChart'),{
+      type:'line',
+      data:{labels:winterLabels.map(stationClimateDaysDateLabel),datasets:[
+        {label:'Historisches Minimum',data:cold.historical_daily_min||[],borderColor:'#7aa6c2',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
+        {label:'Historisches Maximum',data:cold.historical_daily_max||[],borderColor:'#405a8d',borderWidth:1.8,pointRadius:0,spanGaps:false,tension:0},
+        {label:'Mittel 1991–2020',data:ref,borderColor:'#333',borderDash:[7,5],borderWidth:2.1,pointRadius:0,spanGaps:false,tension:0},
+        {label:`Winter ${seasonLabel}`,data:coldCurrent.curve,borderColor:'#315f8c',borderWidth:3,pointRadius:0,spanGaps:false,tension:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:`Kältesumme Winter ${seasonLabel} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},subtitle:{display:true,text:'Summe der Absolutbeträge negativer TMK vom 1. November bis 31. März',color:'#666'},datalabels:{display:false},tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}},scales:{x:{ticks:{maxTicksLimit:10,maxRotation:0}},y:{beginAtZero:true,title:{display:true,text:'Kältesumme (K)'}}}}
+    });
+  }else{
+    ['stationProfileColdSumCurrentValue','stationProfileColdSumMeanValue','stationProfileColdSumMaxValue','stationProfileColdSumMinValue'].forEach(id=>document.getElementById(id).textContent='–');
+    document.getElementById('stationProfileColdSumCurrentDetail').textContent='Historischer Cache noch nicht aufgebaut.';
+    if(stationProfileColdSumChart){stationProfileColdSumChart.destroy();stationProfileColdSumChart=null;}
+  }
+  initializeChartExportButtons();
+}
+window.addEventListener('stationprofilechange',()=>renderStationProfileWarmthAndCold().catch(error=>console.error('Stationsprofil Wärme-/Kältesumme:',error)));
 
 // ================= VERSION 12.3: STATIONSPROFIL – TEMPERATUR UND EXTREME =================
 function stationProfileCurrentTemperatureRows(){
