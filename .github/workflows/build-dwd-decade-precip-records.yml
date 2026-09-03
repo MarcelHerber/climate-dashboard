@@ -2,6 +2,12 @@ name: DWD Niederschlags-Dekadenrekorde
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/build_dwd_decade_precip_records.py"
+      - ".github/workflows/build-dwd-decade-precip-records.yml"
 
 permissions:
   contents: write
