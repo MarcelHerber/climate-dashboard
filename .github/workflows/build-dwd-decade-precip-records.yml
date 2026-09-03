@@ -1,0 +1,97 @@
+name: DWD Niederschlags-Dekadenrekorde
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-decade-precip-records
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install requests
+
+      - name: Niederschlags-Dekadenrekorde bauen
+        run: |
+          set -euo pipefail
+          python scripts/build_dwd_decade_precip_records.py \
+            --output data/dwd_decade_precip_records.json \
+            --max-workers 12
+
+      - name: Datenbasis prüfen
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("data/dwd_decade_precip_records.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          assert data["version"] == 1
+          assert data["metric"] == "rsk_high"
+          assert data["metric_meta"]["unit"] == "mm"
+          assert data["metric_meta"]["direction"] == "desc"
+          assert len(data["areas"]) == 17
+          assert data["areas"][0] == "Deutschland"
+          assert len(data["periods"]) == 36
+          assert data["data_start"]
+          assert data["data_through"]
+          assert data["valid_observations"] >= 1_000_000
+
+          germany = data["leaders"]["Deutschland"]
+          assert sum(bool(germany[p["id"]]) for p in data["periods"]) == 36
+
+          print("DWD-Niederschlags-Dekadenprüfung OK")
+          print("Datenzeitraum:", data["data_start"], "bis", data["data_through"])
+          print("Gültige RR-Werte:", f'{data["valid_observations"]:,}')
+          print("Gebiete:", len(data["areas"]))
+          print("Dekaden:", len(data["periods"]))
+          print("Stations-Metadatensegmente:", len(data["stations"]))
+
+          for pid in ("month-01-d1", "month-07-d2", "month-12-d3"):
+              sample = germany[pid]
+              print(pid, "Top-Einträge:", len(sample))
+              if sample:
+                  print("  Spitzenwert:", sample[0])
+          PY
+
+      - name: Niederschlags-Datenbasis versionieren
+        run: |
+          set -euo pipefail
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/dwd_decade_precip_records.json
+
+          if git diff --cached --quiet; then
+            echo "Niederschlags-Dekadenrekorde sind unverändert."
+            exit 0
+          fi
+
+          git commit -m "DWD Niederschlags-Dekadenrekorde aktualisiert"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+          echo "Niederschlags-Datenbasis nach main veröffentlicht."
+          echo "Frontend wird im nächsten Schritt erweitert."
