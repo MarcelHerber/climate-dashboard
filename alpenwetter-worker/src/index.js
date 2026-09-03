@@ -22,16 +22,28 @@ export default {
       return redirect("/", clearSessionCookie());
     }
 
+    const authenticated = await hasValidSession(request, env.ALPENWETTER_PASSWORD);
+
+    if (!authenticated) {
+      if (url.pathname.startsWith("/api/")) {
+        return jsonResponse({ error: "Nicht angemeldet" }, 401);
+      }
+      return loginPage(false);
+    }
+
+    if (url.pathname === "/api/regions") {
+      return proxyRegions();
+    }
+
+    if (url.pathname === "/api/ratings") {
+      return proxyRatings(url);
+    }
+
     if (url.pathname !== "/") {
       return new Response("Nicht gefunden", {
         status: 404,
         headers: securityHeaders({ "Content-Type": "text/plain; charset=utf-8" }),
       });
-    }
-
-    const authenticated = await hasValidSession(request, env.ALPENWETTER_PASSWORD);
-    if (!authenticated) {
-      return loginPage(false);
     }
 
     return protectedPage();
@@ -151,6 +163,115 @@ function redirect(location, setCookie) {
   const headers = securityHeaders({ Location: location });
   if (setCookie) headers.set("Set-Cookie", setCookie);
   return new Response(null, { status: 303, headers });
+}
+
+async function proxyRegions() {
+  const sourceUrl = "https://regions.avalanches.org/micro-regions_elevation.geojson";
+  try {
+    const response = await fetch(sourceUrl, {
+      cf: { cacheTtl: 21600, cacheEverything: true },
+      headers: { "User-Agent": "ClimateDashboard-Alpenwetter/1.0" },
+    });
+    if (!response.ok) {
+      return jsonResponse({ error: "Regionsdaten konnten nicht geladen werden.", status: response.status }, 502);
+    }
+    const data = await response.json();
+    const features = Array.isArray(data?.features) ? data.features.filter(isAlpineFeature) : [];
+    return jsonResponse({
+      type: "FeatureCollection",
+      features,
+      source: "EAWS Regions",
+      sourceUrl: "https://regions.avalanches.org/",
+    });
+  } catch (error) {
+    return jsonResponse({ error: "Regionsdaten konnten nicht geladen werden.", detail: String(error?.message || error) }, 502);
+  }
+}
+
+async function proxyRatings(url) {
+  const requested = String(url.searchParams.get("date") || "").trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : isoDate(new Date());
+
+  for (let offset = 0; offset <= 10; offset += 1) {
+    const candidateDate = shiftDate(date, -offset);
+    const candidates = [
+      `https://static.avalanche.report/eaws_bulletins/${candidateDate}/${candidateDate}.ratings.json`,
+      `https://static.avalanche.report/eaws_bulletins/eaws_bulletins/${candidateDate}/${candidateDate}.ratings.json`,
+    ];
+
+    for (const sourceUrl of candidates) {
+      try {
+        const response = await fetch(sourceUrl, {
+          cf: { cacheTtl: 1800, cacheEverything: true },
+          headers: { "User-Agent": "ClimateDashboard-Alpenwetter/1.0" },
+        });
+        if (!response.ok) continue;
+        const data = await response.json();
+        return jsonResponse({
+          requestedDate: date,
+          dataDate: candidateDate,
+          fallbackDays: offset,
+          ratings: data,
+          source: "avalanche.report / EAWS",
+        });
+      } catch {
+        // Nächsten Kandidaten probieren.
+      }
+    }
+  }
+
+  return jsonResponse({
+    error: "Für das gewählte Datum und die zehn Tage davor wurden keine zusammengefassten Lawinenwarnstufen gefunden.",
+    requestedDate: date,
+  }, 404);
+}
+
+function isAlpineFeature(feature) {
+  const p = feature?.properties || {};
+  const id = String(p.id || p.region_id || p.regionId || "");
+  if (/^(AT-|CH|DE-BY|IT-|SI|AD)/.test(id)) return true;
+
+  if (!/^(FR)/.test(id)) return false;
+  const bounds = geometryBounds(feature?.geometry);
+  if (!bounds) return false;
+  return bounds.maxLon >= 4.5 && bounds.minLon <= 8.5 && bounds.maxLat >= 43.5 && bounds.minLat <= 47.0;
+}
+
+function geometryBounds(geometry) {
+  if (!geometry?.coordinates) return null;
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  const visit = (node) => {
+    if (!Array.isArray(node)) return;
+    if (node.length >= 2 && typeof node[0] === "number" && typeof node[1] === "number") {
+      const lon = node[0], lat = node[1];
+      minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+      minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+      return;
+    }
+    for (const child of node) visit(child);
+  };
+  visit(geometry.coordinates);
+  return Number.isFinite(minLon) ? { minLon, maxLon, minLat, maxLat } : null;
+}
+
+function shiftDate(iso, days) {
+  const d = new Date(iso + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return isoDate(d);
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: securityHeaders({
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, max-age=0",
+    }),
+  });
 }
 
 function loginPage(hasError) {
