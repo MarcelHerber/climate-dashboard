@@ -47,6 +47,15 @@ for file in "${required_data_files[@]}"; do
   cp "$file" "_site/data/$(basename "$file")"
 done
 
+# Geschützter Alpenwetter-Bereich: Die URL selbst ist nicht vertraulich.
+# Sie wird nach erfolgreichem Cloudflare-Deploy automatisch erzeugt.
+if [[ -s data/alpenwetter_endpoint.json ]]; then
+  cp data/alpenwetter_endpoint.json _site/data/
+  echo "Alpenwetter-Endpunkt in Pages-Artefakt übernommen."
+else
+  echo "HINWEIS: data/alpenwetter_endpoint.json ist noch nicht vorhanden."
+fi
+
 # Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.
 # index.html lädt europe_stations/index.json direkt beim Seitenstart; die
 # Tages-/Kalenderarchive liegen darunter in europe_stations/calendar/.
