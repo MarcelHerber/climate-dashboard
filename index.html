@@ -10077,13 +10077,18 @@ function stationProfileGtsFactor(month){
   if(Number(month)===2)return .75;
   return 1;
 }
-function stationProfileGtsHistoricalRows(){
-  return (stationProfileGtsPayload()?.years||[]).map(row=>({
+function stationProfileGtsThresholdRows(){
+  const payload=stationProfileGtsPayload();
+  if(Array.isArray(payload?.threshold_dates)&&payload.threshold_dates.length){
+    return payload.threshold_dates.map(row=>({
+      year:Number(row[0]),
+      thresholdDate:row[1]||null
+    })).filter(row=>Number.isFinite(row.year)&&row.thresholdDate);
+  }
+  return (payload?.years||[]).map(row=>({
     year:Number(row[0]),
-    total:Number(row[1]),
-    validDays:Number(row[2]),
     thresholdDate:row[3]||null
-  })).filter(row=>Number.isFinite(row.year)&&Number.isFinite(row.total));
+  })).filter(row=>Number.isFinite(row.year)&&row.thresholdDate);
 }
 function stationProfileCurrentGts(){
   const year=Number(stationClimateDaysIndex?.current_year);
@@ -10091,7 +10096,7 @@ function stationProfileCurrentGts(){
   const labels=stationClimateDaysIndex?.labels||[];
   const id=document.getElementById('stationProfileStationSelect')?.value;
   const curve=Array(labels.length).fill(null);
-  let total=0,missingDays=0,thresholdDate=null,missingBeforeThreshold=0;
+  let total=0,exactTotal=0,missingDays=0,thresholdDate=null,missingBeforeThreshold=0,exact=true;
   if(!id||!Number.isFinite(year))return {curve,total:null,missingDays:0,thresholdDate:null,missingBeforeThreshold:0};
 
   for(let index=0;index<labels.length;index++){
@@ -10102,14 +10107,18 @@ function stationProfileCurrentGts(){
     const tm=(rawTm===null||rawTm===undefined||rawTm==="")?null:Number(rawTm)/10;
     if(!Number.isFinite(tm)){
       missingDays+=1;
+      exact=false;
       curve[index]=null;
       continue;
     }
     const month=Number(labels[index].slice(0,2));
-    if(tm>0)total+=tm*stationProfileGtsFactor(month);
+    const increment=tm>0?tm*stationProfileGtsFactor(month):0;
+    total+=increment;
+    if(exact)exactTotal+=increment;
     total=Math.round(total*10)/10;
-    curve[index]=total;
-    if(!thresholdDate&&total>=200){
+    exactTotal=Math.round(exactTotal*10)/10;
+    curve[index]=exact?exactTotal:null;
+    if(!thresholdDate&&exact&&exactTotal>=200){
       thresholdDate=iso;
       missingBeforeThreshold=missingDays;
     }
@@ -10164,9 +10173,9 @@ async function renderStationProfileGts(){
   const cutoff=stationProfileCutoffIndex();
   const referenceCurve=payload.reference_mean_cumulative||[];
   const referenceValue=Number(referenceCurve[cutoff]);
-  const history=stationProfileGtsHistoricalRows();
-  const referenceThreshold=stationProfileGtsThresholdStats(history,1991,2020);
-  const allThreshold=stationProfileGtsThresholdStats(history);
+  const thresholdRows=stationProfileGtsThresholdRows();
+  const referenceThreshold=stationProfileGtsThresholdStats(thresholdRows,1991,2020);
+  const allThreshold=stationProfileGtsThresholdStats(thresholdRows);
 
   document.getElementById('stationProfileGtsCurrentValue').textContent=stationProfileGtsValue(current.total);
   document.getElementById('stationProfileGtsCurrentDetail').textContent=`Stand ${dailyGermanDate(through,true)} · ${current.missingDays} fehlende TMK-Tage`;
@@ -10180,7 +10189,9 @@ async function renderStationProfileGts(){
       :'200-K-Schwelle erreicht';
   }else{
     document.getElementById('stationProfileGtsThresholdValue').textContent='noch nicht';
-    document.getElementById('stationProfileGtsThresholdDetail').textContent=Number.isFinite(current.total)?`${stationProfileGtsValue(current.total)} von 200 K erreicht`:'keine aktuelle TMK-Reihe';
+    document.getElementById('stationProfileGtsThresholdDetail').textContent=current.missingDays
+      ?'200-K-Termin wegen TMK-Lücke nicht exakt bestimmbar'
+      :Number.isFinite(current.total)?`${stationProfileGtsValue(current.total)} von 200 K erreicht`:'keine aktuelle TMK-Reihe';
   }
 
   document.getElementById('stationProfileGtsThresholdMeanValue').textContent=referenceThreshold.medianDate?dailyGermanDate(referenceThreshold.medianDate,false):'–';
@@ -10190,28 +10201,77 @@ async function renderStationProfileGts(){
     document.getElementById('stationProfileGtsRecordNote').innerHTML=
       `<strong>200-K-Rekorde seit Messbeginn:</strong> frühestens ${dailyGermanDate(allThreshold.earliest.thresholdDate,false)} ${allThreshold.earliest.year}, `+
       `spätestens ${dailyGermanDate(allThreshold.latest.thresholdDate,false)} ${allThreshold.latest.year}. `+
-      `Historische GTS-Jahreswerte werden nur bei mindestens ${Math.round(Number(payload.minimum_year_coverage||.98)*100)} % TMK-Datenvollständigkeit verwendet.`;
+      `Historische Einzeljahreskurven werden nur so lange fortgeführt, wie das DWD-Tagesmittel TMK lückenlos vorliegt.`;
   }else{
-    document.getElementById('stationProfileGtsRecordNote').textContent='Für 200-K-Rekorde sind nicht genügend vollständige historische TMK-Jahre vorhanden.';
+    document.getElementById('stationProfileGtsRecordNote').textContent='Für 200-K-Rekorde sind nicht genügend lückenlose historische TMK-Frühjahre vorhanden.';
   }
 
-  const labels=(stationClimateDaysIndex.labels||[]).map(stationClimateDaysDateLabel);
+  const rawLabels=stationClimateDaysIndex.labels||[];
+  const extraDays=Math.max(0,Number(payload.chart_extra_days)||10);
+  const historicalEnd=Number.isFinite(Number(payload.chart_end_index))?Number(payload.chart_end_index):120;
+  const currentThresholdIndex=current.thresholdDate?rawLabels.indexOf(String(current.thresholdDate).slice(5)):-1;
+  const throughIndex=rawLabels.indexOf(String(through||'').slice(5));
+  const currentEnd=currentThresholdIndex>=0
+    ?Math.min(rawLabels.length-1,currentThresholdIndex+extraDays)
+    :(throughIndex>=0?throughIndex:historicalEnd);
+  const chartEnd=Math.max(0,Math.min(rawLabels.length-1,Math.max(historicalEnd,currentEnd)));
+  const labels=rawLabels.slice(0,chartEnd+1).map(stationClimateDaysDateLabel);
   const thresholdLine=labels.map(()=>200);
+
+  const historicalDatasets=(payload.historical_curves||[]).map((row,index)=>({
+    label:'Historische Einzeljahre',
+    gtsHistorical:true,
+    gtsLegend:index===0,
+    gtsYear:Number(row[0]),
+    data:(row[1]||[]).slice(0,chartEnd+1),
+    borderColor:'rgba(105,115,120,.24)',
+    borderWidth:.8,
+    pointRadius:0,
+    pointHoverRadius:2,
+    spanGaps:false,
+    fill:false,
+    tension:0,
+    order:10
+  }));
+
+  const datasets=[
+    ...historicalDatasets,
+    {label:'Historisches Minimum',data:(payload.historical_daily_min||[]).slice(0,chartEnd+1),borderColor:'#4c78a8',borderWidth:2,pointRadius:0,spanGaps:false,fill:false,tension:0,order:5},
+    {label:'Historisches Maximum',data:(payload.historical_daily_max||[]).slice(0,chartEnd+1),borderColor:'#c66a2b',borderWidth:2,pointRadius:0,spanGaps:false,fill:false,tension:0,order:5},
+    {label:'Mittel 1991–2020',data:referenceCurve.slice(0,chartEnd+1),borderColor:'#333',borderDash:[7,5],borderWidth:2.2,pointRadius:0,spanGaps:false,fill:false,tension:0,order:3},
+    {label:'Vegetationsschwelle 200 K',data:thresholdLine,borderColor:'rgba(177,107,0,.75)',borderDash:[3,4],borderWidth:1.5,pointRadius:0,spanGaps:true,fill:false,order:2},
+    {label:`GTS ${year}`,data:current.curve.slice(0,chartEnd+1),borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,.10)',borderWidth:3,pointRadius:0,pointHoverRadius:3,spanGaps:false,fill:false,tension:0,order:0}
+  ];
+
   if(stationProfileGtsChart)stationProfileGtsChart.destroy();
   stationProfileGtsChart=new Chart(canvas,{
     type:'line',
-    data:{labels,datasets:[
-      {label:`GTS ${year}`,data:current.curve,borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,.10)',borderWidth:2.8,pointRadius:0,spanGaps:false,fill:false,tension:0},
-      {label:'Mittel 1991–2020',data:referenceCurve,borderColor:'#333',borderDash:[7,5],borderWidth:2,pointRadius:0,spanGaps:true,fill:false,tension:0},
-      {label:'Vegetationsschwelle 200 K',data:thresholdLine,borderColor:'rgba(177,107,0,.75)',borderDash:[3,4],borderWidth:1.5,pointRadius:0,spanGaps:true,fill:false}
-    ]},
+    data:{labels,datasets},
     options:{
-      responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'nearest',intersect:false,axis:'xy'},
       plugins:{
         title:{display:true,text:`Grünlandtemperatursumme ${year} – ${stationProfileProfile.name||''}`,font:{size:18,weight:'bold'}},
-        subtitle:{display:true,text:'Positive DWD-Tagesmittel (TMK): Januar × 0,5 · Februar × 0,75 · ab März × 1,0',color:'#666'},
+        subtitle:{display:true,text:`Alle verfügbaren Messjahre · Tages-Minimum/Maximum · Darstellung bis ${extraDays} Tage nach dem spätesten 200-K-Termin`,color:'#666'},
         datalabels:{display:false},
-        tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`}}
+        legend:{
+          labels:{
+            filter:(item,data)=>{
+              const dataset=data.datasets[item.datasetIndex];
+              return !dataset?.gtsHistorical||dataset?.gtsLegend;
+            }
+          }
+        },
+        tooltip:{
+          callbacks:{
+            label:context=>{
+              const dataset=context.dataset;
+              const label=dataset.gtsHistorical?`GTS ${dataset.gtsYear}`:dataset.label;
+              return `${label}: ${Number(context.parsed.y).toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})} K`;
+            }
+          }
+        }
       },
       scales:{
         x:{ticks:{maxTicksLimit:12,maxRotation:0}},
