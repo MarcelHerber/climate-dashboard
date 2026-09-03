@@ -31,7 +31,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 6
+STATE_VERSION = 7
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -39,6 +39,21 @@ HISTORICAL_REBUILD_DAYS = 45
 MIN_PERIOD_COVERAGE = 0.98
 REFERENCE_START = 1991
 REFERENCE_END = 2020
+
+TEMPERATURE_SUMS: list[dict[str, Any]] = [
+    {
+        "id": "gts",
+        "label": "Grünlandtemperatursumme",
+        "short_label": "GTS",
+        "unit": "K",
+        "threshold": 200.0,
+        "definition": (
+            "Summe der positiven DWD-Tagesmitteltemperaturen (TMK): "
+            "Januar × 0,5, Februar × 0,75, ab März × 1,0."
+        ),
+        "month_factors": {"1": 0.5, "2": 0.75, "3-12": 1.0},
+    }
+]
 
 # Die Namen entsprechen der gewünschten Dashboard-Terminologie. Bei 30, 35
 # und 40 °C werden zusätzlich die DWD-Bezeichnungen im Hinweis genannt.
@@ -380,11 +395,105 @@ def observation_temperatures(observation) -> tuple[float | None, float | None]:
     )
 
 
+def gts_month_factor(month: int) -> float:
+    if month == 1:
+        return 0.5
+    if month == 2:
+        return 0.75
+    return 1.0
+
+
+def build_gts_payload(
+    tmean_by_day: dict[date, float | None],
+    current_year: int,
+) -> dict[str, Any]:
+    """Berechnet die historische Grünlandtemperatursumme aus DWD-TMK.
+
+    Nur positive Tagesmittel gehen ein. Januar wird mit 0,5 und Februar mit
+    0,75 gewichtet; ab März gilt Faktor 1,0. Jahreswerte werden nur für Jahre
+    mit mindestens MIN_PERIOD_COVERAGE gültigen TMK-Tagen ausgegeben.
+    """
+
+    by_year: dict[int, dict[date, float]] = defaultdict(dict)
+    for day, raw_value in tmean_by_day.items():
+        if day.year >= current_year or raw_value is None:
+            continue
+        value = float(raw_value)
+        if not (-60.0 <= value <= 60.0):
+            continue
+        by_year[day.year][day] = value
+
+    rows: list[list[Any]] = []
+    reference_curves: list[list[float | None]] = []
+
+    for year in sorted(by_year):
+        values = by_year[year]
+        expected_days = date(year, 12, 31).timetuple().tm_yday
+        minimum_valid = int(expected_days * MIN_PERIOD_COVERAGE + 0.999999)
+        valid_days = len(values)
+        if valid_days < minimum_valid:
+            continue
+
+        total = 0.0
+        threshold_date: str | None = None
+        complete_to_date = True
+        curve: list[float | None] = [None] * 365
+        day = date(year, 1, 1)
+        end = date(year, 12, 31)
+
+        while day <= end:
+            tmean = values.get(day)
+            if tmean is None:
+                complete_to_date = False
+            elif tmean > 0.0:
+                total += tmean * gts_month_factor(day.month)
+
+            if threshold_date is None and complete_to_date and total >= 200.0:
+                threshold_date = day.isoformat()
+
+            index = non_leap_index(day)
+            if index is not None:
+                curve[index] = round(total, 1)
+            day += timedelta(days=1)
+
+        rows.append([year, round(total, 1), valid_days, threshold_date])
+        if REFERENCE_START <= year <= REFERENCE_END:
+            reference_curves.append(curve)
+
+    reference_mean_cumulative: list[float | None] = []
+    for index in range(365):
+        values = [
+            curve[index]
+            for curve in reference_curves
+            if curve[index] is not None
+        ]
+        reference_mean_cumulative.append(
+            round(sum(values) / len(values), 1) if values else None
+        )
+
+    specification = TEMPERATURE_SUMS[0]
+    return {
+        "id": specification["id"],
+        "label": specification["label"],
+        "short_label": specification["short_label"],
+        "unit": specification["unit"],
+        "threshold": specification["threshold"],
+        "definition": specification["definition"],
+        "month_factors": specification["month_factors"],
+        "minimum_year_coverage": MIN_PERIOD_COVERAGE,
+        "years": rows,
+        "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
+        "reference_years": len(reference_curves),
+        "reference_mean_cumulative": reference_mean_cumulative,
+    }
+
+
 def build_profile_payload(
     station_id: str,
     observations,
     metadata: MetadataIndex,
     current_year: int,
+    tmean_by_day: dict[date, float | None] | None = None,
 ) -> tuple[StationProfile, dict[str, Any]] | None:
     # metric -> period -> year -> [count, valid_days]
     accumulators: dict[str, dict[str, dict[int, list[int]]]] = {
@@ -512,6 +621,7 @@ def build_profile_payload(
         "coldest_nights": coldest_candidates[:20],
         "warmest_nights": warmest_night_candidates[:20],
     }
+    gts_payload = build_gts_payload(tmean_by_day or {}, current_year)
 
     # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
     # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
@@ -571,6 +681,7 @@ def build_profile_payload(
         "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
         "temperature_reference_daily_mean": temperature_reference_daily_mean,
         "temperature_extremes": temperature_extremes,
+        "temperature_sums": {"gts": gts_payload},
     }
     return profile, payload
 
@@ -583,15 +694,37 @@ def process_historical_station(
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(HISTORICAL_URL, filename)
+        start_date = date(1800, 1, 1)
+        end_date = date(current_year - 1, 12, 31)
         observations = parse_station_zip(
             content,
             station_id,
             metadata,
-            date(1800, 1, 1),
-            date(current_year - 1, 12, 31),
+            start_date,
+            end_date,
             preliminary=False,
         )
-        return station_id, build_profile_payload(station_id, observations, metadata, current_year), None
+        historical_temperatures = parse_recent_kl_temperatures(
+            content,
+            start_date,
+            end_date,
+        )
+        tmean_by_day = {
+            day: tm
+            for day, (_tx, _tn, tm) in historical_temperatures.items()
+            if tm is not None
+        }
+        return (
+            station_id,
+            build_profile_payload(
+                station_id,
+                observations,
+                metadata,
+                current_year,
+                tmean_by_day=tmean_by_day,
+            ),
+            None,
+        )
     except NoUsableProductFileError as exc:
         return station_id, None, f"{filename}: {exc}"
     except Exception as exc:  # noqa: BLE001
@@ -1094,6 +1227,7 @@ def build_index(
             "Metrik relevante Tageswerte unterbrechen die Serie; der 29. Februar zählt als normaler Tag."
         ),
         "climate_days": [dict(item) for item in CLIMATE_DAYS],
+        "temperature_sums": [dict(item) for item in TEMPERATURE_SUMS],
         "periods": PERIODS,
         "states": states,
         "current_files": [f"station_climate_days_current/{name}" for name in current_files],
