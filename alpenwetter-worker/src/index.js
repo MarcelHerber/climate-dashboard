@@ -1141,8 +1141,6 @@ function protectedPage() {
           state.viewBox.startX = state.viewBox.x;
           state.viewBox.startY = state.viewBox.y;
           mapShell.classList.add("dragging");
-
-          try { mapShell.setPointerCapture(event.pointerId); } catch (_) {}
         });
 
         mapShell.addEventListener("pointermove", function (event) {
@@ -1164,7 +1162,6 @@ function protectedPage() {
           state.viewBox.dragging = false;
           state.viewBox.moved = false;
           mapShell.classList.remove("dragging");
-          try { mapShell.releasePointerCapture(event.pointerId); } catch (_) {}
         }
 
         mapShell.addEventListener("pointerup", stopDragging);
