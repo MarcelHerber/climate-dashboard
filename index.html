@@ -1188,6 +1188,7 @@ button.action:hover{background:#1f2937}
         </div>
       </div>
 
+      <button class="nav-link" type="button" onclick="openAlpenwetter()" title="Geschützter Alpenwetter-Bereich">Alpenwetter 🔒</button>
 
       <button class="nav-link tab-button" data-nav-group="compare" onclick="switchTab('compare')">Vergleiche</button>
     </nav>
@@ -3489,6 +3490,30 @@ function closeNavigationDropdowns(){
     dropdown.classList.remove("open");
     dropdown.querySelector(".nav-dropdown-toggle")?.setAttribute("aria-expanded","false");
   });
+}
+
+async function openAlpenwetter(){
+  closeNavigationDropdowns();
+  try{
+    const response=await fetch("data/alpenwetter_endpoint.json",{cache:"no-store"});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload=await response.json();
+    const target=new URL(String(payload?.url||""),window.location.href);
+
+    const validHost=
+      target.protocol==="https:" &&
+      target.hostname.startsWith("climate-dashboard-alpenwetter.") &&
+      target.hostname.endsWith(".workers.dev");
+
+    if(!validHost) throw new Error("Unerwartete Zieladresse");
+    window.location.href=target.href;
+  }catch(error){
+    showError(
+      "Der geschützte Alpenwetter-Bereich konnte gerade nicht geöffnet werden. " +
+      "Bitte prüfe, ob der Alpenwetter-Worker bereits erfolgreich veröffentlicht wurde."
+    );
+    console.error("Alpenwetter-Link:",error);
+  }
 }
 
 function switchTab(tab,{persist=true}={}){
@@ -14915,10 +14940,23 @@ function initializeMobileTabNavigation(){
     option.dataset.page="external";
     select.appendChild(option);
   });
+
+  const alpenOption=document.createElement("option");
+  alpenOption.value="__alpenwetter__";
+  alpenOption.textContent="Alpenwetter 🔒";
+  alpenOption.dataset.page="alpenwetter";
+  select.appendChild(alpenOption);
+
   select.addEventListener("change",()=>{
     const option=select.options[select.selectedIndex];
     if(option?.dataset.page==="external"){
       window.location.href=option.value;
+      return;
+    }
+    if(option?.dataset.page==="alpenwetter"){
+      const activeTab=document.querySelector(".tab-content.active")?.id||"overview";
+      openAlpenwetter();
+      select.value=activeTab;
       return;
     }
     switchTab(select.value);
