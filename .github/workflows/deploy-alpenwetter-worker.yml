@@ -10,7 +10,8 @@ on:
       - ".github/workflows/deploy-alpenwetter-worker.yml"
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 concurrency:
   group: alpenwetter-worker-deploy
@@ -61,7 +62,10 @@ jobs:
           echo "CLOUDFLARE_ACCOUNT_ID=$clean_id" >> "$GITHUB_ENV"
 
       - name: Alpenwetter-Worker veröffentlichen
-        run: npx wrangler deploy --config alpenwetter-worker/wrangler.toml
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config alpenwetter-worker/wrangler.toml 2>&1 | tee /tmp/alpenwetter-wrangler.log
 
       - name: Alpenwetter-Kennwort als Cloudflare Secret setzen
         shell: bash
@@ -69,5 +73,69 @@ jobs:
           set -euo pipefail
           printf '%s' "$ALPENWETTER_PASSWORD" | npx wrangler secret put ALPENWETTER_PASSWORD --config alpenwetter-worker/wrangler.toml
 
+      - name: Worker-Adresse für die Hauptseite speichern
+        id: endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="$(
+            grep -Eo 'https://[^[:space:]]+\.workers\.dev[^[:space:]]*' /tmp/alpenwetter-wrangler.log               | tail -n 1               | sed -E 's/[),.;]+$//'
+          )"
+
+          if [[ -z "$endpoint" ]]; then
+            echo "FEHLER: Die öffentliche workers.dev-Adresse konnte nicht aus dem Wrangler-Log gelesen werden."
+            exit 1
+          fi
+
+          if [[ ! "$endpoint" =~ ^https://climate-dashboard-alpenwetter\.[A-Za-z0-9_-]+\.workers\.dev/?$ ]]; then
+            echo "FEHLER: Unerwartete Worker-Adresse: $endpoint"
+            exit 1
+          fi
+
+          mkdir -p data
+          python - "$endpoint" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          endpoint = sys.argv[1].rstrip("/")
+          path = Path("data/alpenwetter_endpoint.json")
+          payload = {
+              "url": endpoint,
+              "protected": True,
+              "service": "Alpenwetter",
+          }
+          path.write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/alpenwetter_endpoint.json
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Worker-Adresse ist bereits aktuell."
+          else
+            git commit -m "Alpenwetter-Endpunkt aktualisieren"
+            git pull --rebase origin main
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Worker-Adresse für die Hauptseite aktualisiert."
+          fi
+
+      - name: Hauptseite nach Endpunkt-Update neu veröffentlichen
+        if: steps.endpoint.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run deploy-pages-only.yml --ref main
+          echo "Pages-Deploy für den neuen Alpenwetter-Link gestartet."
+
       - name: Fertig
-        run: echo "Alpenwetter-Worker und Kennwort wurden veröffentlicht."
+        run: echo "Alpenwetter-Worker, Kennwort und Hauptseiten-Link wurden aktualisiert."
