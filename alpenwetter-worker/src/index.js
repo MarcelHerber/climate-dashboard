@@ -371,7 +371,7 @@ function loginPage(hasError) {
 }
 
 function protectedPage() {
-  return htmlResponse(\`<!doctype html>
+  return htmlResponse(`<!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8">
@@ -1047,7 +1047,7 @@ function protectedPage() {
     })();
   </script>
 </body>
-</html>\`);
+</html>`);
 }
 
 function htmlResponse(body, status = 200) {
