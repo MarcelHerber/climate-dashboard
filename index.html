@@ -2743,6 +2743,10 @@ button.action:hover{background:#1f2937}
           <h2>Kalenderhäufigkeit · Schneehöhe</h2>
           <p>Wie häufig lag am jeweiligen Kalendertag eine Schneedecke von mindestens 1, 5 oder 10 cm?</p>
         </div>
+        <div class="control-group" style="min-width:300px">
+          <label for="stationClimateDaysSnowFrequencyStationSelect">Schneestation</label>
+          <select id="stationClimateDaysSnowFrequencyStationSelect" onchange="renderStationClimateDaysFrequency()"></select>
+        </div>
       </div>
       <div style="height:420px"><canvas id="stationClimateDaysSnowFrequencyChart"></canvas></div>
       <div class="table-wrap" style="margin-top:14px">
@@ -6855,6 +6859,36 @@ async function stationClimateDaysLoadSnowFrequency(stationId){
   return block;
 }
 
+function stationClimateDaysPopulateSnowFrequencyStations(preferredStation){
+  const select=document.getElementById("stationClimateDaysSnowFrequencyStationSelect");
+  const stations=stationClimateDaysSnowFrequencyIndex?.stations||[];
+  if(!select||!stations.length) return null;
+
+  const previous=select.value;
+  if(select.options.length!==stations.length){
+    select.innerHTML="";
+    stations
+      .slice()
+      .sort((a,b)=>`${a.state||""} ${a.name||""}`.localeCompare(`${b.state||""} ${b.name||""}`,"de"))
+      .forEach(item=>{
+        const option=document.createElement("option");
+        option.value=item.id;
+        option.textContent=`${item.name} (${item.id}) · ${item.state||""}`;
+        select.appendChild(option);
+      });
+  }
+
+  if(previous && stations.some(item=>item.id===previous)){
+    select.value=previous;
+  }else if(preferredStation && stations.some(item=>item.id===preferredStation.id)){
+    select.value=preferredStation.id;
+  }else{
+    const sameState=preferredStation?stations.find(item=>item.state===preferredStation.state):null;
+    select.value=(sameState||stations[0])?.id||"";
+  }
+  return stations.find(item=>item.id===select.value)||null;
+}
+
 async function renderStationClimateDaysFrequency(stationOverride=null){
   if(!stationClimateDaysIndex||!stationClimateDaysProfile) return;
   const requestId=++stationClimateDaysFrequencyRequest;
@@ -6888,18 +6922,26 @@ async function renderStationClimateDaysFrequency(stationOverride=null){
   }
 
   let snow=null;
-  try{snow=await stationClimateDaysLoadSnowFrequency(station.id);}catch(_error){snow=null;}
+  let snowStation=null;
+  try{
+    if(!stationClimateDaysSnowFrequencyIndex){
+      const response=await dashboardFetch("station_snow_height_index.json",{cache:"no-store"});
+      if(response.ok) stationClimateDaysSnowFrequencyIndex=await response.json();
+    }
+    snowStation=stationClimateDaysPopulateSnowFrequencyStations(station);
+    if(snowStation) snow=await stationClimateDaysLoadSnowFrequency(snowStation.id);
+  }catch(_error){snow=null;}
   if(requestId!==stationClimateDaysFrequencyRequest) return;
   const snowBody=document.querySelector("#stationClimateDaysSnowFrequencyRecords tbody");
   const snowNote=document.getElementById("stationClimateDaysSnowFrequencyNote");
-  if(snow){
+  if(snow && snowStation){
     stationClimateDaysSnowFrequencyChart=stationClimateDaysFrequencyChart(
       "stationClimateDaysSnowFrequencyChart",
       stationClimateDaysSnowFrequencyChart,
       snow,
       [1,5,10],
       ["#8fc7e8","#4f8fc4","#24527a"],
-      `Kalenderhäufigkeit Schneehöhe – ${station.name}`
+      `Kalenderhäufigkeit Schneehöhe – ${snowStation.name}`
     );
     if(snowBody){
       snowBody.innerHTML=[1,5,10].map(threshold=>{
@@ -6907,11 +6949,16 @@ async function renderStationClimateDaysFrequency(stationOverride=null){
         return `<tr><td><strong>≥ ${threshold} cm</strong></td><td>${stationClimateDaysFrequencyRecordText(record.earliest_second_half)}</td><td>${stationClimateDaysFrequencyRecordText(record.latest_first_half)}</td></tr>`;
       }).join("");
     }
-    if(snowNote) snowNote.textContent="Je Kalendertag werden nur akzeptierte historische Schneehöhenjahre mit gültigem DWD-Wert SHK_TAG berücksichtigt. Angezeigt wird Schneedecke/Schneehöhe, nicht zwingend Neuschneefall.";
+    if(snowNote){
+      const separate=snowStation.id!==station.id
+        ?`Für ${station.name} liegt kein qualifiziertes Schneehöhenprofil vor; ausgewählt ist ${snowStation.name} (${snowStation.id}). `
+        :"";
+      snowNote.textContent=separate+"Je Kalendertag werden nur akzeptierte historische Schneehöhenjahre mit gültigem DWD-Wert SHK_TAG berücksichtigt. Angezeigt wird Schneedecke/Schneehöhe, nicht zwingend Neuschneefall.";
+    }
   }else{
     if(stationClimateDaysSnowFrequencyChart){stationClimateDaysSnowFrequencyChart.destroy();stationClimateDaysSnowFrequencyChart=null;}
-    if(snowBody) snowBody.innerHTML='<tr><td colspan="3">Für diese Station sind noch keine Kalenderhäufigkeiten der Schneehöhe verfügbar.</td></tr>';
-    if(snowNote) snowNote.textContent="Die Schneehöhen-Häufigkeiten werden beim nächsten Neuaufbau der historischen Schneehöhenprofile ergänzt.";
+    if(snowBody) snowBody.innerHTML='<tr><td colspan="3">Für die gewählte Schneestation sind keine Kalenderhäufigkeiten verfügbar.</td></tr>';
+    if(snowNote) snowNote.textContent="Bitte eine andere Schneestation wählen. Es werden nur Stationen mit ausreichend langen und vollständigen SHK_TAG-Reihen angeboten.";
   }
   initializeChartExportButtons();
 }
