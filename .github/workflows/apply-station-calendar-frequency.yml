@@ -1,0 +1,82 @@
+name: Stations-Kalenderhäufigkeiten einbauen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-station-calendar-frequency.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Tests vorbereiten
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Kalenderhäufigkeit testen
+        run: python -m pytest -q tests/test_station_calendar_frequency.py
+
+      - name: Feature in bestehende Dateien einbauen
+        run: python scripts/apply_station_calendar_frequency_feature.py
+
+      - name: Python-Syntax prüfen
+        run: |
+          python -m py_compile \
+            scripts/station_calendar_frequency.py \
+            station_calendar_frequency.py \
+            scripts/update_station_climate_days.py \
+            update_station_climate_days.py \
+            scripts/build_dwd_snow_height_profiles.py
+
+      - name: Frontend-JavaScript prüfen
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>", html, flags=re.I)
+          if not scripts:
+              raise SystemExit("Keine Inline-Skripte gefunden")
+          for index, script in enumerate(scripts):
+              path = Path(tempfile.gettempdir()) / f"climate-dashboard-inline-{index}.js"
+              path.write_text(script, encoding="utf-8")
+              subprocess.run(["node", "--check", str(path)], check=True)
+          print(f"Inline scripts parsed successfully: {len(scripts)}")
+          PY
+
+      - name: Diff prüfen
+        run: git diff --check
+
+      - name: Änderungen veröffentlichen
+        run: |
+          if git diff --quiet; then
+            echo "Keine Änderungen nötig."
+            exit 0
+          fi
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            index.html \
+            scripts/update_station_climate_days.py \
+            update_station_climate_days.py \
+            scripts/build_dwd_snow_height_profiles.py
+          git commit -m "Add station calendar frequency charts"
+          git pull --rebase origin main
+          git push origin HEAD:main
