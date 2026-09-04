@@ -33,6 +33,22 @@ jobs:
       - name: Feature in bestehende Dateien einbauen
         run: python scripts/apply_station_calendar_frequency_feature.py
 
+      - name: Schneestationsauswahl reparieren
+        run: python scripts/fix_station_calendar_snow_selector.py
+
+      - name: Schneestationsauswahl prüfen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          source = Path("scripts/apply_station_calendar_frequency_feature.py").read_text(encoding="utf-8")
+          needle = 'id="stationClimateDaysSnowFrequencyStationSelect"'
+          assert needle in html, "Schneestationsauswahl fehlt in index.html"
+          assert needle in source, "Schneestationsauswahl fehlt im Feature-Patcher"
+          assert "stationClimateDaysPopulateSnowFrequencyStations" in html
+          print("Schneestationsauswahl vorhanden")
+          PY
+
       - name: Python-Syntax prüfen
         run: |
           python -m py_compile \
@@ -40,7 +56,9 @@ jobs:
             station_calendar_frequency.py \
             scripts/update_station_climate_days.py \
             update_station_climate_days.py \
-            scripts/build_dwd_snow_height_profiles.py
+            scripts/build_dwd_snow_height_profiles.py \
+            scripts/apply_station_calendar_frequency_feature.py \
+            scripts/fix_station_calendar_snow_selector.py
 
       - name: Frontend-JavaScript prüfen
         run: |
@@ -74,9 +92,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             index.html \
+            scripts/apply_station_calendar_frequency_feature.py \
             scripts/update_station_climate_days.py \
             update_station_climate_days.py \
             scripts/build_dwd_snow_height_profiles.py
-          git commit -m "Add station calendar frequency charts"
+          git commit -m "Fix snow frequency station selection"
           git pull --rebase origin main
           git push origin HEAD:main
