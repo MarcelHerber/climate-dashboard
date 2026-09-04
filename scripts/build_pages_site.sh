@@ -20,6 +20,8 @@ required_root_files=(
   station_climate_days_index.json
   station_heatwaves_index.json
   station_heatwaves_current.json
+  station_snow_height_index.json
+  station_snow_height_current_index.json
   update_status.json
 )
 
@@ -30,6 +32,43 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Schneehöhen werden direkt mit GitHub Pages veröffentlicht. Damit hängt der
+# Stationsbereich nicht von separaten Raw-GitHub-Requests ab und ein grüner
+# Pages-Deploy garantiert, dass Index, Profile und aktuelle Saison zusammenpassen.
+required_snow_dirs=(
+  station_snow_height_profiles
+  station_snow_height_current
+)
+
+for dir in "${required_snow_dirs[@]}"; do
+  if [[ ! -d "$dir" ]] || [[ -z "$(find "$dir" -maxdepth 1 -type f -name '*.json' -print -quit)" ]]; then
+    echo "FEHLER: Für GitHub Pages fehlen Schneehöhen-Dateien in: $dir"
+    exit 1
+  fi
+  cp -a "$dir" _site/
+done
+
+# index.html leitet große Stationsdateien normalerweise auf raw.githubusercontent
+# um. Für Schnee liegen die Dateien jetzt bewusst im Pages-Artefakt und werden
+# deshalb same-origin geladen.
+python - <<'PY'
+from pathlib import Path
+
+path = Path("_site/index.html")
+text = path.read_text(encoding="utf-8")
+entries = [
+    '  "station_snow_height_index.json",\n',
+    '  "station_snow_height_current_index.json",\n',
+    '  "station_snow_height_profiles/",\n',
+    '  "station_snow_height_current/",\n',
+]
+for entry in entries:
+    if entry not in text:
+        raise SystemExit(f"FEHLER: Snow-Raw-Prefix fehlt in index.html: {entry.strip()}")
+    text = text.replace(entry, "", 1)
+path.write_text(text, encoding="utf-8")
+PY
 
 required_data_files=(
   data/dwd_decade_records.json
@@ -84,6 +123,8 @@ cp -a europe_stations _site/
 
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
+echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
+echo "Aktuelle Schneehöhen: $(find _site/station_snow_height_current -type f -name '*.json' | wc -l) Dateien"
 echo "Europa-Stationsdaten: $(find _site/europe_stations -type f | wc -l) Dateien"
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
