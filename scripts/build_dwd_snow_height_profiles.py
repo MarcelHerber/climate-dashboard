@@ -40,13 +40,15 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from station_calendar_frequency import build_calendar_frequency_payload
+
 CACHE_DIR = Path(".cache/dwd-snow-height/history_v1")
 CACHE_MANIFEST = Path(".cache/dwd-snow-height/history_manifest_v1.json")
 
 OUTPUT_DIR = Path("station_snow_height_profiles")
 OUTPUT_INDEX = Path("station_snow_height_index.json")
 
-PROFILE_VERSION = 1
+PROFILE_VERSION = 2
 QUALITY_THRESHOLD = 0.98
 MIN_ACCEPTED_HISTORY_YEARS = 30
 REFERENCE_START = 1991
@@ -409,6 +411,11 @@ def profile_from_cache(
 
     climatology, reference_year_count = build_daily_climatology(accepted)
 
+    snow_by_day: dict[date, float] = {}
+    for values in accepted.values():
+        snow_by_day.update(values)
+    calendar_frequency = build_calendar_frequency_payload({}, snow_by_day)["snow"]
+
     record_max = max(
         (
             summary["max_cm"]
@@ -461,6 +468,7 @@ def profile_from_cache(
         ],
         "daily": climatology,
         "annual": annual,
+        "calendar_frequency": calendar_frequency,
         "records": {
             "max_snow_depth_cm": record_max,
             "hydrological_years": record_years,

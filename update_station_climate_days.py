@@ -16,6 +16,7 @@ from statistics import median
 from typing import Any
 
 from dwd_common import atomic_write_json, download, read_json
+from station_calendar_frequency import build_calendar_frequency_payload
 from update_station_records import (
     HISTORICAL_PATTERN,
     HISTORICAL_URL,
@@ -31,7 +32,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 10
+STATE_VERSION = 11
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -916,6 +917,14 @@ def build_profile_payload(
     gts_payload = build_gts_payload(tmean_by_day or {}, current_year)
     warmth_payload = build_warmth_sum_payload(tmean_by_day or {}, current_year)
     cold_payload = build_cold_sum_payload(tmean_by_day or {}, current_year)
+    tx_by_day: dict[date, float] = {}
+    for observation in observations:
+        if observation.day.year >= current_year:
+            continue
+        tx, _tn = observation_temperatures(observation)
+        if tx is not None:
+            tx_by_day[observation.day] = float(tx)
+    calendar_temperature_frequency = build_calendar_frequency_payload(tx_by_day, {})["temperature"]
 
     # Nur ausreichend vollständige Gesamtjahre ausgeben. Auch Jahre ohne
     # Ereignis werden mit leerer Liste gespeichert, damit eine Nullkurve
@@ -980,6 +989,7 @@ def build_profile_payload(
             "warmth": warmth_payload,
             "cold": cold_payload,
         },
+        "calendar_frequency": {"temperature": calendar_temperature_frequency},
     }
     return profile, payload
 
