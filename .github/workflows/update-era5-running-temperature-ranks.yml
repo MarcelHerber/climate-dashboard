@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: era5-running-temperature-ranks
@@ -34,6 +35,7 @@ jobs:
     outputs:
       needed: ${{ steps.target.outputs.needed }}
       target_date: ${{ steps.target.outputs.target_date }}
+      latest_date: ${{ steps.target.outputs.latest_date }}
       target_year: ${{ steps.target.outputs.target_year }}
       target_month: ${{ steps.target.outputs.target_month }}
       history_end: ${{ steps.target.outputs.history_end }}
@@ -81,27 +83,41 @@ jobs:
         run: |
           python - <<'PY'
           import json, os
+          from datetime import date, timedelta
           from pathlib import Path
 
           history_start = 1950
-          target = str(os.environ['PROBED_TARGET'])
-          year = int(target[:4])
-          month = int(target[5:7])
+          latest = str(os.environ['PROBED_TARGET'])
+          latest_day = date.fromisoformat(latest)
+          p = Path('era5_land_europe/running/temperature_ranks/index.json')
+          old = json.loads(p.read_text(encoding='utf-8')).get('data_through') if p.exists() else None
+          force = os.environ.get('FORCE_INPUT', 'false').lower() == 'true'
+
+          if old:
+              old_day = date.fromisoformat(old)
+          else:
+              old_day = None
+
+          if old_day is not None and old_day < latest_day:
+              # Immer genau den ältesten noch fehlenden Tag rechnen. Nach erfolgreichem
+              # Finalize stößt der Workflow den nächsten fehlenden Tag automatisch an.
+              target_day = min(old_day + timedelta(days=1), latest_day)
+              needed = True
+          else:
+              target_day = latest_day
+              needed = force or old != latest
+
+          target = target_day.isoformat()
+          year = target_day.year
+          month = target_day.month
           years = list(range(history_start, year))
           if not years:
               needed = False
-          else:
-              p = Path('era5_land_europe/running/temperature_ranks/index.json')
-              old = json.loads(p.read_text(encoding='utf-8')).get('data_through') if p.exists() else None
-              force = (
-                  os.environ.get('FORCE_INPUT', 'false').lower() == 'true'
-                  or os.environ.get('GITHUB_EVENT_NAME') == 'push'
-              )
-              needed = force or old != target
 
           out = Path(os.environ['GITHUB_OUTPUT'])
           with out.open('a', encoding='utf-8') as fh:
               fh.write(f'target_date={target}\n')
+              fh.write(f'latest_date={latest}\n')
               fh.write(f'target_year={year}\n')
               fh.write(f'target_month={month:02d}\n')
               fh.write(f'history_end={year - 1}\n')
@@ -109,7 +125,9 @@ jobs:
               fh.write('history_years=' + json.dumps(years, separators=(',', ':')) + '\n')
               fh.write(f'needed={str(needed).lower()}\n')
           print(
-              'Temperatur-Datenstand:', target,
+              'Temperatur-Datenstand verfügbar:', latest,
+              'zu berechnender Tag:', target,
+              'bisheriger Stand:', old,
               'Historie:', f'{history_start}–{year - 1}',
               'Jahre:', len(years),
               'Build nötig:', needed,
@@ -293,3 +311,27 @@ jobs:
           git commit -m "ERA5 laufende Temperatur-Rangkarten aktualisiert"
           git pull --rebase origin main
           git push origin HEAD:main
+
+  continue-backlog:
+    needs: [prepare, finalize]
+    if: >-
+      always() &&
+      needs.finalize.result == 'success' &&
+      needs.prepare.outputs.target_date != needs.prepare.outputs.latest_date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nächsten fehlenden ERA5-Land-Tag anstoßen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Fertig: ${{ needs.prepare.outputs.target_date }}; verfügbar bis: ${{ needs.prepare.outputs.latest_date }}"
+          curl --fail-with-body -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/update-era5-running-temperature-ranks.yml/dispatches \
+            -d '{"ref":"main","inputs":{"force":"false"}}'
+          echo "Nächster fehlender Tag wurde angestoßen."
