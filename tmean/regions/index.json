@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "method_version": 1,
+  "parameter": "tmean",
+  "label": "2-m-Temperaturmittel",
+  "unit": "°C",
+  "reference": "1991-2020",
+  "year": 2026,
+  "data_through": "2026-09-05",
+  "regions": [
+    "Deutschland",
+    "Baden-Württemberg",
+    "Bayern",
+    "Berlin",
+    "Brandenburg",
+    "Bremen",
+    "Hamburg",
+    "Hessen",
+    "Mecklenburg-Vorpommern",
+    "Niedersachsen",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Saarland",
+    "Sachsen",
+    "Sachsen-Anhalt",
+    "Schleswig-Holstein",
+    "Thüringen"
+  ],
+  "current_file": "current_2026.json",
+  "climate_file": "climate_1991_2020.json",
+  "map_downloads_file": "map_downloads.json",
+  "periods": [
+    {
+      "key": "year_current",
+      "label": "Jahr aktuell 2026",
+      "start_date": "2026-01-01",
+      "end_date": "2026-09-05",
+      "map_key": "2026_ytd_live"
+    },
+    {
+      "key": "spring",
+      "label": "Frühling 2026",
+      "start_date": "2026-03-01",
+      "end_date": "2026-05-31",
+      "map_key": "2026_spring"
+    },
+    {
+      "key": "summer",
+      "label": "Sommer 2026",
+      "start_date": "2026-06-01",
+      "end_date": "2026-08-31",
+      "map_key": "2026_summer"
+    },
+    {
+      "key": "autumn",
+      "label": "Herbst aktuell 2026",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "map_key": "2026_autumn_live"
+    },
+    {
+      "key": "month_01",
+      "label": "Januar 2026",
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "map_key": "2026_01"
+    },
+    {
+      "key": "month_02",
+      "label": "Februar 2026",
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-28",
+      "map_key": "2026_02"
+    },
+    {
+      "key": "month_03",
+      "label": "März 2026",
+      "start_date": "2026-03-01",
+      "end_date": "2026-03-31",
+      "map_key": "2026_03"
+    },
+    {
+      "key": "month_04",
+      "label": "April 2026",
+      "start_date": "2026-04-01",
+      "end_date": "2026-04-30",
+      "map_key": "2026_04"
+    },
+    {
+      "key": "month_05",
+      "label": "Mai 2026",
+      "start_date": "2026-05-01",
+      "end_date": "2026-05-31",
+      "map_key": "2026_05"
+    },
+    {
+      "key": "month_06",
+      "label": "Juni 2026",
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "map_key": "2026_06"
+    },
+    {
+      "key": "month_07",
+      "label": "Juli 2026",
+      "start_date": "2026-07-01",
+      "end_date": "2026-07-31",
+      "map_key": "2026_07"
+    },
+    {
+      "key": "month_08",
+      "label": "August 2026",
+      "start_date": "2026-08-01",
+      "end_date": "2026-08-31",
+      "map_key": "2026_08"
+    },
+    {
+      "key": "month_09",
+      "label": "September aktuell 2026",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "map_key": "2026_09_live"
+    }
+  ],
+  "method_note": "HYRAS-DE-TAS: tägliches räumliches Mittel aller 1-km-Gitterzellen mit Zellmittelpunkt im jeweiligen Bundesland; Deutschland ist die Vereinigung der 16 Landesmasken. Klimakurve: Mittel der täglichen Gebietsmittel 1991–2020.",
+  "records_file": "daily_records.json",
+  "records_first_year": 1951,
+  "records_last_year": 2025,
+  "records_note": "Historische tägliche absolute Maxima und Minima der HYRAS-Tmean-Gebietsmittel. Pro Kalendertag werden alle Jahre 1951–2025 verglichen; bei exakt gleichen Gebietsmitteln werden alle Rekordjahre gespeichert."
+}

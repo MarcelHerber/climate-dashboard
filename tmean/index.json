@@ -1,0 +1,506 @@
+{
+  "schema_version": 1,
+  "parameter": "tmean",
+  "label": "2-m-Temperaturmittel",
+  "unit": "°C",
+  "reference": "1991-2020",
+  "data_through": "2026-09-05",
+  "year": 2026,
+  "latest_complete_month": 8,
+  "grid_1km": {
+    "width": 665,
+    "height": 890
+  },
+  "current_source_file": "tas_hyras_1_2026_v6-1_de.nc",
+  "periods": [
+    {
+      "key": "2026_01",
+      "label": "Januar 2026",
+      "period_type": "month",
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "live": false,
+      "absolute": "current/2026_01_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": -0.83,
+        "reference_mean_c": 0.83,
+        "anomaly_mean_k": -1.65
+      },
+      "anomaly": "current/2026_01_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_01_anomaly.i16.gz",
+        "1961-1990": "current/2026_01_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 0.83,
+          "anomaly_mean_k": -1.65
+        },
+        "1961-1990": {
+          "reference_mean_c": -0.56,
+          "anomaly_mean_k": -0.26
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_02",
+      "label": "Februar 2026",
+      "period_type": "month",
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-28",
+      "live": false,
+      "absolute": "current/2026_02_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 2.72,
+        "reference_mean_c": 1.46,
+        "anomaly_mean_k": 1.26
+      },
+      "anomaly": "current/2026_02_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_02_anomaly.i16.gz",
+        "1961-1990": "current/2026_02_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 1.46,
+          "anomaly_mean_k": 1.26
+        },
+        "1961-1990": {
+          "reference_mean_c": 0.34,
+          "anomaly_mean_k": 2.38
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_03",
+      "label": "März 2026",
+      "period_type": "month",
+      "start_date": "2026-03-01",
+      "end_date": "2026-03-31",
+      "live": false,
+      "absolute": "current/2026_03_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 6.23,
+        "reference_mean_c": 4.59,
+        "anomaly_mean_k": 1.65
+      },
+      "anomaly": "current/2026_03_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_03_anomaly.i16.gz",
+        "1961-1990": "current/2026_03_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 4.59,
+          "anomaly_mean_k": 1.65
+        },
+        "1961-1990": {
+          "reference_mean_c": 3.43,
+          "anomaly_mean_k": 2.8
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_04",
+      "label": "April 2026",
+      "period_type": "month",
+      "start_date": "2026-04-01",
+      "end_date": "2026-04-30",
+      "live": false,
+      "absolute": "current/2026_04_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 9.11,
+        "reference_mean_c": 8.9,
+        "anomaly_mean_k": 0.21
+      },
+      "anomaly": "current/2026_04_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_04_anomaly.i16.gz",
+        "1961-1990": "current/2026_04_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 8.9,
+          "anomaly_mean_k": 0.21
+        },
+        "1961-1990": {
+          "reference_mean_c": 7.28,
+          "anomaly_mean_k": 1.83
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_05",
+      "label": "Mai 2026",
+      "period_type": "month",
+      "start_date": "2026-05-01",
+      "end_date": "2026-05-31",
+      "live": false,
+      "absolute": "current/2026_05_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 13.99,
+        "reference_mean_c": 13.05,
+        "anomaly_mean_k": 0.94
+      },
+      "anomaly": "current/2026_05_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_05_anomaly.i16.gz",
+        "1961-1990": "current/2026_05_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 13.05,
+          "anomaly_mean_k": 0.94
+        },
+        "1961-1990": {
+          "reference_mean_c": 12.06,
+          "anomaly_mean_k": 1.93
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_06",
+      "label": "Juni 2026",
+      "period_type": "month",
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "live": false,
+      "absolute": "current/2026_06_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 19.33,
+        "reference_mean_c": 16.29,
+        "anomaly_mean_k": 3.03
+      },
+      "anomaly": "current/2026_06_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_06_anomaly.i16.gz",
+        "1961-1990": "current/2026_06_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 16.29,
+          "anomaly_mean_k": 3.03
+        },
+        "1961-1990": {
+          "reference_mean_c": 15.29,
+          "anomaly_mean_k": 4.04
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_07",
+      "label": "Juli 2026",
+      "period_type": "month",
+      "start_date": "2026-07-01",
+      "end_date": "2026-07-31",
+      "live": false,
+      "absolute": "current/2026_07_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 19.47,
+        "reference_mean_c": 18.27,
+        "anomaly_mean_k": 1.2
+      },
+      "anomaly": "current/2026_07_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_07_anomaly.i16.gz",
+        "1961-1990": "current/2026_07_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 18.27,
+          "anomaly_mean_k": 1.2
+        },
+        "1961-1990": {
+          "reference_mean_c": 16.87,
+          "anomaly_mean_k": 2.6
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_08",
+      "label": "August 2026",
+      "period_type": "month",
+      "start_date": "2026-08-01",
+      "end_date": "2026-08-31",
+      "live": false,
+      "absolute": "current/2026_08_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 19.68,
+        "reference_mean_c": 17.91,
+        "anomaly_mean_k": 1.78
+      },
+      "anomaly": "current/2026_08_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_08_anomaly.i16.gz",
+        "1961-1990": "current/2026_08_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 17.91,
+          "anomaly_mean_k": 1.78
+        },
+        "1961-1990": {
+          "reference_mean_c": 16.44,
+          "anomaly_mean_k": 3.25
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_spring",
+      "label": "Frühling 2026",
+      "period_type": "season",
+      "start_date": "2026-03-01",
+      "end_date": "2026-05-31",
+      "live": false,
+      "absolute": "current/2026_spring_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 9.78,
+        "reference_mean_c": 8.84,
+        "anomaly_mean_k": 0.94
+      },
+      "anomaly": "current/2026_spring_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_spring_anomaly.i16.gz",
+        "1961-1990": "current/2026_spring_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 8.84,
+          "anomaly_mean_k": 0.94
+        },
+        "1961-1990": {
+          "reference_mean_c": 7.59,
+          "anomaly_mean_k": 2.19
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_summer",
+      "label": "Sommer 2026",
+      "period_type": "season",
+      "start_date": "2026-06-01",
+      "end_date": "2026-08-31",
+      "live": false,
+      "absolute": "current/2026_summer_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 19.49,
+        "reference_mean_c": 17.5,
+        "anomaly_mean_k": 1.99
+      },
+      "anomaly": "current/2026_summer_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_summer_anomaly.i16.gz",
+        "1961-1990": "current/2026_summer_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 17.5,
+          "anomaly_mean_k": 1.99
+        },
+        "1961-1990": {
+          "reference_mean_c": 16.21,
+          "anomaly_mean_k": 3.29
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_ytd_complete",
+      "label": "Jahr bisher 2026 · vollständige Monate",
+      "period_type": "ytd_complete",
+      "start_date": "2026-01-01",
+      "end_date": "2026-08-31",
+      "live": false,
+      "absolute": "current/2026_ytd_complete_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 11.29,
+        "reference_mean_c": 10.25,
+        "anomaly_mean_k": 1.04
+      },
+      "anomaly": "current/2026_ytd_complete_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_ytd_complete_anomaly.i16.gz",
+        "1961-1990": "current/2026_ytd_complete_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 10.25,
+          "anomaly_mean_k": 1.04
+        },
+        "1961-1990": {
+          "reference_mean_c": 8.98,
+          "anomaly_mean_k": 2.31
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_09_live",
+      "label": "September aktuell 2026",
+      "period_type": "month_live",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "live": true,
+      "absolute": "current/2026_09_live_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 17.61,
+        "reference_mean_c": 15.23,
+        "anomaly_mean_k": 2.38
+      },
+      "reference_note": "Tagesgenauer Vergleich mit demselben Kalenderabschnitt des HYRAS-Mittels 1991–2020.",
+      "anomaly": "current/2026_09_live_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_09_live_anomaly.i16.gz",
+        "1961-1990": "current/2026_09_live_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 15.23,
+          "anomaly_mean_k": 2.38
+        },
+        "1961-1990": {
+          "reference_mean_c": 14.88,
+          "anomaly_mean_k": 2.73
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_autumn_live",
+      "label": "Herbst aktuell 2026",
+      "period_type": "season_live",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "live": true,
+      "absolute": "current/2026_autumn_live_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 17.61,
+        "reference_mean_c": 15.23,
+        "anomaly_mean_k": 2.38
+      },
+      "reference_note": "Tagesgenauer Vergleich mit demselben Kalenderabschnitt des HYRAS-Mittels 1991–2020.",
+      "anomaly": "current/2026_autumn_live_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_autumn_live_anomaly.i16.gz",
+        "1961-1990": "current/2026_autumn_live_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 15.23,
+          "anomaly_mean_k": 2.38
+        },
+        "1961-1990": {
+          "reference_mean_c": 14.88,
+          "anomaly_mean_k": 2.73
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_ytd_live",
+      "label": "Jahr aktuell 2026",
+      "period_type": "ytd_live",
+      "start_date": "2026-01-01",
+      "end_date": "2026-09-05",
+      "live": true,
+      "absolute": "current/2026_ytd_live_absolute.i16.gz",
+      "reference_exact": true,
+      "stats": {
+        "current_mean_c": 11.42,
+        "reference_mean_c": 10.35,
+        "anomaly_mean_k": 1.07
+      },
+      "reference_note": "Tagesgenauer Vergleich mit demselben Kalenderabschnitt des HYRAS-Mittels 1991–2020.",
+      "anomaly": "current/2026_ytd_live_anomaly.i16.gz",
+      "anomaly_by_reference": {
+        "1991-2020": "current/2026_ytd_live_anomaly.i16.gz",
+        "1961-1990": "current/2026_ytd_live_anomaly_1961_1990.i16.gz"
+      },
+      "stats_by_reference": {
+        "1991-2020": {
+          "reference_mean_c": 10.35,
+          "anomaly_mean_k": 1.07
+        },
+        "1961-1990": {
+          "reference_mean_c": 9.1,
+          "anomaly_mean_k": 2.32
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    }
+  ],
+  "history_manifest": "history_5km/manifest.json",
+  "history_first_year": 1951,
+  "history_last_year": 2025,
+  "history_resolution_km": 5,
+  "note": "Stufe 1: Tmean-Datenbasis. Vollständige Monate besitzen exakte HYRAS-1991–2020-Monatsreferenzen; laufende Teilzeiträume werden zunächst absolut veröffentlicht. Frontend-Integration folgt im nächsten Schritt.",
+  "references": [
+    "1991-2020",
+    "1961-1990"
+  ],
+  "default_reference": "1991-2020"
+}

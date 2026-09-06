@@ -1,0 +1,745 @@
+{
+  "schema_version": 8,
+  "product": "DWD HYRAS-DE-PR",
+  "resolution_km": 1,
+  "reference": "1991-2020",
+  "data_through": "2026-09-05",
+  "daily_source_file": "pr_hyras_1_2026_v6-1_de.nc",
+  "data_crs": "EPSG:3035",
+  "year": 2026,
+  "latest_complete_month": 8,
+  "default_period": "2026_autumn_live",
+  "periods": [
+    {
+      "key": "2026_01",
+      "label": "Januar 2026",
+      "period_type": "month",
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "date_label": "01.01.–31.01.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_01_sum.png",
+        "percent": "hyras_2026_01_percent_1991_2020.png",
+        "anomaly": "hyras_2026_01_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_01_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_01_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_01_reference.png",
+          "1961-1990": "interactive/presets/2026_01_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 46.3,
+        "reference_mean_mm": 64.1,
+        "percent_of_reference": 72.3,
+        "anomaly_mean_mm": -17.8
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JAN.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 46.3,
+          "reference_mean_mm": 64.1,
+          "percent_of_reference": 72.3,
+          "anomaly_mean_mm": -17.8
+        },
+        "1961-1990": {
+          "current_mean_mm": 46.3,
+          "reference_mean_mm": 59.3,
+          "percent_of_reference": 78.1,
+          "anomaly_mean_mm": -13.0
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_02",
+      "label": "Februar 2026",
+      "period_type": "month",
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-28",
+      "date_label": "01.02.–28.02.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_02_sum.png",
+        "percent": "hyras_2026_02_percent_1991_2020.png",
+        "anomaly": "hyras_2026_02_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_02_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_02_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_02_reference.png",
+          "1961-1990": "interactive/presets/2026_02_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 71.4,
+        "reference_mean_mm": 52.0,
+        "percent_of_reference": 137.3,
+        "anomaly_mean_mm": 19.4
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_FEB.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 71.4,
+          "reference_mean_mm": 52.0,
+          "percent_of_reference": 137.3,
+          "anomaly_mean_mm": 19.4
+        },
+        "1961-1990": {
+          "current_mean_mm": 71.4,
+          "reference_mean_mm": 48.8,
+          "percent_of_reference": 146.5,
+          "anomaly_mean_mm": 22.7
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_03",
+      "label": "März 2026",
+      "period_type": "month",
+      "start_date": "2026-03-01",
+      "end_date": "2026-03-31",
+      "date_label": "01.03.–31.03.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_03_sum.png",
+        "percent": "hyras_2026_03_percent_1991_2020.png",
+        "anomaly": "hyras_2026_03_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_03_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_03_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_03_reference.png",
+          "1961-1990": "interactive/presets/2026_03_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 35.6,
+        "reference_mean_mm": 56.0,
+        "percent_of_reference": 63.5,
+        "anomaly_mean_mm": -20.4
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_MAR.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 35.6,
+          "reference_mean_mm": 56.0,
+          "percent_of_reference": 63.5,
+          "anomaly_mean_mm": -20.4
+        },
+        "1961-1990": {
+          "current_mean_mm": 35.6,
+          "reference_mean_mm": 55.7,
+          "percent_of_reference": 63.9,
+          "anomaly_mean_mm": -20.1
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_04",
+      "label": "April 2026",
+      "period_type": "month",
+      "start_date": "2026-04-01",
+      "end_date": "2026-04-30",
+      "date_label": "01.04.–30.04.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_04_sum.png",
+        "percent": "hyras_2026_04_percent_1991_2020.png",
+        "anomaly": "hyras_2026_04_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_04_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_04_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_04_reference.png",
+          "1961-1990": "interactive/presets/2026_04_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 26.1,
+        "reference_mean_mm": 44.2,
+        "percent_of_reference": 59.0,
+        "anomaly_mean_mm": -18.1
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_APR.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 26.1,
+          "reference_mean_mm": 44.2,
+          "percent_of_reference": 59.0,
+          "anomaly_mean_mm": -18.1
+        },
+        "1961-1990": {
+          "current_mean_mm": 26.1,
+          "reference_mean_mm": 57.0,
+          "percent_of_reference": 45.7,
+          "anomaly_mean_mm": -31.0
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_05",
+      "label": "Mai 2026",
+      "period_type": "month",
+      "start_date": "2026-05-01",
+      "end_date": "2026-05-31",
+      "date_label": "01.05.–31.05.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_05_sum.png",
+        "percent": "hyras_2026_05_percent_1991_2020.png",
+        "anomaly": "hyras_2026_05_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_05_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_05_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_05_reference.png",
+          "1961-1990": "interactive/presets/2026_05_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 66.5,
+        "reference_mean_mm": 69.0,
+        "percent_of_reference": 96.3,
+        "anomaly_mean_mm": -2.5
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_MAY.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 66.5,
+          "reference_mean_mm": 69.0,
+          "percent_of_reference": 96.3,
+          "anomaly_mean_mm": -2.5
+        },
+        "1961-1990": {
+          "current_mean_mm": 66.5,
+          "reference_mean_mm": 70.5,
+          "percent_of_reference": 94.3,
+          "anomaly_mean_mm": -4.0
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_06",
+      "label": "Juni 2026",
+      "period_type": "month",
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "date_label": "01.06.–30.06.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_06_sum.png",
+        "percent": "hyras_2026_06_percent_1991_2020.png",
+        "anomaly": "hyras_2026_06_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_06_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_06_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_06_reference.png",
+          "1961-1990": "interactive/presets/2026_06_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 66.3,
+        "reference_mean_mm": 75.0,
+        "percent_of_reference": 88.4,
+        "anomaly_mean_mm": -8.7
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JUN.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 66.3,
+          "reference_mean_mm": 75.0,
+          "percent_of_reference": 88.4,
+          "anomaly_mean_mm": -8.7
+        },
+        "1961-1990": {
+          "current_mean_mm": 66.3,
+          "reference_mean_mm": 83.3,
+          "percent_of_reference": 79.6,
+          "anomaly_mean_mm": -17.0
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_07",
+      "label": "Juli 2026",
+      "period_type": "month",
+      "start_date": "2026-07-01",
+      "end_date": "2026-07-31",
+      "date_label": "01.07.–31.07.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_07_sum.png",
+        "percent": "hyras_2026_07_percent_1991_2020.png",
+        "anomaly": "hyras_2026_07_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_07_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_07_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_07_reference.png",
+          "1961-1990": "interactive/presets/2026_07_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 44.0,
+        "reference_mean_mm": 86.3,
+        "percent_of_reference": 51.0,
+        "anomaly_mean_mm": -42.3
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JUL.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 44.0,
+          "reference_mean_mm": 86.3,
+          "percent_of_reference": 51.0,
+          "anomaly_mean_mm": -42.3
+        },
+        "1961-1990": {
+          "current_mean_mm": 44.0,
+          "reference_mean_mm": 76.9,
+          "percent_of_reference": 57.3,
+          "anomaly_mean_mm": -32.8
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_08",
+      "label": "August 2026",
+      "period_type": "month",
+      "start_date": "2026-08-01",
+      "end_date": "2026-08-31",
+      "date_label": "01.08.–31.08.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_08_sum.png",
+        "percent": "hyras_2026_08_percent_1991_2020.png",
+        "anomaly": "hyras_2026_08_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_08_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_08_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_08_reference.png",
+          "1961-1990": "interactive/presets/2026_08_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 60.5,
+        "reference_mean_mm": 77.5,
+        "percent_of_reference": 78.1,
+        "anomaly_mean_mm": -17.0
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_AUG.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 60.5,
+          "reference_mean_mm": 77.5,
+          "percent_of_reference": 78.1,
+          "anomaly_mean_mm": -17.0
+        },
+        "1961-1990": {
+          "current_mean_mm": 60.5,
+          "reference_mean_mm": 76.6,
+          "percent_of_reference": 79.0,
+          "anomaly_mean_mm": -16.1
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_spring",
+      "label": "Frühling 2026",
+      "period_type": "season",
+      "start_date": "2026-03-01",
+      "end_date": "2026-05-31",
+      "date_label": "01.03.–31.05.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_spring_sum.png",
+        "percent": "hyras_2026_spring_percent_1991_2020.png",
+        "anomaly": "hyras_2026_spring_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_spring_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_spring_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_spring_reference.png",
+          "1961-1990": "interactive/presets/2026_spring_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 120.9,
+        "reference_mean_mm": 169.2,
+        "percent_of_reference": 71.4,
+        "anomaly_mean_mm": -48.4
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_MAR.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_APR.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_MAY.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 120.9,
+          "reference_mean_mm": 169.2,
+          "percent_of_reference": 71.4,
+          "anomaly_mean_mm": -48.4
+        },
+        "1961-1990": {
+          "current_mean_mm": 120.9,
+          "reference_mean_mm": 183.2,
+          "percent_of_reference": 66.0,
+          "anomaly_mean_mm": -62.4
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_summer",
+      "label": "Sommer 2026",
+      "period_type": "season",
+      "start_date": "2026-06-01",
+      "end_date": "2026-08-31",
+      "date_label": "01.06.–31.08.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": null,
+      "outputs": {
+        "sum": "hyras_2026_summer_sum.png",
+        "percent": "hyras_2026_summer_percent_1991_2020.png",
+        "anomaly": "hyras_2026_summer_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_summer_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_summer_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_summer_reference.png",
+          "1961-1990": "interactive/presets/2026_summer_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 167.1,
+        "reference_mean_mm": 238.7,
+        "percent_of_reference": 70.0,
+        "anomaly_mean_mm": -71.6
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JUN.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_JUL.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_AUG.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 167.1,
+          "reference_mean_mm": 238.7,
+          "percent_of_reference": 70.0,
+          "anomaly_mean_mm": -71.6
+        },
+        "1961-1990": {
+          "current_mean_mm": 167.1,
+          "reference_mean_mm": 236.8,
+          "percent_of_reference": 70.6,
+          "anomaly_mean_mm": -69.6
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_summer_so_far_complete",
+      "label": "Sommer bisher 2026",
+      "period_type": "summer_so_far_complete",
+      "start_date": "2026-06-01",
+      "end_date": "2026-08-31",
+      "date_label": "01.06.–31.08.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": "Exakter Vergleich 1991–2020 über vollständig abgeschlossene Kalendermonate.",
+      "outputs": {
+        "sum": "hyras_2026_summer_so_far_complete_sum.png",
+        "percent": "hyras_2026_summer_so_far_complete_percent_1991_2020.png",
+        "anomaly": "hyras_2026_summer_so_far_complete_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_summer_so_far_complete_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_summer_so_far_complete_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_summer_so_far_complete_reference.png",
+          "1961-1990": "interactive/presets/2026_summer_so_far_complete_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 167.1,
+        "reference_mean_mm": 238.7,
+        "percent_of_reference": 70.0,
+        "anomaly_mean_mm": -71.6
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JUN.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_JUL.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_AUG.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 167.1,
+          "reference_mean_mm": 238.7,
+          "percent_of_reference": 70.0,
+          "anomaly_mean_mm": -71.6
+        },
+        "1961-1990": {
+          "current_mean_mm": 167.1,
+          "reference_mean_mm": 236.8,
+          "percent_of_reference": 70.6,
+          "anomaly_mean_mm": -69.6
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_ytd_complete",
+      "label": "Jahr bisher 2026",
+      "period_type": "ytd_complete",
+      "start_date": "2026-01-01",
+      "end_date": "2026-08-31",
+      "date_label": "01.01.–31.08.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "reference_note": "Exakter Vergleich 1991–2020 über vollständig abgeschlossene Kalendermonate.",
+      "outputs": {
+        "sum": "hyras_2026_ytd_complete_sum.png",
+        "percent": "hyras_2026_ytd_complete_percent_1991_2020.png",
+        "anomaly": "hyras_2026_ytd_complete_anomaly_mm_1991_2020.png"
+      },
+      "interactive": {
+        "current": "interactive/presets/2026_ytd_complete_current.png",
+        "value_scale": 10,
+        "reference": "interactive/presets/2026_ytd_complete_reference.png",
+        "references": {
+          "1991-2020": "interactive/presets/2026_ytd_complete_reference.png",
+          "1961-1990": "interactive/presets/2026_ytd_complete_reference_1961_1990.png"
+        }
+      },
+      "stats": {
+        "current_mean_mm": 413.1,
+        "reference_mean_mm": 524.2,
+        "percent_of_reference": 78.8,
+        "anomaly_mean_mm": -111.1
+      },
+      "climatology_source_files": [
+        "pr_hyras_1_1991_2020_v6-1_de_JAN.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_FEB.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_MAR.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_APR.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_MAY.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_JUN.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_JUL.nc",
+        "pr_hyras_1_1991_2020_v6-1_de_AUG.nc"
+      ],
+      "stats_by_reference": {
+        "1991-2020": {
+          "current_mean_mm": 413.1,
+          "reference_mean_mm": 524.2,
+          "percent_of_reference": 78.8,
+          "anomaly_mean_mm": -111.1
+        },
+        "1961-1990": {
+          "current_mean_mm": 413.1,
+          "reference_mean_mm": 528.1,
+          "percent_of_reference": 78.2,
+          "anomaly_mean_mm": -115.0
+        }
+      },
+      "references": [
+        "1991-2020",
+        "1961-1990"
+      ]
+    },
+    {
+      "key": "2026_09_live",
+      "label": "September aktuell 2026",
+      "period_type": "month_live",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "date_label": "01.09.–05.09.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "daily_live": true,
+      "reference_note": "Tagesgenauer Vergleich mit exakt demselben Kalenderabschnitt des Mittels 1991–2020. Der laufende Monat wird aus den jeweils verfügbaren HYRAS-Tagesrastern ergänzt.",
+      "outputs": {
+        "sum": "__daily_live__",
+        "percent": "__daily_live__",
+        "anomaly": "__daily_live__"
+      },
+      "interactive": {
+        "daily_live": true
+      },
+      "stats": {
+        "current_mean_mm": null,
+        "reference_mean_mm": null,
+        "percent_of_reference": null,
+        "anomaly_mean_mm": null
+      }
+    },
+    {
+      "key": "2026_autumn_live",
+      "label": "Herbst aktuell 2026",
+      "period_type": "season_live",
+      "start_date": "2026-09-01",
+      "end_date": "2026-09-05",
+      "date_label": "01.09.–05.09.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "daily_live": true,
+      "reference_note": "Tagesgenauer Vergleich mit exakt demselben Kalenderabschnitt des Mittels 1991–2020. Der laufende Monat wird aus den jeweils verfügbaren HYRAS-Tagesrastern ergänzt.",
+      "outputs": {
+        "sum": "__daily_live__",
+        "percent": "__daily_live__",
+        "anomaly": "__daily_live__"
+      },
+      "interactive": {
+        "daily_live": true
+      },
+      "stats": {
+        "current_mean_mm": null,
+        "reference_mean_mm": null,
+        "percent_of_reference": null,
+        "anomaly_mean_mm": null
+      }
+    },
+    {
+      "key": "2026_ytd_live",
+      "label": "Jahr aktuell 2026",
+      "period_type": "ytd_live",
+      "start_date": "2026-01-01",
+      "end_date": "2026-09-05",
+      "date_label": "01.01.–05.09.2026",
+      "reference": "1991-2020",
+      "reference_exact": true,
+      "daily_live": true,
+      "reference_note": "Tagesgenauer Vergleich mit exakt demselben Kalenderabschnitt des Mittels 1991–2020. Der laufende Monat wird aus den jeweils verfügbaren HYRAS-Tagesrastern ergänzt.",
+      "outputs": {
+        "sum": "__daily_live__",
+        "percent": "__daily_live__",
+        "anomaly": "__daily_live__"
+      },
+      "interactive": {
+        "daily_live": true
+      },
+      "stats": {
+        "current_mean_mm": null,
+        "reference_mean_mm": null,
+        "percent_of_reference": null,
+        "anomaly_mean_mm": null
+      }
+    }
+  ],
+  "web_manifest": "hyras_web_manifest.json",
+  "web_sampling_km": 2,
+  "historical_manifest": "hyras_historical_manifest.json",
+  "historical_first_year": 1931,
+  "historical_last_year": 2025,
+  "historical_resolution_km": 1,
+  "interactive": {
+    "boundary_overlay_1km": "interactive/boundaries_1km.png",
+    "geo_lookup_1km": "interactive/geo_lookup_1km.json"
+  },
+  "note": "Version 15.5: Laufender Monat, aktuelle Jahreszeit und Jahr werden täglich bis zum HYRAS-Datenstand fortgeschrieben und tagesgenau mit 1991–2020 verglichen. Abgeschlossene Presets und Historie bleiben auf 1 km; laufende Tageszeiträume nutzen das 2-km-Webraster.",
+  "references": [
+    "1991-2020",
+    "1961-1990"
+  ],
+  "default_reference": "1991-2020"
+}
