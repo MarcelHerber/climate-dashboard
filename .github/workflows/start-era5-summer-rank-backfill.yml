@@ -1,0 +1,25 @@
+name: ERA5 Sommer-Rangarchiv Backfill starten
+
+on:
+  push:
+    paths:
+      - ".github/workflows/start-era5-summer-rank-backfill.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Juni-Backfill starten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run backfill-era5-running-temperature-ranks.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            -f month=06
+          echo "ERA5 Temperatur-Rangarchiv: Juni 2026 angestoßen. Der bestehende Monats-Backfill führt anschließend seriell mit den Folgemonaten weiter."
