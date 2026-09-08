@@ -138,7 +138,7 @@ jobs:
           name: era5-rank-backfill-current-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}
           path: .era5_running_rank_backfill_current/*.npz
           if-no-files-found: error
-          retention-days: 4
+          retention-days: 30
           include-hidden-files: true
 
   shards:
@@ -212,7 +212,7 @@ jobs:
           name: era5-rank-backfill-${{ needs.prepare.outputs.target_year }}-${{ needs.prepare.outputs.target_month }}-${{ matrix.year }}
           path: .era5_running_rank_backfill_shards/*.npz
           if-no-files-found: error
-          retention-days: 4
+          retention-days: 30
           include-hidden-files: true
 
   finalize:
