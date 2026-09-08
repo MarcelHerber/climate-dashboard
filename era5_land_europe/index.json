@@ -1,9 +1,9 @@
 {
   "ready": true,
   "payload_version": 10,
-  "generated_at": "2026-09-07T19:29:48+00:00",
-  "latest_month_key": "2026-07",
-  "data_through": "2026-07-31",
+  "generated_at": "2026-09-08T15:47:01+00:00",
+  "latest_month_key": "2026-08",
+  "data_through": "2026-08-31",
   "reference_period": "1991–2020",
   "dataset": "reanalysis-era5-land-monthly-means",
   "source": "Copernicus Climate Change Service / ECMWF · ERA5-Land monthly averaged data",
@@ -84,7 +84,8 @@
       4,
       5,
       6,
-      7
+      7,
+      8
     ]
   },
   "click_geometry": {
@@ -127,10 +128,10 @@
   "periods": {
     "latest_month": {
       "id": "latest_month",
-      "label": "Juli 2026",
+      "label": "August 2026",
       "year": 2026,
       "months": [
-        7
+        8
       ],
       "temperature": {
         "absolute": {
@@ -144,9 +145,9 @@
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 20.84005826681465,
-          "reference": 19.946985903024057,
-          "difference": 0.8930723637905942
+          "current": 20.606654808837288,
+          "reference": 19.33384827647771,
+          "difference": 1.2728065323595779
         },
         "rank": {
           "file": "era5_land_europe/maps/temperature_latest_month_rank.png",
@@ -157,8 +158,8 @@
           "rank_direction": "1 = wärmster",
           "note": "Historischer Temperaturrang am 0,1°-Gitterpunkt für denselben Zeitraum 1950–2026. Rang 1 ist der wärmste Wert; die Historienfelder stammen aus dem kompakten 0,1°-Archiv.",
           "stats": {
-            "rank_area_percent": 10.347372701394258,
-            "top3_area_percent": 19.7046889929482,
+            "rank_area_percent": 12.206820842945044,
+            "top3_area_percent": 24.64162540674149,
             "valid_gridpoints": 125942
           }
         }
@@ -175,9 +176,9 @@
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 30.59470217322326,
-          "reference": 32.96583531638053,
-          "percent": 92.8073014974413
+          "current": 27.27279133134455,
+          "reference": 30.49391507774229,
+          "percent": 89.4368311245516
         }
       },
       "soil_moisture": {
@@ -204,13 +205,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.23397359320546848,
-              "reference": 0.25122584335132436,
-              "difference": -0.01725225014585588,
-              "dry_area_percent": 33.060853746805506,
-              "very_dry_area_percent": 23.19197421916225,
-              "wet_area_percent": 10.502636625900184,
-              "very_wet_area_percent": 4.058537383053063
+              "current": 0.22541488534280424,
+              "reference": 0.2464173853513263,
+              "difference": -0.02100250000852205,
+              "dry_area_percent": 38.91973355256591,
+              "very_dry_area_percent": 27.599232747835988,
+              "wet_area_percent": 13.94050277323873,
+              "very_wet_area_percent": 7.595576214740476
             }
           },
           "layer2": {
@@ -235,13 +236,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.23761369294021675,
-              "reference": 0.25770856189495756,
-              "difference": -0.020094868954740802,
-              "dry_area_percent": 35.36754554097424,
-              "very_dry_area_percent": 24.90805936491008,
-              "wet_area_percent": 11.822713240107454,
-              "very_wet_area_percent": 5.255712658768162
+              "current": 0.22942510389556978,
+              "reference": 0.24943612446126653,
+              "difference": -0.020011020565696758,
+              "dry_area_percent": 37.68655073114277,
+              "very_dry_area_percent": 28.29541989941641,
+              "wet_area_percent": 15.718147696560218,
+              "very_wet_area_percent": 8.785362062225504
             }
           },
           "layer3": {
@@ -266,13 +267,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.25291913683636114,
-              "reference": 0.2662093937586513,
-              "difference": -0.013290256922290189,
-              "dry_area_percent": 32.608342682697675,
-              "very_dry_area_percent": 24.553558821915452,
-              "wet_area_percent": 16.122852490269693,
-              "very_wet_area_percent": 9.151505726933504
+              "current": 0.23815763539917625,
+              "reference": 0.2526942431893412,
+              "difference": -0.01453660779016494,
+              "dry_area_percent": 37.30742676218253,
+              "very_dry_area_percent": 28.65227914252968,
+              "wet_area_percent": 16.37652280715908,
+              "very_wet_area_percent": 9.885360630400028
             }
           },
           "layer4": {
@@ -297,13 +298,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.31871501084588166,
-              "reference": 0.32680104390403875,
-              "difference": -0.008086033058157083,
-              "dry_area_percent": 49.36431252970508,
-              "very_dry_area_percent": 33.95017085025096,
-              "wet_area_percent": 11.261558963751742,
-              "very_wet_area_percent": 5.8055777071778305
+              "current": 0.31040423905693626,
+              "reference": 0.3187636255512315,
+              "difference": -0.00835938649429524,
+              "dry_area_percent": 47.657404257886284,
+              "very_dry_area_percent": 33.24552587454836,
+              "wet_area_percent": 11.457236741978695,
+              "very_wet_area_percent": 6.009558276227459
             }
           }
         },
@@ -328,13 +329,13 @@
           "label": "Perzentil / Dürreklasse 1991–2020"
         },
         "stats": {
-          "current": 0.23397359320546848,
-          "reference": 0.25122584335132436,
-          "difference": -0.01725225014585588,
-          "dry_area_percent": 33.060853746805506,
-          "very_dry_area_percent": 23.19197421916225,
-          "wet_area_percent": 10.502636625900184,
-          "very_wet_area_percent": 4.058537383053063
+          "current": 0.22541488534280424,
+          "reference": 0.2464173853513263,
+          "difference": -0.02100250000852205,
+          "dry_area_percent": 38.91973355256591,
+          "very_dry_area_percent": 27.599232747835988,
+          "wet_area_percent": 13.94050277323873,
+          "very_wet_area_percent": 7.595576214740476
         }
       },
       "evaporation": {
@@ -354,13 +355,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 84.57735191528165,
-          "reference": 85.58200065822162,
-          "difference": -1.0046487429399633,
-          "low_area_percent": 20.55266961256156,
-          "very_low_area_percent": 12.937147671943624,
-          "high_area_percent": 24.608004158336342,
-          "very_high_area_percent": 13.984931863500567
+          "current": 63.408234065531154,
+          "reference": 67.141005946037,
+          "difference": -3.732771880505844,
+          "low_area_percent": 31.303457992399846,
+          "very_low_area_percent": 22.67846041657881,
+          "high_area_percent": 21.920830372866334,
+          "very_high_area_percent": 11.143629020850723
         }
       },
       "runoff": {
@@ -380,13 +381,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 16.456312293431452,
-          "reference": 23.365820455201074,
-          "difference": -6.909508161769622,
-          "low_area_percent": 45.80231934793274,
-          "very_low_area_percent": 31.814437589602097,
-          "high_area_percent": 11.665128924870126,
-          "very_high_area_percent": 6.178096917411818
+          "current": 12.458842245835067,
+          "reference": 15.3205900114278,
+          "difference": -2.8617477655927335,
+          "low_area_percent": 45.186975560025935,
+          "very_low_area_percent": 32.046673405200174,
+          "high_area_percent": 11.587073698857388,
+          "very_high_area_percent": 6.694049605054713
         }
       },
       "surface_runoff": {
@@ -406,13 +407,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 2.0989673077539863,
-          "reference": 3.107018538027902,
-          "difference": -1.0080512302739155,
-          "low_area_percent": 32.3227078615296,
-          "very_low_area_percent": 21.882585057978787,
-          "high_area_percent": 17.506833946436952,
-          "very_high_area_percent": 9.138549492960445
+          "current": 1.8534734076766464,
+          "reference": 2.304498548979472,
+          "difference": -0.45102514130282545,
+          "low_area_percent": 32.5678007444944,
+          "very_low_area_percent": 18.834881104442697,
+          "high_area_percent": 18.095573596473425,
+          "very_high_area_percent": 10.844530149422544
         }
       },
       "sub_surface_runoff": {
@@ -432,13 +433,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 14.357324751727957,
-          "reference": 20.25878575098521,
-          "difference": -5.901460999257255,
-          "low_area_percent": 48.70485849881517,
-          "very_low_area_percent": 33.10277003897786,
-          "high_area_percent": 10.790092973222585,
-          "very_high_area_percent": 5.657249120064877
+          "current": 10.605348430764465,
+          "reference": 13.016075603153585,
+          "difference": -2.4107271723891195,
+          "low_area_percent": 46.970138446477385,
+          "very_low_area_percent": 32.547678899050034,
+          "high_area_percent": 11.189674476961095,
+          "very_high_area_percent": 6.063020241732232
         }
       },
       "water_balance": {
@@ -458,13 +459,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": -21.535028073455738,
-          "reference": -17.653806623262476,
-          "difference": -3.8812214501932623,
-          "low_area_percent": 24.530487321261845,
-          "very_low_area_percent": 14.183746765033803,
-          "high_area_percent": 16.341798408211446,
-          "very_high_area_percent": 8.933788528303847
+          "current": -7.210918156179146,
+          "reference": -4.306360303350849,
+          "difference": -2.9045578528282974,
+          "low_area_percent": 22.171663361264425,
+          "very_low_area_percent": 9.894079688760641,
+          "high_area_percent": 14.517536926952712,
+          "very_high_area_percent": 8.109725874246637
         }
       },
       "snow_depth": {
@@ -484,13 +485,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 12.216381725200485,
-          "reference": 12.347028019850148,
-          "difference": -0.13064629464966337,
-          "low_area_percent": 0.42775288721257265,
-          "very_low_area_percent": 0.1446523261210137,
-          "high_area_percent": 97.13865306983848,
-          "very_high_area_percent": 95.18543531302893
+          "current": 12.207694190209851,
+          "reference": 12.227291540702138,
+          "difference": -0.019597350492286836,
+          "low_area_percent": 0.05355180032680146,
+          "very_low_area_percent": 0.018493831397888683,
+          "high_area_percent": 97.79730148461951,
+          "very_high_area_percent": 96.77923749777686
         }
       },
       "snow_water_equivalent": {
@@ -510,13 +511,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 36.67789551012295,
-          "reference": 37.241376188661846,
-          "difference": -0.5634806785388946,
-          "low_area_percent": 98.47455105815459,
-          "very_low_area_percent": 98.21263787941776,
-          "high_area_percent": 0.23287345362814613,
-          "very_high_area_percent": 0.17272525711540226
+          "current": 36.63939853679971,
+          "reference": 36.7060518504511,
+          "difference": -0.06665331365138627,
+          "low_area_percent": 99.03836792607026,
+          "very_low_area_percent": 98.9125841364829,
+          "high_area_percent": 0.01308979723595885,
+          "very_high_area_percent": 0.0
         }
       },
       "snow_cover": {
@@ -536,23 +537,24 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 0.3892355550765127,
-          "reference": 0.6161592957046446,
-          "difference": -0.22692374062813186,
-          "low_area_percent": 1.421650172637217,
-          "very_low_area_percent": 0.673667466562547,
-          "high_area_percent": 0.25938433399470967,
-          "very_high_area_percent": 0.1826635004057471
+          "current": 0.3680979856589854,
+          "reference": 0.4071378190090107,
+          "difference": -0.03903983335002531,
+          "low_area_percent": 1.2963174531225874,
+          "very_low_area_percent": 0.4423253539892028,
+          "high_area_percent": 0.013001325080068958,
+          "very_high_area_percent": 0.0
         }
       }
     },
     "summer": {
       "id": "summer",
-      "label": "Sommer 2026 bisher (Juni–Juli)",
+      "label": "Sommer 2026 (Juni–August)",
       "year": 2026,
       "months": [
         6,
-        7
+        7,
+        8
       ],
       "temperature": {
         "absolute": {
@@ -566,9 +568,9 @@
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 19.983326635956228,
-          "reference": 18.649450909548904,
-          "difference": 1.3338757264073244
+          "current": 20.193361128992237,
+          "reference": 18.880065153532033,
+          "difference": 1.3132959754602034
         },
         "rank": {
           "file": "era5_land_europe/maps/temperature_summer_rank.png",
@@ -579,8 +581,8 @@
           "rank_direction": "1 = wärmster",
           "note": "Historischer Temperaturrang am 0,1°-Gitterpunkt für denselben Zeitraum 1950–2026. Rang 1 ist der wärmste Wert; die Historienfelder stammen aus dem kompakten 0,1°-Archiv.",
           "stats": {
-            "rank_area_percent": 19.827507324930387,
-            "top3_area_percent": 26.992790218264762,
+            "rank_area_percent": 22.482684668775324,
+            "top3_area_percent": 30.53004800937468,
             "valid_gridpoints": 125942
           }
         }
@@ -597,9 +599,9 @@
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 60.481757098665156,
-          "reference": 66.73753457591432,
-          "percent": 90.6262982038493
+          "current": 87.75454843000969,
+          "reference": 97.23144963622279,
+          "percent": 90.25325525674097
         }
       },
       "soil_moisture": {
@@ -626,13 +628,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.24599325702829755,
-              "reference": 0.2619574079250614,
-              "difference": -0.01596415089676384,
-              "dry_area_percent": 33.605500670166116,
-              "very_dry_area_percent": 25.658900205308193,
-              "wet_area_percent": 10.486400258096888,
-              "very_wet_area_percent": 4.242996428052659
+              "current": 0.23905924048209873,
+              "reference": 0.25672109597086806,
+              "difference": -0.017661855488769335,
+              "dry_area_percent": 39.61573585611667,
+              "very_dry_area_percent": 28.96281486654648,
+              "wet_area_percent": 12.697785834258418,
+              "very_wet_area_percent": 5.4862092369536635
             }
           },
           "layer2": {
@@ -657,13 +659,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.25246765133450827,
-              "reference": 0.2689923079957452,
-              "difference": -0.016524656661236925,
-              "dry_area_percent": 33.47345225555782,
-              "very_dry_area_percent": 23.06601820569455,
-              "wet_area_percent": 12.874796154646376,
-              "very_wet_area_percent": 6.610270948356005
+              "current": 0.2447033146974747,
+              "reference": 0.26240272441347523,
+              "difference": -0.017699409716000536,
+              "dry_area_percent": 38.00419607767238,
+              "very_dry_area_percent": 27.616003487248957,
+              "wet_area_percent": 15.136181640572277,
+              "very_wet_area_percent": 7.982740670384016
             }
           },
           "layer3": {
@@ -688,13 +690,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.26820019832836145,
-              "reference": 0.27927533615702743,
-              "difference": -0.011075137828665982,
-              "dry_area_percent": 31.564379981918833,
-              "very_dry_area_percent": 23.331830785808148,
-              "wet_area_percent": 15.378614401807155,
-              "very_wet_area_percent": 9.369193502185052
+              "current": 0.25807716081961424,
+              "reference": 0.2703186635266114,
+              "difference": -0.012241502706997143,
+              "dry_area_percent": 33.96109873494304,
+              "very_dry_area_percent": 25.498491490696225,
+              "wet_area_percent": 16.55139595443363,
+              "very_wet_area_percent": 9.92244542375622
             }
           },
           "layer4": {
@@ -719,13 +721,13 @@
               "label": "Perzentil / Dürreklasse 1991–2020"
             },
             "stats": {
-              "current": 0.32305416167074735,
-              "reference": 0.3307977213161485,
-              "difference": -0.007743559645401132,
-              "dry_area_percent": 49.06762437589342,
-              "very_dry_area_percent": 33.017446362963405,
-              "wet_area_percent": 12.032492208476318,
-              "very_wet_area_percent": 6.676896702312762
+              "current": 0.3187916877465284,
+              "reference": 0.32674275426492644,
+              "difference": -0.007951066518398053,
+              "dry_area_percent": 49.44137262524338,
+              "very_dry_area_percent": 33.863530166378446,
+              "wet_area_percent": 11.504580012317698,
+              "very_wet_area_percent": 6.15727991904758
             }
           }
         },
@@ -750,13 +752,13 @@
           "label": "Perzentil / Dürreklasse 1991–2020"
         },
         "stats": {
-          "current": 0.24599325702829755,
-          "reference": 0.2619574079250614,
-          "difference": -0.01596415089676384,
-          "dry_area_percent": 33.605500670166116,
-          "very_dry_area_percent": 25.658900205308193,
-          "wet_area_percent": 10.486400258096888,
-          "very_wet_area_percent": 4.242996428052659
+          "current": 0.23905924048209873,
+          "reference": 0.25672109597086806,
+          "difference": -0.017661855488769335,
+          "dry_area_percent": 39.61573585611667,
+          "very_dry_area_percent": 28.96281486654648,
+          "wet_area_percent": 12.697785834258418,
+          "very_wet_area_percent": 5.4862092369536635
         }
       },
       "evaporation": {
@@ -776,13 +778,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 176.8630716516948,
-          "reference": 173.97834512461046,
-          "difference": 2.8847265270843536,
-          "low_area_percent": 16.63885462088725,
-          "very_low_area_percent": 9.801666404178523,
-          "high_area_percent": 33.282858740739876,
-          "very_high_area_percent": 21.816570713972993
+          "current": 240.271305717226,
+          "reference": 241.11935107064744,
+          "difference": -0.8480453534214405,
+          "low_area_percent": 22.540790289693327,
+          "very_low_area_percent": 14.530647927717833,
+          "high_area_percent": 31.81372185744981,
+          "very_high_area_percent": 21.002443851073515
         }
       },
       "runoff": {
@@ -802,13 +804,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 44.78539678170773,
-          "reference": 60.29723577419874,
-          "difference": -15.511838992491008,
-          "low_area_percent": 46.80857497961432,
-          "very_low_area_percent": 31.38292314156655,
-          "high_area_percent": 10.570826361402476,
-          "very_high_area_percent": 5.624697704111998
+          "current": 57.24423902754279,
+          "reference": 75.61782578562654,
+          "difference": -18.373586758083746,
+          "low_area_percent": 47.738626662959156,
+          "very_low_area_percent": 32.14128506191567,
+          "high_area_percent": 9.703259769990641,
+          "very_high_area_percent": 5.4483647414387715
         }
       },
       "surface_runoff": {
@@ -828,13 +830,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 5.739574960224107,
-          "reference": 8.408812346910764,
-          "difference": -2.6692373866866577,
-          "low_area_percent": 33.16483957424567,
-          "very_low_area_percent": 21.31238397775469,
-          "high_area_percent": 11.949086330540473,
-          "very_high_area_percent": 5.469769055149756
+          "current": 7.593048367900752,
+          "reference": 10.713310895890235,
+          "difference": -3.1202625279894827,
+          "low_area_percent": 36.714932794504875,
+          "very_low_area_percent": 22.73277444717631,
+          "high_area_percent": 12.974242334080405,
+          "very_high_area_percent": 6.864318340520394
         }
       },
       "sub_surface_runoff": {
@@ -854,13 +856,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 39.04579024758815,
-          "reference": 51.88839495723945,
-          "difference": -12.842604709651297,
-          "low_area_percent": 48.1144836347838,
-          "very_low_area_percent": 32.19434879902029,
-          "high_area_percent": 11.753586727806018,
-          "very_high_area_percent": 6.7959785603512
+          "current": 49.65113867835261,
+          "reference": 64.90447056039304,
+          "difference": -15.253331882040428,
+          "low_area_percent": 48.503141200880044,
+          "very_low_area_percent": 32.794102068653956,
+          "high_area_percent": 11.453718816139112,
+          "very_high_area_percent": 6.4766715826380885
         }
       },
       "water_balance": {
@@ -880,13 +882,13 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": -52.23657599409719,
-          "reference": -36.46142330039633,
-          "difference": -15.775152693700853,
-          "low_area_percent": 30.152150324668714,
-          "very_low_area_percent": 18.312080904427045,
-          "high_area_percent": 8.693655246615426,
-          "very_high_area_percent": 3.851821597132961
+          "current": -59.447494150276334,
+          "reference": -40.76778360374718,
+          "difference": -18.67971054652915,
+          "low_area_percent": 35.05794563057231,
+          "very_low_area_percent": 19.81606634327626,
+          "high_area_percent": 9.540275698284928,
+          "very_high_area_percent": 4.7987750919517
         }
       },
       "snow_depth": {
@@ -906,12 +908,12 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 12.397701318210883,
-          "reference": 12.94938049517488,
-          "difference": -0.5516791769639973,
-          "low_area_percent": 3.4293179498440214,
-          "very_low_area_percent": 2.3045687686180703,
-          "high_area_percent": 89.72047054428263,
+          "current": 12.333677177254014,
+          "reference": 12.706067912689502,
+          "difference": -0.37239073543548784,
+          "low_area_percent": 3.483171050062446,
+          "very_low_area_percent": 2.3473692363852225,
+          "high_area_percent": 89.7062161610623,
           "very_high_area_percent": 85.41798225195383
         }
       },
@@ -932,12 +934,12 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 37.43102007322624,
-          "reference": 39.80098772581752,
-          "difference": -2.369967652591278,
-          "low_area_percent": 95.84389319937662,
-          "very_low_area_percent": 94.28166031399266,
-          "high_area_percent": 1.2424201457528312,
+          "current": 37.16427803377817,
+          "reference": 38.75812889824841,
+          "difference": -1.593850864470241,
+          "low_area_percent": 95.92165177046604,
+          "very_low_area_percent": 94.34021633296304,
+          "high_area_percent": 1.2418538286606358,
           "very_high_area_percent": 0.8522279205422028
         }
       },
@@ -958,12 +960,12 @@
           "label": "Perzentil 1991–2020"
         },
         "stats": {
-          "current": 0.7464601924483344,
-          "reference": 1.4338566078856319,
-          "difference": -0.6873964154372975,
-          "low_area_percent": 7.441351564067045,
-          "very_low_area_percent": 4.731514321234691,
-          "high_area_percent": 1.3304574415533166,
+          "current": 0.6189685792910538,
+          "reference": 1.087897015981553,
+          "difference": -0.46892843669049933,
+          "low_area_percent": 7.6052840558689745,
+          "very_low_area_percent": 4.872077969498747,
+          "high_area_percent": 1.3287584902767302,
           "very_high_area_percent": 0.9081432993433286
         }
       }
@@ -1411,16 +1413,66 @@
     },
     "month_08": {
       "id": "month_08",
-      "label": "August",
-      "year": 2025,
+      "label": "August 2026",
+      "year": 2026,
       "months": [
         8
       ],
-      "historical_only": true,
+      "historical_only": false,
+      "tp_month_current": true,
+      "analysis_ready": false,
       "parameters": [
         "temperature",
         "precipitation"
-      ]
+      ],
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/maps/temperature_month_08_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/maps/temperature_month_08_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 20.606654808837288,
+          "reference": 19.33384827553907,
+          "difference": 1.272806533298219
+        },
+        "rank": {
+          "file": "era5_land_europe/maps/temperature_month_08_rank.png",
+          "unit": "Rang",
+          "label": "Historischer Rang 1950–2026",
+          "history_start": 1950,
+          "history_end": 2026,
+          "rank_direction": "1 = wärmster",
+          "note": "Historischer Temperaturrang am 0,1°-Gitterpunkt für denselben Zeitraum 1950–2026. Rang 1 ist der wärmste Wert; die Historienfelder stammen aus dem kompakten 0,1°-Archiv.",
+          "stats": {
+            "rank_area_percent": 12.206820842945044,
+            "top3_area_percent": 24.64162540674149,
+            "valid_gridpoints": 125942
+          }
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/maps/precipitation_month_08_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/maps/precipitation_month_08_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 56.197315909352,
+          "reference": 62.83464563858393,
+          "percent": 89.43683112751376
+        }
+      }
     },
     "month_09": {
       "id": "month_09",
@@ -1473,111 +1525,6 @@
         "temperature",
         "precipitation"
       ]
-    },
-    "running_month": {
-      "id": "running_month",
-      "label": "August 2026 bis 25.08.",
-      "date_start": "2026-08-01",
-      "date_end": "2026-08-25",
-      "year": 2026,
-      "partial_daily": true,
-      "temperature": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_absolute.png",
-          "unit": "°C",
-          "label": "Temperatur"
-        },
-        "anomaly": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_anomaly.png",
-          "unit": "K",
-          "label": "Abweichung 1991–2020"
-        },
-        "stats": {
-          "current": 20.95711693196512,
-          "reference": 19.69536116023807,
-          "difference": 1.2617557717270529
-        }
-      },
-      "precipitation": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_absolute.png",
-          "unit": "mm",
-          "label": "Niederschlag"
-        },
-        "percent": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_percent.png",
-          "unit": "%",
-          "label": "Prozent vom Mittel 1991–2020"
-        },
-        "stats": {
-          "current": 44.98471672227383,
-          "reference": 50.03821706840406,
-          "percent": 89.90071860629665
-        }
-      },
-      "historical_only": false,
-      "analysis_ready": false,
-      "running_only": true,
-      "running_data_through": "2026-08-25",
-      "parameters": [
-        "temperature",
-        "precipitation"
-      ]
-    },
-    "running_summer": {
-      "id": "running_summer",
-      "label": "Sommer 2026 bis 25.08.",
-      "date_start": "2026-06-01",
-      "date_end": "2026-08-25",
-      "year": 2026,
-      "partial_daily": true,
-      "temperature": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/temperature_running_summer_absolute.png",
-          "unit": "°C",
-          "label": "Temperatur"
-        },
-        "anomaly": {
-          "file": "era5_land_europe/running/maps/temperature_running_summer_anomaly.png",
-          "unit": "K",
-          "label": "Abweichung 1991–2020"
-        },
-        "stats": {
-          "current": 20.266405210377417,
-          "reference": 18.953494587074825,
-          "difference": 1.3129106233025922
-        }
-      },
-      "precipitation": {
-        "absolute": {
-          "file": "era5_land_europe/running/maps/precipitation_running_summer_absolute.png",
-          "unit": "mm",
-          "label": "Niederschlag"
-        },
-        "percent": {
-          "file": "era5_land_europe/running/maps/precipitation_running_summer_percent.png",
-          "unit": "%",
-          "label": "Prozent vom Mittel 1991–2020"
-        },
-        "stats": {
-          "current": 169.61121237987146,
-          "reference": 187.5551388975075,
-          "percent": 90.43271934690002
-        }
-      },
-      "completed_months": [
-        6,
-        7
-      ],
-      "partial_month": 8,
-      "historical_only": false,
-      "analysis_ready": false,
-      "running_only": true,
-      "running_data_through": "2026-08-25",
-      "parameters": [
-        "temperature",
-        "precipitation"
-      ]
     }
   },
   "tp_current_months": {
@@ -1591,17 +1538,10 @@
       4,
       5,
       6,
-      7
+      7,
+      8
     ],
-    "latest_complete_month": 7,
+    "latest_complete_month": 8,
     "note": "Temperatur und Niederschlag sind im aktuellen ERA5-Land-Jahr für alle vollständig verfügbaren Monate einzeln auswählbar. Historische Jahre bleiben für dieselben Monate ab 1950 verfügbar."
-  },
-  "running": {
-    "ready": true,
-    "data_through": "2026-08-25",
-    "source_file": "era5_land_europe/running/index.json",
-    "preliminary": true,
-    "availability_note": "Laufende Zeiträume verwenden ERA5-Land-T und enden am jüngsten gemeinsam verfügbaren vollständigen UTC-Tag für Temperatur und Niederschlag.",
-    "reference_note": "Abweichungen und Niederschlagsprozente werden gegen exakt dieselben Kalendertage 1991–2020 berechnet."
   }
 }
