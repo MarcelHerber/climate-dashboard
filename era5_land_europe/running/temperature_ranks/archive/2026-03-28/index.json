@@ -1,0 +1,95 @@
+{
+  "ready": true,
+  "archived": true,
+  "archive_format": "lossless-webp",
+  "data_through": "2026-03-28",
+  "current_year": 2026,
+  "history_start": 1950,
+  "history_end": 2025,
+  "historical_years": 76,
+  "total_rank_positions": 77,
+  "grid": "0,1° ERA5-Land",
+  "rank_direction": "1 = wärmster",
+  "data_archive": {
+    "file": "era5_land_europe/running/temperature_ranks/data_archive/2026-03.npz",
+    "format": "npz-uint8-ranks",
+    "missing_value": 0,
+    "day_index": 27
+  },
+  "products": {
+    "day": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-03-28/temperature_day_rank.webp",
+      "label": "28.03.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich des 28.03. mit demselben Kalendertag 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 4.70822531813392,
+        "top3_area_percent": 12.500448674023287,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 77
+      }
+    },
+    "month_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-03-28/temperature_month_to_date_rank.webp",
+      "label": "01.–28.03.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.–28.03. mit demselben Monatsabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 12.673158309963922,
+        "top3_area_percent": 21.716652159054124,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 64
+      }
+    },
+    "season_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-03-28/temperature_season_to_date_rank.webp",
+      "label": "Frühling · 01.03.2026–28.03.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich Frühling ab 01.03. bis 28.03. mit demselben Jahreszeitenabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 12.673158309963922,
+        "top3_area_percent": 21.716652159054124,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 64
+      },
+      "season_key": "spring",
+      "season_name": "Frühling"
+    },
+    "year_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-03-28/temperature_year_to_date_rank.webp",
+      "label": "01.01.–28.03.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.01.–28.03. mit demselben Jahresabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 0.1808360955163157,
+        "top3_area_percent": 3.0786766341575724,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 73
+      }
+    }
+  }
+}
