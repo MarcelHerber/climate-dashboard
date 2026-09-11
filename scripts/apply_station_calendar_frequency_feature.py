@@ -21,6 +21,11 @@ HTML_BLOCK = r'''
           </select>
         </div>
       </div>
+      <div id="stationClimateDaysTemperatureFrequencyExportTools" style="display:flex;justify-content:flex-end;gap:7px;margin:0 0 8px">
+        <button type="button" class="chart-export-button" title="Grafik als PNG herunterladen" onclick='runChartExport(this,document.getElementById("stationClimateDaysTemperatureFrequencyChart"),"png")'>PNG</button>
+        <button type="button" class="chart-export-button" title="Grafik als PDF herunterladen" onclick='runChartExport(this,document.getElementById("stationClimateDaysTemperatureFrequencyChart"),"pdf")'>PDF</button>
+        <button type="button" class="chart-export-button" title="Kalenderhäufigkeiten als CSV herunterladen" onclick='runStationClimateDaysFrequencyCsvExport(this,"temperature")'>CSV</button>
+      </div>
       <div style="height:420px"><canvas id="stationClimateDaysTemperatureFrequencyChart"></canvas></div>
       <div class="table-wrap" style="margin-top:14px">
         <table id="stationClimateDaysTemperatureFrequencyRecords">
@@ -41,6 +46,11 @@ HTML_BLOCK = r'''
           <label for="stationClimateDaysSnowFrequencyStationSelect">Schneestation</label>
           <select id="stationClimateDaysSnowFrequencyStationSelect" onchange="renderStationClimateDaysFrequency()"></select>
         </div>
+      </div>
+      <div id="stationClimateDaysSnowFrequencyExportTools" style="display:flex;justify-content:flex-end;gap:7px;margin:0 0 8px">
+        <button type="button" class="chart-export-button" title="Grafik als PNG herunterladen" onclick='runChartExport(this,document.getElementById("stationClimateDaysSnowFrequencyChart"),"png")'>PNG</button>
+        <button type="button" class="chart-export-button" title="Grafik als PDF herunterladen" onclick='runChartExport(this,document.getElementById("stationClimateDaysSnowFrequencyChart"),"pdf")'>PDF</button>
+        <button type="button" class="chart-export-button" title="Kalenderhäufigkeiten als CSV herunterladen" onclick='runStationClimateDaysFrequencyCsvExport(this,"snow")'>CSV</button>
       </div>
       <div style="height:420px"><canvas id="stationClimateDaysSnowFrequencyChart"></canvas></div>
       <div class="table-wrap" style="margin-top:14px">
@@ -80,6 +90,74 @@ function stationClimateDaysFrequencyTooltip(block,key,index,label){
   if(!Number.isFinite(valid)||valid<=0) return `${label}: keine auswertbaren Jahre`;
   const pct=Number.isFinite(percent)?percent.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–";
   return `${label}: ${Number.isFinite(count)?count:0} von ${valid} Jahren (${pct} %)`;
+}
+
+function stationClimateDaysFrequencyCsvRows(block,thresholds,unit){
+  const labels=stationClimateDaysIndex?.labels||[];
+  const headers=["Kalendertag","Datum","Gültige Jahre"];
+  thresholds.forEach(threshold=>{
+    headers.push(`≥ ${threshold} ${unit} Anzahl`,`≥ ${threshold} ${unit} Prozent`);
+  });
+  const rows=labels.map((monthDay,index)=>{
+    const row=[monthDay,stationClimateDaysDateLabel(monthDay),block?.valid_years?.[index]??""];
+    thresholds.forEach(threshold=>{
+      const key=String(threshold);
+      row.push(block?.counts?.[key]?.[index]??"",block?.percent?.[key]?.[index]??"");
+    });
+    return row;
+  });
+  return {headers,rows};
+}
+
+async function stationClimateDaysFrequencyExportConfig(kind){
+  if(kind==="temperature"){
+    const stationId=document.getElementById("stationClimateDaysStationSelect")?.value||"";
+    const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);
+    return {
+      block:stationClimateDaysProfile?.calendar_frequency?.temperature||null,
+      thresholds:[25,30,35],
+      unit:"°C",
+      title:`Kalenderhäufigkeit Temperatur – ${station?.name||stationId||"Station"}`
+    };
+  }
+  const stationId=document.getElementById("stationClimateDaysSnowFrequencyStationSelect")?.value||"";
+  const station=(stationClimateDaysSnowFrequencyIndex?.stations||[]).find(item=>item.id===stationId);
+  const block=stationId?await stationClimateDaysLoadSnowFrequency(stationId):null;
+  return {
+    block,
+    thresholds:[1,5,10],
+    unit:"cm",
+    title:`Kalenderhäufigkeit Schneehöhe – ${station?.name||stationId||"Station"}`
+  };
+}
+
+async function runStationClimateDaysFrequencyCsvExport(button,kind){
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent="…";
+  try{
+    await new Promise(resolve=>requestAnimationFrame(resolve));
+    const config=await stationClimateDaysFrequencyExportConfig(kind);
+    if(!config?.block) throw new Error("Die Häufigkeitsdaten sind noch nicht geladen.");
+    const {headers,rows}=stationClimateDaysFrequencyCsvRows(config.block,config.thresholds,config.unit);
+    const separator=";";
+    const content="\ufeff"+[headers,...rows].map(row=>row.map(csvEscape).join(separator)).join("\r\n");
+    const blob=new Blob([content],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download=safeExportFilename(config.title,"csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }catch(error){
+    console.error(error);
+    alert(`CSV-Download nicht möglich: ${error.message}`);
+  }finally{
+    button.disabled=false;
+    button.textContent=original;
+  }
 }
 
 function stationClimateDaysFrequencyChart(canvasId,existing,block,thresholds,colors,title){
