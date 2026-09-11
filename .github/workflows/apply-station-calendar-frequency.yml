@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/apply-station-calendar-frequency.yml"
       - "scripts/apply_station_calendar_frequency_feature.py"
+      - "scripts/add_station_calendar_frequency_exports.py"
       - "tests/test_station_calendar_frequency.py"
   workflow_dispatch:
 
@@ -28,6 +29,9 @@ jobs:
 
       - name: Tests vorbereiten
         run: python -m pip install --upgrade pip pytest
+
+      - name: Kalenderhäufigkeit-Downloads einbauen
+        run: python scripts/add_station_calendar_frequency_exports.py
 
       - name: Kalenderhäufigkeit testen
         run: python -m pytest -q tests/test_station_calendar_frequency.py
@@ -60,6 +64,7 @@ jobs:
             update_station_climate_days.py \
             scripts/build_dwd_snow_height_profiles.py \
             scripts/apply_station_calendar_frequency_feature.py \
+            scripts/add_station_calendar_frequency_exports.py \
             scripts/fix_station_calendar_snow_selector.py
 
       - name: Frontend-JavaScript prüfen
@@ -98,6 +103,6 @@ jobs:
             scripts/update_station_climate_days.py \
             update_station_climate_days.py \
             scripts/build_dwd_snow_height_profiles.py
-          git commit -m "Fix snow frequency station selection"
+          git commit -m "Add calendar frequency downloads"
           git pull --rebase origin main
           git push origin HEAD:main
