@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/apply-station-calendar-frequency.yml"
+      - "scripts/apply_station_calendar_frequency_feature.py"
+      - "tests/test_station_calendar_frequency.py"
   workflow_dispatch:
 
 permissions:
