@@ -74,3 +74,24 @@ def test_parse_snow_heights_from_kl_zip_reads_shk_tag_and_ignores_missing():
         buffer.getvalue(), date(2020, 1, 1), date(2020, 1, 3)
     )
     assert result == {date(2020, 1, 1): 3.0, date(2020, 1, 3): 0.0}
+
+
+def test_calendar_frequency_frontend_offers_png_pdf_and_detailed_csv_exports():
+    from scripts import apply_station_calendar_frequency_feature as feature
+
+    html = feature.HTML_BLOCK
+    js = feature.JS_BLOCK
+
+    assert 'id="stationClimateDaysTemperatureFrequencyExportTools"' in html
+    assert 'id="stationClimateDaysSnowFrequencyExportTools"' in html
+    assert html.count('>PNG</button>') == 2
+    assert html.count('>PDF</button>') == 2
+    assert html.count('>CSV</button>') == 2
+    assert 'runStationClimateDaysFrequencyCsvExport(this,"temperature")' in html
+    assert 'runStationClimateDaysFrequencyCsvExport(this,"snow")' in html
+
+    assert 'function stationClimateDaysFrequencyCsvRows(' in js
+    assert 'function runStationClimateDaysFrequencyCsvExport(' in js
+    assert 'valid_years' in js
+    assert 'counts' in js
+    assert 'percent' in js
