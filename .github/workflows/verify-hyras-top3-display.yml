@@ -1,0 +1,58 @@
+name: HYRAS Top-3-Darstellung prüfen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tests/test_hyras_top3_display.py"
+      - "scripts/move_hyras_top3_below_map.py"
+      - "scripts/patch_hyras_click_timeseries_frontend.py"
+      - ".github/workflows/verify-hyras-top3-display.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Tests vorbereiten
+        run: python -m pip install --upgrade pip pytest
+
+      - name: HYRAS Top-3 prüfen
+        run: python -m pytest -q tests/test_hyras_top3_display.py
+
+      - name: Python-Syntax prüfen
+        run: python -m py_compile scripts/patch_hyras_click_timeseries_frontend.py
+
+      - name: Frontend-JavaScript prüfen
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+          import tempfile
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>", html, flags=re.I)
+          if not scripts:
+              raise SystemExit("Keine Inline-Skripte gefunden")
+          for index, script in enumerate(scripts):
+              path = Path(tempfile.gettempdir()) / f"climate-dashboard-inline-{index}.js"
+              path.write_text(script, encoding="utf-8")
+              subprocess.run(["node", "--check", str(path)], check=True)
+          print(f"Inline scripts parsed successfully: {len(scripts)}")
+          PY
+
+      - name: Diff prüfen
+        run: git diff --check
