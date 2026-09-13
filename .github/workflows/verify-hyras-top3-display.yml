@@ -74,4 +74,11 @@ jobs:
           git add index.html scripts/patch_hyras_click_timeseries_frontend.py
           git commit -m "Move HYRAS top 3 below map"
           git pull --rebase origin main
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push-Versuch ${attempt} fehlgeschlagen; erneuter Versuch ..."
+            sleep 5
+          done
+          exit 1
