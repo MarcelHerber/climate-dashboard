@@ -1,10 +1,7 @@
 name: ERA5-Land Temperatur-Ränge Monats-Backfill
-# Push auf diese Datei startet standardmäßig den März-Backfill.
+# Die Monatskette repariert vor dem Weiterlaufen zuerst ältere Lücken ab März.
 
 on:
-  push:
-    paths:
-      - ".github/workflows/backfill-era5-running-temperature-ranks.yml"
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
@@ -114,7 +111,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
       - name: Backfill testen
-        run: python -m pytest -q tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py
+        run: python -m pytest -q tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py tests/test_era5_temperature_rank_backfill_successor.py
       - name: Aktuellen Monatscache wiederherstellen
         uses: actions/cache@v4
         with:
@@ -325,9 +322,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          # finalize hat das gerade erzeugte Monatsarchiv bereits nach main gepusht.
+          # Für die Lückenprüfung brauchen wir deshalb ausdrücklich den neuesten Stand.
+          ref: main
 
-      - name: Nächsten Monat direkt starten oder auf ERA5 warten
+      - name: Früheste Lücke reparieren oder nächsten Monat starten
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_YEAR: ${{ needs.prepare.outputs.target_year }}
@@ -336,33 +335,32 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$TARGET_MONTH" == "12" ]]; then
-            echo "Backfill-Kette vollständig bis Dezember 2026. Endziel: 2026-12-31."
+          DECISION=$(python scripts/select_era5_temperature_rank_backfill_successor.py \
+            --target-year "$TARGET_YEAR" \
+            --target-month "$TARGET_MONTH")
+
+          ACTION=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["action"])' "$DECISION")
+          NEXT_MONTH=$(python -c 'import json,sys; print(json.loads(sys.argv[1]).get("month") or "")' "$DECISION")
+          REASON=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["reason"])' "$DECISION")
+          SOURCE=$(python -c 'import json,sys; print(json.loads(sys.argv[1])["source"])' "$DECISION")
+
+          if [[ "$ACTION" == "done" ]]; then
+            echo "Backfill-Kette lückenlos vollständig bis Dezember 2026. Endziel: 2026-12-31."
             exit 0
           fi
 
-          NEXT_MONTH=$(printf "%02d" $((10#$TARGET_MONTH + 1)))
-
-          SOURCE=$(python - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path('era5_land_europe/running/index.json').read_text(encoding='utf-8'))['data_through'])
-          PY
-          )
-
-          SOURCE_MONTH=$(python - <<PY
-          from datetime import date
-          print(date.fromisoformat("$SOURCE").month)
-          PY
-          )
-
-          if (( 10#$NEXT_MONTH > SOURCE_MONTH )); then
+          if [[ "$ACTION" == "wait" ]]; then
             echo "Monat $NEXT_MONTH ist noch nicht in ERA5 verfügbar (Quelle bis $SOURCE)."
             echo "Der tägliche Zeitplan nimmt die Kette automatisch wieder auf, sobald Daten vorliegen."
             exit 0
           fi
 
-          echo "Starte automatisch Monat $NEXT_MONTH nach erfolgreichem Monat $TARGET_MONTH."
+          if [[ "$REASON" == "gap" ]]; then
+            echo "Ältere Lücke erkannt: Monat $NEXT_MONTH wird vor dem Weiterlaufen repariert."
+          else
+            echo "Keine ältere Lücke erkannt. Starte regulär Monat $NEXT_MONTH nach Monat $TARGET_MONTH."
+          fi
+
           python - <<PY > "$RUNNER_TEMP/dispatch.json"
           import json
           print(json.dumps({"ref":"main","inputs":{"month":"$NEXT_MONTH"}}))
