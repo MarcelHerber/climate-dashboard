@@ -1,14 +1,6 @@
 name: ERA5-Land laufende T-P-Zeiträume
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/update-era5-land-running.yml"
-      - "scripts/update_era5_land_europe_running.py"
-      - "scripts/update_era5_land_europe_running_0p1.py"
-      - "scripts/update_era5_land_europe_palette.py"
   schedule:
     - cron: "7 13 * * *"
       timezone: "Europe/Berlin"
@@ -26,6 +18,9 @@ permissions:
 concurrency:
   group: era5-land-running
   cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   running-tp:
@@ -50,13 +45,13 @@ jobs:
         shell: bash
         run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
 
-      - name: ERA5-Land 0,1-Grad-Cache wiederherstellen
-        uses: actions/cache@v4
+      - name: Vorhandenen ERA5-Land-Arbeitscache wiederherstellen
+        uses: actions/cache/restore@v4
         with:
           path: |
             .era5_running_cache_0p1
             .era5_cache/cartopy
-          key: era5-land-running-0p1-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-${{ github.run_id }}
+          key: era5-land-running-0p1-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-latest
           restore-keys: |
             era5-land-running-0p1-v1-${{ runner.os }}-${{ steps.cache-month.outputs.month }}-
 
@@ -81,22 +76,41 @@ jobs:
           EOF
           chmod 600 "$HOME/.cdsapirc"
 
-      - name: Laufenden August und Sommer in 0,1 Grad berechnen
+      - name: Frischen gemeinsamen ERA5-Land-T/P-Tag bestimmen
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_land_running_reference_shard.py \
+            --probe \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Vollständigen 1991-2020-Referenzcache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-reference-v1-${{ steps.probe.outputs.month_key }}
+          fail-on-cache-miss: true
+
+      - name: Laufende ERA5-Land-Zeiträume in 0,1 Grad berechnen
         shell: bash
         run: |
           set -euo pipefail
           EXTRA_ARGS=""
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            EXTRA_ARGS="--force"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
             EXTRA_ARGS="--force"
           fi
           python scripts/update_era5_land_europe_running_0p1.py $EXTRA_ARGS
 
-      - name: Ergebnis prüfen
+      - name: Ergebnis und Datenstand prüfen
+        env:
+          EXPECTED_DATA_THROUGH: ${{ steps.probe.outputs.data_through }}
         shell: bash
         run: |
           set -euo pipefail
+          python scripts/era5_running_freshness_guard.py validate-index \
+            --index era5_land_europe/running/index.json \
+            --expected "$EXPECTED_DATA_THROUGH"
           python - <<'PY'
           import json
           from pathlib import Path
@@ -118,7 +132,7 @@ jobs:
           set -euo pipefail
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/update_era5_land_europe_running_0p1.py era5_land_europe/running
+          git add era5_land_europe/running
 
           if git diff --cached --quiet; then
             echo "Keine neuen laufenden ERA5-Land Daten vorhanden."

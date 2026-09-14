@@ -7,7 +7,17 @@ on:
     paths:
       - ".github/workflows/build-era5-land-running-reference-0p1.yml"
       - "scripts/build_era5_land_running_reference_shard.py"
+      - "scripts/era5_running_freshness_guard.py"
+  schedule:
+    - cron: "19 3 1 * *"
+      timezone: "Europe/Berlin"
   workflow_dispatch:
+    inputs:
+      month:
+        description: "Referenzmonat 01-12; leer = aktueller Kalendermonat"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -21,38 +31,24 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
-  probe:
+  target:
     runs-on: ubuntu-latest
     outputs:
-      data_through: ${{ steps.probe.outputs.data_through }}
-      month: ${{ steps.probe.outputs.month }}
-      month_key: ${{ steps.probe.outputs.month_key }}
+      month: ${{ steps.target.outputs.month }}
+      month_key: ${{ steps.target.outputs.month_key }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-          cache: "pip"
-      - run: |
-          python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
-      - name: CDS API konfigurieren
-        env:
-          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+      - name: Referenzmonat bestimmen
+        id: target
+        shell: bash
         run: |
           set -euo pipefail
-          test -n "${CDSAPI_KEY:-}"
-          cat > "$HOME/.cdsapirc" <<EOF
-          url: https://cds.climate.copernicus.eu/api
-          key: ${CDSAPI_KEY}
-          EOF
-          chmod 600 "$HOME/.cdsapirc"
-      - name: Aktuellen ERA5-Land-T-Tag bestimmen
-        id: probe
-        run: python scripts/build_era5_land_running_reference_shard.py --probe
+          python scripts/era5_running_freshness_guard.py reference-month \
+            --month "${{ inputs.month || '' }}" \
+            --github-output "$GITHUB_OUTPUT"
 
   reference:
-    needs: probe
+    needs: target
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -125,20 +121,20 @@ jobs:
           set -euo pipefail
           python scripts/build_era5_land_running_reference_shard.py \
             --variable "${{ matrix.variable }}" \
-            --month "${{ needs.probe.outputs.month }}" \
+            --month "${{ needs.target.outputs.month }}" \
             --start-year "${{ matrix.start }}" \
             --end-year "${{ matrix.end }}"
       - name: Referenz-Shard hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: era5-running-0p1-${{ needs.probe.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
+          name: era5-running-0p1-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
           path: .era5_running_cache_0p1
           include-hidden-files: true
           retention-days: 2
           if-no-files-found: error
 
   publish-reference:
-    needs: [probe, reference]
+    needs: [target, reference]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -146,12 +142,12 @@ jobs:
       - name: Alle Referenz-Shards herunterladen
         uses: actions/download-artifact@v5
         with:
-          pattern: era5-running-0p1-${{ needs.probe.outputs.month_key }}-*
+          pattern: era5-running-0p1-${{ needs.target.outputs.month_key }}-*
           path: .era5_shards
           merge-multiple: true
       - name: Referenzcache validieren
         env:
-          MONTH: ${{ needs.probe.outputs.month }}
+          MONTH: ${{ needs.target.outputs.month }}
         run: |
           set -euo pipefail
           mkdir -p .era5_running_cache_0p1
@@ -173,4 +169,11 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .era5_running_cache_0p1
-          key: era5-land-running-0p1-reference-v1-${{ needs.probe.outputs.month_key }}
+          key: era5-land-running-0p1-reference-v1-${{ needs.target.outputs.month_key }}
+      - name: Laufende ERA5-Land-Daten nach Cachebau starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run update-era5-land-running.yml --ref main

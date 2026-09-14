@@ -13,8 +13,10 @@ from build_era5_running_temperature_rank_shard import (
     read_monthly_temperature,
     request_monthly_temperature,
 )
+from era5_running_freshness_guard import validate_backfill_end_day
 from era5_running_temperature_rank import PRODUCTS, season_for_month
 from era5_temperature_rank_backfill import build_single_year_month_products
+from probe_era5_running_temperature_date import probe_latest_temperature_day
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = ROOT / '.era5_running_rank_backfill_current_cache'
@@ -123,6 +125,16 @@ def main() -> int:
     parser.add_argument('--end-day', type=int, required=True)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
+
+    available_through = probe_latest_temperature_day()
+    validate_backfill_end_day(
+        args.year,
+        args.month,
+        args.end_day,
+        available_through,
+    )
+    print(f'Backfill-Datenstand frisch geprüft: {available_through.isoformat()}')
+
     output = args.output or (
         DEFAULT_OUTPUT_DIR / f'current_{args.year}_{args.month:02d}.npz'
     )
