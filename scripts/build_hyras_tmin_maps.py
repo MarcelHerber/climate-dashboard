@@ -44,6 +44,14 @@ def period_current_mean(daily,td,start,end):
     if s.sizes.get(td,0)==0: raise RuntimeError(f"Keine Tmin-Tage für {start} bis {end}.")
     a=np.asarray(s.mean(td,skipna=True).values,np.float32); a[~np.isfinite(a)]=np.nan; return a
 
+
+def north_up_for_display(a,x,y):
+    """Return a raster in the same north-up/west-east orientation as the boundary overlay."""
+    out=a
+    if len(x)>1 and x[0]>x[-1]: out=out[:,::-1]
+    if len(y)>1 and y[0]<y[-1]: out=out[::-1,:]
+    return out
+
 def complete_reference_months(p):
     s=datetime.strptime(p["start_date"],"%Y-%m-%d").date(); e=datetime.strptime(p["end_date"],"%Y-%m-%d").date()
     if p["key"].startswith("month_"):
@@ -114,10 +122,10 @@ def main():
     climtext=listing(CLIM_BASE); overlay=boundary_overlay(root); result={}
     for p in idx.get("periods",[]):
         key=str(p["key"]); label=str(p.get("label",key)); start=str(p["start_date"]); end=str(p["end_date"]); cur=period_current_mean(daily,td,start,end)
-        arel=f"download_maps/{key}_absolute.png"; render_map(cur,overlay,troot/arel,f"HYRAS Tmin · {label}",f"2-m-Tagesminimum · {start} bis {end}","absolute")
+        arel=f"download_maps/{key}_absolute.png"; render_map(north_up_for_display(cur,x,y),overlay,troot/arel,f"HYRAS Tmin · {label}",f"2-m-Tagesminimum · {start} bis {end}","absolute")
         item={"label":label,"absolute":arel,"start_date":start,"end_date":end}; months=complete_reference_months(p)
         if months:
-            ref=reference_for_months(months,year,work,climtext,x,y); anomaly=cur-ref; rel=f"download_maps/{key}_anomaly.png"; render_map(anomaly,overlay,troot/rel,f"HYRAS Tmin · {label}",f"Abweichung zum Mittel 1991–2020 · {start} bis {end}","anomaly"); item["anomaly"]=rel; item["reference_exact"]=True
+            ref=reference_for_months(months,year,work,climtext,x,y); anomaly=cur-ref; rel=f"download_maps/{key}_anomaly.png"; render_map(north_up_for_display(anomaly,x,y),overlay,troot/rel,f"HYRAS Tmin · {label}",f"Abweichung zum Mittel 1991–2020 · {start} bis {end}","anomaly"); item["anomaly"]=rel; item["reference_exact"]=True
         else:
             item["reference_exact"]=False; item["reference_note"]="Für laufende Teilmonate/-jahreszeiten wird keine Rasteranomalie veröffentlicht; die Gebietskurve nutzt weiterhin die tagesgenaue 1991–2020-Referenz."
         result[key]=item; print(f"Tmin Downloadkarte {key}: absolut"+(" + Anomalie" if "anomaly" in item else ""),flush=True)
