@@ -1,0 +1,113 @@
+name: HYRAS Tagesabweichung Animationen MP4
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_hyras_daily_anomaly_animations.py"
+      - ".github/workflows/update-hyras-daily-anomaly-animations.yml"
+  workflow_run:
+    workflows: ["HYRAS tägliche Temperaturabweichungen"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hyras-daily-anomaly-animations
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: FFmpeg bereitstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -1
+
+      - name: Aktuelle Tagesabweichungskarten laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-anomaly-source
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-daily-anomaly-source origin/hyras-data
+
+      - name: MP4-Animationen erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyras-daily-anomaly-animations
+          python scripts/build_hyras_daily_anomaly_animations.py \
+            --data-root /tmp/hyras-daily-anomaly-source \
+            --output-root /tmp/hyras-daily-anomaly-animations \
+            --fps 3
+
+      - name: Animationen prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path("/tmp/hyras-daily-anomaly-source")
+          output = Path("/tmp/hyras-daily-anomaly-animations")
+          animation = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+          assert animation["schema_version"] == 1
+          assert animation["fps"] == 3
+
+          for parameter in ("tmean", "tmax", "tmin"):
+              daily = json.loads(
+                  (source / parameter / "regions" / "daily_anomaly_maps.json").read_text(encoding="utf-8")
+              )
+              meta = animation["parameters"][parameter]
+              assert meta["data_through"] == daily["data_through"]
+              assert set(meta["references"]) == set(daily["references"])
+              for reference in daily["references"]:
+                  video = meta["references"][reference]
+                  assert video["frame_count"] == len(daily["available_dates"])
+                  assert video["start_date"] == daily["available_dates"][0]
+                  assert video["end_date"] == daily["available_dates"][-1]
+                  path = output / video["url"]
+                  assert path.exists() and path.stat().st_size > 0, path
+                  assert path.stat().st_size < 95 * 1024 * 1024, f"MP4 zu groß für GitHub: {path}"
+          print("Alle sechs HYRAS-MP4-Animationen vollständig geprüft.")
+          PY
+
+          while IFS= read -r -d '' video; do
+            ffprobe -v error \
+              -select_streams v:0 \
+              -show_entries stream=codec_name,width,height,pix_fmt \
+              -of default=nw=1 "$video"
+          done < <(find /tmp/hyras-daily-anomaly-animations -name '*.mp4' -print0)
+
+      - name: Animations-Snapshot veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --orphan hyras-animations-build
+          git rm -rf .
+          cp -a /tmp/hyras-daily-anomaly-animations/. .
+          git add .
+          git commit -m "HYRAS Tagesabweichungsanimationen aktualisieren"
+          git push --force origin HEAD:hyras-animations
