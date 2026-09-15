@@ -1,0 +1,154 @@
+name: ERA5 Ranghistorie Cache Keepalive
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/keepalive-era5-temperature-rank-cache.yml"
+  schedule:
+    - cron: "23 3 */5 * *"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: era5-temperature-rank-cache-keepalive
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      years: ${{ steps.years.outputs.years }}
+    steps:
+      - id: years
+        name: Jahresliste erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+
+          years = list(range(1950, 2026))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write("years=" + json.dumps(years, separators=(",", ":")) + "\n")
+          print(f"Keepalive für {len(years)} Jahre: 1950–2025")
+          PY
+
+  keepalive-september:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: cache
+        name: September-Cache berühren
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m09
+          lookup-only: false
+      - name: Ergebnis protokollieren
+        shell: bash
+        env:
+          HIT: ${{ steps.cache.outputs.cache-hit }}
+          YEAR: ${{ matrix.year }}
+        run: |
+          if [[ "$HIT" == "true" ]]; then
+            echo "Cache $YEAR-09 erfolgreich abgerufen."
+          else
+            echo "::warning::Cache $YEAR-09 nicht gefunden; Keepalive erzeugt bewusst keine ERA5-Daten neu."
+          fi
+
+  keepalive-october:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: cache
+        name: Oktober-Cache berühren
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m10
+          lookup-only: false
+      - name: Ergebnis protokollieren
+        shell: bash
+        env:
+          HIT: ${{ steps.cache.outputs.cache-hit }}
+          YEAR: ${{ matrix.year }}
+        run: |
+          if [[ "$HIT" == "true" ]]; then
+            echo "Cache $YEAR-10 erfolgreich abgerufen."
+          else
+            echo "::warning::Cache $YEAR-10 nicht gefunden; Keepalive erzeugt bewusst keine ERA5-Daten neu."
+          fi
+
+  keepalive-november:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: cache
+        name: November-Cache berühren
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m11
+          lookup-only: false
+      - name: Ergebnis protokollieren
+        shell: bash
+        env:
+          HIT: ${{ steps.cache.outputs.cache-hit }}
+          YEAR: ${{ matrix.year }}
+        run: |
+          if [[ "$HIT" == "true" ]]; then
+            echo "Cache $YEAR-11 erfolgreich abgerufen."
+          else
+            echo "::warning::Cache $YEAR-11 nicht gefunden; Keepalive erzeugt bewusst keine ERA5-Daten neu."
+          fi
+
+  keepalive-december:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - id: cache
+        name: Dezember-Cache berühren
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m12
+          lookup-only: false
+      - name: Ergebnis protokollieren
+        shell: bash
+        env:
+          HIT: ${{ steps.cache.outputs.cache-hit }}
+          YEAR: ${{ matrix.year }}
+        run: |
+          if [[ "$HIT" == "true" ]]; then
+            echo "Cache $YEAR-12 erfolgreich abgerufen."
+          else
+            echo "::warning::Cache $YEAR-12 nicht gefunden; Keepalive erzeugt bewusst keine ERA5-Daten neu."
+          fi
