@@ -11,38 +11,78 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: apply-hyras-daily-anomaly-mp4-frontend
+  cancel-in-progress: true
+
 jobs:
   apply:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BRANCH: feature/hyras-daily-anomaly-mp4
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/hyras-daily-anomaly-mp4
-          fetch-depth: 1
+      - name: Nur Feature-Scripts und Tests laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hyras-feature/scripts /tmp/hyras-feature/tests
+          for path in \
+            scripts/build_hyras_daily_anomaly_animations.py \
+            scripts/patch_hyras_daily_anomaly_animation_frontend.py \
+            tests/test_build_hyras_daily_anomaly_animations.py \
+            tests/test_patch_hyras_daily_anomaly_animation_frontend.py
+          do
+            dest="/tmp/hyras-feature/$path"
+            gh api \
+              -H "Accept: application/vnd.github.raw+json" \
+              "repos/$REPO/contents/$path?ref=$BRANCH" > "$dest"
+          done
 
       - name: Tests ausführen
+        working-directory: /tmp/hyras-feature
         run: python -m unittest discover -s tests -p 'test_*hyras_daily_anomaly_animation*.py' -v
 
-      - name: Frontend patchen
-        run: python scripts/patch_hyras_daily_anomaly_animation_frontend.py --file index.html
-
-      - name: Änderung prüfen
+      - name: Index laden und Frontend patchen
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'id="hyrasDailyAnomalyAnimationDownload"' index.html
-          grep -q 'HYRAS_DAILY_ANIMATION_BASE' index.html
-          grep -q 'Animation herunterladen (MP4)' index.html
-          git diff --check
+          gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "repos/$REPO/contents/index.html?ref=$BRANCH" > /tmp/index.html
+          python /tmp/hyras-feature/scripts/patch_hyras_daily_anomaly_animation_frontend.py --file /tmp/index.html
+          grep -q 'id="hyrasDailyAnomalyAnimationDownload"' /tmp/index.html
+          grep -q 'HYRAS_DAILY_ANIMATION_BASE' /tmp/index.html
+          grep -q 'Animation herunterladen (MP4)' /tmp/index.html
 
-      - name: Gepatchtes Frontend committen
+      - name: Gepatchte index.html auf Feature-Branch schreiben
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "climate-dashboard-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/apply-hyras-daily-anomaly-animation-frontend.yml
-          git add index.html
-          git commit -m "HYRAS Tagesabweichungsanimation als MP4-Download einbauen"
-          git push origin HEAD:feature/hyras-daily-anomaly-mp4
+          INDEX_SHA="$(gh api "repos/$REPO/contents/index.html?ref=$BRANCH" --jq .sha)"
+          export INDEX_SHA
+          python - <<'PY' > /tmp/index-payload.json
+          import base64, json, os
+          from pathlib import Path
+          payload = {
+              "message": "HYRAS Tagesabweichungsanimation als MP4-Download einbauen",
+              "content": base64.b64encode(Path("/tmp/index.html").read_bytes()).decode("ascii"),
+              "sha": os.environ["INDEX_SHA"],
+              "branch": os.environ["BRANCH"],
+          }
+          print(json.dumps(payload))
+          PY
+          gh api --method PUT "repos/$REPO/contents/index.html" --input /tmp/index-payload.json >/tmp/index-update.json
+
+      - name: Temporären Patcher-Workflow wieder entfernen
+        shell: bash
+        run: |
+          set -euo pipefail
+          SELF_PATH=".github/workflows/apply-hyras-daily-anomaly-animation-frontend.yml"
+          SELF_SHA="$(gh api "repos/$REPO/contents/$SELF_PATH?ref=$BRANCH" --jq .sha)"
+          gh api --method DELETE "repos/$REPO/contents/$SELF_PATH" \
+            -f message="Temporären HYRAS-Frontend-Patcher entfernen" \
+            -f sha="$SELF_SHA" \
+            -f branch="$BRANCH" >/tmp/self-delete.json
