@@ -1,0 +1,102 @@
+name: Apply HYRAS temperature map orientation fix
+
+on:
+  push:
+    branches: [fix/hyras-temperature-map-orientation]
+    paths:
+      - ".github/workflows/apply-hyras-temperature-map-orientation-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/hyras-temperature-map-orientation
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: |
+            scripts/build_hyras_tmax_maps.py
+            scripts/build_hyras_tmin_maps.py
+            .github/workflows/apply-hyras-temperature-map-orientation-fix.yml
+
+      - name: Patch completed-period map orientation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          helper = '''\n\ndef north_up_for_display(a,x,y):\n    """Return a raster in the same north-up/west-east orientation as the boundary overlay."""\n    out=a\n    if len(x)>1 and x[0]>x[-1]: out=out[:,::-1]\n    if len(y)>1 and y[0]<y[-1]: out=out[::-1,:]\n    return out\n'''
+
+          for parameter in ("tmax", "tmin"):
+              path = Path(f"scripts/build_hyras_{parameter}_maps.py")
+              text = path.read_text(encoding="utf-8")
+              if "def north_up_for_display" not in text:
+                  marker = "\ndef complete_reference_months(p):"
+                  if marker not in text:
+                      raise SystemExit(f"Insertionsmarker fehlt: {path}")
+                  text = text.replace(marker, helper + marker, 1)
+
+              current_old = "render_map(cur,overlay,"
+              current_new = "render_map(north_up_for_display(cur,x,y),overlay,"
+              anomaly_old = "render_map(anomaly,overlay,"
+              anomaly_new = "render_map(north_up_for_display(anomaly,x,y),overlay,"
+              if current_new not in text:
+                  if current_old not in text:
+                      raise SystemExit(f"Current-render-Aufruf fehlt: {path}")
+                  text = text.replace(current_old, current_new, 1)
+              if anomaly_new not in text:
+                  if anomaly_old not in text:
+                      raise SystemExit(f"Anomaly-render-Aufruf fehlt: {path}")
+                  text = text.replace(anomaly_old, anomaly_new, 1)
+              path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Regression test orientation helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet numpy
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          import numpy as np
+
+          def load_helper(path):
+              tree=ast.parse(Path(path).read_text(encoding="utf-8"))
+              fn=next((n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="north_up_for_display"),None)
+              if fn is None:
+                  raise AssertionError(f"north_up_for_display fehlt in {path}")
+              module=ast.Module(body=[fn],type_ignores=[])
+              ns={}
+              exec(compile(module,path,"exec"),ns)
+              return ns["north_up_for_display"]
+
+          base=np.array([[1,2],[3,4]],dtype=np.int16)
+          for path in ("scripts/build_hyras_tmax_maps.py","scripts/build_hyras_tmin_maps.py"):
+              fn=load_helper(path)
+              np.testing.assert_array_equal(fn(base,[0,1],[0,1]),np.array([[3,4],[1,2]]))
+              np.testing.assert_array_equal(fn(base,[0,1],[1,0]),base)
+              np.testing.assert_array_equal(fn(base,[1,0],[1,0]),np.array([[2,1],[4,3]]))
+              text=Path(path).read_text(encoding="utf-8")
+              assert "render_map(north_up_for_display(cur,x,y),overlay," in text
+              assert "render_map(north_up_for_display(anomaly,x,y),overlay," in text
+          print("Orientierungs-Regressionstest: OK")
+          PY
+          git diff --check
+
+      - name: Commit patched builders and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-hyras-temperature-map-orientation-fix.yml
+          git add scripts/build_hyras_tmax_maps.py scripts/build_hyras_tmin_maps.py
+          git commit -m "Fix HYRAS temperature map orientation"
+          git push origin HEAD:fix/hyras-temperature-map-orientation
