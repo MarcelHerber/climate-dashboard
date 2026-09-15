@@ -1,0 +1,48 @@
+name: Apply HYRAS Tagesabweichung MP4 Frontend
+
+on:
+  push:
+    branches:
+      - feature/hyras-daily-anomaly-mp4
+    paths:
+      - "scripts/patch_hyras_daily_anomaly_animation_frontend.py"
+      - ".github/workflows/apply-hyras-daily-anomaly-animation-frontend.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/hyras-daily-anomaly-mp4
+          fetch-depth: 0
+
+      - name: Tests ausführen
+        run: python -m unittest discover -s tests -p 'test_*hyras_daily_anomaly_animation*.py' -v
+
+      - name: Frontend patchen
+        run: python scripts/patch_hyras_daily_anomaly_animation_frontend.py --file index.html
+
+      - name: Änderung prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'id="hyrasDailyAnomalyAnimationDownload"' index.html
+          grep -q 'HYRAS_DAILY_ANIMATION_BASE' index.html
+          grep -q 'Animation herunterladen (MP4)' index.html
+          git diff --check
+
+      - name: Gepatchtes Frontend committen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-hyras-daily-anomaly-animation-frontend.yml
+          git add index.html
+          git commit -m "HYRAS Tagesabweichungsanimation als MP4-Download einbauen"
+          git push origin HEAD:feature/hyras-daily-anomaly-mp4
