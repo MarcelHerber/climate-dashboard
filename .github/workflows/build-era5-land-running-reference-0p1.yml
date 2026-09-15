@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: ""
+      seed_run_id:
+        description: "Optional: vorherigen Referenzlauf als Artefakt-Quelle verwenden"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -50,10 +55,10 @@ jobs:
   reference:
     needs: target
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 3
       matrix:
         include:
           - {variable: temperature, start: 1991, end: 1991}
@@ -98,14 +103,62 @@ jobs:
           - {variable: precipitation, start: 2018, end: 2020}
     steps:
       - uses: actions/checkout@v6
+
+      - name: Vorhandenen Shard-Cache laden
+        id: shard-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-shard-v2-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
+
+      - name: Vorhandenes Artefakt aus vorherigem Lauf übernehmen
+        id: seed
+        if: steps.shard-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEED_RUN_ID: ${{ github.event_name == 'push' && '34888132703' || inputs.seed_run_id }}
+          ARTIFACT_NAME: era5-running-0p1-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "seed-hit=false" >> "$GITHUB_OUTPUT"
+          if [[ -z "${SEED_RUN_ID:-}" ]]; then
+            exit 0
+          fi
+
+          rm -rf .era5_seed
+          if gh run download "$SEED_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --name "$ARTIFACT_NAME" \
+              --dir .era5_seed; then
+            mkdir -p .era5_running_cache_0p1
+            if [[ -d .era5_seed/.era5_running_cache_0p1 ]]; then
+              cp -a .era5_seed/.era5_running_cache_0p1/. .era5_running_cache_0p1/
+            else
+              cp -a .era5_seed/. .era5_running_cache_0p1/
+            fi
+            if find .era5_running_cache_0p1 -type f -name '*.nc' -size +0c -print -quit | grep -q .; then
+              echo "seed-hit=true" >> "$GITHUB_OUTPUT"
+              echo "Vorhandenes Artefakt übernommen: $ARTIFACT_NAME"
+            fi
+          else
+            echo "Kein vorhandenes Artefakt für $ARTIFACT_NAME; Shard wird neu gebaut."
+          fi
+
       - uses: actions/setup-python@v6
+        if: steps.shard-cache.outputs.cache-hit != 'true' && steps.seed.outputs.seed-hit != 'true'
         with:
           python-version: "3.13"
           cache: "pip"
-      - run: |
+
+      - name: Python-Pakete installieren
+        if: steps.shard-cache.outputs.cache-hit != 'true' && steps.seed.outputs.seed-hit != 'true'
+        run: |
           python -m pip install --upgrade pip
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
       - name: CDS API konfigurieren
+        if: steps.shard-cache.outputs.cache-hit != 'true' && steps.seed.outputs.seed-hit != 'true'
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
         run: |
@@ -116,7 +169,9 @@ jobs:
           key: ${CDSAPI_KEY}
           EOF
           chmod 600 "$HOME/.cdsapirc"
+
       - name: Referenz-Shard bauen
+        if: steps.shard-cache.outputs.cache-hit != 'true' && steps.seed.outputs.seed-hit != 'true'
         run: |
           set -euo pipefail
           python scripts/build_era5_land_running_reference_shard.py \
@@ -124,13 +179,29 @@ jobs:
             --month "${{ needs.target.outputs.month }}" \
             --start-year "${{ matrix.start }}" \
             --end-year "${{ matrix.end }}"
+
+      - name: Shard prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          COUNT=$(find .era5_running_cache_0p1 -type f -name '*.nc' -size +0c | wc -l)
+          echo "Nichtleere NetCDF-Dateien im Shard: $COUNT"
+          test "$COUNT" -ge 1
+
+      - name: Erfolgreichen Shard cachen
+        if: success() && steps.shard-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .era5_running_cache_0p1
+          key: era5-land-running-0p1-shard-v2-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
+
       - name: Referenz-Shard hochladen
         uses: actions/upload-artifact@v4
         with:
           name: era5-running-0p1-${{ needs.target.outputs.month_key }}-${{ matrix.variable }}-${{ matrix.start }}-${{ matrix.end }}
           path: .era5_running_cache_0p1
           include-hidden-files: true
-          retention-days: 2
+          retention-days: 7
           if-no-files-found: error
 
   publish-reference:
