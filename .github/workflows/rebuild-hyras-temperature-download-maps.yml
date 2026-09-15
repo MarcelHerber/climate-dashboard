@@ -49,8 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/hyras-data /tmp/hyras-tmax-work /tmp/hyras-tmin-work
-          git fetch origin hyras-data --depth=1
-          git worktree add --detach /tmp/hyras-data origin/hyras-data
+          git clone --depth 1 --branch hyras-data "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/hyras-data
           mkdir -p /tmp/hyras-tmax-work /tmp/hyras-tmin-work
 
       - name: Tmax- und Tmin-Downloadkarten neu bauen
@@ -94,6 +93,8 @@ jobs:
 
       - name: Korrigierte Karten veröffentlichen
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           cd /tmp/hyras-data
@@ -106,4 +107,5 @@ jobs:
             exit 0
           fi
           git commit -m "HYRAS Temperaturkarten nordorientiert aktualisieren"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin HEAD:hyras-data
