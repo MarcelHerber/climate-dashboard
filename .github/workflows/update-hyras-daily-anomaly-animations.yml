@@ -66,6 +66,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           import json
+          import subprocess
           from pathlib import Path
 
           source = Path("/tmp/hyras-daily-anomaly-source")
@@ -74,6 +75,7 @@ jobs:
           assert animation["schema_version"] == 1
           assert animation["fps"] == 3
 
+          checked = 0
           for parameter in ("tmean", "tmax", "tmin"):
               daily = json.loads(
                   (source / parameter / "regions" / "daily_anomaly_maps.json").read_text(encoding="utf-8")
@@ -89,15 +91,29 @@ jobs:
                   path = output / video["url"]
                   assert path.exists() and path.stat().st_size > 0, path
                   assert path.stat().st_size < 95 * 1024 * 1024, f"MP4 zu groß für GitHub: {path}"
-          print("Alle sechs HYRAS-MP4-Animationen vollständig geprüft.")
-          PY
 
-          while IFS= read -r -d '' video; do
-            ffprobe -v error \
-              -select_streams v:0 \
-              -show_entries stream=codec_name,width,height,pix_fmt \
-              -of default=nw=1 "$video"
-          done < <(find /tmp/hyras-daily-anomaly-animations -name '*.mp4' -print0)
+                  probe = subprocess.run(
+                      [
+                          "ffprobe", "-v", "error",
+                          "-select_streams", "v:0",
+                          "-show_entries", "stream=codec_name,width,height,pix_fmt",
+                          "-of", "json",
+                          str(path),
+                      ],
+                      check=True,
+                      text=True,
+                      capture_output=True,
+                  )
+                  stream = (json.loads(probe.stdout).get("streams") or [{}])[0]
+                  assert stream.get("codec_name") == "h264", (path, stream)
+                  assert stream.get("pix_fmt") == "yuv420p", (path, stream)
+                  assert int(stream.get("width", 0)) == 1080, (path, stream)
+                  assert int(stream.get("height", 0)) == 1320, (path, stream)
+                  checked += 1
+
+          assert checked == 6, checked
+          print("Alle sechs HYRAS-MP4-Animationen vollständig geprüft: H.264 · yuv420p · 1080×1320.")
+          PY
 
       - name: Animations-Snapshot veröffentlichen
         shell: bash
