@@ -24,17 +24,17 @@ jobs:
             label="$1"
             spec="$2"
             out="/tmp/${label}.nc"
-            code=$(curl --globoff -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
+            code=$(curl -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
             bytes=$(wc -c < "$out" 2>/dev/null || echo 0)
             echo "${label}: HTTP ${code}, ${bytes} bytes"
             if [[ -s "$out" ]]; then
-              head -c 200 "$out" | strings | head -n 3 || true
+              head -c 300 "$out" | strings | head -n 5 || true
             fi
             echo
           }
 
-          # Exakt die beim Pilot fehlgeschlagene räumliche Auswahl; nur die Zeitlänge variiert.
-          test_query t60 '[0:1:59][434:1:699][0:1:205]'
-          test_query t30 '[0:1:29][434:1:699][0:1:205]'
-          test_query t07 '[0:1:6][434:1:699][0:1:205]'
-          test_query t01 '[0:1:0][434:1:699][0:1:205]'
+          # Exakt dieselbe Kodierung wie requests im Pilot; nur die Zeitlänge variiert.
+          test_query t60 '%5B0:1:59%5D%5B434:1:699%5D%5B0:1:205%5D'
+          test_query t30 '%5B0:1:29%5D%5B434:1:699%5D%5B0:1:205%5D'
+          test_query t07 '%5B0:1:6%5D%5B434:1:699%5D%5B0:1:205%5D'
+          test_query t01 '%5B0:1:0%5D%5B434:1:699%5D%5B0:1:205%5D'
