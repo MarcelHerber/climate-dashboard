@@ -1,6 +1,6 @@
 name: SST Europa 7-Tage-Probelauf
 
-# Pilot for the revised four-region SST layout with buffered source subsets and NOAA retry handling.
+# Pilot for the revised four-region SST layout with buffered source subsets, 30-day NOAA chunks and retry handling.
 on:
   workflow_dispatch:
   push:
@@ -55,9 +55,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sst_cache
-          key: sst-europe-pilot-v2-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          key: sst-europe-pilot-v3-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
           restore-keys: |
-            sst-europe-pilot-v2-${{ runner.os }}-
+            sst-europe-pilot-v3-${{ runner.os }}-
 
       - name: Sieben echte SST-Tage erzeugen
         shell: bash
@@ -94,7 +94,7 @@ jobs:
       - name: Vorschau als Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: sst-europe-pilot-2026-09-01-to-07-v2
+          name: sst-europe-pilot-2026-09-01-to-07-v3
           path: /tmp/sst-pilot
           if-no-files-found: error
           retention-days: 14
