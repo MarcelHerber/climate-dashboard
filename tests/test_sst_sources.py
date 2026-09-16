@@ -141,6 +141,27 @@ class SstSourceTests(unittest.TestCase):
         for time_range in set(time_ranges):
             self.assertEqual(time_ranges.count(time_range), 2)
 
+    def test_noaa_normals_retry_transient_500_then_succeed(self):
+        session = mock.Mock()
+        attempts = 0
+
+        def get_chunk(url, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return FakeResponse(status_code=500, text="temporary NOAA failure")
+            return FakeResponse(
+                content=_fake_erddap_chunk(url),
+                headers={"content-type": "application/x-netcdf"},
+            )
+
+        session.get.side_effect = get_chunk
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.sst.sources.time.sleep") as sleep:
+            path = ensure_oisst_daily_normals(Path(tmp), session=session)
+            self.assertTrue(path.exists())
+            self.assertEqual(session.get.call_count, 15)
+            sleep.assert_called_once()
+
     def test_harmony_async_job_is_polled_and_data_link_downloaded(self):
         session = mock.Mock()
         session.get.side_effect = [
