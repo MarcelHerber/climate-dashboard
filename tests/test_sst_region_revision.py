@@ -28,6 +28,7 @@ class SstRegionRevisionTests(unittest.TestCase):
         workflow = Path(".github/workflows/probe-sst-seven-days.yml").read_text(encoding="utf-8")
         self.assertIn('test "$COUNT" -eq 56', workflow)
         self.assertIn("Erwartete Karten: 56", workflow)
+        self.assertIn("sst-europe-pilot-2026-09-01-to-07-v2", workflow)
         self.assertNotIn('test "$COUNT" -eq 70', workflow)
 
 
