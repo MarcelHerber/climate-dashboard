@@ -24,7 +24,7 @@ jobs:
             label="$1"
             spec="$2"
             out="/tmp/${label}.nc"
-            code=$(curl -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
+            code=$(curl --globoff -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
             bytes=$(wc -c < "$out" 2>/dev/null || echo 0)
             echo "${label}: HTTP ${code}, ${bytes} bytes"
             if [[ -s "$out" ]]; then
