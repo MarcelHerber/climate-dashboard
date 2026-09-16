@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f /tmp/sst-pilot/index.json
+          test -f /tmp/sst-pilot/manifest.json
           test -f /tmp/sst-pilot/storage_report.json
           COUNT=$(find /tmp/sst-pilot -type f -name '*.webp' | wc -l)
           echo "Erzeugte WebP-Karten: $COUNT"
