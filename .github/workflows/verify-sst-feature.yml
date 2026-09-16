@@ -1,0 +1,103 @@
+name: Verify SST Europe feature
+
+on:
+  push:
+    branches: ["feature/sst-europe-stage1"]
+    paths:
+      - "scripts/sst/**"
+      - "scripts/patch_sst_frontend.py"
+      - "tests/test_sst*.py"
+      - "tests/test_patch_sst_frontend.py"
+      - "sst_europe.js"
+      - "sst_europe.css"
+      - "requirements-sst.txt"
+      - "index.html"
+      - ".github/workflows/update-sst-europe.yml"
+      - ".github/workflows/backfill-sst-europe.yml"
+      - ".github/workflows/verify-sst-feature.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-sst-europe-feature
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Feature-Branch auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: feature/sst-europe-stage1
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt PyYAML
+
+      - name: SST Unit- und Render-Tests
+        run: python -m unittest discover -s tests -p 'test_sst*.py' -v
+
+      - name: Frontend-Integrations-Tests
+        run: python -m unittest tests.test_patch_sst_frontend -v
+
+      - name: Python und JavaScript syntaktisch prüfen
+        run: |
+          python -m compileall -q scripts/sst scripts/patch_sst_frontend.py
+          node --check sst_europe.js
+
+      - name: Workflow YAML prüfen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          for path in (
+              Path('.github/workflows/update-sst-europe.yml'),
+              Path('.github/workflows/backfill-sst-europe.yml'),
+          ):
+              payload = yaml.safe_load(path.read_text(encoding='utf-8'))
+              assert isinstance(payload, dict), path
+              print('OK', path)
+          PY
+
+      - name: Eingebautes Frontend auf Idempotenz prüfen
+        run: |
+          cp index.html /tmp/index-before.html
+          python scripts/patch_sst_frontend.py --file index.html
+          cmp -s /tmp/index-before.html index.html
+          grep -q 'switchTab('\''sst-europe'\'')' index.html
+          grep -q 'id="sst-europe" class="tab-content"' index.html
+          grep -q 'href="sst_europe.css"' index.html
+          grep -q 'src="sst_europe.js"' index.html
+
+      - name: Öffentliche Quelldienste smoke-testen
+        run: |
+          python - <<'PY'
+          from datetime import date
+          from pathlib import Path
+          import tempfile
+          import requests
+
+          from scripts.sst.sources import ensure_oisst_daily_normals, latest_available_mur_date
+
+          latest = latest_available_mur_date(date.today(), lookback_days=14)
+          print('Neuester per CMR sichtbarer MUR-Tag:', latest)
+
+          with tempfile.TemporaryDirectory() as tmp:
+              path = ensure_oisst_daily_normals(Path(tmp))
+              assert path.exists() and path.stat().st_size > 1_000_000, path
+              print('NOAA OISST Klimatologie-Subset:', path.stat().st_size, 'Bytes')
+          PY
