@@ -1,6 +1,6 @@
 name: SST Europa 7-Tage-Probelauf
 
-# Pilot for the revised four-region SST layout with buffered source subsets, 30-day NOAA chunks and retry handling.
+# Pilot for the revised four-region SST layout with buffered source subsets, 30-day NOAA chunks and transient Harmony retries.
 on:
   workflow_dispatch:
   push:
