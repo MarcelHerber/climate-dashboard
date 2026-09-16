@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import unittest
 from datetime import date
@@ -44,14 +45,24 @@ class FakeResponse:
             yield self.content
 
 
-def _fake_noaa_chunk(west: float, east: float) -> bytes:
-    lon = np.arange(west + 0.125, east, 0.25, dtype=np.float32)
-    lat = np.array([25.125, 25.375], dtype=np.float32)
-    time = np.array([0.0, 1.0], dtype=np.float64)
+def _fake_erddap_chunk(url: str) -> bytes:
+    match = re.search(
+        r"sst\[(\d+):1:(\d+)\]\[(\d+):1:(\d+)\]\[(\d+):1:(\d+)\]",
+        url,
+    )
+    if not match:
+        raise AssertionError(f"Unerwartete ERDDAP-URL: {url}")
+    time_start, time_stop, lat_start, lat_stop, lon_start, lon_stop = map(int, match.groups())
+    time = np.arange(time_start, time_stop + 1, dtype=np.float64)
+    lat = np.array(
+        [-89.875 + lat_start * 0.25, -89.875 + lat_stop * 0.25],
+        dtype=np.float32,
+    )
+    lon = 0.125 + np.arange(lon_start, lon_stop + 1, dtype=np.float32) * 0.25
     values = np.zeros((time.size, lat.size, lon.size), dtype=np.float32)
     dataset = xr.Dataset(
-        {"sst": (("time", "lat", "lon"), values)},
-        coords={"time": time, "lat": lat, "lon": lon},
+        {"sst": (("time", "latitude", "longitude"), values)},
+        coords={"time": time, "latitude": lat, "longitude": lon},
     )
     return dataset.to_netcdf()
 
@@ -83,15 +94,13 @@ class SstSourceTests(unittest.TestCase):
         self.assertTrue(url.endswith("/sst.day.mean.ltm.1991-2020.nc"))
         self.assertIn("fileServer/Datasets/noaa.oisst.v2.highres", url)
 
-    def test_noaa_normals_cache_chunks_wide_request_and_merges_longitudes(self):
+    def test_noaa_normals_cache_uses_erddap_time_chunks_and_merges_dateline(self):
         session = mock.Mock()
 
-        def get_chunk(_url, **kwargs):
-            params = kwargs["params"]
-            west = float(params["west"])
-            east = float(params["east"])
+        def get_chunk(url, **_kwargs):
+            self.assertIn("comet.nefsc.noaa.gov/erddap/griddap", url)
             return FakeResponse(
-                content=_fake_noaa_chunk(west, east),
+                content=_fake_erddap_chunk(url),
                 headers={"content-type": "application/x-netcdf"},
             )
 
@@ -99,22 +108,37 @@ class SstSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = ensure_oisst_daily_normals(Path(tmp), session=session)
             self.assertTrue(path.exists())
-            with xr.open_dataset(path) as merged:
+            with xr.open_dataset(path, decode_times=False) as merged:
                 lon = np.asarray(merged["lon"].values)
+                self.assertEqual(merged.sizes["time"], 365)
                 self.assertEqual(lon.size, 440)
                 self.assertTrue(np.all(np.diff(lon) > 0))
                 self.assertAlmostEqual(float(lon.min()), -59.875, places=3)
                 self.assertAlmostEqual(float(lon.max()), 49.875, places=3)
 
-        self.assertEqual(session.get.call_count, 8)
+        self.assertEqual(session.get.call_count, 14)
+        time_ranges = []
+        lon_ranges = set()
         for call in session.get.call_args_list:
-            params = call.kwargs["params"]
-            self.assertEqual(params["var"], "sst")
-            self.assertEqual(params["time"], "all")
-            self.assertGreaterEqual(float(params["west"]), 0.0)
-            self.assertLessEqual(float(params["east"]) - float(params["west"]), 15.0)
-            self.assertEqual(params["south"], 25.0)
-            self.assertEqual(params["north"], 82.0)
+            url = call.args[0]
+            match = re.search(
+                r"sst\[(\d+):1:(\d+)\]\[(\d+):1:(\d+)\]\[(\d+):1:(\d+)\]",
+                url,
+            )
+            self.assertIsNotNone(match)
+            time_start, time_stop, lat_start, lat_stop, lon_start, lon_stop = map(int, match.groups())
+            self.assertEqual((lat_start, lat_stop), (460, 687))
+            self.assertLessEqual(time_stop - time_start + 1, 60)
+            time_ranges.append((time_start, time_stop))
+            lon_ranges.add((lon_start, lon_stop))
+
+        self.assertEqual(lon_ranges, {(0, 199), (1200, 1439)})
+        self.assertEqual(
+            sorted(set(time_ranges)),
+            [(0, 59), (60, 119), (120, 179), (180, 239), (240, 299), (300, 359), (360, 364)],
+        )
+        for time_range in set(time_ranges):
+            self.assertEqual(time_ranges.count(time_range), 2)
 
     def test_harmony_async_job_is_polled_and_data_link_downloaded(self):
         session = mock.Mock()
