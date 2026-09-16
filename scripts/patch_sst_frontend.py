@@ -7,7 +7,9 @@ from pathlib import Path
 
 CSS_TAG = '<link rel="stylesheet" href="sst_europe.css">'
 JS_TAG = '<script src="sst_europe.js"></script>'
-BUTTON = '  <button class="tab-button" onclick="switchTab(\'sst-europe\')">Meere / SST</button>\n'
+LEGACY_BUTTON = '  <button class="tab-button" onclick="switchTab(\'sst-europe\')">Meere / SST</button>\n'
+CURRENT_BUTTON_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
+CURRENT_NAV_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'era5Europe\')">ERA5-Land Europa</button>'
 PANEL = '''<!-- ================= MEERE / SST ================= -->
 <div id="sst-europe" class="tab-content">
   <div class="section-header sst-europe-header">
@@ -62,12 +64,20 @@ def patch_html(text: str) -> str:
         text = text.replace("</head>", f"{CSS_TAG}\n</head>", 1)
 
     if "switchTab('sst-europe')" not in text:
-        pattern = re.compile(r'(<div class="tabs">.*?)(</div>\s*<div class="mobile-tab-navigation">)', re.S)
-        match = pattern.search(text)
-        if not match:
-            raise RuntimeError("Navigation-Block für SST-Reiter konnte nicht gefunden werden.")
-        replacement = match.group(1) + BUTTON + match.group(2)
-        text = text[:match.start()] + replacement + text[match.end():]
+        current_pattern = re.compile(r'(?m)^(?P<indent>[ \t]*)' + re.escape(CURRENT_NAV_HTML) + r'(?P<eol>\r?\n|$)')
+        current_match = current_pattern.search(text)
+        if current_match:
+            indent = current_match.group("indent")
+            eol = current_match.group("eol") or "\n"
+            replacement = f"{indent}{CURRENT_NAV_HTML}{eol}{indent}{CURRENT_BUTTON_HTML}{eol}"
+            text = text[:current_match.start()] + replacement + text[current_match.end():]
+        else:
+            pattern = re.compile(r'(<div class="tabs">.*?)(</div>\s*<div class="mobile-tab-navigation">)', re.S)
+            match = pattern.search(text)
+            if not match:
+                raise RuntimeError("Navigation-Block für SST-Reiter konnte nicht gefunden werden.")
+            replacement = match.group(1) + LEGACY_BUTTON + match.group(2)
+            text = text[:match.start()] + replacement + text[match.end():]
 
     if 'id="sst-europe"' not in text:
         text = text.replace(script_marker, PANEL + JS_TAG + "\n" + script_marker, 1)
