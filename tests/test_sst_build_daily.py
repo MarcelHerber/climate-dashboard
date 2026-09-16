@@ -71,7 +71,7 @@ def fake_validate(path, region):
 
 
 class SstBuildDailyTests(unittest.TestCase):
-    def test_build_date_publishes_exactly_ten_files_then_manifest(self):
+    def test_build_date_publishes_exactly_eight_files_then_manifest(self):
         adapter = FakeAdapter()
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch("scripts.sst.build_daily.render_map", side_effect=fake_render), \
@@ -80,8 +80,8 @@ class SstBuildDailyTests(unittest.TestCase):
             cache = Path(tmp) / "cache"
             result = build_date(date(2026, 9, 14), archive, cache, "token", source_adapter=adapter)
             self.assertFalse(result.already_present)
-            self.assertEqual(result.file_count, 10)
-            self.assertEqual(len(list(archive.rglob("*.webp"))), 10)
+            self.assertEqual(result.file_count, 8)
+            self.assertEqual(len(list(archive.rglob("*.webp"))), 8)
             self.assertTrue((archive / "manifest.json").exists())
             self.assertEqual(adapter.fetch_order, list(REGIONS))
             self.assertEqual(adapter.normal_calls, 1)
@@ -99,10 +99,11 @@ class SstBuildDailyTests(unittest.TestCase):
             second = build_date(date(2026, 9, 14), archive, cache, "token", source_adapter=adapter)
             self.assertFalse(first.already_present)
             self.assertTrue(second.already_present)
+            self.assertEqual(second.file_count, 8)
             self.assertEqual(adapter.fetch_order, [])
 
     def test_failure_on_third_region_leaves_no_published_files_or_manifest(self):
-        adapter = FakeAdapter(fail_region="north_baltic")
+        adapter = FakeAdapter(fail_region="north_atlantic")
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch("scripts.sst.build_daily.render_map", side_effect=fake_render), \
              mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate):
