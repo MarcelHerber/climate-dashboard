@@ -1,0 +1,119 @@
+name: Apply SST NOAA retry fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/sst-europe-stage1"]
+    paths:
+      - ".github/workflows/apply-sst-noaa-retry.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sst-noaa-retry-patcher
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Feature-Branch auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: feature/sst-europe-stage1
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r requirements-sst.txt
+
+      - name: NOAA-Retry einbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/sst/sources.py")
+          text = path.read_text(encoding="utf-8")
+
+          old_constants = 'NOAA_ERDDAP_TIME_CHUNK_DAYS = 60\nNOAA_GRID_TIME_COUNT = 365\n'
+          new_constants = '''NOAA_ERDDAP_TIME_CHUNK_DAYS = 60
+          NOAA_ERDDAP_MAX_ATTEMPTS = 5
+          NOAA_ERDDAP_RETRY_DELAYS = (5, 15, 30, 60)
+          NOAA_ERDDAP_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
+          NOAA_GRID_TIME_COUNT = 365
+          '''.replace('          ', '')
+          if old_constants not in text:
+              raise SystemExit("Konstanten-Marker nicht gefunden oder Retry bereits eingebaut")
+          text = text.replace(old_constants, new_constants, 1)
+
+          marker = 'def _standardize_oisst_dataset(dataset: xr.Dataset) -> xr.Dataset:\n'
+          helper = '''def _download_noaa_erddap_chunk(query: str, destination: Path, session=requests) -> Path:
+              for attempt in range(NOAA_ERDDAP_MAX_ATTEMPTS):
+                  response = None
+                  try:
+                      response = session.get(query, stream=True, timeout=120)
+                      status = int(getattr(response, "status_code", 200))
+                      if status in NOAA_ERDDAP_RETRYABLE_STATUS and attempt < NOAA_ERDDAP_MAX_ATTEMPTS - 1:
+                          close = getattr(response, "close", None)
+                          if callable(close):
+                              close()
+                          time.sleep(NOAA_ERDDAP_RETRY_DELAYS[attempt])
+                          continue
+                      return _write_response_atomic(response, destination)
+                  except requests.RequestException as exc:
+                      status = getattr(getattr(exc, "response", None), "status_code", None)
+                      retryable = status is None or status in NOAA_ERDDAP_RETRYABLE_STATUS
+                      if attempt >= NOAA_ERDDAP_MAX_ATTEMPTS - 1 or not retryable:
+                          raise
+                      time.sleep(NOAA_ERDDAP_RETRY_DELAYS[attempt])
+              raise RuntimeError("NOAA-ERDDAP-Download blieb nach allen Wiederholungen erfolglos.")
+
+
+          '''
+          helper = ''.join(line[10:] if line.startswith('          ') else line for line in helper.splitlines(keepends=True))
+          if marker not in text:
+              raise SystemExit("Helper-Marker nicht gefunden")
+          text = text.replace(marker, helper + marker, 1)
+
+          old_download = '''                    response = session.get(query, stream=True, timeout=120)
+                              chunk_path = Path(tmp) / f"lon-{lon_number:02d}-time-{time_number:02d}.nc"
+                              _write_response_atomic(response, chunk_path)
+          '''
+          old_download = ''.join(line[10:] if line.startswith('          ') else line for line in old_download.splitlines(keepends=True))
+          new_download = '''                    chunk_path = Path(tmp) / f"lon-{lon_number:02d}-time-{time_number:02d}.nc"
+                              _download_noaa_erddap_chunk(query, chunk_path, session=session)
+          '''
+          new_download = ''.join(line[10:] if line.startswith('          ') else line for line in new_download.splitlines(keepends=True))
+          if old_download not in text:
+              raise SystemExit("NOAA-Download-Marker nicht gefunden")
+          text = text.replace(old_download, new_download, 1)
+
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+
+      - name: Fokussierten Regressionstest ausführen
+        run: python -m unittest discover -s tests -p 'test_sst_sources.py' -v
+
+      - name: Syntax prüfen
+        run: python -m compileall -q scripts/sst
+
+      - name: Änderung committen und pushen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/sst/sources.py
+          git diff --cached --check
+          git commit -m "fix: retry transient NOAA ERDDAP failures"
+          git push origin HEAD:feature/sst-europe-stage1
