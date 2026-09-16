@@ -15,13 +15,16 @@ class SstConfigTests(unittest.TestCase):
     def test_sst_stage1_contract(self):
         self.assertEqual(
             list(REGIONS),
-            ["europe", "mediterranean", "north_baltic", "north_atlantic", "nordic_seas"],
+            ["europe", "mediterranean", "north_atlantic", "nordic_seas"],
         )
-        self.assertEqual(REGIONS["europe"].bounds, (-30.0, 30.0, 45.0, 72.0))
-        self.assertEqual(REGIONS["mediterranean"].bounds, (-6.0, 29.0, 38.0, 47.0))
-        self.assertEqual(REGIONS["north_baltic"].bounds, (-12.0, 48.0, 32.0, 66.0))
-        self.assertEqual(REGIONS["north_atlantic"].bounds, (-60.0, 25.0, 20.0, 70.0))
-        self.assertEqual(REGIONS["nordic_seas"].bounds, (-45.0, 55.0, 50.0, 82.0))
+        self.assertEqual(REGIONS["europe"].bounds, (-30.0, 25.0, 45.0, 72.0))
+        self.assertEqual(REGIONS["europe"].download_bounds, (-31.5, 23.5, 46.5, 73.5))
+        self.assertEqual(REGIONS["mediterranean"].bounds, (-16.0, 30.0, 36.0, 46.0))
+        self.assertEqual(REGIONS["mediterranean"].download_bounds, (-17.5, 28.5, 37.5, 47.5))
+        self.assertEqual(REGIONS["north_atlantic"].bounds, (-65.0, 20.0, 25.0, 78.0))
+        self.assertEqual(REGIONS["north_atlantic"].download_bounds, (-66.5, 18.5, 26.5, 79.5))
+        self.assertEqual(REGIONS["nordic_seas"].bounds, (-35.0, 50.0, 50.0, 84.0))
+        self.assertEqual(REGIONS["nordic_seas"].download_bounds, (-36.5, 48.5, 51.5, 85.0))
         self.assertEqual(ABSOLUTE_RANGE, (-2.0, 34.0))
         self.assertEqual(ANOMALY_RANGE, (-6.0, 6.0))
         self.assertEqual(SEA_ICE_THRESHOLD, 0.15)
