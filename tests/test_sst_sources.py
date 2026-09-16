@@ -185,7 +185,10 @@ class SstSourceTests(unittest.TestCase):
         subsets = [value for key, value in kwargs["params"] if key == "subset"]
         self.assertIn("lat(30.0:72.0)", subsets)
         self.assertIn("lon(-30.0:45.0)", subsets)
-        self.assertTrue(any("2026-09-14T00:00:00Z" in value for value in subsets))
+        self.assertIn(
+            'time("2026-09-14T00:00:00Z":"2026-09-14T23:59:59Z")',
+            subsets,
+        )
 
 
 if __name__ == "__main__":
