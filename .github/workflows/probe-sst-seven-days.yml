@@ -1,6 +1,6 @@
 name: SST Europa 7-Tage-Probelauf
 
-# Pilot for the revised four-region SST layout with buffered source subsets, 30-day NOAA chunks and transient Harmony retries.
+# Pilot for the revised four-region SST layout with buffered source subsets, 30-day NOAA chunks, transient Harmony retries and a CI heartbeat for long source downloads.
 on:
   workflow_dispatch:
   push:
@@ -65,11 +65,20 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/sst-pilot
           mkdir -p /tmp/sst-pilot
-          python -m scripts.sst.backfill \
+
+          python -u -m scripts.sst.backfill \
             --start 2026-09-01 \
             --end 2026-09-07 \
             --archive-root /tmp/sst-pilot \
-            --cache-root .sst_cache
+            --cache-root .sst_cache &
+          BACKFILL_PID=$!
+
+          while kill -0 "$BACKFILL_PID" 2>/dev/null; do
+            echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') SST-Pilot läuft weiter (PID $BACKFILL_PID)."
+            sleep 60
+          done
+
+          wait "$BACKFILL_PID"
 
       - name: Ergebnis prüfen
         shell: bash
