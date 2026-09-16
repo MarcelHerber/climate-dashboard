@@ -1,6 +1,6 @@
 name: SST Europa 7-Tage-Probelauf
 
-# Re-run the pilot after correcting Harmony's quoted temporal subset syntax.
+# Pilot for the revised four-region SST layout with buffered source subsets.
 on:
   workflow_dispatch:
   push:
@@ -55,9 +55,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sst_cache
-          key: sst-europe-pilot-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          key: sst-europe-pilot-v2-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
           restore-keys: |
-            sst-europe-pilot-v1-${{ runner.os }}-
+            sst-europe-pilot-v2-${{ runner.os }}-
 
       - name: Sieben echte SST-Tage erzeugen
         shell: bash
@@ -79,11 +79,12 @@ jobs:
           test -f /tmp/sst-pilot/storage_report.json
           COUNT=$(find /tmp/sst-pilot -type f -name '*.webp' | wc -l)
           echo "Erzeugte WebP-Karten: $COUNT"
-          test "$COUNT" -eq 70
+          test "$COUNT" -eq 56
           echo '### SST 7-Tage-Probelauf' >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo "- Zeitraum: 01.–07.09.2026" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Erwartete Karten: 70" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Regionen: Europa, Mittelmeer, Nordatlantik, Nordmeer / Skandinavien" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Erwartete Karten: 56" >> "$GITHUB_STEP_SUMMARY"
           echo "- Erzeugte Karten: $COUNT" >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
@@ -93,7 +94,7 @@ jobs:
       - name: Vorschau als Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
-          name: sst-europe-pilot-2026-09-01-to-07
+          name: sst-europe-pilot-2026-09-01-to-07-v2
           path: /tmp/sst-pilot
           if-no-files-found: error
           retention-days: 14
