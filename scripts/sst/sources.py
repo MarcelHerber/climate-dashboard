@@ -33,6 +33,7 @@ NOAA_GRID_LON_START = 0.125
 NOAA_GRID_STEP = 0.25
 NOAA_GRID_LAT_COUNT = 720
 NOAA_GRID_LON_COUNT = 1440
+NOAA_NORMALS_CACHE_FILENAME = "oisst_daily_normals_1991_2020_regions_v2.nc"
 
 
 class _NcLinkParser(HTMLParser):
@@ -153,9 +154,10 @@ def download_mur_subset(
     if not token:
         raise ValueError("EARTHDATA_TOKEN fehlt.")
     headers = {"Authorization": f"Bearer {token}"}
+    west, south, east, north = region.download_bounds
     params = [
-        ("subset", f"lat({region.south}:{region.north})"),
-        ("subset", f"lon({region.west}:{region.east})"),
+        ("subset", f"lat({south}:{north})"),
+        ("subset", f"lon({west}:{east})"),
         (
             "subset",
             f'time("{day.isoformat()}T00:00:00Z":"{day.isoformat()}T23:59:59Z")',
@@ -228,10 +230,11 @@ def _split_contiguous_indices(indices: np.ndarray) -> list[tuple[int, int]]:
 
 
 def _oisst_erddap_index_ranges() -> tuple[tuple[int, int], list[tuple[int, int]]]:
-    union_west = min(region.west for region in REGIONS.values())
-    union_south = min(region.south for region in REGIONS.values())
-    union_east = max(region.east for region in REGIONS.values())
-    union_north = max(region.north for region in REGIONS.values())
+    download_bounds = [region.download_bounds for region in REGIONS.values()]
+    union_west = min(bounds[0] for bounds in download_bounds)
+    union_south = min(bounds[1] for bounds in download_bounds)
+    union_east = max(bounds[2] for bounds in download_bounds)
+    union_north = max(bounds[3] for bounds in download_bounds)
 
     latitudes = NOAA_GRID_LAT_START + np.arange(NOAA_GRID_LAT_COUNT, dtype=float) * NOAA_GRID_STEP
     longitudes = NOAA_GRID_LON_START + np.arange(NOAA_GRID_LON_COUNT, dtype=float) * NOAA_GRID_STEP
@@ -269,7 +272,7 @@ def _standardize_oisst_dataset(dataset: xr.Dataset) -> xr.Dataset:
 
 
 def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
-    destination = cache_dir / "oisst" / "oisst_daily_normals_1991_2020.nc"
+    destination = cache_dir / "oisst" / NOAA_NORMALS_CACHE_FILENAME
     if destination.exists() and destination.stat().st_size > 0:
         return destination
 
