@@ -34,11 +34,11 @@ class SstManifestTests(unittest.TestCase):
             "2026/09/europe/anomaly/2026-09-14.webp",
         )
 
-    def test_register_date_requires_exactly_all_ten_urls(self):
+    def test_register_date_requires_exactly_all_eight_urls(self):
         day = date(2026, 9, 14)
         outputs = self.complete_outputs(day)
         outputs["europe"].pop("anomaly")
-        with self.assertRaisesRegex(ValueError, "10"):
+        with self.assertRaisesRegex(ValueError, "8"):
             register_date(empty_manifest(), day, outputs, "daily_normal")
 
     def test_register_date_sorts_and_deduplicates_available_dates(self):
