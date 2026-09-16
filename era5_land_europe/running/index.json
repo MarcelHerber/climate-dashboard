@@ -1,7 +1,7 @@
 {
   "ready": true,
   "payload_version": 1,
-  "generated_at": "2026-09-16T07:52:14+00:00",
+  "generated_at": "2026-09-16T15:26:42+00:00",
   "data_through": "2026-09-10",
   "reference_period": "1991–2020",
   "coverage": {
@@ -63,6 +63,50 @@
           "percent": 98.30149571214733
         }
       }
+    },
+    "running_autumn": {
+      "id": "running_autumn",
+      "label": "Herbst 2026 bis 10.09.",
+      "date_start": "2026-09-01",
+      "date_end": "2026-09-10",
+      "year": 2026,
+      "partial_daily": true,
+      "temperature": {
+        "absolute": {
+          "file": "era5_land_europe/running/maps/temperature_running_month_absolute.png",
+          "unit": "°C",
+          "label": "Temperatur"
+        },
+        "anomaly": {
+          "file": "era5_land_europe/running/maps/temperature_running_month_anomaly.png",
+          "unit": "K",
+          "label": "Abweichung 1991–2020"
+        },
+        "stats": {
+          "current": 18.25402235308608,
+          "reference": 16.420668449309154,
+          "difference": 1.8333539037769242
+        }
+      },
+      "precipitation": {
+        "absolute": {
+          "file": "era5_land_europe/running/maps/precipitation_running_month_absolute.png",
+          "unit": "mm",
+          "label": "Niederschlag"
+        },
+        "percent": {
+          "file": "era5_land_europe/running/maps/precipitation_running_month_percent.png",
+          "unit": "%",
+          "label": "Prozent vom Mittel 1991–2020"
+        },
+        "stats": {
+          "current": 20.231448795441302,
+          "reference": 20.581018273296994,
+          "percent": 98.30149571214733
+        }
+      },
+      "completed_months": [],
+      "partial_month": 9
     }
   },
   "rendering_note": "Laufende Temperaturabweichungen verwenden dieselbe diskrete -8 bis +8 K Skala wie die vollständigen ERA5-Land-Europakarten."
