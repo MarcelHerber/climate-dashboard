@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 import numpy as np
+import requests
 import xarray as xr
 
 from scripts.sst.config import REGIONS
@@ -207,6 +208,22 @@ class SstSourceTests(unittest.TestCase):
             download_mur_subset(date(2026, 9, 14), REGIONS["europe"], dest, "secret", session=session)
             self.assertEqual(dest.read_bytes(), b"CDF\x01async")
         self.assertEqual(session.get.call_count, 3)
+
+    def test_harmony_retries_transient_read_timeout_then_succeeds(self):
+        session = mock.Mock()
+        session.get.side_effect = [
+            requests.exceptions.ReadTimeout("temporary Harmony timeout"),
+            FakeResponse(content=b"CDF\x01retry", headers={"content-type": "application/x-netcdf4"}),
+        ]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.sst.sources.time.sleep") as sleep:
+            dest = Path(tmp) / "mur.nc"
+            result = download_mur_subset(
+                date(2026, 9, 14), REGIONS["europe"], dest, "secret", session=session
+            )
+            self.assertEqual(result, dest)
+            self.assertEqual(dest.read_bytes(), b"CDF\x01retry")
+        self.assertEqual(session.get.call_count, 2)
+        sleep.assert_called_once()
 
     def test_harmony_subset_request_uses_buffered_region_bounds(self):
         session = mock.Mock()
