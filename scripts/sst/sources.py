@@ -27,6 +27,9 @@ NOAA_NORMALS_ERDDAP = (
     "noaa_psl_4e02_3713_6583.nc?sst"
 )
 NOAA_ERDDAP_TIME_CHUNK_DAYS = 60
+NOAA_ERDDAP_MAX_ATTEMPTS = 5
+NOAA_ERDDAP_RETRY_DELAYS = (5, 15, 30, 60)
+NOAA_ERDDAP_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 NOAA_GRID_TIME_COUNT = 365
 NOAA_GRID_LAT_START = -89.875
 NOAA_GRID_LON_START = 0.125
@@ -257,6 +260,27 @@ def _time_index_chunks() -> list[tuple[int, int]]:
     ]
 
 
+def _download_noaa_erddap_chunk(query: str, destination: Path, session=requests) -> Path:
+    for attempt in range(NOAA_ERDDAP_MAX_ATTEMPTS):
+        try:
+            response = session.get(query, stream=True, timeout=120)
+            status = int(getattr(response, "status_code", 200))
+            if status in NOAA_ERDDAP_RETRYABLE_STATUS and attempt < NOAA_ERDDAP_MAX_ATTEMPTS - 1:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
+                time.sleep(NOAA_ERDDAP_RETRY_DELAYS[attempt])
+                continue
+            return _write_response_atomic(response, destination)
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            retryable = status is None or status in NOAA_ERDDAP_RETRYABLE_STATUS
+            if attempt >= NOAA_ERDDAP_MAX_ATTEMPTS - 1 or not retryable:
+                raise
+            time.sleep(NOAA_ERDDAP_RETRY_DELAYS[attempt])
+    raise RuntimeError("NOAA-ERDDAP-Download blieb nach allen Wiederholungen erfolglos.")
+
+
 def _standardize_oisst_dataset(dataset: xr.Dataset) -> xr.Dataset:
     rename: dict[str, str] = {}
     if "latitude" in dataset.dims or "latitude" in dataset.coords:
@@ -293,9 +317,8 @@ def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
                         f"[{lat_range[0]}:1:{lat_range[1]}]"
                         f"[{lon_start}:1:{lon_stop}]"
                     )
-                    response = session.get(query, stream=True, timeout=120)
                     chunk_path = Path(tmp) / f"lon-{lon_number:02d}-time-{time_number:02d}.nc"
-                    _write_response_atomic(response, chunk_path)
+                    _download_noaa_erddap_chunk(query, chunk_path, session=session)
                     with xr.open_dataset(chunk_path, decode_times=False) as chunk_dataset:
                         time_parts.append(_standardize_oisst_dataset(chunk_dataset.load()))
 
