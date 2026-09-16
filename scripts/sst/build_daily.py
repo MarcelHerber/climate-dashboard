@@ -35,7 +35,11 @@ class NetworkSourceAdapter:
     def normal_dataset(self) -> xr.Dataset:
         if self._normal_path is None:
             self._normal_path = ensure_oisst_daily_normals(self.cache_root)
-        return xr.open_dataset(self._normal_path)
+        return xr.open_dataset(self._normal_path, decode_times=False)
+
+
+def _expected_file_count() -> int:
+    return len(REGIONS) * len(VIEWS)
 
 
 def _date_is_complete(manifest: dict, day: date, archive_root: Path) -> bool:
@@ -71,6 +75,7 @@ def build_date(
     if day < ARCHIVE_START:
         raise ValueError(f"SST-Archiv beginnt am {ARCHIVE_START.isoformat()}.")
 
+    expected_file_count = _expected_file_count()
     archive_root = Path(archive_root)
     cache_root = Path(cache_root)
     manifest_path = archive_root / "manifest.json"
@@ -79,7 +84,7 @@ def build_date(
         return BuildResult(
             day=day,
             already_present=True,
-            file_count=10,
+            file_count=expected_file_count,
             reference_method=manifest["dates"][day.isoformat()].get("reference_method"),
         )
 
@@ -116,8 +121,10 @@ def build_date(
                     mur_path.unlink(missing_ok=True)
 
             staged_files = list(staging.rglob("*.webp"))
-            if len(staged_files) != 10:
-                raise RuntimeError(f"SST-Tagesbuild erzeugte {len(staged_files)} statt 10 WebP-Dateien.")
+            if len(staged_files) != expected_file_count:
+                raise RuntimeError(
+                    f"SST-Tagesbuild erzeugte {len(staged_files)} statt {expected_file_count} WebP-Dateien."
+                )
             if reference_method is None:
                 raise RuntimeError("SST-Tagesbuild hat keine Referenzmethode ermittelt.")
 
@@ -131,7 +138,12 @@ def build_date(
 
             updated = register_date(manifest, day, outputs, reference_method)
             write_manifest_atomic(manifest_path, updated)
-            return BuildResult(day=day, already_present=False, file_count=10, reference_method=reference_method)
+            return BuildResult(
+                day=day,
+                already_present=False,
+                file_count=expected_file_count,
+                reference_method=reference_method,
+            )
         except Exception:
             if day.isoformat() not in manifest.get("dates", {}):
                 for region_id in REGIONS:
