@@ -1,0 +1,40 @@
+name: Diagnose SST NOAA ERDDAP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/sst-europe-stage1"]
+    paths:
+      - ".github/workflows/diagnose-sst-noaa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: NOAA ERDDAP Subset-Größen testen
+        shell: bash
+        run: |
+          set -u
+          BASE='https://comet.nefsc.noaa.gov/erddap/griddap/noaa_psl_4e02_3713_6583.nc?sst'
+          test_query() {
+            label="$1"
+            spec="$2"
+            out="/tmp/${label}.nc"
+            code=$(curl -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
+            bytes=$(wc -c < "$out" 2>/dev/null || echo 0)
+            echo "${label}: HTTP ${code}, ${bytes} bytes"
+            if [[ -s "$out" ]]; then
+              head -c 200 "$out" | strings | head -n 3 || true
+            fi
+            echo
+          }
+
+          # Exakt die beim Pilot fehlgeschlagene räumliche Auswahl; nur die Zeitlänge variiert.
+          test_query t60 '[0:1:59][434:1:699][0:1:205]'
+          test_query t30 '[0:1:29][434:1:699][0:1:205]'
+          test_query t07 '[0:1:6][434:1:699][0:1:205]'
+          test_query t01 '[0:1:0][434:1:699][0:1:205]'
