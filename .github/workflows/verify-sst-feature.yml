@@ -93,6 +93,15 @@ jobs:
 
           from scripts.sst.sources import ensure_oisst_daily_normals, latest_available_mur_date
 
+          erddap = (
+              'https://comet.nefsc.noaa.gov/erddap/griddap/'
+              'noaa_psl_4e02_3713_6583.nc?sst[0:1:1][460:1:463][1200:1:1203]'
+          )
+          probe = requests.get(erddap, timeout=60)
+          print('NOAA ERDDAP Probe:', probe.status_code, probe.headers.get('content-type'), len(probe.content), 'Bytes')
+          probe.raise_for_status()
+          assert len(probe.content) > 100
+
           latest = latest_available_mur_date(date.today(), lookback_days=14)
           print('Neuester per CMR sichtbarer MUR-Tag:', latest)
 
