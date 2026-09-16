@@ -1,0 +1,60 @@
+name: Apply SST feature frontend
+
+on:
+  push:
+    branches: ["feature/sst-europe-stage1"]
+    paths:
+      - "scripts/patch_sst_frontend.py"
+      - "sst_europe.css"
+      - "sst_europe.js"
+      - "tests/test_patch_sst_frontend.py"
+      - "tests/test_sst_frontend_static.py"
+      - ".github/workflows/apply-sst-feature.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-sst-feature-frontend
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feature/sst-europe-stage1
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Frontend-Tests vor Patch
+        run: |
+          python -m unittest tests.test_patch_sst_frontend tests.test_sst_frontend_static -v
+
+      - name: Reiter in echte index.html einbauen
+        run: |
+          python scripts/patch_sst_frontend.py --file index.html
+          python scripts/patch_sst_frontend.py --file index.html
+
+      - name: Integration prüfen und zurückschreiben
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'switchTab('\''sst-europe'\'')' index.html
+          grep -q 'id="sst-europe" class="tab-content"' index.html
+          grep -q 'href="sst_europe.css"' index.html
+          grep -q 'src="sst_europe.js"' index.html
+          git diff --check
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "index.html war bereits integriert."
+            exit 0
+          fi
+          git commit -m "feat: integrate Meere SST dashboard tab"
+          git push origin HEAD:feature/sst-europe-stage1
