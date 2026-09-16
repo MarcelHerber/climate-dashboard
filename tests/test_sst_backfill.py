@@ -36,11 +36,11 @@ class SstBackfillTests(unittest.TestCase):
 
             report = storage_report(root, days)
             self.assertEqual(report["date_count"], 2)
-            self.assertEqual(report["file_count"], 20)
-            self.assertEqual(report["total_bytes"], 200)
-            self.assertEqual(report["mean_bytes_per_day"], 100.0)
+            self.assertEqual(report["file_count"], 16)
+            self.assertEqual(report["total_bytes"], 160)
+            self.assertEqual(report["mean_bytes_per_day"], 80.0)
             projected_days = (date.today() - ARCHIVE_START).days + 1
-            self.assertAlmostEqual(report["projected_archive_gib_from_2020"], 100.0 * projected_days / (1024 ** 3))
+            self.assertAlmostEqual(report["projected_archive_gib_from_2020"], 80.0 * projected_days / (1024 ** 3))
 
     def test_backfill_delegates_each_date_and_writes_storage_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,7 +63,7 @@ class SstBackfillTests(unittest.TestCase):
                 }
                 register_date(manifest, day, outputs, "daily_normal")
                 write_manifest_atomic(manifest_path, manifest)
-                return BuildResult(day, False, 10, "daily_normal")
+                return BuildResult(day, False, 8, "daily_normal")
 
             with mock.patch("scripts.sst.backfill.build_date", side_effect=fake_build):
                 result = backfill(date(2026, 9, 1), date(2026, 9, 3), archive, cache, "token")
@@ -71,18 +71,18 @@ class SstBackfillTests(unittest.TestCase):
             self.assertEqual(result["built"], 3)
             self.assertEqual(result["skipped"], 0)
             disk = json.loads((archive / "storage_report.json").read_text())
-            self.assertEqual(disk["file_count"], 30)
+            self.assertEqual(disk["file_count"], 24)
 
     def test_backfill_reports_complete_dates_as_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "archive"
             cache = Path(tmp) / "cache"
             sequence = [
-                BuildResult(date(2026, 9, 1), True, 10, "daily_normal"),
-                BuildResult(date(2026, 9, 2), False, 10, "daily_normal"),
+                BuildResult(date(2026, 9, 1), True, 8, "daily_normal"),
+                BuildResult(date(2026, 9, 2), False, 8, "daily_normal"),
             ]
             with mock.patch("scripts.sst.backfill.build_date", side_effect=sequence), \
-                 mock.patch("scripts.sst.backfill.storage_report", return_value={"date_count": 2, "file_count": 20, "total_bytes": 200, "mean_bytes_per_day": 100, "projected_archive_gib_from_2020": 1.0}):
+                 mock.patch("scripts.sst.backfill.storage_report", return_value={"date_count": 2, "file_count": 16, "total_bytes": 160, "mean_bytes_per_day": 80, "projected_archive_gib_from_2020": 1.0}):
                 result = backfill(date(2026, 9, 1), date(2026, 9, 2), archive, cache, "token")
             self.assertEqual(result["built"], 1)
             self.assertEqual(result["skipped"], 1)
