@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNNING_PATH = ROOT / "scripts" / "update_era5_land_europe_running.py"
 PALETTE_PATH = ROOT / "scripts" / "update_era5_land_europe_palette.py"
+SEASON_PATH = ROOT / "scripts" / "add_era5_running_season.py"
 
 
 def load_module(path: Path, name: str):
@@ -45,9 +46,16 @@ def main() -> int:
     if rc != 0:
         return rc
 
+    index_path = ROOT / "era5_land_europe" / "running" / "index.json"
+    season = load_module(SEASON_PATH, "era5_running_0p1_season")
+    season_id = season.add_running_season(
+        running,
+        index_path=index_path,
+        cache_dir=running.CACHE_DIR,
+    )
+
     # Der bestehende Generator kennt als Metadaten-Text noch 0,5°.
     # Nach erfolgreicher Berechnung wird nur diese Beschreibung korrigiert.
-    index_path = ROOT / "era5_land_europe" / "running" / "index.json"
     payload = json.loads(index_path.read_text(encoding="utf-8"))
     payload["grid"] = "0,1° (ERA5-Land im CDS; native Modellauflösung ca. 9 km)"
     payload["rendering_note"] = (
@@ -58,7 +66,10 @@ def main() -> int:
         json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
         encoding="utf-8",
     )
-    print("ERA5 Running: 0,1°-Raster und einheitliche Temperaturanomalieskala aktiv.")
+    print(
+        "ERA5 Running: 0,1°-Raster, einheitliche Temperaturanomalieskala und "
+        f"{season_id} aktiv."
+    )
     return 0
 
 
