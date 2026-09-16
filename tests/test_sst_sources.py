@@ -94,7 +94,7 @@ class SstSourceTests(unittest.TestCase):
         self.assertTrue(url.endswith("/sst.day.mean.ltm.1991-2020.nc"))
         self.assertIn("fileServer/Datasets/noaa.oisst.v2.highres", url)
 
-    def test_noaa_normals_cache_uses_erddap_time_chunks_and_merges_dateline(self):
+    def test_noaa_normals_cache_uses_buffered_region_union(self):
         session = mock.Mock()
 
         def get_chunk(url, **_kwargs):
@@ -108,13 +108,14 @@ class SstSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = ensure_oisst_daily_normals(Path(tmp), session=session)
             self.assertTrue(path.exists())
+            self.assertIn("regions_v2", path.name)
             with xr.open_dataset(path, decode_times=False) as merged:
                 lon = np.asarray(merged["lon"].values)
                 self.assertEqual(merged.sizes["time"], 365)
-                self.assertEqual(lon.size, 440)
+                self.assertEqual(lon.size, 472)
                 self.assertTrue(np.all(np.diff(lon) > 0))
-                self.assertAlmostEqual(float(lon.min()), -59.875, places=3)
-                self.assertAlmostEqual(float(lon.max()), 49.875, places=3)
+                self.assertAlmostEqual(float(lon.min()), -66.375, places=3)
+                self.assertAlmostEqual(float(lon.max()), 51.375, places=3)
 
         self.assertEqual(session.get.call_count, 14)
         time_ranges = []
@@ -127,12 +128,12 @@ class SstSourceTests(unittest.TestCase):
             )
             self.assertIsNotNone(match)
             time_start, time_stop, lat_start, lat_stop, lon_start, lon_stop = map(int, match.groups())
-            self.assertEqual((lat_start, lat_stop), (460, 687))
+            self.assertEqual((lat_start, lat_stop), (434, 699))
             self.assertLessEqual(time_stop - time_start + 1, 60)
             time_ranges.append((time_start, time_stop))
             lon_ranges.add((lon_start, lon_stop))
 
-        self.assertEqual(lon_ranges, {(0, 199), (1200, 1439)})
+        self.assertEqual(lon_ranges, {(0, 205), (1174, 1439)})
         self.assertEqual(
             sorted(set(time_ranges)),
             [(0, 59), (60, 119), (120, 179), (180, 239), (240, 299), (300, 359), (360, 364)],
@@ -172,7 +173,7 @@ class SstSourceTests(unittest.TestCase):
             self.assertEqual(dest.read_bytes(), b"CDF\x01async")
         self.assertEqual(session.get.call_count, 3)
 
-    def test_harmony_subset_request_includes_region_date_and_token(self):
+    def test_harmony_subset_request_uses_buffered_region_bounds(self):
         session = mock.Mock()
         session.get.return_value = FakeResponse(content=b"CDF\x01payload", headers={"content-type": "application/x-netcdf4"})
         with tempfile.TemporaryDirectory() as tmp:
@@ -183,8 +184,8 @@ class SstSourceTests(unittest.TestCase):
         kwargs = session.get.call_args.kwargs
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret")
         subsets = [value for key, value in kwargs["params"] if key == "subset"]
-        self.assertIn("lat(30.0:72.0)", subsets)
-        self.assertIn("lon(-30.0:45.0)", subsets)
+        self.assertIn("lat(23.5:73.5)", subsets)
+        self.assertIn("lon(-31.5:46.5)", subsets)
         self.assertIn(
             'time("2026-09-14T00:00:00Z":"2026-09-14T23:59:59Z")',
             subsets,
