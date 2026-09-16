@@ -26,6 +26,9 @@ NOAA_NORMALS_ERDDAP = (
     "https://comet.nefsc.noaa.gov/erddap/griddap/"
     "noaa_psl_4e02_3713_6583.nc?sst"
 )
+HARMONY_MAX_ATTEMPTS = 5
+HARMONY_RETRY_DELAYS = (5, 15, 30, 60)
+HARMONY_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 NOAA_ERDDAP_TIME_CHUNK_DAYS = 30
 NOAA_ERDDAP_MAX_ATTEMPTS = 5
 NOAA_ERDDAP_RETRY_DELAYS = (5, 15, 30, 60)
@@ -109,6 +112,30 @@ def _write_response_atomic(response, destination: Path) -> Path:
     return destination
 
 
+def _harmony_get(session, url: str, **kwargs):
+    for attempt in range(HARMONY_MAX_ATTEMPTS):
+        try:
+            response = session.get(url, **kwargs)
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            retryable = status is None or status in HARMONY_RETRYABLE_STATUS
+            if attempt >= HARMONY_MAX_ATTEMPTS - 1 or not retryable:
+                raise
+            time.sleep(HARMONY_RETRY_DELAYS[attempt])
+            continue
+
+        status = int(getattr(response, "status_code", 200))
+        if status in HARMONY_RETRYABLE_STATUS and attempt < HARMONY_MAX_ATTEMPTS - 1:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+            time.sleep(HARMONY_RETRY_DELAYS[attempt])
+            continue
+        return response
+
+    raise RuntimeError("Harmony-Anfrage blieb nach allen Wiederholungen erfolglos.")
+
+
 def _harmony_data_response(initial_response, headers: dict[str, str], session=requests):
     if not _is_json_response(initial_response):
         return initial_response
@@ -131,7 +158,13 @@ def _harmony_data_response(initial_response, headers: dict[str, str], session=re
             ]
             if len(data_links) != 1:
                 raise RuntimeError(f"Harmony lieferte {len(data_links)} Datendateien statt genau einer.")
-            output = session.get(data_links[0], headers=headers, stream=True, timeout=180)
+            output = _harmony_get(
+                session,
+                data_links[0],
+                headers=headers,
+                stream=True,
+                timeout=180,
+            )
             output.raise_for_status()
             return output
         if status in {"failed", "canceled", "cancelled", "paused"}:
@@ -139,7 +172,7 @@ def _harmony_data_response(initial_response, headers: dict[str, str], session=re
         if not job_url:
             raise RuntimeError("Harmony-Antwort enthält weder Daten noch eine Job-URL.")
         time.sleep(5)
-        poll = session.get(job_url, headers=headers, timeout=60)
+        poll = _harmony_get(session, job_url, headers=headers, timeout=60)
         poll.raise_for_status()
         payload = poll.json()
         status = str(payload.get("status", "")).lower()
@@ -169,7 +202,8 @@ def download_mur_subset(
         ("maxResults", "1"),
         ("skipPreview", "true"),
     ]
-    response = session.get(
+    response = _harmony_get(
+        session,
         MUR_HARMONY_BASE,
         params=params,
         headers=headers,
