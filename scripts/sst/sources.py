@@ -156,7 +156,10 @@ def download_mur_subset(
     params = [
         ("subset", f"lat({region.south}:{region.north})"),
         ("subset", f"lon({region.west}:{region.east})"),
-        ("subset", f"time({day.isoformat()}T00:00:00Z:{day.isoformat()}T23:59:59Z)"),
+        (
+            "subset",
+            f'time("{day.isoformat()}T00:00:00Z":"{day.isoformat()}T23:59:59Z")',
+        ),
         ("format", "application/x-netcdf4"),
         ("maxResults", "1"),
         ("skipPreview", "true"),
