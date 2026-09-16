@@ -15,6 +15,10 @@ def _generated_at() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def _expected_output_count() -> int:
+    return len(REGIONS) * len(VIEWS)
+
+
 def empty_manifest() -> dict:
     return {
         "schema_version": 1,
@@ -52,20 +56,27 @@ def archive_relpath(day: date, region_id: str, view: str) -> str:
 
 
 def _validate_outputs(outputs: dict) -> None:
-    count = 0
+    expected = _expected_output_count()
     if set(outputs) != set(REGIONS):
-        raise ValueError("SST-Datum benötigt exakt 10 URLs (5 Regionen × 2 Ansichten).")
+        raise ValueError(
+            f"SST-Datum benötigt exakt {expected} URLs "
+            f"({len(REGIONS)} Regionen × {len(VIEWS)} Ansichten)."
+        )
+    count = 0
     for region_id in REGIONS:
         region_outputs = outputs.get(region_id)
         if not isinstance(region_outputs, dict) or set(region_outputs) != set(VIEWS):
-            raise ValueError("SST-Datum benötigt exakt 10 URLs (5 Regionen × 2 Ansichten).")
+            raise ValueError(
+                f"SST-Datum benötigt exakt {expected} URLs "
+                f"({len(REGIONS)} Regionen × {len(VIEWS)} Ansichten)."
+            )
         for view in VIEWS:
             url = region_outputs[view]
             if not isinstance(url, str) or not url.strip():
-                raise ValueError("SST-Datum benötigt exakt 10 nichtleere URLs.")
+                raise ValueError(f"SST-Datum benötigt exakt {expected} nichtleere URLs.")
             count += 1
-    if count != 10:
-        raise ValueError("SST-Datum benötigt exakt 10 URLs.")
+    if count != expected:
+        raise ValueError(f"SST-Datum benötigt exakt {expected} URLs.")
 
 
 def register_date(manifest: dict, day: date, outputs: dict, reference_method: str) -> dict:
