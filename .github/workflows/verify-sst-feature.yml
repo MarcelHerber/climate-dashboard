@@ -14,6 +14,7 @@ on:
       - "index.html"
       - ".github/workflows/update-sst-europe.yml"
       - ".github/workflows/backfill-sst-europe.yml"
+      - ".github/workflows/probe-sst-seven-days.yml"
       - ".github/workflows/verify-sst-feature.yml"
   workflow_dispatch:
 
@@ -67,6 +68,7 @@ jobs:
           for path in (
               Path('.github/workflows/update-sst-europe.yml'),
               Path('.github/workflows/backfill-sst-europe.yml'),
+              Path('.github/workflows/probe-sst-seven-days.yml'),
           ):
               payload = yaml.safe_load(path.read_text(encoding='utf-8'))
               assert isinstance(payload, dict), path
