@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: NOAA ERDDAP Subset-Größen testen
+      - name: NOAA ERDDAP Problemblock testen
         shell: bash
         run: |
           set -u
@@ -24,17 +24,20 @@ jobs:
             label="$1"
             spec="$2"
             out="/tmp/${label}.nc"
+            started=$(date +%s)
             code=$(curl -L -sS --max-time 120 -o "$out" -w '%{http_code}' "${BASE}${spec}" || true)
+            elapsed=$(( $(date +%s) - started ))
             bytes=$(wc -c < "$out" 2>/dev/null || echo 0)
-            echo "${label}: HTTP ${code}, ${bytes} bytes"
-            if [[ -s "$out" ]]; then
-              head -c 300 "$out" | strings | head -n 5 || true
+            echo "${label}: HTTP ${code}, ${bytes} bytes, ${elapsed}s"
+            if [[ -s "$out" && "$code" != "200" ]]; then
+              head -c 400 "$out" | strings | head -n 8 || true
             fi
             echo
           }
 
-          # Exakt dieselbe Kodierung wie requests im Pilot; nur die Zeitlänge variiert.
-          test_query t60 '%5B0:1:59%5D%5B434:1:699%5D%5B0:1:205%5D'
-          test_query t30 '%5B0:1:29%5D%5B434:1:699%5D%5B0:1:205%5D'
-          test_query t07 '%5B0:1:6%5D%5B434:1:699%5D%5B0:1:205%5D'
-          test_query t01 '%5B0:1:0%5D%5B434:1:699%5D%5B0:1:205%5D'
+          # Der Live-Smoke-Test scheiterte exakt an 300:359 / 434:699 / 1174:1439.
+          test_query fail60 '%5B300:1:359%5D%5B434:1:699%5D%5B1174:1:1439%5D'
+          test_query first30 '%5B300:1:329%5D%5B434:1:699%5D%5B1174:1:1439%5D'
+          test_query second30 '%5B330:1:359%5D%5B434:1:699%5D%5B1174:1:1439%5D'
+          test_query first15 '%5B300:1:314%5D%5B434:1:699%5D%5B1174:1:1439%5D'
+          test_query second15 '%5B315:1:329%5D%5B434:1:699%5D%5B1174:1:1439%5D'
