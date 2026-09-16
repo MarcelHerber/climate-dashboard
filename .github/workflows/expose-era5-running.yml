@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "era5_land_europe/running/index.json"
+      - "scripts/era5_running_season.py"
       - "scripts/expose_era5_running_month.py"
       - "scripts/patch_era5_running_frontend.py"
       - ".github/workflows/expose-era5-running.yml"
@@ -54,15 +55,24 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path("era5_land_europe/index.json").read_text(encoding="utf-8"))
-          assert data.get("periods", {}).get("running_month")
-          assert data.get("periods", {}).get("running_summer")
-          assert data["periods"]["running_month"].get("running_only") is True
+          periods = data.get("periods", {})
+          running_month = periods.get("running_month")
+          season_id = data.get("running", {}).get("season_id")
+          assert running_month
+          assert season_id in {
+              "running_spring", "running_summer", "running_autumn", "running_winter"
+          }, season_id
+          running_season = periods.get(season_id)
+          assert running_season, season_id
+          assert running_month.get("running_only") is True
+          assert running_season.get("running_only") is True
           html = Path("index.html").read_text(encoding="utf-8")
-          assert "// ERA5_RUNNING_FRONTEND_V1" in html
-          assert 'value="running_month"' in html
-          assert 'value="running_summer"' in html
-          print("Laufender Monat:", data["periods"]["running_month"].get("label"))
-          print("Laufender Sommer:", data["periods"]["running_summer"].get("label"))
+          assert "// ERA5_RUNNING_FRONTEND_V2" in html
+          assert 'running_autumn' in html
+          assert 'running_winter' in html
+          print("Laufender Monat:", running_month.get("label"))
+          print("Laufende Saison:", running_season.get("label"))
+          print("Saison-ID:", season_id)
           print("Datenstand:", data.get("running", {}).get("data_through"))
           PY
 
