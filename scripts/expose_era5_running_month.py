@@ -4,8 +4,10 @@ from __future__ import annotations
 import copy
 import json
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+from era5_running_season import RUNNING_SEASON_IDS, season_spec
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_INDEX = ROOT / "era5_land_europe" / "index.json"
@@ -34,24 +36,52 @@ def expose_period(source: dict, running: dict) -> dict:
     return period
 
 
-def main() -> int:
-    if not MAIN_INDEX.exists() or not RUNNING_INDEX.exists():
-        raise RuntimeError("ERA5-Hauptindex oder laufender Index fehlt.")
+def current_running_season(running: dict) -> tuple[str, dict]:
+    periods = running.get("periods") or {}
+    data_through_text = running.get("data_through")
+    if not data_through_text:
+        raise RuntimeError("data_through fehlt im laufenden ERA5-Land-Index.")
+    data_through = date.fromisoformat(str(data_through_text))
+    spec = season_spec(data_through)
+    period = periods.get(spec.period_id)
+    if isinstance(period, dict):
+        return spec.period_id, period
 
-    main = json.loads(MAIN_INDEX.read_text(encoding="utf-8"))
-    running = json.loads(RUNNING_INDEX.read_text(encoding="utf-8"))
+    month = periods.get("running_month")
+    if not isinstance(month, dict):
+        raise RuntimeError("running_month fehlt im laufenden ERA5-Land-Index.")
+    if spec.completed_months:
+        raise RuntimeError(
+            f"{spec.period_id} fehlt, obwohl bereits vollständige Saisonmonate einbezogen werden müssten."
+        )
+
+    period = copy.deepcopy(month)
+    period.update({
+        "id": spec.period_id,
+        "label": spec.label,
+        "date_start": spec.start.isoformat(),
+        "date_end": data_through.isoformat(),
+        "completed_months": [],
+        "partial_month": data_through.month,
+    })
+    return spec.period_id, period
+
+
+def expose_running(main: dict, running: dict) -> dict:
     if running.get("ready") is not True:
         raise RuntimeError("Laufender ERA5-Land-Datensatz ist nicht bereit.")
 
     running_periods = running.get("periods") or {}
     month = running_periods.get("running_month")
-    summer = running_periods.get("running_summer")
-    if not isinstance(month, dict) or not isinstance(summer, dict):
-        raise RuntimeError("running_month oder running_summer fehlt im laufenden ERA5-Land-Index.")
+    if not isinstance(month, dict):
+        raise RuntimeError("running_month fehlt im laufenden ERA5-Land-Index.")
+    season_id, season = current_running_season(running)
 
     periods = dict(main.get("periods") or {})
     periods["running_month"] = expose_period(month, running)
-    periods["running_summer"] = expose_period(summer, running)
+    for candidate in RUNNING_SEASON_IDS:
+        periods.pop(candidate, None)
+    periods[season_id] = expose_period(season, running)
     main["periods"] = periods
 
     main["running"] = {
@@ -61,13 +91,25 @@ def main() -> int:
         "preliminary": bool(running.get("preliminary", True)),
         "availability_note": running.get("availability_note"),
         "reference_note": running.get("reference_note"),
+        "season_id": season_id,
     }
     main["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return main
 
-    atomic_json(MAIN_INDEX, main)
+
+def main() -> int:
+    if not MAIN_INDEX.exists() or not RUNNING_INDEX.exists():
+        raise RuntimeError("ERA5-Hauptindex oder laufender Index fehlt.")
+
+    payload = expose_running(
+        json.loads(MAIN_INDEX.read_text(encoding="utf-8")),
+        json.loads(RUNNING_INDEX.read_text(encoding="utf-8")),
+    )
+    atomic_json(MAIN_INDEX, payload)
+    season_id = payload.get("running", {}).get("season_id")
     print(
-        "ERA5 Frontend: laufender Monat und laufender Sommer bereitgestellt · "
-        f"Daten bis {running.get('data_through')}"
+        "ERA5 Frontend: laufender Monat und laufende Saison bereitgestellt · "
+        f"{season_id} · Daten bis {payload.get('running', {}).get('data_through')}"
     )
     return 0
 
