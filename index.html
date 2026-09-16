@@ -14241,7 +14241,7 @@ function era5EuropeUpdateViewOptions(){
 }
 
 // ERA5_TP_ALL_MONTHS_FRONTEND_V1
-// ERA5_RUNNING_FRONTEND_V1
+// ERA5_RUNNING_FRONTEND_V2
 function era5EuropeUpdatePeriodOptions(){
   const select=document.getElementById("era5EuropePeriod");if(!select)return;
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";
@@ -14249,11 +14249,13 @@ function era5EuropeUpdatePeriodOptions(){
   const latest=era5EuropeIndex?.periods?.latest_month;
   const summer=era5EuropeIndex?.periods?.summer;
   const runningMonth=era5EuropeIndex?.periods?.running_month;
-  const runningSummer=era5EuropeIndex?.periods?.running_summer;
+  const runningSeasonIds=["running_spring","running_summer","running_autumn","running_winter"];
+  const runningSeasonId=runningSeasonIds.find(id=>era5EuropeIndex?.periods?.[id]);
+  const runningSeason=runningSeasonId?era5EuropeIndex.periods[runningSeasonId]:null;
   const tp=parameter==="temperature"||parameter==="precipitation";
   let html='<optgroup label="Aktuell / Saison">';
   if(tp&&runningMonth)html+=`<option value="running_month">${runningMonth.label||"Laufender Monat"}</option>`;
-  if(tp&&runningSummer)html+=`<option value="running_summer">${runningSummer.label||"Laufender Sommer"}</option>`;
+  if(tp&&runningSeason)html+=`<option value="${runningSeasonId}">${runningSeason.label||"Laufende Saison"}</option>`;
   html+=`<option value="latest_month">${latest?.label||"Jüngster vollständiger Monat"}</option>`+
         `<option value="summer">${summer?.label||"Sommer (JJA)"}</option>`+
         '</optgroup>';
