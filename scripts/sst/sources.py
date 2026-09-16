@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import time
 from datetime import date, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import numpy as np
 import requests
+import xarray as xr
 
 from .config import (
     MUR_COLLECTION_ID,
@@ -20,6 +23,7 @@ from .config import (
 )
 
 CMR_GRANULES = "https://cmr.earthdata.nasa.gov/search/granules.json"
+NOAA_NCSS_MAX_LON_WIDTH = 15.0
 
 
 class _NcLinkParser(HTMLParser):
@@ -196,6 +200,41 @@ def discover_oisst_daily_normals_url(session=requests) -> str:
     )
 
 
+def _split_interval(start: float, stop: float, max_width: float) -> list[tuple[float, float]]:
+    chunks: list[tuple[float, float]] = []
+    current = start
+    while current < stop:
+        end = min(current + max_width, stop)
+        chunks.append((current, end))
+        current = end
+    return chunks
+
+
+def _oisst_longitude_chunks(west: float, east: float) -> list[tuple[float, float]]:
+    if not west < east:
+        raise ValueError(f"Ungültiger Längengradbereich: {west}…{east}")
+
+    segments: list[tuple[float, float]] = []
+    if west < 0.0:
+        negative_east = min(east, 0.0)
+        if west < negative_east:
+            segments.extend(
+                _split_interval(west + 360.0, negative_east + 360.0, NOAA_NCSS_MAX_LON_WIDTH)
+            )
+    if east > 0.0:
+        positive_west = max(west, 0.0)
+        if positive_west < east:
+            segments.extend(_split_interval(positive_west, east, NOAA_NCSS_MAX_LON_WIDTH))
+    return segments
+
+
+def _normalize_oisst_longitudes(dataset: xr.Dataset) -> xr.Dataset:
+    if "lon" not in dataset.coords:
+        raise RuntimeError("NOAA-NCSS-Subset enthält keine lon-Koordinate.")
+    normalized = ((dataset["lon"] + 180.0) % 360.0) - 180.0
+    return dataset.assign_coords(lon=normalized).sortby("lon")
+
+
 def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
     destination = cache_dir / "oisst" / "oisst_daily_normals_1991_2020.nc"
     if destination.exists() and destination.stat().st_size > 0:
@@ -205,19 +244,51 @@ def ensure_oisst_daily_normals(cache_dir: Path, session=requests) -> Path:
     union_south = min(region.south for region in REGIONS.values())
     union_east = max(region.east for region in REGIONS.values())
     union_north = max(region.north for region in REGIONS.values())
-    response = session.get(
-        NOAA_NORMALS_NCSS,
-        params={
-            "var": "sst",
-            "north": union_north,
-            "south": union_south,
-            "east": union_east,
-            "west": union_west,
-            "horizStride": 1,
-            "time": "all",
-            "accept": "netcdf4",
-        },
-        stream=True,
-        timeout=300,
-    )
-    return _write_response_atomic(response, destination)
+    longitude_chunks = _oisst_longitude_chunks(union_west, union_east)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".part")
+    try:
+        with tempfile.TemporaryDirectory(prefix="oisst-ncss-", dir=destination.parent) as tmp:
+            loaded_chunks: list[xr.Dataset] = []
+            for index, (west, east) in enumerate(longitude_chunks):
+                response = session.get(
+                    NOAA_NORMALS_NCSS,
+                    params={
+                        "var": "sst",
+                        "north": union_north,
+                        "south": union_south,
+                        "east": east,
+                        "west": west,
+                        "horizStride": 1,
+                        "time": "all",
+                        "accept": "netcdf4",
+                    },
+                    stream=True,
+                    timeout=300,
+                )
+                chunk_path = Path(tmp) / f"chunk-{index:02d}.nc"
+                _write_response_atomic(response, chunk_path)
+                with xr.open_dataset(chunk_path) as chunk_dataset:
+                    loaded_chunks.append(_normalize_oisst_longitudes(chunk_dataset.load()))
+
+            merged = xr.concat(
+                loaded_chunks,
+                dim="lon",
+                data_vars="minimal",
+                coords="minimal",
+                compat="override",
+            ).sortby("lon")
+            rounded_lon = np.round(np.asarray(merged["lon"].values, dtype=float), 6)
+            _, unique_indices = np.unique(rounded_lon, return_index=True)
+            merged = merged.isel(lon=np.sort(unique_indices))
+            merged.to_netcdf(
+                temporary,
+                engine="netcdf4",
+                encoding={"sst": {"zlib": True, "complevel": 4}},
+            )
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return destination
