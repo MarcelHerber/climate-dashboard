@@ -117,7 +117,7 @@ class SstSourceTests(unittest.TestCase):
                 self.assertAlmostEqual(float(lon.min()), -66.375, places=3)
                 self.assertAlmostEqual(float(lon.max()), 51.375, places=3)
 
-        self.assertEqual(session.get.call_count, 14)
+        self.assertEqual(session.get.call_count, 26)
         time_ranges = []
         lon_ranges = set()
         for call in session.get.call_args_list:
@@ -129,14 +129,28 @@ class SstSourceTests(unittest.TestCase):
             self.assertIsNotNone(match)
             time_start, time_stop, lat_start, lat_stop, lon_start, lon_stop = map(int, match.groups())
             self.assertEqual((lat_start, lat_stop), (434, 699))
-            self.assertLessEqual(time_stop - time_start + 1, 60)
+            self.assertLessEqual(time_stop - time_start + 1, 30)
             time_ranges.append((time_start, time_stop))
             lon_ranges.add((lon_start, lon_stop))
 
         self.assertEqual(lon_ranges, {(0, 205), (1174, 1439)})
         self.assertEqual(
             sorted(set(time_ranges)),
-            [(0, 59), (60, 119), (120, 179), (180, 239), (240, 299), (300, 359), (360, 364)],
+            [
+                (0, 29),
+                (30, 59),
+                (60, 89),
+                (90, 119),
+                (120, 149),
+                (150, 179),
+                (180, 209),
+                (210, 239),
+                (240, 269),
+                (270, 299),
+                (300, 329),
+                (330, 359),
+                (360, 364),
+            ],
         )
         for time_range in set(time_ranges):
             self.assertEqual(time_ranges.count(time_range), 2)
@@ -159,7 +173,7 @@ class SstSourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.sst.sources.time.sleep") as sleep:
             path = ensure_oisst_daily_normals(Path(tmp), session=session)
             self.assertTrue(path.exists())
-            self.assertEqual(session.get.call_count, 15)
+            self.assertEqual(session.get.call_count, 27)
             sleep.assert_called_once()
 
     def test_harmony_async_job_is_polled_and_data_link_downloaded(self):
