@@ -89,24 +89,37 @@ jobs:
           from datetime import date
           from pathlib import Path
           import tempfile
+          import time
           import requests
 
           from scripts.sst.sources import ensure_oisst_daily_normals, latest_available_mur_date
 
-          erddap = (
+          erddap_base = (
               'https://comet.nefsc.noaa.gov/erddap/griddap/'
-              'noaa_psl_4e02_3713_6583.nc?sst[0:1:1][460:1:463][1200:1:1203]'
+              'noaa_psl_4e02_3713_6583.nc?sst'
           )
-          probe = requests.get(erddap, timeout=60)
-          print('NOAA ERDDAP Probe:', probe.status_code, probe.headers.get('content-type'), len(probe.content), 'Bytes')
-          probe.raise_for_status()
-          assert len(probe.content) > 100
+          probes = (
+              ('tiny', '[0:1:1][460:1:463][1200:1:1203]'),
+              ('30-day-west', '[0:1:29][460:1:687][1200:1:1439]'),
+          )
+          for label, subset in probes:
+              started = time.monotonic()
+              probe = requests.get(erddap_base + subset, timeout=120)
+              elapsed = time.monotonic() - started
+              print(
+                  f'NOAA ERDDAP {label}: {probe.status_code} '
+                  f'{probe.headers.get("content-type")} {len(probe.content)} Bytes '
+                  f'in {elapsed:.1f}s',
+                  flush=True,
+              )
+              probe.raise_for_status()
+              assert len(probe.content) > 100
 
           latest = latest_available_mur_date(date.today(), lookback_days=14)
-          print('Neuester per CMR sichtbarer MUR-Tag:', latest)
+          print('Neuester per CMR sichtbarer MUR-Tag:', latest, flush=True)
 
           with tempfile.TemporaryDirectory() as tmp:
               path = ensure_oisst_daily_normals(Path(tmp))
               assert path.exists() and path.stat().st_size > 1_000_000, path
-              print('NOAA OISST Klimatologie-Subset:', path.stat().st_size, 'Bytes')
+              print('NOAA OISST Klimatologie-Subset:', path.stat().st_size, 'Bytes', flush=True)
           PY
