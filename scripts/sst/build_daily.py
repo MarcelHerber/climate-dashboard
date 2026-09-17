@@ -10,7 +10,11 @@ import xarray as xr
 
 from .config import ARCHIVE_START, REGIONS, Region
 from .manifest import VIEWS, archive_relpath, read_manifest, register_date, write_manifest_atomic
-from .processing import process_mur_region, validate_scientific_fields
+from .processing import (
+    process_mur_region,
+    summarize_region_statistics,
+    validate_scientific_fields,
+)
 from .render import render_map, validate_rendered_map
 from .sources import download_mur_subset, ensure_oisst_daily_normals
 
@@ -49,14 +53,23 @@ def _date_is_complete(manifest: dict, day: date, archive_root: Path) -> bool:
     regions = entry.get("regions")
     if not isinstance(regions, dict) or set(regions) != set(REGIONS):
         return False
+    statistics = entry.get("statistics")
+    if not isinstance(statistics, dict) or set(statistics) != set(REGIONS):
+        return False
     try:
         for region_id, region in REGIONS.items():
             view_paths = regions.get(region_id)
             if not isinstance(view_paths, dict) or set(view_paths) != set(VIEWS):
                 return False
+            region_stats = statistics.get(region_id)
+            if not isinstance(region_stats, dict) or set(region_stats) != set(VIEWS):
+                return False
             for view in VIEWS:
                 relpath = view_paths.get(view)
                 if not isinstance(relpath, str):
+                    return False
+                stats = region_stats.get(view)
+                if not isinstance(stats, dict) or set(stats) != {"mean", "min", "max"}:
                     return False
                 validate_rendered_map(archive_root / relpath, region)
     except (RuntimeError, OSError):
@@ -95,6 +108,7 @@ def build_date(
         mur_cache = cache_root / "mur_temp"
         mur_cache.mkdir(parents=True, exist_ok=True)
         outputs: dict[str, dict[str, str]] = {}
+        statistics: dict[str, dict] = {}
         reference_method: str | None = None
         normals = adapter.normal_dataset()
         close_normals = getattr(normals, "close", None)
@@ -106,6 +120,7 @@ def build_date(
                     with xr.open_dataset(mur_path) as mur:
                         fields = process_mur_region(mur, normals, day)
                         validate_scientific_fields(fields)
+                        statistics[region_id] = summarize_region_statistics(fields, region)
                         if reference_method is None:
                             reference_method = fields.reference_method
                         elif reference_method != fields.reference_method:
@@ -136,7 +151,7 @@ def build_date(
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source, destination)
 
-            updated = register_date(manifest, day, outputs, reference_method)
+            updated = register_date(manifest, day, outputs, reference_method, statistics)
             write_manifest_atomic(manifest_path, updated)
             return BuildResult(
                 day=day,
