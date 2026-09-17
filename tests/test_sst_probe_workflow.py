@@ -35,6 +35,11 @@ class SstProbeWorkflowTests(unittest.TestCase):
         self.assertNotIn("SST-Pilot läuft weiter", workflow)
         self.assertNotIn("BACKFILL_PID", workflow)
 
+    def test_combiner_does_not_mutate_first_day_manifest_before_reading_dates(self):
+        workflow = Path(".github/workflows/probe-sst-seven-days.yml").read_text(encoding="utf-8")
+        self.assertIn("import copy", workflow)
+        self.assertIn("merged = copy.deepcopy(payload)", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
