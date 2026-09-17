@@ -40,11 +40,11 @@ REGIONS = {
     "mediterranean": Region(
         "mediterranean",
         "Mittelmeer",
-        -16.0,
+        -18.0,
         30.0,
         36.0,
         46.0,
-        fetch_bounds=(-17.5, 28.5, 37.5, 47.5),
+        fetch_bounds=(-19.5, 28.5, 37.5, 47.5),
     ),
     "north_atlantic": Region(
         "north_atlantic",
