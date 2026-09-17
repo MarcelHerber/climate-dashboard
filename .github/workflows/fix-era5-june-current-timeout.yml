@@ -1,0 +1,146 @@
+name: Fix ERA5 June rank backfill timeout
+
+on:
+  push:
+    branches:
+      - fix/era5-june-current-timeout
+    paths:
+      - ".github/workflows/fix-era5-june-current-timeout.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/era5-june-current-timeout
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Pytest installieren
+        run: python -m pip install pytest numpy
+
+      - name: Regressionstest zuerst rot machen
+        shell: bash
+        run: |
+          cat >> tests/test_era5_running_freshness_guard.py <<'PY'
+
+          def test_completed_backfill_month_skips_live_probe():
+              from era5_running_freshness_guard import should_probe_backfill_availability
+              assert should_probe_backfill_availability(2026, 6, date(2026, 9, 11)) is False
+
+
+          def test_current_backfill_month_still_requires_live_probe():
+              from era5_running_freshness_guard import should_probe_backfill_availability
+              assert should_probe_backfill_availability(2026, 9, date(2026, 9, 11)) is True
+
+
+          def test_rank_backfill_workflow_reuses_known_source_and_allows_six_hours():
+              workflow = (ROOT / '.github/workflows/backfill-era5-running-temperature-ranks.yml').read_text(encoding='utf-8')
+              assert 'source_date: ${{ steps.plan.outputs.source_date }}' in workflow
+              current = workflow.split('\n  current:', 1)[1].split('\n  shards:', 1)[0]
+              assert 'timeout-minutes: 360' in current
+              assert '--known-available-through "${{ needs.prepare.outputs.source_date }}"' in current
+          PY
+
+          set +e
+          python -m pytest -q tests/test_era5_running_freshness_guard.py -k completed_backfill_month_skips_live_probe
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "Regressionstest war unerwartet schon grün."
+            exit 1
+          fi
+          echo "RED bestätigt: neue Schutzlogik fehlt im alten Stand."
+
+      - name: Minimale Reparatur anwenden
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Erwarteter Block fehlt in {path}: {old[:80]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          guard = 'scripts/era5_running_freshness_guard.py'
+          replace_once(
+              guard,
+              "    return expected_end_day\n\ndef append_output(path: Path | None, values: dict[str, str]) -> None:\n",
+              "    return expected_end_day\n\n\ndef should_probe_backfill_availability(\n    target_year: int,\n    target_month: int,\n    known_available_through: date | None,\n) -> bool:\n    if known_available_through is None:\n        return True\n    return (int(target_year), int(target_month)) >= (\n        known_available_through.year,\n        known_available_through.month,\n    )\n\n\ndef append_output(path: Path | None, values: dict[str, str]) -> None:\n",
+          )
+
+          builder = 'scripts/build_era5_temperature_rank_backfill_current.py'
+          replace_once(builder, 'import argparse\nfrom pathlib import Path\n', 'import argparse\nfrom datetime import date\nfrom pathlib import Path\n')
+          replace_once(
+              builder,
+              'from era5_running_freshness_guard import validate_backfill_end_day\n',
+              'from era5_running_freshness_guard import (\n    should_probe_backfill_availability,\n    validate_backfill_end_day,\n)\n',
+          )
+          replace_once(
+              builder,
+              "    parser.add_argument('--end-day', type=int, required=True)\n    parser.add_argument('--output', type=Path)\n",
+              "    parser.add_argument('--end-day', type=int, required=True)\n    parser.add_argument('--known-available-through')\n    parser.add_argument('--output', type=Path)\n",
+          )
+          replace_once(
+              builder,
+              "    available_through = probe_latest_temperature_day()\n    validate_backfill_end_day(\n        args.year,\n        args.month,\n        args.end_day,\n        available_through,\n    )\n    print(f'Backfill-Datenstand frisch geprüft: {available_through.isoformat()}')\n",
+              "    known_available_through = (\n        date.fromisoformat(args.known_available_through)\n        if args.known_available_through\n        else None\n    )\n    if should_probe_backfill_availability(\n        args.year,\n        args.month,\n        known_available_through,\n    ):\n        available_through = probe_latest_temperature_day()\n        source_label = 'frisch geprüft'\n    else:\n        assert known_available_through is not None\n        available_through = known_available_through\n        source_label = 'aus Running-Index übernommen'\n\n    validate_backfill_end_day(\n        args.year,\n        args.month,\n        args.end_day,\n        available_through,\n    )\n    print(f'Backfill-Datenstand {source_label}: {available_through.isoformat()}')\n",
+          )
+
+          workflow = '.github/workflows/backfill-era5-running-temperature-ranks.yml'
+          replace_once(
+              workflow,
+              '      end_day: ${{ steps.plan.outputs.end_day }}\n      history_years: ${{ steps.plan.outputs.history_years }}\n',
+              '      end_day: ${{ steps.plan.outputs.end_day }}\n      source_date: ${{ steps.plan.outputs.source_date }}\n      history_years: ${{ steps.plan.outputs.history_years }}\n',
+          )
+          replace_once(
+              workflow,
+              "              fh.write(f'end_day={end_day}\\n')\n              fh.write('history_years='+json.dumps(years,separators=(',',':'))+'\\n')\n",
+              "              fh.write(f'end_day={end_day}\\n')\n              fh.write(f'source_date={source.isoformat()}\\n')\n              fh.write('history_years='+json.dumps(years,separators=(',',':'))+'\\n')\n",
+          )
+          replace_once(workflow, '    timeout-minutes: 180\n', '    timeout-minutes: 360\n')
+          replace_once(
+              workflow,
+              '        run: python -m pytest -q tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py tests/test_era5_temperature_rank_backfill_successor.py\n',
+              '        run: python -m pytest -q tests/test_era5_running_freshness_guard.py tests/test_era5_temperature_rank_backfill.py tests/test_era5_running_temperature_rank.py tests/test_era5_temperature_rank.py tests/test_era5_temperature_rank_backfill_successor.py\n',
+          )
+          replace_once(
+              workflow,
+              '            --end-day "${{ needs.prepare.outputs.end_day }}"             --output',
+              '            --end-day "${{ needs.prepare.outputs.end_day }}"             --known-available-through "${{ needs.prepare.outputs.source_date }}"             --output',
+          )
+          PY
+
+      - name: Reparatur vollständig prüfen
+        run: |
+          python -m pytest -q tests/test_era5_running_freshness_guard.py tests/test_era5_temperature_rank_backfill.py tests/test_era5_temperature_rank_backfill_successor.py
+          python -m py_compile scripts/era5_running_freshness_guard.py scripts/build_era5_temperature_rank_backfill_current.py
+
+      - name: Geprüften Fix nach main übernehmen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/era5_running_freshness_guard.py scripts/build_era5_temperature_rank_backfill_current.py tests/test_era5_running_freshness_guard.py .github/workflows/backfill-era5-running-temperature-ranks.yml
+          git rm .github/workflows/fix-era5-june-current-timeout.yml
+          git commit -m "Fix ERA5 rank backfill current timeout"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+
+      - name: Juni-Backfill neu starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run backfill-era5-running-temperature-ranks.yml --ref main -f month=06
