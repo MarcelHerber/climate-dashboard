@@ -1,0 +1,119 @@
+name: SST Europa initial veröffentlichen
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/publish-sst-initial.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: sst-archive-writer
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: SST-Bereich in aktuelle Hauptseite einbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/patch_sst_frontend.py --file index.html
+          if git diff --quiet -- index.html; then
+            echo "SST-Frontend ist bereits in index.html eingebaut."
+          else
+            git config user.name "climate-dashboard-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "feat: SST Europa auf Hauptseite aktivieren"
+            git push origin HEAD:main
+          fi
+
+      - name: Prüfen ob SST-Archiv bereits existiert
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin sst-archive >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "sst-archive existiert bereits; Initialveröffentlichung wird übersprungen."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Freigegebenes 7-Tage-Artefakt laden
+        if: steps.archive.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sst-initial /tmp/sst-initial.zip
+          mkdir -p /tmp/sst-initial
+          curl -L --fail --retry 3 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/10486137477/zip" \
+            -o /tmp/sst-initial.zip
+          unzip -q /tmp/sst-initial.zip -d /tmp/sst-initial
+
+      - name: Initialdaten validieren
+        if: steps.archive.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /tmp/sst-initial/manifest.json
+          test -f /tmp/sst-initial/storage_report.json
+          COUNT=$(find /tmp/sst-initial -type f -name '*.webp' | wc -l)
+          echo "WebP-Karten: $COUNT"
+          test "$COUNT" -eq 56
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('/tmp/sst-initial/manifest.json').read_text(encoding='utf-8'))
+          dates = manifest.get('available_dates', [])
+          assert dates == [f'2026-09-{day:02d}' for day in range(1, 8)], dates
+          assert manifest.get('data_through') == '2026-09-07'
+          for day in dates:
+              payload = manifest['dates'][day]
+              statistics = payload.get('statistics')
+              assert statistics, (day, 'statistics fehlen')
+              for region in manifest['regions']:
+                  for view in ('absolute', 'anomaly'):
+                      values = statistics[region][view]
+                      assert all(key in values for key in ('mean', 'min', 'max')), (day, region, view, values)
+          print('Manifest und SST-Statistiken sind vollständig.')
+          PY
+
+      - name: SST-Archiv veröffentlichen
+        if: steps.archive.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sst-archive
+          git worktree add --detach /tmp/sst-archive HEAD
+          git -C /tmp/sst-archive rm -rf .
+          cp -a /tmp/sst-initial/. /tmp/sst-archive/
+          cd /tmp/sst-archive
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          TREE=$(git write-tree)
+          COMMIT=$(printf '%s\n' "SST Archiv initial veröffentlicht" | git commit-tree "$TREE")
+          git push origin "$COMMIT:refs/heads/sst-archive"
+          echo "SST Archiv veröffentlicht: $COMMIT"

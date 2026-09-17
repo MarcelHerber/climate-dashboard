@@ -1,0 +1,107 @@
+name: SST Europa täglich aktualisieren
+
+on:
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sst-archive-writer
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
+      - name: Earthdata Secret prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EARTHDATA_TOKEN:-}" ]]; then
+            echo "FEHLER: GitHub Actions Secret EARTHDATA_TOKEN fehlt."
+            exit 1
+          fi
+
+      - name: SST Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-europe-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          restore-keys: |
+            sst-europe-v1-${{ runner.os }}-
+
+      - name: SST Archiv-Arbeitsbaum vorbereiten
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sst-archive
+          if git ls-remote --exit-code --heads origin sst-archive >/dev/null 2>&1; then
+            git fetch origin sst-archive --depth=1
+            git worktree add --detach /tmp/sst-archive origin/sst-archive
+          else
+            git worktree add --detach /tmp/sst-archive HEAD
+            git -C /tmp/sst-archive rm -rf .
+          fi
+
+      - name: Neuesten vollständigen MUR-Tag bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from datetime import date
+          from pathlib import Path
+
+          from scripts.sst.build_daily import build_date
+          from scripts.sst.sources import latest_available_mur_date
+
+          day = latest_available_mur_date(date.today(), lookback_days=10)
+          result = build_date(
+              day,
+              Path('/tmp/sst-archive'),
+              Path('.sst_cache'),
+              os.environ['EARTHDATA_TOKEN'],
+          )
+          print(f"SST Datenstand: {day.isoformat()} · already_present={result.already_present}")
+          PY
+
+      - name: SST Archiv als einzelnen Snapshot veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/sst-archive
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "SST Archiv unverändert."
+            exit 0
+          fi
+          TREE=$(git write-tree)
+          COMMIT=$(printf '%s\n' "SST Archiv aktualisiert" | git commit-tree "$TREE")
+          git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
