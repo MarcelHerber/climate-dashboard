@@ -12,6 +12,10 @@
 .sst-europe-map-shell img{display:block;max-width:100%;width:100%;height:auto}
 .sst-europe-status{position:absolute;inset:auto 12px 12px 12px;padding:9px 11px;border-radius:7px;background:rgba(255,255,255,.92);color:#3d464d;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .sst-europe-status[hidden]{display:none!important}
+.sst-europe-stats{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#f7f8f9;color:#30363b;font-size:13px;line-height:1.4}
+.sst-europe-stats[hidden]{display:none!important}
+.sst-europe-stats-title{font-weight:800;margin-right:auto}
+.sst-europe-stats strong{font-weight:800}
 .sst-europe-timeline-wrap{margin-top:14px}
 .sst-europe-timeline-label{font-size:12px;font-weight:700;color:#4d565e;margin-bottom:7px}
 .sst-europe-timeline{display:flex;gap:5px;overflow-x:auto;padding:2px 1px 8px;scrollbar-width:thin}
@@ -29,4 +33,6 @@
   .sst-europe-export button{flex:1 1 0}
   .sst-europe-card{padding:10px}
   .sst-europe-map-shell{min-height:220px}
+  .sst-europe-stats{align-items:flex-start;gap:6px 12px}
+  .sst-europe-stats-title{width:100%;margin-right:0}
 }
