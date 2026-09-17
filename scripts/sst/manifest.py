@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from .config import ABSOLUTE_RANGE, ANOMALY_RANGE, ARCHIVE_START, REGIONS
 
 VIEWS = ("absolute", "anomaly")
+STAT_KEYS = ("mean", "min", "max")
 
 
 def _generated_at() -> str:
@@ -79,12 +81,39 @@ def _validate_outputs(outputs: dict) -> None:
         raise ValueError(f"SST-Datum benötigt exakt {expected} URLs.")
 
 
-def register_date(manifest: dict, day: date, outputs: dict, reference_method: str) -> dict:
+def _validate_statistics(statistics: dict) -> None:
+    if not isinstance(statistics, dict) or set(statistics) != set(REGIONS):
+        raise ValueError("SST-Statistik benötigt Werte für alle Regionen.")
+    for region_id in REGIONS:
+        region_stats = statistics.get(region_id)
+        if not isinstance(region_stats, dict) or set(region_stats) != set(VIEWS):
+            raise ValueError(f"SST-Statistik für {region_id} benötigt absolute und anomaly.")
+        for view in VIEWS:
+            view_stats = region_stats.get(view)
+            if not isinstance(view_stats, dict) or set(view_stats) != set(STAT_KEYS):
+                raise ValueError(f"SST-Statistik für {region_id}/{view} benötigt mean, min und max.")
+            for key in STAT_KEYS:
+                value = view_stats[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                    raise ValueError(f"Ungültiger SST-Statistikwert {region_id}/{view}/{key}: {value!r}")
+            if float(view_stats["min"]) > float(view_stats["mean"]) or float(view_stats["mean"]) > float(view_stats["max"]):
+                raise ValueError(f"Inkonsistente SST-Statistik für {region_id}/{view}.")
+
+
+def register_date(
+    manifest: dict,
+    day: date,
+    outputs: dict,
+    reference_method: str,
+    statistics: dict,
+) -> dict:
     _validate_outputs(outputs)
+    _validate_statistics(statistics)
     day_key = day.isoformat()
     manifest.setdefault("dates", {})[day_key] = {
         "reference_method": reference_method,
         "regions": copy.deepcopy(outputs),
+        "statistics": copy.deepcopy(statistics),
     }
     available = sorted(set(manifest.get("available_dates", [])) | {day_key})
     manifest["available_dates"] = available
