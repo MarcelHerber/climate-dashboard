@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -10,11 +11,39 @@ from era5_temperature_rank_backfill import (
     month_target_dates,
     rank_contribution,
 )
+from era5_temperature_rank_backfill_probe import resolve_available_through
 
 
 def test_month_target_dates_january():
     dates = month_target_dates(2026, 1, 3)
     assert dates == ['2026-01-01', '2026-01-02', '2026-01-03']
+
+
+def test_past_complete_month_uses_indexed_data_without_live_probe():
+    def fail_probe():
+        raise AssertionError('Live probe must not be called for an already covered month')
+
+    available, used_live_probe = resolve_available_through(
+        2026,
+        6,
+        30,
+        date(2026, 9, 11),
+        fail_probe,
+    )
+    assert available == date(2026, 9, 11)
+    assert used_live_probe is False
+
+
+def test_target_beyond_indexed_data_uses_live_probe():
+    available, used_live_probe = resolve_available_through(
+        2026,
+        9,
+        12,
+        date(2026, 9, 11),
+        lambda: date(2026, 9, 12),
+    )
+    assert available == date(2026, 9, 12)
+    assert used_live_probe is True
 
 
 def test_january_products_include_previous_december_for_winter():
