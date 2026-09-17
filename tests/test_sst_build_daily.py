@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import date
@@ -70,12 +71,21 @@ def fake_validate(path, region):
         assert image.size == (region.width_px, region.height_px)
 
 
+def fake_statistics(fields, region):
+    offset = float(list(REGIONS).index(region.id))
+    return {
+        "absolute": {"mean": 20.0 + offset, "min": 10.0 + offset, "max": 30.0 + offset},
+        "anomaly": {"mean": 0.5 + offset, "min": -2.0 + offset, "max": 3.0 + offset},
+    }
+
+
 class SstBuildDailyTests(unittest.TestCase):
     def test_build_date_publishes_exactly_eight_files_then_manifest(self):
         adapter = FakeAdapter()
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch("scripts.sst.build_daily.render_map", side_effect=fake_render), \
-             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate):
+             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate), \
+             mock.patch("scripts.sst.build_daily.summarize_region_statistics", side_effect=fake_statistics) as summarize:
             archive = Path(tmp) / "archive"
             cache = Path(tmp) / "cache"
             result = build_date(date(2026, 9, 14), archive, cache, "token", source_adapter=adapter)
@@ -83,6 +93,11 @@ class SstBuildDailyTests(unittest.TestCase):
             self.assertEqual(result.file_count, 8)
             self.assertEqual(len(list(archive.rglob("*.webp"))), 8)
             self.assertTrue((archive / "manifest.json").exists())
+            manifest = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))
+            stats = manifest["dates"]["2026-09-14"]["statistics"]
+            self.assertEqual(stats["europe"]["anomaly"]["mean"], 0.5)
+            self.assertEqual(stats["nordic_seas"]["absolute"]["max"], 33.0)
+            self.assertEqual(summarize.call_count, len(REGIONS))
             self.assertEqual(adapter.fetch_order, list(REGIONS))
             self.assertEqual(adapter.normal_calls, 1)
             self.assertEqual(list(cache.rglob("mur_*.nc")), [])
@@ -91,7 +106,8 @@ class SstBuildDailyTests(unittest.TestCase):
         adapter = FakeAdapter()
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch("scripts.sst.build_daily.render_map", side_effect=fake_render), \
-             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate):
+             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate), \
+             mock.patch("scripts.sst.build_daily.summarize_region_statistics", side_effect=fake_statistics):
             archive = Path(tmp) / "archive"
             cache = Path(tmp) / "cache"
             first = build_date(date(2026, 9, 14), archive, cache, "token", source_adapter=adapter)
@@ -106,7 +122,8 @@ class SstBuildDailyTests(unittest.TestCase):
         adapter = FakeAdapter(fail_region="north_atlantic")
         with tempfile.TemporaryDirectory() as tmp, \
              mock.patch("scripts.sst.build_daily.render_map", side_effect=fake_render), \
-             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate):
+             mock.patch("scripts.sst.build_daily.validate_rendered_map", side_effect=fake_validate), \
+             mock.patch("scripts.sst.build_daily.summarize_region_statistics", side_effect=fake_statistics):
             archive = Path(tmp) / "archive"
             cache = Path(tmp) / "cache"
             with self.assertRaisesRegex(RuntimeError, "synthetic"):
