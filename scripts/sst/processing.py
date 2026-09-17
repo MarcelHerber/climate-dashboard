@@ -7,7 +7,7 @@ import numpy as np
 import xarray as xr
 
 from .climatology import regrid_normal, select_daily_normal
-from .config import SEA_ICE_THRESHOLD
+from .config import SEA_ICE_THRESHOLD, Region
 
 
 @dataclass(frozen=True)
@@ -59,6 +59,39 @@ def process_mur_region(mur: xr.Dataset, normals: xr.Dataset, day: date) -> Proce
         valid_mask=valid_mask,
         reference_method=reference_method,
     )
+
+
+def _visible_region_field(field: xr.DataArray, region: Region) -> xr.DataArray:
+    visible = field.where((field["lon"] >= region.west) & (field["lon"] <= region.east), drop=True)
+    visible = visible.where((visible["lat"] >= region.south) & (visible["lat"] <= region.north), drop=True)
+    return visible
+
+
+def _field_statistics(field: xr.DataArray, region: Region) -> dict[str, float]:
+    visible = _visible_region_field(field, region)
+    values = np.asarray(visible.values, dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        raise RuntimeError(f"Keine gültigen SST-Werte im sichtbaren Ausschnitt {region.id}.")
+
+    latitude_weights = xr.DataArray(
+        np.cos(np.deg2rad(visible["lat"].astype(float))),
+        coords={"lat": visible["lat"]},
+        dims=("lat",),
+    )
+    mean = float(visible.weighted(latitude_weights).mean(skipna=True).item())
+    return {
+        "mean": mean,
+        "min": float(np.nanmin(values)),
+        "max": float(np.nanmax(values)),
+    }
+
+
+def summarize_region_statistics(fields: ProcessedFields, region: Region) -> dict[str, dict[str, float]]:
+    return {
+        "absolute": _field_statistics(fields.absolute_c, region),
+        "anomaly": _field_statistics(fields.anomaly_c, region),
+    }
 
 
 def validate_scientific_fields(fields: ProcessedFields) -> None:
