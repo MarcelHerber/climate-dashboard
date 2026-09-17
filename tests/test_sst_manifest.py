@@ -18,6 +18,15 @@ class SstManifestTests(unittest.TestCase):
             for region_id in REGIONS
         }
 
+    def complete_statistics(self):
+        return {
+            region_id: {
+                "absolute": {"mean": 20.1, "min": 10.2, "max": 29.3},
+                "anomaly": {"mean": 0.8, "min": -2.1, "max": 4.3},
+            }
+            for region_id in REGIONS
+        }
+
     def test_empty_manifest_has_stable_public_contract(self):
         manifest = empty_manifest()
         self.assertEqual(manifest["schema_version"], 1)
@@ -39,15 +48,31 @@ class SstManifestTests(unittest.TestCase):
         outputs = self.complete_outputs(day)
         outputs["europe"].pop("anomaly")
         with self.assertRaisesRegex(ValueError, "8"):
-            register_date(empty_manifest(), day, outputs, "daily_normal")
+            register_date(empty_manifest(), day, outputs, "daily_normal", self.complete_statistics())
+
+    def test_register_date_stores_statistics_for_every_region_and_view(self):
+        day = date(2026, 9, 14)
+        manifest = empty_manifest()
+        register_date(
+            manifest,
+            day,
+            self.complete_outputs(day),
+            "daily_normal",
+            self.complete_statistics(),
+        )
+        entry = manifest["dates"][day.isoformat()]
+        self.assertEqual(entry["statistics"]["europe"]["anomaly"]["mean"], 0.8)
+        self.assertEqual(entry["statistics"]["europe"]["anomaly"]["min"], -2.1)
+        self.assertEqual(entry["statistics"]["europe"]["anomaly"]["max"], 4.3)
 
     def test_register_date_sorts_and_deduplicates_available_dates(self):
         manifest = empty_manifest()
         later = date(2026, 9, 14)
         earlier = date(2026, 9, 13)
-        register_date(manifest, later, self.complete_outputs(later), "daily_normal")
-        register_date(manifest, earlier, self.complete_outputs(earlier), "daily_normal")
-        register_date(manifest, later, self.complete_outputs(later), "daily_normal")
+        stats = self.complete_statistics()
+        register_date(manifest, later, self.complete_outputs(later), "daily_normal", stats)
+        register_date(manifest, earlier, self.complete_outputs(earlier), "daily_normal", stats)
+        register_date(manifest, later, self.complete_outputs(later), "daily_normal", stats)
         self.assertEqual(manifest["available_dates"], ["2026-09-13", "2026-09-14"])
         self.assertEqual(manifest["data_through"], "2026-09-14")
         self.assertEqual(
