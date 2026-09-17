@@ -6,6 +6,8 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  sst_europe.js
+  sst_europe.css
   monthly_frequency.js
   dwd_station_daily_map.js
   dwd_station_daily_map.css
