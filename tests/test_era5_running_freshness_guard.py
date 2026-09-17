@@ -81,3 +81,21 @@ def test_reference_workflow_prebuilds_calendar_month_and_dispatches_running_upda
     assert 'reference-month' in workflow
     assert 'era5-land-running-0p1-reference-v1-${{ needs.target.outputs.month_key }}' in workflow
     assert 'gh workflow run update-era5-land-running.yml --ref main' in workflow
+
+
+def test_completed_backfill_month_skips_live_probe():
+    from era5_running_freshness_guard import should_probe_backfill_availability
+    assert should_probe_backfill_availability(2026, 6, date(2026, 9, 11)) is False
+
+
+def test_current_backfill_month_still_requires_live_probe():
+    from era5_running_freshness_guard import should_probe_backfill_availability
+    assert should_probe_backfill_availability(2026, 9, date(2026, 9, 11)) is True
+
+
+def test_rank_backfill_workflow_reuses_known_source_and_allows_six_hours():
+    workflow = (ROOT / '.github/workflows/backfill-era5-running-temperature-ranks.yml').read_text(encoding='utf-8')
+    assert 'source_date:' in workflow
+    current = workflow.split('\n  current:', 1)[1].split('\n  shards:', 1)[0]
+    assert 'timeout-minutes: 360' in current
+    assert '--known-available-through' in current
