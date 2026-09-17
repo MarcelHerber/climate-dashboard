@@ -15,6 +15,7 @@ on:
       - ".github/workflows/update-sst-europe.yml"
       - ".github/workflows/backfill-sst-europe.yml"
       - ".github/workflows/probe-sst-seven-days.yml"
+      - ".github/workflows/publish-sst-initial.yml"
       - ".github/workflows/verify-sst-feature.yml"
   workflow_dispatch:
 
@@ -69,6 +70,7 @@ jobs:
               Path('.github/workflows/update-sst-europe.yml'),
               Path('.github/workflows/backfill-sst-europe.yml'),
               Path('.github/workflows/probe-sst-seven-days.yml'),
+              Path('.github/workflows/publish-sst-initial.yml'),
           ):
               payload = yaml.safe_load(path.read_text(encoding='utf-8'))
               assert isinstance(payload, dict), path
