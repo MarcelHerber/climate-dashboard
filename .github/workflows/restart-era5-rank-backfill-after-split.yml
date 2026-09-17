@@ -1,0 +1,44 @@
+name: ERA5 Rang-Backfill nach Trennung neu starten
+
+on:
+  push:
+    paths:
+      - ".github/workflows/restart-era5-rank-backfill-after-split.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  restart-june:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Alten wartenden Juni-Lauf abbrechen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_RUN_ID: "35187719454"
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$OLD_RUN_ID" --jq '.status')
+          echo "Alter Juni-Lauf: $OLD_RUN_ID · Status: $STATUS"
+          if [[ "$STATUS" != "completed" ]]; then
+            gh api --method POST "/repos/$GITHUB_REPOSITORY/actions/runs/$OLD_RUN_ID/cancel"
+            echo "Alter Juni-Lauf wurde zum Abbruch markiert."
+          fi
+
+      - name: Juni mit eigener Backfill-Concurrency starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/dispatch.json" <<'JSON'
+          {"ref":"main","inputs":{"month":"06"}}
+          JSON
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/backfill-era5-running-temperature-ranks.yml/dispatches" \
+            --input "$RUNNER_TEMP/dispatch.json"
+          echo "Juni-Backfill unter der neuen Concurrency-Gruppe angestoßen."
