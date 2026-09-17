@@ -164,6 +164,7 @@ jobs:
       - name: Sieben Tagesartefakte zusammenführen
         run: |
           python - <<'PY'
+          import copy
           import json
           import shutil
           from datetime import date, datetime, timezone
@@ -190,7 +191,7 @@ jobs:
                   raise RuntimeError(f'{manifest_path}: erwartet genau einen Tag, gefunden {dates}')
 
               if merged is None:
-                  merged = payload
+                  merged = copy.deepcopy(payload)
                   merged['dates'] = {}
                   merged['available_dates'] = []
               else:
@@ -199,7 +200,7 @@ jobs:
                           raise RuntimeError(f'Inkonsistentes Feld {key} in {manifest_path}')
 
               day = dates[0]
-              merged_dates[day] = payload['dates'][day]
+              merged_dates[day] = copy.deepcopy(payload['dates'][day])
               available_dates.append(day)
 
               for webp in artifact_root.rglob('*.webp'):
