@@ -1,0 +1,270 @@
+name: SST Europa 7-Tage-Probelauf
+
+# Revised pilot: build each day in a separate short runner job, then merge the seven artifacts.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/sst-europe-stage1"]
+    paths:
+      - ".github/workflows/probe-sst-seven-days.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sst-seven-day-pilot
+  cancel-in-progress: true
+
+jobs:
+  prepare_cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Feature-Branch auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: feature/sst-europe-stage1
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
+      - name: SST Cache laden oder vorbereiten
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-europe-pilot-v4-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/sources.py') }}
+          restore-keys: |
+            sst-europe-pilot-v4-${{ runner.os }}-
+
+      - name: NOAA OISST Klimatologie sicherstellen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from scripts.sst.sources import ensure_oisst_daily_normals
+
+          path = ensure_oisst_daily_normals(Path('.sst_cache'))
+          size = path.stat().st_size
+          assert size > 1_000_000, (path, size)
+          print(f'OISST-Klimatologie bereit: {path} ({size} Bytes)', flush=True)
+          PY
+
+  pilot_day:
+    needs: prepare_cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        day:
+          - "2026-09-01"
+          - "2026-09-02"
+          - "2026-09-03"
+          - "2026-09-04"
+          - "2026-09-05"
+          - "2026-09-06"
+          - "2026-09-07"
+    env:
+      EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+
+    steps:
+      - name: Feature-Branch auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: feature/sst-europe-stage1
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
+      - name: Earthdata Secret prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EARTHDATA_TOKEN:-}" ]]; then
+            echo "FEHLER: GitHub Actions Secret EARTHDATA_TOKEN fehlt."
+            exit 1
+          fi
+          echo "EARTHDATA_TOKEN ist gesetzt."
+
+      - name: SST Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-europe-pilot-v4-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/sources.py') }}
+          restore-keys: |
+            sst-europe-pilot-v4-${{ runner.os }}-
+
+      - name: Einen echten SST-Tag erzeugen
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="/tmp/sst-pilot-${{ matrix.day }}"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          echo "SST-Pilot startet für ${{ matrix.day }}"
+          python -u -m scripts.sst.backfill \
+            --start "${{ matrix.day }}" \
+            --end "${{ matrix.day }}" \
+            --archive-root "$OUT" \
+            --cache-root .sst_cache
+
+      - name: Tagesergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="/tmp/sst-pilot-${{ matrix.day }}"
+          test -f "$OUT/manifest.json"
+          test -f "$OUT/storage_report.json"
+          COUNT=$(find "$OUT" -type f -name '*.webp' | wc -l)
+          echo "${{ matrix.day }}: erzeugte WebP-Karten: $COUNT"
+          test "$COUNT" -eq 8
+
+      - name: Tagesvorschau hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sst-europe-pilot-day-${{ matrix.day }}-v4
+          path: /tmp/sst-pilot-${{ matrix.day }}
+          if-no-files-found: error
+          retention-days: 3
+
+  combine:
+    needs: pilot_day
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Tagesartefakte herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sst-europe-pilot-day-*-v4
+          path: /tmp/sst-days
+          merge-multiple: false
+
+      - name: Sieben Tagesartefakte zusammenführen
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from datetime import date, datetime, timezone
+          from pathlib import Path
+
+          source_root = Path('/tmp/sst-days')
+          output_root = Path('/tmp/sst-pilot')
+          shutil.rmtree(output_root, ignore_errors=True)
+          output_root.mkdir(parents=True, exist_ok=True)
+
+          manifests = sorted(source_root.rglob('manifest.json'))
+          if len(manifests) != 7:
+              raise RuntimeError(f'Erwartet 7 Tages-Manifeste, gefunden: {len(manifests)}')
+
+          merged = None
+          merged_dates = {}
+          available_dates = []
+
+          for manifest_path in manifests:
+              artifact_root = manifest_path.parent
+              payload = json.loads(manifest_path.read_text(encoding='utf-8'))
+              dates = payload.get('available_dates', [])
+              if len(dates) != 1:
+                  raise RuntimeError(f'{manifest_path}: erwartet genau einen Tag, gefunden {dates}')
+
+              if merged is None:
+                  merged = copy.deepcopy(payload)
+                  merged['dates'] = {}
+                  merged['available_dates'] = []
+              else:
+                  for key in ('schema_version', 'archive_start', 'source', 'scales', 'regions'):
+                      if payload.get(key) != merged.get(key):
+                          raise RuntimeError(f'Inkonsistentes Feld {key} in {manifest_path}')
+
+              day = dates[0]
+              merged_dates[day] = copy.deepcopy(payload['dates'][day])
+              available_dates.append(day)
+
+              for webp in artifact_root.rglob('*.webp'):
+                  relative = webp.relative_to(artifact_root)
+                  destination = output_root / relative
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(webp, destination)
+
+          available_dates = sorted(set(available_dates))
+          if len(available_dates) != 7:
+              raise RuntimeError(f'Erwartet 7 verschiedene Tage, gefunden: {available_dates}')
+
+          merged['available_dates'] = available_dates
+          merged['dates'] = {day: merged_dates[day] for day in available_dates}
+          merged['data_through'] = available_dates[-1]
+          merged['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+          (output_root / 'manifest.json').write_text(
+              json.dumps(merged, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+
+          webps = list(output_root.rglob('*.webp'))
+          total_bytes = sum(path.stat().st_size for path in webps)
+          mean_bytes_per_day = total_bytes / len(available_dates)
+          archive_start = date.fromisoformat(merged['archive_start'])
+          projected_days = max(0, (date.today() - archive_start).days + 1)
+          report = {
+              'date_count': len(available_dates),
+              'file_count': len(webps),
+              'total_bytes': total_bytes,
+              'mean_bytes_per_day': mean_bytes_per_day,
+              'projected_archive_gib_from_2020': (mean_bytes_per_day * projected_days) / (1024 ** 3),
+          }
+          (output_root / 'storage_report.json').write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(report, indent=2), flush=True)
+          PY
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /tmp/sst-pilot/manifest.json
+          test -f /tmp/sst-pilot/storage_report.json
+          COUNT=$(find /tmp/sst-pilot -type f -name '*.webp' | wc -l)
+          echo "Erzeugte WebP-Karten: $COUNT"
+          test "$COUNT" -eq 56
+          echo '### SST 7-Tage-Probelauf' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Zeitraum: 01.–07.09.2026" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Regionen: Europa, Mittelmeer, Nordatlantik, Nordmeer / Skandinavien" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Erwartete Karten: 56" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Erzeugte Karten: $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/sst-pilot/storage_report.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gesamte Vorschau als Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sst-europe-pilot-2026-09-01-to-07-v4
+          path: /tmp/sst-pilot
+          if-no-files-found: error
+          retention-days: 14

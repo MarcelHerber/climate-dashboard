@@ -1,0 +1,135 @@
+name: SST Europa Monats-Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Monat YYYY-MM, z. B. 2020-01"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sst-archive-writer
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
+      - name: Earthdata Secret prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${EARTHDATA_TOKEN:-}" ]]; then
+            echo "FEHLER: GitHub Actions Secret EARTHDATA_TOKEN fehlt."
+            exit 1
+          fi
+
+      - name: SST Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-europe-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          restore-keys: |
+            sst-europe-v1-${{ runner.os }}-
+
+      - name: SST Archiv-Arbeitsbaum vorbereiten
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sst-archive
+          if git ls-remote --exit-code --heads origin sst-archive >/dev/null 2>&1; then
+            git fetch origin sst-archive --depth=1
+            git worktree add --detach /tmp/sst-archive origin/sst-archive
+          else
+            git worktree add --detach /tmp/sst-archive HEAD
+            git -C /tmp/sst-archive rm -rf .
+          fi
+
+      - name: Monat validieren und rückwirkend bauen
+        env:
+          BACKFILL_MONTH: ${{ inputs.month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import calendar
+          import os
+          import re
+          from datetime import date
+          from pathlib import Path
+
+          from scripts.sst.backfill import backfill
+          from scripts.sst.config import ARCHIVE_START
+          from scripts.sst.sources import latest_available_mur_date
+
+          month = os.environ['BACKFILL_MONTH']
+          if not re.fullmatch(r'\d{4}-\d{2}', month):
+              raise SystemExit('Monat muss YYYY-MM entsprechen.')
+          year, month_number = map(int, month.split('-'))
+          if month_number < 1 or month_number > 12:
+              raise SystemExit('Monat muss zwischen 01 und 12 liegen.')
+          start = date(year, month_number, 1)
+          if start < ARCHIVE_START:
+              raise SystemExit(f'Backfill beginnt frühestens {ARCHIVE_START:%Y-%m}.')
+
+          latest = latest_available_mur_date(date.today(), lookback_days=10)
+          newest_month = date(latest.year, latest.month, 1)
+          if start > newest_month:
+              raise SystemExit(f'{month} liegt nach dem neuesten MUR-Monat {newest_month:%Y-%m}.')
+
+          last_day = calendar.monthrange(year, month_number)[1]
+          end = date(year, month_number, last_day)
+          if start == newest_month:
+              end = min(end, latest)
+
+          result = backfill(
+              start,
+              end,
+              Path('/tmp/sst-archive'),
+              Path('.sst_cache'),
+              os.environ['EARTHDATA_TOKEN'],
+          )
+          print(result)
+          PY
+
+      - name: SST Archiv als einzelnen Snapshot veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/sst-archive
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "SST Archiv unverändert."
+            exit 0
+          fi
+          TREE=$(git write-tree)
+          COMMIT=$(printf '%s\n' "SST Archiv aktualisiert" | git commit-tree "$TREE")
+          git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
