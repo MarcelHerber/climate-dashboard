@@ -35,7 +35,6 @@ def validate_index_data_through(index_path: Path, expected_data_through: str) ->
     return actual
 
 
-
 def validate_backfill_end_day(
     target_year: int,
     target_month: int,
@@ -68,6 +67,20 @@ def validate_backfill_end_day(
             f'(ERA5-Land verfügbar bis {available_through.isoformat()}).'
         )
     return expected_end_day
+
+
+def should_probe_backfill_availability(
+    target_year: int,
+    target_month: int,
+    known_available_through: date | None,
+) -> bool:
+    if known_available_through is None:
+        return True
+    return (int(target_year), int(target_month)) >= (
+        known_available_through.year,
+        known_available_through.month,
+    )
+
 
 def append_output(path: Path | None, values: dict[str, str]) -> None:
     if path is None:
