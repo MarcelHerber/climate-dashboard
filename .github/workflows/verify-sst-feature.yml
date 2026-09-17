@@ -3,7 +3,7 @@ name: Verify SST Europe feature
 # Release verification for the current main-derived SST branch.
 on:
   push:
-    branches: ["release/sst-europe"]
+    branches: ["release/sst-europe", "feature/sst-archive-chain"]
     paths:
       - "scripts/sst/**"
       - "scripts/patch_sst_frontend.py"
