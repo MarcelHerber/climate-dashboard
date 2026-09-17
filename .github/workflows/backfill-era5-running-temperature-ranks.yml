@@ -18,7 +18,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: era5-running-temperature-ranks
+  group: era5-temperature-rank-backfill
   cancel-in-progress: false
 
 jobs:
