@@ -36,7 +36,7 @@ def render_map(fields: ProcessedFields, region: Region, day: date, view: str, ou
     dpi = 100
     figure = plt.figure(figsize=(region.width_px / dpi, region.height_px / dpi), dpi=dpi, facecolor="white")
     ax = figure.add_axes([0.055, 0.16, 0.89, 0.73], projection=ccrs.PlateCarree())
-    ax.set_extent(region.bounds, crs=ccrs.PlateCarree())
+    ax.set_extent((region.west, region.east, region.south, region.north), crs=ccrs.PlateCarree())
     mesh = ax.pcolormesh(
         fields.lon.values,
         fields.lat.values,
