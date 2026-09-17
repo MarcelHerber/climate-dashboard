@@ -1127,6 +1127,7 @@ button.action:hover{background:#1f2937}
 .station-precip-monthly-table td.station-precip-monthly-min{background:#f0dfcf!important;color:#6e3b00;font-weight:700}
 
 </style>
+<link rel="stylesheet" href="sst_europe.css">
 </head>
 <body>
 
@@ -1185,6 +1186,7 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeHub')">Europa-Überblick</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeStations')">Europa-Stationen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
+          <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
         </div>
       </div>
 
@@ -3318,6 +3320,42 @@ button.action:hover{background:#1f2937}
   </footer>
 </main>
 
+<!-- ================= MEERE / SST ================= -->
+<div id="sst-europe" class="tab-content">
+  <div class="section-header sst-europe-header">
+    <h2>Meere / SST</h2>
+    <p>Tägliche Meeresoberflächentemperatur und Abweichung zum Mittel 1991–2020 für Europa und den Nordatlantik.</p>
+    <span class="section-status">NASA/JPL MUR SST v4.1 · NOAA OISST 1991–2020</span>
+  </div>
+  <div class="controls sst-europe-controls">
+    <div class="control-group"><label for="sstRegion">Region</label><select id="sstRegion"></select></div>
+    <div class="control-group"><label for="sstView">Ansicht</label><select id="sstView"><option value="absolute">SST absolut</option><option value="anomaly">SST-Anomalie</option></select></div>
+    <div class="control-group"><label for="sstDate">Datum</label><input id="sstDate" type="date"></div>
+    <div class="sst-europe-date-nav" aria-label="SST Datum wechseln">
+      <button type="button" id="sstPrevDay">← Vortag</button>
+      <button type="button" id="sstLatestDay">Neuester Tag</button>
+      <button type="button" id="sstNextDay">Folgetag →</button>
+    </div>
+    <div class="sst-europe-export">
+      <button type="button" id="sstPngDownload" disabled>PNG</button>
+      <button type="button" id="sstPdfDownload" disabled>PDF</button>
+    </div>
+  </div>
+  <div class="sst-europe-card">
+    <div class="sst-europe-meta"><strong id="sstDataThrough">Datenstand: –</strong><span>Feste Skalen: SST −2…+34 °C · Anomalie −6…+6 °C</span></div>
+    <div class="sst-europe-map-shell">
+      <img id="sstMapImage" alt="SST-Karte" crossorigin="anonymous">
+      <div id="sstStatus" class="sst-europe-status">SST-Archiv wird geladen …</div>
+    </div>
+    <div class="sst-europe-timeline-wrap">
+      <div class="sst-europe-timeline-label">30 Tage</div>
+      <div id="sstTimeline" class="sst-europe-timeline" aria-label="SST Zeitachse"></div>
+    </div>
+    <p class="sst-europe-source">Aktuelle/historische SST: NASA/JPL MUR SST v4.1. Anomalien: MUR minus NOAA OISST-Tagesklimatologie 1991–2020. Land und stärker meereisbedeckte Zellen werden neutral maskiert.</p>
+  </div>
+</div>
+
+<script src="sst_europe.js"></script>
 <script>
 Chart.register(ChartDataLabels);
 // Schärfere Canvas-Ausgabe auf Standardmonitoren; Retina-Displays behalten ihre höhere Auflösung.
