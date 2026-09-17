@@ -61,7 +61,14 @@ class SstBackfillTests(unittest.TestCase):
                     region_id: {view: archive_relpath(day, region_id, view) for view in ("absolute", "anomaly")}
                     for region_id in REGIONS
                 }
-                register_date(manifest, day, outputs, "daily_normal")
+                statistics = {
+                    region_id: {
+                        "absolute": {"mean": 20.0, "min": 10.0, "max": 30.0},
+                        "anomaly": {"mean": 0.5, "min": -2.0, "max": 3.0},
+                    }
+                    for region_id in REGIONS
+                }
+                register_date(manifest, day, outputs, "daily_normal", statistics)
                 write_manifest_atomic(manifest_path, manifest)
                 return BuildResult(day, False, 8, "daily_normal")
 
