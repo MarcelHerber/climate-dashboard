@@ -1,15 +1,25 @@
 name: SST Europa Monats-Backfill
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/backfill-sst-europe.yml"
   workflow_dispatch:
     inputs:
       month:
         description: "Monat YYYY-MM, z. B. 2020-01"
         required: true
         type: string
+      chain:
+        description: "Nach Erfolg automatisch mit dem Folgemonat weitermachen"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sst-archive-writer
@@ -17,10 +27,13 @@ concurrency:
 
 jobs:
   backfill:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-archive]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
       EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+      BACKFILL_MONTH: ${{ github.event_name == 'push' && '2020-01' || inputs.month }}
+      CHAIN_MODE: ${{ github.event_name == 'push' || inputs.chain }}
 
     steps:
       - name: Hauptrepository auschecken
@@ -72,8 +85,7 @@ jobs:
           fi
 
       - name: Monat validieren und rückwirkend bauen
-        env:
-          BACKFILL_MONTH: ${{ inputs.month }}
+        id: build
         shell: bash
         run: |
           set -euo pipefail
@@ -116,6 +128,8 @@ jobs:
               os.environ['EARTHDATA_TOKEN'],
           )
           print(result)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
+              print(f'latest_month={newest_month:%Y-%m}', file=handle)
           PY
 
       - name: SST Archiv als einzelnen Snapshot veröffentlichen
@@ -131,5 +145,40 @@ jobs:
             exit 0
           fi
           TREE=$(git write-tree)
-          COMMIT=$(printf '%s\n' "SST Archiv aktualisiert" | git commit-tree "$TREE")
+          COMMIT=$(printf '%s\n' "SST Archiv aktualisiert: ${BACKFILL_MONTH}" | git commit-tree "$TREE")
           git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
+
+      - name: Nächsten Archivmonat anstoßen
+        if: ${{ success() && env.CHAIN_MODE == 'true' }}
+        shell: bash
+        env:
+          CURRENT_MONTH: ${{ env.BACKFILL_MONTH }}
+          LATEST_MONTH: ${{ steps.build.outputs.latest_month }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NEXT_MONTH=$(python - <<'PY'
+          import os
+          from datetime import date
+
+          year, month = map(int, os.environ['CURRENT_MONTH'].split('-'))
+          if month == 12:
+              next_month = date(year + 1, 1, 1)
+          else:
+              next_month = date(year, month + 1, 1)
+          latest_year, latest_month = map(int, os.environ['LATEST_MONTH'].split('-'))
+          latest = date(latest_year, latest_month, 1)
+          if next_month > latest:
+              print('')
+          else:
+              print(f'{next_month:%Y-%m}')
+          PY
+          )
+
+          if [[ -z "$NEXT_MONTH" ]]; then
+            echo "SST Archiv ist bis ${LATEST_MONTH} vollständig angestoßen."
+            exit 0
+          fi
+
+          echo "NEXT_MONTH=$NEXT_MONTH"
+          gh workflow run backfill-sst-europe.yml --ref main -f month="$NEXT_MONTH" -f chain=true
