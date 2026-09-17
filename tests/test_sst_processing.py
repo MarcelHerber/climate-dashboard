@@ -4,7 +4,8 @@ from datetime import date
 import numpy as np
 import xarray as xr
 
-from scripts.sst.processing import process_mur_region, validate_scientific_fields
+from scripts.sst.config import Region
+from scripts.sst.processing import process_mur_region, summarize_region_statistics, validate_scientific_fields
 
 
 def make_normals() -> xr.Dataset:
@@ -42,6 +43,23 @@ class SstProcessingTests(unittest.TestCase):
         fields = process_mur_region(make_mur(), make_normals(), date(2025, 1, 1))
         self.assertTrue(np.isnan(fields.absolute_c.sel(lat=50.0, lon=1.0)))
         self.assertTrue(np.isnan(fields.anomaly_c.sel(lat=50.0, lon=1.0)))
+
+    def test_region_statistics_are_visible_extent_only_and_area_weighted(self):
+        fields = process_mur_region(make_mur(), make_normals(), date(2025, 1, 1))
+        region = Region("test", "Test", -1.0, 50.0, 0.0, 51.0)
+        stats = summarize_region_statistics(fields, region)
+
+        w50 = np.cos(np.deg2rad(50.0))
+        w51 = np.cos(np.deg2rad(51.0))
+        expected_abs_mean = (20.0 * w50 + 22.0 * w51 + 23.0 * w51) / (w50 + 2 * w51)
+        expected_anom_mean = (0.0 * w50 + 2.0 * w51 + 3.0 * w51) / (w50 + 2 * w51)
+
+        self.assertAlmostEqual(stats["absolute"]["mean"], expected_abs_mean, places=6)
+        self.assertAlmostEqual(stats["absolute"]["min"], 20.0, places=6)
+        self.assertAlmostEqual(stats["absolute"]["max"], 23.0, places=6)
+        self.assertAlmostEqual(stats["anomaly"]["mean"], expected_anom_mean, places=6)
+        self.assertAlmostEqual(stats["anomaly"]["min"], 0.0, places=6)
+        self.assertAlmostEqual(stats["anomaly"]["max"], 3.0, places=6)
 
     def test_validation_accepts_plausible_fields(self):
         fields = process_mur_region(make_mur(), make_normals(), date(2025, 1, 1))
