@@ -27,6 +27,21 @@ jobs:
           ref: main
           fetch-depth: 1
 
+      - name: SST-Bereich in aktuelle Hauptseite einbauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/patch_sst_frontend.py --file index.html
+          if git diff --quiet -- index.html; then
+            echo "SST-Frontend ist bereits in index.html eingebaut."
+          else
+            git config user.name "climate-dashboard-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "feat: SST Europa auf Hauptseite aktivieren"
+            git push origin HEAD:main
+          fi
+
       - name: Prüfen ob SST-Archiv bereits existiert
         id: archive
         shell: bash
