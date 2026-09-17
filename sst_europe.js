@@ -24,6 +24,43 @@ function sstSetStatus(message,{show=true}={}){
   const status=sstEl("sstStatus");if(!status)return;
   status.textContent=message||"";status.hidden=!show;
 }
+function sstEnsureStatsBlock(){
+  let block=sstEl("sstStats");
+  if(block)return block;
+  const shell=sstEl("sstMapImage")?.closest?.(".sst-europe-map-shell");
+  if(!shell)return null;
+  block=document.createElement("div");
+  block.id="sstStats";
+  block.className="sst-europe-stats";
+  block.hidden=true;
+  block.setAttribute("aria-live","polite");
+  shell.insertAdjacentElement("afterend",block);
+  return block;
+}
+function sstFormatStat(value,{signed=false}={}){
+  const number=Number(value);
+  if(!Number.isFinite(number))return "–";
+  const formatted=Math.abs(number).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(number<0)return `−${formatted} °C`;
+  if(signed&&number>0)return `+${formatted} °C`;
+  return `${formatted} °C`;
+}
+function sstStatsLine(stats,view){
+  if(!stats)return "";
+  const signed=view==="anomaly";
+  const title=signed?"Abweichung im Kartenausschnitt":"Temperatur im Kartenausschnitt";
+  return `${title}: Mittel ${sstFormatStat(stats.mean,{signed})} · Minimum ${sstFormatStat(stats.min,{signed})} · Maximum ${sstFormatStat(stats.max,{signed})}`;
+}
+function sstRenderStats(stats,view){
+  const block=sstEnsureStatsBlock();if(!block)return;
+  if(!stats||![stats.mean,stats.min,stats.max].every(value=>Number.isFinite(Number(value)))){
+    block.textContent="";block.hidden=true;return;
+  }
+  const signed=view==="anomaly";
+  const title=signed?"Abweichung im Kartenausschnitt":"Temperatur im Kartenausschnitt";
+  block.innerHTML=`<span class="sst-europe-stats-title">${title}</span><span><strong>Mittel</strong> ${sstFormatStat(stats.mean,{signed})}</span><span><strong>Minimum</strong> ${sstFormatStat(stats.min,{signed})}</span><span><strong>Maximum</strong> ${sstFormatStat(stats.max,{signed})}</span>`;
+  block.hidden=false;
+}
 
 async function loadSstManifest(){
   if(!sstManifestPromise){
@@ -80,9 +117,11 @@ function sstRenderMap(){
   const region=sstState.region,view=sstState.view,date=sstState.date;
   const manifest=sstManifest;
   const rel=manifest.dates?.[date]?.regions?.[region]?.[view];
+  const stats=manifest.dates?.[date]?.statistics?.[region]?.[view];
   const image=sstEl("sstMapImage");
   const dataThrough=sstEl("sstDataThrough");
   if(dataThrough)dataThrough.textContent=`Datenstand: ${sstManifest.data_through||"–"}`;
+  sstRenderStats(stats,view);
   if(!image)return;
   if(!rel){
     image.removeAttribute("src");image.alt="Keine SST-Karte verfügbar";
@@ -127,17 +166,23 @@ function sstBindControls(){
 async function composeSstExportCanvas(){
   const image=sstEl("sstMapImage");
   if(!image?.src||!image.complete||!image.naturalWidth)throw new Error("Die SST-Karte ist noch nicht geladen.");
-  const footerHeight=90;
+  const stats=sstManifest?.dates?.[sstState.date]?.statistics?.[sstState.region]?.[sstState.view];
+  const statsLine=sstStatsLine(stats,sstState.view);
+  const footerHeight=statsLine?120:90;
   const canvas=document.createElement("canvas");
   canvas.width=image.naturalWidth;canvas.height=image.naturalHeight+footerHeight;
   const ctx=canvas.getContext("2d");
   ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(image,0,0,image.naturalWidth,image.naturalHeight);
   ctx.fillStyle="#202428";ctx.font="600 20px Arial,sans-serif";
-  ctx.fillText(`${sstState.date} · ${sstRegionLabel(sstState.region)} · ${sstViewLabel(sstState.view)}`,28,image.naturalHeight+34);
+  ctx.fillText(`${sstState.date} · ${sstRegionLabel(sstState.region)} · ${sstViewLabel(sstState.view)}`,28,image.naturalHeight+32);
+  if(statsLine){
+    ctx.fillStyle="#202428";ctx.font="600 16px Arial,sans-serif";
+    ctx.fillText(statsLine,28,image.naturalHeight+63);
+  }
   ctx.fillStyle="#5f676d";ctx.font="15px Arial,sans-serif";
   const source=sstState.view==="anomaly"?"NASA/JPL MUR SST v4.1 · Referenz NOAA OISST 1991–2020":"NASA/JPL MUR SST v4.1";
-  ctx.fillText(source,28,image.naturalHeight+65);
+  ctx.fillText(source,28,image.naturalHeight+(statsLine?96:65));
   return canvas;
 }
 window.composeSstExportCanvas=composeSstExportCanvas;
