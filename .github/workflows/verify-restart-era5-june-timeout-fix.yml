@@ -1,0 +1,31 @@
+name: Verify ERA5 June timeout fix and restart
+
+on:
+  push:
+    paths:
+      - ".github/workflows/verify-restart-era5-june-timeout-fix.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  verify-and-restart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Testabhängigkeiten installieren
+        run: python -m pip install pytest numpy
+      - name: Fix auf main verifizieren
+        run: |
+          python -m pytest -q tests/test_era5_running_freshness_guard.py tests/test_era5_temperature_rank_backfill.py tests/test_era5_temperature_rank_backfill_successor.py
+          python -m py_compile scripts/era5_running_freshness_guard.py scripts/build_era5_temperature_rank_backfill_current.py
+      - name: Juni-Backfill neu starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run backfill-era5-running-temperature-ranks.yml --ref main -f month=06
