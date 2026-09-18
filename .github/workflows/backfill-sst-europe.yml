@@ -69,9 +69,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sst_cache
-          key: sst-europe-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          key: sst-europe-pilot-v4-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/sources.py') }}
           restore-keys: |
-            sst-europe-v1-${{ runner.os }}-
+            sst-europe-pilot-v4-${{ runner.os }}-
+
+      - name: NOAA OISST Klimatologie sicherstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          from scripts.sst.sources import ensure_oisst_daily_normals
+
+          path = ensure_oisst_daily_normals(Path('.sst_cache'))
+          size = path.stat().st_size
+          assert size > 1_000_000, (path, size)
+          print(f'OISST-Klimatologie bereit: {path} ({size} Bytes)', flush=True)
+          PY
 
       - name: SST Archiv-Arbeitsbaum vorbereiten
         shell: bash
