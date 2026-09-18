@@ -20,7 +20,13 @@ class SstFrontendStaticTests(unittest.TestCase):
         self.assertIn("SST_ARCHIVE_BASES", self.source)
         self.assertIn("sstLoadManifestFrom", self.source)
         self.assertIn("sstTryImageSource", self.source)
-        self.assertIn("for(const base of SST_ARCHIVE_BASES)", self.source)
+        self.assertIn("Promise.any", self.source)
+        self.assertIn("AbortController", self.source)
+
+    def test_sst_mounts_when_tab_becomes_active_programmatically(self):
+        self.assertIn("MutationObserver", self.source)
+        self.assertIn('attributeFilter:["class"]', self.source)
+        self.assertIn('classList.contains("active")', self.source)
 
     def test_current_region_statistics_are_shown_below_map_and_exported(self):
         self.assertIn("statistics?.[region]?.[view]", self.source)

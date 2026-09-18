@@ -68,28 +68,30 @@ function sstRenderStats(stats,view){
 }
 
 async function sstLoadManifestFrom(base){
-  const response=await fetch(`${base}/manifest.json?t=${Date.now()}`,{cache:"no-store"});
-  if(!response.ok)throw new Error(`SST manifest HTTP ${response.status} @ ${base}`);
-  const payload=await response.json();
-  if(Number(payload?.schema_version)!==1)throw new Error(`Unbekannte SST-Manifest-Version @ ${base}`);
-  return payload;
+  const controller=new AbortController();
+  const timeout=window.setTimeout(()=>controller.abort(),5000);
+  try{
+    const response=await fetch(`${base}/manifest.json?t=${Date.now()}`,{cache:"no-store",signal:controller.signal});
+    if(!response.ok)throw new Error(`SST manifest HTTP ${response.status} @ ${base}`);
+    const payload=await response.json();
+    if(Number(payload?.schema_version)!==1)throw new Error(`Unbekannte SST-Manifest-Version @ ${base}`);
+    return {payload,base};
+  }finally{
+    window.clearTimeout(timeout);
+  }
 }
 async function loadSstManifest(){
   if(!sstManifestPromise){
-    sstManifestPromise=(async()=>{
-      let lastError=null;
-      for(const base of SST_ARCHIVE_BASES){
-        try{
-          const payload=await sstLoadManifestFrom(base);
-          sstArchiveBase=base;
-          return payload;
-        }catch(error){
-          lastError=error;
-          console.warn("SST Manifest-Fallback:",base,error);
-        }
-      }
-      throw lastError||new Error("SST-Manifest konnte über keinen Archiv-Endpunkt geladen werden.");
-    })().catch(error=>{sstManifestPromise=null;throw error;});
+    sstManifestPromise=Promise.any(SST_ARCHIVE_BASES.map(base=>sstLoadManifestFrom(base)))
+      .then(({payload,base})=>{
+        sstArchiveBase=base;
+        return payload;
+      })
+      .catch(error=>{
+        sstManifestPromise=null;
+        console.error("SST Manifest-Endpunkte:",error);
+        throw new Error("SST-Manifest konnte über keinen Archiv-Endpunkt geladen werden.");
+      });
   }
   return sstManifestPromise;
 }
@@ -281,4 +283,12 @@ document.addEventListener("click",event=>{
 document.addEventListener("DOMContentLoaded",()=>{
   if(sstEl("sst-europe")?.classList.contains("active"))mountSstEurope();
 });
+
+const sstTab=sstEl("sst-europe");
+if(sstTab&&"MutationObserver" in window){
+  const observer=new MutationObserver(()=>{
+    if(sstTab.classList.contains("active"))window.setTimeout(mountSstEurope,0);
+  });
+  observer.observe(sstTab,{attributes:true,attributeFilter:["class"]});
+}
 })();
