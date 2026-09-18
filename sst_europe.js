@@ -1,7 +1,12 @@
 (function(){
 "use strict";
 
-const SST_ARCHIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/sst-archive";
+const SST_ARCHIVE_BASES=[
+  "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/sst-archive",
+  "https://media.githubusercontent.com/media/MarcelHerber/climate-dashboard/sst-archive",
+  "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@sst-archive"
+];
+let sstArchiveBase=SST_ARCHIVE_BASES[0];
 let sstManifestPromise=null;
 let sstManifest=null;
 let sstMounted=false;
@@ -62,15 +67,29 @@ function sstRenderStats(stats,view){
   block.hidden=false;
 }
 
+async function sstLoadManifestFrom(base){
+  const response=await fetch(`${base}/manifest.json?t=${Date.now()}`,{cache:"no-store"});
+  if(!response.ok)throw new Error(`SST manifest HTTP ${response.status} @ ${base}`);
+  const payload=await response.json();
+  if(Number(payload?.schema_version)!==1)throw new Error(`Unbekannte SST-Manifest-Version @ ${base}`);
+  return payload;
+}
 async function loadSstManifest(){
   if(!sstManifestPromise){
-    sstManifestPromise=fetch(`${SST_ARCHIVE_BASE}/manifest.json?t=${Date.now()}`,{cache:"no-store"})
-      .then(r=>{if(!r.ok)throw new Error(`SST manifest HTTP ${r.status}`);return r.json();})
-      .then(payload=>{
-        if(Number(payload?.schema_version)!==1)throw new Error("Unbekannte SST-Manifest-Version");
-        return payload;
-      })
-      .catch(error=>{sstManifestPromise=null;throw error;});
+    sstManifestPromise=(async()=>{
+      let lastError=null;
+      for(const base of SST_ARCHIVE_BASES){
+        try{
+          const payload=await sstLoadManifestFrom(base);
+          sstArchiveBase=base;
+          return payload;
+        }catch(error){
+          lastError=error;
+          console.warn("SST Manifest-Fallback:",base,error);
+        }
+      }
+      throw lastError||new Error("SST-Manifest konnte über keinen Archiv-Endpunkt geladen werden.");
+    })().catch(error=>{sstManifestPromise=null;throw error;});
   }
   return sstManifestPromise;
 }
@@ -112,6 +131,26 @@ function sstRenderTimeline(){
 
 function sstArchiveUrl(rel){return `${SST_ARCHIVE_BASE}/${String(rel).replace(/^\/+/,"")}`;}
 
+function sstTryImageSource(image,rel,bases,index=0){
+  if(index>=bases.length){
+    image.removeAttribute("src");
+    sstSetStatus("Die SST-Karte konnte über keinen Archiv-Endpunkt geladen werden.");
+    sstEnableExports(false);
+    return;
+  }
+  const base=bases[index];
+  image.onload=()=>{
+    sstArchiveBase=base;
+    sstSetStatus("",{show:false});
+    sstEnableExports(true);
+  };
+  image.onerror=()=>{
+    console.warn("SST Karten-Fallback:",base,rel);
+    sstTryImageSource(image,rel,bases,index+1);
+  };
+  image.src=`${sstArchiveUrl(rel,base)}?v=${encodeURIComponent(sstManifest?.generated_at||sstManifest?.data_through||"1")}`;
+}
+
 function sstRenderMap(){
   if(!sstManifest||!sstState.date)return;
   const region=sstState.region,view=sstState.view,date=sstState.date;
@@ -134,9 +173,8 @@ function sstRenderMap(){
   sstEnableExports(false);
   image.crossOrigin="anonymous";
   image.alt=`${sstRegionLabel(region)} · ${sstViewLabel(view)} · ${date}`;
-  image.onload=()=>{sstSetStatus("",{show:false});sstEnableExports(true);};
-  image.onerror=()=>{sstSetStatus("Die SST-Karte konnte nicht geladen werden.");sstEnableExports(false);};
-  image.src=`${sstArchiveUrl(rel)}?v=${encodeURIComponent(sstManifest.generated_at||sstManifest.data_through||"1")}`;
+  const bases=[sstArchiveBase,...SST_ARCHIVE_BASES.filter(base=>base!==sstArchiveBase)];
+  sstTryImageSource(image,rel,bases);
   sstRenderTimeline();
 }
 
