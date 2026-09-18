@@ -1,7 +1,5 @@
 name: SST Europa Monats-Backfill
 
-# Archivstart: vollständiger SST-Backfill ab 2020
-
 on:
   push:
     branches: ["main"]
@@ -24,18 +22,26 @@ permissions:
   actions: write
 
 concurrency:
-  group: sst-archive-writer
+  group: sst-archive-backfill
   cancel-in-progress: false
 
 jobs:
-  backfill:
+  prepare:
     if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-archive]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 30
+    outputs:
+      month: ${{ steps.plan.outputs.month }}
+      days_json: ${{ steps.plan.outputs.days_json }}
+      day_count: ${{ steps.plan.outputs.day_count }}
+      latest_month: ${{ steps.plan.outputs.latest_month }}
+      chain_mode: ${{ steps.plan.outputs.chain_mode }}
+
     env:
       EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
       BACKFILL_MONTH: ${{ github.event_name == 'push' && '2020-01' || inputs.month }}
       CHAIN_MODE: ${{ github.event_name == 'push' || inputs.chain }}
+      CARTOPY_DATA_DIR: ${{ github.workspace }}/.sst_cache/cartopy
 
     steps:
       - name: Hauptrepository auschecken
@@ -65,15 +71,210 @@ jobs:
             exit 1
           fi
 
+      - name: SST Cache vorbereiten
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-europe-archive-v2-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/sources.py') }}
+          restore-keys: |
+            sst-europe-archive-v2-${{ runner.os }}-
+            sst-europe-v1-${{ runner.os }}-
+
+      - name: Referenz- und Kartendaten vorbereiten
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CARTOPY_DATA_DIR"
+          python - <<'PY'
+          from pathlib import Path
+          import cartopy
+          from cartopy.io import shapereader
+          from scripts.sst.sources import ensure_oisst_daily_normals
+
+          cartopy.config['data_dir'] = str(Path('.sst_cache/cartopy').resolve())
+          path = ensure_oisst_daily_normals(Path('.sst_cache'))
+          print(f'OISST-Klimatologie bereit: {path} ({path.stat().st_size} Bytes)', flush=True)
+          for category, name, resolution in [
+              ('physical', 'land', '50m'),
+              ('physical', 'coastline', '50m'),
+              ('cultural', 'admin_0_boundary_lines_land', '50m'),
+              ('physical', 'land', '110m'),
+              ('cultural', 'admin_0_boundary_lines_land', '110m'),
+          ]:
+              shapereader.natural_earth(resolution=resolution, category=category, name=name)
+          print('Cartopy-Basisdaten bereit.', flush=True)
+          PY
+
+      - name: Monatsplan erstellen
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin sst-archive --depth=1 || true
+          python - <<'PY'
+          import calendar
+          import json
+          import os
+          import re
+          import subprocess
+          from datetime import date, timedelta
+
+          from scripts.sst.config import ARCHIVE_START
+          from scripts.sst.sources import latest_available_mur_date
+
+          month = os.environ['BACKFILL_MONTH']
+          if not re.fullmatch(r'\d{4}-\d{2}', month):
+              raise SystemExit('Monat muss YYYY-MM entsprechen.')
+          year, month_number = map(int, month.split('-'))
+          if not 1 <= month_number <= 12:
+              raise SystemExit('Monat muss zwischen 01 und 12 liegen.')
+
+          start = date(year, month_number, 1)
+          if start < ARCHIVE_START:
+              raise SystemExit(f'Backfill beginnt frühestens {ARCHIVE_START:%Y-%m}.')
+
+          latest = latest_available_mur_date(date.today(), lookback_days=10)
+          newest_month = date(latest.year, latest.month, 1)
+          if start > newest_month:
+              raise SystemExit(f'{month} liegt nach dem neuesten MUR-Monat {newest_month:%Y-%m}.')
+
+          end = date(year, month_number, calendar.monthrange(year, month_number)[1])
+          if start == newest_month:
+              end = min(end, latest)
+
+          existing = set()
+          try:
+              raw = subprocess.check_output(
+                  ['git', 'show', 'origin/sst-archive:manifest.json'],
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              )
+              existing = set(json.loads(raw).get('available_dates', []))
+          except Exception:
+              pass
+
+          days = []
+          current = start
+          while current <= end:
+              iso = current.isoformat()
+              if iso not in existing:
+                  days.append(iso)
+              current += timedelta(days=1)
+
+          output = os.environ['GITHUB_OUTPUT']
+          with open(output, 'a', encoding='utf-8') as handle:
+              print(f'month={month}', file=handle)
+              print('days_json=' + json.dumps(days, separators=(',', ':')), file=handle)
+              print(f'day_count={len(days)}', file=handle)
+              print(f'latest_month={newest_month:%Y-%m}', file=handle)
+              print(f"chain_mode={str(os.environ.get('CHAIN_MODE', '')).lower()}", file=handle)
+
+          print(f'{month}: {len(days)} fehlende Tage von {start} bis {end}', flush=True)
+          if days:
+              print('Zu bauen: ' + ', '.join(days), flush=True)
+          else:
+              print('Monat ist bereits vollständig im Archiv.', flush=True)
+          PY
+
+  build_day:
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.day_count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        day: ${{ fromJSON(needs.prepare.outputs.days_json) }}
+
+    env:
+      EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+      CARTOPY_DATA_DIR: ${{ github.workspace }}/.sst_cache/cartopy
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
       - name: SST Cache wiederherstellen
         uses: actions/cache@v4
         with:
           path: .sst_cache
-          key: sst-europe-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt') }}
+          key: sst-europe-archive-v2-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/sources.py') }}
           restore-keys: |
+            sst-europe-archive-v2-${{ runner.os }}-
             sst-europe-v1-${{ runner.os }}-
 
-      - name: SST Archiv-Arbeitsbaum vorbereiten
+      - name: SST-Tag bauen
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="/tmp/sst-day-${{ matrix.day }}"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          python -u -m scripts.sst.backfill             --start "${{ matrix.day }}"             --end "${{ matrix.day }}"             --archive-root "$OUT"             --cache-root .sst_cache
+
+      - name: Tagesergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="/tmp/sst-day-${{ matrix.day }}"
+          test -f "$OUT/manifest.json"
+          COUNT=$(find "$OUT" -type f -name '*.webp' | wc -l)
+          echo "${{ matrix.day }}: $COUNT WebP-Karten"
+          test "$COUNT" -eq 8
+
+      - name: Tagesergebnis hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sst-backfill-day-${{ matrix.day }}
+          path: /tmp/sst-day-${{ matrix.day }}
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: [prepare, build_day]
+    if: ${{ always() && needs.prepare.result == 'success' && (needs.build_day.result == 'success' || needs.build_day.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: sst-archive-writer
+      cancel-in-progress: false
+
+    env:
+      BACKFILL_MONTH: ${{ needs.prepare.outputs.month }}
+      DAY_COUNT: ${{ needs.prepare.outputs.day_count }}
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Tagesartefakte herunterladen
+        if: ${{ needs.prepare.outputs.day_count != '0' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sst-backfill-day-*
+          path: /tmp/sst-days
+          merge-multiple: false
+
+      - name: Aktuellen SST-Archivstand laden
         shell: bash
         run: |
           set -euo pipefail
@@ -86,55 +287,83 @@ jobs:
             git -C /tmp/sst-archive rm -rf .
           fi
 
-      - name: Monat validieren und rückwirkend bauen
-        id: build
+      - name: Tagesergebnisse in Archiv einbauen
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import calendar
+          import copy
+          import json
           import os
-          import re
-          from datetime import date
+          import shutil
+          from datetime import date, datetime, timezone
           from pathlib import Path
 
-          from scripts.sst.backfill import backfill
-          from scripts.sst.config import ARCHIVE_START
-          from scripts.sst.sources import latest_available_mur_date
+          archive = Path('/tmp/sst-archive')
+          source_root = Path('/tmp/sst-days')
+          manifest_path = archive / 'manifest.json'
 
-          month = os.environ['BACKFILL_MONTH']
-          if not re.fullmatch(r'\d{4}-\d{2}', month):
-              raise SystemExit('Monat muss YYYY-MM entsprechen.')
-          year, month_number = map(int, month.split('-'))
-          if month_number < 1 or month_number > 12:
-              raise SystemExit('Monat muss zwischen 01 und 12 liegen.')
-          start = date(year, month_number, 1)
-          if start < ARCHIVE_START:
-              raise SystemExit(f'Backfill beginnt frühestens {ARCHIVE_START:%Y-%m}.')
+          manifests = sorted(source_root.rglob('manifest.json')) if source_root.exists() else []
+          expected = int(os.environ.get('DAY_COUNT', '0'))
+          if len(manifests) != expected:
+              raise RuntimeError(f'Erwartet {expected} Tages-Manifeste, gefunden {len(manifests)}')
 
-          latest = latest_available_mur_date(date.today(), lookback_days=10)
-          newest_month = date(latest.year, latest.month, 1)
-          if start > newest_month:
-              raise SystemExit(f'{month} liegt nach dem neuesten MUR-Monat {newest_month:%Y-%m}.')
+          if manifest_path.exists():
+              merged = json.loads(manifest_path.read_text(encoding='utf-8'))
+          elif manifests:
+              merged = copy.deepcopy(json.loads(manifests[0].read_text(encoding='utf-8')))
+              merged['dates'] = {}
+              merged['available_dates'] = []
+          else:
+              raise RuntimeError('Kein bestehendes Manifest und keine Tagesartefakte vorhanden.')
 
-          last_day = calendar.monthrange(year, month_number)[1]
-          end = date(year, month_number, last_day)
-          if start == newest_month:
-              end = min(end, latest)
+          dates = dict(merged.get('dates', {}))
+          available = set(merged.get('available_dates', []))
 
-          result = backfill(
-              start,
-              end,
-              Path('/tmp/sst-archive'),
-              Path('.sst_cache'),
-              os.environ['EARTHDATA_TOKEN'],
+          for daily_manifest in manifests:
+              root = daily_manifest.parent
+              payload = json.loads(daily_manifest.read_text(encoding='utf-8'))
+              daily_dates = payload.get('available_dates', [])
+              if len(daily_dates) != 1:
+                  raise RuntimeError(f'{daily_manifest}: erwartet genau einen Tag, gefunden {daily_dates}')
+              day = daily_dates[0]
+              dates[day] = copy.deepcopy(payload['dates'][day])
+              available.add(day)
+
+              for webp in root.rglob('*.webp'):
+                  relative = webp.relative_to(root)
+                  destination = archive / relative
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(webp, destination)
+
+          available_sorted = sorted(available)
+          merged['dates'] = {day: dates[day] for day in available_sorted}
+          merged['available_dates'] = available_sorted
+          merged['data_through'] = available_sorted[-1] if available_sorted else None
+          merged['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+          manifest_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          webps = list(archive.rglob('*.webp'))
+          total_bytes = sum(path.stat().st_size for path in webps)
+          date_count = len(available_sorted)
+          mean_bytes_per_day = total_bytes / date_count if date_count else 0.0
+          archive_start = date.fromisoformat(merged['archive_start'])
+          projected_days = max(0, (date.today() - archive_start).days + 1)
+          report = {
+              'date_count': date_count,
+              'file_count': len(webps),
+              'total_bytes': total_bytes,
+              'mean_bytes_per_day': mean_bytes_per_day,
+              'projected_archive_gib_from_2020': (mean_bytes_per_day * projected_days) / (1024 ** 3),
+          }
+          (archive / 'storage_report.json').write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
           )
-          print(result)
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
-              print(f'latest_month={newest_month:%Y-%m}', file=handle)
+          print(f"Archiv enthält jetzt {date_count} Tage und {len(webps)} Karten.", flush=True)
           PY
 
-      - name: SST Archiv als einzelnen Snapshot veröffentlichen
+      - name: SST Archiv als Snapshot veröffentlichen
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +372,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "SST Archiv unverändert."
+            echo "SST Archiv für ${BACKFILL_MONTH} bereits vollständig."
             exit 0
           fi
           TREE=$(git write-tree)
@@ -151,11 +380,11 @@ jobs:
           git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
 
       - name: Nächsten Archivmonat anstoßen
-        if: ${{ success() && env.CHAIN_MODE == 'true' }}
+        if: ${{ needs.prepare.outputs.chain_mode == 'true' }}
         shell: bash
         env:
-          CURRENT_MONTH: ${{ env.BACKFILL_MONTH }}
-          LATEST_MONTH: ${{ steps.build.outputs.latest_month }}
+          CURRENT_MONTH: ${{ needs.prepare.outputs.month }}
+          LATEST_MONTH: ${{ needs.prepare.outputs.latest_month }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -164,23 +393,17 @@ jobs:
           from datetime import date
 
           year, month = map(int, os.environ['CURRENT_MONTH'].split('-'))
-          if month == 12:
-              next_month = date(year + 1, 1, 1)
-          else:
-              next_month = date(year, month + 1, 1)
+          next_month = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
           latest_year, latest_month = map(int, os.environ['LATEST_MONTH'].split('-'))
           latest = date(latest_year, latest_month, 1)
-          if next_month > latest:
-              print('')
-          else:
-              print(f'{next_month:%Y-%m}')
+          print('' if next_month > latest else f'{next_month:%Y-%m}')
           PY
           )
 
           if [[ -z "$NEXT_MONTH" ]]; then
-            echo "SST Archiv ist bis ${LATEST_MONTH} vollständig angestoßen."
+            echo "SST Archiv ist bis ${LATEST_MONTH} vollständig."
             exit 0
           fi
 
-          echo "NEXT_MONTH=$NEXT_MONTH"
+          echo "Starte Folgemonat $NEXT_MONTH"
           gh workflow run backfill-sst-europe.yml --ref main -f month="$NEXT_MONTH" -f chain=true
