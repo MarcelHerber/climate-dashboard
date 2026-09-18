@@ -8,12 +8,19 @@ class SstFrontendStaticTests(unittest.TestCase):
         self.css = Path("sst_europe.css").read_text(encoding="utf-8")
 
     def test_manifest_urls_navigation_and_exports_are_contract_driven(self):
-        self.assertIn('const SST_ARCHIVE_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/sst-archive"', self.source)
+        self.assertIn('https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/sst-archive', self.source)
         self.assertIn("manifest.dates?.[date]?.regions?.[region]?.[view]", self.source)
         self.assertIn("sstRenderTimeline", self.source)
         self.assertIn("downloadSstPng", self.source)
         self.assertIn("downloadSstPdf", self.source)
         self.assertIn("composeSstExportCanvas", self.source)
+
+    def test_archive_loading_has_cdn_fallback_for_manifest_and_maps(self):
+        self.assertIn('https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@sst-archive', self.source)
+        self.assertIn("SST_ARCHIVE_BASES", self.source)
+        self.assertIn("sstLoadManifestFrom", self.source)
+        self.assertIn("sstTryImageSource", self.source)
+        self.assertIn("for(const base of SST_ARCHIVE_BASES)", self.source)
 
     def test_current_region_statistics_are_shown_below_map_and_exported(self):
         self.assertIn("statistics?.[region]?.[view]", self.source)
