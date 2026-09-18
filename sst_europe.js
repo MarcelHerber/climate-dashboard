@@ -131,7 +131,7 @@ function sstRenderTimeline(){
   }
 }
 
-function sstArchiveUrl(rel){return `${SST_ARCHIVE_BASE}/${String(rel).replace(/^\/+/,"")}`;}
+function sstArchiveUrl(rel,base=sstArchiveBase){return `${base}/${String(rel).replace(/^\/+/,"")}`;}
 
 function sstTryImageSource(image,rel,bases,index=0){
   if(index>=bases.length){
