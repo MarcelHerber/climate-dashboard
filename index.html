@@ -7157,7 +7157,8 @@ function stationClimateValueRankInfo(rows,column,value,meta){
 function stationClimateValueCell(row,column,block,meta,reference,allRows){
   const value=stationClimateValueFromRow(row,column);
   const quality=stationClimateValueQualityFromRow(row,column);
-  const qualityText=stationClimateValueQualityText(quality);
+  const exactQualityText=stationClimateValueQualityText(quality);
+  const qualityText=exactQualityText || (meta.aggregation==="mean"?"≥98 %":"100 %");
   if(value===null||value===undefined||!Number.isFinite(Number(value))){
     const title=qualityText?`Datenabdeckung: ${qualityText} · Periode nicht ausreichend vollständig`:"Keine ausreichenden Daten";
     return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell ":""}no-value" title="${title}">–${qualityText?`<span class="station-climate-quality">${qualityText.split(" ")[0]}%</span>`:""}</td>`;
@@ -7373,24 +7374,26 @@ function stationProfileClimateCsvRows(){
   };
 }
 async function exportStationProfileClimateValues(format){
-  const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
-  const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
-  const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);
-  const title=`Stationsklima_${station?.name||stationId}_${STATION_CLIMATE_VALUE_META[parameter].label}`;
-  if(format==="csv"){
-    const {headers,rows}=stationProfileClimateCsvRows();if(!headers.length)throw new Error("Noch keine Klimatabellendaten verfügbar.");
-    const content="\ufeff"+[headers,...rows].map(row=>row.map(csvEscape).join(";")).join("\r\n");
-    const blob=new Blob([content],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
-    link.href=url;link.download=safeExportFilename(title,"csv");document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
-  }
-  const area=document.getElementById("stationProfileClimateValuesExportArea");if(!area||typeof html2canvas!=="function")throw new Error("Exportbibliothek konnte nicht geladen werden.");
-  const canvas=await html2canvas(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
-  if(format==="png"){triggerDataUrlDownload(canvas.toDataURL("image/png",1),safeExportFilename(title,"png"));return;}
-  const {jsPDF}=window.jspdf||{};if(!jsPDF)throw new Error("PDF-Bibliothek konnte nicht geladen werden.");
-  const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true}),w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight(),margin=8;
-  pdf.setFont("helvetica","bold");pdf.setFontSize(12);pdf.text(title,margin,margin+4);
-  const maxW=w-margin*2,maxH=h-margin*2-10,ratio=Math.min(maxW/canvas.width,maxH/canvas.height),iw=canvas.width*ratio,ih=canvas.height*ratio;
-  pdf.addImage(canvas.toDataURL("image/png"),"PNG",(w-iw)/2,margin+10,iw,ih,undefined,"FAST");pdf.save(safeExportFilename(title,"pdf"));
+  try{
+    const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
+    const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
+    const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);
+    const title=`Stationsklima_${station?.name||stationId}_${STATION_CLIMATE_VALUE_META[parameter].label}`;
+    if(format==="csv"){
+      const {headers,rows}=stationProfileClimateCsvRows();if(!headers.length)throw new Error("Noch keine Klimatabellendaten verfügbar.");
+      const content="\ufeff"+[headers,...rows].map(row=>row.map(csvEscape).join(";")).join("\r\n");
+      const blob=new Blob([content],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
+      link.href=url;link.download=safeExportFilename(title,"csv");document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
+    }
+    const area=document.getElementById("stationProfileClimateValuesExportArea");if(!area||typeof html2canvas!=="function")throw new Error("Exportbibliothek konnte nicht geladen werden.");
+    const canvas=await html2canvas(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    if(format==="png"){triggerDataUrlDownload(canvas.toDataURL("image/png",1),safeExportFilename(title,"png"));return;}
+    const {jsPDF}=window.jspdf||{};if(!jsPDF)throw new Error("PDF-Bibliothek konnte nicht geladen werden.");
+    const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true}),w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight(),margin=8;
+    pdf.setFont("helvetica","bold");pdf.setFontSize(12);pdf.text(title,margin,margin+4);
+    const maxW=w-margin*2,maxH=h-margin*2-10,ratio=Math.min(maxW/canvas.width,maxH/canvas.height),iw=canvas.width*ratio,ih=canvas.height*ratio;
+    pdf.addImage(canvas.toDataURL("image/png"),"PNG",(w-iw)/2,margin+10,iw,ih,undefined,"FAST");pdf.save(safeExportFilename(title,"pdf"));
+  }catch(error){console.error(error);alert(`Export nicht möglich: ${error.message}`);}
 }
 async function renderStationProfileClimateValuesTable(){
   const table=document.getElementById("stationProfileClimateValuesTable"),head=document.getElementById("stationProfileClimateValuesHead"),body=document.getElementById("stationProfileClimateValuesBody");
