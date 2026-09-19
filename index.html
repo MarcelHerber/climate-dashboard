@@ -2599,6 +2599,44 @@ button.action:hover{background:#1f2937}
     </div>
 
     <div id="stationProfileStageContent">
+      <section class="profile-section chart-container auto">
+        <div class="anomaly-table-heading">
+          <div>
+            <div class="profile-kicker">Klimatologische Stationswerte</div>
+            <h2 id="stationProfileClimateValuesTitle">Monate und Jahreszeiten</h2>
+            <p id="stationProfileClimateValuesSubtitle">Monats-, Jahreszeiten- und Jahreswerte der ausgewählten DWD-Station.</p>
+          </div>
+          <div class="station-climate-values-controls">
+            <div class="control-group" style="min-width:185px">
+              <label for="stationProfileClimateValuesParameter">Parameter</label>
+              <select id="stationProfileClimateValuesParameter" onchange="renderStationProfileClimateValuesTable()">
+                <option value="tmax">Tmax-Mittel</option>
+                <option value="tmin">Tmin-Mittel</option>
+                <option value="tmean" selected>Tmed-Mittel</option>
+                <option value="rain">Niederschlag</option>
+                <option value="sun">Sonnenscheindauer</option>
+              </select>
+            </div>
+            <div class="control-group" style="min-width:185px">
+              <label for="stationProfileClimateValuesView">Ansicht</label>
+              <select id="stationProfileClimateValuesView" onchange="renderStationProfileClimateValuesTable()">
+                <option value="all" selected>Monate + Jahreszeiten</option>
+                <option value="months">Nur Monate</option>
+                <option value="seasons">Nur Jahreszeiten</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div id="stationProfileClimateValuesLegend" class="anomaly-legend" style="justify-content:flex-start;margin:0 0 10px"></div>
+        <div class="anomaly-table-wrap">
+          <table id="stationProfileClimateValuesTable" class="anomaly-table station-climate-values-table" data-view="all">
+            <thead id="stationProfileClimateValuesHead"></thead>
+            <tbody id="stationProfileClimateValuesBody"></tbody>
+          </table>
+        </div>
+        <p id="stationProfileClimateValuesNote" class="anomaly-table-note"></p>
+      </section>
+
       <section class="profile-section">
         <div class="profile-section-heading"><div><div class="profile-kicker">Meteorologische Summen</div><h2>Grünlandtemperatursumme (GTS)</h2></div><p class="note">Aus dem DWD-Tagesmittel TMK: nur positive Werte; Januar × 0,5 · Februar × 0,75 · ab März × 1,0.</p></div>
         <div class="profile-overview-grid">
@@ -6971,8 +7009,8 @@ function stationClimateValueAnomalyText(anomaly,meta){
   return `${sign}${anomaly.toLocaleString("de-DE",{maximumFractionDigits:0})} %`;
 }
 
-function stationClimateValuesLegend(meta){
-  const container=document.getElementById("stationClimateValuesLegend");
+function stationClimateValuesLegend(meta,containerId="stationClimateValuesLegend"){
+  const container=document.getElementById(containerId);
   if(!container) return;
   const values=meta.colorParam==="temp"?[-3,-1,0,1,3]:[-50,-25,0,25,50];
   container.innerHTML=values.map(value=>{
@@ -6982,6 +7020,74 @@ function stationClimateValuesLegend(meta){
       :`${value>0?"+":""}${value} %`;
     return `<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${background}"></span>${label}</span>`;
   }).join("");
+}
+
+async function renderStationProfileClimateValuesTable(){
+  const table=document.getElementById("stationProfileClimateValuesTable");
+  const head=document.getElementById("stationProfileClimateValuesHead");
+  const body=document.getElementById("stationProfileClimateValuesBody");
+  if(!table||!head||!body||!stationProfileProfile||!stationClimateDaysIndex) return;
+
+  await loadStationClimateDaysCurrentMonths();
+
+  const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const station=(stationClimateDaysIndex.stations||[]).find(item=>item.id===stationId);
+  const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
+  const view=document.getElementById("stationProfileClimateValuesView")?.value||"all";
+  const meta=STATION_CLIMATE_VALUE_META[parameter]||STATION_CLIMATE_VALUE_META.tmean;
+  const block=stationProfileProfile?.climate_value_tables?.[parameter];
+  const title=document.getElementById("stationProfileClimateValuesTitle");
+  const subtitle=document.getElementById("stationProfileClimateValuesSubtitle");
+  const note=document.getElementById("stationProfileClimateValuesNote");
+
+  table.dataset.view=view;
+  if(title) title.textContent=`${meta.label} · ${station?.name||stationId||"Station"}`;
+  if(subtitle){
+    subtitle.textContent=meta.aggregation==="mean"
+      ?`Monats-, Jahreszeiten- und Jahresmittel in ${meta.unit} · Farbe: Abweichung zu 1991–2020.`
+      :`Monats-, Jahreszeiten- und Jahressummen in ${meta.unit} · Farbe: prozentuale Abweichung zu 1991–2020.`;
+  }
+
+  if(!block){
+    head.innerHTML='<tr><th class="year-cell">Jahr</th><th>Daten</th></tr>';
+    body.innerHTML='<tr><td colspan="2" class="no-value">Die Klimawertetabelle wird mit dem nächsten vollständigen Stationsprofil-Lauf aufgebaut.</td></tr>';
+    if(note) note.textContent="Für diesen Stationsprofilstand liegen die neuen Monats- und Jahreszeitenwerte noch nicht vor.";
+    stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");
+    return;
+  }
+
+  const columns=stationClimateValueColumns(view);
+  head.innerHTML=`<tr><th class="year-cell">Jahr</th>${columns.map(column=>`<th class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}">${column.label}</th>`).join("")}</tr>`;
+
+  const historical=(block.years||[]).map(row=>[Number(row[0]),row[1]||[],row[2]||[],row[3],false]);
+  const current=stationClimateValueCurrentRow(stationId,block,meta);
+  const currentYear=Number(stationClimateDaysIndex.current_year);
+  const rows=historical.filter(row=>row[0]!==currentYear).sort((a,b)=>b[0]-a[0]);
+  if(current) rows.unshift(current);
+
+  body.innerHTML=rows.map(row=>{
+    const cells=columns.map(column=>{
+      const value=stationClimateValueFromRow(row,column);
+      const reference=stationClimateValueReference(block,column);
+      if(value===null || value===undefined || !Number.isFinite(Number(value))){
+        return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell ":""}no-value">–</td>`;
+      }
+      const anomaly=stationClimateValueAnomaly(value,reference,meta);
+      let style="",titleText="";
+      if(Number.isFinite(anomaly)){
+        const background=interpolateAnomalyColor(meta.colorParam,anomaly);
+        style=`background:${background};color:${readableTextColor(background)}`;
+        titleText=`Mittel 1991–2020: ${stationClimateValueFormat(reference,meta)} · Abweichung: ${stationClimateValueAnomalyText(anomaly,meta)}`;
+      }
+      return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" style="${style}" title="${titleText}">${stationClimateValueFormat(value,meta)}</td>`;
+    }).join("");
+    return `<tr class="${row[4]?"current-year":""}"><td class="year-cell">${row[0]}</td>${cells}</tr>`;
+  }).join("") || '<tr><td colspan="18" class="no-value">Keine auswertbaren Perioden vorhanden.</td></tr>';
+
+  stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");
+  if(note){
+    note.textContent="Winter (DJF) ist dem Jahr von Januar/Februar zugeordnet. Temperaturmittel werden ab mindestens 98 % Tagesabdeckung berechnet; Niederschlag (RSK) und Sonnenscheindauer (SDK) nur bei vollständig vorliegender Periode. Das laufende Jahr zeigt ausschließlich bereits abgeschlossene Perioden.";
+  }
 }
 
 function renderStationClimateValuesTable(stationOverride=null){
@@ -10718,6 +10824,7 @@ async function renderStationProfileClimate(){
   initializeChartExportButtons();
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileClimate().catch(error=>console.error('Stationsprofil Kenntage:',error)));
+window.addEventListener('stationprofilechange',()=>renderStationProfileClimateValuesTable().catch(error=>console.error('Stationsprofil Klimatabelle:',error)));
 
 // ================= VERSION 12.2a: STATIONSPROFIL – GRÜNLANDTEMPERATURSUMME =================
 function stationProfileGtsPayload(){
