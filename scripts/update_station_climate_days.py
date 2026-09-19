@@ -32,7 +32,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 13
+STATE_VERSION = 12
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
