@@ -32,7 +32,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 11
+STATE_VERSION = 12
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -170,6 +170,17 @@ PERIODS: list[dict[str, Any]] = [
     {"id": "autumn", "label": "Herbst (SON)", "expected_days": 91},
 ]
 PERIOD_EXPECTED = {item["id"]: int(item["expected_days"]) for item in PERIODS}
+
+CLIMATE_VALUE_PARAMETERS: list[dict[str, Any]] = [
+    {"id": "tmax", "label": "Tmax-Mittel", "unit": "°C", "aggregation": "mean", "value_index": 0, "coverage": MIN_PERIOD_COVERAGE},
+    {"id": "tmin", "label": "Tmin-Mittel", "unit": "°C", "aggregation": "mean", "value_index": 1, "coverage": MIN_PERIOD_COVERAGE},
+    {"id": "tmean", "label": "Tmed-Mittel", "unit": "°C", "aggregation": "mean", "value_index": 2, "coverage": MIN_PERIOD_COVERAGE},
+    {"id": "rain", "label": "Niederschlag", "unit": "mm", "aggregation": "sum", "value_index": 3, "coverage": 1.0},
+    {"id": "sun", "label": "Sonnenscheindauer", "unit": "h", "aggregation": "sum", "value_index": 4, "coverage": 1.0},
+]
+CLIMATE_VALUE_SEASONS: list[tuple[str, str]] = [
+    ("winter", "DJF"), ("spring", "MAM"), ("summer", "JJA"), ("autumn", "SON")
+]
 
 
 @dataclass(frozen=True)
@@ -341,7 +352,7 @@ def longest_runs_from_observations(observations, limit: int = 5) -> dict[str, li
 
 
 def longest_runs_from_current_values(
-    values: dict[date, tuple[int, int, int | None, int | None, int | None]],
+    values: dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]],
     data_through: date,
     current_year: int,
     limit: int = 5,
@@ -781,12 +792,136 @@ def build_cold_sum_payload(
 
 
 
+def _aggregate_station_climate_period(
+    daily_values: dict[date, tuple[float | None, float | None, float | None, float | None, float | None]],
+    start: date,
+    end: date,
+    value_index: int,
+    aggregation: str,
+    coverage: float,
+) -> float | None:
+    values: list[float] = []
+    cursor = start
+    expected_days = 0
+    while cursor <= end:
+        expected_days += 1
+        row = daily_values.get(cursor)
+        if row is not None and value_index < len(row):
+            raw = row[value_index]
+            if raw is not None:
+                values.append(float(raw))
+        cursor += timedelta(days=1)
+
+    minimum_valid = int(expected_days * coverage + 0.999999)
+    if len(values) < minimum_valid:
+        return None
+    if aggregation == "mean":
+        return round(sum(values) / len(values), 1)
+    return round(sum(values), 1)
+
+
+def build_station_climate_value_tables(
+    daily_values: dict[date, tuple[float | None, float | None, float | None, float | None, float | None]],
+    current_year: int,
+) -> dict[str, Any]:
+    """Monats-, Jahreszeiten- und Jahreswerte für die Stations-Klimatabelle.
+
+    Temperaturparameter werden gemittelt. Niederschlag und Sonnenscheindauer
+    werden summiert. Temperaturperioden benötigen mindestens 98 % Tagesabdeckung;
+    bei Summen werden nur vollständig vorliegende Perioden ausgegeben, damit
+    fehlende Tage nicht als zu kleine Summen erscheinen.
+    """
+    available_years = sorted({day.year for day in daily_values if day.year < current_year})
+    result: dict[str, Any] = {}
+
+    for specification in CLIMATE_VALUE_PARAMETERS:
+        value_index = int(specification["value_index"])
+        aggregation = str(specification["aggregation"])
+        coverage = float(specification["coverage"])
+        rows: list[list[Any]] = []
+
+        for year in available_years:
+            months: list[float | None] = []
+            for month in range(1, 13):
+                start = date(year, month, 1)
+                if month == 12:
+                    end = date(year, 12, 31)
+                else:
+                    end = date(year, month + 1, 1) - timedelta(days=1)
+                months.append(
+                    _aggregate_station_climate_period(
+                        daily_values, start, end, value_index, aggregation, coverage
+                    )
+                )
+
+            seasons = [
+                _aggregate_station_climate_period(
+                    daily_values,
+                    date(year - 1, 12, 1),
+                    date(year, 2, 29 if is_leap(year) else 28),
+                    value_index,
+                    aggregation,
+                    coverage,
+                ),
+                _aggregate_station_climate_period(
+                    daily_values, date(year, 3, 1), date(year, 5, 31),
+                    value_index, aggregation, coverage,
+                ),
+                _aggregate_station_climate_period(
+                    daily_values, date(year, 6, 1), date(year, 8, 31),
+                    value_index, aggregation, coverage,
+                ),
+                _aggregate_station_climate_period(
+                    daily_values, date(year, 9, 1), date(year, 11, 30),
+                    value_index, aggregation, coverage,
+                ),
+            ]
+            annual = _aggregate_station_climate_period(
+                daily_values, date(year, 1, 1), date(year, 12, 31),
+                value_index, aggregation, coverage,
+            )
+            if any(value is not None for value in [*months, *seasons, annual]):
+                rows.append([year, months, seasons, annual])
+
+        def reference_mean(values: list[float | None]) -> float | None:
+            valid = [float(value) for value in values if value is not None]
+            return round(sum(valid) / len(valid), 1) if valid else None
+
+        reference_rows = [row for row in rows if REFERENCE_START <= int(row[0]) <= REFERENCE_END]
+        reference_months = [
+            reference_mean([row[1][index] for row in reference_rows])
+            for index in range(12)
+        ]
+        reference_seasons = [
+            reference_mean([row[2][index] for row in reference_rows])
+            for index in range(4)
+        ]
+        reference_annual = reference_mean([row[3] for row in reference_rows])
+
+        result[str(specification["id"])] = {
+            "label": specification["label"],
+            "unit": specification["unit"],
+            "aggregation": aggregation,
+            "coverage": coverage,
+            "years": rows,
+            "reference": {
+                "period": f"{REFERENCE_START}-{REFERENCE_END}",
+                "months": reference_months,
+                "seasons": reference_seasons,
+                "annual": reference_annual,
+            },
+        }
+
+    return result
+
+
 def build_profile_payload(
     station_id: str,
     observations,
     metadata: MetadataIndex,
     current_year: int,
     tmean_by_day: dict[date, float | None] | None = None,
+    climate_values_by_day: dict[date, tuple[float | None, float | None, float | None, float | None, float | None]] | None = None,
 ) -> tuple[StationProfile, dict[str, Any]] | None:
     # metric -> period -> year -> [count, valid_days]
     accumulators: dict[str, dict[str, dict[int, list[int]]]] = {
@@ -914,6 +1049,7 @@ def build_profile_payload(
         "coldest_nights": coldest_candidates[:20],
         "warmest_nights": warmest_night_candidates[:20],
     }
+    climate_value_tables = build_station_climate_value_tables(climate_values_by_day or {}, current_year)
     gts_payload = build_gts_payload(tmean_by_day or {}, current_year)
     warmth_payload = build_warmth_sum_payload(tmean_by_day or {}, current_year)
     cold_payload = build_cold_sum_payload(tmean_by_day or {}, current_year)
@@ -984,6 +1120,7 @@ def build_profile_payload(
         "temperature_daily_records": {"tx_max": daily_tx_record_max, "tn_min": daily_tn_record_min},
         "temperature_reference_daily_mean": temperature_reference_daily_mean,
         "temperature_extremes": temperature_extremes,
+        "climate_value_tables": climate_value_tables,
         "temperature_sums": {
             "gts": gts_payload,
             "warmth": warmth_payload,
@@ -1012,14 +1149,14 @@ def process_historical_station(
             end_date,
             preliminary=False,
         )
-        historical_temperatures = parse_recent_kl_temperatures(
+        historical_climate_values = parse_recent_kl_temperatures(
             content,
             start_date,
             end_date,
         )
         tmean_by_day = {
             day: tm
-            for day, (_tx, _tn, tm) in historical_temperatures.items()
+            for day, (_tx, _tn, tm, _rr, _sun) in historical_climate_values.items()
             if tm is not None
         }
         return (
@@ -1030,6 +1167,7 @@ def process_historical_station(
                 metadata,
                 current_year,
                 tmean_by_day=tmean_by_day,
+                climate_values_by_day=historical_climate_values,
             ),
             None,
         )
@@ -1176,14 +1314,9 @@ def parse_recent_kl_temperatures(
     content: bytes,
     start_date: date,
     end_date: date,
-) -> dict[date, tuple[float | None, float | None, float | None]]:
-    """Liest TXK, TNK und TMK direkt aus der DWD-KL-Produktdatei.
-
-    Damit ist der aktuelle Stationsprofil-Datensatz nicht davon abhängig,
-    welche Metriken der Rekord-Updater gerade exportiert. TMK ist das vom
-    DWD bereitgestellte Tagesmittel und wird nicht aus Tmin/Tmax angenähert.
-    """
-    result: dict[date, tuple[float | None, float | None, float | None]] = {}
+) -> dict[date, tuple[float | None, float | None, float | None, float | None, float | None]]:
+    """Liest TXK, TNK, TMK sowie optional RSK und SDK aus der DWD-KL-Tagesdatei."""
+    result: dict[date, tuple[float | None, float | None, float | None, float | None, float | None]] = {}
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
         product_files = [
             name for name in archive.namelist()
@@ -1214,7 +1347,12 @@ def parse_recent_kl_temperatures(
             if missing:
                 raise ValueError(f"Spalten fehlen in KL-Datei: {', '.join(missing)}")
             indices = {column: header.index(column) for column in required}
-            maximum_index = max(indices.values())
+            optional_indices = {
+                column: header.index(column)
+                for column in ("RSK", "SDK")
+                if column in header
+            }
+            maximum_index = max([*indices.values(), *optional_indices.values()])
 
             def parse_temperature(row: list[str], column: str) -> float | None:
                 raw_value = row[indices[column]].strip().replace(",", ".")
@@ -1223,6 +1361,21 @@ def parse_recent_kl_temperatures(
                 except ValueError:
                     return None
                 if value <= -900 or not (-60.0 <= value <= 60.0):
+                    return None
+                return round(value, 1)
+
+            def parse_optional_value(
+                row: list[str], column: str, minimum: float, maximum: float
+            ) -> float | None:
+                index = optional_indices.get(column)
+                if index is None or len(row) <= index:
+                    return None
+                raw_value = row[index].strip().replace(",", ".")
+                try:
+                    value = float(raw_value)
+                except ValueError:
+                    return None
+                if value <= -900 or not (minimum <= value <= maximum):
                     return None
                 return round(value, 1)
 
@@ -1238,9 +1391,11 @@ def parse_recent_kl_temperatures(
                 tx = parse_temperature(row, "TXK")
                 tn = parse_temperature(row, "TNK")
                 tm = parse_temperature(row, "TMK")
-                if tx is None and tn is None and tm is None:
+                rr = parse_optional_value(row, "RSK", 0.0, 1000.0)
+                sun = parse_optional_value(row, "SDK", 0.0, 24.0)
+                if tx is None and tn is None and tm is None and rr is None and sun is None:
                     continue
-                result[day] = (tx, tn, tm)
+                result[day] = (tx, tn, tm, rr, sun)
     return result
 
 
@@ -1248,21 +1403,23 @@ def process_recent_station(
     filename: str,
     metadata: MetadataIndex,
     start_date: date,
-) -> tuple[str, dict[date, tuple[int, int, int | None, int | None, int | None]], str | None]:
+) -> tuple[str, dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]], str | None]:
     station_id = station_id_from_filename(filename)
     try:
         content = download_station_zip(RECENT_URL, filename)
-        temperatures = parse_recent_kl_temperatures(content, start_date, date.today())
-        values: dict[date, tuple[int, int, int | None, int | None, int | None]] = {}
-        for day, (tx, tn, tm) in temperatures.items():
+        climate_values = parse_recent_kl_temperatures(content, start_date, date.today())
+        values: dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]] = {}
+        for day, (tx, tn, tm, rr, sun) in climate_values.items():
             event_mask, valid_mask = event_and_valid_masks(tx, tn)
-            if valid_mask or tm is not None:
+            if valid_mask or tm is not None or rr is not None or sun is not None:
                 values[day] = (
                     event_mask,
                     valid_mask,
                     None if tx is None else int(round(tx * 10)),
                     None if tn is None else int(round(tn * 10)),
                     None if tm is None else int(round(tm * 10)),
+                    None if rr is None else int(round(rr * 10)),
+                    None if sun is None else int(round(sun * 10)),
                 )
         return station_id, values, None
     except NoUsableProductFileError as exc:
@@ -1272,7 +1429,7 @@ def process_recent_station(
 
 
 def accepted_data_through(
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]]],
 ) -> tuple[date, dict[str, Any]]:
     counts: dict[date, int] = defaultdict(int)
     tx_bits = sum(1 << int(item["bit"]) for item in CLIMATE_DAYS if item["field"] == "tx")
@@ -1326,7 +1483,7 @@ def write_current_month_files(
     root: Path,
     data_through: date,
     profile_ids: set[str],
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]]],
 ) -> list[str]:
     output_dir = root / "station_climate_days_current"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1344,7 +1501,7 @@ def write_current_month_files(
             for day_number in range(1, days_in_month + 1):
                 day = date(year, month, day_number)
                 pair = values.get(day) if day <= data_through else None
-                month_values.append(None if pair is None else [pair[0], pair[1], pair[2], pair[3], pair[4]])
+                month_values.append(None if pair is None else list(pair))
                 has_value = has_value or pair is not None
             if has_value:
                 station_payload[station_id] = month_values
@@ -1490,7 +1647,7 @@ def build_index(
     current_status: dict[str, Any],
     current_files: list[str],
     historical_state: dict[str, Any],
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]],
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]]],
 ) -> dict[str, Any]:
     states = sorted({profile.state for profile in profiles if profile.state})
     data_through = date.fromisoformat(current_status["data_through"])
@@ -1522,8 +1679,8 @@ def build_index(
         "reference_period": f"{REFERENCE_START}-{REFERENCE_END}",
         "minimum_period_coverage": MIN_PERIOD_COVERAGE,
         "leap_day_rule": "Der 29. Februar wird für die Vergleichbarkeit ausgelassen.",
-        "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK und TMK)",
-        "current_payload_version": 4,
+        "source": "DWD CDC, tägliche KL-Stationswerte (TXK, TNK, TMK, RSK und SDK)",
+        "current_payload_version": 5,
         "annual_record_summary_version": 1,
         "source_note": (
             "Historische Auswertungen stammen aus dem qualitätsgeprüften DWD-Verzeichnis historical. "
@@ -1602,7 +1759,7 @@ def update_station_climate_days(
         if station_id_from_filename(filename) in profile_ids
     ]
     start_date = date(current_year - 1, 1, 1)
-    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None]]] = {}
+    values_by_station: dict[str, dict[date, tuple[int, int, int | None, int | None, int | None, int | None, int | None]]] = {}
     errors: list[str] = []
 
     print(f"Stations-Kenntage: {len(selected_recent)} aktuelle Stationsarchive werden verarbeitet.")
