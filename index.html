@@ -304,6 +304,22 @@ th,td{padding:8px;border:1px solid #ccc;text-align:center}
 .station-climate-values-table[data-view="all"]{min-width:1420px}
 .station-climate-values-table .annual-cell{font-weight:700}
 .station-climate-values-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.station-climate-values-table th[data-climate-period]{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.station-climate-values-table th[data-climate-period]:hover{background:#eef2f5}
+.station-climate-cell-main{display:block;font-weight:600;white-space:nowrap}
+.station-climate-cell-meta{display:block;margin-top:3px;font-size:10px;line-height:1.15;opacity:.88;white-space:nowrap}
+.station-climate-quality{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:999px;background:rgba(255,255,255,.62);color:inherit;font-size:9px;font-weight:700}
+.station-climate-record{display:inline-block;margin-left:4px;padding:1px 4px;border-radius:4px;background:rgba(255,255,255,.78);color:#5d2400;font-size:9px;font-weight:700}
+.station-climate-export-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.station-climate-subgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px;margin-top:18px}
+.station-climate-panel{border:1px solid var(--border);border-radius:8px;padding:14px;background:#fbfcfd}
+.station-climate-panel h3{margin:0 0 8px}
+.station-climate-panel .table-wrap{box-shadow:none;border:1px solid #dde2e6}
+.station-climate-panel table{min-width:620px}
+.station-climate-summary{margin:12px 0 14px;padding:12px 14px;border-left:4px solid #526a7a;background:#f6f8fa;border-radius:6px;line-height:1.5}
+.station-climate-trend-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0 12px}
+.station-climate-compare-grid{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:14px;align-items:end}
+@media(max-width:760px){.station-climate-compare-grid{grid-template-columns:1fr}}
 
 .error-box{
   display:none;
@@ -2599,7 +2615,7 @@ button.action:hover{background:#1f2937}
     </div>
 
     <div id="stationProfileStageContent">
-      <section class="profile-section chart-container auto">
+      <section class="profile-section chart-container auto" id="stationProfileClimateValuesCard">
         <div class="anomaly-table-heading">
           <div>
             <div class="profile-kicker">Klimatologische Stationswerte</div>
@@ -2609,7 +2625,7 @@ button.action:hover{background:#1f2937}
           <div class="station-climate-values-controls">
             <div class="control-group" style="min-width:185px">
               <label for="stationProfileClimateValuesParameter">Parameter</label>
-              <select id="stationProfileClimateValuesParameter" onchange="renderStationProfileClimateValuesTable()">
+              <select id="stationProfileClimateValuesParameter" onchange="renderStationProfileClimateValuesSuite()">
                 <option value="tmax">Tmax-Mittel</option>
                 <option value="tmin">Tmin-Mittel</option>
                 <option value="tmean" selected>Tmed-Mittel</option>
@@ -2619,22 +2635,82 @@ button.action:hover{background:#1f2937}
             </div>
             <div class="control-group" style="min-width:185px">
               <label for="stationProfileClimateValuesView">Ansicht</label>
-              <select id="stationProfileClimateValuesView" onchange="renderStationProfileClimateValuesTable()">
+              <select id="stationProfileClimateValuesView" onchange="renderStationProfileClimateValuesSuite()">
                 <option value="all" selected>Monate + Jahreszeiten</option>
                 <option value="months">Nur Monate</option>
                 <option value="seasons">Nur Jahreszeiten</option>
               </select>
             </div>
+            <div class="station-climate-export-tools">
+              <button type="button" class="chart-export-button" onclick='exportStationProfileClimateValues("csv")'>CSV</button>
+              <button type="button" class="chart-export-button" onclick='exportStationProfileClimateValues("png")'>PNG</button>
+              <button type="button" class="chart-export-button" onclick='exportStationProfileClimateValues("pdf")'>PDF</button>
+            </div>
           </div>
         </div>
+        <div id="stationProfileClimateSummary" class="station-climate-summary">Klimatische Einordnung wird aufgebaut …</div>
         <div id="stationProfileClimateValuesLegend" class="anomaly-legend" style="justify-content:flex-start;margin:0 0 10px"></div>
-        <div class="anomaly-table-wrap">
+        <div class="anomaly-table-wrap" id="stationProfileClimateValuesExportArea">
           <table id="stationProfileClimateValuesTable" class="anomaly-table station-climate-values-table" data-view="all">
             <thead id="stationProfileClimateValuesHead"></thead>
             <tbody id="stationProfileClimateValuesBody"></tbody>
           </table>
         </div>
         <p id="stationProfileClimateValuesNote" class="anomaly-table-note"></p>
+
+        <div class="station-climate-panel" style="margin-top:18px">
+          <h3 id="stationProfileClimateNormalTitle">Klimanormalwerte</h3>
+          <p class="note">Mittel bzw. Summen des oben gewählten Vergleichszeitraums.</p>
+          <div class="anomaly-table-wrap">
+            <table id="stationProfileClimateNormalTable" class="anomaly-table station-climate-values-table" data-view="all">
+              <thead id="stationProfileClimateNormalHead"></thead>
+              <tbody id="stationProfileClimateNormalBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="station-climate-panel" style="margin-top:18px">
+          <div class="profile-section-heading">
+            <div><div class="profile-kicker">Langzeitentwicklung</div><h3 id="stationProfileClimateTrendTitle">Zeitreihe</h3></div>
+            <p id="stationProfileClimateTrendNote" class="note">Tabellenkopf anklicken oder Zeitraum auswählen.</p>
+          </div>
+          <div class="station-climate-trend-controls">
+            <div class="control-group" style="min-width:190px">
+              <label for="stationProfileClimateTrendPeriod">Zeitraum</label>
+              <select id="stationProfileClimateTrendPeriod" onchange="renderStationProfileClimateTrend()"></select>
+            </div>
+          </div>
+          <div class="chart-container" style="margin:8px 0 0"><canvas id="stationProfileClimateTrendChart"></canvas></div>
+        </div>
+
+        <div class="station-climate-subgrid">
+          <div class="station-climate-panel">
+            <h3>Monats- und Jahreszeitenrekorde</h3>
+            <p class="note">Höchste und niedrigste vollständige Perioden seit Messbeginn.</p>
+            <div class="table-wrap">
+              <table id="stationProfileClimateRecordsTable">
+                <thead><tr><th>Zeitraum</th><th>Maximum</th><th>Jahr(e)</th><th>Minimum</th><th>Jahr(e)</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="station-climate-panel">
+            <h3>Station vergleichen</h3>
+            <div class="station-climate-compare-grid">
+              <div class="control-group">
+                <label for="stationProfileClimateCompareStation">Vergleichsstation</label>
+                <select id="stationProfileClimateCompareStation" onchange="renderStationProfileClimateComparison()"></select>
+              </div>
+              <div class="note" id="stationProfileClimateCompareNote">Verglichen werden die Klimanormalwerte des ausgewählten Referenzzeitraums.</div>
+            </div>
+            <div class="table-wrap" style="margin-top:10px">
+              <table id="stationProfileClimateCompareTable">
+                <thead><tr><th>Zeitraum</th><th id="stationProfileClimateCompareA">Station A</th><th id="stationProfileClimateCompareB">Station B</th><th>Differenz</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="profile-section">
@@ -2776,6 +2852,15 @@ button.action:hover{background:#1f2937}
               <option value="all" selected>Monate + Jahreszeiten</option>
               <option value="months">Nur Monate</option>
               <option value="seasons">Nur Jahreszeiten</option>
+            </select>
+          </div>
+          <div class="control-group" style="min-width:175px">
+            <label for="stationClimateValuesReference">Referenz</label>
+            <select id="stationClimateValuesReference" onchange="renderStationClimateValuesTable()">
+              <option value="1961-1990">1961–1990</option>
+              <option value="1971-2000">1971–2000</option>
+              <option value="1981-2010">1981–2010</option>
+              <option value="1991-2020" selected>1991–2020</option>
             </select>
           </div>
         </div>
@@ -6898,24 +6983,42 @@ function stationClimateDaysHistoricalCumulative(profile,metricId){
 
 
 const STATION_CLIMATE_VALUE_META={
-  tmax:{label:"Tmax-Mittel",unit:"°C",pairIndex:2,aggregation:"mean",colorParam:"temp"},
-  tmin:{label:"Tmin-Mittel",unit:"°C",pairIndex:3,aggregation:"mean",colorParam:"temp"},
-  tmean:{label:"Tmed-Mittel",unit:"°C",pairIndex:4,aggregation:"mean",colorParam:"temp"},
-  rain:{label:"Niederschlag",unit:"mm",pairIndex:5,aggregation:"sum",colorParam:"rain"},
-  sun:{label:"Sonnenscheindauer",unit:"h",pairIndex:6,aggregation:"sum",colorParam:"sun"}
+  tmax:{label:"Tmax-Mittel",unit:"°C",pairIndex:2,aggregation:"mean",colorParam:"temp",high:"wärmster",low:"kältester"},
+  tmin:{label:"Tmin-Mittel",unit:"°C",pairIndex:3,aggregation:"mean",colorParam:"temp",high:"wärmster",low:"kältester"},
+  tmean:{label:"Tmed-Mittel",unit:"°C",pairIndex:4,aggregation:"mean",colorParam:"temp",high:"wärmster",low:"kältester"},
+  rain:{label:"Niederschlag",unit:"mm",pairIndex:5,aggregation:"sum",colorParam:"rain",high:"nassester",low:"trockenster"},
+  sun:{label:"Sonnenscheindauer",unit:"h",pairIndex:6,aggregation:"sum",colorParam:"sun",high:"sonnigster",low:"sonnenärmster"}
 };
+const STATION_CLIMATE_PERIODS=[
+  ...["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"].map((label,index)=>({key:`month-${index+1}`,kind:"months",index,label})),
+  {key:"winter",kind:"seasons",index:0,label:"Winter (DJF)",separator:true},
+  {key:"spring",kind:"seasons",index:1,label:"Frühling (MAM)"},
+  {key:"summer",kind:"seasons",index:2,label:"Sommer (JJA)"},
+  {key:"autumn",kind:"seasons",index:3,label:"Herbst (SON)"},
+  {key:"year",kind:"annual",index:0,label:"Jahr",separator:true,annual:true}
+];
 
+function stationClimateReferenceFromValue(value){
+  const normalized=String(value||"1991-2020");
+  const match=normalized.match(/^(\d{4})-(\d{4})$/);
+  if(!match) return {start:1991,end:2020,label:"1991–2020"};
+  return {start:Number(match[1]),end:Number(match[2]),label:`${match[1]}–${match[2]}`};
+}
+function stationClimateProfileReference(){
+  return stationClimateReferenceFromValue(document.getElementById("stationProfileReferenceSelect")?.value);
+}
+function stationClimateDaysTableReference(){
+  return stationClimateReferenceFromValue(document.getElementById("stationClimateValuesReference")?.value);
+}
 function stationClimateValueIso(year,month,day){
   return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 }
-
 function stationClimateValueMonthEnd(year,month){
   return new Date(Date.UTC(year,month,0)).getUTCDate();
 }
-
-function stationClimateValueAggregateCurrent(stationId,startIso,endIso,meta,coverage){
+function stationClimateValueAggregateCurrentStats(stationId,startIso,endIso,meta,coverage){
   const dataThrough=String(stationClimateDaysIndex?.data_through||"");
-  if(!dataThrough || dataThrough<endIso) return null;
+  if(!dataThrough || dataThrough<endIso) return {value:null,valid:0,expected:0};
   const start=new Date(`${startIso}T00:00:00Z`);
   const end=new Date(`${endIso}T00:00:00Z`);
   let expected=0,valid=0,total=0;
@@ -6929,69 +7032,95 @@ function stationClimateValueAggregateCurrent(stationId,startIso,endIso,meta,cove
     total+=Number(raw)/10;
   }
   const required=Math.ceil(expected*Number(coverage||1));
-  if(valid<required || !valid) return null;
-  return Math.round((meta.aggregation==="mean"?total/valid:total)*10)/10;
+  const value=valid>=required&&valid
+    ?Math.round((meta.aggregation==="mean"?total/valid:total)*10)/10
+    :null;
+  return {value,valid,expected};
 }
-
 function stationClimateValueCurrentRow(stationId,block,meta){
   const year=Number(stationClimateDaysIndex?.current_year);
   if(!Number.isFinite(year)) return null;
   const coverage=Number(block?.coverage ?? (meta.aggregation==="sum"?1:.98));
-  const months=Array.from({length:12},(_,index)=>{
+  const monthStats=Array.from({length:12},(_,index)=>{
     const month=index+1;
-    return stationClimateValueAggregateCurrent(
+    return stationClimateValueAggregateCurrentStats(
       stationId,
       stationClimateValueIso(year,month,1),
       stationClimateValueIso(year,month,stationClimateValueMonthEnd(year,month)),
-      meta,
-      coverage
+      meta,coverage
     );
   });
-  const winterEnd=stationClimateValueMonthEnd(year,2);
-  const seasons=[
-    stationClimateValueAggregateCurrent(stationId,`${year-1}-12-01`,stationClimateValueIso(year,2,winterEnd),meta,coverage),
-    stationClimateValueAggregateCurrent(stationId,`${year}-03-01`,`${year}-05-31`,meta,coverage),
-    stationClimateValueAggregateCurrent(stationId,`${year}-06-01`,`${year}-08-31`,meta,coverage),
-    stationClimateValueAggregateCurrent(stationId,`${year}-09-01`,`${year}-11-30`,meta,coverage)
+  const seasonRanges=[
+    [`${year-1}-12-01`,stationClimateValueIso(year,2,stationClimateValueMonthEnd(year,2))],
+    [`${year}-03-01`,`${year}-05-31`],
+    [`${year}-06-01`,`${year}-08-31`],
+    [`${year}-09-01`,`${year}-11-30`]
   ];
-  const annual=stationClimateValueAggregateCurrent(stationId,`${year}-01-01`,`${year}-12-31`,meta,coverage);
-  if(![...months,...seasons,annual].some(value=>Number.isFinite(Number(value)))) return null;
-  return [year,months,seasons,annual,true];
+  const seasonStats=seasonRanges.map(([start,end])=>stationClimateValueAggregateCurrentStats(stationId,start,end,meta,coverage));
+  const annualStats=stationClimateValueAggregateCurrentStats(stationId,`${year}-01-01`,`${year}-12-31`,meta,coverage);
+  const row={
+    year,current:true,
+    months:monthStats.map(item=>item.value),
+    seasons:seasonStats.map(item=>item.value),
+    annual:annualStats.value,
+    monthQuality:monthStats.map(item=>[item.valid,item.expected]),
+    seasonQuality:seasonStats.map(item=>[item.valid,item.expected]),
+    annualQuality:[annualStats.valid,annualStats.expected]
+  };
+  if(![...row.months,...row.seasons,row.annual].some(value=>Number.isFinite(Number(value)))) return null;
+  return row;
 }
-
+function stationClimateValueHistoricalRows(block){
+  return (block?.years||[]).map(raw=>({
+    year:Number(raw?.[0]),current:false,
+    months:raw?.[1]||[],seasons:raw?.[2]||[],annual:raw?.[3]??null,
+    monthQuality:raw?.[4]||[],seasonQuality:raw?.[5]||[],annualQuality:raw?.[6]||null
+  })).filter(row=>Number.isFinite(row.year));
+}
+function stationClimateValueRows(block,stationId,meta,{includeCurrent=true}={}){
+  const rows=stationClimateValueHistoricalRows(block);
+  if(includeCurrent){
+    const current=stationClimateValueCurrentRow(stationId,block,meta);
+    if(current) rows.push(current);
+  }
+  return rows.sort((a,b)=>b.year-a.year);
+}
 function stationClimateValueColumns(view){
-  const months=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"]
-    .map((label,index)=>({kind:"months",index,label}));
-  const seasons=[
-    {kind:"seasons",index:0,label:"Winter (DJF)",separator:true},
-    {kind:"seasons",index:1,label:"Frühling (MAM)"},
-    {kind:"seasons",index:2,label:"Sommer (JJA)"},
-    {kind:"seasons",index:3,label:"Herbst (SON)"}
-  ];
-  const annual={kind:"annual",index:0,label:"Jahr",separator:true,annual:true};
+  const months=STATION_CLIMATE_PERIODS.filter(item=>item.kind==="months");
+  const seasons=STATION_CLIMATE_PERIODS.filter(item=>item.kind==="seasons");
+  const annual=STATION_CLIMATE_PERIODS.find(item=>item.kind==="annual");
   if(view==="months") return [...months,annual];
   if(view==="seasons") return [...seasons,annual];
   return [...months,...seasons,annual];
 }
-
+function stationClimateValuePeriodByKey(key){
+  return STATION_CLIMATE_PERIODS.find(item=>item.key===key)||STATION_CLIMATE_PERIODS.at(-1);
+}
 function stationClimateValueFromRow(row,column){
-  if(column.kind==="months") return row?.[1]?.[column.index] ?? null;
-  if(column.kind==="seasons") return row?.[2]?.[column.index] ?? null;
-  return row?.[3] ?? null;
+  if(column.kind==="months") return row?.months?.[column.index] ?? null;
+  if(column.kind==="seasons") return row?.seasons?.[column.index] ?? null;
+  return row?.annual ?? null;
 }
-
-function stationClimateValueReference(block,column){
-  const reference=block?.reference||{};
-  if(column.kind==="months") return reference.months?.[column.index] ?? null;
-  if(column.kind==="seasons") return reference.seasons?.[column.index] ?? null;
-  return reference.annual ?? null;
+function stationClimateValueQualityFromRow(row,column){
+  if(column.kind==="months") return row?.monthQuality?.[column.index] ?? null;
+  if(column.kind==="seasons") return row?.seasonQuality?.[column.index] ?? null;
+  return row?.annualQuality ?? null;
 }
-
+function stationClimateValueReferenceStats(block,column,reference){
+  const values=stationClimateValueHistoricalRows(block)
+    .filter(row=>row.year>=reference.start&&row.year<=reference.end)
+    .map(row=>stationClimateValueFromRow(row,column))
+    .filter(value=>Number.isFinite(Number(value)))
+    .map(Number);
+  return {value:values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null,count:values.length};
+}
+function stationClimateValueReference(block,column,reference=stationClimateProfileReference()){
+  return stationClimateValueReferenceStats(block,column,reference).value;
+}
 function stationClimateValueFormat(value,meta){
   if(value===null || value===undefined || !Number.isFinite(Number(value))) return "–";
   return `${Number(value).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} ${meta.unit}`;
 }
-
 function stationClimateValueAnomaly(value,reference,meta){
   value=Number(value);reference=Number(reference);
   if(!Number.isFinite(value)||!Number.isFinite(reference)) return null;
@@ -6999,161 +7128,321 @@ function stationClimateValueAnomaly(value,reference,meta){
   if(reference===0) return null;
   return (value/reference-1)*100;
 }
-
 function stationClimateValueAnomalyText(anomaly,meta){
   if(!Number.isFinite(anomaly)) return "";
   const sign=anomaly>0?"+":"";
-  if(meta.colorParam==="temp"){
-    return `${sign}${anomaly.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} K`;
-  }
+  if(meta.colorParam==="temp") return `${sign}${anomaly.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} K`;
   return `${sign}${anomaly.toLocaleString("de-DE",{maximumFractionDigits:0})} %`;
 }
-
+function stationClimateValueQualityText(quality){
+  if(!Array.isArray(quality)||quality.length<2) return "";
+  const valid=Number(quality[0]),expected=Number(quality[1]);
+  if(!Number.isFinite(valid)||!Number.isFinite(expected)||expected<=0) return "";
+  return `${(valid/expected*100).toLocaleString("de-DE",{maximumFractionDigits:1})} % (${valid}/${expected} Tage)`;
+}
+function stationClimateValueRankInfo(rows,column,value,meta){
+  const available=rows.map(row=>({year:row.year,value:Number(stationClimateValueFromRow(row,column))}))
+    .filter(item=>Number.isFinite(item.value));
+  if(!available.length||!Number.isFinite(Number(value))) return null;
+  const sortedHigh=[...available].sort((a,b)=>b.value-a.value||a.year-b.year);
+  const sortedLow=[...available].sort((a,b)=>a.value-b.value||a.year-b.year);
+  const highRank=1+sortedHigh.filter(item=>item.value>Number(value)).length;
+  const lowRank=1+sortedLow.filter(item=>item.value<Number(value)).length;
+  const highYears=sortedHigh.filter(item=>item.value===sortedHigh[0].value).map(item=>item.year);
+  const lowYears=sortedLow.filter(item=>item.value===sortedLow[0].value).map(item=>item.year);
+  return {highRank,lowRank,total:available.length,highYears,lowYears,highValue:sortedHigh[0].value,lowValue:sortedLow[0].value,
+    recordHigh:Math.abs(Number(value)-sortedHigh[0].value)<1e-9,recordLow:Math.abs(Number(value)-sortedLow[0].value)<1e-9,
+    highLabel:meta.high,lowLabel:meta.low};
+}
+function stationClimateValueCell(row,column,block,meta,reference,allRows){
+  const value=stationClimateValueFromRow(row,column);
+  const quality=stationClimateValueQualityFromRow(row,column);
+  const qualityText=stationClimateValueQualityText(quality);
+  if(value===null||value===undefined||!Number.isFinite(Number(value))){
+    const title=qualityText?`Datenabdeckung: ${qualityText} · Periode nicht ausreichend vollständig`:"Keine ausreichenden Daten";
+    return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell ":""}no-value" title="${title}">–${qualityText?`<span class="station-climate-quality">${qualityText.split(" ")[0]}%</span>`:""}</td>`;
+  }
+  const ref=stationClimateValueReference(block,column,reference);
+  const anomaly=stationClimateValueAnomaly(value,ref,meta);
+  const rank=stationClimateValueRankInfo(allRows,column,value,meta);
+  let style="",parts=[];
+  if(Number.isFinite(anomaly)){
+    const background=interpolateAnomalyColor(meta.colorParam,anomaly);
+    style=`background:${background};color:${readableTextColor(background)}`;
+    parts.push(`Mittel ${reference.label}: ${stationClimateValueFormat(ref,meta)}`,`Abweichung: ${stationClimateValueAnomalyText(anomaly,meta)}`);
+  }
+  if(rank) parts.push(`Rang hoch: ${rank.highRank}/${rank.total} (${rank.highLabel})`,`Rang niedrig: ${rank.lowRank}/${rank.total} (${rank.lowLabel})`);
+  if(qualityText) parts.push(`Datenabdeckung: ${qualityText}`);
+  const recordLabel=rank?.recordHigh?rank.highLabel:rank?.recordLow?rank.lowLabel:"";
+  const metaText=rank?`R${rank.highRank}/${rank.total}`:"";
+  return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" style="${style}" title="${parts.join(" · ")}"><span class="station-climate-cell-main">${stationClimateValueFormat(value,meta)}</span><span class="station-climate-cell-meta">${metaText}${qualityText?`<span class="station-climate-quality">${qualityText.split(" ")[0]}%</span>`:""}${recordLabel?`<span class="station-climate-record">${recordLabel}</span>`:""}</span></td>`;
+}
 function stationClimateValuesLegend(meta,containerId="stationClimateValuesLegend"){
-  const container=document.getElementById(containerId);
-  if(!container) return;
+  const container=document.getElementById(containerId);if(!container)return;
   const values=meta.colorParam==="temp"?[-3,-1,0,1,3]:[-50,-25,0,25,50];
   container.innerHTML=values.map(value=>{
     const background=interpolateAnomalyColor(meta.colorParam,value);
-    const label=meta.colorParam==="temp"
-      ?`${value>0?"+":""}${value} K`
-      :`${value>0?"+":""}${value} %`;
+    const label=meta.colorParam==="temp"?`${value>0?"+":""}${value} K`:`${value>0?"+":""}${value} %`;
     return `<span class="anomaly-legend-item"><span class="anomaly-legend-swatch" style="background:${background}"></span>${label}</span>`;
   }).join("");
 }
-
-async function renderStationProfileClimateValuesTable(){
-  const table=document.getElementById("stationProfileClimateValuesTable");
-  const head=document.getElementById("stationProfileClimateValuesHead");
-  const body=document.getElementById("stationProfileClimateValuesBody");
-  if(!table||!head||!body||!stationProfileProfile||!stationClimateDaysIndex) return;
-
-  await loadStationClimateDaysCurrentMonths();
-
+function stationClimateValueHeader(columns,clickable=false){
+  return `<tr><th class="year-cell">Jahr</th>${columns.map(column=>`<th class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" ${clickable?`data-climate-period="${column.key}" onclick="stationProfileSelectClimateTrendPeriod('${column.key}')"`:""}>${column.label}</th>`).join("")}</tr>`;
+}
+function stationClimateValueReferenceRow(block,columns,meta,reference){
+  return columns.map(column=>{
+    const stats=stationClimateValueReferenceStats(block,column,reference);
+    const title=stats.count?`${stats.count} auswertbare Jahre im Referenzzeitraum`:"Keine auswertbaren Referenzjahre";
+    return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" title="${title}"><span class="station-climate-cell-main">${stationClimateValueFormat(stats.value,meta)}</span><span class="station-climate-cell-meta">n=${stats.count}</span></td>`;
+  }).join("");
+}
+function stationClimateValuePeriodLabel(column){return column?.label||"Zeitraum";}
+function stationClimateValueExtremeRows(block,column){
+  const rows=stationClimateValueHistoricalRows(block).map(row=>({year:row.year,value:Number(stationClimateValueFromRow(row,column))})).filter(item=>Number.isFinite(item.value));
+  if(!rows.length)return null;
+  const max=Math.max(...rows.map(item=>item.value)),min=Math.min(...rows.map(item=>item.value));
+  return {max,min,maxYears:rows.filter(item=>item.value===max).map(item=>item.year),minYears:rows.filter(item=>item.value===min).map(item=>item.year),count:rows.length};
+}
+function stationProfileClimateNormalRender(block,meta,reference,columns){
+  const table=document.getElementById("stationProfileClimateNormalTable"),head=document.getElementById("stationProfileClimateNormalHead"),body=document.getElementById("stationProfileClimateNormalBody");
+  if(!table||!head||!body)return;
+  table.dataset.view=document.getElementById("stationProfileClimateValuesView")?.value||"all";
+  head.innerHTML=stationClimateValueHeader(columns,false);
+  body.innerHTML=`<tr><td class="year-cell">${reference.label}</td>${stationClimateValueReferenceRow(block,columns,meta,reference)}</tr>`;
+  const title=document.getElementById("stationProfileClimateNormalTitle");if(title)title.textContent=`Klimanormalwerte ${reference.label}`;
+}
+function stationProfileClimateRecordsRender(block,meta){
+  const body=document.querySelector("#stationProfileClimateRecordsTable tbody");if(!body)return;
+  body.innerHTML=STATION_CLIMATE_PERIODS.map(column=>{
+    const ex=stationClimateValueExtremeRows(block,column);
+    if(!ex)return `<tr><td>${column.label}</td><td colspan="4">–</td></tr>`;
+    return `<tr><td>${column.label}</td><td>${stationClimateValueFormat(ex.max,meta)}</td><td>${ex.maxYears.join(", ")}</td><td>${stationClimateValueFormat(ex.min,meta)}</td><td>${ex.minYears.join(", ")}</td></tr>`;
+  }).join("");
+}
+function stationProfileClimateSummaryText(stationId,reference){
+  const year=Number(stationClimateDaysIndex?.current_year);
+  const tmeta=STATION_CLIMATE_VALUE_META.tmean;
+  const tblock=stationProfileProfile?.climate_value_tables?.tmean;
+  if(!tblock)return "Die neue klimatologische Jahreszusammenfassung wird nach dem Profil-Neuaufbau verfügbar.";
+  const trow=stationClimateValueCurrentRow(stationId,tblock,tmeta);
+  if(!trow)return `${year}: Noch keine vollständig abgeschlossene Periode in der neuen Klimatabelle.`;
+  let warmer=0,cooler=0,complete=0;
+  STATION_CLIMATE_PERIODS.filter(c=>c.kind==="months").forEach(column=>{
+    const value=stationClimateValueFromRow(trow,column),ref=stationClimateValueReference(tblock,column,reference);
+    if(!Number.isFinite(Number(value))||!Number.isFinite(Number(ref)))return;
+    complete++;if(value>ref)warmer++;else if(value<ref)cooler++;
+  });
+  const summer=stationClimateValuePeriodByKey("summer");
+  const parts=[`${year}: ${warmer} von ${complete} abgeschlossenen Monaten wärmer als ${reference.label}${cooler?`, ${cooler} kühler`:""}.`];
+  const descriptors=[
+    ["tmean","Temperatur",(a)=>`${stationClimateValueAnomalyText(a,STATION_CLIMATE_VALUE_META.tmean)}`],
+    ["rain","Niederschlag",(a)=>`${(100+a).toLocaleString("de-DE",{maximumFractionDigits:0})} % des Mittels`],
+    ["sun","Sonnenschein",(a)=>`${(100+a).toLocaleString("de-DE",{maximumFractionDigits:0})} % des Mittels`]
+  ];
+  const summerBits=[];
+  descriptors.forEach(([id,label,format])=>{
+    const meta=STATION_CLIMATE_VALUE_META[id],block=stationProfileProfile?.climate_value_tables?.[id];
+    if(!block)return;const row=stationClimateValueCurrentRow(stationId,block,meta);
+    const value=stationClimateValueFromRow(row,summer),ref=stationClimateValueReference(block,summer,reference);
+    const anomaly=stationClimateValueAnomaly(value,ref,meta);if(Number.isFinite(anomaly))summerBits.push(`${label}: ${format(anomaly)}`);
+  });
+  if(summerBits.length)parts.push(`Sommer (JJA): ${summerBits.join(" · ")}.`);
+  return parts.join(" ");
+}
+function stationProfilePopulateClimateTrendPeriods(){
+  const select=document.getElementById("stationProfileClimateTrendPeriod");if(!select)return;
+  const previous=select.value||"year";
+  select.innerHTML=STATION_CLIMATE_PERIODS.map(item=>`<option value="${item.key}">${item.label}</option>`).join("");
+  select.value=STATION_CLIMATE_PERIODS.some(item=>item.key===previous)?previous:"year";
+}
+function stationProfileSelectClimateTrendPeriod(key){
+  const select=document.getElementById("stationProfileClimateTrendPeriod");
+  if(select&&STATION_CLIMATE_PERIODS.some(item=>item.key===key)){select.value=key;renderStationProfileClimateTrend();}
+}
+function stationClimateRollingSeries(points,windowYears){
+  if(!windowYears)return points.map(()=>null);
+  const byYear=new Map(points.map(p=>[p.year,p.value]));
+  return points.map(point=>{
+    const values=[];
+    for(let year=point.year-windowYears+1;year<=point.year;year++){
+      const value=byYear.get(year);if(!Number.isFinite(value))return null;values.push(value);
+    }
+    return values.reduce((sum,value)=>sum+value,0)/values.length;
+  });
+}
+function stationClimateLinearTrend(points){
+  const valid=points.filter(p=>Number.isFinite(p.value));
+  if(valid.length<2)return {slope:null,data:points.map(()=>null)};
+  const mx=valid.reduce((s,p)=>s+p.year,0)/valid.length,my=valid.reduce((s,p)=>s+p.value,0)/valid.length;
+  const denom=valid.reduce((s,p)=>s+(p.year-mx)**2,0);
+  if(!denom)return {slope:null,data:points.map(()=>null)};
+  const slope=valid.reduce((s,p)=>s+(p.year-mx)*(p.value-my),0)/denom;
+  const intercept=my-slope*mx;
+  return {slope,data:points.map(p=>slope*p.year+intercept)};
+}
+async function renderStationProfileClimateTrend(){
+  const canvas=document.getElementById("stationProfileClimateTrendChart");if(!canvas||!stationProfileProfile)return;
   const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
-  const station=(stationClimateDaysIndex.stations||[]).find(item=>item.id===stationId);
+  const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);
   const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
-  const view=document.getElementById("stationProfileClimateValuesView")?.value||"all";
-  const meta=STATION_CLIMATE_VALUE_META[parameter]||STATION_CLIMATE_VALUE_META.tmean;
-  const block=stationProfileProfile?.climate_value_tables?.[parameter];
-  const title=document.getElementById("stationProfileClimateValuesTitle");
-  const subtitle=document.getElementById("stationProfileClimateValuesSubtitle");
-  const note=document.getElementById("stationProfileClimateValuesNote");
-
-  table.dataset.view=view;
-  if(title) title.textContent=`${meta.label} · ${station?.name||stationId||"Station"}`;
-  if(subtitle){
-    subtitle.textContent=meta.aggregation==="mean"
-      ?`Monats-, Jahreszeiten- und Jahresmittel in ${meta.unit} · Farbe: Abweichung zu 1991–2020.`
-      :`Monats-, Jahreszeiten- und Jahressummen in ${meta.unit} · Farbe: prozentuale Abweichung zu 1991–2020.`;
-  }
-
-  if(!block){
-    head.innerHTML='<tr><th class="year-cell">Jahr</th><th>Daten</th></tr>';
-    body.innerHTML='<tr><td colspan="2" class="no-value">Die Klimawertetabelle wird mit dem nächsten vollständigen Stationsprofil-Lauf aufgebaut.</td></tr>';
-    if(note) note.textContent="Für diesen Stationsprofilstand liegen die neuen Monats- und Jahreszeitenwerte noch nicht vor.";
-    stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");
-    return;
-  }
-
-  const columns=stationClimateValueColumns(view);
-  head.innerHTML=`<tr><th class="year-cell">Jahr</th>${columns.map(column=>`<th class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}">${column.label}</th>`).join("")}</tr>`;
-
-  const historical=(block.years||[]).map(row=>[Number(row[0]),row[1]||[],row[2]||[],row[3],false]);
-  const current=stationClimateValueCurrentRow(stationId,block,meta);
-  const currentYear=Number(stationClimateDaysIndex.current_year);
-  const rows=historical.filter(row=>row[0]!==currentYear).sort((a,b)=>b[0]-a[0]);
-  if(current) rows.unshift(current);
-
-  body.innerHTML=rows.map(row=>{
-    const cells=columns.map(column=>{
-      const value=stationClimateValueFromRow(row,column);
-      const reference=stationClimateValueReference(block,column);
-      if(value===null || value===undefined || !Number.isFinite(Number(value))){
-        return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell ":""}no-value">–</td>`;
-      }
-      const anomaly=stationClimateValueAnomaly(value,reference,meta);
-      let style="",titleText="";
-      if(Number.isFinite(anomaly)){
-        const background=interpolateAnomalyColor(meta.colorParam,anomaly);
-        style=`background:${background};color:${readableTextColor(background)}`;
-        titleText=`Mittel 1991–2020: ${stationClimateValueFormat(reference,meta)} · Abweichung: ${stationClimateValueAnomalyText(anomaly,meta)}`;
-      }
-      return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" style="${style}" title="${titleText}">${stationClimateValueFormat(value,meta)}</td>`;
-    }).join("");
-    return `<tr class="${row[4]?"current-year":""}"><td class="year-cell">${row[0]}</td>${cells}</tr>`;
-  }).join("") || '<tr><td colspan="18" class="no-value">Keine auswertbaren Perioden vorhanden.</td></tr>';
-
-  stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");
-  if(note){
-    note.textContent="Winter (DJF) ist dem Jahr von Januar/Februar zugeordnet. Temperaturmittel werden ab mindestens 98 % Tagesabdeckung berechnet; Niederschlag (RSK) und Sonnenscheindauer (SDK) nur bei vollständig vorliegender Periode. Das laufende Jahr zeigt ausschließlich bereits abgeschlossene Perioden.";
+  const meta=STATION_CLIMATE_VALUE_META[parameter],block=stationProfileProfile?.climate_value_tables?.[parameter];
+  if(!block)return;
+  const period=stationClimateValuePeriodByKey(document.getElementById("stationProfileClimateTrendPeriod")?.value||"year");
+  const reference=stationClimateProfileReference();
+  const from=Number(document.getElementById("stationProfileFromSelect")?.value||station?.start_year||0);
+  const rows=stationClimateValueRows(block,stationId,meta).filter(row=>row.year>=from).sort((a,b)=>a.year-b.year);
+  const points=rows.map(row=>({year:row.year,value:Number(stationClimateValueFromRow(row,period))})).filter(p=>Number.isFinite(p.value));
+  const rollingYears=Number(document.getElementById("stationProfileRollingSelect")?.value)||0;
+  const rolling=stationClimateRollingSeries(points,rollingYears);
+  const trend=stationClimateLinearTrend(points);
+  const ref=stationClimateValueReference(block,period,reference);
+  const refData=points.map(()=>Number.isFinite(ref)?ref:null);
+  if(stationProfileClimateTrendChart)stationProfileClimateTrendChart.destroy();
+  stationProfileClimateTrendChart=new Chart(canvas,{
+    type:"line",
+    data:{labels:points.map(p=>String(p.year)),datasets:[
+      {label:meta.label,data:points.map(p=>p.value),borderColor:"#4f6f8f",backgroundColor:"rgba(79,111,143,.12)",borderWidth:2,pointRadius:2,tension:.1},
+      ...(rollingYears?[{label:`${rollingYears}-jähriges gleitendes Mittel`,data:rolling,borderColor:"#202020",borderWidth:2.4,pointRadius:0,tension:.15}]:[]),
+      {label:`Mittel ${reference.label}`,data:refData,borderColor:"#777",borderDash:[7,5],borderWidth:1.6,pointRadius:0},
+      {label:"Linearer Trend",data:trend.data,borderColor:"#b24a3a",borderDash:[3,4],borderWidth:1.8,pointRadius:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{
+      title:{display:true,text:`${meta.label} · ${period.label} – ${station?.name||stationId}`},
+      subtitle:{display:true,text:Number.isFinite(trend.slope)?`Linearer Trend seit ${from}: ${trend.slope>=0?"+":""}${(trend.slope*10).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} ${meta.unit}/Dekade`:"Für einen linearen Trend liegen zu wenige Werte vor.",color:"#666"},
+      datalabels:{display:false}
+    },scales:{y:{title:{display:true,text:meta.unit}},x:{ticks:{maxTicksLimit:18,maxRotation:0}}}}
+  });
+  document.getElementById("stationProfileClimateTrendTitle").textContent=`${meta.label} · ${period.label}`;
+  document.getElementById("stationProfileClimateTrendNote").textContent=`Messreihe ab ${from} · Referenz ${reference.label}${rollingYears?` · ${rollingYears}-jähriges gleitendes Mittel`:""}`;
+  initializeChartExportButtons();
+}
+function stationProfilePopulateClimateCompare(){
+  const select=document.getElementById("stationProfileClimateCompareStation");if(!select||!stationClimateDaysIndex)return;
+  const currentId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const current=(stationClimateDaysIndex.stations||[]).find(item=>item.id===currentId);
+  const previous=select.value;
+  const stations=(stationClimateDaysIndex.stations||[]).filter(item=>item.id!==currentId).slice().sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  select.innerHTML=stations.map(item=>`<option value="${item.id}">${item.name} (${item.id})</option>`).join("");
+  if(stations.some(item=>item.id===previous))select.value=previous;
+  else{
+    const nearest=stations.map(item=>({item,d:stationProfileDistanceKm(current,item)})).sort((a,b)=>a.d-b.d)[0]?.item;
+    if(nearest)select.value=nearest.id;
   }
 }
-
+async function stationProfileClimateLoadProfile(stationId){
+  if(!stationId)return null;
+  if(stationProfileClimateCompareCache.has(stationId))return stationProfileClimateCompareCache.get(stationId);
+  const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);if(!station)return null;
+  const promise=dashboardFetch(station.file,{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.json();});
+  stationProfileClimateCompareCache.set(stationId,promise);
+  try{return await promise;}catch(error){stationProfileClimateCompareCache.delete(stationId);throw error;}
+}
+async function renderStationProfileClimateComparison(){
+  const body=document.querySelector("#stationProfileClimateCompareTable tbody");if(!body||!stationProfileProfile)return;
+  const currentId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const otherId=document.getElementById("stationProfileClimateCompareStation")?.value||"";
+  const a=(stationClimateDaysIndex.stations||[]).find(item=>item.id===currentId),b=(stationClimateDaysIndex.stations||[]).find(item=>item.id===otherId);
+  document.getElementById("stationProfileClimateCompareA").textContent=a?.name||"Station A";
+  document.getElementById("stationProfileClimateCompareB").textContent=b?.name||"Station B";
+  if(!otherId){body.innerHTML='<tr><td colspan="4">Keine Vergleichsstation ausgewählt.</td></tr>';return;}
+  body.innerHTML='<tr><td colspan="4">Vergleich wird geladen …</td></tr>';
+  try{
+    const other=await stationProfileClimateLoadProfile(otherId);
+    const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
+    const meta=STATION_CLIMATE_VALUE_META[parameter],blockA=stationProfileProfile?.climate_value_tables?.[parameter],blockB=other?.climate_value_tables?.[parameter];
+    const reference=stationClimateProfileReference();
+    if(!blockA||!blockB){body.innerHTML='<tr><td colspan="4">Für mindestens eine Station fehlen die neuen Klimawertetabellen.</td></tr>';return;}
+    body.innerHTML=STATION_CLIMATE_PERIODS.map(column=>{
+      const va=stationClimateValueReference(blockA,column,reference),vb=stationClimateValueReference(blockB,column,reference);
+      const diff=Number.isFinite(va)&&Number.isFinite(vb)?va-vb:null;
+      return `<tr><td>${column.label}</td><td>${stationClimateValueFormat(va,meta)}</td><td>${stationClimateValueFormat(vb,meta)}</td><td>${Number.isFinite(diff)?`${diff>0?"+":""}${diff.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} ${meta.unit}`:"–"}</td></tr>`;
+    }).join("");
+    document.getElementById("stationProfileClimateCompareNote").textContent=`Klimanormalwerte ${reference.label} · ${meta.label}`;
+  }catch(error){body.innerHTML=`<tr><td colspan="4">Vergleich konnte nicht geladen werden: ${error.message}</td></tr>`;}
+}
+function stationProfileClimateCsvRows(){
+  const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
+  const meta=STATION_CLIMATE_VALUE_META[parameter],block=stationProfileProfile?.climate_value_tables?.[parameter];
+  const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const view=document.getElementById("stationProfileClimateValuesView")?.value||"all",columns=stationClimateValueColumns(view);
+  if(!block)return {headers:[],rows:[]};
+  const rows=stationClimateValueRows(block,stationId,meta);
+  return {
+    headers:["Jahr",...columns.map(c=>c.label)],
+    rows:rows.map(row=>[row.year,...columns.map(column=>stationClimateValueFromRow(row,column)??"")])
+  };
+}
+async function exportStationProfileClimateValues(format){
+  const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean";
+  const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const station=(stationClimateDaysIndex?.stations||[]).find(item=>item.id===stationId);
+  const title=`Stationsklima_${station?.name||stationId}_${STATION_CLIMATE_VALUE_META[parameter].label}`;
+  if(format==="csv"){
+    const {headers,rows}=stationProfileClimateCsvRows();if(!headers.length)throw new Error("Noch keine Klimatabellendaten verfügbar.");
+    const content="\ufeff"+[headers,...rows].map(row=>row.map(csvEscape).join(";")).join("\r\n");
+    const blob=new Blob([content],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=safeExportFilename(title,"csv");document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
+  }
+  const area=document.getElementById("stationProfileClimateValuesExportArea");if(!area||typeof html2canvas!=="function")throw new Error("Exportbibliothek konnte nicht geladen werden.");
+  const canvas=await html2canvas(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
+  if(format==="png"){triggerDataUrlDownload(canvas.toDataURL("image/png",1),safeExportFilename(title,"png"));return;}
+  const {jsPDF}=window.jspdf||{};if(!jsPDF)throw new Error("PDF-Bibliothek konnte nicht geladen werden.");
+  const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true}),w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight(),margin=8;
+  pdf.setFont("helvetica","bold");pdf.setFontSize(12);pdf.text(title,margin,margin+4);
+  const maxW=w-margin*2,maxH=h-margin*2-10,ratio=Math.min(maxW/canvas.width,maxH/canvas.height),iw=canvas.width*ratio,ih=canvas.height*ratio;
+  pdf.addImage(canvas.toDataURL("image/png"),"PNG",(w-iw)/2,margin+10,iw,ih,undefined,"FAST");pdf.save(safeExportFilename(title,"pdf"));
+}
+async function renderStationProfileClimateValuesTable(){
+  const table=document.getElementById("stationProfileClimateValuesTable"),head=document.getElementById("stationProfileClimateValuesHead"),body=document.getElementById("stationProfileClimateValuesBody");
+  if(!table||!head||!body||!stationProfileProfile||!stationClimateDaysIndex)return;
+  await loadStationClimateDaysCurrentMonths();
+  const stationId=document.getElementById("stationProfileStationSelect")?.value||"";
+  const station=(stationClimateDaysIndex.stations||[]).find(item=>item.id===stationId);
+  const parameter=document.getElementById("stationProfileClimateValuesParameter")?.value||"tmean",view=document.getElementById("stationProfileClimateValuesView")?.value||"all";
+  const meta=STATION_CLIMATE_VALUE_META[parameter],block=stationProfileProfile?.climate_value_tables?.[parameter],reference=stationClimateProfileReference(),columns=stationClimateValueColumns(view);
+  table.dataset.view=view;
+  document.getElementById("stationProfileClimateValuesTitle").textContent=`${meta.label} · ${station?.name||stationId||"Station"}`;
+  document.getElementById("stationProfileClimateValuesSubtitle").textContent=meta.aggregation==="mean"
+    ?`Monats-, Jahreszeiten- und Jahresmittel · Farbe: Abweichung zu ${reference.label}.`
+    :`Monats-, Jahreszeiten- und Jahressummen · Farbe: prozentuale Abweichung zu ${reference.label}.`;
+  if(!block){
+    head.innerHTML='<tr><th class="year-cell">Jahr</th><th>Daten</th></tr>';body.innerHTML='<tr><td colspan="2">Die neue Klimatabelle wird beim nächsten vollständigen Stationsprofil-Lauf aufgebaut.</td></tr>';
+    stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");return;
+  }
+  const rows=stationClimateValueRows(block,stationId,meta),currentYear=Number(stationClimateDaysIndex.current_year);
+  head.innerHTML=stationClimateValueHeader(columns,true);
+  body.innerHTML=rows.map(row=>`<tr class="${row.year===currentYear?"current-year":""}"><td class="year-cell">${row.year}</td>${columns.map(column=>stationClimateValueCell(row,column,block,meta,reference,rows)).join("")}</tr>`).join("");
+  stationClimateValuesLegend(meta,"stationProfileClimateValuesLegend");
+  document.getElementById("stationProfileClimateValuesNote").textContent=`Winter (DJF) gehört zum Jahr von Januar/Februar. Temperaturmittel benötigen mindestens 98 % Tagesabdeckung; Niederschlag (RSK) und Sonnenscheindauer (SDK) eine vollständig vorliegende Periode. R = Rang vom höchsten Wert aus. Referenz: ${reference.label}.`;
+  stationProfileClimateNormalRender(block,meta,reference,columns);
+  stationProfileClimateRecordsRender(block,meta);
+  document.getElementById("stationProfileClimateSummary").textContent=stationProfileClimateSummaryText(stationId,reference);
+}
+async function renderStationProfileClimateValuesSuite(){
+  await renderStationProfileClimateValuesTable();
+  stationProfilePopulateClimateTrendPeriods();
+  await renderStationProfileClimateTrend();
+  stationProfilePopulateClimateCompare();
+  await renderStationProfileClimateComparison();
+}
 function renderStationClimateValuesTable(stationOverride=null){
-  const table=document.getElementById("stationClimateValuesTable");
-  const head=document.getElementById("stationClimateValuesHead");
-  const body=document.getElementById("stationClimateValuesBody");
-  if(!table||!head||!body||!stationClimateDaysProfile||!stationClimateDaysIndex) return;
-
+  const table=document.getElementById("stationClimateValuesTable"),head=document.getElementById("stationClimateValuesHead"),body=document.getElementById("stationClimateValuesBody");
+  if(!table||!head||!body||!stationClimateDaysProfile||!stationClimateDaysIndex)return;
   const stationId=document.getElementById("stationClimateDaysStationSelect")?.value||"";
   const station=stationOverride||(stationClimateDaysIndex.stations||[]).find(item=>item.id===stationId);
-  const parameter=document.getElementById("stationClimateValuesParameter")?.value||"tmean";
-  const view=document.getElementById("stationClimateValuesView")?.value||"all";
-  const meta=STATION_CLIMATE_VALUE_META[parameter]||STATION_CLIMATE_VALUE_META.tmean;
-  const block=stationClimateDaysProfile?.climate_value_tables?.[parameter];
-  const title=document.getElementById("stationClimateValuesTitle");
-  const subtitle=document.getElementById("stationClimateValuesSubtitle");
-  const note=document.getElementById("stationClimateValuesNote");
-
+  const parameter=document.getElementById("stationClimateValuesParameter")?.value||"tmean",view=document.getElementById("stationClimateValuesView")?.value||"all";
+  const meta=STATION_CLIMATE_VALUE_META[parameter],block=stationClimateDaysProfile?.climate_value_tables?.[parameter],reference=stationClimateDaysTableReference(),columns=stationClimateValueColumns(view);
   table.dataset.view=view;
-  if(title) title.textContent=`${meta.label} · ${station?.name||stationId||"Station"}`;
-  if(subtitle){
-    subtitle.textContent=meta.aggregation==="mean"
-      ?`Monats-, Jahreszeiten- und Jahresmittel in ${meta.unit} · Farbe: Abweichung zu 1991–2020.`
-      :`Monats-, Jahreszeiten- und Jahressummen in ${meta.unit} · Farbe: prozentuale Abweichung zu 1991–2020.`;
-  }
-
-  if(!block){
-    head.innerHTML='<tr><th class="year-cell">Jahr</th><th>Daten</th></tr>';
-    body.innerHTML='<tr><td colspan="2" class="no-value">Die Klimawertetabelle wird mit dem nächsten vollständigen Stationsprofil-Lauf aufgebaut.</td></tr>';
-    if(note) note.textContent="Für diesen Stationsprofilstand liegen die neuen Monats- und Jahreszeitenwerte noch nicht vor.";
-    stationClimateValuesLegend(meta);
-    return;
-  }
-
-  const columns=stationClimateValueColumns(view);
-  head.innerHTML=`<tr><th class="year-cell">Jahr</th>${columns.map(column=>`<th class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}">${column.label}</th>`).join("")}</tr>`;
-
-  const historical=(block.years||[]).map(row=>[Number(row[0]),row[1]||[],row[2]||[],row[3],false]);
-  const current=stationClimateValueCurrentRow(stationId,block,meta);
-  const currentYear=Number(stationClimateDaysIndex.current_year);
-  const rows=historical.filter(row=>row[0]!==currentYear).sort((a,b)=>b[0]-a[0]);
-  if(current) rows.unshift(current);
-
-  body.innerHTML=rows.map(row=>{
-    const cells=columns.map(column=>{
-      const value=stationClimateValueFromRow(row,column);
-      const reference=stationClimateValueReference(block,column);
-      if(value===null || value===undefined || !Number.isFinite(Number(value))){
-        return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell ":""}no-value">–</td>`;
-      }
-      const anomaly=stationClimateValueAnomaly(value,reference,meta);
-      let style="",titleText="";
-      if(Number.isFinite(anomaly)){
-        const background=interpolateAnomalyColor(meta.colorParam,anomaly);
-        style=`background:${background};color:${readableTextColor(background)}`;
-        titleText=`Mittel 1991–2020: ${stationClimateValueFormat(reference,meta)} · Abweichung: ${stationClimateValueAnomalyText(anomaly,meta)}`;
-      }
-      return `<td class="${column.separator?"period-separator ":""}${column.annual?"annual-cell":""}" style="${style}" title="${titleText}">${stationClimateValueFormat(value,meta)}</td>`;
-    }).join("");
-    return `<tr class="${row[4]?"current-year":""}"><td class="year-cell">${row[0]}</td>${cells}</tr>`;
-  }).join("") || '<tr><td colspan="18" class="no-value">Keine auswertbaren Perioden vorhanden.</td></tr>';
-
+  document.getElementById("stationClimateValuesTitle").textContent=`${meta.label} · ${station?.name||stationId||"Station"}`;
+  document.getElementById("stationClimateValuesSubtitle").textContent=meta.aggregation==="mean"
+    ?`Monats-, Jahreszeiten- und Jahresmittel · Farbe: Abweichung zu ${reference.label}.`
+    :`Monats-, Jahreszeiten- und Jahressummen · Farbe: prozentuale Abweichung zu ${reference.label}.`;
+  if(!block){head.innerHTML='<tr><th class="year-cell">Jahr</th><th>Daten</th></tr>';body.innerHTML='<tr><td colspan="2">Die neue Klimatabelle wird beim nächsten vollständigen Stationsprofil-Lauf aufgebaut.</td></tr>';stationClimateValuesLegend(meta);return;}
+  const rows=stationClimateValueRows(block,stationId,meta),currentYear=Number(stationClimateDaysIndex.current_year);
+  head.innerHTML=stationClimateValueHeader(columns,false);
+  body.innerHTML=rows.map(row=>`<tr class="${row.year===currentYear?"current-year":""}"><td class="year-cell">${row.year}</td>${columns.map(column=>stationClimateValueCell(row,column,block,meta,reference,rows)).join("")}</tr>`).join("");
   stationClimateValuesLegend(meta);
-  if(note){
-    note.textContent="Winter (DJF) ist dem Jahr von Januar/Februar zugeordnet. Temperaturmittel werden ab mindestens 98 % Tagesabdeckung berechnet; Niederschlag (RSK) und Sonnenscheindauer (SDK) nur bei vollständig vorliegender Periode. Das laufende Jahr zeigt ausschließlich bereits abgeschlossene Perioden.";
-  }
+  document.getElementById("stationClimateValuesNote").textContent=`Winter (DJF) gehört zum Jahr von Januar/Februar. R = Rang vom höchsten Wert aus. Referenz: ${reference.label}. Datenabdeckung wird je Periode ausgewiesen.`;
 }
 
 function stationClimateDaysFrequencyMode(){
@@ -9516,7 +9805,8 @@ const CHART_EXPORT_FALLBACK_TITLES={
   stationHeatwavesBarChart:"Stations-Hitzewellen - Anzahl pro Jahr",
   stationProfileGtsChart:"Stationsprofil - Grünlandtemperatursumme",
   stationProfileWarmthChart:"Stationsprofil - Wärmesumme",
-  stationProfileColdSumChart:"Stationsprofil - Kältesumme"
+  stationProfileColdSumChart:"Stationsprofil - Kältesumme",
+  stationProfileClimateTrendChart:"Stationsprofil - Klimazeitreihe"
 };
 
 function chartExportTitle(chart,canvas){
@@ -10046,6 +10336,8 @@ let stationProfileTemperatureChart=null;
 let stationProfileGtsChart=null;
 let stationProfileWarmthChart=null;
 let stationProfileColdSumChart=null;
+let stationProfileClimateTrendChart=null;
+const stationProfileClimateCompareCache=new Map();
 let stationProfileMap=null;
 let stationProfileMapLayer=null;
 let stationProfilePrecipIndex=null;
@@ -10824,7 +11116,7 @@ async function renderStationProfileClimate(){
   initializeChartExportButtons();
 }
 window.addEventListener('stationprofilechange',()=>renderStationProfileClimate().catch(error=>console.error('Stationsprofil Kenntage:',error)));
-window.addEventListener('stationprofilechange',()=>renderStationProfileClimateValuesTable().catch(error=>console.error('Stationsprofil Klimatabelle:',error)));
+window.addEventListener('stationprofilechange',()=>renderStationProfileClimateValuesSuite().catch(error=>console.error('Stationsprofil Klimatabelle:',error)));
 
 // ================= VERSION 12.2a: STATIONSPROFIL – GRÜNLANDTEMPERATURSUMME =================
 function stationProfileGtsPayload(){
