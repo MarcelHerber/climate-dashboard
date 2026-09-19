@@ -32,7 +32,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 12
+STATE_VERSION = 13
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -799,7 +799,7 @@ def _aggregate_station_climate_period(
     value_index: int,
     aggregation: str,
     coverage: float,
-) -> float | None:
+) -> tuple[float | None, int, int]:
     values: list[float] = []
     cursor = start
     expected_days = 0
@@ -812,12 +812,13 @@ def _aggregate_station_climate_period(
                 values.append(float(raw))
         cursor += timedelta(days=1)
 
+    valid_days = len(values)
     minimum_valid = int(expected_days * coverage + 0.999999)
-    if len(values) < minimum_valid:
-        return None
+    if valid_days < minimum_valid:
+        return None, valid_days, expected_days
     if aggregation == "mean":
-        return round(sum(values) / len(values), 1)
-    return round(sum(values), 1)
+        return round(sum(values) / valid_days, 1), valid_days, expected_days
+    return round(sum(values), 1), valid_days, expected_days
 
 
 def build_station_climate_value_tables(
@@ -842,46 +843,48 @@ def build_station_climate_value_tables(
 
         for year in available_years:
             months: list[float | None] = []
+            month_quality: list[list[int]] = []
             for month in range(1, 13):
                 start = date(year, month, 1)
                 if month == 12:
                     end = date(year, 12, 31)
                 else:
                     end = date(year, month + 1, 1) - timedelta(days=1)
-                months.append(
-                    _aggregate_station_climate_period(
-                        daily_values, start, end, value_index, aggregation, coverage
-                    )
+                value, valid_days, expected_days = _aggregate_station_climate_period(
+                    daily_values, start, end, value_index, aggregation, coverage
                 )
+                months.append(value)
+                month_quality.append([valid_days, expected_days])
 
-            seasons = [
-                _aggregate_station_climate_period(
-                    daily_values,
-                    date(year - 1, 12, 1),
-                    date(year, 2, 29 if is_leap(year) else 28),
-                    value_index,
-                    aggregation,
-                    coverage,
-                ),
-                _aggregate_station_climate_period(
-                    daily_values, date(year, 3, 1), date(year, 5, 31),
-                    value_index, aggregation, coverage,
-                ),
-                _aggregate_station_climate_period(
-                    daily_values, date(year, 6, 1), date(year, 8, 31),
-                    value_index, aggregation, coverage,
-                ),
-                _aggregate_station_climate_period(
-                    daily_values, date(year, 9, 1), date(year, 11, 30),
-                    value_index, aggregation, coverage,
-                ),
+            season_ranges = [
+                (date(year - 1, 12, 1), date(year, 2, 29 if is_leap(year) else 28)),
+                (date(year, 3, 1), date(year, 5, 31)),
+                (date(year, 6, 1), date(year, 8, 31)),
+                (date(year, 9, 1), date(year, 11, 30)),
             ]
-            annual = _aggregate_station_climate_period(
+            seasons: list[float | None] = []
+            season_quality: list[list[int]] = []
+            for start, end in season_ranges:
+                value, valid_days, expected_days = _aggregate_station_climate_period(
+                    daily_values, start, end, value_index, aggregation, coverage
+                )
+                seasons.append(value)
+                season_quality.append([valid_days, expected_days])
+
+            annual, annual_valid, annual_expected = _aggregate_station_climate_period(
                 daily_values, date(year, 1, 1), date(year, 12, 31),
                 value_index, aggregation, coverage,
             )
             if any(value is not None for value in [*months, *seasons, annual]):
-                rows.append([year, months, seasons, annual])
+                rows.append([
+                    year,
+                    months,
+                    seasons,
+                    annual,
+                    month_quality,
+                    season_quality,
+                    [annual_valid, annual_expected],
+                ])
 
         def reference_mean(values: list[float | None]) -> float | None:
             valid = [float(value) for value in values if value is not None]
