@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-archive]') }}
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-archive') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -39,7 +39,8 @@ jobs:
 
     env:
       EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
-      BACKFILL_MONTH: ${{ github.event_name == 'push' && '2020-01' || inputs.month }}
+      BACKFILL_MONTH: ${{ github.event_name == 'push' && '' || inputs.month }}
+      START_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
       CHAIN_MODE: ${{ github.event_name == 'push' || inputs.chain }}
       CARTOPY_DATA_DIR: ${{ github.workspace }}/.sst_cache/cartopy
 
@@ -122,7 +123,11 @@ jobs:
           from scripts.sst.config import ARCHIVE_START
           from scripts.sst.sources import latest_available_mur_date
 
-          month = os.environ['BACKFILL_MONTH']
+          month = os.environ.get('BACKFILL_MONTH', '').strip()
+          if not month:
+              message = os.environ.get('START_COMMIT_MESSAGE', '')
+              match = re.search(r'\[start-sst-archive:(\d{4}-\d{2})\]', message)
+              month = match.group(1) if match else '2020-01'
           if not re.fullmatch(r'\d{4}-\d{2}', month):
               raise SystemExit('Monat muss YYYY-MM entsprechen.')
           year, month_number = map(int, month.split('-'))
@@ -153,11 +158,22 @@ jobs:
           except Exception:
               pass
 
+          # Von PO.DAAC bestätigte bzw. dokumentierte MUR-v4.1-Datenlücken.
+          # Diese Tage können über Harmony nicht erzeugt werden und bleiben im Archiv bewusst als Lücke.
+          known_missing = {
+              '2021-02-20',
+              '2021-02-21',
+              '2023-03-17',
+          }
+
           days = []
+          skipped_known_missing = []
           current = start
           while current <= end:
               iso = current.isoformat()
-              if iso not in existing:
+              if iso in known_missing:
+                  skipped_known_missing.append(iso)
+              elif iso not in existing:
                   days.append(iso)
               current += timedelta(days=1)
 
@@ -169,11 +185,13 @@ jobs:
               print(f'latest_month={newest_month:%Y-%m}', file=handle)
               print(f"chain_mode={str(os.environ.get('CHAIN_MODE', '')).lower()}", file=handle)
 
-          print(f'{month}: {len(days)} fehlende Tage von {start} bis {end}', flush=True)
+          print(f'{month}: {len(days)} zu bauende Tage von {start} bis {end}', flush=True)
+          if skipped_known_missing:
+              print('Bekannte MUR-Datenlücken werden übersprungen: ' + ', '.join(skipped_known_missing), flush=True)
           if days:
               print('Zu bauen: ' + ', '.join(days), flush=True)
           else:
-              print('Monat ist bereits vollständig im Archiv.', flush=True)
+              print('Monat ist bereits vollständig bzw. enthält nur dokumentierte Datenlücken.', flush=True)
           PY
 
   build_day:
