@@ -224,9 +224,23 @@ jobs:
         run: |
           set -euo pipefail
           OUT="/tmp/sst-day-${{ matrix.day }}"
-          rm -rf "$OUT"
-          mkdir -p "$OUT"
-          python -u -m scripts.sst.backfill             --start "${{ matrix.day }}"             --end "${{ matrix.day }}"             --archive-root "$OUT"             --cache-root .sst_cache
+          for ATTEMPT in 1 2 3; do
+            echo "SST-Tag ${{ matrix.day }} · Versuch $ATTEMPT/3"
+            rm -rf "$OUT"
+            mkdir -p "$OUT"
+            if python -u -m scripts.sst.backfill --start "${{ matrix.day }}" --end "${{ matrix.day }}" --archive-root "$OUT" --cache-root .sst_cache; then
+              exit 0
+            fi
+            if [[ "$ATTEMPT" -eq 1 ]]; then
+              echo "Erster Versuch fehlgeschlagen; 180 Sekunden Pause."
+              sleep 180
+            elif [[ "$ATTEMPT" -eq 2 ]]; then
+              echo "Zweiter Versuch fehlgeschlagen; 300 Sekunden Pause."
+              sleep 300
+            fi
+          done
+          echo "SST-Tag ${{ matrix.day }} ist nach drei Versuchen fehlgeschlagen."
+          exit 1
 
       - name: Tagesergebnis prüfen
         shell: bash
