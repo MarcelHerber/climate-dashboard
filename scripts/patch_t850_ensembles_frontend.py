@@ -4,23 +4,32 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-6">'
-JS_TAG = '<script src="t850_ensembles.js?v=20260922-6"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-7">'
+JS_TAG = '<script src="t850_ensembles.js?v=20260922-7"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
-NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">T850-Ensembles</button>'
+NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
 PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 <div id="t850-ensembles" class="tab-content">
   <div class="section-header t850-header">
-    <h2>T850-Ensembles</h2>
-    <p>850-hPa-Temperatur der Ensembles von ECMWF IFS, ECMWF AIFS, DWD ICON und GFS/GEFS für einen frei wählbaren Ort.</p>
-    <span class="section-status">4 Modelle · voller Modellhorizont · Hauptlauf · ERA5-Referenz 1991–2020</span>
+    <h2>Ensemble-Meteogramme</h2>
+    <p>Ensemblevorhersagen für Temperatur und Niederschlag von ECMWF IFS, ECMWF AIFS, DWD ICON und GFS/GEFS für einen frei wählbaren Ort.</p>
+    <span id="ensembleParameterStatus" class="section-status">Temperatur 850 hPa · 4 Modelle · voller Modellhorizont · Hauptlauf · ERA5 1991–2020</span>
   </div>
 
   <form id="t850SearchForm" class="controls t850-controls">
     <div class="control-group t850-place-control">
       <label for="t850LocationInput">Ort</label>
       <input id="t850LocationInput" type="search" autocomplete="off" placeholder="z. B. Berlin, Wien, Zürich" aria-label="Ort für T850-Ensembles">
+    </div>
+    <div class="control-group t850-param-control">
+      <label for="t850ParamSelect">Parameter</label>
+      <select id="t850ParamSelect">
+        <option value="t850" selected>Temperatur 850 hPa</option>
+        <option value="t2m">Temperatur 2 m</option>
+        <option value="precip6">Niederschlag 6 h</option>
+        <option value="precipCum">Niederschlag kumuliert</option>
+      </select>
     </div>
     <div class="control-group t850-view-control">
       <label for="t850PanelSelect">Ansicht</label>
@@ -66,7 +75,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
     <section id="t850ComparisonCard" class="t850-comparison-card">
       <div class="t850-comparison-head">
-        <div><h3>Vergleich der Ensemble-Mittel</h3><div class="t850-model-meta">Alle vier Ensemble-Mittel auf einer gemeinsamen Skala</div></div>
+        <div><h3 id="ensembleComparisonTitle">Vergleich der Ensemble-Mittel · Temperatur 850 hPa</h3><div class="t850-model-meta">Alle verfügbaren Ensemble-Mittel auf einer gemeinsamen Skala</div></div>
       </div>
       <div class="t850-chart-shell"><canvas id="t850ComparisonChart"></canvas></div>
       <div class="t850-legend-note">
@@ -74,16 +83,16 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
         <span><i class="t850-swatch control"></i> Kontrolllauf</span>
         <span><i class="t850-swatch"></i> Ensemble-Mittel</span>
         <span><i class="t850-swatch main"></i> Hauptlauf</span>
-        <span><i class="t850-swatch climate"></i> ERA5 1991–2020</span>
+        <span id="ensembleClimateLegend"><i class="t850-swatch climate"></i> ERA5 1991–2020</span>
       </div>
     </section>
   </div>
 
   <p class="t850-source">
     Ensemblevorhersagen: Open-Meteo Ensemble API mit ECMWF IFS ENS, ECMWF AIFS ENS, DWD ICON EPS und NOAA GEFS.
-    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage. ICON-EU EPS wird für T850 zuerst direkt abgefragt. Solange die API dort nur leere Werte liefert, zeigt das Panel automatisch den ICON-EU-Hauptlauf als klar gekennzeichneten Fallback. GEFS nutzt das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
-    Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung.
-    Klimareferenz: ERA5-T850 1991–2020; synoptische Monatsmittel für 00/06/12/18 UTC, zwischen den Monatsstützpunkten zeitlich interpoliert.
+    Temperatur wird für 00/06/12/18 UTC dargestellt. Niederschlag stammt aus stündlichen Summen und wird im Browser zu 6-Stunden-Summen bzw. kumulierten Mengen verarbeitet.
+    ECMWF/AIFS laufen bis 15 Tage, GEFS Seamless bis in den erweiterten Langfrist-Horizont. Bei T850 zeigt ICON-EU solange einen klar gekennzeichneten Hauptlauf-Fallback, wie die ICON-EPS-Druckflächenwerte upstream leer sind.
+    Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung. Die rote ERA5-Referenz 1991–2020 wird derzeit nur für T850 eingeblendet.
   </p>
 </div>
 '''

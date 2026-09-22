@@ -36,7 +36,14 @@ const MODELS=[
   }
 ];
 const HOURS=[0,6,12,18];
+const PARAMS={
+  t850:{key:"t850",label:"Temperatur 850 hPa",short:"T850",api:"temperature_850hPa",kind:"instant",unit:"°C",axis:"T850 [°C]",climate:true,zeroLine:true},
+  t2m:{key:"t2m",label:"Temperatur 2 m",short:"T2m",api:"temperature_2m",kind:"instant",unit:"°C",axis:"Temperatur 2 m [°C]",climate:false,zeroLine:true},
+  precip6:{key:"precip6",label:"Niederschlag 6 h",short:"RR 6 h",api:"precipitation",kind:"precip6",unit:"mm",axis:"Niederschlag 6 h [mm]",climate:false,zeroLine:false},
+  precipCum:{key:"precipCum",label:"Niederschlag kumuliert",short:"RR kum.",api:"precipitation",kind:"precipCum",unit:"mm",axis:"Niederschlag kumuliert [mm]",climate:false,zeroLine:false}
+};
 let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null,lastResults=[];
+function getParam(){const key=el("t850ParamSelect")?.value||"t850";return PARAMS[key]||PARAMS.t850;}
 
 function el(id){return document.getElementById(id);}
 function finite(v){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?v:null;}
@@ -54,9 +61,9 @@ function fmtRun(value){
   const d=parseUtc(value);if(Number.isNaN(d.getTime()))return "–";
   return String(d.getUTCDate()).padStart(2,"0")+"."+String(d.getUTCMonth()+1).padStart(2,"0")+"."+d.getUTCFullYear()+" · "+String(d.getUTCHours()).padStart(2,"0")+" UTC";
 }
-function fmtTemp(v){
-  v=Number(v); if(!Number.isFinite(v)) return "–";
-  return v.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" °C";
+function fmtValue(v,param){
+  v=Number(v);if(!Number.isFinite(v))return "–";
+  return v.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" "+param.unit;
 }
 function setStatus(text,type){
   const node=el("t850Status"); if(!node) return;
@@ -154,84 +161,65 @@ function synopticIndexes(times,maxHours){
 function hasFiniteSeries(series){return Array.isArray(series)&&series.some(function(v){return Number.isFinite(v);});}
 
 
-async function fetchMemberEnsemble(model,lat,lon,signal){
-  const u=new URL(ENSEMBLE_API);
-  u.searchParams.set("latitude",Number(lat).toFixed(4));
-  u.searchParams.set("longitude",Number(lon).toFixed(4));
-  u.searchParams.set("hourly","temperature_850hPa");
-  u.searchParams.set("models",model.api);
-  u.searchParams.set("forecast_days",String(model.forecastDays));
-  u.searchParams.set("timezone","GMT");
-  u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});
-  if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
-
-  const controlKey=Array.isArray(h.temperature_850hPa)?"temperature_850hPa":null;
-  const memberKeys=Object.keys(h).filter(function(k){
-    return /^temperature_850hPa_member\d+$/.test(k)&&Array.isArray(h[k]);
-  });
-  if(!times.length||(!controlKey&&!memberKeys.length)){
-    throw new Error(model.label+" lieferte keine T850-Ensemblemember.");
+function escapeRegExp(text){return String(text).replace(/[.*+?^$()|[\]\\{}]/g,"\\$&");}
+function transformSeries(times,raw,param,maxHours){
+  const indexed=(times||[]).map(function(t,i){return {t:t,i:i,d:parseUtc(t)};}).filter(function(x){return !Number.isNaN(x.d.getTime());});
+  if(!indexed.length)return {times:[],values:[]};
+  const first=indexed[0].d.getTime(),limit=Number.isFinite(Number(maxHours))?first+Number(maxHours)*3600000+60000:Infinity;
+  if(param.kind==="instant"){
+    const keep=synopticIndexes(times,maxHours);
+    return {times:keep.map(function(x){return x.t;}),values:keep.map(function(x){return finite(raw[x.i]);})};
   }
-
-  const keep=synopticIndexes(times,model.forecastDays*24);
-  const sampledTimes=keep.map(function(x){return x.t;});
-  const sample=function(key){return keep.map(function(x){return finite(h[key][x.i]);});};
-  const control=controlKey?sample(controlKey):null;
-  const members=memberKeys.map(sample);
-  const all=(control?[control]:[]).concat(members);
-  const finiteCount=all.reduce(function(sum,series){
-    return sum+series.filter(Number.isFinite).length;
-  },0);
-  if(!finiteCount){
-    throw new Error(model.label+" liefert aktuell T850-Memberfelder ohne gültige Werte.");
-  }
-  return {
-    model:model,times:sampledTimes,control:control,members:members,
-    ensembleCount:all.length,allMembers:all
-  };
-}
-
-async function fetchIconDeterministicFallback(model,lat,lon,signal){
-  const u=new URL(DWD_ICON_API);
-  u.searchParams.set("latitude",Number(lat).toFixed(4));
-  u.searchParams.set("longitude",Number(lon).toFixed(4));
-  u.searchParams.set("hourly","temperature_850hPa");
-  u.searchParams.set("models","icon_eu");
-  u.searchParams.set("forecast_days",String(model.forecastDays));
-  u.searchParams.set("timezone","GMT");
-  u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});
-  if(!r.ok)throw new Error("ICON-EU Hauptlauf HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
-  const raw=Array.isArray(h.temperature_850hPa)?h.temperature_850hPa:null;
-  if(!times.length||!raw)throw new Error("ICON-EU Hauptlauf liefert kein T850.");
-
-  const keep=synopticIndexes(times,model.mainHours);
-  const sampledTimes=keep.map(function(x){return x.t;});
-  const values=keep.map(function(x){return finite(raw[x.i]);});
-  if(!hasFiniteSeries(values))throw new Error("ICON-EU Hauptlauf liefert keine gültigen T850-Werte.");
-
-  return {
-    model:model,times:sampledTimes,control:null,members:[],
-    ensembleCount:0,allMembers:[values],
-    precomputedStats:{mean:values,p10:values,p90:values},
-    deterministicFallback:true
-  };
-}
-
-async function fetchEnsemble(model,lat,lon,signal){
-  if(model.mode==="iconFallback"){
-    try{
-      return await fetchMemberEnsemble(model,lat,lon,signal);
-    }catch(e){
-      if(e.name==="AbortError")throw e;
-      console.warn("ICON-EU EPS T850 nicht verfügbar; Hauptlauf-Fallback wird verwendet.",e);
-      return fetchIconDeterministicFallback(model,lat,lon,signal);
+  const outTimes=[],outValues=[],rolling=[];let cumulative=0,cumulativeValid=true;
+  for(const x of indexed){
+    if(x.d.getTime()>limit)break;
+    const value=finite(raw[x.i]);
+    if(param.kind==="precipCum"){if(value==null)cumulativeValid=false;else if(cumulativeValid)cumulative+=Math.max(0,value);}
+    if(param.kind==="precip6"){rolling.push(value);if(rolling.length>6)rolling.shift();}
+    if(!HOURS.includes(x.d.getUTCHours()))continue;
+    outTimes.push(x.t);
+    if(param.kind==="precipCum")outValues.push(cumulativeValid?round(cumulative,2):null);
+    else{
+      const valid=rolling.length===6&&rolling.every(Number.isFinite);
+      outValues.push(valid?round(rolling.reduce(function(s,v){return s+Math.max(0,v);},0),2):null);
     }
   }
-  return fetchMemberEnsemble(model,lat,lon,signal);
+  return {times:outTimes,values:outValues};
+}
+async function fetchMemberEnsemble(model,lat,lon,signal,param){
+  const u=new URL(ENSEMBLE_API);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly",param.api);u.searchParams.set("models",model.api);
+  u.searchParams.set("forecast_days",String(model.forecastDays));u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
+  const controlKey=Array.isArray(h[param.api])?param.api:null,re=new RegExp("^"+escapeRegExp(param.api)+"_member\\d+$");
+  const memberKeys=Object.keys(h).filter(function(k){return re.test(k)&&Array.isArray(h[k]);});
+  if(!times.length||(!controlKey&&!memberKeys.length))throw new Error(model.label+" lieferte keine "+param.short+"-Ensemblemember.");
+  const transform=function(key){return transformSeries(times,h[key],param,model.forecastDays*24);};
+  const base=transform(controlKey||memberKeys[0]),control=controlKey?transform(controlKey).values:null,members=memberKeys.map(function(key){return transform(key).values;});
+  const all=(control?[control]:[]).concat(members),finiteCount=all.reduce(function(sum,series){return sum+series.filter(Number.isFinite).length;},0);
+  if(!finiteCount)throw new Error(model.label+" liefert aktuell "+param.short+"-Felder ohne gültige Werte.");
+  return {model:model,times:base.times,control:control,members:members,ensembleCount:all.length,allMembers:all,param:param};
+}
+async function fetchIconDeterministicFallback(model,lat,lon,signal,param){
+  const u=new URL(DWD_ICON_API);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly",param.api);u.searchParams.set("models","icon_eu");u.searchParams.set("forecast_days",String(model.forecastDays));
+  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error("ICON-EU Hauptlauf HTTP "+r.status);
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
+  if(!times.length||!raw)throw new Error("ICON-EU Hauptlauf liefert kein "+param.short+".");
+  const transformed=transformSeries(times,raw,param,model.mainHours);
+  if(!hasFiniteSeries(transformed.values))throw new Error("ICON-EU Hauptlauf liefert keine gültigen "+param.short+"-Werte.");
+  return {model:model,times:transformed.times,control:null,members:[],ensembleCount:0,allMembers:[transformed.values],precomputedStats:{mean:transformed.values,p10:transformed.values,p90:transformed.values},deterministicFallback:true,param:param};
+}
+async function fetchEnsemble(model,lat,lon,signal,param){
+  if(model.mode==="iconFallback"&&param.key==="t850"){
+    try{return await fetchMemberEnsemble(model,lat,lon,signal,param);}
+    catch(e){if(e.name==="AbortError")throw e;console.warn("ICON-EU EPS T850 nicht verfügbar; Hauptlauf-Fallback wird verwendet.",e);return fetchIconDeterministicFallback(model,lat,lon,signal,param);}
+  }
+  return fetchMemberEnsemble(model,lat,lon,signal,param);
 }
 
 async function fetchModelMeta(domain,signal){
@@ -253,19 +241,17 @@ async function fetchModelMeta(domain,signal){
     return null;
   }
 }
-async function fetchMainRunForCycle(model,run,lat,lon,signal){
+async function fetchMainRunForCycle(model,run,lat,lon,signal,param){
   const u=new URL(SINGLE_RUN_API);
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
-  u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.mainApi);
-  u.searchParams.set("run",run);u.searchParams.set("forecast_hours",String(model.mainHours+1));
-  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
-  const r=await fetch(u,{signal:signal,cache:"no-store"});
-  if(!r.ok)throw new Error("Hauptlauf HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],key=pressureKey(h);
-  if(!times.length||!key)throw new Error("Hauptlauf ohne T850.");
-  const keep=synopticIndexes(times,model.mainHours),values=keep.map(function(x){return finite(h[key][x.i]);});
-  if(!hasFiniteSeries(values))throw new Error("Hauptlauf ohne gültige T850-Werte.");
-  return {run:run,times:keep.map(function(x){return x.t;}),values:values};
+  u.searchParams.set("hourly",param.api);u.searchParams.set("models",model.mainApi);u.searchParams.set("run",run);
+  u.searchParams.set("forecast_hours",String(model.mainHours+1));u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error("Hauptlauf HTTP "+r.status);
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],raw=Array.isArray(h[param.api])?h[param.api]:null;
+  if(!times.length||!raw)throw new Error("Hauptlauf ohne "+param.short+".");
+  const transformed=transformSeries(times,raw,param,model.mainHours);
+  if(!hasFiniteSeries(transformed.values))throw new Error("Hauptlauf ohne gültige "+param.short+"-Werte.");
+  return {run:run,times:transformed.times,values:transformed.values};
 }
 function alignSeries(source,targetTimes){
   if(!source||!Array.isArray(source.times)||!Array.isArray(source.values))return targetTimes.map(function(){return null;});
@@ -286,75 +272,45 @@ function stats(result){
   }
   return {mean:mean,p10:p10,p90:p90};
 }
-function commonBounds(results){
-  const v=[];
-  results.forEach(function(r){
-    r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
-    if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});
-    if(r.climate)r.climate.values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
-  });
-  if(!v.length)return {min:-20,max:20};
-  let mn=Math.floor((Math.min.apply(null,v)-2)/5)*5,mx=Math.ceil((Math.max.apply(null,v)+2)/5)*5;
-  if(mx-mn<15){mn-=5;mx+=5;}return {min:mn,max:mx};
+function commonBounds(results,param){
+  const v=[];results.forEach(function(r){r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});if(r.climate&&r.climate.values)r.climate.values.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
+  if(!v.length)return param.kind.startsWith("precip")?{min:0,max:10}:{min:-20,max:20};
+  if(param.kind.startsWith("precip")){const mx=Math.max.apply(null,v),step=mx>100?20:mx>40?10:5;return {min:0,max:Math.max(step,Math.ceil((mx*1.08+0.5)/step)*step)};}
+  let mn=Math.floor((Math.min.apply(null,v)-2)/5)*5,mx=Math.ceil((Math.max.apply(null,v)+2)/5)*5;if(mx-mn<15){mn-=5;mx+=5;}return {min:mn,max:mx};
 }
-function options(bounds){
-  return {
-    responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
-    scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:11}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:"T850 [°C]"},ticks:{callback:function(v){return v+"°";}}}},
-    plugins:{
-      datalabels:{display:false},
-      legend:{position:"bottom",labels:{boxWidth:16,usePointStyle:true,filter:function(item,data){return !data.datasets[item.datasetIndex]._hideLegend;}}},
-      tooltip:{filter:function(item){return item.dataset._tooltip!==false;},callbacks:{label:function(ctx){return ctx.dataset.label+": "+fmtTemp(ctx.parsed.y);}}},
-      zoom:{pan:{enabled:true,mode:"x",modifierKey:"shift"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}
-    }
-  };
+function options(bounds,param){
+  return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
+    scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:11}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:param.axis},ticks:{callback:function(v){return param.kind.startsWith("precip")?v+" mm":v+"°";}}}},
+    plugins:{datalabels:{display:false},legend:{position:"bottom",labels:{boxWidth:16,usePointStyle:true,filter:function(item,data){return !data.datasets[item.datasetIndex]._hideLegend;}}},tooltip:{filter:function(item){return item.dataset._tooltip!==false;},callbacks:{label:function(ctx){return ctx.dataset.label+": "+fmtValue(ctx.parsed.y,param);}}},zoom:{pan:{enabled:true,mode:"x",modifierKey:"shift"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}}};
 }
-function modelChart(r,bounds){
+function modelChart(r,bounds,param){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
   const labels=r.times.map(fmtTime),sets=[];
-  if(!r.deterministicFallback){
-    sets.push(
-      {label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
-      {label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
-    );
-  }
-  r.members.forEach(function(m,i){
-    sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});
-  });
-  if(r.control&&hasFiniteSeries(r.control)){
-    sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
-  }
-  if(r.deterministicFallback){
-    sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
-  }else{
-    sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});
-    if(r.mainAligned&&hasFiniteSeries(r.mainAligned)){
-      sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
-    }
-  }
-  sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
-  sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
-  charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds)});
+  if(!r.deterministicFallback)sets.push({label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
+  r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
+  if(r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
+  if(r.deterministicFallback)sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+  else{sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});if(r.mainAligned&&hasFiniteSeries(r.mainAligned))sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});}
+  if(param.climate&&r.climate&&hasFiniteSeries(r.climate.values))sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
+  if(param.zeroLine)sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
+  charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds,param)});
 }
-function comparisonChart(results,bounds,lat,lon,c){
+function comparisonChart(results,bounds,lat,lon,c,param){
   const canvas=el("t850ComparisonChart");if(!canvas)return;if(comparison)comparison.destroy();
-  const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});
-  const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
-  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){
-    const d=times.map(function(){return null;});
-    r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});
-    sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});
-  });
-  sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
-  sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
-  comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds)});
+  const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
+  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
+  if(param.climate&&c)sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
+  if(param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
+  comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds,param)});
 }
-function renderPlace(p,cp){
+function renderPlace(p,cp,param){
   const n=el("t850ResolvedLocation");if(!n)return;
   n.textContent="";
   const strong=document.createElement("strong");strong.textContent=placeLabel(p);n.appendChild(strong);
   const a=document.createElement("span");a.textContent=Number(p.latitude).toFixed(3)+"°, "+Number(p.longitude).toFixed(3)+"°";n.appendChild(a);
-  const b=document.createElement("span");b.textContent=cp?"ERA5-Gitterpunkt "+cp.lat.toFixed(1)+"°, "+cp.lon.toFixed(1)+"°":"ERA5-Klimareferenz außerhalb des derzeitigen Rasters";n.appendChild(b);
+  if(param&&param.climate){
+    const b=document.createElement("span");b.textContent=cp?"ERA5-Gitterpunkt "+cp.lat.toFixed(1)+"°, "+cp.lon.toFixed(1)+"°":"ERA5-Klimareferenz außerhalb des derzeitigen Rasters";n.appendChild(b);
+  }
 }
 function applyPanelView(){
   const select=el("t850PanelSelect"),grid=el("t850ModelGrid"),comparisonCard=el("t850ComparisonCard");
@@ -371,166 +327,50 @@ function applyPanelView(){
     if(comparison&&comparison.canvas.offsetParent!==null)comparison.resize();
   },60);
 }
-async function buildEnsembleResult(model,p,c,signal){
-  const ensemble=await fetchEnsemble(model,p.latitude,p.longitude,signal);
-  ensemble.stats=stats(ensemble);
-  ensemble.main=null;
-  ensemble.mainAligned=ensemble.times.map(function(){return null;});
-  ensemble.climate=climateSeries(c,p.latitude,p.longitude,ensemble.times);
-  return ensemble;
+async function buildEnsembleResult(model,p,c,signal,param){
+  const ensemble=await fetchEnsemble(model,p.latitude,p.longitude,signal,param);ensemble.stats=stats(ensemble);ensemble.main=null;ensemble.mainAligned=ensemble.times.map(function(){return null;});
+  ensemble.climate=param.climate?climateSeries(c,p.latitude,p.longitude,ensemble.times):{point:null,values:ensemble.times.map(function(){return null;})};return ensemble;
 }
-function renderAvailableResults(good,p,c){
-  if(!good.length)return;
-  const bounds=commonBounds(good);
-  good.forEach(function(r){modelChart(r,bounds);});
-  comparisonChart(good,bounds,p.latitude,p.longitude,c);
-  const cp=gridPoint(c,p.latitude,p.longitude);renderPlace(p,cp);
-  applyPanelView();
+function renderAvailableResults(good,p,c,param){
+  if(!good.length)return;const bounds=commonBounds(good,param);good.forEach(function(r){modelChart(r,bounds,param);});comparisonChart(good,bounds,p.latitude,p.longitude,c,param);renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null,param);applyPanelView();
 }
-function updateModelMeta(r){
-  if(r.deterministicFallback){
-    setMeta(
-      r.model,
-      "EPS-T850 liefert aktuell keine gültigen Werte · zeige ICON-EU Hauptlauf als Fallback · "+
-      fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
-      (r.climate.point?" · Klima geladen":" · Klima fehlt"),
-      "warn"
-    );
-    return;
-  }
-  const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
-  setMeta(
-    r.model,
-    r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
-      " · Horizont "+r.model.forecastDays+" Tage"+(r.climate.point?" · Klima geladen":" · Klima fehlt"),
-    "ok"
-  );
+function updateModelMeta(r,param){
+  if(r.deterministicFallback){setMeta(r.model,"EPS-T850 liefert aktuell keine gültigen Werte · zeige ICON-EU Hauptlauf als Fallback · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate&&r.climate.point?" · Klima geladen":""),"warn");return;}
+  const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf",climateText=param.climate?(r.climate&&r.climate.point?" · Klima geladen":" · Klima fehlt"):"";
+  setMeta(r.model,r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+" · Horizont "+r.model.forecastDays+" Tage"+climateText,"ok");
 }
-async function enrichWithRunInfo(r,p,c,good,signal){
-  const m=r.model;
-  if(r.deterministicFallback){
-    const mainMeta=await fetchModelMeta(m.mainMeta,signal);
-    if(signal.aborted)return;
-    const mainText=mainMeta?fmtRun(mainMeta.run)+" · "+m.mainLabel:"neueste verfügbare ICON-EU-Ausgabe";
-    setRun(m,"EPS T850: derzeit nicht verfügbar · Hauptlauf: "+mainText);
-    return;
-  }
-  const [ensMeta,mainMeta]=await Promise.all([
-    fetchModelMeta(m.ensembleMeta,signal),
-    fetchModelMeta(m.mainMeta,signal)
-  ]);
-  if(signal.aborted)return;
-
-  const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";
-  setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");
-
-  let main=null;
-  if(mainMeta&&mainMeta.run){
-    try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal);}
-    catch(e){
-      if(e.name==="AbortError")throw e;
-      console.warn(m.label+" Hauptlauf",e);
-    }
-  }
-  if(signal.aborted)return;
-
-  r.main=main;
-  r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});
-  renderAvailableResults(good,p,c);
-
-  const mainText=main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar";
-  setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+mainText);
+async function enrichWithRunInfo(r,p,c,good,signal,param){
+  const m=r.model;if(r.deterministicFallback){const mainMeta=await fetchModelMeta(m.mainMeta,signal);if(signal.aborted)return;setRun(m,"EPS T850: derzeit nicht verfügbar · Hauptlauf: "+(mainMeta?fmtRun(mainMeta.run)+" · "+m.mainLabel:"neueste verfügbare ICON-EU-Ausgabe"));return;}
+  const [ensMeta,mainMeta]=await Promise.all([fetchModelMeta(m.ensembleMeta,signal),fetchModelMeta(m.mainMeta,signal)]);if(signal.aborted)return;
+  const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");let main=null;
+  if(mainMeta&&mainMeta.run){try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal,param);}catch(e){if(e.name==="AbortError")throw e;console.warn(m.label+" Hauptlauf",e);}}
+  if(signal.aborted)return;r.main=main;r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});renderAvailableResults(good,p,c,param);setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+(main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar"));
 }
-async function load(q){
-  q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
-  if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
-  const panelSelect=el("t850PanelSelect");if(panelSelect)panelSelect.value="";
-  applyPanelView();
-  setBusy(true);
-  setStatus("Ort wird gesucht; GFS/GEFS wird zuerst geladen …","info");
-  MODELS.forEach(function(m){
-    setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");
-    setMeta(m,m.key==="gefs"?"GFS/GEFS wird geladen …":"wartet auf GFS-Startansicht …");
-  });
-
+function updateParameterHeader(param){
+  const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"");
+  const title=el("ensembleComparisonTitle");if(title)title.textContent="Vergleich der Ensemble-Mittel · "+param.label;
+  const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate;
+}
+async function load(q,opts){
+  opts=opts||{};q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
+  const param=getParam();updateParameterHeader(param);if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
+  const panelSelect=el("t850PanelSelect");if(panelSelect&&opts.resetPanel!==false)panelSelect.value="";applyPanelView();setBusy(true);setStatus("Ort wird gesucht; GFS/GEFS "+param.short+" wird zuerst geladen …","info");
+  MODELS.forEach(function(m){setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");setMeta(m,m.key==="gefs"?"GFS/GEFS wird geladen …":"wartet auf GFS-Startansicht …");});
   try{
-    const p=await resolvePlace(q,signal);lastPlace=p;
-    const c=await loadClimate().catch(function(e){console.warn(e);return null;});
-    const good=[];
-    const defaultModel=MODELS.find(function(m){return m.key==="gefs";})||MODELS[0];
-
-    // GFS/GEFS zuerst laden und sofort darstellen.
-    try{
-      const first=await buildEnsembleResult(defaultModel,p,c,signal);
-      if(signal.aborted)return;
-      good.push(first);
-      lastResults=good;
-      updateModelMeta(first);
-      setRun(first.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
-      renderAvailableResults(good,p,c);
-      setStatus(
-        "GFS/GEFS ist geladen und wird groß dargestellt. ECMWF, AIFS und ICON werden jetzt im Hintergrund ergänzt.",
-        "ok"
-      );
-      setBusy(false);
-      void enrichWithRunInfo(first,p,c,good,signal).catch(function(e){
-        if(e.name!=="AbortError")console.warn(first.model.label+" Laufinfo",e);
-      });
-    }catch(e){
-      if(e.name==="AbortError")throw e;
-      setRun(defaultModel,"Ensemble derzeit nicht darstellbar");
-      setMeta(defaultModel,e.message,"error");
-      setStatus("GFS/GEFS konnte nicht geladen werden; die übrigen Modelle werden trotzdem versucht.","warn");
-      setBusy(false);
-    }
-
-    // Weitere Modelle parallel im Hintergrund laden. Jedes Panel wird sofort
-    // gezeichnet, sobald seine Daten da sind.
+    const p=await resolvePlace(q,signal);lastPlace=p;const c=param.climate?await loadClimate().catch(function(e){console.warn(e);return null;}):null,good=[],defaultModel=MODELS.find(function(m){return m.key==="gefs";})||MODELS[0];
+    try{const first=await buildEnsembleResult(defaultModel,p,c,signal,param);if(signal.aborted)return;good.push(first);lastResults=good;updateModelMeta(first,param);setRun(first.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");renderAvailableResults(good,p,c,param);setStatus("GFS/GEFS "+param.short+" ist geladen. ECMWF, AIFS und ICON werden im Hintergrund ergänzt.","ok");setBusy(false);void enrichWithRunInfo(first,p,c,good,signal,param).catch(function(e){if(e.name!=="AbortError")console.warn(first.model.label+" Laufinfo",e);});}
+    catch(e){if(e.name==="AbortError")throw e;setRun(defaultModel,"Ensemble derzeit nicht darstellbar");setMeta(defaultModel,e.message,"error");setStatus("GFS/GEFS konnte für "+param.short+" nicht geladen werden; die übrigen Modelle werden trotzdem versucht.","warn");setBusy(false);}
     const others=MODELS.filter(function(m){return m.key!==defaultModel.key;});
-    void Promise.allSettled(others.map(async function(m){
-      try{
-        const r=await buildEnsembleResult(m,p,c,signal);
-        if(signal.aborted)return;
-        good.push(r);
-        lastResults=good;
-        updateModelMeta(r);
-        setRun(r.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
-        renderAvailableResults(good,p,c);
-        void enrichWithRunInfo(r,p,c,good,signal).catch(function(e){
-          if(e.name!=="AbortError")console.warn(r.model.label+" Laufinfo",e);
-        });
-      }catch(e){
-        if(e.name==="AbortError")throw e;
-        setRun(m,"Ensemble derzeit nicht darstellbar");
-        setMeta(m,e.message,"error");
-      }
-    })).then(function(){
-      if(signal.aborted)return;
-      const ensembleCount=good.filter(function(r){return !r.deterministicFallback;}).length;
-      const hasIconFallback=good.some(function(r){return r.deterministicFallback;});
-      const missing=MODELS.length-good.length;
-      setStatus(
-        ensembleCount+"/4 Ensemblemodelle mit gültiger T850 geladen"+
-        (hasIconFallback?" · ICON-EU wird ersatzweise als Hauptlauf gezeigt":"")+
-        (missing?" · "+missing+" Modell(e) ohne Darstellung":"")+
-        ". Standardansicht bleibt GFS; weitere Panels können oben ausgewählt werden.",
-        (hasIconFallback||missing)?"warn":"ok"
-      );
+    void Promise.allSettled(others.map(async function(m){try{const r=await buildEnsembleResult(m,p,c,signal,param);if(signal.aborted)return;good.push(r);lastResults=good;updateModelMeta(r,param);setRun(r.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");renderAvailableResults(good,p,c,param);void enrichWithRunInfo(r,p,c,good,signal,param).catch(function(e){if(e.name!=="AbortError")console.warn(r.model.label+" Laufinfo",e);});}catch(e){if(e.name==="AbortError")throw e;setRun(m,"Ensemble derzeit nicht darstellbar");setMeta(m,e.message,"error");}})).then(function(){
+      if(signal.aborted)return;const ensembleCount=good.filter(function(r){return !r.deterministicFallback;}).length,hasIconFallback=good.some(function(r){return r.deterministicFallback;}),missing=MODELS.length-good.length;
+      setStatus(ensembleCount+"/4 Ensemblemodelle mit gültigem "+param.short+" geladen"+(hasIconFallback?" · ICON-EU wird bei T850 ersatzweise als Hauptlauf gezeigt":"")+(missing?" · "+missing+" Modell(e) ohne Darstellung":"")+". Standardansicht bleibt GFS; weitere Panels können oben ausgewählt werden.",(hasIconFallback||missing)?"warn":"ok");
     });
-  }catch(e){
-    if(e.name!=="AbortError"){
-      console.error("T850",e);
-      setStatus(e.message||String(e),"error");
-      lastPlace=null;
-    }
-  }finally{
-    if(!signal.aborted)setBusy(false);
-  }
+  }catch(e){if(e.name!=="AbortError"){console.error("Ensembles",e);setStatus(e.message||String(e),"error");lastPlace=null;}}finally{if(!signal.aborted)setBusy(false);}
 }
 function resetZoom(){Object.values(charts).forEach(function(c){if(c.resetZoom)c.resetZoom();});if(comparison&&comparison.resetZoom)comparison.resetZoom();}
 function filename(ext){
-  const view=el("t850PanelSelect")?.value||"gefs";
-  return "T850_Ensembles_"+view+"_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;
+  const view=el("t850PanelSelect")?.value||"gefs",param=getParam();
+  return "Ensembles_"+param.key+"_"+view+"_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;
 }
 async function exportCanvas(){
   if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
@@ -547,14 +387,11 @@ async function pdf(){
 }
 function mount(){
   if(mounted){applyPanelView();setTimeout(function(){Object.values(charts).forEach(function(c){c.resize();});if(comparison)comparison.resize();},40);return;}
-  const form=el("t850SearchForm"),input=el("t850LocationInput"),view=el("t850PanelSelect");if(!form||!input)return;mounted=true;
-  form.addEventListener("submit",function(e){e.preventDefault();load(input.value);});
-  el("t850ResetZoom")?.addEventListener("click",resetZoom);
-  el("t850PngDownload")?.addEventListener("click",png);
-  el("t850PdfDownload")?.addEventListener("click",pdf);
-  view?.addEventListener("change",applyPanelView);
-  applyPanelView();
-  setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; weitere Panels wählst du oben gezielt aus.","info");
+  const form=el("t850SearchForm"),input=el("t850LocationInput"),view=el("t850PanelSelect"),paramSelect=el("t850ParamSelect");if(!form||!input)return;mounted=true;
+  form.addEventListener("submit",function(e){e.preventDefault();load(input.value,{resetPanel:true});});
+  el("t850ResetZoom")?.addEventListener("click",resetZoom);el("t850PngDownload")?.addEventListener("click",png);el("t850PdfDownload")?.addEventListener("click",pdf);view?.addEventListener("change",applyPanelView);
+  paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
+  updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");
 }
 window.mountT850Ensembles=mount;
 document.addEventListener("click",function(e){

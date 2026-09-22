@@ -3,6 +3,7 @@
 .t850-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
 .t850-controls .t850-place-control{flex:1 1 330px;min-width:260px}
 .t850-controls .t850-view-control{min-width:210px}
+.t850-controls .t850-param-control{min-width:220px}
 .t850-controls input[type="search"]{width:100%;padding:10px 11px;border:1px solid #b8c0c8;border-radius:7px;background:#fff;font:inherit}
 .t850-controls input[type="search"]:focus{outline:3px solid rgba(37,99,235,.15);border-color:#2563eb}
 .t850-secondary-button,.t850-export button{padding:9px 13px;border:1px solid #aeb6bd;border-radius:7px;background:#fff;color:#252a2e;font-weight:700;cursor:pointer}
@@ -50,6 +51,7 @@
   .t850-controls{align-items:stretch}
   .t850-controls .t850-place-control{min-width:100%}
   .t850-controls .t850-view-control{min-width:100%}
+  .t850-controls .t850-param-control{min-width:100%}
   .t850-controls .action,.t850-controls .t850-secondary-button{flex:1 1 46%}
   .t850-export{width:100%;margin-left:0}
   .t850-export button{flex:1 1 0}
