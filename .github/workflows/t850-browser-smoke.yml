@@ -1,5 +1,5 @@
 name: T850 Browser Smoke Test
-# rerun programmatic tab activation after live fix v6
+# live ensemble parameter validation v7
 
 on:
   push:
@@ -17,10 +17,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Browser dependencies
-        run: |
-          python -m pip install --quiet selenium
-
-      - name: Open live dashboard and inspect T850
+        run: python -m pip install --quiet selenium
+      - name: Open live dashboard and test ensemble parameters
         shell: bash
         run: |
           python - <<'PY'
@@ -35,62 +33,64 @@ jobs:
           opt.add_argument("--disable-dev-shm-usage")
           opt.add_argument("--window-size=1600,1200")
           opt.set_capability("goog:loggingPrefs", {"browser":"ALL"})
-
           d=webdriver.Chrome(options=opt)
+
+          def wait_until(fn, timeout=35, label="condition"):
+              end=time.time()+timeout
+              last=None
+              while time.time()<end:
+                  try:
+                      v=fn()
+                      if v:return v
+                  except Exception as e:last=e
+                  time.sleep(.5)
+              raise RuntimeError(f"Timeout {label}: {last}")
+
+          def chart(canvas_id):
+              return d.execute_script("""
+                const cv=document.getElementById(arguments[0]);
+                const ch=cv && window.Chart && Chart.getChart ? Chart.getChart(cv) : null;
+                if(!ch)return null;
+                return {
+                  yTitle: ch.options.scales.y.title.text,
+                  datasets: ch.data.datasets.map(ds=>({
+                    label:ds.label,
+                    n:Array.isArray(ds.data)?ds.data.length:0,
+                    valid:Array.isArray(ds.data)?ds.data.filter(v=>v!==null && v!==undefined && Number.isFinite(Number(v))).length:0
+                  }))
+                };
+              """,canvas_id)
+
           try:
-              d.get("https://marcelherber.github.io/climate-dashboard/?t850-smoke=1")
-              time.sleep(2)
+              d.get("https://marcelherber.github.io/climate-dashboard/?ensemble-live-v7=1")
+              wait_until(lambda:d.execute_script("return typeof switchTab==='function'"),label="dashboard")
               d.execute_script("switchTab('t850-ensembles')")
-              time.sleep(1)
+              wait_until(lambda:d.find_element(By.ID,"t850ParamSelect"),label="parameter selector")
+
               inp=d.find_element(By.ID,"t850LocationInput")
-              inp.clear(); inp.send_keys("Frankfurt")
+              inp.clear();inp.send_keys("Frankfurt")
               d.find_element(By.ID,"t850LoadButton").click()
 
-              for i in range(20):
-                  time.sleep(1)
-                  status=d.find_element(By.ID,"t850Status").text
-                  print("T+",i+1,"status:",status)
-                  if "geladen" in status.lower() or "konnte" in status.lower():
-                      pass
-
-              ids=["t850MetaGefs","t850MetaEcmwf","t850MetaAifs","t850MetaIcon",
-                   "t850RunGefs","t850RunEcmwf","t850RunAifs","t850RunIcon"]
-              for id_ in ids:
-                  try:
-                      print(id_,":",d.find_element(By.ID,id_).text)
-                  except Exception as e:
-                      print(id_,"ERROR",repr(e))
-
-              print("selected:",d.find_element(By.ID,"t850PanelSelect").get_attribute("value"))
-              for key in ["gefs","ecmwf","aifs","icon"]:
-                  card=d.find_element(By.CSS_SELECTOR,f'[data-t850-model="{key}"]')
-                  print("card",key,"hidden=",card.get_attribute("hidden"),
-                        "display=",card.value_of_css_property("display"))
-
-              chart_info=d.execute_script("""
-                const ids=['t850ChartGefs','t850ChartEcmwf','t850ChartAifs','t850ChartIcon'];
-                const out={};
-                for (const id of ids) {
-                  const cv=document.getElementById(id);
-                  const ch=window.Chart && Chart.getChart ? Chart.getChart(cv) : null;
-                  out[id]={
-                    width:cv?cv.width:null,height:cv?cv.height:null,
-                    chart:!!ch,
-                    datasets:ch?ch.data.datasets.map(ds=>({
-                      label:ds.label,
-                      n:Array.isArray(ds.data)?ds.data.length:null,
-                      finite:Array.isArray(ds.data)?ds.data.filter(v=>Number.isFinite(Number(v))).length:null
-                    })):null
-                  };
-                }
-                return out;
-              """)
-              print("CHARTS",json.dumps(chart_info,ensure_ascii=False)[:12000])
-
+              expected={
+                "t850":"T850 [°C]",
+                "t2m":"Temperatur 2 m [°C]",
+                "precip6":"Niederschlag 6 h [mm]",
+                "precipCum":"Niederschlag kumuliert [mm]",
+              }
+              for param,title in expected.items():
+                  sel=d.find_element(By.ID,"t850ParamSelect")
+                  d.execute_script("arguments[0].value=arguments[1];arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",sel,param)
+                  g=wait_until(lambda:(lambda x:x if x and x.get("yTitle")==title and max((q["valid"] for q in x["datasets"]),default=0)>0 else None)(chart("t850ChartGefs")),label=f"GEFS {param}")
+                  print("PASS GEFS",param,title,"datasets",len(g["datasets"]))
+                  if param!="t850":
+                      i=wait_until(lambda:(lambda x:x if x and x.get("yTitle")==title and max((q["valid"] for q in x["datasets"]),default=0)>0 else None)(chart("t850ChartIcon")),label=f"ICON {param}")
+                      print("PASS ICON",param,title,"datasets",len(i["datasets"]))
+                      if any("EPS-T850" in q["label"] or "Fallback" in q["label"] for q in i["datasets"]):
+                          raise RuntimeError("ICON surface parameter unexpectedly using T850 fallback")
               logs=d.get_log("browser")
-              print("BROWSER LOGS")
-              for item in logs:
-                  print(item["level"],item["message"])
+              severe=[x for x in logs if x["level"]=="SEVERE" and "favicon.ico" not in x["message"]]
+              print("SEVERE",json.dumps(severe,ensure_ascii=False))
+              if severe:raise RuntimeError(str(severe))
           finally:
               d.quit()
           PY
