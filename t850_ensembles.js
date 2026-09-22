@@ -2,6 +2,7 @@
 "use strict";
 
 const ENSEMBLE_API="https://ensemble-api.open-meteo.com/v1/ensemble";
+const FORECAST_API="https://api.open-meteo.com/v1/forecast";
 const SINGLE_RUN_API="https://single-runs-api.open-meteo.com/v1/forecast";
 const GEO="https://geocoding-api.open-meteo.com/v1/search";
 const CLIMATE_URLS=[
@@ -22,9 +23,9 @@ const MODELS=[
     canvas:"t850ChartAifs",meta:"t850MetaAifs",run:"t850RunAifs",color:"#7c3aed"
   },
   {
-    key:"icon",label:"DWD ICON EPS Seamless",api:"dwd_icon_seamless_eps",ensembleMeta:"dwd_icon_eps",
-    forecastDays:8,mainHours:180,
-    mainApi:"icon_seamless",mainMeta:"dwd_icon",mainLabel:"ICON Seamless Hauptlauf",
+    key:"icon",label:"DWD ICON-EU EPS",api:"dwd_icon_eu_eps_ensemble_mean",ensembleMeta:"dwd_icon_eu_eps_ensemble_mean",
+    mode:"meanSpread",forecastDays:5,mainHours:120,
+    mainApi:"icon_eu",mainMeta:"dwd_icon_eu",mainLabel:"ICON-EU Hauptlauf",
     canvas:"t850ChartIcon",meta:"t850MetaIcon",run:"t850RunIcon",color:"#15803d"
   },
   {
@@ -152,7 +153,61 @@ function synopticIndexes(times,maxHours){
 }
 function hasFiniteSeries(series){return Array.isArray(series)&&series.some(function(v){return Number.isFinite(v);});}
 
+
+async function fetchIconMeanSpread(model,lat,lon,signal){
+  async function request(hourly){
+    const u=new URL(FORECAST_API);
+    u.searchParams.set("latitude",Number(lat).toFixed(4));
+    u.searchParams.set("longitude",Number(lon).toFixed(4));
+    u.searchParams.set("hourly",hourly);
+    u.searchParams.set("models",model.api);
+    u.searchParams.set("forecast_days",String(model.forecastDays));
+    u.searchParams.set("timezone","GMT");
+    u.searchParams.set("cell_selection","nearest");
+    return fetch(u,{signal:signal,cache:"no-store"});
+  }
+
+  let r=await request("temperature_850hPa,temperature_850hPa_spread");
+  if(!r.ok){
+    // Manche Open-Meteo-Deployments stellen zunächst nur das Mittel bereit.
+    r=await request("temperature_850hPa");
+  }
+  if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
+
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
+  const meanRaw=Array.isArray(h.temperature_850hPa)?h.temperature_850hPa:null;
+  const spreadRaw=Array.isArray(h.temperature_850hPa_spread)?h.temperature_850hPa_spread:null;
+  if(!times.length||!meanRaw)throw new Error(model.label+" liefert aktuell kein T850-Ensemble-Mittel.");
+
+  const keep=synopticIndexes(times,model.forecastDays*24);
+  const sampledTimes=keep.map(function(x){return x.t;});
+  const mean=keep.map(function(x){return finite(meanRaw[x.i]);});
+  const spread=spreadRaw?keep.map(function(x){return finite(spreadRaw[x.i]);}):mean.map(function(){return null;});
+  if(!hasFiniteSeries(mean))throw new Error(model.label+" liefert aktuell keine gültigen T850-Werte.");
+
+  const lower=mean.map(function(v,i){
+    const s=spread[i];return Number.isFinite(v)&&Number.isFinite(s)?round(v-s,2):v;
+  });
+  const upper=mean.map(function(v,i){
+    const s=spread[i];return Number.isFinite(v)&&Number.isFinite(s)?round(v+s,2):v;
+  });
+
+  return {
+    model:model,
+    times:sampledTimes,
+    control:null,
+    members:[],
+    ensembleCount:40,
+    allMembers:[lower,mean,upper],
+    precomputedStats:{mean:mean,p10:lower,p90:upper},
+    meanSpread:true,
+    spreadAvailable:hasFiniteSeries(spread),
+    spread:spread
+  };
+}
+
 async function fetchEnsemble(model,lat,lon,signal){
+  if(model.mode==="meanSpread")return fetchIconMeanSpread(model,lat,lon,signal);
   const u=new URL(ENSEMBLE_API);
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.api);
@@ -226,6 +281,7 @@ function quantile(a,q){
   const p=(a.length-1)*q,b=Math.floor(p),f=p-b;return a[b+1]!==undefined?a[b]+f*(a[b+1]-a[b]):a[b];
 }
 function stats(result){
+  if(result.precomputedStats)return result.precomputedStats;
   const mean=[],p10=[],p90=[];
   for(let i=0;i<result.times.length;i++){
     const a=result.allMembers.map(function(m){return m[i];}).filter(Number.isFinite).sort(function(x,y){return x-y;});
@@ -259,9 +315,9 @@ function options(bounds){
 }
 function modelChart(r,bounds){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
-  const labels=r.times.map(fmtTime),sets=[
-    {label:"10. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
-    {label:"90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
+  const labels=r.times.map(fmtTime),bandLabel=r.meanSpread?"Ensemble-Spread ±1σ":"10.–90. Perzentil",sets=[
+    {label:bandLabel,data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
+    {label:bandLabel,data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
   ];
   r.members.forEach(function(m,i){
     sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});
@@ -329,6 +385,16 @@ function renderAvailableResults(good,p,c){
   applyPanelView();
 }
 function updateModelMeta(r){
+  if(r.meanSpread){
+    setMeta(
+      r.model,
+      "40-Member EPS · Ensemble-Mittel"+(r.spreadAvailable?" + Spread ±1σ":"; Spread derzeit nicht verfügbar")+
+      " · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
+      " · Horizont "+r.model.forecastDays+" Tage"+(r.climate.point?" · Klima geladen":" · Klima fehlt"),
+      "ok"
+    );
+    return;
+  }
   const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
   setMeta(
     r.model,
