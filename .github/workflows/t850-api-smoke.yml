@@ -1,4 +1,5 @@
 name: T850 API Smoke Test
+# surface parameter validation
 
 on:
   push:
@@ -22,6 +23,22 @@ jobs:
           import json, urllib.parse, urllib.request, time
 
           LAT, LON = 50.1109, 8.6821
+
+          surface_models = [
+              ("GEFS", "ncep_gefs_seamless", 3),
+              ("ECMWF", "ecmwf_ifs025_ensemble", 3),
+              ("AIFS", "ecmwf_aifs025_ensemble", 3),
+              ("ICON-EU EPS", "dwd_icon_eu_eps", 3),
+          ]
+          for label, model, days in surface_models:
+              for var in ("temperature_2m", "precipitation"):
+                  testspec = (f"{label} {var}", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                      "latitude": LAT, "longitude": LON, "hourly": var,
+                      "models": model, "forecast_days": days,
+                      "timezone": "GMT", "cell_selection": "nearest"
+                  })
+                  # appended below after base test list definition
+                  pass
 
           tests = [
               ("GEFS seamless 3d members", "https://ensemble-api.open-meteo.com/v1/ensemble", {
@@ -67,6 +84,14 @@ jobs:
                   "timezone": "GMT", "cell_selection": "nearest"
               }),
           ]
+
+          for label, model, days in surface_models:
+              for var in ("temperature_2m", "precipitation"):
+                  tests.append((f"{label} {var}", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                      "latitude": LAT, "longitude": LON, "hourly": var,
+                      "models": model, "forecast_days": days,
+                      "timezone": "GMT", "cell_selection": "nearest"
+                  }))
 
           for name, base, params in tests:
               url = base + "?" + urllib.parse.urlencode(params)
