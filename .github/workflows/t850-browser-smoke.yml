@@ -1,0 +1,95 @@
+name: T850 Browser Smoke Test
+
+on:
+  push:
+    branches: ["fix/t850-api-smoke"]
+    paths:
+      - ".github/workflows/t850-browser-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Browser dependencies
+        run: |
+          python -m pip install --quiet selenium
+
+      - name: Open live dashboard and inspect T850
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.common.by import By
+
+          opt=Options()
+          opt.add_argument("--headless=new")
+          opt.add_argument("--no-sandbox")
+          opt.add_argument("--disable-dev-shm-usage")
+          opt.add_argument("--window-size=1600,1200")
+          opt.set_capability("goog:loggingPrefs", {"browser":"ALL"})
+
+          d=webdriver.Chrome(options=opt)
+          try:
+              d.get("https://marcelherber.github.io/climate-dashboard/?t850-smoke=1")
+              time.sleep(2)
+              d.execute_script("switchTab('t850-ensembles')")
+              time.sleep(1)
+              inp=d.find_element(By.ID,"t850LocationInput")
+              inp.clear(); inp.send_keys("Frankfurt")
+              d.find_element(By.ID,"t850LoadButton").click()
+
+              for i in range(20):
+                  time.sleep(1)
+                  status=d.find_element(By.ID,"t850Status").text
+                  print("T+",i+1,"status:",status)
+                  if "geladen" in status.lower() or "konnte" in status.lower():
+                      pass
+
+              ids=["t850MetaGefs","t850MetaEcmwf","t850MetaAifs","t850MetaIcon",
+                   "t850RunGefs","t850RunEcmwf","t850RunAifs","t850RunIcon"]
+              for id_ in ids:
+                  try:
+                      print(id_,":",d.find_element(By.ID,id_).text)
+                  except Exception as e:
+                      print(id_,"ERROR",repr(e))
+
+              print("selected:",d.find_element(By.ID,"t850PanelSelect").get_attribute("value"))
+              for key in ["gefs","ecmwf","aifs","icon"]:
+                  card=d.find_element(By.CSS_SELECTOR,f'[data-t850-model="{key}"]')
+                  print("card",key,"hidden=",card.get_attribute("hidden"),
+                        "display=",card.value_of_css_property("display"))
+
+              chart_info=d.execute_script("""
+                const ids=['t850ChartGefs','t850ChartEcmwf','t850ChartAifs','t850ChartIcon'];
+                const out={};
+                for (const id of ids) {
+                  const cv=document.getElementById(id);
+                  const ch=window.Chart && Chart.getChart ? Chart.getChart(cv) : null;
+                  out[id]={
+                    width:cv?cv.width:null,height:cv?cv.height:null,
+                    chart:!!ch,
+                    datasets:ch?ch.data.datasets.map(ds=>({
+                      label:ds.label,
+                      n:Array.isArray(ds.data)?ds.data.length:null,
+                      finite:Array.isArray(ds.data)?ds.data.filter(v=>Number.isFinite(Number(v))).length:null
+                    })):null
+                  };
+                }
+                return out;
+              """)
+              print("CHARTS",json.dumps(chart_info,ensure_ascii=False)[:12000])
+
+              logs=d.get_log("browser")
+              print("BROWSER LOGS")
+              for item in logs:
+                  print(item["level"],item["message"])
+          finally:
+              d.quit()
+          PY
