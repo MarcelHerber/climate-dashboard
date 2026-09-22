@@ -10,23 +10,23 @@ const CLIMATE_URLS=[
 ];
 const MODELS=[
   {
-    key:"ecmwf",label:"ECMWF IFS ENS",api:"ecmwf_ifs025_ensemble",
-    mainApi:"ecmwf_ifs025",mainLabel:"IFS Hauptlauf 0,25°",
+    key:"ecmwf",label:"ECMWF IFS ENS",api:"ecmwf_ifs025_ensemble",ensembleMeta:"ecmwf_ifs025_ensemble",
+    mainApi:"ecmwf_ifs025",mainMeta:"ecmwf_ifs025",mainLabel:"IFS Hauptlauf 0,25°",
     canvas:"t850ChartEcmwf",meta:"t850MetaEcmwf",run:"t850RunEcmwf",color:"#2563eb"
   },
   {
-    key:"aifs",label:"ECMWF AIFS ENS",api:"ecmwf_aifs025_ensemble",
-    mainApi:"ecmwf_aifs025_single",mainLabel:"AIFS Hauptlauf 0,25°",
+    key:"aifs",label:"ECMWF AIFS ENS",api:"ecmwf_aifs025_ensemble",ensembleMeta:"ecmwf_aifs025_ensemble",
+    mainApi:"ecmwf_aifs025_single",mainMeta:"ecmwf_aifs025_single",mainLabel:"AIFS Hauptlauf 0,25°",
     canvas:"t850ChartAifs",meta:"t850MetaAifs",run:"t850RunAifs",color:"#7c3aed"
   },
   {
-    key:"icon",label:"DWD ICON EPS",api:"dwd_icon_global_eps",
-    mainApi:"icon_global",mainLabel:"ICON Global Hauptlauf",
+    key:"icon",label:"DWD ICON EPS",api:"dwd_icon_global_eps",ensembleMeta:"dwd_icon_eps",
+    mainApi:"icon_global",mainMeta:"dwd_icon",mainLabel:"ICON Global Hauptlauf",
     canvas:"t850ChartIcon",meta:"t850MetaIcon",run:"t850RunIcon",color:"#15803d"
   },
   {
-    key:"gefs",label:"GFS / GEFS",api:"ncep_gefs025",
-    mainApi:"ncep_gfs_global",mainLabel:"GFS Hauptlauf",
+    key:"gefs",label:"GFS / GEFS",api:"ncep_gefs025",ensembleMeta:"ncep_gefs025",
+    mainApi:"ncep_gfs_global",mainMeta:"ncep_gfs025",mainLabel:"GFS Hauptlauf",
     canvas:"t850ChartGefs",meta:"t850MetaGefs",run:"t850RunGefs",color:"#c2410c"
   }
 ];
@@ -152,6 +152,7 @@ async function fetchEnsemble(model,lat,lon,signal){
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.api);
   u.searchParams.set("forecast_hours",String(HORIZON+1));
+  u.searchParams.set("temporal_resolution","hourly");
   u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
   const r=await fetch(u,{signal:signal,cache:"no-store"});
   if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
@@ -177,27 +178,24 @@ async function fetchEnsemble(model,lat,lon,signal){
   };
 }
 
-function candidateRuns(){
-  const now=new Date(),hour=now.getUTCHours(),baseHour=Math.floor(hour/6)*6;
-  const base=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),baseHour,0,0));
-  const out=[];
-  for(let i=0;i<8;i++){
-    const d=new Date(base.getTime()-i*6*3600000);
-    out.push(d.toISOString().slice(0,13)+":00");
+async function fetchModelMeta(domain,signal){
+  if(!domain)return null;
+  const url="https://api.open-meteo.com/data/"+encodeURIComponent(domain)+"/static/meta.json";
+  try{
+    const r=await fetch(url,{signal:signal,cache:"no-store"});
+    if(!r.ok)return null;
+    const j=await r.json();
+    const ts=Number(j.last_run_initialisation_time);
+    if(!Number.isFinite(ts))return null;
+    return {
+      run:new Date(ts*1000).toISOString().slice(0,13)+":00",
+      availability:Number(j.last_run_availability_time)||null
+    };
+  }catch(e){
+    if(e.name==="AbortError")throw e;
+    console.warn("T850 Metadaten",domain,e);
+    return null;
   }
-  return out;
-}
-async function probeMainRun(model,run,lat,lon,signal){
-  const u=new URL(SINGLE_RUN_API);
-  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
-  u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.mainApi);
-  u.searchParams.set("run",run);u.searchParams.set("forecast_hours","7");
-  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
-  let r;
-  try{r=await fetch(u,{signal:signal,cache:"no-store"});}catch(e){if(e.name==="AbortError")throw e;return false;}
-  if(!r.ok)return false;
-  const j=await r.json(),h=j.hourly||{},key=pressureKey(h);
-  return Boolean(key&&hasFiniteSeries(h[key]));
 }
 async function fetchMainRunForCycle(model,run,lat,lon,signal){
   const u=new URL(SINGLE_RUN_API);
@@ -212,14 +210,6 @@ async function fetchMainRunForCycle(model,run,lat,lon,signal){
   const keep=synopticIndexes(times),values=keep.map(function(x){return finite(h[key][x.i]);});
   if(!hasFiniteSeries(values))throw new Error("Hauptlauf ohne gültige T850-Werte.");
   return {run:run,times:keep.map(function(x){return x.t;}),values:values};
-}
-async function fetchLatestMainRun(model,lat,lon,signal){
-  for(const run of candidateRuns()){
-    if(await probeMainRun(model,run,lat,lon,signal)){
-      return fetchMainRunForCycle(model,run,lat,lon,signal);
-    }
-  }
-  return null;
 }
 function alignSeries(source,targetTimes){
   if(!source||!Array.isArray(source.times)||!Array.isArray(source.values))return targetTimes.map(function(){return null;});
@@ -319,34 +309,37 @@ function applyPanelView(){
 async function load(q){
   q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
   if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
-  setBusy(true);setStatus("Ort wird gesucht; Ensembles und Hauptläufe werden geladen …","info");
-  MODELS.forEach(function(m){setRun(m,"Ensemble: aktuelle Ausgabe · Hauptlauf wird gesucht …");setMeta(m,"Daten werden geladen …");});
+  setBusy(true);setStatus("Ort wird gesucht und Ensemble-T850 geladen …","info");
+  MODELS.forEach(function(m){setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");setMeta(m,"Ensemble wird geladen …");});
   try{
     const p=await resolvePlace(q,signal);lastPlace=p;
     const c=await loadClimate().catch(function(e){console.warn(e);return null;});
+
+    // WICHTIG: Zuerst nur die Ensembles laden und SOFORT zeichnen.
     const results=await Promise.all(MODELS.map(async function(m){
       try{
         const ensemble=await fetchEnsemble(m,p.latitude,p.longitude,signal);
-        const main=await fetchLatestMainRun(m,p.latitude,p.longitude,signal).catch(function(e){console.warn(m.label+" Hauptlauf",e);return null;});
         ensemble.stats=stats(ensemble);
-        ensemble.main=main;
-        ensemble.mainAligned=main?alignSeries(main,ensemble.times):ensemble.times.map(function(){return null;});
+        ensemble.main=null;
+        ensemble.mainAligned=ensemble.times.map(function(){return null;});
         ensemble.climate=climateSeries(c,p.latitude,p.longitude,ensemble.times);
         return ensemble;
       }catch(e){
         if(e.name==="AbortError")throw e;
-        setRun(m,"Ensemble/Hauptlauf derzeit nicht darstellbar");
+        setRun(m,"Ensemble derzeit nicht darstellbar");
         setMeta(m,e.message,"error");
         return {model:m,error:e};
       }
     }));
     if(signal.aborted)return;
-    const good=results.filter(function(r){return r&&!r.error;});if(!good.length)throw new Error("Keines der vier Ensemblemodelle konnte mit gültigen T850-Werten geladen werden.");
-    const bounds=commonBounds(good);
+
+    const good=results.filter(function(r){return r&&!r.error;});
+    if(!good.length)throw new Error("Keines der vier Ensemblemodelle konnte mit gültigen T850-Werten geladen werden.");
+
+    let bounds=commonBounds(good);
     good.forEach(function(r){
       modelChart(r,bounds);
-      const mainText=r.main?fmtRun(r.main.run)+" · "+r.model.mainLabel:"nicht verfügbar";
-      setRun(r.model,"Ensemble: aktuelle Ausgabe · Hauptlauf: "+mainText);
+      setRun(r.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
       const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
       setMeta(r.model,r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate.point?" · Klima geladen":" · Klima fehlt"),"ok");
     });
@@ -354,15 +347,55 @@ async function load(q){
     comparisonChart(good,bounds,p.latitude,p.longitude,c);
     const cp=gridPoint(c,p.latitude,p.longitude);renderPlace(p,cp);
     applyPanelView();
+
     const missing=MODELS.length-good.length;
     setStatus(
-      good.length+"/4 Modelle mit gültiger T850 geladen"+(missing?" · "+missing+" Modell(e) derzeit ohne Daten":"")+
-      ". Hauptläufe werden mit exakter UTC-Initialisierung aus der Single-Runs-API eingeblendet.",
+      good.length+"/4 Ensemblemodelle sind gezeichnet"+(missing?" · "+missing+" Modell(e) derzeit ohne gültige T850":"")+
+      ". Laufzeiten und Hauptläufe werden jetzt im Hintergrund ergänzt.",
       missing?"warn":"ok"
     );
+    setBusy(false);
+
+    // Laufmetadaten und deterministische Hauptläufe erst NACH dem Zeichnen holen.
+    void Promise.allSettled(good.map(async function(r){
+      const m=r.model;
+      const [ensMeta,mainMeta]=await Promise.all([
+        fetchModelMeta(m.ensembleMeta,signal),
+        fetchModelMeta(m.mainMeta,signal)
+      ]);
+      if(signal.aborted)return;
+
+      const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";
+      setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");
+
+      let main=null;
+      if(mainMeta&&mainMeta.run){
+        try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal);}
+        catch(e){if(e.name==="AbortError")throw e;console.warn(m.label+" Hauptlauf",e);}
+      }
+      if(signal.aborted)return;
+
+      r.main=main;
+      r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});
+      bounds=commonBounds(good);
+      good.forEach(function(item){modelChart(item,bounds);});
+      comparisonChart(good,bounds,p.latitude,p.longitude,c);
+      applyPanelView();
+
+      const mainText=main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar";
+      setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+mainText);
+    })).then(function(){
+      if(signal.aborted)return;
+      setStatus(
+        good.length+"/4 Modelle geladen. Ensemble-T850, ERA5 1991–2020 und verfügbare Hauptläufe sind dargestellt.",
+        missing?"warn":"ok"
+      );
+    });
   }catch(e){
     if(e.name!=="AbortError"){console.error("T850",e);setStatus(e.message||String(e),"error");lastPlace=null;}
-  }finally{if(!signal.aborted)setBusy(false);}
+  }finally{
+    if(!signal.aborted)setBusy(false);
+  }
 }
 function resetZoom(){Object.values(charts).forEach(function(c){if(c.resetZoom)c.resetZoom();});if(comparison&&comparison.resetZoom)comparison.resetZoom();}
 function filename(ext){
