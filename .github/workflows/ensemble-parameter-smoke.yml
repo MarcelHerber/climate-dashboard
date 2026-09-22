@@ -62,6 +62,7 @@ jobs:
                 if(!ch)return null;
                 return {
                   labels: ch.data.labels.length,
+                  yTitle: ch.options.scales.y.title.text,
                   datasets: ch.data.datasets.map(ds=>({
                     label:ds.label,
                     finite:Array.isArray(ds.data)?ds.data.filter(v=>Number.isFinite(Number(v))).length:0
@@ -86,6 +87,13 @@ jobs:
                     arguments[0].dispatchEvent(new Event('change',{bubbles:true}));
                   """,sel,param)
 
+                  wait_until(
+                    lambda: (param=="t850" and "T850" in d.find_element(By.ID,"t850Status").text) or
+                            (param=="t2m" and "T2m" in d.find_element(By.ID,"t850Status").text) or
+                            (param=="precip6" and "RR 6 h" in d.find_element(By.ID,"t850Status").text) or
+                            (param=="precipCum" and "RR kum." in d.find_element(By.ID,"t850Status").text),
+                    timeout=35,label=f"status {param}"
+                  )
                   info=wait_until(
                     lambda: chart_info("t850ChartGefs") if (chart_info("t850ChartGefs") and max((x["finite"] for x in chart_info("t850ChartGefs")["datasets"]),default=0)>0) else None,
                     timeout=35,label=f"GEFS {param}"
