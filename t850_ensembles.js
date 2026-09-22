@@ -193,7 +193,7 @@ async function fetchMemberEnsemble(model,lat,lon,signal,param){
   u.searchParams.set("forecast_days",String(model.forecastDays));u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
   const r=await fetch(u,{signal:signal,cache:"no-store"});if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
   const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
-  const controlKey=Array.isArray(h[param.api])?param.api:null,re=new RegExp("^"+escapeRegExp(param.api)+"_member\\\\d+$");
+  const controlKey=Array.isArray(h[param.api])?param.api:null,re=new RegExp("^"+escapeRegExp(param.api)+"_member\\d+$");
   const memberKeys=Object.keys(h).filter(function(k){return re.test(k)&&Array.isArray(h[k]);});
   if(!times.length||(!controlKey&&!memberKeys.length))throw new Error(model.label+" lieferte keine "+param.short+"-Ensemblemember.");
   const transform=function(key){return transformSeries(times,h[key],param,model.forecastDays*24);};
@@ -303,12 +303,14 @@ function comparisonChart(results,bounds,lat,lon,c,param){
   if(param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds,param)});
 }
-function renderPlace(p,cp){
+function renderPlace(p,cp,param){
   const n=el("t850ResolvedLocation");if(!n)return;
   n.textContent="";
   const strong=document.createElement("strong");strong.textContent=placeLabel(p);n.appendChild(strong);
   const a=document.createElement("span");a.textContent=Number(p.latitude).toFixed(3)+"°, "+Number(p.longitude).toFixed(3)+"°";n.appendChild(a);
-  const b=document.createElement("span");b.textContent=cp?"ERA5-Gitterpunkt "+cp.lat.toFixed(1)+"°, "+cp.lon.toFixed(1)+"°":"ERA5-Klimareferenz außerhalb des derzeitigen Rasters";n.appendChild(b);
+  if(param&&param.climate){
+    const b=document.createElement("span");b.textContent=cp?"ERA5-Gitterpunkt "+cp.lat.toFixed(1)+"°, "+cp.lon.toFixed(1)+"°":"ERA5-Klimareferenz außerhalb des derzeitigen Rasters";n.appendChild(b);
+  }
 }
 function applyPanelView(){
   const select=el("t850PanelSelect"),grid=el("t850ModelGrid"),comparisonCard=el("t850ComparisonCard");
@@ -330,7 +332,7 @@ async function buildEnsembleResult(model,p,c,signal,param){
   ensemble.climate=param.climate?climateSeries(c,p.latitude,p.longitude,ensemble.times):{point:null,values:ensemble.times.map(function(){return null;})};return ensemble;
 }
 function renderAvailableResults(good,p,c,param){
-  if(!good.length)return;const bounds=commonBounds(good,param);good.forEach(function(r){modelChart(r,bounds,param);});comparisonChart(good,bounds,p.latitude,p.longitude,c,param);renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null);applyPanelView();
+  if(!good.length)return;const bounds=commonBounds(good,param);good.forEach(function(r){modelChart(r,bounds,param);});comparisonChart(good,bounds,p.latitude,p.longitude,c,param);renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null,param);applyPanelView();
 }
 function updateModelMeta(r,param){
   if(r.deterministicFallback){setMeta(r.model,"EPS-T850 liefert aktuell keine gültigen Werte · zeige ICON-EU Hauptlauf als Fallback · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate&&r.climate.point?" · Klima geladen":""),"warn");return;}
