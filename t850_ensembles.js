@@ -312,95 +312,137 @@ function applyPanelView(){
     if(comparison&&comparison.canvas.offsetParent!==null)comparison.resize();
   },60);
 }
+async function buildEnsembleResult(model,p,c,signal){
+  const ensemble=await fetchEnsemble(model,p.latitude,p.longitude,signal);
+  ensemble.stats=stats(ensemble);
+  ensemble.main=null;
+  ensemble.mainAligned=ensemble.times.map(function(){return null;});
+  ensemble.climate=climateSeries(c,p.latitude,p.longitude,ensemble.times);
+  return ensemble;
+}
+function renderAvailableResults(good,p,c){
+  if(!good.length)return;
+  const bounds=commonBounds(good);
+  good.forEach(function(r){modelChart(r,bounds);});
+  comparisonChart(good,bounds,p.latitude,p.longitude,c);
+  const cp=gridPoint(c,p.latitude,p.longitude);renderPlace(p,cp);
+  applyPanelView();
+}
+function updateModelMeta(r){
+  const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
+  setMeta(
+    r.model,
+    r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
+      " · Horizont "+r.model.forecastDays+" Tage"+(r.climate.point?" · Klima geladen":" · Klima fehlt"),
+    "ok"
+  );
+}
+async function enrichWithRunInfo(r,p,c,good,signal){
+  const m=r.model;
+  const [ensMeta,mainMeta]=await Promise.all([
+    fetchModelMeta(m.ensembleMeta,signal),
+    fetchModelMeta(m.mainMeta,signal)
+  ]);
+  if(signal.aborted)return;
+
+  const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";
+  setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");
+
+  let main=null;
+  if(mainMeta&&mainMeta.run){
+    try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal);}
+    catch(e){
+      if(e.name==="AbortError")throw e;
+      console.warn(m.label+" Hauptlauf",e);
+    }
+  }
+  if(signal.aborted)return;
+
+  r.main=main;
+  r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});
+  renderAvailableResults(good,p,c);
+
+  const mainText=main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar";
+  setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+mainText);
+}
 async function load(q){
   q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
   if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
   const panelSelect=el("t850PanelSelect");if(panelSelect)panelSelect.value="";
   applyPanelView();
-  setBusy(true);setStatus("Ort wird gesucht und Ensemble-T850 geladen …","info");
-  MODELS.forEach(function(m){setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");setMeta(m,"Ensemble wird geladen …");});
+  setBusy(true);
+  setStatus("Ort wird gesucht; GFS/GEFS wird zuerst geladen …","info");
+  MODELS.forEach(function(m){
+    setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");
+    setMeta(m,m.key==="gefs"?"GFS/GEFS wird geladen …":"wartet auf GFS-Startansicht …");
+  });
+
   try{
     const p=await resolvePlace(q,signal);lastPlace=p;
     const c=await loadClimate().catch(function(e){console.warn(e);return null;});
+    const good=[];
+    const defaultModel=MODELS.find(function(m){return m.key==="gefs";})||MODELS[0];
 
-    // WICHTIG: Zuerst nur die Ensembles laden und SOFORT zeichnen.
-    const results=await Promise.all(MODELS.map(async function(m){
+    // GFS/GEFS zuerst laden und sofort darstellen.
+    try{
+      const first=await buildEnsembleResult(defaultModel,p,c,signal);
+      if(signal.aborted)return;
+      good.push(first);
+      lastResults=good;
+      updateModelMeta(first);
+      setRun(first.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
+      renderAvailableResults(good,p,c);
+      setStatus(
+        "GFS/GEFS ist geladen und wird groß dargestellt. ECMWF, AIFS und ICON werden jetzt im Hintergrund ergänzt.",
+        "ok"
+      );
+      setBusy(false);
+      void enrichWithRunInfo(first,p,c,good,signal).catch(function(e){
+        if(e.name!=="AbortError")console.warn(first.model.label+" Laufinfo",e);
+      });
+    }catch(e){
+      if(e.name==="AbortError")throw e;
+      setRun(defaultModel,"Ensemble derzeit nicht darstellbar");
+      setMeta(defaultModel,e.message,"error");
+      setStatus("GFS/GEFS konnte nicht geladen werden; die übrigen Modelle werden trotzdem versucht.","warn");
+      setBusy(false);
+    }
+
+    // Weitere Modelle parallel im Hintergrund laden. Jedes Panel wird sofort
+    // gezeichnet, sobald seine Daten da sind.
+    const others=MODELS.filter(function(m){return m.key!==defaultModel.key;});
+    void Promise.allSettled(others.map(async function(m){
       try{
-        const ensemble=await fetchEnsemble(m,p.latitude,p.longitude,signal);
-        ensemble.stats=stats(ensemble);
-        ensemble.main=null;
-        ensemble.mainAligned=ensemble.times.map(function(){return null;});
-        ensemble.climate=climateSeries(c,p.latitude,p.longitude,ensemble.times);
-        return ensemble;
+        const r=await buildEnsembleResult(m,p,c,signal);
+        if(signal.aborted)return;
+        good.push(r);
+        lastResults=good;
+        updateModelMeta(r);
+        setRun(r.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
+        renderAvailableResults(good,p,c);
+        void enrichWithRunInfo(r,p,c,good,signal).catch(function(e){
+          if(e.name!=="AbortError")console.warn(r.model.label+" Laufinfo",e);
+        });
       }catch(e){
         if(e.name==="AbortError")throw e;
         setRun(m,"Ensemble derzeit nicht darstellbar");
         setMeta(m,e.message,"error");
-        return {model:m,error:e};
       }
-    }));
-    if(signal.aborted)return;
-
-    const good=results.filter(function(r){return r&&!r.error;});
-    if(!good.length)throw new Error("Keines der vier Ensemblemodelle konnte mit gültigen T850-Werten geladen werden.");
-
-    let bounds=commonBounds(good);
-    good.forEach(function(r){
-      modelChart(r,bounds);
-      setRun(r.model,"Ensemble: neueste verfügbare Ausgabe · Hauptlauf wird ergänzt …");
-      const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
-      setMeta(r.model,r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+" · Horizont "+r.model.forecastDays+" Tage"+(r.climate.point?" · Klima geladen":" · Klima fehlt"),"ok");
-    });
-    lastResults=good;
-    comparisonChart(good,bounds,p.latitude,p.longitude,c);
-    const cp=gridPoint(c,p.latitude,p.longitude);renderPlace(p,cp);
-    applyPanelView();
-
-    const missing=MODELS.length-good.length;
-    setStatus(
-      good.length+"/4 Ensemblemodelle sind gezeichnet"+(missing?" · "+missing+" Modell(e) derzeit ohne gültige T850":"")+
-      ". Laufzeiten und Hauptläufe werden jetzt im Hintergrund ergänzt.",
-      missing?"warn":"ok"
-    );
-    setBusy(false);
-
-    // Laufmetadaten und deterministische Hauptläufe erst NACH dem Zeichnen holen.
-    void Promise.allSettled(good.map(async function(r){
-      const m=r.model;
-      const [ensMeta,mainMeta]=await Promise.all([
-        fetchModelMeta(m.ensembleMeta,signal),
-        fetchModelMeta(m.mainMeta,signal)
-      ]);
-      if(signal.aborted)return;
-
-      const ensembleText=ensMeta?fmtRun(ensMeta.run):"neueste verfügbare Ausgabe";
-      setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf wird geladen …");
-
-      let main=null;
-      if(mainMeta&&mainMeta.run){
-        try{main=await fetchMainRunForCycle(m,mainMeta.run,p.latitude,p.longitude,signal);}
-        catch(e){if(e.name==="AbortError")throw e;console.warn(m.label+" Hauptlauf",e);}
-      }
-      if(signal.aborted)return;
-
-      r.main=main;
-      r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});
-      bounds=commonBounds(good);
-      good.forEach(function(item){modelChart(item,bounds);});
-      comparisonChart(good,bounds,p.latitude,p.longitude,c);
-      applyPanelView();
-
-      const mainText=main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar";
-      setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+mainText);
     })).then(function(){
       if(signal.aborted)return;
+      const missing=MODELS.length-good.length;
       setStatus(
-        good.length+"/4 Modelle geladen. Ensemble-T850, ERA5 1991–2020 und verfügbare Hauptläufe sind dargestellt.",
+        good.length+"/4 Ensemblemodelle geladen"+(missing?" · "+missing+" Modell(e) derzeit ohne gültige T850":"")+
+        ". Standardansicht bleibt GFS; weitere Panels können oben ausgewählt werden.",
         missing?"warn":"ok"
       );
     });
   }catch(e){
-    if(e.name!=="AbortError"){console.error("T850",e);setStatus(e.message||String(e),"error");lastPlace=null;}
+    if(e.name!=="AbortError"){
+      console.error("T850",e);
+      setStatus(e.message||String(e),"error");
+      lastPlace=null;
+    }
   }finally{
     if(!signal.aborted)setBusy(false);
   }
