@@ -83,7 +83,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
         <span><i class="t850-swatch control"></i> Kontrolllauf</span>
         <span><i class="t850-swatch"></i> Ensemble-Mittel</span>
         <span><i class="t850-swatch main"></i> Hauptlauf</span>
-        <span><i class="t850-swatch climate"></i> ERA5 1991–2020</span>
+        <span id="ensembleClimateLegend"><i class="t850-swatch climate"></i> ERA5 1991–2020</span>
       </div>
     </section>
   </div>
