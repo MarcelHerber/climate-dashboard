@@ -1,0 +1,98 @@
+name: T850 ERA5-Klimatologie bauen
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/build_t850_climatology.py"
+      - ".github/workflows/build-t850-climatology.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: t850-era5-climatology
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CDSAPI_KEY:-}" ]]; then
+            echo "FEHLER: GitHub Secret CDSAPI_KEY fehlt."
+            exit 1
+          fi
+          cat > "$HOME/.cdsapirc" <<EOF2
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF2
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: ERA5-T850 1991–2020 berechnen
+        run: python scripts/build_t850_climatology.py --output /tmp/t850_climatology_1991_2020.json
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("/tmp/t850_climatology_1991_2020.json")
+          data=json.loads(p.read_text())
+          g=data["grid"]
+          expected=int(g["nlat"])*int(g["nlon"])*12*len(data["hours"])
+          assert data["reference_period"]=="1991-2020"
+          assert data["pressure_level_hpa"]==850
+          assert len(data["values"])==expected, (len(data["values"]), expected)
+          print("Klimatologie geprüft:", g["nlat"], "x", g["nlon"], "·", expected, "Werte")
+          PY
+
+      - name: Klimadaten-Branch veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/t850-publish
+          mkdir -p /tmp/t850-publish
+          cp /tmp/t850_climatology_1991_2020.json /tmp/t850-publish/
+          cat > /tmp/t850-publish/README.md <<'EOF2'
+          # T850 climatology data
+
+          ERA5 850-hPa temperature climatology for 1991–2020 used by the Climate Dashboard.
+          The JSON contains 30-year synoptic monthly means at 00/06/12/18 UTC on a 1° grid for 20–80°N, 40°W–50°E.
+          EOF2
+          cd /tmp/t850-publish
+          git init -b t850-climatology
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update ERA5 T850 climatology 1991-2020"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin HEAD:t850-climatology
