@@ -1,0 +1,89 @@
+name: T850 API Smoke Test
+
+on:
+  push:
+    branches: ["fix/t850-api-smoke"]
+    paths:
+      - ".github/workflows/t850-api-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Test Open-Meteo T850 endpoints
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, urllib.parse, urllib.request, time
+
+          LAT, LON = 50.1109, 8.6821
+
+          tests = [
+              ("GEFS seamless 3d members", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "ncep_gefs_seamless", "forecast_days": 3,
+                  "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("GEFS seamless 35d members", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "ncep_gefs_seamless", "forecast_days": 35,
+                  "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("ECMWF ENS 15d", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "ecmwf_ifs025_ensemble", "forecast_days": 15,
+                  "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("AIFS ENS 15d", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "ecmwf_aifs025_ensemble", "forecast_days": 15,
+                  "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("ICON-EU EPS members", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "dwd_icon_eu_eps", "forecast_days": 5,
+                  "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("ICON EPS seamless mean+spread", "https://ensemble-api.open-meteo.com/v1/ensemble", {
+                  "latitude": LAT, "longitude": LON,
+                  "hourly": "temperature_850hPa,temperature_850hPa_spread",
+                  "models": "dwd_icon_eps_ensemble_mean_seamless", "forecast_days": 5,
+                  "timezone": "GMT", "cell_selection": "nearest"
+              }),
+              ("ICON-EU mean+spread current wrong endpoint", "https://api.open-meteo.com/v1/forecast", {
+                  "latitude": LAT, "longitude": LON,
+                  "hourly": "temperature_850hPa,temperature_850hPa_spread",
+                  "models": "dwd_icon_eu_eps_ensemble_mean", "forecast_days": 5,
+                  "timezone": "GMT", "cell_selection": "nearest"
+              }),
+          ]
+
+          for name, base, params in tests:
+              url = base + "?" + urllib.parse.urlencode(params)
+              print("\n===", name, "===")
+              print(url)
+              t0 = time.time()
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "climate-dashboard-t850-smoke/1.0"})
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      body = r.read()
+                      dt = time.time() - t0
+                      print("HTTP", r.status, "bytes", len(body), "seconds", round(dt, 2))
+                      data = json.loads(body)
+                      h = data.get("hourly") or {}
+                      keys = [k for k in h if k != "time"]
+                      print("hourly keys:", keys[:12], "... total", len(keys))
+                      print("times:", len(h.get("time") or []))
+                      for k in keys[:5]:
+                          vals = h.get(k) or []
+                          finite = sum(v is not None for v in vals)
+                          print(k, "n=", len(vals), "non-null=", finite, "sample=", vals[:4])
+              except Exception as e:
+                  dt = time.time() - t0
+                  print("ERROR after", round(dt, 2), "s:", repr(e))
+          PY
