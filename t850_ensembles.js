@@ -17,8 +17,8 @@ const HOURS=[0,6,12,18], HORIZON=180;
 let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null;
 
 function el(id){return document.getElementById(id);}
-function finite(v){v=Number(v);return Number.isFinite(v)?v:null;}
-function round(v,d){v=Number(v);return Number.isFinite(v)?Number(v.toFixed(d==null?2:d)):null;}
+function finite(v){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?v:null;}
+function round(v,d){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?Number(v.toFixed(d==null?2:d)):null;}
 function fmtTime(value){
   const d=new Date(value); if(Number.isNaN(d.getTime())) return String(value||"");
   return String(d.getUTCDate()).padStart(2,"0")+"."+String(d.getUTCMonth()+1).padStart(2,"0")+". "+String(d.getUTCHours()).padStart(2,"0")+"Z";
