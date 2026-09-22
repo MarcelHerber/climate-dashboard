@@ -2,7 +2,7 @@
 "use strict";
 
 const ENSEMBLE_API="https://ensemble-api.open-meteo.com/v1/ensemble";
-const FORECAST_API="https://api.open-meteo.com/v1/forecast";
+const DWD_ICON_API="https://api.open-meteo.com/v1/dwd-icon";
 const SINGLE_RUN_API="https://single-runs-api.open-meteo.com/v1/forecast";
 const GEO="https://geocoding-api.open-meteo.com/v1/search";
 const CLIMATE_URLS=[
@@ -23,8 +23,8 @@ const MODELS=[
     canvas:"t850ChartAifs",meta:"t850MetaAifs",run:"t850RunAifs",color:"#7c3aed"
   },
   {
-    key:"icon",label:"DWD ICON-EU EPS",api:"dwd_icon_eu_eps_ensemble_mean",ensembleMeta:"dwd_icon_eu_eps_ensemble_mean",
-    mode:"meanSpread",forecastDays:5,mainHours:120,
+    key:"icon",label:"DWD ICON-EU EPS",api:"dwd_icon_eu_eps",ensembleMeta:"dwd_icon_eu_eps",
+    mode:"iconFallback",forecastDays:5,mainHours:120,
     mainApi:"icon_eu",mainMeta:"dwd_icon_eu",mainLabel:"ICON-EU Hauptlauf",
     canvas:"t850ChartIcon",meta:"t850MetaIcon",run:"t850RunIcon",color:"#15803d"
   },
@@ -154,73 +154,26 @@ function synopticIndexes(times,maxHours){
 function hasFiniteSeries(series){return Array.isArray(series)&&series.some(function(v){return Number.isFinite(v);});}
 
 
-async function fetchIconMeanSpread(model,lat,lon,signal){
-  async function request(hourly){
-    const u=new URL(FORECAST_API);
-    u.searchParams.set("latitude",Number(lat).toFixed(4));
-    u.searchParams.set("longitude",Number(lon).toFixed(4));
-    u.searchParams.set("hourly",hourly);
-    u.searchParams.set("models",model.api);
-    u.searchParams.set("forecast_days",String(model.forecastDays));
-    u.searchParams.set("timezone","GMT");
-    u.searchParams.set("cell_selection","nearest");
-    return fetch(u,{signal:signal,cache:"no-store"});
-  }
-
-  let r=await request("temperature_850hPa,temperature_850hPa_spread");
-  if(!r.ok){
-    // Manche Open-Meteo-Deployments stellen zunächst nur das Mittel bereit.
-    r=await request("temperature_850hPa");
-  }
-  if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
-
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
-  const meanRaw=Array.isArray(h.temperature_850hPa)?h.temperature_850hPa:null;
-  const spreadRaw=Array.isArray(h.temperature_850hPa_spread)?h.temperature_850hPa_spread:null;
-  if(!times.length||!meanRaw)throw new Error(model.label+" liefert aktuell kein T850-Ensemble-Mittel.");
-
-  const keep=synopticIndexes(times,model.forecastDays*24);
-  const sampledTimes=keep.map(function(x){return x.t;});
-  const mean=keep.map(function(x){return finite(meanRaw[x.i]);});
-  const spread=spreadRaw?keep.map(function(x){return finite(spreadRaw[x.i]);}):mean.map(function(){return null;});
-  if(!hasFiniteSeries(mean))throw new Error(model.label+" liefert aktuell keine gültigen T850-Werte.");
-
-  const lower=mean.map(function(v,i){
-    const s=spread[i];return Number.isFinite(v)&&Number.isFinite(s)?round(v-s,2):v;
-  });
-  const upper=mean.map(function(v,i){
-    const s=spread[i];return Number.isFinite(v)&&Number.isFinite(s)?round(v+s,2):v;
-  });
-
-  return {
-    model:model,
-    times:sampledTimes,
-    control:null,
-    members:[],
-    ensembleCount:40,
-    allMembers:[lower,mean,upper],
-    precomputedStats:{mean:mean,p10:lower,p90:upper},
-    meanSpread:true,
-    spreadAvailable:hasFiniteSeries(spread),
-    spread:spread
-  };
-}
-
-async function fetchEnsemble(model,lat,lon,signal){
-  if(model.mode==="meanSpread")return fetchIconMeanSpread(model,lat,lon,signal);
+async function fetchMemberEnsemble(model,lat,lon,signal){
   const u=new URL(ENSEMBLE_API);
-  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
-  u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.api);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));
+  u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly","temperature_850hPa");
+  u.searchParams.set("models",model.api);
   u.searchParams.set("forecast_days",String(model.forecastDays));
-  u.searchParams.set("temporal_resolution","hourly");
-  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  u.searchParams.set("timezone","GMT");
+  u.searchParams.set("cell_selection","nearest");
   const r=await fetch(u,{signal:signal,cache:"no-store"});
   if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
   const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
 
   const controlKey=Array.isArray(h.temperature_850hPa)?"temperature_850hPa":null;
-  const memberKeys=Object.keys(h).filter(function(k){return /^temperature_850hPa_member\d+$/.test(k)&&Array.isArray(h[k]);});
-  if(!times.length||(!controlKey&&!memberKeys.length))throw new Error(model.label+" lieferte keine T850-Ensemblemember.");
+  const memberKeys=Object.keys(h).filter(function(k){
+    return /^temperature_850hPa_member\d+$/.test(k)&&Array.isArray(h[k]);
+  });
+  if(!times.length||(!controlKey&&!memberKeys.length)){
+    throw new Error(model.label+" lieferte keine T850-Ensemblemember.");
+  }
 
   const keep=synopticIndexes(times,model.forecastDays*24);
   const sampledTimes=keep.map(function(x){return x.t;});
@@ -228,7 +181,9 @@ async function fetchEnsemble(model,lat,lon,signal){
   const control=controlKey?sample(controlKey):null;
   const members=memberKeys.map(sample);
   const all=(control?[control]:[]).concat(members);
-  const finiteCount=all.reduce(function(sum,series){return sum+series.filter(Number.isFinite).length;},0);
+  const finiteCount=all.reduce(function(sum,series){
+    return sum+series.filter(Number.isFinite).length;
+  },0);
   if(!finiteCount){
     throw new Error(model.label+" liefert aktuell T850-Memberfelder ohne gültige Werte.");
   }
@@ -236,6 +191,47 @@ async function fetchEnsemble(model,lat,lon,signal){
     model:model,times:sampledTimes,control:control,members:members,
     ensembleCount:all.length,allMembers:all
   };
+}
+
+async function fetchIconDeterministicFallback(model,lat,lon,signal){
+  const u=new URL(DWD_ICON_API);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));
+  u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly","temperature_850hPa");
+  u.searchParams.set("models","icon_eu");
+  u.searchParams.set("forecast_days",String(model.forecastDays));
+  u.searchParams.set("timezone","GMT");
+  u.searchParams.set("cell_selection","nearest");
+  const r=await fetch(u,{signal:signal,cache:"no-store"});
+  if(!r.ok)throw new Error("ICON-EU Hauptlauf HTTP "+r.status);
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
+  const raw=Array.isArray(h.temperature_850hPa)?h.temperature_850hPa:null;
+  if(!times.length||!raw)throw new Error("ICON-EU Hauptlauf liefert kein T850.");
+
+  const keep=synopticIndexes(times,model.mainHours);
+  const sampledTimes=keep.map(function(x){return x.t;});
+  const values=keep.map(function(x){return finite(raw[x.i]);});
+  if(!hasFiniteSeries(values))throw new Error("ICON-EU Hauptlauf liefert keine gültigen T850-Werte.");
+
+  return {
+    model:model,times:sampledTimes,control:null,members:[],
+    ensembleCount:0,allMembers:[values],
+    precomputedStats:{mean:values,p10:values,p90:values},
+    deterministicFallback:true
+  };
+}
+
+async function fetchEnsemble(model,lat,lon,signal){
+  if(model.mode==="iconFallback"){
+    try{
+      return await fetchMemberEnsemble(model,lat,lon,signal);
+    }catch(e){
+      if(e.name==="AbortError")throw e;
+      console.warn("ICON-EU EPS T850 nicht verfügbar; Hauptlauf-Fallback wird verwendet.",e);
+      return fetchIconDeterministicFallback(model,lat,lon,signal);
+    }
+  }
+  return fetchMemberEnsemble(model,lat,lon,signal);
 }
 
 async function fetchModelMeta(domain,signal){
@@ -315,19 +311,26 @@ function options(bounds){
 }
 function modelChart(r,bounds){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
-  const labels=r.times.map(fmtTime),bandLabel=r.meanSpread?"Ensemble-Spread ±1σ":"10.–90. Perzentil",sets=[
-    {label:bandLabel,data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
-    {label:bandLabel,data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
-  ];
+  const labels=r.times.map(fmtTime),sets=[];
+  if(!r.deterministicFallback){
+    sets.push(
+      {label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
+      {label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
+    );
+  }
   r.members.forEach(function(m,i){
     sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});
   });
   if(r.control&&hasFiniteSeries(r.control)){
     sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
   }
-  sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});
-  if(r.mainAligned&&hasFiniteSeries(r.mainAligned)){
-    sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+  if(r.deterministicFallback){
+    sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+  }else{
+    sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});
+    if(r.mainAligned&&hasFiniteSeries(r.mainAligned)){
+      sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+    }
   }
   sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
@@ -337,7 +340,7 @@ function comparisonChart(results,bounds,lat,lon,c){
   const canvas=el("t850ComparisonChart");if(!canvas)return;if(comparison)comparison.destroy();
   const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});
   const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
-  results.forEach(function(r){
+  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){
     const d=times.map(function(){return null;});
     r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});
     sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});
@@ -385,13 +388,13 @@ function renderAvailableResults(good,p,c){
   applyPanelView();
 }
 function updateModelMeta(r){
-  if(r.meanSpread){
+  if(r.deterministicFallback){
     setMeta(
       r.model,
-      "40-Member EPS · Ensemble-Mittel"+(r.spreadAvailable?" + Spread ±1σ":"; Spread derzeit nicht verfügbar")+
-      " · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
-      " · Horizont "+r.model.forecastDays+" Tage"+(r.climate.point?" · Klima geladen":" · Klima fehlt"),
-      "ok"
+      "EPS-T850 liefert aktuell keine gültigen Werte · zeige ICON-EU Hauptlauf als Fallback · "+
+      fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+
+      (r.climate.point?" · Klima geladen":" · Klima fehlt"),
+      "warn"
     );
     return;
   }
@@ -405,6 +408,13 @@ function updateModelMeta(r){
 }
 async function enrichWithRunInfo(r,p,c,good,signal){
   const m=r.model;
+  if(r.deterministicFallback){
+    const mainMeta=await fetchModelMeta(m.mainMeta,signal);
+    if(signal.aborted)return;
+    const mainText=mainMeta?fmtRun(mainMeta.run)+" · "+m.mainLabel:"neueste verfügbare ICON-EU-Ausgabe";
+    setRun(m,"EPS T850: derzeit nicht verfügbar · Hauptlauf: "+mainText);
+    return;
+  }
   const [ensMeta,mainMeta]=await Promise.all([
     fetchModelMeta(m.ensembleMeta,signal),
     fetchModelMeta(m.mainMeta,signal)
@@ -496,11 +506,15 @@ async function load(q){
       }
     })).then(function(){
       if(signal.aborted)return;
+      const ensembleCount=good.filter(function(r){return !r.deterministicFallback;}).length;
+      const hasIconFallback=good.some(function(r){return r.deterministicFallback;});
       const missing=MODELS.length-good.length;
       setStatus(
-        good.length+"/4 Ensemblemodelle geladen"+(missing?" · "+missing+" Modell(e) derzeit ohne gültige T850":"")+
+        ensembleCount+"/4 Ensemblemodelle mit gültiger T850 geladen"+
+        (hasIconFallback?" · ICON-EU wird ersatzweise als Hauptlauf gezeigt":"")+
+        (missing?" · "+missing+" Modell(e) ohne Darstellung":"")+
         ". Standardansicht bleibt GFS; weitere Panels können oben ausgewählt werden.",
-        missing?"warn":"ok"
+        (hasIconFallback||missing)?"warn":"ok"
       );
     });
   }catch(e){
@@ -547,5 +561,16 @@ document.addEventListener("click",function(e){
   const b=e.target.closest&&e.target.closest(".tab-button");
   if(b&&String(b.getAttribute("onclick")||"").includes("switchTab('t850-ensembles')"))setTimeout(mount,0);
 });
-document.addEventListener("DOMContentLoaded",function(){const p=el("t850-ensembles");if(p&&p.classList.contains("active"))mount();});
+function watchPanelActivation(){
+  const p=el("t850-ensembles");if(!p)return;
+  const activate=function(){if(p.classList.contains("active"))mount();};
+  activate();
+  const observer=new MutationObserver(activate);
+  observer.observe(p,{attributes:true,attributeFilter:["class"]});
+}
+if(document.readyState==="loading"){
+  document.addEventListener("DOMContentLoaded",watchPanelActivation);
+}else{
+  watchPanelActivation();
+}
 })();
