@@ -349,6 +349,7 @@ async function enrichWithRunInfo(r,p,c,good,signal,param){
 function updateParameterHeader(param){
   const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"");
   const title=el("ensembleComparisonTitle");if(title)title.textContent="Vergleich der Ensemble-Mittel · "+param.label;
+  const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate;
 }
 async function load(q,opts){
   opts=opts||{};q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
