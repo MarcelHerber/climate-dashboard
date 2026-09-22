@@ -1,0 +1,86 @@
+name: T850-Ensembles veröffentlichen
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "t850_ensembles.js"
+      - "t850_ensembles.css"
+      - "scripts/patch_t850_ensembles_frontend.py"
+      - "scripts/build_pages_site.sh"
+      - ".github/workflows/publish-t850-ensembles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-fast-deploy
+  cancel-in-progress: false
+
+jobs:
+  integrate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: T850-Frontend einbauen
+        run: python scripts/patch_t850_ensembles_frontend.py --file index.html
+
+      - name: Integration prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "t850-ensembles" index.html
+          grep -q 'id="t850-ensembles" class="tab-content"' index.html
+          grep -q 'href="t850_ensembles.css"' index.html
+          grep -q 'src="t850_ensembles.js"' index.html
+          cp index.html /tmp/t850-index-once.html
+          python scripts/patch_t850_ensembles_frontend.py --file index.html
+          cmp -s /tmp/t850-index-once.html index.html
+          node --check t850_ensembles.js
+          python -m py_compile scripts/patch_t850_ensembles_frontend.py
+
+      - name: Frontend dauerhaft versionieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html; then
+            echo "T850-Frontend ist bereits in index.html integriert."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "feat: T850-Ensembles auf Hauptseite aktivieren [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: Pages-Artefakt bauen
+        run: bash scripts/build_pages_site.sh
+
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+
+      - name: Website-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "github-pages-${{ github.run_attempt }}"
+
+      - name: Website veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          reporting_interval: "10000"
+          artifact_name: "github-pages-${{ github.run_attempt }}"

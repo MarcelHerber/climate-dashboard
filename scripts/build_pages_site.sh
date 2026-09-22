@@ -8,6 +8,8 @@ required_root_files=(
   index.html
   sst_europe.js
   sst_europe.css
+  t850_ensembles.js
+  t850_ensembles.css
   monthly_frequency.js
   dwd_station_daily_map.js
   dwd_station_daily_map.css
