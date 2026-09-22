@@ -87,23 +87,30 @@ jobs:
                     arguments[0].dispatchEvent(new Event('change',{bubbles:true}));
                   """,sel,param)
 
-                  wait_until(
-                    lambda: (param=="t850" and "T850" in d.find_element(By.ID,"t850Status").text) or
-                            (param=="t2m" and "T2m" in d.find_element(By.ID,"t850Status").text) or
-                            (param=="precip6" and "RR 6 h" in d.find_element(By.ID,"t850Status").text) or
-                            (param=="precipCum" and "RR kum." in d.find_element(By.ID,"t850Status").text),
-                    timeout=35,label=f"status {param}"
-                  )
+                  expected_title={
+                    "t850":"T850 [°C]",
+                    "t2m":"Temperatur 2 m [°C]",
+                    "precip6":"Niederschlag 6 h [mm]",
+                    "precipCum":"Niederschlag kumuliert [mm]",
+                  }[param]
                   info=wait_until(
-                    lambda: chart_info("t850ChartGefs") if (chart_info("t850ChartGefs") and max((x["finite"] for x in chart_info("t850ChartGefs")["datasets"]),default=0)>0) else None,
-                    timeout=35,label=f"GEFS {param}"
+                    lambda: chart_info("t850ChartGefs") if (
+                      chart_info("t850ChartGefs") and
+                      chart_info("t850ChartGefs").get("yTitle")==expected_title and
+                      max((x["finite"] for x in chart_info("t850ChartGefs")["datasets"]),default=0)>0
+                    ) else None,
+                    timeout=35,label=f"GEFS {param} {expected_title}"
                   )
                   print("PARAM",param,"GEFS",json.dumps(info,ensure_ascii=False)[:1000])
 
                   if param!="t850":
                       icon=wait_until(
-                        lambda: chart_info("t850ChartIcon") if (chart_info("t850ChartIcon") and max((x["finite"] for x in chart_info("t850ChartIcon")["datasets"]),default=0)>0) else None,
-                        timeout=35,label=f"ICON {param}"
+                        lambda: chart_info("t850ChartIcon") if (
+                          chart_info("t850ChartIcon") and
+                          chart_info("t850ChartIcon").get("yTitle")==expected_title and
+                          max((x["finite"] for x in chart_info("t850ChartIcon")["datasets"]),default=0)>0
+                        ) else None,
+                        timeout=35,label=f"ICON {param} {expected_title}"
                       )
                       print("PARAM",param,"ICON",json.dumps(icon,ensure_ascii=False)[:1000])
                       labels=[x["label"] for x in icon["datasets"]]
