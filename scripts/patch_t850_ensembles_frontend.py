@@ -4,8 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css">'
-JS_TAG = '<script src="t850_ensembles.js"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-3">'
+JS_TAG = '<script src="t850_ensembles.js?v=20260922-3"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">T850-Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
