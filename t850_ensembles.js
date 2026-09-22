@@ -1,27 +1,53 @@
 (function(){
 "use strict";
 
-const API="https://ensemble-api.open-meteo.com/v1/ensemble";
+const ENSEMBLE_API="https://ensemble-api.open-meteo.com/v1/ensemble";
+const SINGLE_RUN_API="https://single-runs-api.open-meteo.com/v1/forecast";
 const GEO="https://geocoding-api.open-meteo.com/v1/search";
 const CLIMATE_URLS=[
   "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/t850-climatology/t850_climatology_1991_2020.json",
   "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@t850-climatology/t850_climatology_1991_2020.json"
 ];
 const MODELS=[
-  {key:"ecmwf",label:"ECMWF IFS ENS",api:"ecmwf_ifs025_ensemble",canvas:"t850ChartEcmwf",meta:"t850MetaEcmwf",color:"#2563eb"},
-  {key:"aifs",label:"ECMWF AIFS ENS",api:"ecmwf_aifs025_ensemble",canvas:"t850ChartAifs",meta:"t850MetaAifs",color:"#7c3aed"},
-  {key:"icon",label:"DWD ICON EPS",api:"dwd_icon_global_eps",canvas:"t850ChartIcon",meta:"t850MetaIcon",color:"#15803d"},
-  {key:"gefs",label:"GFS / GEFS",api:"ncep_gefs025",canvas:"t850ChartGefs",meta:"t850MetaGefs",color:"#c2410c"}
+  {
+    key:"ecmwf",label:"ECMWF IFS ENS",api:"ecmwf_ifs025_ensemble",
+    mainApi:"ecmwf_ifs025",mainLabel:"IFS Hauptlauf 0,25°",
+    canvas:"t850ChartEcmwf",meta:"t850MetaEcmwf",run:"t850RunEcmwf",color:"#2563eb"
+  },
+  {
+    key:"aifs",label:"ECMWF AIFS ENS",api:"ecmwf_aifs025_ensemble",
+    mainApi:"ecmwf_aifs025_single",mainLabel:"AIFS Hauptlauf 0,25°",
+    canvas:"t850ChartAifs",meta:"t850MetaAifs",run:"t850RunAifs",color:"#7c3aed"
+  },
+  {
+    key:"icon",label:"DWD ICON EPS",api:"dwd_icon_global_eps",
+    mainApi:"icon_global",mainLabel:"ICON Global Hauptlauf",
+    canvas:"t850ChartIcon",meta:"t850MetaIcon",run:"t850RunIcon",color:"#15803d"
+  },
+  {
+    key:"gefs",label:"GFS / GEFS",api:"ncep_gefs025",
+    mainApi:"ncep_gfs_global",mainLabel:"GFS Hauptlauf",
+    canvas:"t850ChartGefs",meta:"t850MetaGefs",run:"t850RunGefs",color:"#c2410c"
+  }
 ];
 const HOURS=[0,6,12,18], HORIZON=180;
-let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null;
+let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null,lastResults=[];
 
 function el(id){return document.getElementById(id);}
 function finite(v){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?v:null;}
 function round(v,d){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?Number(v.toFixed(d==null?2:d)):null;}
+function parseUtc(value){
+  const text=String(value||"");
+  const normalized=/Z$|[+-]\d\d:\d\d$/.test(text)?text:text+"Z";
+  return new Date(normalized);
+}
 function fmtTime(value){
-  const d=new Date(value); if(Number.isNaN(d.getTime())) return String(value||"");
+  const d=parseUtc(value); if(Number.isNaN(d.getTime())) return String(value||"");
   return String(d.getUTCDate()).padStart(2,"0")+"."+String(d.getUTCMonth()+1).padStart(2,"0")+". "+String(d.getUTCHours()).padStart(2,"0")+"Z";
+}
+function fmtRun(value){
+  const d=parseUtc(value);if(Number.isNaN(d.getTime()))return "–";
+  return String(d.getUTCDate()).padStart(2,"0")+"."+String(d.getUTCMonth()+1).padStart(2,"0")+"."+d.getUTCFullYear()+" · "+String(d.getUTCHours()).padStart(2,"0")+" UTC";
 }
 function fmtTemp(v){
   v=Number(v); if(!Number.isFinite(v)) return "–";
@@ -39,6 +65,10 @@ function setBusy(busy){
 function setMeta(model,text,type){
   const node=el(model.meta); if(!node)return;
   node.className="t850-model-meta "+(type||"muted");node.textContent=text;
+}
+function setRun(model,text,type){
+  const node=el(model.run);if(!node)return;
+  node.className="t850-run-label "+(type||"");node.textContent=text;
 }
 function placeLabel(p){
   const vals=[p.name,p.admin1,p.country].filter(Boolean);
@@ -58,7 +88,7 @@ async function loadClimate(){
     let last=null;
     for(const url of CLIMATE_URLS){
       try{
-        const r=await fetch(url+"?v=1",{cache:"force-cache"});if(!r.ok)throw new Error("HTTP "+r.status);
+        const r=await fetch(url+"?v=2",{cache:"force-cache"});if(!r.ok)throw new Error("HTTP "+r.status);
         const j=await r.json();
         if(Number(j.schema_version)!==1||!j.grid||!Array.isArray(j.values))throw new Error("Unerwartetes Format");
         climate=j;return j;
@@ -84,7 +114,7 @@ function climateValue(c,p,month,hour){
 }
 function nearestHour(h){return HOURS.reduce(function(best,v){return Math.abs(v-h)<Math.abs(best-h)?v:best;},HOURS[0]);}
 function interpolatedClimate(c,p,iso){
-  const d=new Date(iso);if(Number.isNaN(d.getTime()))return null;
+  const d=parseUtc(iso);if(Number.isNaN(d.getTime()))return null;
   const h=nearestHour(d.getUTCHours()),y=d.getUTCFullYear(),m=d.getUTCMonth()+1,anchor=new Date(Date.UTC(y,m-1,15,h));
   let lm,rm,ld,rd;
   if(d<anchor){
@@ -100,19 +130,101 @@ function climateSeries(c,lat,lon,times){
   const p=gridPoint(c,lat,lon);
   return {point:p,values:p?times.map(function(t){return round(interpolatedClimate(c,p,t),2);}):times.map(function(){return null;})};
 }
-async function fetchModel(model,lat,lon,signal){
-  const u=new URL(API);
+function pressureKey(hourly){
+  const keys=Object.keys(hourly||{});
+  return keys.find(function(k){return k==="temperature_850hPa";})||
+    keys.find(function(k){return /^temperature_850hPa_/.test(k)&&!/member\d+$/.test(k);})||null;
+}
+function synopticIndexes(times){
+  const indexed=(times||[]).map(function(t,i){return {t:t,i:i,d:parseUtc(t)};}).filter(function(x){return !Number.isNaN(x.d.getTime());});
+  if(!indexed.length)return [];
+  const first=indexed[0].d.getTime(),limit=first+HORIZON*3600000+60000;
+  let keep=indexed.filter(function(x){return x.d.getTime()<=limit&&HOURS.includes(x.d.getUTCHours());});
+  if(keep.length<5){
+    keep=indexed.filter(function(x,idx){return x.d.getTime()<=limit&&idx%6===0;});
+  }
+  return keep;
+}
+function hasFiniteSeries(series){return Array.isArray(series)&&series.some(function(v){return Number.isFinite(v);});}
+
+async function fetchEnsemble(model,lat,lon,signal){
+  const u=new URL(ENSEMBLE_API);
   u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
   u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.api);
-  u.searchParams.set("forecast_hours",String(HORIZON+1));u.searchParams.set("temporal_resolution","hourly_6");
+  u.searchParams.set("forecast_hours",String(HORIZON+1));
   u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
   const r=await fetch(u,{signal:signal,cache:"no-store"});
   if(!r.ok)throw new Error(model.label+" HTTP "+r.status);
-  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],keys=Object.keys(h).filter(function(k){return /^temperature_850hPa(?:_member\d+)?$/.test(k)&&Array.isArray(h[k]);});
-  if(!times.length||!keys.length)throw new Error(model.label+" lieferte keine T850-Ensemblemember.");
-  const t0=new Date(times[0]).getTime(),keep=[];
-  times.forEach(function(t,i){const ms=new Date(t).getTime();if(Number.isFinite(ms)&&ms-t0<=HORIZON*3600000+60000)keep.push({t:t,i:i});});
-  return {model:model,times:keep.map(function(x){return x.t;}),members:keys.map(function(k){return keep.map(function(x){return finite(h[k][x.i]);});})};
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[];
+
+  const controlKey=Array.isArray(h.temperature_850hPa)?"temperature_850hPa":null;
+  const memberKeys=Object.keys(h).filter(function(k){return /^temperature_850hPa_member\d+$/.test(k)&&Array.isArray(h[k]);});
+  if(!times.length||(!controlKey&&!memberKeys.length))throw new Error(model.label+" lieferte keine T850-Ensemblemember.");
+
+  const keep=synopticIndexes(times);
+  const sampledTimes=keep.map(function(x){return x.t;});
+  const sample=function(key){return keep.map(function(x){return finite(h[key][x.i]);});};
+  const control=controlKey?sample(controlKey):null;
+  const members=memberKeys.map(sample);
+  const all=(control?[control]:[]).concat(members);
+  const finiteCount=all.reduce(function(sum,series){return sum+series.filter(Number.isFinite).length;},0);
+  if(!finiteCount){
+    throw new Error(model.label+" liefert aktuell T850-Memberfelder ohne gültige Werte.");
+  }
+  return {
+    model:model,times:sampledTimes,control:control,members:members,
+    ensembleCount:all.length,allMembers:all
+  };
+}
+
+function candidateRuns(){
+  const now=new Date(),hour=now.getUTCHours(),baseHour=Math.floor(hour/6)*6;
+  const base=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),baseHour,0,0));
+  const out=[];
+  for(let i=0;i<8;i++){
+    const d=new Date(base.getTime()-i*6*3600000);
+    out.push(d.toISOString().slice(0,13)+":00");
+  }
+  return out;
+}
+async function probeMainRun(model,run,lat,lon,signal){
+  const u=new URL(SINGLE_RUN_API);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.mainApi);
+  u.searchParams.set("run",run);u.searchParams.set("forecast_hours","7");
+  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  let r;
+  try{r=await fetch(u,{signal:signal,cache:"no-store"});}catch(e){if(e.name==="AbortError")throw e;return false;}
+  if(!r.ok)return false;
+  const j=await r.json(),h=j.hourly||{},key=pressureKey(h);
+  return Boolean(key&&hasFiniteSeries(h[key]));
+}
+async function fetchMainRunForCycle(model,run,lat,lon,signal){
+  const u=new URL(SINGLE_RUN_API);
+  u.searchParams.set("latitude",Number(lat).toFixed(4));u.searchParams.set("longitude",Number(lon).toFixed(4));
+  u.searchParams.set("hourly","temperature_850hPa");u.searchParams.set("models",model.mainApi);
+  u.searchParams.set("run",run);u.searchParams.set("forecast_hours",String(HORIZON+1));
+  u.searchParams.set("timezone","GMT");u.searchParams.set("cell_selection","nearest");
+  const r=await fetch(u,{signal:signal,cache:"no-store"});
+  if(!r.ok)throw new Error("Hauptlauf HTTP "+r.status);
+  const j=await r.json(),h=j.hourly||{},times=Array.isArray(h.time)?h.time:[],key=pressureKey(h);
+  if(!times.length||!key)throw new Error("Hauptlauf ohne T850.");
+  const keep=synopticIndexes(times),values=keep.map(function(x){return finite(h[key][x.i]);});
+  if(!hasFiniteSeries(values))throw new Error("Hauptlauf ohne gültige T850-Werte.");
+  return {run:run,times:keep.map(function(x){return x.t;}),values:values};
+}
+async function fetchLatestMainRun(model,lat,lon,signal){
+  for(const run of candidateRuns()){
+    if(await probeMainRun(model,run,lat,lon,signal)){
+      return fetchMainRunForCycle(model,run,lat,lon,signal);
+    }
+  }
+  return null;
+}
+function alignSeries(source,targetTimes){
+  if(!source||!Array.isArray(source.times)||!Array.isArray(source.values))return targetTimes.map(function(){return null;});
+  const map=new Map(source.times.map(function(t,i){return [t,source.values[i]];}));
+  return targetTimes.map(function(t){return map.has(t)?map.get(t):null;});
 }
 function quantile(a,q){
   if(!a.length)return null;if(a.length===1)return a[0];
@@ -121,7 +233,7 @@ function quantile(a,q){
 function stats(result){
   const mean=[],p10=[],p90=[];
   for(let i=0;i<result.times.length;i++){
-    const a=result.members.map(function(m){return m[i];}).filter(Number.isFinite).sort(function(x,y){return x-y;});
+    const a=result.allMembers.map(function(m){return m[i];}).filter(Number.isFinite).sort(function(x,y){return x-y;});
     if(!a.length){mean.push(null);p10.push(null);p90.push(null);continue;}
     mean.push(round(a.reduce(function(s,v){return s+v;},0)/a.length,2));p10.push(round(quantile(a,.1),2));p90.push(round(quantile(a,.9),2));
   }
@@ -130,7 +242,8 @@ function stats(result){
 function commonBounds(results){
   const v=[];
   results.forEach(function(r){
-    r.members.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
+    r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
+    if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});
     if(r.climate)r.climate.values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
   });
   if(!v.length)return {min:-20,max:20};
@@ -155,16 +268,29 @@ function modelChart(r,bounds){
     {label:"10. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},
     {label:"90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true}
   ];
-  r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
+  r.members.forEach(function(m,i){
+    sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});
+  });
+  if(r.control&&hasFiniteSeries(r.control)){
+    sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
+  }
   sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});
+  if(r.mainAligned&&hasFiniteSeries(r.mainAligned)){
+    sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+  }
   sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds)});
 }
 function comparisonChart(results,bounds,lat,lon,c){
   const canvas=el("t850ComparisonChart");if(!canvas)return;if(comparison)comparison.destroy();
-  const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
-  results.forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
+  const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});
+  const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
+  results.forEach(function(r){
+    const d=times.map(function(){return null;});
+    r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});
+    sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});
+  });
   sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds)});
@@ -176,42 +302,101 @@ function renderPlace(p,cp){
   const a=document.createElement("span");a.textContent=Number(p.latitude).toFixed(3)+"°, "+Number(p.longitude).toFixed(3)+"°";n.appendChild(a);
   const b=document.createElement("span");b.textContent=cp?"ERA5-Gitterpunkt "+cp.lat.toFixed(1)+"°, "+cp.lon.toFixed(1)+"°":"ERA5-Klimareferenz außerhalb des derzeitigen Rasters";n.appendChild(b);
 }
+function applyPanelView(){
+  const select=el("t850PanelSelect"),grid=el("t850ModelGrid"),comparisonCard=el("t850ComparisonCard");
+  if(!select||!grid)return;
+  const value=select.value||"four",single=value!=="four";
+  grid.classList.toggle("single-model",single);
+  grid.querySelectorAll("[data-t850-model]").forEach(function(card){
+    card.hidden=single&&card.dataset.t850Model!==value;
+  });
+  if(comparisonCard)comparisonCard.hidden=single;
+  window.setTimeout(function(){
+    Object.values(charts).forEach(function(chart){if(chart&&chart.canvas&&chart.canvas.offsetParent!==null)chart.resize();});
+    if(comparison&&comparison.canvas.offsetParent!==null)comparison.resize();
+  },60);
+}
 async function load(q){
   q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
   if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
-  setBusy(true);setStatus("Ort wird gesucht und vier Ensemblemodelle werden geladen …","info");MODELS.forEach(function(m){setMeta(m,"Daten werden geladen …");});
+  setBusy(true);setStatus("Ort wird gesucht; Ensembles und Hauptläufe werden geladen …","info");
+  MODELS.forEach(function(m){setRun(m,"Ensemble: aktuelle Ausgabe · Hauptlauf wird gesucht …");setMeta(m,"Daten werden geladen …");});
   try{
     const p=await resolvePlace(q,signal);lastPlace=p;
     const c=await loadClimate().catch(function(e){console.warn(e);return null;});
     const results=await Promise.all(MODELS.map(async function(m){
-      try{const r=await fetchModel(m,p.latitude,p.longitude,signal);r.stats=stats(r);r.climate=climateSeries(c,p.latitude,p.longitude,r.times);return r;}
-      catch(e){if(e.name==="AbortError")throw e;setMeta(m,e.message,"error");return {model:m,error:e};}
+      try{
+        const ensemble=await fetchEnsemble(m,p.latitude,p.longitude,signal);
+        const main=await fetchLatestMainRun(m,p.latitude,p.longitude,signal).catch(function(e){console.warn(m.label+" Hauptlauf",e);return null;});
+        ensemble.stats=stats(ensemble);
+        ensemble.main=main;
+        ensemble.mainAligned=main?alignSeries(main,ensemble.times):ensemble.times.map(function(){return null;});
+        ensemble.climate=climateSeries(c,p.latitude,p.longitude,ensemble.times);
+        return ensemble;
+      }catch(e){
+        if(e.name==="AbortError")throw e;
+        setRun(m,"Ensemble/Hauptlauf derzeit nicht darstellbar");
+        setMeta(m,e.message,"error");
+        return {model:m,error:e};
+      }
     }));
     if(signal.aborted)return;
-    const good=results.filter(function(r){return r&&!r.error;});if(!good.length)throw new Error("Keines der vier Ensemblemodelle konnte geladen werden.");
+    const good=results.filter(function(r){return r&&!r.error;});if(!good.length)throw new Error("Keines der vier Ensemblemodelle konnte mit gültigen T850-Werten geladen werden.");
     const bounds=commonBounds(good);
-    good.forEach(function(r){modelChart(r,bounds);setMeta(r.model,r.members.length+" Member · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate.point?" · Klima geladen":" · Klima fehlt"),"ok");});
+    good.forEach(function(r){
+      modelChart(r,bounds);
+      const mainText=r.main?fmtRun(r.main.run)+" · "+r.model.mainLabel:"nicht verfügbar";
+      setRun(r.model,"Ensemble: aktuelle Ausgabe · Hauptlauf: "+mainText);
+      const controlText=r.control&&hasFiniteSeries(r.control)?"inkl. Kontrolllauf":"ohne separaten Kontrolllauf";
+      setMeta(r.model,r.ensembleCount+" ENS · "+controlText+" · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate.point?" · Klima geladen":" · Klima fehlt"),"ok");
+    });
+    lastResults=good;
     comparisonChart(good,bounds,p.latitude,p.longitude,c);
     const cp=gridPoint(c,p.latitude,p.longitude);renderPlace(p,cp);
-    setStatus(good.length+"/4 Modelle geladen. "+(cp?"ERA5 1991–2020 ist als dicke rote Linie eingeblendet.":"Ensembles geladen; ERA5-Klimareferenz für diesen Ort nicht verfügbar."),good.length===4?"ok":"warn");
+    applyPanelView();
+    const missing=MODELS.length-good.length;
+    setStatus(
+      good.length+"/4 Modelle mit gültiger T850 geladen"+(missing?" · "+missing+" Modell(e) derzeit ohne Daten":"")+
+      ". Hauptläufe werden mit exakter UTC-Initialisierung aus der Single-Runs-API eingeblendet.",
+      missing?"warn":"ok"
+    );
   }catch(e){
     if(e.name!=="AbortError"){console.error("T850",e);setStatus(e.message||String(e),"error");lastPlace=null;}
   }finally{if(!signal.aborted)setBusy(false);}
 }
 function resetZoom(){Object.values(charts).forEach(function(c){if(c.resetZoom)c.resetZoom();});if(comparison&&comparison.resetZoom)comparison.resetZoom();}
-function filename(ext){return "T850_Ensembles_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;}
-async function exportCanvas(){if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");return window.html2canvas(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});}
+function filename(ext){
+  const view=el("t850PanelSelect")?.value||"four";
+  return "T850_Ensembles_"+view+"_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;
+}
+async function exportCanvas(){
+  if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
+  return window.html2canvas(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
+}
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function png(){try{const c=await exportCanvas();c.toBlob(function(b){if(b)saveBlob(b,filename("png"));},"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
-async function pdf(){try{const c=await exportCanvas(),J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error("jsPDF ist nicht geladen.");const p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h,undefined,"FAST");p.save(filename("pdf"));}catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}}
+async function pdf(){
+  try{
+    const c=await exportCanvas(),J=window.jspdf&&window.jspdf.jsPDF;if(!J)throw new Error("jsPDF ist nicht geladen.");
+    const p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;
+    p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h,undefined,"FAST");p.save(filename("pdf"));
+  }catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}
+}
 function mount(){
-  if(mounted){setTimeout(function(){Object.values(charts).forEach(function(c){c.resize();});if(comparison)comparison.resize();},40);return;}
-  const form=el("t850SearchForm"),input=el("t850LocationInput");if(!form||!input)return;mounted=true;
+  if(mounted){applyPanelView();setTimeout(function(){Object.values(charts).forEach(function(c){c.resize();});if(comparison)comparison.resize();},40);return;}
+  const form=el("t850SearchForm"),input=el("t850LocationInput"),view=el("t850PanelSelect");if(!form||!input)return;mounted=true;
   form.addEventListener("submit",function(e){e.preventDefault();load(input.value);});
-  el("t850ResetZoom").addEventListener("click",resetZoom);el("t850PngDownload").addEventListener("click",png);el("t850PdfDownload").addEventListener("click",pdf);
-  setStatus("Ort eingeben und „Ensembles laden“ wählen. Gezeigt werden die ersten 180 Prognosestunden in 6-stündlicher Auflösung.","info");
+  el("t850ResetZoom")?.addEventListener("click",resetZoom);
+  el("t850PngDownload")?.addEventListener("click",png);
+  el("t850PdfDownload")?.addEventListener("click",pdf);
+  view?.addEventListener("change",applyPanelView);
+  applyPanelView();
+  setStatus("Ort eingeben und „Ensembles laden“ wählen. T850 wird aus der API stündlich geladen und lokal auf 00/06/12/18 UTC ausgedünnt.","info");
 }
 window.mountT850Ensembles=mount;
-document.addEventListener("click",function(e){const b=e.target.closest&&e.target.closest(".tab-button");if(b&&String(b.getAttribute("onclick")||"").includes("switchTab('t850-ensembles')"))setTimeout(mount,0);});
+document.addEventListener("click",function(e){
+  const b=e.target.closest&&e.target.closest(".tab-button");
+  if(b&&String(b.getAttribute("onclick")||"").includes("switchTab('t850-ensembles')"))setTimeout(mount,0);
+});
 document.addEventListener("DOMContentLoaded",function(){const p=el("t850-ensembles");if(p&&p.classList.contains("active"))mount();});
 })();
