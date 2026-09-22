@@ -14,13 +14,23 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
   <div class="section-header t850-header">
     <h2>T850-Ensembles</h2>
     <p>850-hPa-Temperatur der Ensembles von ECMWF IFS, ECMWF AIFS, DWD ICON und GFS/GEFS für einen frei wählbaren Ort.</p>
-    <span class="section-status">4 Modelle · 6-stündlich · 180 h · ERA5-Referenz 1991–2020</span>
+    <span class="section-status">4 Modelle · 00/06/12/18 UTC · 180 h · Hauptlauf · ERA5-Referenz 1991–2020</span>
   </div>
 
   <form id="t850SearchForm" class="controls t850-controls">
     <div class="control-group t850-place-control">
       <label for="t850LocationInput">Ort</label>
       <input id="t850LocationInput" type="search" autocomplete="off" placeholder="z. B. Berlin, Wien, Zürich" aria-label="Ort für T850-Ensembles">
+    </div>
+    <div class="control-group t850-view-control">
+      <label for="t850PanelSelect">Ansicht</label>
+      <select id="t850PanelSelect">
+        <option value="four">4er-Tafel + Modellvergleich</option>
+        <option value="ecmwf">ECMWF IFS ENS groß</option>
+        <option value="aifs">ECMWF AIFS ENS groß</option>
+        <option value="icon">DWD ICON EPS groß</option>
+        <option value="gefs">GFS / GEFS groß</option>
+      </select>
     </div>
     <button id="t850LoadButton" class="action" type="submit">Ensembles laden</button>
     <button id="t850ResetZoom" class="t850-secondary-button" type="button">Zoom zurücksetzen</button>
@@ -34,33 +44,35 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
   <div id="t850Status" class="t850-status" aria-live="polite"></div>
 
   <div id="t850ExportArea" class="t850-export-area">
-    <div class="t850-grid">
-      <section class="t850-model-card">
-        <div class="t850-model-head"><div><h3>ECMWF IFS ENS</h3><div id="t850MetaEcmwf" class="t850-model-meta">Ort auswählen</div></div></div>
+    <div id="t850ModelGrid" class="t850-grid">
+      <section class="t850-model-card" data-t850-model="ecmwf">
+        <div class="t850-model-head"><div><h3>ECMWF IFS ENS</h3><div id="t850RunEcmwf" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaEcmwf" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartEcmwf"></canvas></div>
       </section>
-      <section class="t850-model-card">
-        <div class="t850-model-head"><div><h3>ECMWF AIFS ENS</h3><div id="t850MetaAifs" class="t850-model-meta">Ort auswählen</div></div></div>
+      <section class="t850-model-card" data-t850-model="aifs">
+        <div class="t850-model-head"><div><h3>ECMWF AIFS ENS</h3><div id="t850RunAifs" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaAifs" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartAifs"></canvas></div>
       </section>
-      <section class="t850-model-card">
-        <div class="t850-model-head"><div><h3>DWD ICON EPS</h3><div id="t850MetaIcon" class="t850-model-meta">Ort auswählen</div></div></div>
+      <section class="t850-model-card" data-t850-model="icon">
+        <div class="t850-model-head"><div><h3>DWD ICON EPS</h3><div id="t850RunIcon" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaIcon" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartIcon"></canvas></div>
       </section>
-      <section class="t850-model-card">
-        <div class="t850-model-head"><div><h3>GFS / GEFS</h3><div id="t850MetaGefs" class="t850-model-meta">Ort auswählen</div></div></div>
+      <section class="t850-model-card" data-t850-model="gefs">
+        <div class="t850-model-head"><div><h3>GFS / GEFS</h3><div id="t850RunGefs" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaGefs" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartGefs"></canvas></div>
       </section>
     </div>
 
-    <section class="t850-comparison-card">
+    <section id="t850ComparisonCard" class="t850-comparison-card">
       <div class="t850-comparison-head">
         <div><h3>Vergleich der Ensemble-Mittel</h3><div class="t850-model-meta">Alle vier Ensemble-Mittel auf einer gemeinsamen Skala</div></div>
       </div>
       <div class="t850-chart-shell"><canvas id="t850ComparisonChart"></canvas></div>
       <div class="t850-legend-note">
         <span><i class="t850-swatch members"></i> einzelne Member</span>
+        <span><i class="t850-swatch control"></i> Kontrolllauf</span>
         <span><i class="t850-swatch"></i> Ensemble-Mittel</span>
+        <span><i class="t850-swatch main"></i> Hauptlauf</span>
         <span><i class="t850-swatch climate"></i> ERA5 1991–2020</span>
       </div>
     </section>
@@ -68,8 +80,9 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
   <p class="t850-source">
     Ensemblevorhersagen: Open-Meteo Ensemble API mit ECMWF IFS ENS, ECMWF AIFS ENS, DWD ICON EPS und NOAA GEFS.
-    Klimareferenz: ERA5-T850, 1991–2020, synoptische Monatsmittel für 00/06/12/18 UTC; zwischen den Monatsstützpunkten zeitlich interpoliert.
-    Die ERA5-Klimareferenz deckt in der ersten Version Europa und angrenzende Gebiete ab (20–80°N, 40°W–50°E).
+    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt.
+    Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung.
+    Klimareferenz: ERA5-T850 1991–2020; synoptische Monatsmittel für 00/06/12/18 UTC, zwischen den Monatsstützpunkten zeitlich interpoliert.
   </p>
 </div>
 '''
