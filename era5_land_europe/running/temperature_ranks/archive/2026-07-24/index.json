@@ -1,0 +1,95 @@
+{
+  "ready": true,
+  "archived": true,
+  "archive_format": "lossless-webp",
+  "data_through": "2026-07-24",
+  "current_year": 2026,
+  "history_start": 1950,
+  "history_end": 2025,
+  "historical_years": 76,
+  "total_rank_positions": 77,
+  "grid": "0,1° ERA5-Land",
+  "rank_direction": "1 = wärmster",
+  "data_archive": {
+    "file": "era5_land_europe/running/temperature_ranks/data_archive/2026-07.npz",
+    "format": "npz-uint8-ranks",
+    "missing_value": 0,
+    "day_index": 23
+  },
+  "products": {
+    "day": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-07-24/temperature_day_rank.webp",
+      "label": "24.07.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich des 24.07. mit demselben Kalendertag 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 1.7679745757737864,
+        "top3_area_percent": 5.387866973320963,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 77
+      }
+    },
+    "month_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-07-24/temperature_month_to_date_rank.webp",
+      "label": "01.–24.07.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.–24.07. mit demselben Monatsabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 9.04350235721543,
+        "top3_area_percent": 18.212014037281854,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 66
+      }
+    },
+    "season_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-07-24/temperature_season_to_date_rank.webp",
+      "label": "Sommer · 01.06.2026–24.07.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich Sommer ab 01.06. bis 24.07. mit demselben Jahreszeitenabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 18.644469522456518,
+        "top3_area_percent": 26.795542461658442,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 70
+      },
+      "season_key": "summer",
+      "season_name": "Sommer"
+    },
+    "year_to_date": {
+      "file": "era5_land_europe/running/temperature_ranks/archive/2026-07-24/temperature_year_to_date_rank.webp",
+      "label": "01.01.–24.07.2026",
+      "unit": "Rang",
+      "history_start": 1950,
+      "history_end": 2025,
+      "comparison_years": 76,
+      "total_rank_positions": 77,
+      "rank_direction": "1 = wärmster",
+      "note": "Vergleich 01.01.–24.07. mit demselben Jahresabschnitt 1950–2025.",
+      "stats": {
+        "rank1_area_percent": 15.43604008860071,
+        "top3_area_percent": 23.219625880598393,
+        "valid_gridpoints": 125942,
+        "min_rank": 1,
+        "max_rank": 70
+      }
+    }
+  }
+}
