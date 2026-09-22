@@ -4,8 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-3">'
-JS_TAG = '<script src="t850_ensembles.js?v=20260922-3"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-4">'
+JS_TAG = '<script src="t850_ensembles.js?v=20260922-4"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">T850-Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
@@ -14,7 +14,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
   <div class="section-header t850-header">
     <h2>T850-Ensembles</h2>
     <p>850-hPa-Temperatur der Ensembles von ECMWF IFS, ECMWF AIFS, DWD ICON und GFS/GEFS für einen frei wählbaren Ort.</p>
-    <span class="section-status">4 Modelle · 00/06/12/18 UTC · 180 h · Hauptlauf · ERA5-Referenz 1991–2020</span>
+    <span class="section-status">4 Modelle · voller Modellhorizont · Hauptlauf · ERA5-Referenz 1991–2020</span>
   </div>
 
   <form id="t850SearchForm" class="controls t850-controls">
@@ -25,11 +25,12 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
     <div class="control-group t850-view-control">
       <label for="t850PanelSelect">Ansicht</label>
       <select id="t850PanelSelect">
-        <option value="four">4er-Tafel + Modellvergleich</option>
+        <option value="" selected>Panel auswählen …</option>
+        <option value="gefs">GFS / GEFS Seamless groß</option>
         <option value="ecmwf">ECMWF IFS ENS groß</option>
         <option value="aifs">ECMWF AIFS ENS groß</option>
-        <option value="icon">DWD ICON EPS groß</option>
-        <option value="gefs">GFS / GEFS groß</option>
+        <option value="icon">DWD ICON EPS Seamless groß</option>
+        <option value="four">4er-Tafel + Modellvergleich</option>
       </select>
     </div>
     <button id="t850LoadButton" class="action" type="submit">Ensembles laden</button>
@@ -54,11 +55,11 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
         <div class="t850-chart-shell"><canvas id="t850ChartAifs"></canvas></div>
       </section>
       <section class="t850-model-card" data-t850-model="icon">
-        <div class="t850-model-head"><div><h3>DWD ICON EPS</h3><div id="t850RunIcon" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaIcon" class="t850-model-meta">Ort auswählen</div></div></div>
+        <div class="t850-model-head"><div><h3>DWD ICON EPS Seamless</h3><div id="t850RunIcon" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaIcon" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartIcon"></canvas></div>
       </section>
       <section class="t850-model-card" data-t850-model="gefs">
-        <div class="t850-model-head"><div><h3>GFS / GEFS</h3><div id="t850RunGefs" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaGefs" class="t850-model-meta">Ort auswählen</div></div></div>
+        <div class="t850-model-head"><div><h3>GFS / GEFS Seamless</h3><div id="t850RunGefs" class="t850-run-label">Ensemble: – · Hauptlauf: –</div><div id="t850MetaGefs" class="t850-model-meta">Ort auswählen</div></div></div>
         <div class="t850-chart-shell"><canvas id="t850ChartGefs"></canvas></div>
       </section>
     </div>
@@ -80,7 +81,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
   <p class="t850-source">
     Ensemblevorhersagen: Open-Meteo Ensemble API mit ECMWF IFS ENS, ECMWF AIFS ENS, DWD ICON EPS und NOAA GEFS.
-    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt.
+    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage, ICON nutzt das DWD ICON EPS Seamless und GEFS das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
     Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung.
     Klimareferenz: ERA5-T850 1991–2020; synoptische Monatsmittel für 00/06/12/18 UTC, zwischen den Monatsstützpunkten zeitlich interpoliert.
   </p>
