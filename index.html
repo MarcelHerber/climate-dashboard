@@ -1149,7 +1149,7 @@ button.action:hover{background:#1f2937}
 
 </style>
 <link rel="stylesheet" href="sst_europe.css">
-<link rel="stylesheet" href="t850_ensembles.css?v=20260922-5">
+<link rel="stylesheet" href="t850_ensembles.css?v=20260922-6">
 </head>
 <body>
 
@@ -3497,7 +3497,7 @@ button.action:hover{background:#1f2937}
         <option value="gefs">GFS / GEFS Seamless groß</option>
         <option value="ecmwf">ECMWF IFS ENS groß</option>
         <option value="aifs">ECMWF AIFS ENS groß</option>
-        <option value="icon">DWD ICON-EU EPS groß</option>
+        <option value="icon">DWD ICON-EU EPS / Fallback</option>
         <option value="four">4er-Tafel + Modellvergleich</option>
       </select>
     </div>
@@ -3549,7 +3549,7 @@ button.action:hover{background:#1f2937}
 
   <p class="t850-source">
     Ensemblevorhersagen: Open-Meteo Ensemble API mit ECMWF IFS ENS, ECMWF AIFS ENS, DWD ICON EPS und NOAA GEFS.
-    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage. ICON-EU EPS wird für T850 als 40-Member-Ensemble-Mittel mit Ensemble-Spread dargestellt, da die Open-Meteo-Ensemble-API die einzelnen ICON-EPS-Druckflächenmember derzeit nicht bereitstellt. GEFS nutzt das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
+    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage. ICON-EU EPS wird für T850 zuerst direkt abgefragt. Solange die API dort nur leere Werte liefert, zeigt das Panel automatisch den ICON-EU-Hauptlauf als klar gekennzeichneten Fallback. GEFS nutzt das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
     Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung.
     Klimareferenz: ERA5-T850 1991–2020; synoptische Monatsmittel für 00/06/12/18 UTC, zwischen den Monatsstützpunkten zeitlich interpoliert.
   </p>
@@ -3601,7 +3601,7 @@ button.action:hover{background:#1f2937}
   </div>
 </div>
 
-<script src="t850_ensembles.js?v=20260922-5"></script>
+<script src="t850_ensembles.js?v=20260922-6"></script>
 <script src="sst_europe.js"></script>
 <script>
 Chart.register(ChartDataLabels);
