@@ -44,6 +44,11 @@ jobs:
                   "models": "ecmwf_aifs025_ensemble", "forecast_days": 15,
                   "temporal_resolution": "hourly", "timezone": "GMT", "cell_selection": "nearest"
               }),
+              ("ICON-EU deterministic T850", "https://api.open-meteo.com/v1/dwd-icon", {
+                  "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
+                  "models": "icon_eu", "forecast_days": 5,
+                  "timezone": "GMT", "cell_selection": "nearest"
+              }),
               ("ICON-EU EPS members", "https://ensemble-api.open-meteo.com/v1/ensemble", {
                   "latitude": LAT, "longitude": LON, "hourly": "temperature_850hPa",
                   "models": "dwd_icon_eu_eps", "forecast_days": 5,
