@@ -4,8 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-5">'
-JS_TAG = '<script src="t850_ensembles.js?v=20260922-5"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-6">'
+JS_TAG = '<script src="t850_ensembles.js?v=20260922-6"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">T850-Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
@@ -29,7 +29,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
         <option value="gefs">GFS / GEFS Seamless groß</option>
         <option value="ecmwf">ECMWF IFS ENS groß</option>
         <option value="aifs">ECMWF AIFS ENS groß</option>
-        <option value="icon">DWD ICON-EU EPS groß</option>
+        <option value="icon">DWD ICON-EU EPS / Fallback</option>
         <option value="four">4er-Tafel + Modellvergleich</option>
       </select>
     </div>
@@ -81,7 +81,7 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
   <p class="t850-source">
     Ensemblevorhersagen: Open-Meteo Ensemble API mit ECMWF IFS ENS, ECMWF AIFS ENS, DWD ICON EPS und NOAA GEFS.
-    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage. ICON-EU EPS wird für T850 als 40-Member-Ensemble-Mittel mit Ensemble-Spread dargestellt, da die Open-Meteo-Ensemble-API die einzelnen ICON-EPS-Druckflächenmember derzeit nicht bereitstellt. GEFS nutzt das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
+    Die API-Daten werden stündlich geladen und im Browser auf 00/06/12/18 UTC ausgedünnt. ECMWF/AIFS laufen bis 15 Tage. ICON-EU EPS wird für T850 zuerst direkt abgefragt. Solange die API dort nur leere Werte liefert, zeigt das Panel automatisch den ICON-EU-Hauptlauf als klar gekennzeichneten Fallback. GEFS nutzt das GFS Ensemble Seamless mit erweitertem Langfrist-Horizont.
     Hauptläufe: Open-Meteo Single Runs API mit exakter UTC-Initialisierung.
     Klimareferenz: ERA5-T850 1991–2020; synoptische Monatsmittel für 00/06/12/18 UTC, zwischen den Monatsstützpunkten zeitlich interpoliert.
   </p>
