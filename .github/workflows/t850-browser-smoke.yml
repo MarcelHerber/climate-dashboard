@@ -1,5 +1,5 @@
 name: T850 Browser Smoke Test
-# rerun after live fix v6
+# rerun programmatic tab activation after live fix v6
 
 on:
   push:
@@ -40,15 +40,7 @@ jobs:
           try:
               d.get("https://marcelherber.github.io/climate-dashboard/?t850-smoke=1")
               time.sleep(2)
-              buttons=d.find_elements(By.CSS_SELECTOR,'.tab-button')
-              target=None
-              for b in buttons:
-                  if "switchTab('t850-ensembles')" in (b.get_attribute("onclick") or ""):
-                      target=b
-                      break
-              if target is None:
-                  raise RuntimeError("T850 tab button not found")
-              d.execute_script("arguments[0].click()", target)
+              d.execute_script("switchTab('t850-ensembles')")
               time.sleep(1)
               inp=d.find_element(By.ID,"t850LocationInput")
               inp.clear(); inp.send_keys("Frankfurt")
