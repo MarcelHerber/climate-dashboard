@@ -440,14 +440,14 @@
     meteogramCharts.push(new Chart(document.getElementById("mosmixTempChart"), {
       type:"line",
       data:{labels:labels,datasets:[
-        Object.assign({
+        Object.assign({},commonLine,{
           label:"Temperatur",
           data:p.TTT || [],
           borderColor:"#c62828",
           backgroundColor:"rgba(198,40,40,.08)",
           pointRadius:function(context){ return tempExtrema.has(context.dataIndex) ? 3 : 0; },
           pointHoverRadius:4
-        },commonLine),
+        }),
         Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine)
       ]},
       options:tempOptions
