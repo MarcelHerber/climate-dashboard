@@ -2,6 +2,7 @@
   "use strict";
 
   const DATA_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json";
+  const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
   const STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
   const TAB_ID = "mosmix";
 
@@ -11,6 +12,9 @@
   let sliderIndex = 0;
   let playTimer = null;
   let loaded = false;
+  let selectedStationKey = null;
+  let meteogramCharts = [];
+  const detailCache = new Map();
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function(ch) {
@@ -73,7 +77,15 @@
       ".mosmix-note{margin:10px 0 0;color:#64748b;font-size:12px;line-height:1.5}",
       ".mosmix-point-label{background:transparent!important;border:0!important}",
       ".mosmix-point-label>div{min-width:34px;padding:3px 5px;border:1px solid rgba(0,0,0,.35);border-radius:5px;font-size:11px;font-weight:800;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.22)}",
-      "@media(max-width:800px){.mosmix-controls{grid-template-columns:1fr 1fr}.mosmix-slider-wrap{grid-column:1/-1}.mosmix-map{height:540px}}"
+      ".mosmix-meteogram-card h3{margin:0 0 4px;font-size:20px}.mosmix-meteogram-card p{margin:0}",
+      ".mosmix-meteogram-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:12px}",
+      ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
+      ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
+      ".mosmix-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}",
+      ".mosmix-chart-card{min-width:0;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
+      ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
+      "@media(max-width:900px){.mosmix-chart-grid{grid-template-columns:1fr}.mosmix-station-search{width:100%}.mosmix-station-search input{min-width:0;flex:1}}",
+      "@media(max-width:800px){.mosmix-controls{grid-template-columns:1fr 1fr}.mosmix-slider-wrap{grid-column:1/-1}.mosmix-map{height:540px}.mosmix-chart-wrap{height:250px}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -98,6 +110,20 @@
       '<div id="mosmixMap" class="mosmix-map"></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
       '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Gezeigt werden originale MOSMIX-Punktprognosen. Eine flächige Interpolation wird separat ergänzt und ausdrücklich als interpolierte Darstellung gekennzeichnet.</p>',
+      '</div>',
+      '<div class="mosmix-card mosmix-meteogram-card">',
+      '<div class="mosmix-meteogram-head">',
+      '<div><h3>MOSMIX-Meteogramm</h3><p class="mosmix-note">Station suchen oder einen Punkt in der Karte anklicken.</p></div>',
+      '<div class="mosmix-station-search"><input id="mosmixStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Frankfurt, Saarbrücken …" autocomplete="off"><datalist id="mosmixStationList"></datalist><button id="mosmixStationButton" class="mosmix-button" type="button">Diagramm anzeigen</button></div>',
+      '</div>',
+      '<div id="mosmixMeteogramStatus" class="mosmix-meteogram-status">Noch keine Station ausgewählt.</div>',
+      '<div class="mosmix-chart-grid">',
+      '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><h4>Wind &amp; Böen</h4><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div></div>',
+      '</div>',
+      '<p class="mosmix-note">Wind wird in km/h, Niederschlag in mm und Luftdruck in hPa dargestellt. Einzelne Parameter oder Termine können in MOSMIX fehlen.</p>',
       '</div></div></div>'
     ].join("");
   }
@@ -216,6 +242,203 @@
       'Gültig: ' + esc(fmtTime(valid));
   }
 
+
+  function stationDisplay(station) {
+    return station.name + " (" + station.id + ")";
+  }
+
+  function populateStationSearch() {
+    const list = document.getElementById("mosmixStationList");
+    if (!list || !data) return;
+    list.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    data.stations.forEach(function(station) {
+      const option = document.createElement("option");
+      option.value = stationDisplay(station);
+      frag.appendChild(option);
+    });
+    list.appendChild(frag);
+  }
+
+  function findStation(query) {
+    const q = String(query || "").trim().toLocaleLowerCase("de-DE");
+    if (!q || !data) return null;
+
+    let station = data.stations.find(function(s) {
+      return stationDisplay(s).toLocaleLowerCase("de-DE") === q;
+    });
+    if (station) return station;
+
+    station = data.stations.find(function(s) {
+      return String(s.id).toLocaleLowerCase("de-DE") === q ||
+        String(s.name).toLocaleLowerCase("de-DE") === q;
+    });
+    if (station) return station;
+
+    return data.stations.find(function(s) {
+      return String(s.name).toLocaleLowerCase("de-DE").includes(q) ||
+        String(s.id).toLocaleLowerCase("de-DE").includes(q);
+    }) || null;
+  }
+
+  function destroyMeteogramCharts() {
+    meteogramCharts.forEach(function(chart) {
+      try { chart.destroy(); } catch (_) {}
+    });
+    meteogramCharts = [];
+  }
+
+  function meteogramLabels() {
+    return data.timesteps.map(function(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      const weekday = new Intl.DateTimeFormat("de-DE", {
+        timeZone:"Europe/Berlin", weekday:"short"
+      }).format(d);
+      const date = new Intl.DateTimeFormat("de-DE", {
+        timeZone:"Europe/Berlin", day:"2-digit", month:"2-digit"
+      }).format(d);
+      const hour = new Intl.DateTimeFormat("de-DE", {
+        timeZone:"Europe/Berlin", hour:"2-digit", hour12:false
+      }).format(d);
+      return weekday + " " + date + " " + hour + "h";
+    });
+  }
+
+  function compass(deg) {
+    if (!Number.isFinite(deg)) return "";
+    const dirs = ["N","NO","O","SO","S","SW","W","NW"];
+    return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+  }
+
+  function baseChartOptions(yTitle) {
+    return {
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{display:true,labels:{boxWidth:18,usePointStyle:true}},
+        tooltip:{enabled:true}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:12,maxRotation:0,autoSkip:true},grid:{display:false}},
+        y:{title:{display:true,text:yTitle}}
+      }
+    };
+  }
+
+  function createMeteogram(detail) {
+    if (!window.Chart) throw new Error("Chart.js ist nicht verfügbar.");
+    destroyMeteogramCharts();
+
+    const p = detail.parameters || {};
+    const labels = meteogramLabels();
+    const commonLine = {pointRadius:0,pointHoverRadius:3,borderWidth:2,tension:.18,spanGaps:true};
+
+    meteogramCharts.push(new Chart(document.getElementById("mosmixTempChart"), {
+      type:"line",
+      data:{labels:labels,datasets:[
+        Object.assign({label:"Temperatur",data:p.TTT || [],borderColor:"#c62828",backgroundColor:"rgba(198,40,40,.08)"},commonLine),
+        Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine)
+      ]},
+      options:baseChartOptions("°C")
+    }));
+
+    const rainOptions = baseChartOptions("mm / h");
+    rainOptions.scales.y.beginAtZero = true;
+    rainOptions.scales.yCloud = {
+      position:"right",min:0,max:100,
+      title:{display:true,text:"Bewölkung (%)"},
+      grid:{drawOnChartArea:false}
+    };
+    meteogramCharts.push(new Chart(document.getElementById("mosmixRainChart"), {
+      data:{labels:labels,datasets:[
+        {type:"bar",label:"1-h-Niederschlag",data:p.RR1c || [],yAxisID:"y",backgroundColor:"rgba(23,105,194,.58)",borderWidth:0,barPercentage:.9,categoryPercentage:1},
+        Object.assign({type:"line",label:"Bewölkung",data:p.N || [],yAxisID:"yCloud",borderColor:"#64748b",backgroundColor:"rgba(100,116,139,.06)"},commonLine)
+      ]},
+      options:rainOptions
+    }));
+
+    const windOptions = baseChartOptions("km/h");
+    windOptions.scales.y.beginAtZero = true;
+    windOptions.plugins.tooltip.callbacks = {
+      afterBody:function(items) {
+        if (!items || !items.length) return "";
+        const i = items[0].dataIndex;
+        const dd = p.DD && p.DD[i];
+        return Number.isFinite(dd) ? "Windrichtung: " + Math.round(dd) + "° (" + compass(dd) + ")" : "";
+      }
+    };
+    meteogramCharts.push(new Chart(document.getElementById("mosmixWindChart"), {
+      type:"line",
+      data:{labels:labels,datasets:[
+        Object.assign({label:"Wind",data:p.FF || [],borderColor:"#15806c",backgroundColor:"rgba(21,128,108,.06)"},commonLine),
+        Object.assign({label:"Böen",data:p.FX1 || [],borderColor:"#d97706",backgroundColor:"rgba(217,119,6,.06)",borderDash:[5,3]},commonLine)
+      ]},
+      options:windOptions
+    }));
+
+    meteogramCharts.push(new Chart(document.getElementById("mosmixPressureChart"), {
+      type:"line",
+      data:{labels:labels,datasets:[
+        Object.assign({label:"Luftdruck",data:p.PPPP || [],borderColor:"#4f46e5",backgroundColor:"rgba(79,70,229,.06)"},commonLine)
+      ]},
+      options:baseChartOptions("hPa")
+    }));
+  }
+
+  async function loadStationDetail(station) {
+    if (!station || !station.key) throw new Error("Für diesen Punkt fehlen Detaildaten.");
+    if (detailCache.has(station.key)) return detailCache.get(station.key);
+
+    const response = await fetch(DETAIL_BASE + encodeURIComponent(station.key) + ".json?v=" + encodeURIComponent(data.issue_time || ""), {
+      cache:"no-store"
+    });
+    if (!response.ok) throw new Error("Meteogramm-Daten HTTP " + response.status);
+    const detail = await response.json();
+    detailCache.set(station.key, detail);
+    return detail;
+  }
+
+  async function selectStation(station) {
+    if (!station) return;
+    selectedStationKey = station.key;
+    const input = document.getElementById("mosmixStationSearch");
+    if (input) input.value = stationDisplay(station);
+
+    const status = document.getElementById("mosmixMeteogramStatus");
+    if (status) status.textContent = "Meteogramm für " + station.name + " wird geladen …";
+
+    try {
+      const detail = await loadStationDetail(station);
+      createMeteogram(detail);
+      if (status) {
+        status.innerHTML =
+          "<strong>" + esc(station.name) + "</strong> · MOSMIX-ID " + esc(station.id) +
+          (Number.isFinite(station.elev_m) ? " · " + Math.round(station.elev_m) + " m" : "") +
+          " · Lauf " + esc(fmtTime(data.issue_time));
+      }
+    } catch (err) {
+      console.error("MOSMIX Meteogramm:", err);
+      if (status) status.textContent = "Meteogramm konnte nicht geladen werden: " + err.message;
+    }
+  }
+
+  function selectStationFromSearch() {
+    const input = document.getElementById("mosmixStationSearch");
+    const station = findStation(input && input.value);
+    const status = document.getElementById("mosmixMeteogramStatus");
+    if (!station) {
+      if (status) status.textContent = "Keine passende MOSMIX-Station gefunden.";
+      return;
+    }
+    selectStation(station);
+    if (map) {
+      map.setView([station.lat,station.lon], Math.max(map.getZoom(),8));
+    }
+  }
+
   function render() {
     if (!data || !map || !markerLayer) return;
     const i = sliderIndex;
@@ -264,7 +487,9 @@
         weight:.8,
         fillColor:color,
         fillOpacity:.9
-      }).bindPopup(popupHtml(station,value,valid)).addTo(markerLayer);
+      }).bindPopup(popupHtml(station,value,valid))
+        .on("click", function(){ selectStation(station); })
+        .addTo(markerLayer);
     });
 
     let min = NaN, max = NaN;
@@ -319,6 +544,14 @@
       slider.addEventListener("input", function(){ setIndex(slider.value); });
       document.getElementById("mosmixPlay").addEventListener("click", togglePlay);
       document.getElementById("mosmixNow").addEventListener("click", function(){ setIndex(chooseInitialIndex()); });
+      document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
+      document.getElementById("mosmixStationSearch").addEventListener("keydown", function(event){
+        if (event.key === "Enter") {
+          event.preventDefault();
+          selectStationFromSearch();
+        }
+      });
+      populateStationSearch();
       map.on("zoomend", render);
 
       document.getElementById("mosmixRunInfo").innerHTML =
@@ -329,6 +562,12 @@
 
       renderLegend();
       setIndex(chooseInitialIndex());
+
+      const preferred = data.stations.find(function(station){
+        return /FRANKFURT.*MAIN|FRANKFURT\/M/i.test(station.name);
+      });
+      if (preferred) selectStation(preferred);
+
       setTimeout(function(){ map.invalidateSize(); }, 100);
     } catch (err) {
       loaded = false;
