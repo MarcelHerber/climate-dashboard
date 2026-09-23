@@ -121,7 +121,8 @@
       btn.dataset.navGroup = "germany";
       btn.dataset.mosmixNav = "1";
       btn.textContent = "DWD MOSMIX";
-      btn.setAttribute("onclick", "switchTab('mosmix');window.setTimeout(function(){window.dispatchEvent(new Event('mosmix-open'));},0)");
+      btn.setAttribute("onclick", "switchTab('mosmix')");
+      btn.addEventListener("click", function(){ setTimeout(init,0); });
 
       menu.appendChild(divider);
       menu.appendChild(heading);
@@ -343,7 +344,6 @@
     addCss();
     addSection();
     addNavigation();
-    window.addEventListener("mosmix-open", init);
     if (document.getElementById(TAB_ID) && document.getElementById(TAB_ID).classList.contains("active")) init();
   }
 
