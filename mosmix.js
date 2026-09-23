@@ -12,6 +12,9 @@
   let sliderIndex = 0;
   let playTimer = null;
   let loaded = false;
+  let mapMode = "hourly";
+  let extremaFrames = [];
+  let statesGeo = null;
   let selectedStationKey = null;
   let meteogramCharts = [];
   const detailCache = new Map();
@@ -63,7 +66,12 @@
     style.textContent = [
       ".mosmix-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}",
       ".mosmix-card{background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow);padding:16px}",
-      ".mosmix-controls{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:12px;align-items:end}",
+      ".mosmix-controls{display:grid;grid-template-columns:auto minmax(260px,1fr) auto auto auto;gap:12px;align-items:end}",
+      ".mosmix-mode-group{display:flex;border:1px solid #cbd5df;border-radius:8px;overflow:hidden;background:#fff}",
+      ".mosmix-mode-button{appearance:none;border:0;border-right:1px solid #dbe2e8;background:#fff;color:#334155;padding:9px 12px;font-weight:750;cursor:pointer;white-space:nowrap}",
+      ".mosmix-mode-button:last-child{border-right:0}",
+      ".mosmix-mode-button.active{background:#10213d;color:#fff}",
+      ".mosmix-download-button{background:#10213d;color:#fff;border-color:#10213d}",
       ".mosmix-slider-wrap label{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:700;color:#334155;margin-bottom:7px}",
       ".mosmix-slider{width:100%}",
       ".mosmix-button{appearance:none;border:1px solid #cbd5df;border-radius:7px;background:#fff;color:#172033;padding:9px 13px;font-weight:700;cursor:pointer}",
@@ -85,7 +93,8 @@
       ".mosmix-chart-card{min-width:0;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
       ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
       "@media(max-width:900px){.mosmix-chart-grid{grid-template-columns:1fr}.mosmix-station-search{width:100%}.mosmix-station-search input{min-width:0;flex:1}}",
-      "@media(max-width:800px){.mosmix-controls{grid-template-columns:1fr 1fr}.mosmix-slider-wrap{grid-column:1/-1}.mosmix-map{height:540px}.mosmix-chart-wrap{height:250px}}"
+      "@media(max-width:1050px){.mosmix-controls{grid-template-columns:1fr 1fr 1fr}.mosmix-mode-group,.mosmix-slider-wrap{grid-column:1/-1}}",
+      "@media(max-width:800px){.mosmix-controls{grid-template-columns:1fr 1fr}.mosmix-mode-group,.mosmix-slider-wrap{grid-column:1/-1}.mosmix-map{height:540px}.mosmix-chart-wrap{height:250px}.mosmix-download-button{grid-column:1/-1}}" 
     ].join("");
     document.head.appendChild(style);
   }
@@ -102,9 +111,11 @@
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-status" id="mosmixValidInfo"></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-slider-wrap"><label><span>Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button">Tmax</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button">Tmin</button></div>',
+      '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
+      '<button id="mosmixAreaDownload" class="mosmix-button mosmix-download-button" type="button">⬇ Flächenkarte PNG</button>',
       '</div></div>',
       '<div class="mosmix-card">',
       '<div id="mosmixMap" class="mosmix-map"></div>',
@@ -193,6 +204,7 @@
       const response = await fetch(STATES_URL, {cache:"force-cache"});
       if (!response.ok) return;
       const geo = await response.json();
+      statesGeo = geo;
       L.geoJSON(geo, {
         style: {color:"#55616d",weight:1,opacity:.85,fillOpacity:0}
       }).addTo(map);
@@ -547,6 +559,320 @@
     }
   }
 
+  function extremaFrameLabel(mode,key) {
+    const parts=String(key).split("-");
+    const d=new Date(Date.UTC(Number(parts[0]),Number(parts[1])-1,Number(parts[2]),12));
+    const date=new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",weekday:"short",day:"2-digit",month:"2-digit"}).format(d);
+    return (mode==="tmax" ? "Tmax " : "Tmin ") + date;
+  }
+
+  function buildExtremaFrames(mode) {
+    const groups=new Map();
+    data.timesteps.forEach(function(iso,index) {
+      const p=berlinDateParts(iso);
+      if (!p) return;
+      let key=null;
+      if (mode==="tmax" && p.hour>=6 && p.hour<=18) {
+        key=dateKey(p.year,p.month,p.day,0);
+      } else if (mode==="tmin" && (p.hour>=19 || p.hour<=5)) {
+        key=p.hour>=19 ? dateKey(p.year,p.month,p.day,1) : dateKey(p.year,p.month,p.day,0);
+      }
+      if (!key) return;
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(index);
+    });
+    return Array.from(groups.entries())
+      .filter(function(entry){ return entry[1].length>=4; })
+      .sort(function(a,b){ return a[0].localeCompare(b[0]); })
+      .map(function(entry){ return {key:entry[0],indices:entry[1],label:extremaFrameLabel(mode,entry[0])}; });
+  }
+
+  function extremaHit(station,frame) {
+    if (!station || !frame) return null;
+    let bestValue=null;
+    let bestIndex=null;
+    frame.indices.forEach(function(index) {
+      const value=station.values && station.values[index];
+      if (!Number.isFinite(value)) return;
+      if (bestValue===null ||
+          (mapMode==="tmax" && value>bestValue) ||
+          (mapMode==="tmin" && value<bestValue)) {
+        bestValue=value;
+        bestIndex=index;
+      }
+    });
+    return Number.isFinite(bestValue) ? {value:bestValue,index:bestIndex} : null;
+  }
+
+  function renderExtrema() {
+    if (!data || !map || !markerLayer || !extremaFrames.length) return;
+    const frame=extremaFrames[sliderIndex];
+    if (!frame) return;
+
+    markerLayer.clearLayers();
+    const zoom=map.getZoom();
+    const useLabels=zoom>=8;
+    const bounds=map.getBounds().pad(.08);
+    const occupied=new Set();
+    const labelCell=zoom>=10 ? 38 : (zoom>=9 ? 46 : 56);
+    const vals=[];
+    let shown=0;
+    let labelled=0;
+
+    data.stations.forEach(function(station) {
+      const hit=extremaHit(station,frame);
+      if (!hit) return;
+      const value=hit.value;
+      vals.push(value);
+      shown++;
+      const color=colorForTemp(value);
+      const latlng=L.latLng(station.lat,station.lon);
+
+      if (useLabels && bounds.contains(latlng)) {
+        const p=map.latLngToContainerPoint(latlng);
+        const key=Math.floor(p.x/labelCell)+":"+Math.floor(p.y/labelCell);
+        if (!occupied.has(key)) {
+          occupied.add(key);
+          labelled++;
+          const icon=L.divIcon({
+            className:"mosmix-point-label",
+            html:'<div style="background:'+color+';color:'+textColor(color)+'">'+value.toFixed(1).replace(".",",")+'</div>',
+            iconSize:[38,22],
+            iconAnchor:[19,11]
+          });
+          L.marker(latlng,{icon:icon})
+            .bindPopup(popupHtml(station,value,data.timesteps[hit.index]))
+            .on("click",function(){ selectStation(station); })
+            .addTo(markerLayer);
+          return;
+        }
+      }
+
+      L.circleMarker(latlng,{
+        radius:zoom>=8 ? 3.3 : 4.5,
+        color:"#ffffff",
+        weight:.8,
+        fillColor:color,
+        fillOpacity:.9
+      }).bindPopup(popupHtml(station,value,data.timesteps[hit.index]))
+        .on("click",function(){ selectStation(station); })
+        .addTo(markerLayer);
+    });
+
+    const min=vals.length ? Math.min.apply(null,vals) : NaN;
+    const max=vals.length ? Math.max.apply(null,vals) : NaN;
+    document.getElementById("mosmixSliderLabel").textContent=frame.label;
+
+    let info='Auswahl: <strong>'+esc(frame.label)+'</strong> · '+shown+' Punkte';
+    if (useLabels) info+=' · '+labelled+' Werte beschriftet';
+    if (Number.isFinite(min)) info+=' · '+min.toFixed(1).replace(".",",")+' bis '+max.toFixed(1).replace(".",",")+' °C';
+    document.getElementById("mosmixValidInfo").innerHTML=info;
+  }
+
+  function renderCurrentMap() {
+    if (mapMode==="hourly") render();
+    else renderExtrema();
+  }
+
+  function chooseExtremaIndex() {
+    if (!extremaFrames.length) return 0;
+    const nowParts=berlinDateParts(new Date().toISOString());
+    const today=nowParts ? dateKey(nowParts.year,nowParts.month,nowParts.day,0) : "";
+    const found=extremaFrames.findIndex(function(frame){ return frame.key>=today; });
+    return found>=0 ? found : extremaFrames.length-1;
+  }
+
+  function setMapMode(mode) {
+    mapMode=["hourly","tmax","tmin"].includes(mode) ? mode : "hourly";
+    document.querySelectorAll("[data-mosmix-mode]").forEach(function(button) {
+      button.classList.toggle("active",button.dataset.mosmixMode===mapMode);
+    });
+
+    const slider=document.getElementById("mosmixSlider");
+    const title=document.getElementById("mosmixSliderTitle");
+    const nowButton=document.getElementById("mosmixNow");
+
+    if (mapMode==="hourly") {
+      extremaFrames=[];
+      slider.max=String(data.timesteps.length-1);
+      sliderIndex=chooseInitialIndex();
+      title.textContent="Vorhersagezeitpunkt";
+      nowButton.textContent="Nächster Termin";
+      slider.value=String(sliderIndex);
+      render();
+      return;
+    }
+
+    extremaFrames=buildExtremaFrames(mapMode);
+    slider.max=String(Math.max(0,extremaFrames.length-1));
+    sliderIndex=chooseExtremaIndex();
+    title.textContent="Vorhersagetag";
+    nowButton.textContent="Aktueller Tag";
+    slider.value=String(sliderIndex);
+    renderExtrema();
+  }
+
+  function drawGeo(ctx,geometry,project) {
+    if (!geometry) return;
+    const polygons=geometry.type==="Polygon" ? [geometry.coordinates] :
+      (geometry.type==="MultiPolygon" ? geometry.coordinates : []);
+    polygons.forEach(function(polygon) {
+      polygon.forEach(function(ring) {
+        ring.forEach(function(coord,index) {
+          const p=project(coord[0],coord[1]);
+          if (index===0) ctx.moveTo(p.x,p.y);
+          else ctx.lineTo(p.x,p.y);
+        });
+        ctx.closePath();
+      });
+    });
+  }
+
+  function buildBins(points,binSize) {
+    const bins=new Map();
+    points.forEach(function(p) {
+      const key=Math.floor(p.lon/binSize)+":"+Math.floor(p.lat/binSize);
+      if (!bins.has(key)) bins.set(key,[]);
+      bins.get(key).push(p);
+    });
+    return bins;
+  }
+
+  function interpolatedValue(lon,lat,bins,binSize) {
+    const bx=Math.floor(lon/binSize);
+    const by=Math.floor(lat/binSize);
+    let candidates=[];
+    for (let ring=0; ring<=3 && candidates.length<12; ring++) {
+      for (let dx=-ring; dx<=ring; dx++) {
+        for (let dy=-ring; dy<=ring; dy++) {
+          if (ring>0 && Math.abs(dx)!==ring && Math.abs(dy)!==ring) continue;
+          const list=bins.get((bx+dx)+":"+(by+dy));
+          if (list) candidates=candidates.concat(list);
+        }
+      }
+    }
+    if (!candidates.length) return null;
+    const nearest=candidates.map(function(p) {
+      const dx=(p.lon-lon)*Math.cos(lat*Math.PI/180);
+      const dy=p.lat-lat;
+      return {p:p,d2:dx*dx+dy*dy};
+    }).sort(function(a,b){ return a.d2-b.d2; }).slice(0,8);
+    if (nearest[0].d2<1e-10) return nearest[0].p.value;
+    let num=0,den=0;
+    nearest.forEach(function(item) {
+      const w=1/Math.pow(item.d2,1.15);
+      num+=w*item.p.value;
+      den+=w;
+    });
+    return den ? num/den : null;
+  }
+
+  async function downloadAreaMap() {
+    const button=document.getElementById("mosmixAreaDownload");
+    const oldText=button.textContent;
+    button.disabled=true;
+    button.textContent="Flächenkarte wird berechnet …";
+    try {
+      if (!statesGeo) {
+        const response=await fetch(STATES_URL,{cache:"force-cache"});
+        if (!response.ok) throw new Error("Deutschlandgrenzen HTTP "+response.status);
+        statesGeo=await response.json();
+      }
+
+      let label="";
+      let points=[];
+      if (mapMode==="hourly") {
+        const index=sliderIndex;
+        label=fmtTime(data.timesteps[index]);
+        data.stations.forEach(function(station) {
+          const value=station.values && station.values[index];
+          if (Number.isFinite(value)) points.push({lat:station.lat,lon:station.lon,value:value});
+        });
+      } else {
+        const frame=extremaFrames[sliderIndex];
+        label=frame ? frame.label : "";
+        data.stations.forEach(function(station) {
+          const hit=frame ? extremaHit(station,frame) : null;
+          if (hit) points.push({lat:station.lat,lon:station.lon,value:hit.value});
+        });
+      }
+      if (points.length<100) throw new Error("Zu wenige MOSMIX-Punkte.");
+
+      const width=1100,height=1320;
+      const margin={left:74,right:54,top:142,bottom:142};
+      const lonMin=5.45,lonMax=15.55,latMin=47.15,latMax=55.15;
+      const mapW=width-margin.left-margin.right;
+      const mapH=height-margin.top-margin.bottom;
+      const canvas=document.createElement("canvas");
+      canvas.width=width;canvas.height=height;
+      const ctx=canvas.getContext("2d");
+      ctx.fillStyle="#fff";ctx.fillRect(0,0,width,height);
+
+      const project=function(lon,lat) {
+        return {x:margin.left+(lon-lonMin)/(lonMax-lonMin)*mapW,y:margin.top+(latMax-lat)/(latMax-latMin)*mapH};
+      };
+      const unproject=function(x,y) {
+        return {lon:lonMin+(x-margin.left)/mapW*(lonMax-lonMin),lat:latMax-(y-margin.top)/mapH*(latMax-latMin)};
+      };
+
+      ctx.save();
+      ctx.beginPath();
+      statesGeo.features.forEach(function(feature){ drawGeo(ctx,feature.geometry,project); });
+      ctx.clip();
+
+      const cell=10,binSize=.45,bins=buildBins(points,binSize);
+      for (let y=margin.top;y<margin.top+mapH;y+=cell) {
+        for (let x=margin.left;x<margin.left+mapW;x+=cell) {
+          const ll=unproject(x+cell/2,y+cell/2);
+          const value=interpolatedValue(ll.lon,ll.lat,bins,binSize);
+          if (!Number.isFinite(value)) continue;
+          ctx.fillStyle=colorForTemp(value);
+          ctx.fillRect(x,y,cell+1,cell+1);
+        }
+      }
+      ctx.restore();
+
+      ctx.beginPath();
+      statesGeo.features.forEach(function(feature){ drawGeo(ctx,feature.geometry,project); });
+      ctx.strokeStyle="rgba(30,41,59,.72)";
+      ctx.lineWidth=1.15;
+      ctx.stroke();
+
+      const title=mapMode==="tmax" ? "DWD MOSMIX-L · Tagesmaximum" :
+        (mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" : "DWD MOSMIX-L · 2-m-Temperatur");
+      ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
+      ctx.font="600 18px Arial";ctx.fillText(label,margin.left,80);
+      ctx.fillStyle="#64748b";ctx.font="14px Arial";
+      ctx.fillText("Lauf: "+fmtTime(data.issue_time)+" · "+points.length+" MOSMIX-Punkte",margin.left,106);
+
+      const legendValues=[-15,-10,-5,0,5,10,15,20,25,30,35];
+      const legendY=height-94,boxW=74;
+      legendValues.forEach(function(v,index) {
+        const x=margin.left+index*boxW;
+        ctx.fillStyle=colorForTemp(v);ctx.fillRect(x,legendY,boxW,18);
+        ctx.strokeStyle="rgba(0,0,0,.15)";ctx.strokeRect(x,legendY,boxW,18);
+        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+"°",x+2,legendY+35);
+      });
+      ctx.fillStyle="#64748b";ctx.font="12px Arial";
+      ctx.fillText("Interpoliert aus DWD-MOSMIX-L-Punktprognosen · keine amtliche DWD-Rasterkarte",margin.left,height-28);
+
+      const blob=await new Promise(function(resolve){ canvas.toBlob(resolve,"image/png",1); });
+      if (!blob) throw new Error("PNG konnte nicht erzeugt werden.");
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;
+      link.download=("mosmix_"+mapMode+"_"+label+".png").replace(/[^0-9A-Za-zÄÖÜäöüß._-]+/g,"_");
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); },1500);
+    } catch (err) {
+      console.error("MOSMIX Flächenkarte:",err);
+      alert("Flächenkarte konnte nicht erstellt werden: "+err.message);
+    } finally {
+      button.disabled=false;
+      button.textContent=oldText;
+    }
+  }
+
   function render() {
     if (!data || !map || !markerLayer) return;
     const i = sliderIndex;
@@ -617,9 +943,10 @@
   }
 
   function setIndex(index) {
-    sliderIndex = Math.max(0, Math.min(data.timesteps.length - 1, Number(index) || 0));
-    document.getElementById("mosmixSlider").value = String(sliderIndex);
-    render();
+    const maxIndex=mapMode==="hourly" ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
+    sliderIndex=Math.max(0,Math.min(maxIndex,Number(index)||0));
+    document.getElementById("mosmixSlider").value=String(sliderIndex);
+    renderCurrentMap();
   }
 
   function togglePlay() {
@@ -632,7 +959,8 @@
     }
     button.textContent = "❚❚ Pause";
     playTimer = setInterval(function() {
-      setIndex((sliderIndex + 1) % data.timesteps.length);
+      const total=mapMode==="hourly" ? data.timesteps.length : Math.max(1,extremaFrames.length);
+      setIndex((sliderIndex + 1) % total);
     }, 650);
   }
 
@@ -651,8 +979,14 @@
       const slider = document.getElementById("mosmixSlider");
       slider.max = String(data.timesteps.length - 1);
       slider.addEventListener("input", function(){ setIndex(slider.value); });
+      document.querySelectorAll("[data-mosmix-mode]").forEach(function(button){
+        button.addEventListener("click",function(){ setMapMode(button.dataset.mosmixMode); });
+      });
       document.getElementById("mosmixPlay").addEventListener("click", togglePlay);
-      document.getElementById("mosmixNow").addEventListener("click", function(){ setIndex(chooseInitialIndex()); });
+      document.getElementById("mosmixNow").addEventListener("click", function(){
+        setIndex(mapMode==="hourly" ? chooseInitialIndex() : chooseExtremaIndex());
+      });
+      document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
       document.getElementById("mosmixStationSearch").addEventListener("keydown", function(event){
         if (event.key === "Enter") {
@@ -661,7 +995,7 @@
         }
       });
       populateStationSearch();
-      map.on("zoomend", render);
+      map.on("zoomend", renderCurrentMap);
 
       document.getElementById("mosmixRunInfo").innerHTML =
         'Lauf: <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
