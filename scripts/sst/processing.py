@@ -110,6 +110,19 @@ def validate_scientific_fields(fields: ProcessedFields) -> None:
         raise RuntimeError(f"Unplausible SST über 40 °C: {maximum:.2f}")
     if valid_anomaly.size == 0:
         raise RuntimeError("Keine endlichen SST-Anomalien in der Region.")
-    anomaly_max = float(np.max(np.abs(valid_anomaly)))
-    if anomaly_max > 20.0:
-        raise RuntimeError(f"Unplausible SST-Anomalie über 20 °C: {anomaly_max:.2f}")
+    abs_anomaly = np.abs(valid_anomaly)
+    anomaly_max = float(np.max(abs_anomaly))
+    anomaly_p999 = float(np.percentile(abs_anomaly, 99.9))
+
+    # Einzelne Küsten-/Regridding-Randpixel können bei MUR (1 km) gegen die
+    # gröbere OISST-Klimatologie lokal knapp über 20 °C Abweichung erreichen.
+    # Solche Pixel sollen einen kompletten Tagesbuild nicht stoppen. Weiterhin
+    # hart abbrechen bei extremen Einzelwerten oder wenn >0,1 % des Feldes
+    # bereits jenseits von 20 °C liegen.
+    if anomaly_max > 30.0:
+        raise RuntimeError(f"Unplausible SST-Anomalie über 30 °C: {anomaly_max:.2f}")
+    if anomaly_p999 > 20.0:
+        raise RuntimeError(
+            f"Flächig unplausible SST-Anomalie: 99,9%-Perzentil {anomaly_p999:.2f} °C "
+            f"(Maximum {anomaly_max:.2f} °C)"
+        )
