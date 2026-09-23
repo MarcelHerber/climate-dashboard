@@ -764,21 +764,45 @@
     });
   }
 
-  function idwValue(lon,lat,points) {
-    const nearest = points.map(function(p) {
-      const dx = (p.lon - lon) * Math.cos(lat * Math.PI / 180);
-      const dy = p.lat - lat;
-      return {p:p,d2:dx*dx + dy*dy};
+  function buildSpatialBins(points,binSize) {
+    const bins=new Map();
+    points.forEach(function(p) {
+      const key=Math.floor(p.lon/binSize)+":"+Math.floor(p.lat/binSize);
+      if (!bins.has(key)) bins.set(key,[]);
+      bins.get(key).push(p);
+    });
+    return bins;
+  }
+
+  function idwValue(lon,lat,bins,binSize) {
+    const bx=Math.floor(lon/binSize);
+    const by=Math.floor(lat/binSize);
+    let candidates=[];
+
+    for (let ring=0; ring<=3 && candidates.length<12; ring++) {
+      for (let dx=-ring; dx<=ring; dx++) {
+        for (let dy=-ring; dy<=ring; dy++) {
+          if (ring>0 && Math.abs(dx)!==ring && Math.abs(dy)!==ring) continue;
+          const list=bins.get((bx+dx)+":"+(by+dy));
+          if (list) candidates=candidates.concat(list);
+        }
+      }
+    }
+    if (!candidates.length) return null;
+
+    const nearest=candidates.map(function(p) {
+      const dx=(p.lon-lon)*Math.cos(lat*Math.PI/180);
+      const dy=p.lat-lat;
+      return {p:p,d2:dx*dx+dy*dy};
     }).sort(function(a,b){ return a.d2-b.d2; }).slice(0,8);
 
-    if (!nearest.length) return null;
-    if (nearest[0].d2 < 1e-10) return nearest[0].p.value;
+    if (nearest[0].d2<1e-10) return nearest[0].p.value;
 
     let num=0,den=0;
     nearest.forEach(function(item) {
       const w=1/Math.pow(item.d2,1.15);
-      num += w*item.p.value;
-      den += w;
+      num+=w*item.p.value;
+      den+=w;
     });
     return den ? num/den : null;
   }
@@ -841,10 +865,12 @@
 
       // Deliberately coarse, smooth IDW grid: download-only, never affects live map.
       const cell=10;
+      const binSize=.45;
+      const bins=buildSpatialBins(points,binSize);
       for (let y=margin.top; y<margin.top+mapH; y+=cell) {
         for (let x=margin.left; x<margin.left+mapW; x+=cell) {
           const ll=unproject(x+cell/2,y+cell/2);
-          const value=idwValue(ll.lon,ll.lat,points);
+          const value=idwValue(ll.lon,ll.lat,bins,binSize);
           if (!Number.isFinite(value)) continue;
           ctx.fillStyle=colorForTemp(value);
           ctx.fillRect(x,y,cell+1,cell+1);
