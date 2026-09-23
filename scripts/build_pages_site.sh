@@ -11,6 +11,7 @@ required_root_files=(
   t850_ensembles.js
   t850_ensembles.css
   monthly_frequency.js
+  mosmix.js
   dwd_station_daily_map.js
   dwd_station_daily_map.css
   hyras_historical_temperature_1km.js
