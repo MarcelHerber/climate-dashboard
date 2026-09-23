@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
-Build a compact Germany-only MOSMIX-L temperature file for the dashboard.
+Build compact Germany-only MOSMIX-L data for the dashboard.
+
+Outputs:
+- mosmix_ttt.json: compact TTT map data for all Germany-area points
+- stations/<key>.json: on-demand meteogram data for one point
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import tempfile
 import urllib.request
@@ -15,11 +20,13 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 DEFAULT_SOURCE_URL = "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/all_stations/kml/MOSMIX_L_LATEST.kmz"
-USER_AGENT = "climate-dashboard-mosmix/1.0 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-mosmix/2.0 (+GitHub Actions; DWD Open Data)"
 
 # Germany plus a small border buffer so border points are not lost.
 LON_MIN, LON_MAX = 5.45, 15.55
 LAT_MIN, LAT_MAX = 47.15, 55.15
+
+METEOGRAM_PARAMS = ("TTT", "Td", "RR1c", "FF", "FX1", "DD", "N", "PPPP")
 
 
 def local_name(tag: str) -> str:
@@ -44,7 +51,7 @@ def parse_float(value: str | None) -> float | None:
         return None
 
 
-def parse_values(forecast: ET.Element) -> list[float | None]:
+def raw_values(forecast: ET.Element) -> list[float | None]:
     raw = " ".join(part.strip() for part in forecast.itertext() if part and part.strip())
     values: list[float | None] = []
     for token in raw.split():
@@ -52,12 +59,48 @@ def parse_values(forecast: ET.Element) -> list[float | None]:
             values.append(None)
             continue
         try:
-            kelvin = float(token)
+            values.append(float(token))
         except ValueError:
             values.append(None)
-            continue
-        values.append(round(kelvin - 273.15, 1))
     return values
+
+
+def convert_values(parameter: str, values: list[float | None]) -> list[float | None]:
+    converted: list[float | None] = []
+    for value in values:
+        if value is None:
+            converted.append(None)
+            continue
+
+        if parameter in {"TTT", "Td"}:
+            converted.append(round(value - 273.15, 1))
+        elif parameter in {"FF", "FX1"}:
+            # MOSMIX wind is m/s; display files use km/h for the dashboard.
+            converted.append(round(value * 3.6, 1))
+        elif parameter == "PPPP":
+            # Reduced pressure is supplied in Pa; use hPa in the meteogram.
+            converted.append(round(value / 100.0, 1))
+        elif parameter == "RR1c":
+            # kg/m² water equivalent == mm precipitation.
+            converted.append(round(value, 2))
+        elif parameter in {"N", "DD"}:
+            converted.append(round(value, 1))
+        else:
+            converted.append(round(value, 2))
+    return converted
+
+
+def normalize_length(values: list[float | None], length: int) -> list[float | None]:
+    if len(values) < length:
+        return values + [None] * (length - len(values))
+    if len(values) > length:
+        return values[:length]
+    return values
+
+
+def station_key(station_id: str, lat: float, lon: float) -> str:
+    token = f"{station_id}|{lat:.5f}|{lon:.5f}".encode("utf-8")
+    return hashlib.sha1(token).hexdigest()[:14]
 
 
 def download(url: str, target: Path) -> None:
@@ -70,11 +113,12 @@ def download(url: str, target: Path) -> None:
             out.write(chunk)
 
 
-def parse_kmz(path: Path, source_url: str) -> dict:
+def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
     timesteps: list[str] = []
     stations: list[dict] = []
     issue_time: str | None = None
     models: list[dict] = []
+    detail_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(path) as zf:
         kml_names = [n for n in zf.namelist() if n.lower().endswith(".kml")]
@@ -136,33 +180,48 @@ def parse_kmz(path: Path, source_url: str) -> dict:
                     elem.clear()
                     continue
 
-                values: list[float | None] | None = None
+                forecasts: dict[str, list[float | None]] = {}
                 for node in elem.iter():
                     if local_name(node.tag) != "Forecast":
                         continue
+
                     element_name = None
                     for key, value in node.attrib.items():
                         if local_name(key) == "elementName":
                             element_name = value
                             break
-                    if element_name == "TTT":
-                        values = parse_values(node)
-                        break
 
-                if values and any(v is not None for v in values):
-                    if len(values) < len(timesteps):
-                        values.extend([None] * (len(timesteps) - len(values)))
-                    elif len(values) > len(timesteps):
-                        values = values[: len(timesteps)]
+                    if element_name not in METEOGRAM_PARAMS:
+                        continue
 
-                    stations.append({
-                        "id": station_id,
-                        "name": station_name,
-                        "lat": round(lat, 5),
-                        "lon": round(lon, 5),
-                        "elev_m": None if elev is None else round(elev, 1),
-                        "values": values,
-                    })
+                    values = convert_values(element_name, raw_values(node))
+                    forecasts[element_name] = normalize_length(values, len(timesteps))
+
+                ttt = forecasts.get("TTT")
+                if not ttt or not any(v is not None for v in ttt):
+                    elem.clear()
+                    continue
+
+                key = station_key(station_id, lat, lon)
+                station_meta = {
+                    "id": station_id,
+                    "name": station_name,
+                    "lat": round(lat, 5),
+                    "lon": round(lon, 5),
+                    "elev_m": None if elev is None else round(elev, 1),
+                    "key": key,
+                }
+                stations.append({**station_meta, "values": ttt})
+
+                detail = {
+                    **station_meta,
+                    "issue_time": issue_time,
+                    "parameters": forecasts,
+                }
+                (detail_dir / f"{key}.json").write_text(
+                    json.dumps(detail, ensure_ascii=False, separators=(",", ":")),
+                    encoding="utf-8",
+                )
 
                 elem.clear()
 
@@ -191,7 +250,17 @@ def parse_kmz(path: Path, source_url: str) -> dict:
         "models": unique_models,
         "timesteps": timesteps,
         "station_count": len(stations),
-        "stations": sorted(stations, key=lambda s: (s["name"], s["id"])),
+        "meteogram_parameters": {
+            "TTT": {"label": "2-m-Temperatur", "unit": "°C"},
+            "Td": {"label": "2-m-Taupunkt", "unit": "°C"},
+            "RR1c": {"label": "1-h-Niederschlag", "unit": "mm"},
+            "FF": {"label": "Wind", "unit": "km/h"},
+            "FX1": {"label": "1-h-Böe", "unit": "km/h"},
+            "DD": {"label": "Windrichtung", "unit": "°"},
+            "N": {"label": "Gesamtbedeckung", "unit": "%"},
+            "PPPP": {"label": "Luftdruck", "unit": "hPa"},
+        },
+        "stations": sorted(stations, key=lambda s: (s["name"], s["id"], s["key"])),
     }
 
 
@@ -203,13 +272,18 @@ def main() -> None:
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    detail_dir = output.parent / "stations"
+
+    if detail_dir.exists():
+        for file in detail_dir.glob("*.json"):
+            file.unlink()
 
     with tempfile.TemporaryDirectory(prefix="mosmix-") as tmp:
         kmz = Path(tmp) / "MOSMIX_L_LATEST.kmz"
         print(f"Lade {args.source_url}")
         download(args.source_url, kmz)
         print(f"KMZ: {kmz.stat().st_size / 1024 / 1024:.1f} MB")
-        data = parse_kmz(kmz, args.source_url)
+        data = parse_kmz(kmz, args.source_url, detail_dir)
 
     tmp_out = output.with_suffix(output.suffix + ".tmp")
     tmp_out.write_text(
@@ -220,7 +294,8 @@ def main() -> None:
 
     print(
         f"Geschrieben: {output} | {data['station_count']} Punkte | "
-        f"{len(data['timesteps'])} Zeitschritte | Lauf {data.get('issue_time')}"
+        f"{len(data['timesteps'])} Zeitschritte | Lauf {data.get('issue_time')} | "
+        f"Meteogramme: {len(list(detail_dir.glob('*.json')))}"
     )
 
 
