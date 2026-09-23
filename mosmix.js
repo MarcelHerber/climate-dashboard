@@ -311,6 +311,73 @@
     return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
   }
 
+  function berlinDateParts(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone:"Europe/Berlin",
+      year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hour12:false
+    }).formatToParts(d);
+    const get = function(type) {
+      const hit = parts.find(function(part){ return part.type === type; });
+      return hit ? hit.value : "";
+    };
+    return {
+      year:Number(get("year")),
+      month:Number(get("month")),
+      day:Number(get("day")),
+      hour:Number(get("hour"))
+    };
+  }
+
+  function dateKey(year,month,day,addDays) {
+    const d = new Date(Date.UTC(year, month - 1, day + (addDays || 0), 12));
+    return [
+      d.getUTCFullYear(),
+      String(d.getUTCMonth() + 1).padStart(2,"0"),
+      String(d.getUTCDate()).padStart(2,"0")
+    ].join("-");
+  }
+
+  function temperatureExtrema(values) {
+    const dayGroups = new Map();
+    const nightGroups = new Map();
+
+    data.timesteps.forEach(function(iso,index) {
+      const value = values && values[index];
+      if (!Number.isFinite(value)) return;
+      const p = berlinDateParts(iso);
+      if (!p) return;
+
+      if (p.hour >= 6 && p.hour <= 18) {
+        const key = dateKey(p.year,p.month,p.day,0);
+        const prev = dayGroups.get(key);
+        if (!prev || value > prev.value) dayGroups.set(key,{index:index,value:value});
+      }
+
+      if (p.hour >= 19 || p.hour <= 5) {
+        const key = p.hour >= 19
+          ? dateKey(p.year,p.month,p.day,1)
+          : dateKey(p.year,p.month,p.day,0);
+        const prev = nightGroups.get(key);
+        if (!prev || value < prev.value) nightGroups.set(key,{index:index,value:value});
+      }
+    });
+
+    const result = new Map();
+    dayGroups.forEach(function(item) {
+      result.set(item.index,{type:"max",label:"Tmax " + item.value.toFixed(1).replace(".",",") + "°"});
+    });
+    nightGroups.forEach(function(item) {
+      // If an unusual partial forecast puts a day maximum and night minimum
+      // on the same index, prefer the daytime label at that point.
+      if (!result.has(item.index)) {
+        result.set(item.index,{type:"min",label:"Tmin " + item.value.toFixed(1).replace(".",",") + "°"});
+      }
+    });
+    return result;
+  }
+
   function baseChartOptions(yTitle) {
     return {
       responsive:true,
@@ -319,7 +386,8 @@
       interaction:{mode:"index",intersect:false},
       plugins:{
         legend:{display:true,labels:{boxWidth:18,usePointStyle:true}},
-        tooltip:{enabled:true}
+        tooltip:{enabled:true},
+        datalabels:{display:false}
       },
       scales:{
         x:{ticks:{maxTicksLimit:12,maxRotation:0,autoSkip:true},grid:{display:false}},
@@ -336,13 +404,53 @@
     const labels = meteogramLabels();
     const commonLine = {pointRadius:0,pointHoverRadius:3,borderWidth:2,tension:.18,spanGaps:true};
 
+    const tempExtrema = temperatureExtrema(p.TTT || []);
+    const tempOptions = baseChartOptions("°C");
+    tempOptions.plugins.datalabels = {
+      display:function(context) {
+        return context.datasetIndex === 0 && tempExtrema.has(context.dataIndex);
+      },
+      formatter:function(value,context) {
+        const hit = tempExtrema.get(context.dataIndex);
+        return hit ? hit.label : "";
+      },
+      anchor:function(context) {
+        const hit = tempExtrema.get(context.dataIndex);
+        return hit && hit.type === "min" ? "start" : "end";
+      },
+      align:function(context) {
+        const hit = tempExtrema.get(context.dataIndex);
+        return hit && hit.type === "min" ? "bottom" : "top";
+      },
+      offset:4,
+      clamp:true,
+      clip:false,
+      color:function(context) {
+        const hit = tempExtrema.get(context.dataIndex);
+        return hit && hit.type === "min" ? "#1f5f99" : "#a5271f";
+      },
+      backgroundColor:"rgba(255,255,255,.88)",
+      borderColor:"rgba(100,116,139,.25)",
+      borderWidth:1,
+      borderRadius:4,
+      padding:{top:3,right:5,bottom:3,left:5},
+      font:{size:10,weight:"700"}
+    };
+
     meteogramCharts.push(new Chart(document.getElementById("mosmixTempChart"), {
       type:"line",
       data:{labels:labels,datasets:[
-        Object.assign({label:"Temperatur",data:p.TTT || [],borderColor:"#c62828",backgroundColor:"rgba(198,40,40,.08)"},commonLine),
+        Object.assign({
+          label:"Temperatur",
+          data:p.TTT || [],
+          borderColor:"#c62828",
+          backgroundColor:"rgba(198,40,40,.08)",
+          pointRadius:function(context){ return tempExtrema.has(context.dataIndex) ? 3 : 0; },
+          pointHoverRadius:4
+        },commonLine),
         Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine)
       ]},
-      options:baseChartOptions("°C")
+      options:tempOptions
     }));
 
     const rainOptions = baseChartOptions("mm / h");
@@ -476,6 +584,7 @@
           });
           L.marker(latlng, {icon:icon})
             .bindPopup(popupHtml(station,value,valid))
+            .on("click", function(){ selectStation(station); })
             .addTo(markerLayer);
           return;
         }
