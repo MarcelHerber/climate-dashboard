@@ -1,4 +1,5 @@
 name: SST Europa Monats-Backfill
+# Einzelne lokale SST-Anomalie-Randpixel werden robust validiert; flächige Ausreißer bleiben gesperrt.
 
 on:
   push:
