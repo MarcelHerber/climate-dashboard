@@ -1,0 +1,51 @@
+name: DWD MOSMIX-L Temperaturkarte aktualisieren
+
+on:
+  schedule:
+    - cron: "40 4,10,16,22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mosmix-data-publish
+  cancel-in-progress: true
+
+jobs:
+  update-mosmix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: MOSMIX-L laden und Deutschlanddatei bauen
+        run: |
+          rm -rf /tmp/mosmix-public
+          mkdir -p /tmp/mosmix-public/data/mosmix
+          python scripts/update_mosmix.py --output /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+
+      - name: MOSMIX-Datenbranch veröffentlichen
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan mosmix-publish
+          git rm -rf . >/dev/null 2>&1 || true
+          cp -a /tmp/mosmix-public/. .
+          touch .nojekyll
+          git add -A
+          git commit -m "DWD MOSMIX-L TTT aktualisiert"
+          git branch -M mosmix-data
+          git push --force origin mosmix-data
+
+          echo "MOSMIX-Daten veröffentlicht."
