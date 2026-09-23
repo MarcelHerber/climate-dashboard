@@ -105,24 +105,34 @@
   function addNavigation() {
     if (document.querySelector('[data-mosmix-nav="1"]')) return;
 
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "nav-link tab-button";
-    btn.dataset.mosmixNav = "1";
-    btn.textContent = "MOSMIX";
-    btn.addEventListener("click", function() {
-      if (typeof window.switchTab === "function") window.switchTab(TAB_ID);
-      setTimeout(init, 0);
-    });
+    const menu = document.querySelector('.nav-dropdown[data-nav-group="germany"] .nav-dropdown-menu');
+    if (menu) {
+      const divider = document.createElement("div");
+      divider.className = "nav-menu-divider";
+      divider.dataset.mosmixNav = "1";
 
-    const nav = document.querySelector(".primary-nav");
-    if (nav) nav.appendChild(btn);
+      const heading = document.createElement("div");
+      heading.className = "nav-menu-heading";
+      heading.textContent = "Vorhersage";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tab-button";
+      btn.dataset.navGroup = "germany";
+      btn.dataset.mosmixNav = "1";
+      btn.textContent = "DWD MOSMIX";
+      btn.setAttribute("onclick", "switchTab('mosmix');window.setTimeout(function(){window.dispatchEvent(new Event('mosmix-open'));},0)");
+
+      menu.appendChild(divider);
+      menu.appendChild(heading);
+      menu.appendChild(btn);
+    }
 
     const mobile = document.querySelector(".mobile-tab-navigation select");
     if (mobile && !mobile.querySelector('option[value="mosmix"]')) {
       const opt = document.createElement("option");
       opt.value = TAB_ID;
-      opt.textContent = "MOSMIX";
+      opt.textContent = "DWD MOSMIX";
       mobile.appendChild(opt);
       mobile.addEventListener("change", function() {
         if (mobile.value === TAB_ID) setTimeout(init, 0);
@@ -211,8 +221,13 @@
     const valid = data.timesteps[i];
     markerLayer.clearLayers();
 
-    const useLabels = map.getZoom() >= 7;
+    const zoom = map.getZoom();
+    const useLabels = zoom >= 8;
+    const bounds = map.getBounds().pad(.08);
+    const occupied = new Set();
+    const labelCell = zoom >= 10 ? 38 : (zoom >= 9 ? 46 : 56);
     let shown = 0;
+    let labelled = 0;
     const vals = [];
 
     data.stations.forEach(function(station) {
@@ -221,22 +236,34 @@
       vals.push(value);
       shown++;
       const color = colorForTemp(value);
+      const latlng = L.latLng(station.lat,station.lon);
 
-      if (useLabels) {
-        const icon = L.divIcon({
-          className:"mosmix-point-label",
-          html:'<div style="background:' + color + ';color:' + textColor(color) + '">' + value.toFixed(1).replace(".", ",") + '</div>',
-          iconSize:[38,22],
-          iconAnchor:[19,11]
-        });
-        L.marker([station.lat,station.lon], {icon:icon})
-          .bindPopup(popupHtml(station,value,valid))
-          .addTo(markerLayer);
-      } else {
-        L.circleMarker([station.lat,station.lon], {
-          radius:4.8,color:"#ffffff",weight:1,fillColor:color,fillOpacity:.92
-        }).bindPopup(popupHtml(station,value,valid)).addTo(markerLayer);
+      if (useLabels && bounds.contains(latlng)) {
+        const p = map.latLngToContainerPoint(latlng);
+        const key = Math.floor(p.x/labelCell) + ":" + Math.floor(p.y/labelCell);
+        if (!occupied.has(key)) {
+          occupied.add(key);
+          labelled++;
+          const icon = L.divIcon({
+            className:"mosmix-point-label",
+            html:'<div style="background:' + color + ';color:' + textColor(color) + '">' + value.toFixed(1).replace(".", ",") + '</div>',
+            iconSize:[38,22],
+            iconAnchor:[19,11]
+          });
+          L.marker(latlng, {icon:icon})
+            .bindPopup(popupHtml(station,value,valid))
+            .addTo(markerLayer);
+          return;
+        }
       }
+
+      L.circleMarker(latlng, {
+        radius:zoom >= 8 ? 3.3 : 4.5,
+        color:"#ffffff",
+        weight:.8,
+        fillColor:color,
+        fillOpacity:.9
+      }).bindPopup(popupHtml(station,value,valid)).addTo(markerLayer);
     });
 
     let min = NaN, max = NaN;
@@ -247,6 +274,7 @@
 
     document.getElementById("mosmixSliderLabel").textContent = fmtTime(valid);
     let info = 'Gültig: <strong>' + esc(fmtTime(valid)) + '</strong> · ' + shown + ' Punkte';
+    if (useLabels) info += ' · ' + labelled + ' Werte beschriftet';
     if (Number.isFinite(min)) {
       info += ' · ' + min.toFixed(1).replace(".", ",") + ' bis ' + max.toFixed(1).replace(".", ",") + ' °C';
     }
@@ -315,6 +343,7 @@
     addCss();
     addSection();
     addNavigation();
+    window.addEventListener("mosmix-open", init);
     if (document.getElementById(TAB_ID) && document.getElementById(TAB_ID).classList.contains("active")) init();
   }
 
