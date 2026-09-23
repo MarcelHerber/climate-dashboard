@@ -3,6 +3,10 @@ name: DWD MOSMIX-L Temperaturkarte aktualisieren
 on:
   schedule:
     - cron: "40 4,10,16,22 * * *"
+  push:
+    paths:
+      - ".github/workflows/update-mosmix.yml"
+      - "scripts/update_mosmix.py"
   workflow_dispatch:
 
 permissions:
