@@ -1,0 +1,72 @@
+name: ERA5 Ranghistorie Oktober Cache reparieren
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/warm-era5-temperature-rank-cache-october-repair.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: era5-temperature-rank-cache-october-repair
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: [1950,1951,1952,1953,1954,1955,1956,1957,1958,1959,1960,1961,1962,1963,1964,1965,1966,1967,1968,1969,1970,1971,1972,1973,1974,1975,1976,1977,1978,1979,1980,1981,1982,1983,1984,1985,1986,1987,1988,1989,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m10
+
+      - name: CDS konfigurieren
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "${CDSAPI_KEY}" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Oktober-Tagescache neu aufwärmen
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >-
+          python scripts/warm_era5_temperature_rank_daily_cache.py
+          --year ${{ matrix.year }}
+          --month 10
+
+      - name: Status
+        shell: bash
+        run: |
+          if [[ "${{ steps.cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "Oktober ${{ matrix.year }} war bereits vorhanden."
+          else
+            echo "Oktober ${{ matrix.year }} wurde neu aufgebaut und wird als Actions-Cache gespeichert."
+          fi
