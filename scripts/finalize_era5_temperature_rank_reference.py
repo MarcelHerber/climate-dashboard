@@ -36,13 +36,15 @@ def finalize_month(
     end_day = calendar.monthrange(target_year, month)[1]
     created: list[Path] = []
     manifest_assets: list[dict] = []
+    shard_index = {path.name: path for path in shard_dir.rglob('*.npz')}
 
     for day in range(1, end_day + 1):
-        files = [
-            shard_dir / f'temperature_rank_reference_{year}_{month:02d}_{day:02d}.npz'
+        names = [
+            f'temperature_rank_reference_{year}_{month:02d}_{day:02d}.npz'
             for year in years
         ]
-        missing = [path.name for path in files if not path.exists()]
+        files = [shard_index.get(name) for name in names]
+        missing = [name for name, path in zip(names, files) if path is None]
         if missing:
             raise RuntimeError(
                 f'Referenz-Shards fehlen für {month:02d}-{day:02d}: '
@@ -54,6 +56,7 @@ def finalize_month(
         found_years: list[int] = []
 
         for path in files:
+            assert path is not None
             with np.load(path, allow_pickle=False) as data:
                 year = int(np.asarray(data['year']).item())
                 file_month = int(np.asarray(data['month']).item())
