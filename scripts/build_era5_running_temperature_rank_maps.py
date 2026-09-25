@@ -36,6 +36,7 @@ SHARD_DIR = ROOT / '.era5_running_rank_shards'
 OUT_DIR = ROOT / 'era5_land_europe' / 'running' / 'temperature_ranks'
 INDEX_PATH = OUT_DIR / 'index.json'
 ARCHIVE_DIR = OUT_DIR / 'archive'
+REFERENCE_DIR = ROOT / '.era5_running_rank_reference'
 
 
 def default_target_date() -> date:
@@ -82,6 +83,52 @@ def load_history_shards(shard_dir: Path, target: date):
     }
     assert lat_ref is not None and lon_ref is not None
     return years, lat_ref, lon_ref, fields
+
+
+def load_history_reference(reference_file: Path, target: date):
+    if not reference_file.exists():
+        raise RuntimeError(f'Historische Rangreferenz fehlt: {reference_file}')
+    active_products = products_for_month(target.month)
+    with np.load(reference_file, allow_pickle=False) as data:
+        years = np.asarray(data['years'], dtype=int)
+        month = int(np.asarray(data['target_month']).item())
+        day = int(np.asarray(data['target_day']).item())
+        lat = np.asarray(data['lat'], dtype=float)
+        lon = np.asarray(data['lon'], dtype=float)
+        missing_products = [
+            product for product in active_products if product not in data.files
+        ]
+        if missing_products:
+            raise RuntimeError(
+                f'{reference_file.name}: Produkte fehlen: {missing_products}'
+            )
+        fields = {
+            product: np.asarray(data[product], dtype=np.float32)
+            for product in active_products
+        }
+
+    if month != target.month or day != target.day:
+        raise RuntimeError(
+            f'{reference_file.name}: Referenzdatum {month:02d}-{day:02d} '
+            f'passt nicht zu {target.month:02d}-{target.day:02d}.'
+        )
+    expected = historical_years(target.year)
+    if not np.array_equal(years, expected):
+        raise RuntimeError(
+            f'{reference_file.name}: Historienjahre unvollständig oder veraltet.'
+        )
+    expected_shape = (years.size, lat.size, lon.size)
+    for product, values in fields.items():
+        if values.shape != expected_shape:
+            raise RuntimeError(
+                f'{reference_file.name}: {product} hat {values.shape} statt '
+                f'{expected_shape}.'
+            )
+    print(
+        f'Historische Referenz geladen: {reference_file.name} · '
+        f'{years[0]}–{years[-1]} · {len(active_products)} Produkte'
+    )
+    return years, lat, lon, fields
 
 
 def current_fields(target: date):
@@ -232,10 +279,17 @@ def archive_rank_payload(target: date, payload: dict) -> list[str]:
     return dates
 
 
-def build_maps(target: date, shard_dir: Path = SHARD_DIR) -> Path:
+def build_maps(
+    target: date,
+    shard_dir: Path = SHARD_DIR,
+    reference_file: Path | None = None,
+) -> Path:
     if target.year <= HISTORY_START:
         raise ValueError(f'Zieljahr muss nach {HISTORY_START} liegen.')
-    years, hlat, hlon, history = load_history_shards(shard_dir, target)
+    if reference_file is not None:
+        years, hlat, hlon, history = load_history_reference(reference_file, target)
+    else:
+        years, hlat, hlon, history = load_history_shards(shard_dir, target)
     clat, clon, current = current_fields(target)
     if not (np.allclose(hlat, clat) and np.allclose(hlon, clon)):
         raise RuntimeError('Historisches und aktuelles 0,1°-Raster stimmen nicht überein.')
@@ -325,9 +379,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Ganzjährige laufende ERA5-Land-Temperatur-Rangkarten erzeugen.')
     parser.add_argument('--target-date')
     parser.add_argument('--shards-dir', type=Path, default=SHARD_DIR)
+    parser.add_argument('--reference-file', type=Path)
     args = parser.parse_args()
     target = date.fromisoformat(args.target_date) if args.target_date else default_target_date()
-    build_maps(target, args.shards_dir)
+    build_maps(target, args.shards_dir, args.reference_file)
     return 0
 
 
