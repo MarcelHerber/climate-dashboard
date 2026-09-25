@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: era5-temperature-rank-reference-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   prepare:
