@@ -38,9 +38,13 @@ jobs:
       latest_date: ${{ steps.target.outputs.latest_date }}
       target_year: ${{ steps.target.outputs.target_year }}
       target_month: ${{ steps.target.outputs.target_month }}
+      target_day: ${{ steps.target.outputs.target_day }}
       history_end: ${{ steps.target.outputs.history_end }}
       history_count: ${{ steps.target.outputs.history_count }}
       history_years: ${{ steps.target.outputs.history_years }}
+      reference_available: ${{ steps.reference.outputs.available }}
+      reference_tag: ${{ steps.reference.outputs.tag }}
+      reference_asset: ${{ steps.reference.outputs.asset }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -120,6 +124,7 @@ jobs:
               fh.write(f'latest_date={latest}\n')
               fh.write(f'target_year={year}\n')
               fh.write(f'target_month={month:02d}\n')
+              fh.write(f'target_day={target_day.day:02d}\n')
               fh.write(f'history_end={year - 1}\n')
               fh.write(f'history_count={len(years)}\n')
               fh.write('history_years=' + json.dumps(years, separators=(',', ':')) + '\n')
@@ -134,9 +139,32 @@ jobs:
           )
           PY
 
+      - id: reference
+        name: Veröffentlichte Historienreferenz suchen
+        if: steps.target.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_MONTH: ${{ steps.target.outputs.target_month }}
+          TARGET_DAY: ${{ steps.target.outputs.target_day }}
+          HISTORY_END: ${{ steps.target.outputs.history_end }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="era5-rank-reference-1950-${HISTORY_END}-m${TARGET_MONTH}-v1"
+          ASSET="era5-rank-reference-1950-${HISTORY_END}-${TARGET_MONTH}-${TARGET_DAY}.npz"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "asset=${ASSET}" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -Fxq "$ASSET"; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Historische Referenz vorhanden: $TAG / $ASSET"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Noch keine veröffentlichte Referenz für ${TARGET_MONTH}-${TARGET_DAY}; Jahres-Shards bleiben als Fallback aktiv."
+          fi
+
   shards:
     needs: prepare
-    if: needs.prepare.outputs.needed == 'true'
+    if: needs.prepare.outputs.needed == 'true' && needs.prepare.outputs.reference_available != 'true'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -221,7 +249,11 @@ jobs:
 
   finalize:
     needs: [prepare, shards]
-    if: needs.prepare.outputs.needed == 'true' && needs.shards.result == 'success'
+    if: >-
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs.prepare.outputs.needed == 'true' &&
+      (needs.prepare.outputs.reference_available == 'true' || needs.shards.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -237,7 +269,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow pytest
+      - name: Veröffentlichte Historienreferenz laden
+        if: needs.prepare.outputs.reference_available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_TAG: ${{ needs.prepare.outputs.reference_tag }}
+          REFERENCE_ASSET: ${{ needs.prepare.outputs.reference_asset }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .era5_running_rank_reference
+          gh release download "$REFERENCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$REFERENCE_ASSET" \
+            --dir .era5_running_rank_reference
+          test -s ".era5_running_rank_reference/$REFERENCE_ASSET"
+
       - uses: actions/download-artifact@v4
+        if: needs.prepare.outputs.reference_available != 'true'
         with:
           pattern: era5-running-rank-*
           path: .era5_running_rank_shards
@@ -262,10 +311,29 @@ jobs:
           EOF
           chmod 600 "$HOME/.cdsapirc"
 
+      - name: Vor dem Rendern neuesten main-Stand übernehmen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+
       - name: Vier laufende Rangkarten erzeugen
-        run: >-
-          python scripts/build_era5_running_temperature_rank_maps.py
-          --target-date "${{ needs.prepare.outputs.target_date }}"
+        env:
+          REFERENCE_AVAILABLE: ${{ needs.prepare.outputs.reference_available }}
+          REFERENCE_ASSET: ${{ needs.prepare.outputs.reference_asset }}
+          TARGET_DATE: ${{ needs.prepare.outputs.target_date }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$REFERENCE_AVAILABLE" == "true" ]]; then
+            python scripts/build_era5_running_temperature_rank_maps.py \
+              --target-date "$TARGET_DATE" \
+              --reference-file ".era5_running_rank_reference/$REFERENCE_ASSET"
+          else
+            python scripts/build_era5_running_temperature_rank_maps.py \
+              --target-date "$TARGET_DATE"
+          fi
 
       - name: Ergebnis prüfen
         shell: bash
