@@ -60,7 +60,7 @@ def finalize_month(
             with np.load(path, allow_pickle=False) as data:
                 year = int(np.asarray(data['year']).item())
                 file_month = int(np.asarray(data['month']).item())
-                file_day = int(np.asarray(data['day']).item())
+                file_day = int(np.asarray(data['target_day']).item())
                 lat = np.asarray(data['lat'], dtype=np.float32)
                 lon = np.asarray(data['lon'], dtype=np.float32)
                 if file_month != month or file_day != day:
