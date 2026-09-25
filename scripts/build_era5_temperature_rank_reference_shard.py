@@ -105,7 +105,7 @@ def build_reference_shard(year: int, month: int, target_year: int, output_dir: P
             year=np.asarray(year, dtype=np.int16),
             target_year=np.asarray(target_year, dtype=np.int16),
             month=np.asarray(month, dtype=np.int8),
-            day=np.asarray(day, dtype=np.int8),
+            target_day=np.asarray(day, dtype=np.int8),
             lat=np.asarray(lat, dtype=np.float32),
             lon=np.asarray(lon, dtype=np.float32),
             **{
