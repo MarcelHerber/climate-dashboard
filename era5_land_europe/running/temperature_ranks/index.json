@@ -1,6 +1,6 @@
 {
   "ready": true,
-  "data_through": "2026-09-20",
+  "data_through": "2026-09-21",
   "current_year": 2026,
   "history_start": 1950,
   "history_end": 2025,
@@ -11,43 +11,43 @@
   "products": {
     "day": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_day_rank.png",
-      "label": "20.09.2026",
+      "label": "21.09.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich des 20.09. mit demselben Kalendertag 1950–2025.",
+      "note": "Vergleich des 21.09. mit demselben Kalendertag 1950–2025.",
       "stats": {
-        "rank1_area_percent": 0.8961929517294617,
-        "top3_area_percent": 4.704929634277679,
+        "rank1_area_percent": 2.5533420267472655,
+        "top3_area_percent": 9.680055139269893,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 67
+        "max_rank": 70
       }
     },
     "month_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_month_to_date_rank.png",
-      "label": "01.–20.09.2026",
+      "label": "01.–21.09.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.–20.09. mit demselben Monatsabschnitt 1950–2025.",
+      "note": "Vergleich 01.–21.09. mit demselben Monatsabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 6.965483822472932,
-        "top3_area_percent": 12.821151686764546,
+        "rank1_area_percent": 7.415919736290962,
+        "top3_area_percent": 13.089603855847653,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 50
+        "max_rank": 47
       }
     },
     "season_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_season_to_date_rank.png",
-      "label": "Herbst · 01.09.2026–20.09.2026",
+      "label": "Herbst · 01.09.2026–21.09.2026",
       "unit": "Rang",
       "season_key": "autumn",
       "season_name": "Herbst",
@@ -56,31 +56,31 @@
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich Herbst ab 01.09. bis 20.09. mit demselben Jahreszeitenabschnitt 1950–2025.",
+      "note": "Vergleich Herbst ab 01.09. bis 21.09. mit demselben Jahreszeitenabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 6.965483822472932,
-        "top3_area_percent": 12.821151686764546,
+        "rank1_area_percent": 7.415919736290962,
+        "top3_area_percent": 13.089603855847653,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 50
+        "max_rank": 47
       }
     },
     "year_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_year_to_date_rank.png",
-      "label": "01.01.–20.09.2026",
+      "label": "01.01.–21.09.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.01.–20.09. mit demselben Jahresabschnitt 1950–2025.",
+      "note": "Vergleich 01.01.–21.09. mit demselben Jahresabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 18.977379661775043,
-        "top3_area_percent": 30.233908258920994,
+        "rank1_area_percent": 19.072739188786848,
+        "top3_area_percent": 30.238888997403976,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 68
+        "max_rank": 66
       }
     }
   },
@@ -347,7 +347,8 @@
     "2026-09-17",
     "2026-09-18",
     "2026-09-19",
-    "2026-09-20"
+    "2026-09-20",
+    "2026-09-21"
   ],
   "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
   "archive_image_format": "lossless-webp"
