@@ -9,10 +9,6 @@ on:
         type: choice
         default: "09"
         options: ["09","10","11","12"]
-  push:
-    paths:
-      - ".github/workflows/warm-era5-temperature-rank-cache.yml"
-
 permissions:
   contents: read
   actions: write
