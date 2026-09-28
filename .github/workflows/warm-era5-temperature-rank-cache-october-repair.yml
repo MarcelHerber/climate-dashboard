@@ -2,10 +2,6 @@ name: ERA5 Ranghistorie Oktober Cache reparieren
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/warm-era5-temperature-rank-cache-october-repair.yml"
-
 permissions:
   contents: read
   actions: write
