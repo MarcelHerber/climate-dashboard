@@ -18,7 +18,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: era5-temperature-rank-cache-warmup
+  group: era5-temperature-rank-heavy
   cancel-in-progress: false
 
 jobs:
