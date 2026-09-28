@@ -1,0 +1,76 @@
+name: ERA5 zwei fehlende Rangcaches reparieren
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/repair-era5-two-rank-caches.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: era5-temperature-rank-heavy
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - year: 2002
+            month: "09"
+          - year: 1982
+            month: "10"
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: .era5_running_rank_daily_cache
+          key: era5-running-temperature-rank-daily-v1-${{ matrix.year }}-m${{ matrix.month }}
+
+      - name: CDS konfigurieren
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "${CDSAPI_KEY}" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Fehlenden Tagescache aufwärmen
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: >-
+          python scripts/warm_era5_temperature_rank_daily_cache.py
+          --year ${{ matrix.year }}
+          --month ${{ matrix.month }}
+
+      - name: Status
+        run: |
+          if [[ "${{ steps.cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "Cache ${{ matrix.year }}-${{ matrix.month }} war bereits vorhanden."
+          else
+            echo "Cache ${{ matrix.year }}-${{ matrix.month }} wurde neu aufgebaut."
+          fi
