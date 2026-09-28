@@ -11,7 +11,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: era5-temperature-rank-cache-october-repair
+  group: era5-temperature-rank-heavy
   cancel-in-progress: false
 
 jobs:
