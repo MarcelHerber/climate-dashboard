@@ -1150,6 +1150,7 @@ button.action:hover{background:#1f2937}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20260922-7">
+<link rel="stylesheet" href="aurora_dashboard.css?v=1">
 </head>
 <body>
 
@@ -1212,6 +1213,8 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
         </div>
       </div>
+
+      <button class="nav-link tab-button" data-nav-group="aurora" onclick="switchTab('aurora')">Polarlicht</button>
 
       <button class="nav-link" type="button" onclick="openAlpenwetter()" title="Geschützter Alpenwetter-Bereich">Alpenwetter 🔒</button>
 
@@ -3261,6 +3264,29 @@ button.action:hover{background:#1f2937}
 </div>
 
 
+
+<!-- ================= POLARLICHT ================= -->
+<div id="aurora" class="tab-content">
+  <div class="section-header"><h2>Polarlicht · Live</h2><p>Aktuelle Sonnenwind- und IMF-Daten am L1-Punkt, geomagnetische Aktivität und standortbezogene NOAA-OVATION-Einschätzung.</p><span class="section-status"><span id="auroraLiveDot" class="aurora-dot"></span><span id="auroraUpdated">Noch nicht geladen</span></span></div>
+  <div class="aurora-location"><button id="auroraLocate" class="action" type="button">Standort freigeben</button><strong id="auroraLocationText">Noch kein Standort freigegeben</strong><span id="auroraLat" hidden></span><span id="auroraLon" hidden></span><span class="note">Die Position wird nur lokal im Browser für die Aurora-Auswertung verwendet.</span></div>
+  <div id="auroraStatus" class="aurora-status"><div><div class="aurora-status-title">Live-Daten werden beim Öffnen geladen</div><div id="auroraAssessmentDetail" class="aurora-detail">Standort freigeben für die lokale Einschätzung.</div></div><div class="aurora-actions"><button id="auroraRefresh" class="action" type="button">Live-Daten aktualisieren</button></div></div>
+  <div class="aurora-grid">
+    <div class="aurora-card"><div class="aurora-label">Bz · GSM</div><div id="auroraBz" class="aurora-value">–</div><div id="auroraBzDetail" class="aurora-detail">entscheidend für Kopplung</div></div>
+    <div class="aurora-card"><div class="aurora-label">Bt</div><div id="auroraBt" class="aurora-value">–</div><div class="aurora-detail">IMF-Gesamtfeld</div></div>
+    <div class="aurora-card"><div class="aurora-label">Solarwind</div><div id="auroraSpeed" class="aurora-value">–</div><div class="aurora-detail">Protonengeschwindigkeit</div></div>
+    <div class="aurora-card"><div class="aurora-label">Protonendichte</div><div id="auroraDensity" class="aurora-value">–</div><div class="aurora-detail">Teilchen / cm³</div></div>
+    <div class="aurora-card"><div class="aurora-label">Planetarer Kp</div><div id="auroraKp" class="aurora-value">–</div><div class="aurora-detail">globaler Aktivitätsindex</div></div>
+    <div class="aurora-card"><div class="aurora-label">OVATION lokal</div><div id="auroraProbability" class="aurora-value">–</div><div id="auroraProbabilityDetail" class="aurora-detail">Standort erforderlich</div></div>
+    <div class="aurora-card"><div class="aurora-label">L1 → Erde</div><div id="auroraLead" class="aurora-value">–</div><div id="auroraLeadDetail" class="aurora-detail">grobe Vorlaufzeit</div></div>
+  </div>
+  <div class="aurora-chart-grid">
+    <div class="chart-container auto"><h3>IMF · letzte 2 Stunden</h3><div class="aurora-chart"><canvas id="auroraMagChart"></canvas></div></div>
+    <div class="chart-container auto"><h3>Solarwind-Speed · letzte 2 Stunden</h3><div class="aurora-chart"><canvas id="auroraWindChart"></canvas></div></div>
+    <div class="chart-container auto"><h3>Protonendichte · letzte 2 Stunden</h3><div class="aurora-chart"><canvas id="auroraDensityChart"></canvas></div></div>
+  </div>
+  <p class="aurora-source">Quelle: NOAA Space Weather Prediction Center (RTSW 1-Minuten-Daten, planetarer K-Index und OVATION Aurora). Bz/Bt und Solarwind werden am L1-Punkt gemessen; die Laufzeit zur Erde ist eine vereinfachte Abschätzung.</p>
+</div>
+
 <!-- ================= VERGLEICHE ================= -->
 <div id="compare" class="tab-content">
   <div class="section-header"><h2>Vergleichsmodus</h2><p>Zwei Gebiete, Jahre oder Stationen werden mit identischer Methodik und gemeinsamer Skala direkt gegenübergestellt.</p><span class="section-status">Geteilte Diagramme · CSV-, PNG- und PDF-Export</span></div>
@@ -3913,6 +3939,7 @@ function switchTab(tab,{persist=true}={}){
   }
   if(tab==="daily"||tab==="extremes"||tab==="compare") ensureDailyDashboardLoaded();
   if(tab==="current") ensureCurrentConditions();
+  if(tab==="aurora" && typeof ensureAuroraDashboard==="function") ensureAuroraDashboard();
   if(tab==="stationObservations") ensureStationObservationsLoaded();
   if(tab==="hyras") ensureHyrasLoaded();
   if(tab==="era5Europe"){ensureEra5EuropeLoaded();ensureEra5RunningTemperatureRanksLoaded().catch(()=>{});}
@@ -17019,5 +17046,6 @@ hyrasSwitchParameter=async function(){
 <!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
 <script src="monthly_frequency.js?v=4"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
-<script src="mosmix.js?v=8"></script>\n</body>
+<script src="mosmix.js?v=8"></script>\n<script src="aurora_dashboard.js?v=1"></script>
+</body>
 </html>
