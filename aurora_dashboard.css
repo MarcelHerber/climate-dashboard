@@ -12,3 +12,5 @@
 .aurora-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#7b8794;margin-right:6px}.aurora-dot.live{background:#16803c}.aurora-dot.error{background:#b3261e}
 @media(max-width:1000px){.aurora-grid{grid-template-columns:repeat(2,1fr)}.aurora-chart-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.aurora-grid{grid-template-columns:1fr 1fr}.aurora-value{font-size:23px}.aurora-chart{height:260px}}
+
+.aurora-place-search{display:flex;gap:8px;flex:1 1 430px;min-width:260px}.aurora-place-search input{flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;color:inherit;font:inherit}.aurora-place-search input:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.aurora-gps-secondary{opacity:.8}@media(max-width:560px){.aurora-place-search{flex-basis:100%;min-width:0}.aurora-place-search input{width:100%}.aurora-place-search .action{flex:0 0 auto}}
