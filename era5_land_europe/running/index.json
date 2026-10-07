@@ -1,8 +1,8 @@
 {
   "ready": true,
   "payload_version": 1,
-  "generated_at": "2026-10-06T17:16:23+00:00",
-  "data_through": "2026-09-30",
+  "generated_at": "2026-10-07T17:53:37+00:00",
+  "data_through": "2026-10-01",
   "reference_period": "1991–2020",
   "coverage": {
     "north": 72.0,
@@ -24,9 +24,9 @@
   "periods": {
     "running_month": {
       "id": "running_month",
-      "label": "September 2026 bis 30.09.",
-      "date_start": "2026-09-01",
-      "date_end": "2026-09-30",
+      "label": "Oktober 2026 bis 01.10.",
+      "date_start": "2026-10-01",
+      "date_end": "2026-10-01",
       "year": 2026,
       "partial_daily": true,
       "temperature": {
@@ -41,9 +41,9 @@
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 16.59013514689899,
-          "reference": 14.80098170886431,
-          "difference": 1.7891534380346812
+          "current": 13.490017868743115,
+          "reference": 12.20540564341393,
+          "difference": 1.2846122253291838
         }
       },
       "precipitation": {
@@ -58,55 +58,57 @@
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 59.174746227007454,
-          "reference": 62.921490540102226,
-          "percent": 94.04536624778964
+          "current": 2.0558205525185747,
+          "reference": 2.21462262519599,
+          "percent": 92.82938452489793
         }
       }
     },
     "running_autumn": {
       "id": "running_autumn",
-      "label": "Herbst 2026 bis 30.09.",
+      "label": "Herbst 2026 bis 01.10.",
       "date_start": "2026-09-01",
-      "date_end": "2026-09-30",
+      "date_end": "2026-10-01",
       "year": 2026,
       "partial_daily": true,
       "temperature": {
         "absolute": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_absolute.png",
+          "file": "era5_land_europe/running/maps/temperature_running_autumn_absolute.png",
           "unit": "°C",
           "label": "Temperatur"
         },
         "anomaly": {
-          "file": "era5_land_europe/running/maps/temperature_running_month_anomaly.png",
+          "file": "era5_land_europe/running/maps/temperature_running_autumn_anomaly.png",
           "unit": "K",
           "label": "Abweichung 1991–2020"
         },
         "stats": {
-          "current": 16.59013514689899,
-          "reference": 14.80098170886431,
-          "difference": 1.7891534380346812
+          "current": 16.48364185698352,
+          "reference": 14.711669994356562,
+          "difference": 1.771971862626959
         }
       },
       "precipitation": {
         "absolute": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_absolute.png",
+          "file": "era5_land_europe/running/maps/precipitation_running_autumn_absolute.png",
           "unit": "mm",
           "label": "Niederschlag"
         },
         "percent": {
-          "file": "era5_land_europe/running/maps/precipitation_running_month_percent.png",
+          "file": "era5_land_europe/running/maps/precipitation_running_autumn_percent.png",
           "unit": "%",
           "label": "Prozent vom Mittel 1991–2020"
         },
         "stats": {
-          "current": 59.174746227007454,
-          "reference": 62.921490540102226,
-          "percent": 94.04536624778964
+          "current": 61.23058328051055,
+          "reference": 65.13611682804964,
+          "percent": 94.00404301372592
         }
       },
-      "completed_months": [],
-      "partial_month": 9
+      "completed_months": [
+        "2026-09"
+      ],
+      "partial_month": 10
     }
   },
   "rendering_note": "Laufende Temperaturabweichungen verwenden dieselbe diskrete -8 bis +8 K Skala wie die vollständigen ERA5-Land-Europakarten."
