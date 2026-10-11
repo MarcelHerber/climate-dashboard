@@ -1,0 +1,114 @@
+name: Bundesland Monats-Ensembles aktualisieren
+
+on:
+  schedule:
+    - cron: "27 0,6,12,18 * * *"
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/build_state_monthly_ensemble_outlook.py"
+      - ".github/workflows/update-state-monthly-ensemble.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: state-monthly-ensemble-data
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests shapely
+
+      - name: Aktuelle HYRAS-Bundeslanddaten holen
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/state-monthly-input /tmp/state-monthly-output
+          mkdir -p /tmp/state-monthly-input /tmp/state-monthly-output
+          git fetch origin hyras-data --depth=1
+
+          git show origin/hyras-data:tmean/regions/index.json > /tmp/state-monthly-input/index.json
+          CURRENT_FILE=$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/state-monthly-input/index.json'))['current_file'])
+          PY
+          )
+          CLIMATE_FILE=$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/state-monthly-input/index.json'))['climate_file'])
+          PY
+          )
+
+          git show "origin/hyras-data:tmean/regions/$CURRENT_FILE" > /tmp/state-monthly-input/current.json
+          git show "origin/hyras-data:tmean/regions/$CLIMATE_FILE" > /tmp/state-monthly-input/climate.json
+
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/state-monthly-input/current.json'))
+          print('HYRAS:',x['data_through'],'· Gebiete:',len(x['regions']))
+          PY
+
+      - name: Monats-Ensembles berechnen
+        run: |
+          python scripts/build_state_monthly_ensemble_outlook.py             --current /tmp/state-monthly-input/current.json             --climate /tmp/state-monthly-input/climate.json             --output /tmp/state-monthly-output/state_monthly_ensemble.json
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/state-monthly-output/state_monthly_ensemble.json')
+          d=json.loads(p.read_text())
+          assert d['schema_version']==1
+          assert len(d['regions_order'])==17
+          assert set(d['models_order'])=={'gefs','ifs','aifs','icon_eu'},d['models_order']
+          assert len(d['regions'])==17
+          for region in d['regions_order']:
+              r=d['regions'][region]
+              assert r['observed_running']
+              assert r['climatology_running']
+              assert set(r['models'])=={'gefs','ifs','aifs','icon_eu'},(region,r['models'].keys())
+              for key,m in r['models'].items():
+                  assert m['member_count']>0,(region,key)
+                  assert m['stats']['mean'],(region,key)
+          print('Prüfung OK:',d['year'],d['month'],d['observation_data_through'])
+          print('Dateigröße:',round(p.stat().st_size/1024,1),'KiB')
+          PY
+
+      - name: Datenbranch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/state-monthly-output
+          git init
+          git checkout -b state-monthly-ensemble
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state_monthly_ensemble.json
+          git commit -m "Bundesland Monats-Ensembles aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-ensemble
