@@ -362,7 +362,17 @@ jobs:
               if len(daily_dates) != 1:
                   raise RuntimeError(f'{daily_manifest}: erwartet genau einen Tag, gefunden {daily_dates}')
               day = daily_dates[0]
-              dates[day] = copy.deepcopy(payload['dates'][day])
+              incoming = payload['dates'][day]
+              target = copy.deepcopy(dates.get(day, {}))
+              target_regions = target.setdefault('regions', {})
+              target_stats = target.setdefault('statistics', {})
+              target_refs = target.setdefault('reference_methods', {})
+              target_regions.update(copy.deepcopy(incoming.get('regions', {})))
+              target_stats.update(copy.deepcopy(incoming.get('statistics', {})))
+              target_refs.update(copy.deepcopy(incoming.get('reference_methods', {})))
+              if not target.get('reference_method'):
+                  target['reference_method'] = incoming.get('reference_method')
+              dates[day] = target
               available.add(day)
 
               for webp in root.rglob('*.webp'):
