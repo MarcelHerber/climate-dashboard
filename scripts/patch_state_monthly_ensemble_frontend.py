@@ -7,16 +7,34 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261011-2"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261011-3"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
+NEW_SELECTORS='''    <div class="control-group">
+      <label for="stateMonthlyPeriod">Zeitraum</label>
+      <select id="stateMonthlyPeriod">
+        <option value="month" selected>Laufender Monat</option>
+        <option value="season">Meteorologische Jahreszeit</option>
+        <option value="year">Laufendes Jahr</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="stateMonthlyMetric">Darstellung</label>
+      <select id="stateMonthlyMetric">
+        <option value="absolute" selected>Temperaturmittel (°C)</option>
+        <option value="anomaly">Abweichung 1991–2020 (K)</option>
+      </select>
+    </div>
+'''
+VIEW_ANCHOR='    <div class="control-group">\n      <label for="stateMonthlyView">Ansicht</label>'
+
 
 PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->
 <div id="state-monthly-ensemble" class="tab-content">
   <div class="section-header state-monthly-header">
     <h2>Monatsausblick · Deutschland & Bundesländer</h2>
-    <p>Laufendes 2-m-Temperatur-Monatsmittel aus HYRAS-Beobachtungen, fortgeschrieben mit GFS/GEFS, ECMWF IFS, ECMWF AIFS und DWD ICON-EU EPS.</p>
+    <p>Laufendes 2-m-Temperaturmittel für Monat, Jahreszeit und Jahr: HYRAS-Beobachtungen mit Ensemble-Fortschreibung und Abweichung vom Klimamittel 1991–2020.</p>
     <span class="section-status">HYRAS-DE-TAS · 1991–2020 · Ensemble-Prognose für den laufenden Monat</span>
   </div>
 
@@ -25,7 +43,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
       <label for="stateMonthlyRegion">Gebiet</label>
       <select id="stateMonthlyRegion"><option>Deutschland</option></select>
     </div>
-    <div class="control-group">
+'''+NEW_SELECTORS+'''    <div class="control-group">
       <label for="stateMonthlyView">Ansicht</label>
       <select id="stateMonthlyView">
         <option value="four" selected>4er-Tafel</option>
@@ -49,7 +67,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
     <div class="state-monthly-export-head">
       <div>
         <h2 id="stateMonthlyTitle">Deutschland · laufender Monat</h2>
-        <p>Laufendes Monatsmittel · Beobachtung + Ensemble-Fortschreibung</p>
+        <p>Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>
       </div>
     </div>
 
@@ -78,6 +96,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
     Beobachtung und Klimareferenz sind echte HYRAS-DE-TAS-Flächenmittel auf dem 1-km-Gitter.
     Die Ensemble-Prognosen werden in der ersten Version aus mehreren räumlich verteilten Modell-Stützpunkten je Gebiet gemittelt;
     damit ist die Bundesland-Prognose bereits flächenrepräsentativ, aber noch kein natives Modellraster-Flächenmittel.
+    Die Abweichung in Kelvin wird für jeden Tag gegen das bis dahin aufgelaufene Klimamittel 1991–2020 berechnet.
     Die Daten werden automatisch viermal täglich aktualisiert.
   </p>
 </div>
@@ -100,6 +119,23 @@ def patch_index(text: str) -> str:
         if footer not in text:
             raise RuntimeError("Dashboard-Footer fehlt")
         text=text.replace(footer,PANEL+"\n\n"+footer,1)
+
+    # Bereits veröffentlichte Tabs um die neuen Auswahlfelder ergänzen.
+    if 'id="stateMonthlyPeriod"' not in text:
+        if VIEW_ANCHOR not in text:
+            raise RuntimeError("Monats-Ensemble-Auswahl für Zeitraum nicht gefunden")
+        text=text.replace(VIEW_ANCHOR,NEW_SELECTORS+VIEW_ANCHOR,1)
+
+    text=text.replace(
+        "Laufendes Monatsmittel · Beobachtung + Ensemble-Fortschreibung",
+        "Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie",
+        1,
+    )
+    text=text.replace(
+        "Laufendes 2-m-Temperatur-Monatsmittel aus HYRAS-Beobachtungen, fortgeschrieben mit GFS/GEFS, ECMWF IFS, ECMWF AIFS und DWD ICON-EU EPS.",
+        "Laufendes 2-m-Temperaturmittel für Monat, Jahreszeit und Jahr: HYRAS-Beobachtungen mit Ensemble-Fortschreibung und Abweichung vom Klimamittel 1991–2020.",
+        1,
+    )
 
     # Auch eine bereits vorhandene, ältere Version aktualisieren:
     # Browser-Caches sollen nach der Achsenkorrektur frisches JS laden.
