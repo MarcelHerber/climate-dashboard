@@ -1150,7 +1150,7 @@ button.action:hover{background:#1f2937}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20260922-7">
-</head>
+<link rel="stylesheet" href="era5_europe.css?v=1">\n</head>
 <body>
 
 <header class="dashboard-header">
@@ -1208,6 +1208,7 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeHub')">Europa-Überblick</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeStations')">Europa-Stationen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
+          <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Atmosphere')">ERA5 Atmosphäre</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
         </div>
@@ -1390,7 +1391,7 @@ button.action:hover{background:#1f2937}
 
 <!-- ================= EUROPA-HUB ================= -->
 <div id="europeHub" class="tab-content">
-  <div class="section-header"><h2>Europa</h2><p>Der Europa-Bereich bündelt die bereits vorhandenen Europa-Module unter einer gemeinsamen, aufgeräumten Oberfläche. In dieser Datei ist der Bereich als sauberer Einstieg vorbereitet, damit die vorhandenen Europa-Stationen und ERA5-Land-Ansichten direkt wieder angedockt werden können.</p><span class="section-status">Europa-Stationen · ERA5-Land Europa</span></div>
+  <div class="section-header"><h2>Europa</h2><p>Der Europa-Bereich bündelt die bereits vorhandenen Europa-Module unter einer gemeinsamen, aufgeräumten Oberfläche. In dieser Datei ist der Bereich als sauberer Einstieg vorbereitet, damit die vorhandenen Europa-Stationen und ERA5-Land-Ansichten direkt wieder angedockt werden können.</p><span class="section-status">Europa-Stationen · ERA5-Land Europa · ERA5 Atmosphäre</span></div>
   <div class="europe-hub-layout">
     <div class="europe-hub-main">
       <section class="europe-hub-hero">
@@ -1398,7 +1399,7 @@ button.action:hover{background:#1f2937}
         <p>Hier kannst du die europäischen Inhalte als eigenen Bereich mit derselben klaren Designsprache wie im Deutschland-Dashboard führen — ohne dass der Deutschland-Fokus verloren geht. Die Struktur ist bewusst so angelegt, dass bestehende Europa-Ansichten im nächsten Schritt direkt hier eingebunden werden können.</p>
         <div class="europe-hub-pillbar">
           <span class="europe-hub-pill">Europa-Stationen</span>
-          <span class="europe-hub-pill">ERA5-Land Europa</span>
+          <span class="europe-hub-pill">ERA5-Land Europa</span>\n          <span class="europe-hub-pill">ERA5 Atmosphäre</span>
           <span class="europe-hub-pill">eigener Menüpunkt</span>
         </div>
       </section>
@@ -1452,6 +1453,59 @@ button.action:hover{background:#1f2937}
 </div>
 
 
+
+
+<!-- ================= ERA5 ATMOSPHÄRE EUROPA ================= -->
+<div id="era5Atmosphere" class="tab-content">
+  <div class="section-header">
+    <h2>ERA5 Atmosphäre Europa</h2>
+    <p>Großräumige Zirkulation und freie Atmosphäre aus ERA5: 850-hPa-Temperatur, 500-hPa-Geopotentialhöhe, 300-hPa-Wind und Luftdruck auf Meereshöhe mit Absolutwerten, Abweichungen zu 1991–2020 und historischen Rängen seit 1940.</p>
+    <span class="section-status">ERA5 · 0,25° · Monatsmittel · Historie ab 1940 · Copernicus C3S / ECMWF</span>
+  </div>
+
+  <div id="era5AtmosStatus" class="era5-atmos-status">ERA5-Atmosphärendaten werden beim ersten Öffnen geladen …</div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="era5AtmosPeriod">Monat</label>
+      <select id="era5AtmosPeriod"></select>
+    </div>
+    <div class="control-group">
+      <label for="era5AtmosParameter">Parameter</label>
+      <select id="era5AtmosParameter"></select>
+    </div>
+    <div class="control-group">
+      <label for="era5AtmosView">Darstellung</label>
+      <select id="era5AtmosView">
+        <option value="absolute">Absolutwert</option>
+        <option value="anomaly" selected>Abweichung 1991–2020</option>
+        <option value="rank">Historischer Rang</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="era5-atmos-layout">
+    <section class="era5-atmos-card">
+      <h3 id="era5AtmosTitle">ERA5 Atmosphäre</h3>
+      <p id="era5AtmosSubtitle">Monatsdaten werden geladen …</p>
+      <div class="era5-atmos-image-wrap">
+        <img id="era5AtmosImage" hidden alt="">
+        <div id="era5AtmosPlaceholder" class="era5-atmos-placeholder">ERA5-Karte wird geladen …</div>
+      </div>
+    </section>
+
+    <aside class="era5-atmos-card">
+      <div class="era5-atmos-kpis">
+        <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Aktuell</div><div id="era5AtmosCurrent" class="era5-atmos-kpi-value">–</div><div id="era5AtmosCurrentDetail" class="era5-atmos-kpi-detail"></div></div>
+        <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Klimamittel</div><div id="era5AtmosReference" class="era5-atmos-kpi-value">–</div><div id="era5AtmosReferenceDetail" class="era5-atmos-kpi-detail"></div></div>
+        <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Abweichung</div><div id="era5AtmosAnomaly" class="era5-atmos-kpi-value">–</div><div id="era5AtmosAnomalyDetail" class="era5-atmos-kpi-detail"></div></div>
+        <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Rang 1 Fläche</div><div id="era5AtmosRank1" class="era5-atmos-kpi-value">–</div><div id="era5AtmosRank1Detail" class="era5-atmos-kpi-detail"></div></div>
+        <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Top-3 Fläche</div><div id="era5AtmosTop3" class="era5-atmos-kpi-value">–</div><div id="era5AtmosTop3Detail" class="era5-atmos-kpi-detail"></div></div>
+      </div>
+      <div class="era5-atmos-source">Quelle: Copernicus Climate Change Service / ECMWF · ERA5 monthly averaged data on pressure levels and single levels.</div>
+    </aside>
+  </div>
+</div>
 
 
 <!-- ================= ERA5-LAND EUROPA ================= -->
@@ -3917,6 +3971,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="stationObservations") ensureStationObservationsLoaded();
   if(tab==="hyras") ensureHyrasLoaded();
   if(tab==="era5Europe"){ensureEra5EuropeLoaded();ensureEra5RunningTemperatureRanksLoaded().catch(()=>{});}
+  if(tab==="era5Atmosphere") ensureEra5AtmosphereLoaded();
   if(tab==="europeStations") ensureEuropeStationMap();
   if(tab==="monthly") window.setTimeout(()=>{
     updateMonthly();
@@ -17020,6 +17075,6 @@ hyrasSwitchParameter=async function(){
 <!-- Dashboard Layout v23: Europa-Stationen Aktivfilter wiederhergestellt -->
 <script src="monthly_frequency.js?v=4"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
-<script src="mosmix.js?v=8"></script>
+<script src="mosmix.js?v=8"></script>\n<script src="era5_europe.js?v=1"></script>
 </body>
 </html>
