@@ -198,26 +198,44 @@ def download_oisst_normal_subset(
     lon_start, lon_stop = _selected_index_range(longitudes, west, east)
     time_start, time_stop = _normal_time_indices(day)
 
-    query = (
-        f"{NOAA_NORMALS_ERDDAP}"
-        f"[{time_start}:1:{time_stop}]"
-        f"[{lat_start}:1:{lat_stop}]"
-        f"[{lon_start}:1:{lon_stop}]"
-    )
-
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="oisst-normal-", dir=destination.parent) as tmp:
-        raw_path = Path(tmp) / "normal.nc"
-        response = _get_with_retry(session, query, stream=True, timeout=180)
-        try:
-            _write_response_atomic(response, raw_path)
-        finally:
-            close = getattr(response, "close", None)
-            if callable(close):
-                close()
+        longitude_parts: list[xr.Dataset] = []
+        chunk_size = 360
+        chunk_number = 0
+        chunk_start = lon_start
+        while chunk_start <= lon_stop:
+            chunk_stop = min(chunk_start + chunk_size - 1, lon_stop)
+            query = (
+                f"{NOAA_NORMALS_ERDDAP}"
+                f"[{time_start}:1:{time_stop}]"
+                f"[{lat_start}:1:{lat_stop}]"
+                f"[{chunk_start}:1:{chunk_stop}]"
+            )
+            raw_path = Path(tmp) / f"normal-{chunk_number:02d}.nc"
+            response = _get_with_retry(session, query, stream=True, timeout=180)
+            try:
+                _write_response_atomic(response, raw_path)
+            finally:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
 
-        with xr.open_dataset(raw_path, decode_times=False) as raw:
-            standardized = _standardize_subset(raw.load())
+            with xr.open_dataset(raw_path, decode_times=False) as raw:
+                longitude_parts.append(_standardize_subset(raw.load()))
+            chunk_start = chunk_stop + 1
+            chunk_number += 1
+
+        standardized = xr.concat(
+            longitude_parts,
+            dim="lon",
+            data_vars="minimal",
+            coords="minimal",
+            compat="override",
+        ).sortby("lon")
+        rounded_lon = np.round(np.asarray(standardized["lon"].values, dtype=float), 6)
+        _, unique_indices = np.unique(rounded_lon, return_index=True)
+        standardized = standardized.isel(lon=np.sort(unique_indices))
         field = standardized["sst"]
         if int(field.sizes.get("time", 1)) == 2:
             field = field.mean("time", skipna=True)
