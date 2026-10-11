@@ -10,6 +10,8 @@ required_root_files=(
   sst_europe.css
   t850_ensembles.js
   t850_ensembles.css
+  state_monthly_ensemble.js
+  state_monthly_ensemble.css
   monthly_frequency.js
   mosmix.js
   dwd_station_daily_map.js
