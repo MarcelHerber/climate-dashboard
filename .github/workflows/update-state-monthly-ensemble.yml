@@ -84,8 +84,14 @@ jobs:
           from pathlib import Path
           p=Path('/tmp/state-monthly-output/state_monthly_ensemble.json')
           d=json.loads(p.read_text())
-          assert d['schema_version']==1
+          assert d['schema_version']==2
           assert len(d['regions_order'])==17
+          assert set(d['periods'])=={'month','season','year'},d['periods']
+          for key,period in d['periods'].items():
+              assert period['dates'],key
+              assert period['start_date']==period['dates'][0],key
+              assert period['end_date']==period['dates'][-1],key
+          assert d['dates']==d['periods']['month']['dates']
           available=set(d['models_order'])
           expected={'gefs','ifs','aifs','icon_eu'}
           assert len(available)>=3, d['models_order']
@@ -95,10 +101,16 @@ jobs:
               r=d['regions'][region]
               assert r['observed_running']
               assert r['climatology_running']
-              assert set(r['models'])==available,(region,r['models'].keys(),available)
-              for key,m in r['models'].items():
-                  assert m['member_count']>0,(region,key)
-                  assert m['stats']['mean'],(region,key)
+              assert set(r['periods'])=={'month','season','year'},region
+              for period_key,series in r['periods'].items():
+                  dates=d['periods'][period_key]['dates']
+                  assert len(series['observed_running'])==len(dates),(region,period_key)
+                  assert len(series['climatology_running'])==len(dates),(region,period_key)
+                  assert set(series['models'])==available,(region,period_key)
+                  assert series['observed_anomaly_to_date'] is not None,(region,period_key)
+                  for key,m in series['models'].items():
+                      assert m['member_count']>0,(region,period_key,key)
+                      assert len(m['stats']['mean'])==len(dates),(region,period_key,key)
           missing=sorted(expected-available)
           if missing:
               print('WARNUNG: temporär fehlende Modelle:',', '.join(missing))
