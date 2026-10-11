@@ -1,6 +1,10 @@
 name: SST Europa täglich aktualisieren
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/update-sst-europe.yml"
   schedule:
     - cron: "17 11 * * *"
   workflow_dispatch:
@@ -14,6 +18,7 @@ concurrency:
 
 jobs:
   update:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[run-sst-daily]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
