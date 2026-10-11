@@ -7,7 +7,7 @@ import os
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from .config import ABSOLUTE_RANGE, ANOMALY_RANGE, ARCHIVE_START, REGIONS
+from .config import ABSOLUTE_RANGE, ANOMALY_RANGE, ARCHIVE_START, ALL_REGIONS, REGIONS
 
 VIEWS = ("absolute", "anomaly")
 STAT_KEYS = ("mean", "min", "max")
@@ -41,8 +41,10 @@ def empty_manifest() -> dict:
                 "bounds": [region.west, region.south, region.east, region.north],
                 "width_px": region.width_px,
                 "height_px": region.height_px,
+                "source_id": region.source_id,
+                "source_label": region.source_label,
             }
-            for region_id, region in REGIONS.items()
+            for region_id, region in ALL_REGIONS.items()
         },
         "available_dates": [],
         "dates": {},
@@ -50,7 +52,7 @@ def empty_manifest() -> dict:
 
 
 def archive_relpath(day: date, region_id: str, view: str) -> str:
-    if region_id not in REGIONS:
+    if region_id not in ALL_REGIONS:
         raise ValueError(f"Unbekannte SST-Region: {region_id}")
     if view not in VIEWS:
         raise ValueError(f"Unbekannte SST-Ansicht: {view}")
