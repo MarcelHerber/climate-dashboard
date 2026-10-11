@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 ROOT=Path(__file__).resolve().parents[1]
 INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261011-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261011-2"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
@@ -100,7 +101,12 @@ def patch_index(text: str) -> str:
             raise RuntimeError("Dashboard-Footer fehlt")
         text=text.replace(footer,PANEL+"\n\n"+footer,1)
 
-    if JS_TAG not in text:
+    # Auch eine bereits vorhandene, ältere Version aktualisieren:
+    # Browser-Caches sollen nach der Achsenkorrektur frisches JS laden.
+    old_tag=r'<script src="state_monthly_ensemble\\.js(?:\\?[^"]*)?"></script>'
+    if re.search(old_tag,text):
+        text=re.sub(old_tag,lambda _: JS_TAG,text,count=1)
+    else:
         anchor='<script src="t850_ensembles.js?v=20260922-7"></script>'
         if anchor not in text:
             raise RuntimeError("T850-Scriptanker fehlt")
