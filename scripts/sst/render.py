@@ -29,13 +29,14 @@ def render_map(fields: ProcessedFields, region: Region, day: date, view: str, ou
     vmin, vmax, cmap, unit = view_scale(view)
     data = fields.absolute_c if view == "absolute" else fields.anomaly_c
     subtitle = "SST absolut" if view == "absolute" else "Abweichung zu 1991–2020"
-    source = "Quelle: NASA/JPL MUR SST v4.1"
+    source = getattr(region, "source_label", "Quelle: NASA/JPL MUR SST v4.1")
     if view == "anomaly":
         source += " · Referenz: NOAA OISST 1991–2020"
 
     dpi = 100
     figure = plt.figure(figsize=(region.width_px / dpi, region.height_px / dpi), dpi=dpi, facecolor="white")
-    ax = figure.add_axes([0.055, 0.16, 0.89, 0.73], projection=ccrs.PlateCarree())
+    projection = ccrs.PlateCarree(central_longitude=float(getattr(region, "central_longitude", 0.0)))
+    ax = figure.add_axes([0.055, 0.16, 0.89, 0.73], projection=projection)
     ax.set_extent((region.west, region.east, region.south, region.north), crs=ccrs.PlateCarree())
     mesh = ax.pcolormesh(
         fields.lon.values,
