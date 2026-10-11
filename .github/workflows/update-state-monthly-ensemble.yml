@@ -71,7 +71,10 @@ jobs:
 
       - name: Monats-Ensembles berechnen
         run: |
-          python scripts/build_state_monthly_ensemble_outlook.py             --current /tmp/state-monthly-input/current.json             --climate /tmp/state-monthly-input/climate.json             --output /tmp/state-monthly-output/state_monthly_ensemble.json
+          python scripts/build_state_monthly_ensemble_outlook.py \
+            --current /tmp/state-monthly-input/current.json \
+            --climate /tmp/state-monthly-input/climate.json \
+            --output /tmp/state-monthly-output/state_monthly_ensemble.json
 
       - name: Ergebnis prüfen
         shell: bash
@@ -83,17 +86,24 @@ jobs:
           d=json.loads(p.read_text())
           assert d['schema_version']==1
           assert len(d['regions_order'])==17
-          assert set(d['models_order'])=={'gefs','ifs','aifs','icon_eu'},d['models_order']
+          available=set(d['models_order'])
+          expected={'gefs','ifs','aifs','icon_eu'}
+          assert len(available)>=3, d['models_order']
+          assert available <= expected, d['models_order']
           assert len(d['regions'])==17
           for region in d['regions_order']:
               r=d['regions'][region]
               assert r['observed_running']
               assert r['climatology_running']
-              assert set(r['models'])=={'gefs','ifs','aifs','icon_eu'},(region,r['models'].keys())
+              assert set(r['models'])==available,(region,r['models'].keys(),available)
               for key,m in r['models'].items():
                   assert m['member_count']>0,(region,key)
                   assert m['stats']['mean'],(region,key)
-          print('Prüfung OK:',d['year'],d['month'],d['observation_data_through'])
+          missing=sorted(expected-available)
+          if missing:
+              print('WARNUNG: temporär fehlende Modelle:',', '.join(missing))
+              print('Fehlerdetails:',d.get('model_errors',{}))
+          print('Prüfung OK:',d['year'],d['month'],d['observation_data_through'],'· Modelle:',', '.join(d['models_order']))
           print('Dateigröße:',round(p.stat().st_size/1024,1),'KiB')
           PY
 
