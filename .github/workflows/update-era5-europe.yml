@@ -35,6 +35,9 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
 
       - uses: actions/setup-python@v6
         with:
