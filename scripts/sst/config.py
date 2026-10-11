@@ -15,6 +15,9 @@ class Region:
     width_px: int = 1600
     height_px: int = 1050
     fetch_bounds: tuple[float, float, float, float] | None = None
+    central_longitude: float = 0.0
+    source_id: str = "mur"
+    source_label: str = "Quelle: NASA/JPL MUR SST v4.1"
 
     @property
     def bounds(self) -> tuple[float, float, float, float]:
@@ -65,6 +68,49 @@ REGIONS = {
         fetch_bounds=(-36.5, 48.5, 51.5, 85.0),
     ),
 }
+
+
+OCEAN_REGIONS = {
+    "pacific": Region(
+        "pacific",
+        "Pazifik",
+        120.0,
+        -60.0,
+        290.0,
+        60.0,
+        fetch_bounds=(118.5, -61.5, 291.5, 61.5),
+        central_longitude=180.0,
+        source_id="oisst",
+        source_label="Quelle: NOAA OISST v2.1 (0,25°)",
+    ),
+    "nino34": Region(
+        "nino34",
+        "Niño 3.4",
+        190.0,
+        -5.0,
+        240.0,
+        5.0,
+        width_px=1600,
+        height_px=800,
+        fetch_bounds=(188.5, -6.5, 241.5, 6.5),
+        central_longitude=180.0,
+        source_id="oisst",
+        source_label="Quelle: NOAA OISST v2.1 (0,25°)",
+    ),
+    "indian_ocean": Region(
+        "indian_ocean",
+        "Indischer Ozean",
+        20.0,
+        -60.0,
+        120.0,
+        30.0,
+        fetch_bounds=(18.5, -61.5, 121.5, 31.5),
+        source_id="oisst",
+        source_label="Quelle: NOAA OISST v2.1 (0,25°)",
+    ),
+}
+
+ALL_REGIONS = {**REGIONS, **OCEAN_REGIONS}
 
 ABSOLUTE_RANGE = (-2.0, 34.0)
 ANOMALY_RANGE = (-6.0, 6.0)
