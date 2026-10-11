@@ -11,7 +11,7 @@ const MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli","August","S
 let data=null,charts={},loading=null;
 
 function el(id){return document.getElementById(id);}
-function num(v){v=Number(v);return Number.isFinite(v)?v:null;}
+function num(v){if(v==null||v==="")return null;v=Number(v);return Number.isFinite(v)?v:null;}
 function fmt(v,d=2){v=num(v);return v==null?"–":v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d});}
 function dateShort(iso){if(!iso)return"–";const p=String(iso).split("-");return p.length===3?`${p[2]}.${p[1]}.`:iso;}
 function fmtRun(iso){if(!iso)return"Laufzeit nicht gemeldet";const d=new Date(iso);if(Number.isNaN(d.getTime()))return iso;return d.toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+" UTC";}
@@ -43,10 +43,29 @@ function connectForecast(arr,r){
   if(oi>=0&&a.slice(oi+1).some(v=>num(v)!=null))a[oi]=obs[oi];
   return a;
 }
+// Jedes Modell erhält nur den Zeitraum, für den Beobachtungs- oder echte
+// Ensemblewerte vorliegen. Die Referenzkurve allein verlängert die Achse nicht.
+function lastAvailableIndex(m,r){
+  const observed=r.observed_running||[],forecast=m?.stats?.mean||[];
+  const n=Math.min(data.dates.length,Math.max(observed.length,forecast.length));
+  let last=-1;
+  for(let i=0;i<n;i++){
+    if(num(observed[i])!=null||num(forecast[i])!=null)last=i;
+  }
+  return last;
+}
 function commonBounds(r){
   const vals=[],push=a=>(a||[]).forEach(v=>{v=num(v);if(v!=null)vals.push(v);});
-  push(r.observed_running);push(r.climatology_running);
-  MODEL_ORDER.forEach(k=>{const m=r.models?.[k];if(!m)return;Object.values(m.stats||{}).forEach(push);push(m.control);});
+  push(r.observed_running);
+  let lastVisible=-1;
+  MODEL_ORDER.forEach(k=>{
+    const m=r.models?.[k];if(!m)return;
+    const end=lastAvailableIndex(m,r);
+    lastVisible=Math.max(lastVisible,end);
+    Object.values(m.stats||{}).forEach(a=>push(a?.slice(0,end+1)));
+    push(m.control?.slice(0,end+1));
+  });
+  push((r.climatology_running||[]).slice(0,lastVisible+1));
   if(!vals.length)return{min:-5,max:20};
   let mn=Math.min(...vals),mx=Math.max(...vals),pad=Math.max(.35,(mx-mn)*.10);
   mn=Math.floor((mn-pad)*2)/2;mx=Math.ceil((mx+pad)*2)/2;if(mx-mn<2){mn-=1;mx+=1;}return{min:mn,max:mx};
@@ -83,10 +102,15 @@ function render(){
   destroyCharts();const bounds=commonBounds(r),labs=labels();
   MODEL_ORDER.forEach(k=>{
     const canvas=el("stateMonthlyChart_"+k),card=canvas?.closest(".state-monthly-card"),m=r.models?.[k];if(!canvas||!card)return;
-    card.hidden=!m;const title=card.querySelector("h3");if(title)title.textContent=MODEL_LABELS[k]||k;
+    const last=m?lastAvailableIndex(m,r):-1;
+    card.hidden=!m||last<0;const title=card.querySelector("h3");if(title)title.textContent=MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
-    if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}`:"nicht verfügbar";
-    if(m)charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets:datasetsFor(k,r)},options:chartOptions(bounds)});
+    const through=last>=0?data.dates[last]:null;
+    if(meta)meta.textContent=m?`${m.member_count} Member · Zeitraum bis ${dateShort(through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}`:"nicht verfügbar";
+    if(m&&last>=0){
+      const datasets=datasetsFor(k,r).map(d=>({...d,data:d.data.slice(0,last+1)}));
+      charts[k]=new Chart(canvas,{type:"line",data:{labels:labs.slice(0,last+1),datasets},options:chartOptions(bounds)});
+    }
   });
   applyView();renderLegend();renderHeader(r);
 }
