@@ -51,10 +51,10 @@ def _date_is_complete(manifest: dict, day: date, archive_root: Path) -> bool:
     if not isinstance(entry, dict):
         return False
     regions = entry.get("regions")
-    if not isinstance(regions, dict) or set(regions) != set(REGIONS):
+    if not isinstance(regions, dict) or not set(REGIONS).issubset(regions):
         return False
     statistics = entry.get("statistics")
-    if not isinstance(statistics, dict) or set(statistics) != set(REGIONS):
+    if not isinstance(statistics, dict) or not set(REGIONS).issubset(statistics):
         return False
     try:
         for region_id, region in REGIONS.items():
