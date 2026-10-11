@@ -103,7 +103,7 @@ def patch_index(text: str) -> str:
 
     # Auch eine bereits vorhandene, ältere Version aktualisieren:
     # Browser-Caches sollen nach der Achsenkorrektur frisches JS laden.
-    old_tag=r'<script src="state_monthly_ensemble\\.js(?:\\?[^"]*)?"></script>'
+    old_tag=r'<script src="state_monthly_ensemble\.js(?:\?[^"]*)?"></script>'
     if re.search(old_tag,text):
         text=re.sub(old_tag,lambda _: JS_TAG,text,count=1)
     else:
