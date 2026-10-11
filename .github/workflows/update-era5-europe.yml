@@ -1,0 +1,130 @@
+name: ERA5 Europa Atmosphäre aktualisieren
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/update_era5_europe.py"
+      - "era5_europe.js"
+      - "era5_europe.css"
+      - ".github/workflows/update-era5-europe.yml"
+  schedule:
+    - cron: "35 7 8 * *"
+      timezone: "Europe/Berlin"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Monatskarten auch bei vorhandenem Cache neu laden"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-europe-atmosphere
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: ERA5-Downloadcache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_europe_cache
+          key: era5-europe-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            era5-europe-v1-${{ runner.os }}-
+
+      - name: ERA5-Europa-Karten bauen
+        shell: bash
+        env:
+          FORCE_INPUT: ${{ inputs.force || false }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ "$FORCE_INPUT" == "true" ]]; then args+=(--force); fi
+          python scripts/update_era5_europe.py "${args[@]}"
+
+      - name: Ergebnis prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p=Path("era5_europe/index.json")
+          data=json.loads(p.read_text(encoding="utf-8"))
+          assert data["ready"] is True
+          assert data["history_start"] == 1940
+          assert data["reference_period"] == "1991–2020"
+          assert data["grid"]["resolution"] == "0,25°"
+          expected={"t850","z500","wind300","mslp"}
+          assert set(data["products"]) == expected
+          for key,item in data["products"].items():
+              for view in ("absolute","anomaly","rank"):
+                  f=Path(item[view]["file"])
+                  assert f.exists() and f.stat().st_size>0,(key,view,f)
+          print("ERA5 Europa geprüft:",data["latest_month_key"],sorted(expected))
+          PY
+
+      - name: Ergebnis robust veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/era5_europe_publish
+          cp -a era5_europe /tmp/era5_europe_publish
+
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            rm -rf era5_europe
+            cp -a /tmp/era5_europe_publish era5_europe
+            git add era5_europe
+            if git diff --cached --quiet; then
+              echo "Keine neuen ERA5-Europa-Daten."
+              exit 0
+            fi
+            git commit -m "ERA5 Europa Atmosphäre aktualisiert"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push-Konflikt, neuer Versuch $attempt/3"
+          done
+          echo "ERA5-Europa-Ergebnis konnte nach 3 Versuchen nicht veröffentlicht werden."
+          exit 1
