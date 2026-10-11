@@ -12,18 +12,14 @@ import requests
 import xarray as xr
 
 from .config import OCEAN_REGIONS
-from .sources import (
-    NOAA_GRID_LAT_COUNT,
-    NOAA_GRID_LAT_START,
-    NOAA_GRID_LON_COUNT,
-    NOAA_GRID_LON_START,
-    NOAA_GRID_STEP,
-    NOAA_NORMALS_ERDDAP,
-)
 
 NOAA_OISST_DAILY_NCSS = (
     "https://psl.noaa.gov/thredds/ncss/grid/Datasets/"
     "noaa.oisst.v2.highres/sst.day.mean.{year}.nc"
+)
+NOAA_NORMALS_OPENDAP = (
+    "https://psl.noaa.gov/thredds/dodsC/Datasets/"
+    "noaa.oisst.v2.highres/sst.day.mean.ltm.1991-2020.nc"
 )
 OISST_MAX_ATTEMPTS = 5
 OISST_RETRY_DELAYS = (5, 15, 30, 60)
@@ -155,13 +151,6 @@ def download_oisst_daily_subset(
             close()
 
 
-def _selected_index_range(values: np.ndarray, minimum: float, maximum: float) -> tuple[int, int]:
-    indices = np.flatnonzero((values >= minimum) & (values <= maximum))
-    if indices.size == 0:
-        raise RuntimeError(f"Kein OISST-Gitterpunkt im Bereich {minimum}…{maximum}.")
-    return int(indices[0]), int(indices[-1])
-
-
 def _normal_time_indices(day: date) -> tuple[int, int]:
     if day.month == 2 and day.day == 29:
         return 58, 59
@@ -192,69 +181,44 @@ def download_oisst_normal_subset(
     session=requests,
 ) -> Path:
     west, south, east, north = ocean_union_bounds()
-    latitudes = NOAA_GRID_LAT_START + np.arange(NOAA_GRID_LAT_COUNT, dtype=float) * NOAA_GRID_STEP
-    longitudes = NOAA_GRID_LON_START + np.arange(NOAA_GRID_LON_COUNT, dtype=float) * NOAA_GRID_STEP
-    lat_start, lat_stop = _selected_index_range(latitudes, south, north)
-    lon_start, lon_stop = _selected_index_range(longitudes, west, east)
     time_start, time_stop = _normal_time_indices(day)
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="oisst-normal-", dir=destination.parent) as tmp:
-        longitude_parts: list[xr.Dataset] = []
-        chunk_size = 360
-        chunk_number = 0
-        chunk_start = lon_start
-        while chunk_start <= lon_stop:
-            chunk_stop = min(chunk_start + chunk_size - 1, lon_stop)
-            query = (
-                f"{NOAA_NORMALS_ERDDAP}"
-                f"[{time_start}:1:{time_stop}]"
-                f"[{lat_start}:1:{lat_stop}]"
-                f"[{chunk_start}:1:{chunk_stop}]"
-            )
-            raw_path = Path(tmp) / f"normal-{chunk_number:02d}.nc"
-            response = _get_with_retry(session, query, stream=True, timeout=180)
-            try:
-                _write_response_atomic(response, raw_path)
-            finally:
-                close = getattr(response, "close", None)
-                if callable(close):
-                    close()
+    temporary = destination.with_suffix(destination.suffix + ".part")
+    try:
+        # Direktes OPeNDAP-Hyperslab statt vieler kleiner ERDDAP-Anfragen.
+        # Dadurch laden wir pro Tag nur den benoetigten Klimatologie-Tag
+        # fuer den gemeinsamen Ozeanausschnitt.
+        with xr.open_dataset(
+            NOAA_NORMALS_OPENDAP,
+            engine="netcdf4",
+            decode_times=False,
+        ) as remote:
+            standardized = _standardize_subset(remote)
+            field = standardized["sst"].isel(time=slice(time_start, time_stop + 1))
+            field = field.sel(
+                lat=slice(south, north),
+                lon=slice(west, east),
+            ).load()
 
-            with xr.open_dataset(raw_path, decode_times=False) as raw:
-                longitude_parts.append(_standardize_subset(raw.load()))
-            chunk_start = chunk_stop + 1
-            chunk_number += 1
-
-        standardized = xr.concat(
-            longitude_parts,
-            dim="lon",
-            data_vars="minimal",
-            coords="minimal",
-            compat="override",
-        ).sortby("lon")
-        rounded_lon = np.round(np.asarray(standardized["lon"].values, dtype=float), 6)
-        _, unique_indices = np.unique(rounded_lon, return_index=True)
-        standardized = standardized.isel(lon=np.sort(unique_indices))
-        field = standardized["sst"]
         if int(field.sizes.get("time", 1)) == 2:
-            field = field.mean("time", skipna=True)
+            field = field.mean("time", skipna=True, keep_attrs=True)
             reference_method = "feb29_interpolated"
         else:
             for dim in list(field.dims):
                 if dim not in {"lat", "lon"} and field.sizes.get(dim) == 1:
                     field = field.isel({dim: 0}, drop=True)
             reference_method = "daily_normal"
+
         out = xr.Dataset({"sst": field})
         out.attrs["reference_method"] = reference_method
-        temporary = destination.with_suffix(destination.suffix + ".part")
-        try:
-            out.to_netcdf(
-                temporary,
-                engine="netcdf4",
-                encoding={"sst": {"zlib": True, "complevel": 4}},
-            )
-            os.replace(temporary, destination)
-        finally:
-            temporary.unlink(missing_ok=True)
+        out.to_netcdf(
+            temporary,
+            engine="netcdf4",
+            encoding={"sst": {"zlib": True, "complevel": 4}},
+        )
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
     return destination
+
