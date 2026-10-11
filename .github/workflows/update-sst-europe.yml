@@ -85,6 +85,7 @@ jobs:
           from pathlib import Path
 
           from scripts.sst.build_daily import build_date
+          from scripts.sst.config import REGIONS
           from scripts.sst.sources import latest_available_mur_date, mur_date_available
 
           archive_root = Path('/tmp/sst-archive')
@@ -96,8 +97,11 @@ jobs:
           if manifest_path.exists():
               with manifest_path.open('r', encoding='utf-8') as handle:
                   manifest = json.load(handle)
-              existing.update(manifest.get('dates', {}).keys())
-              existing.update(manifest.get('available_dates', []))
+              required_regions = set(REGIONS)
+              for iso, entry in manifest.get('dates', {}).items():
+                  regions = entry.get('regions', {}) if isinstance(entry, dict) else {}
+                  if isinstance(regions, dict) and required_regions.issubset(regions):
+                      existing.add(iso)
 
           latest = latest_available_mur_date(date.today(), lookback_days=10)
           start = latest - timedelta(days=20)
