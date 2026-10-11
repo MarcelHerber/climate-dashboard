@@ -1,0 +1,15 @@
+.era5-atmos-status{margin:0 0 14px;padding:11px 13px;border:1px solid #cbdde8;border-radius:8px;background:#f3f8fb;color:#34414a;font-size:13px}
+.era5-atmos-status.error{background:#fff1f0;border-color:#e1b3af;color:#8b211a}
+.era5-atmos-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,330px);gap:16px;align-items:start}
+.era5-atmos-card{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:14px}
+.era5-atmos-card h3{margin:0 0 5px}.era5-atmos-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.era5-atmos-image-wrap{margin-top:12px;min-height:520px;display:flex;align-items:center;justify-content:center;border:1px solid #dce3e8;border-radius:9px;background:#f6f8fa;overflow:hidden}
+.era5-atmos-image-wrap img{display:block;width:100%;height:auto;max-height:860px;object-fit:contain;background:#fff}
+.era5-atmos-placeholder{padding:30px;color:var(--muted);text-align:center}
+.era5-atmos-kpis{display:grid;grid-template-columns:1fr;gap:10px}
+.era5-atmos-kpi{border:1px solid #d9dfe4;border-radius:8px;padding:12px;background:#fbfcfd}
+.era5-atmos-kpi-label{font-size:11px;font-weight:700;color:#66717a;text-transform:uppercase;letter-spacing:.05em}
+.era5-atmos-kpi-value{margin-top:5px;font-size:22px;font-weight:800;color:#1f2a32}
+.era5-atmos-kpi-detail{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.35}
+.era5-atmos-source{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.45}
+@media(max-width:900px){.era5-atmos-layout{grid-template-columns:1fr}.era5-atmos-image-wrap{min-height:360px}}
