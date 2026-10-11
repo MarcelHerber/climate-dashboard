@@ -3626,7 +3626,7 @@ button.action:hover{background:#1f2937}
 <div id="state-monthly-ensemble" class="tab-content">
   <div class="section-header state-monthly-header">
     <h2>Monatsausblick · Deutschland & Bundesländer</h2>
-    <p>Laufendes 2-m-Temperatur-Monatsmittel aus HYRAS-Beobachtungen, fortgeschrieben mit GFS/GEFS, ECMWF IFS, ECMWF AIFS und DWD ICON-EU EPS.</p>
+    <p>Laufendes 2-m-Temperaturmittel für Monat, Jahreszeit und Jahr: HYRAS-Beobachtungen mit Ensemble-Fortschreibung und Abweichung vom Klimamittel 1991–2020.</p>
     <span class="section-status">HYRAS-DE-TAS · 1991–2020 · Ensemble-Prognose für den laufenden Monat</span>
   </div>
 
@@ -3634,6 +3634,21 @@ button.action:hover{background:#1f2937}
     <div class="control-group region">
       <label for="stateMonthlyRegion">Gebiet</label>
       <select id="stateMonthlyRegion"><option>Deutschland</option></select>
+    </div>
+    <div class="control-group">
+      <label for="stateMonthlyPeriod">Zeitraum</label>
+      <select id="stateMonthlyPeriod">
+        <option value="month" selected>Laufender Monat</option>
+        <option value="season">Meteorologische Jahreszeit</option>
+        <option value="year">Laufendes Jahr</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="stateMonthlyMetric">Darstellung</label>
+      <select id="stateMonthlyMetric">
+        <option value="absolute" selected>Temperaturmittel (°C)</option>
+        <option value="anomaly">Abweichung 1991–2020 (K)</option>
+      </select>
     </div>
     <div class="control-group">
       <label for="stateMonthlyView">Ansicht</label>
@@ -3659,7 +3674,7 @@ button.action:hover{background:#1f2937}
     <div class="state-monthly-export-head">
       <div>
         <h2 id="stateMonthlyTitle">Deutschland · laufender Monat</h2>
-        <p>Laufendes Monatsmittel · Beobachtung + Ensemble-Fortschreibung</p>
+        <p>Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>
       </div>
     </div>
 
@@ -3738,7 +3753,7 @@ button.action:hover{background:#1f2937}
   </div>
 </div>
 
-<script src="state_monthly_ensemble.js?v=20261011-2"></script>
+<script src="state_monthly_ensemble.js?v=20261011-3"></script>
 <script src="t850_ensembles.js?v=20260922-7"></script>
 <script src="sst_europe.js"></script>
 <script>
