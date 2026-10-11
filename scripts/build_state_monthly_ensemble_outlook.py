@@ -263,9 +263,36 @@ def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[L
         "timezone": "Europe/Berlin",
         "cell_selection": "land",
     }
-    data = fetch_json(ENSEMBLE_API, params=params, timeout=180, retries=5)
+    try:
+        # Große Multi-Location-Requests können besonders bei IFS/AIFS upstream
+        # ins Read-Timeout laufen. Dann teilen wir den Batch rekursiv statt das
+        # komplette Modell zu verlieren.
+        data = fetch_json(ENSEMBLE_API, params=params, timeout=90, retries=2)
+    except Exception as exc:
+        if len(refs) <= 2:
+            raise
+        mid = len(refs) // 2
+        print(
+            f"{model_key}: Batch mit {len(refs)} Punkten fehlgeschlagen ({exc}); "
+            f"teile in {mid}+{len(refs)-mid}.",
+            flush=True,
+        )
+        left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
+        right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+        return left_refs + right_refs, left_locations + right_locations
+
     locations = data if isinstance(data, list) else [data]
     if len(locations) != len(refs):
+        if len(refs) > 2:
+            mid = len(refs) // 2
+            print(
+                f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte; "
+                f"teile Batch in {mid}+{len(refs)-mid}.",
+                flush=True,
+            )
+            left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
+            right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+            return left_refs + right_refs, left_locations + right_locations
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
     return refs, locations
 
@@ -289,9 +316,14 @@ def model_run_time(model_key: str) -> str | None:
 def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24) -> dict[str, Any]:
     refs = flatten_support_points(support)
     responses: list[tuple[LocationRef, dict[str, Any]]] = []
-    batches = list(chunks(refs, batch_size))
+
+    # IFS ist bei großen Multi-Location-Abfragen deutlich empfindlicher.
+    # Kleinere Start-Batches plus die rekursive Teilung oben sind stabiler.
+    model_batch_size = min(batch_size, 10) if model_key == "ifs" else batch_size
+    workers = 2 if model_key == "ifs" else 3
+    batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
-    with ThreadPoolExecutor(max_workers=min(3, len(batches))) as pool:
+    with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
         futures = [pool.submit(request_model_chunk, model_key, batch) for batch in batches]
         for future in as_completed(futures):
             batch_refs, locations = future.result()
@@ -538,17 +570,20 @@ def main() -> int:
         raise SystemExit("Unbekannte Modelle: " + ", ".join(unknown))
 
     model_data: dict[str, dict[str, Any]] = {}
+    model_errors: dict[str, str] = {}
     for model_key in requested:
         try:
             model_data[model_key] = collect_model(model_key, support, args.batch_size)
             print(f"{model_key}: erfolgreich ({model_data[model_key]['member_count']} Member)", flush=True)
         except Exception as exc:
+            model_errors[model_key] = str(exc)
             print(f"FEHLER {model_key}: {exc}", flush=True)
 
     if not model_data:
         raise SystemExit("Kein Ensemblemodell konnte geladen werden.")
 
     payload = build_payload(current, climate, model_data, year, month, data_through, support)
+    payload["model_errors"] = model_errors
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
