@@ -68,29 +68,89 @@ jobs:
             git -C /tmp/sst-archive rm -rf .
           fi
 
-      - name: Neuesten vollständigen MUR-Tag bauen
+      - name: Neuesten MUR-Tag und Lücken der letzten 21 Tage bauen
         shell: bash
         run: |
           set -euo pipefail
+          rm -f /tmp/sst-backfill-failures.txt
           python - <<'PY'
+          import json
           import os
-          from datetime import date
+          from datetime import date, timedelta
           from pathlib import Path
 
           from scripts.sst.build_daily import build_date
-          from scripts.sst.sources import latest_available_mur_date
+          from scripts.sst.sources import latest_available_mur_date, mur_date_available
 
-          day = latest_available_mur_date(date.today(), lookback_days=10)
-          result = build_date(
-              day,
-              Path('/tmp/sst-archive'),
-              Path('.sst_cache'),
-              os.environ['EARTHDATA_TOKEN'],
+          archive_root = Path('/tmp/sst-archive')
+          cache_root = Path('.sst_cache')
+          token = os.environ['EARTHDATA_TOKEN']
+          manifest_path = archive_root / 'manifest.json'
+
+          existing = set()
+          if manifest_path.exists():
+              with manifest_path.open('r', encoding='utf-8') as handle:
+                  manifest = json.load(handle)
+              existing.update(manifest.get('dates', {}).keys())
+              existing.update(manifest.get('available_dates', []))
+
+          latest = latest_available_mur_date(date.today(), lookback_days=10)
+          start = latest - timedelta(days=20)
+          failures = []
+          built = []
+          skipped = []
+
+          current = start
+          while current <= latest:
+              iso = current.isoformat()
+              if iso in existing:
+                  skipped.append(iso)
+                  current += timedelta(days=1)
+                  continue
+
+              try:
+                  if not mur_date_available(current):
+                      print(f"{iso}: kein MUR-Granule verfügbar; bleibt vorerst offen.", flush=True)
+                      current += timedelta(days=1)
+                      continue
+
+                  print(f"{iso}: Archivlücke gefunden, wird nachgebaut.", flush=True)
+                  result = build_date(
+                      current,
+                      archive_root,
+                      cache_root,
+                      token,
+                  )
+                  if result.already_present:
+                      skipped.append(iso)
+                  else:
+                      built.append(iso)
+                      existing.add(iso)
+              except Exception as exc:
+                  failures.append((iso, repr(exc)))
+                  print(f"{iso}: Nachholen fehlgeschlagen: {exc!r}", flush=True)
+
+              current += timedelta(days=1)
+
+          print(
+              f"SST Datenstand geprüft bis {latest.isoformat()} · "
+              f"neu gebaut={len(built)} · bereits vorhanden={len(skipped)} · "
+              f"fehlgeschlagen={len(failures)}",
+              flush=True,
           )
-          print(f"SST Datenstand: {day.isoformat()} · already_present={result.already_present}")
+          if built:
+              print("Neu gebaut: " + ", ".join(built), flush=True)
+
+          if failures:
+              failure_path = Path('/tmp/sst-backfill-failures.txt')
+              failure_path.write_text(
+                  "\n".join(f"{day}: {error}" for day, error in failures) + "\n",
+                  encoding='utf-8',
+              )
           PY
 
       - name: SST Archiv als einzelnen Snapshot veröffentlichen
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -105,3 +165,15 @@ jobs:
           TREE=$(git write-tree)
           COMMIT=$(printf '%s\n' "SST Archiv aktualisiert" | git commit-tree "$TREE")
           git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
+
+      - name: Nicht nachholbare SST-Lücken melden
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -s /tmp/sst-backfill-failures.txt ]]; then
+            echo "Folgende SST-Lücken konnten heute nicht nachgeholt werden:"
+            cat /tmp/sst-backfill-failures.txt
+            exit 1
+          fi
+          echo "Keine fehlgeschlagenen SST-Nachholversuche."
