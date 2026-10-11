@@ -110,10 +110,16 @@ def register_date(
     _validate_outputs(outputs)
     _validate_statistics(statistics)
     day_key = day.isoformat()
-    manifest.setdefault("dates", {})[day_key] = {
-        "reference_method": reference_method,
-        "regions": copy.deepcopy(outputs),
-        "statistics": copy.deepcopy(statistics),
+    dates = manifest.setdefault("dates", {})
+    previous = dates.get(day_key, {}) if isinstance(dates.get(day_key), dict) else {}
+    merged_regions = copy.deepcopy(previous.get("regions", {})) if isinstance(previous.get("regions"), dict) else {}
+    merged_statistics = copy.deepcopy(previous.get("statistics", {})) if isinstance(previous.get("statistics"), dict) else {}
+    merged_regions.update(copy.deepcopy(outputs))
+    merged_statistics.update(copy.deepcopy(statistics))
+    dates[day_key] = {
+        "reference_method": reference_method or previous.get("reference_method"),
+        "regions": merged_regions,
+        "statistics": merged_statistics,
     }
     available = sorted(set(manifest.get("available_dates", [])) | {day_key})
     manifest["available_dates"] = available
