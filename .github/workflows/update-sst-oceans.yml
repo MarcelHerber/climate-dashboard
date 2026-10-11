@@ -1,0 +1,170 @@
+name: SST Ozeane täglich aktualisieren
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/update-sst-oceans.yml"
+  schedule:
+    - cron: "47 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sst-ocean-daily
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[run-sst-ocean-daily]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: sst-archive-writer
+      cancel-in-progress: false
+
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements-sst.txt
+
+      - name: SST-Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-sst.txt
+
+      - name: Ozean-SST Cache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .sst_cache
+          key: sst-ocean-v1-${{ runner.os }}-${{ hashFiles('requirements-sst.txt', 'scripts/sst/config.py', 'scripts/sst/ocean_sources.py') }}
+          restore-keys: |
+            sst-ocean-v1-${{ runner.os }}-
+
+      - name: SST Archiv-Arbeitsbaum vorbereiten
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sst-archive
+          if git ls-remote --exit-code --heads origin sst-archive >/dev/null 2>&1; then
+            git fetch origin sst-archive --depth=1
+            git worktree add --detach /tmp/sst-archive origin/sst-archive
+          else
+            git worktree add --detach /tmp/sst-archive HEAD
+            git -C /tmp/sst-archive rm -rf .
+          fi
+
+      - name: OISST-Lücken der letzten 21 Tage nachholen
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/sst-ocean-failures.txt
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta
+          from pathlib import Path
+
+          from scripts.sst.config import OCEAN_REGIONS
+          from scripts.sst.ocean_build import build_ocean_date
+          from scripts.sst.ocean_sources import latest_available_oisst_date, oisst_date_available
+
+          archive_root = Path('/tmp/sst-archive')
+          cache_root = Path('.sst_cache')
+          manifest_path = archive_root / 'manifest.json'
+
+          complete = set()
+          if manifest_path.exists():
+              manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+              required = set(OCEAN_REGIONS)
+              for iso, entry in manifest.get('dates', {}).items():
+                  regions = entry.get('regions', {}) if isinstance(entry, dict) else {}
+                  if isinstance(regions, dict) and required.issubset(regions):
+                      complete.add(iso)
+
+          latest = latest_available_oisst_date(date.today(), lookback_days=14)
+          start = latest - timedelta(days=20)
+          failures = []
+          built = []
+          skipped = []
+
+          current = start
+          while current <= latest:
+              iso = current.isoformat()
+              if iso in complete:
+                  skipped.append(iso)
+                  current += timedelta(days=1)
+                  continue
+
+              try:
+                  if not oisst_date_available(current):
+                      print(f"{iso}: NOAA OISST noch nicht verfügbar; bleibt vorerst offen.", flush=True)
+                      current += timedelta(days=1)
+                      continue
+
+                  print(f"{iso}: Ozean-SST-Lücke gefunden, wird nachgebaut.", flush=True)
+                  result = build_ocean_date(current, archive_root, cache_root)
+                  if result.already_present:
+                      skipped.append(iso)
+                  else:
+                      built.append(iso)
+                      complete.add(iso)
+              except Exception as exc:
+                  failures.append((iso, repr(exc)))
+                  print(f"{iso}: Ozean-SST-Nachholen fehlgeschlagen: {exc!r}", flush=True)
+
+              current += timedelta(days=1)
+
+          print(
+              f"Ozean-SST geprüft bis {latest.isoformat()} · "
+              f"neu gebaut={len(built)} · bereits vorhanden={len(skipped)} · "
+              f"fehlgeschlagen={len(failures)}",
+              flush=True,
+          )
+          if built:
+              print("Neu gebaut: " + ", ".join(built), flush=True)
+          if failures:
+              Path('/tmp/sst-ocean-failures.txt').write_text(
+                  "\n".join(f"{day}: {error}" for day, error in failures) + "\n",
+                  encoding='utf-8',
+              )
+          PY
+
+      - name: SST Archiv als Snapshot veröffentlichen
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/sst-archive
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Ozean-SST Archiv unverändert."
+            exit 0
+          fi
+          TREE=$(git write-tree)
+          COMMIT=$(printf '%s\n' "SST Ozeanregionen aktualisiert" | git commit-tree "$TREE")
+          git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
+
+      - name: Nicht nachholbare Ozean-SST-Lücken melden
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -s /tmp/sst-ocean-failures.txt ]]; then
+            echo "Folgende Ozean-SST-Lücken konnten heute nicht nachgeholt werden:"
+            cat /tmp/sst-ocean-failures.txt
+            exit 1
+          fi
+          echo "Keine fehlgeschlagenen Ozean-SST-Nachholversuche."
