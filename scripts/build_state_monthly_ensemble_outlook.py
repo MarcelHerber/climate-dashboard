@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -392,46 +392,83 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
     }
 
 
-def observed_month(current: dict[str, Any], region: str, year: int, month: int) -> tuple[list[str], list[float]]:
-    dates = current.get("dates", [])
-    values = current.get("regions", {}).get(region, [])
+def dates_between(start: date, end: date) -> list[str]:
+    return [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
+
+
+def period_definitions(year: int, month: int) -> dict[str, dict[str, Any]]:
+    first = date(year, month, 1)
+    last = date(year, month, calendar.monthrange(year, month)[1])
+    if month in (3, 4, 5):
+        season_name, season_start, season_end = "Frühling", date(year, 3, 1), date(year, 5, 31)
+    elif month in (6, 7, 8):
+        season_name, season_start, season_end = "Sommer", date(year, 6, 1), date(year, 8, 31)
+    elif month in (9, 10, 11):
+        season_name, season_start, season_end = "Herbst", date(year, 9, 1), date(year, 11, 30)
+    elif month == 12:
+        end_year = year + 1
+        season_name = "Winter"
+        season_start = date(year, 12, 1)
+        season_end = date(end_year, 2, calendar.monthrange(end_year, 2)[1])
+    else:
+        # Das aktuelle HYRAS-Regionenpaket enthält nur das laufende Jahr.
+        # Deshalb ohne Dezember-Vorjahr ausdrücklich als Winter-Teilausschnitt,
+        # niemals als vollständiges DJF-Flächenmittel ausgeben.
+        season_name = "Winter (ab Januar; Dezember-Vorjahr fehlt)"
+        season_start = date(year, 1, 1)
+        season_end = date(year, 2, calendar.monthrange(year, 2)[1])
+    return {
+        "month": {"label": first.strftime("%m/%Y"), "start_date": first.isoformat(), "end_date": last.isoformat(),
+                  "dates": dates_between(first, last), "complete_reference_period": True},
+        "season": {"label": season_name, "start_date": season_start.isoformat(),
+                   "end_date": season_end.isoformat(), "dates": dates_between(season_start, season_end),
+                   "complete_reference_period": month not in (1, 2)},
+        "year": {"label": f"Jahr {year}", "start_date": f"{year}-01-01",
+                 "end_date": f"{year}-12-31", "dates": dates_between(date(year, 1, 1), date(year, 12, 31)),
+                 "complete_reference_period": True},
+    }
+
+
+def observed_period(current: dict[str, Any], region: str, period_dates: list[str]) -> tuple[list[str], list[float]]:
+    source = dict(zip(current.get("dates", []), current.get("regions", {}).get(region, [])))
     out_dates: list[str] = []
     out_values: list[float] = []
-    prefix = f"{year:04d}-{month:02d}-"
-    for d, v in zip(dates, values):
-        if str(d).startswith(prefix):
-            value = finite(v)
-            if value is not None:
-                out_dates.append(str(d))
-                out_values.append(value)
+    for day in period_dates:
+        value = finite(source.get(day))
+        if value is None:
+            if out_dates:
+                break
+            if day <= str(current["data_through"]):
+                raise RuntimeError(f"HYRAS {region}: fehlender Starttag {day}")
+            break
+        out_dates.append(day)
+        out_values.append(value)
     if not out_dates:
-        raise RuntimeError(f"Keine HYRAS-Tageswerte für {region} {year}-{month:02d}")
+        raise RuntimeError(f"Keine HYRAS-Beobachtungen für {region} {period_dates[0]}")
+    if out_dates[-1] != min(period_dates[-1], str(current["data_through"])):
+        raise RuntimeError(f"HYRAS {region}: Beobachtungslücke bis {current['data_through']}")
     return out_dates, out_values
 
 
-def climate_month(climate: dict[str, Any], region: str, year: int, month: int) -> list[float | None]:
+def climate_period(climate: dict[str, Any], region: str, period_dates: list[str]) -> list[float | None]:
     reg = climate.get("regions", {}).get(region, {})
-    return [finite(reg.get(d[5:])) for d in month_dates(year, month)]
+    return [finite(reg.get(day[5:])) for day in period_dates]
 
 
 def merge_running_outlook(
     observed_dates: list[str],
     observed_values: list[float],
     model_region: dict[str, Any],
-    year: int,
-    month: int,
+    period_dates: list[str],
 ) -> dict[str, Any]:
-    dates = month_dates(year, month)
-    obs_map = dict(zip(observed_dates, observed_values))
-    obs_through = max(observed_dates)
-    obs_sum = sum(obs_map[d] for d in dates if d <= obs_through and d in obs_map)
-    obs_n = sum(1 for d in dates if d <= obs_through and d in obs_map)
-    if obs_n != int(obs_through[-2:]):
-        raise RuntimeError(f"Beobachtungsmonat enthält Lücken: {obs_n} Werte bis {obs_through}")
+    obs_through = observed_dates[-1]
+    obs_sum = sum(observed_values)
+    obs_n = len(observed_values)
+    if observed_dates != period_dates[:obs_n]:
+        raise RuntimeError(f"HYRAS Beobachtungslücke im Zeitraum ab {period_dates[0]}")
 
     model_dates = [str(d) for d in model_region["dates"]]
     date_idx = {d: i for i, d in enumerate(model_dates)}
-    eligible = [d for d in dates if d > obs_through and d in date_idx]
     member_curves: list[list[float | None]] = []
     member_names: list[str] = []
 
@@ -439,8 +476,8 @@ def merge_running_outlook(
         values = model_region["members"][key]
         total = obs_sum
         count = obs_n
-        curve = [None] * len(dates)
-        for i, d in enumerate(dates):
+        curve = [None] * len(period_dates)
+        for i, d in enumerate(period_dates):
             if d <= obs_through:
                 continue
             idx = date_idx.get(d)
@@ -455,31 +492,76 @@ def merge_running_outlook(
         member_curves.append(curve)
         member_names.append(key)
 
-    stats = {k: [None] * len(dates) for k in ["min", "p05", "p20", "mean", "p80", "p95", "max"]}
-    for i in range(len(dates)):
-        values = [c[i] for c in member_curves if c[i] is not None and math.isfinite(float(c[i]))]
-        if not values:
+    stats = {k: [None] * len(period_dates) for k in ["min", "p05", "p20", "mean", "p80", "p95", "max"]}
+    forecast_dates: list[str] = []
+    for i, day in enumerate(period_dates):
+        vals = [curve[i] for curve in member_curves
+                if curve[i] is not None and math.isfinite(float(curve[i]))]
+        if not vals:
             continue
-        stats["min"][i] = min(values)
-        stats["p05"][i] = qtile(values, 0.05)
-        stats["p20"][i] = qtile(values, 0.20)
-        stats["mean"][i] = sum(values) / len(values)
-        stats["p80"][i] = qtile(values, 0.80)
-        stats["p95"][i] = qtile(values, 0.95)
-        stats["max"][i] = max(values)
+        forecast_dates.append(day)
+        stats["min"][i] = min(vals)
+        stats["p05"][i] = qtile(vals, 0.05)
+        stats["p20"][i] = qtile(vals, 0.20)
+        stats["mean"][i] = sum(vals) / len(vals)
+        stats["p80"][i] = qtile(vals, 0.80)
+        stats["p95"][i] = qtile(vals, 0.95)
+        stats["max"][i] = max(vals)
 
-    control = member_curves[0] if member_curves else [None] * len(dates)
+    control = member_curves[0] if member_curves else [None] * len(period_dates)
     return {
         "member_count": len(member_curves),
         "control_key": member_names[0] if member_names else None,
-        "forecast_from": eligible[0] if eligible else None,
-        "forecast_through": eligible[-1] if eligible else None,
+        "forecast_from": forecast_dates[0] if forecast_dates else None,
+        "forecast_through": forecast_dates[-1] if forecast_dates else None,
         "support_points": model_region.get("support_points"),
         "stats": {
             k: [round(v, 3) if v is not None else None for v in arr]
             for k, arr in stats.items()
         },
         "control": [round(v, 3) if v is not None else None for v in control],
+    }
+
+
+def build_period_region(
+    current: dict[str, Any],
+    climate: dict[str, Any],
+    model_data: dict[str, dict[str, Any]],
+    region: str,
+    period: dict[str, Any],
+) -> dict[str, Any]:
+    dates = period["dates"]
+    obs_dates, obs_values = observed_period(current, region, dates)
+    obs_run = running(obs_values)
+    obs_index = {d: v for d, v in zip(obs_dates, obs_run)}
+    observed_running = [round(obs_index[d], 3) if d in obs_index else None for d in dates]
+
+    clim_daily = climate_period(climate, region, dates)
+    if any(value is None for value in clim_daily):
+        raise RuntimeError(f"HYRAS Klimakurve {region}: Lücken im Zeitraum {dates[0]}–{dates[-1]}")
+    clim_run = [round(v, 3) if v is not None else None for v in running(clim_daily)]
+    climate_final = clim_run[-1]
+    reference_to_date = clim_run[len(obs_dates) - 1]
+
+    models: dict[str, Any] = {}
+    for key, mdata in model_data.items():
+        models[key] = {
+            "label": mdata["label"],
+            "run": mdata.get("run"),
+            "api_model": mdata.get("api_model"),
+            **merge_running_outlook(obs_dates, obs_values, mdata["regions"][region], dates),
+        }
+
+    return {
+        "observed_through": obs_dates[-1],
+        "observed_running": observed_running,
+        "observed_current": round(obs_run[-1], 3),
+        "climatology_running": clim_run,
+        "climatology_month_mean": climate_final,  # historische Frontend-Kompatibilität
+        "climatology_period_mean": climate_final,
+        "climatology_to_date": reference_to_date,
+        "observed_anomaly_to_date": round(obs_run[-1] - reference_to_date, 3),
+        "models": models,
     }
 
 
@@ -492,48 +574,28 @@ def build_payload(
     data_through: str,
     support: dict[str, list[dict[str, float]]],
 ) -> dict[str, Any]:
-    dates = month_dates(year, month)
+    periods = period_definitions(year, month)
     regions: dict[str, Any] = {}
-
     for region in REGION_ORDER:
-        obs_dates, obs_values = observed_month(current, region, year, month)
-        obs_run = running(obs_values)
-        obs_index = {d: v for d, v in zip(obs_dates, obs_run)}
-        observed_running = [
-            round(float(obs_index[d]), 3) if d in obs_index else None
-            for d in dates
-        ]
-
-        climate_daily = climate_month(climate, region, year, month)
-        climate_run = [round(v, 3) if v is not None else None for v in running(climate_daily)]
-        climate_final = next((v for v in reversed(climate_run) if v is not None), None)
-
-        models: dict[str, Any] = {}
-        for model_key, mdata in model_data.items():
-            models[model_key] = {
-                "label": mdata["label"],
-                "run": mdata.get("run"),
-                "api_model": mdata.get("api_model"),
-                **merge_running_outlook(obs_dates, obs_values, mdata["regions"][region], year, month),
-            }
-
+        by_period = {
+            key: build_period_region(current, climate, model_data, region, period)
+            for key, period in periods.items()
+        }
+        # Alte Monatsfelder bleiben für ältere Frontend-Versionen lesbar.
         regions[region] = {
-            "observed_through": obs_dates[-1],
-            "observed_running": observed_running,
-            "observed_current": round(obs_run[-1], 3),
-            "climatology_running": climate_run,
-            "climatology_month_mean": climate_final,
+            **by_period["month"],
             "support_points": support[region],
-            "models": models,
+            "periods": by_period,
         }
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "product": "state_monthly_ensemble_temperature",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "year": year,
         "month": month,
-        "dates": dates,
+        "dates": periods["month"]["dates"],
+        "periods": periods,
         "observation_source": "DWD HYRAS-DE-TAS",
         "observation_data_through": data_through,
         "climatology_reference": "1991-2020",
@@ -542,6 +604,7 @@ def build_payload(
             "observation": "1-km HYRAS area mean for Germany and the 16 federal states",
             "forecast": "Open-Meteo ensemble daily 2 m temperature averaged across deterministic support points within each region",
             "support_point_note": "Forecast area means are a support-point approximation; observations/climatology are exact HYRAS grid-area means.",
+            "anomaly": "Running-period mean minus 1991-2020 running-period daily climatology for the same date.",
         },
         "regions_order": REGION_ORDER,
         "models_order": list(model_data),
