@@ -25,6 +25,17 @@ function sstShiftDate(iso,days){
 }
 function sstRegionLabel(region){return sstManifest?.regions?.[region]?.label||region;}
 function sstViewLabel(view){return view==="anomaly"?"SST-Anomalie zu 1991–2020":"SST absolut";}
+function sstRegionHasDate(iso,region=sstState.region,view=sstState.view){
+  return Boolean(sstManifest?.dates?.[iso]?.regions?.[region]?.[view]);
+}
+function sstLatestDateForRegion(region=sstState.region,view=sstState.view){
+  const dates=sstManifest?.available_dates||Object.keys(sstManifest?.dates||{});
+  for(let index=dates.length-1;index>=0;index--){
+    const iso=dates[index];
+    if(sstRegionHasDate(iso,region,view))return iso;
+  }
+  return null;
+}
 function sstSetStatus(message,{show=true}={}){
   const status=sstEl("sstStatus");if(!status)return;
   status.textContent=message||"";status.hidden=!show;
@@ -117,7 +128,7 @@ function sstRenderTimeline(){
   wrap.innerHTML="";
   for(let offset=29;offset>=0;offset--){
     const iso=sstShiftDate(sstState.date,-offset);
-    const available=Boolean(sstManifest.dates?.[iso]);
+    const available=sstRegionHasDate(iso);
     const button=document.createElement("button");
     button.type="button";
     button.disabled=!available;
@@ -193,12 +204,12 @@ function sstEnableExports(enabled){
 
 function sstBindControls(){
   const region=sstEl("sstRegion"),view=sstEl("sstView"),date=sstEl("sstDate");
-  if(region&&!region.dataset.sstBound){region.addEventListener("change",()=>{sstState.region=region.value;sstRenderMap();});region.dataset.sstBound="1";}
+  if(region&&!region.dataset.sstBound){region.addEventListener("change",()=>{sstState.region=region.value;if(!sstRegionHasDate(sstState.date))sstState.date=sstLatestDateForRegion();sstUpdateDateBounds();sstRenderMap();});region.dataset.sstBound="1";}
   if(view&&!view.dataset.sstBound){view.addEventListener("change",()=>{sstState.view=view.value;sstRenderMap();});view.dataset.sstBound="1";}
   if(date&&!date.dataset.sstBound){date.addEventListener("change",()=>sstSelectDate(date.value));date.dataset.sstBound="1";}
   const prev=sstEl("sstPrevDay");if(prev&&!prev.dataset.sstBound){prev.addEventListener("click",()=>sstSelectDate(sstShiftDate(sstState.date,-1)));prev.dataset.sstBound="1";}
   const next=sstEl("sstNextDay");if(next&&!next.dataset.sstBound){next.addEventListener("click",()=>sstSelectDate(sstShiftDate(sstState.date,1)));next.dataset.sstBound="1";}
-  const latest=sstEl("sstLatestDay");if(latest&&!latest.dataset.sstBound){latest.addEventListener("click",()=>sstSelectDate(sstManifest?.data_through));latest.dataset.sstBound="1";}
+  const latest=sstEl("sstLatestDay");if(latest&&!latest.dataset.sstBound){latest.addEventListener("click",()=>{const iso=sstLatestDateForRegion();if(iso)sstSelectDate(iso);});latest.dataset.sstBound="1";}
   const png=sstEl("sstPngDownload");if(png&&!png.dataset.sstBound){png.addEventListener("click",downloadSstPng);png.dataset.sstBound="1";}
   const pdf=sstEl("sstPdfDownload");if(pdf&&!pdf.dataset.sstBound){pdf.addEventListener("click",downloadSstPdf);pdf.dataset.sstBound="1";}
 }
@@ -221,7 +232,8 @@ async function composeSstExportCanvas(){
     ctx.fillText(statsLine,28,image.naturalHeight+63);
   }
   ctx.fillStyle="#5f676d";ctx.font="15px Arial,sans-serif";
-  const source=sstState.view==="anomaly"?"NASA/JPL MUR SST v4.1 · Referenz NOAA OISST 1991–2020":"NASA/JPL MUR SST v4.1";
+  const regionSource=(sstManifest?.regions?.[sstState.region]?.source_label||"Quelle: NASA/JPL MUR SST v4.1").replace(/^Quelle:\s*/i,"");
+  const source=sstState.view==="anomaly"?`${regionSource} · Referenz NOAA OISST 1991–2020`:regionSource;
   ctx.fillText(source,28,image.naturalHeight+(statsLine?96:65));
   return canvas;
 }
@@ -267,7 +279,7 @@ async function mountSstEurope(){
     sstManifest=await loadSstManifest();
     sstPopulateRegions();
     sstState.view=sstEl("sstView")?.value||"absolute";
-    sstState.date=sstManifest.data_through||sstManifest.available_dates?.at(-1)||null;
+    sstState.date=sstLatestDateForRegion()||sstManifest.data_through||sstManifest.available_dates?.at(-1)||null;
     sstUpdateDateBounds();
     sstBindControls();
     sstMounted=true;
