@@ -187,19 +187,33 @@ def download_oisst_normal_subset(
     temporary = destination.with_suffix(destination.suffix + ".part")
     try:
         # Direktes OPeNDAP-Hyperslab statt vieler kleiner ERDDAP-Anfragen.
-        # Dadurch laden wir pro Tag nur den benoetigten Klimatologie-Tag
-        # fuer den gemeinsamen Ozeanausschnitt.
-        with xr.open_dataset(
-            NOAA_NORMALS_OPENDAP,
-            engine="netcdf4",
-            decode_times=False,
-        ) as remote:
-            standardized = _standardize_subset(remote)
-            field = standardized["sst"].isel(time=slice(time_start, time_stop + 1))
-            field = field.sel(
-                lat=slice(south, north),
-                lon=slice(west, east),
-            ).load()
+        # NOAA/THREDDS kann sporadisch mit NetCDF "Access failure" abbrechen;
+        # deshalb wird der komplette Remote-Slice mit Backoff wiederholt.
+        field = None
+        last_error = None
+        for attempt in range(OISST_MAX_ATTEMPTS):
+            try:
+                with xr.open_dataset(
+                    NOAA_NORMALS_OPENDAP,
+                    engine="netcdf4",
+                    decode_times=False,
+                ) as remote:
+                    standardized = _standardize_subset(remote)
+                    field = standardized["sst"].isel(time=slice(time_start, time_stop + 1))
+                    field = field.sel(
+                        lat=slice(south, north),
+                        lon=slice(west, east),
+                    ).load()
+                last_error = None
+                break
+            except (OSError, RuntimeError) as exc:
+                last_error = exc
+                if attempt >= OISST_MAX_ATTEMPTS - 1:
+                    raise
+                time.sleep(OISST_RETRY_DELAYS[attempt])
+
+        if field is None:
+            raise RuntimeError(f"NOAA-OISST-Klimamittel konnte nicht geladen werden: {last_error!r}")
 
         if int(field.sizes.get("time", 1)) == 2:
             field = field.mean("time", skipna=True, keep_attrs=True)
