@@ -16,7 +16,7 @@ function fmt(v,d=2){v=num(v);return v==null?"–":v.toLocaleString("de-DE",{mini
 function dateShort(iso){if(!iso)return"–";const p=String(iso).split("-");return p.length===3?`${p[2]}.${p[1]}.`:iso;}
 function fmtRun(iso){if(!iso)return"Laufzeit nicht gemeldet";const d=new Date(iso);if(Number.isNaN(d.getTime()))return iso;return d.toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+" UTC";}
 function setStatus(text,type="info"){const n=el("stateMonthlyStatus");if(!n)return;n.className="state-monthly-status "+type;n.textContent=text;}
-function validData(j){return j&&j.schema_version===1&&Array.isArray(j.dates)&&j.regions&&Array.isArray(j.regions_order);}
+function validData(j){return j&&[1,2].includes(j.schema_version)&&Array.isArray(j.dates)&&j.regions&&Array.isArray(j.regions_order);}
 async function fetchData(force){
   let last=null;
   for(const base of DATA_URLS){
@@ -29,8 +29,17 @@ async function fetchData(force){
   }
   throw last||new Error("Monats-Ensembles nicht verfügbar");
 }
-function labels(){return data.dates.map(dateShort);}
-function region(){const key=el("stateMonthlyRegion")?.value||"Deutschland";return data?.regions?.[key]||null;}
+function selectedPeriod(){return el("stateMonthlyPeriod")?.value||"month";}
+function selectedMetric(){return el("stateMonthlyMetric")?.value||"absolute";}
+function periodDates(){return data?.periods?.[selectedPeriod()]?.dates|| (selectedPeriod()==="month"?data?.dates:[])||[];}
+function labels(){return periodDates().map(dateShort);}
+function region(){
+  const name=el("stateMonthlyRegion")?.value||"Deutschland";
+  const reg=data?.regions?.[name]||null;
+  if(!reg)return null;
+  return data?.periods ? reg.periods?.[selectedPeriod()]||null :
+    (selectedPeriod()==="month"?reg:null);
+}
 function palette(model){
   return model==="gefs"?{main:"#111827",control:"#12b76a",min:"#3155a5",max:"#c0362c"}:
          model==="ifs"?{main:"#111827",control:"#18a66a",min:"#3155a5",max:"#c0362c"}:
@@ -80,36 +89,71 @@ function datasetsFor(modelKey,r){
     {label:"Kontroll-/Basislauf",data:ctl,borderColor:p.control,borderWidth:2,pointRadius:0,tension:.12,spanGaps:false}
   ];
 }
-function chartOptions(bounds){return{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
-  scales:{x:{grid:{color:"rgba(120,130,140,.18)"},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:16,font:{size:11}},title:{display:true,text:"Tag"}},y:{min:bounds.min,max:bounds.max,grid:{color:"rgba(120,130,140,.28)"},title:{display:true,text:"laufendes Monatsmittel [°C]"},ticks:{callback:v=>Number(v).toFixed(1)}}},
-  plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label(ctx){const v=num(ctx.raw);if(v==null)return null;return `${ctx.dataset.label}: ${fmt(v,2)} °C`;}}}}};}
+function displayDatasets(modelKey,r){
+  const datasets=datasetsFor(modelKey,r);
+  if(selectedMetric()!=="anomaly")return datasets;
+  const clim=r.climatology_running||[];
+  return datasets.map((d,i)=>({
+    ...d,
+    label:i===1?"Referenz 1991–2020 · 0 K":d.label,
+    data:(d.data||[]).map((raw,index)=>{
+      const value=num(raw),reference=num(clim[index]);
+      if(value===null||reference===null)return null;
+      return Number((value-reference).toFixed(3));
+    })
+  }));
+}
+function chartOptions(bounds){const anomaly=selectedMetric()==="anomaly";return{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
+  scales:{x:{grid:{color:"rgba(120,130,140,.18)"},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:16,font:{size:11}},title:{display:true,text:"Tag"}},y:{min:bounds.min,max:bounds.max,grid:{color:"rgba(120,130,140,.28)"},title:{display:true,text:anomaly?"Abweichung 1991–2020 [K]":"laufendes Mittel [°C]"},ticks:{callback:v=>Number(v).toFixed(1)}}},
+  plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label(ctx){const v=num(ctx.raw);if(v===null)return null;return `${ctx.dataset.label}: ${v>0&&anomaly?"+":""}${fmt(v,2)} ${anomaly?"K":"°C"}`;}}}}};}
 function destroyCharts(){Object.values(charts).forEach(c=>c?.destroy());charts={};}
 function renderLegend(){
   const n=el("stateMonthlyLegend");if(!n)return;
-  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span><span><i class="sm-swatch climate"></i>1991–2020</span><span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
+  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span><span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span><span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
-  if(!data)return;const r=region();if(!r)return;
-  destroyCharts();const labs=labels();
+  if(!data)return;
+  destroyCharts();
+  const r=region();
+  if(!r){
+    setStatus("Die Jahreszeiten- und Jahresdaten werden noch berechnet. Monatsdaten bleiben verfügbar.","warn");
+    MODEL_ORDER.forEach(k=>{const card=el("stateMonthlyChart_"+k)?.closest(".state-monthly-card");if(card)card.hidden=true;});
+    return;
+  }
+  const labs=labels();
   MODEL_ORDER.forEach(k=>{
     const canvas=el("stateMonthlyChart_"+k),card=canvas?.closest(".state-monthly-card"),m=r.models?.[k];if(!canvas||!card)return;
     card.hidden=!m;const title=card.querySelector("h3");if(title)title.textContent=MODEL_LABELS[k]||k;
     const meta=card.querySelector(".state-monthly-model-meta");
     if(meta)meta.textContent=m?`${m.member_count} Member · Prognose bis ${dateShort(m.forecast_through)} · ${m.support_points} Stützpunkte · Lauf ${fmtRun(m.run)}`:"nicht verfügbar";
     if(m){
-      const datasets=datasetsFor(k,r);
+      const datasets=displayDatasets(k,r);
       charts[k]=new Chart(canvas,{type:"line",data:{labels:labs,datasets},options:chartOptions(chartBounds(datasets))});
     }
   });
   applyView();renderLegend();renderHeader(r);
 }
 function renderHeader(r){
-  const reg=el("stateMonthlyRegion")?.value||"Deutschland",month=MONTHS[(data.month||1)-1]||String(data.month);
-  const title=el("stateMonthlyTitle");if(title)title.textContent=`${reg} · ${month} ${data.year}`;
-  const diff=num(r.observed_current)!=null&&num(r.climatology_month_mean)!=null?r.observed_current-r.climatology_month_mean:null;
-  const info=el("stateMonthlyInfo");if(info)info.innerHTML=`<strong>HYRAS bis ${dateShort(r.observed_through)}</strong><span>bisheriges Monatsmittel ${fmt(r.observed_current,2)} °C</span><span>Monatsklima 1991–2020 ${fmt(r.climatology_month_mean,2)} °C</span><span>${diff==null?"":`Abweichung bisher ${diff>=0?"+":""}${fmt(diff,2)} K`}</span>`;
+  const reg=el("stateMonthlyRegion")?.value||"Deutschland";
+  const period=selectedPeriod(),p=data.periods?.[period];
+  const month=MONTHS[(data.month||1)-1]||String(data.month);
+  let periodLabel=month+" "+data.year;
+  if(period==="year")periodLabel="Jahr "+data.year;
+  if(period==="season"){
+    periodLabel=(p?.label||"Jahreszeit")+" "+data.year;
+    if(p&&p.end_date.slice(0,4)!==p.start_date.slice(0,4)){
+      periodLabel=(p.label||"Winter")+" "+p.start_date.slice(0,4)+"/"+p.end_date.slice(2,4);
+    }
+  }
+  const title=el("stateMonthlyTitle");if(title)title.textContent=`${reg} · ${periodLabel}`;
+  const dates=periodDates(),obsIndex=dates.indexOf(r.observed_through);
+  const reference=num(r.climatology_to_date)??num(r.climatology_running?.[obsIndex]);
+  const diff=num(r.observed_anomaly_to_date)??(reference!=null&&num(r.observed_current)!=null?r.observed_current-reference:null);
+  const climateFinal=num(r.climatology_period_mean)??num(r.climatology_month_mean);
+  const info=el("stateMonthlyInfo");if(info)info.innerHTML=`<strong>HYRAS bis ${dateShort(r.observed_through)}</strong><span>bisheriges Periodenmittel ${fmt(r.observed_current,2)} °C</span><span>Klima 1991–2020 bis dahin ${fmt(reference,2)} °C</span><span>Abweichung ${diff==null?"–":`${diff>=0?"+":""}${fmt(diff,2)} K`}</span><span>Klimamittel gesamte Periode ${fmt(climateFinal,2)} °C</span>`;
   const gen=new Date(data.generated_at),generated=Number.isNaN(gen.getTime())?data.generated_at:gen.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-  setStatus(`Datenstand HYRAS ${data.observation_data_through} · Ensemble-Daten erzeugt ${generated} · ${Object.keys(r.models||{}).length}/4 Modelle verfügbar`,Object.keys(r.models||{}).length===4?"ok":"warn");
+  const partial=p&&p.complete_reference_period===false?" · Winter startet mangels Vorjahresdaten erst am 01.01.":"";
+  setStatus(`Datenstand HYRAS ${data.observation_data_through} · Ensemble-Daten erzeugt ${generated} · ${Object.keys(r.models||{}).length}/4 Modelle verfügbar${partial}`,Object.keys(r.models||{}).length===4&& !partial?"ok":"warn");
 }
 function applyView(){
   const view=el("stateMonthlyView")?.value||"four",grid=el("stateMonthlyGrid");if(!grid)return;
@@ -126,13 +170,15 @@ async function load(force=false){
   loading=fetchData(force).then(j=>{data=j;fillRegions();render();return j;}).catch(e=>{console.error(e);setStatus("Monats-Ensembles konnten nicht geladen werden: "+e.message,"error");throw e;}).finally(()=>{loading=null;});
   return loading;
 }
-function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");return `Monatsensemble_${data?.year||""}_${String(data?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
+function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");return `Ensemble_${selectedPeriod()}_${selectedMetric()}_${data?.year||""}_${String(data?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 async function exportPng(){try{if(!window.html2canvas)throw new Error("html2canvas fehlt");const c=await html2canvas(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});c.toBlob(b=>b&&saveBlob(b,filename("png")),"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
 async function exportPdf(){try{if(!window.html2canvas||!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek fehlt");const c=await html2canvas(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false}),J=window.jspdf.jsPDF,p=new J({orientation:"landscape",unit:"mm",format:"a4"}),pw=p.internal.pageSize.getWidth(),ph=p.internal.pageSize.getHeight(),m=7,s=Math.min((pw-2*m)/c.width,(ph-2*m)/c.height),w=c.width*s,h=c.height*s;p.addImage(c.toDataURL("image/jpeg",.93),"JPEG",(pw-w)/2,(ph-h)/2,w,h);p.save(filename("pdf"));}catch(e){alert("PDF konnte nicht erstellt werden: "+e.message);}}
 function mount(){
   if(!el("state-monthly-ensemble"))return;
   el("stateMonthlyRegion")?.addEventListener("change",render);el("stateMonthlyView")?.addEventListener("change",applyView);
+  el("stateMonthlyPeriod")?.addEventListener("change",render);
+  el("stateMonthlyMetric")?.addEventListener("change",render);
   el("stateMonthlyReload")?.addEventListener("click",()=>load(true));el("stateMonthlyPng")?.addEventListener("click",exportPng);el("stateMonthlyPdf")?.addEventListener("click",exportPdf);
   const panel=el("state-monthly-ensemble");
   new MutationObserver(()=>{if(panel.classList.contains("active")){if(!data)load(false);window.setTimeout(()=>Object.values(charts).forEach(c=>c?.resize()),80);}}).observe(panel,{attributes:true,attributeFilter:["class"]});
