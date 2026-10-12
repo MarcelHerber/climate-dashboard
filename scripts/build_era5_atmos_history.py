@@ -128,14 +128,17 @@ def render_triptych(
             render_field(
                 config.pop("field"), lat, lon, filename=filename, **config
             )
-        with Image.open(tmp_files[0]) as first:
-            width, height = first.size
-        atlas = Image.new("RGB", (width * 3, height), "white")
-        for index, filename in enumerate(tmp_files):
+        frames = []
+        for filename in tmp_files:
             with Image.open(filename) as frame:
-                if frame.size != (width, height):
-                    raise RuntimeError(f"Inconsistent map dimensions in {filename}")
-                atlas.paste(frame.convert("RGB"), (index * width, 0))
+                frames.append(frame.convert("RGB"))
+        width = max(frame.width for frame in frames)
+        height = max(frame.height for frame in frames)
+        atlas = Image.new("RGB", (width * 3, height), "white")
+        for index, frame in enumerate(frames):
+            x = index * width + (width - frame.width) // 2
+            y = (height - frame.height) // 2
+            atlas.paste(frame, (x, y))
         atlas.save(destination, format="WEBP", quality=80, method=4)
         if destination.stat().st_size <= 1000:
             raise RuntimeError(f"Map atlas is suspiciously small: {destination}")
