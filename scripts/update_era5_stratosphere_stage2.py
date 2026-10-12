@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Etappe 2: real ERA5 polar-cap daily T (10/50/100 hPa) and Z (10 hPa).
+"""Etappe 2 + early Etappe 3: ERA5 polar-cap T, Z, planetary waves and ozone.
 
 Uses small, resumable requests independent of existing zonal wind and map data.
 The CDS daily product aggregates four 6-hourly ERA5 fields in UTC.
@@ -18,6 +18,7 @@ import update_era5_stratosphere as base
 GROUPS = (
     ("temperature", (10, 50, 100), "t"),
     ("geopotential", (10,), "z"),
+    ("ozone_mass_mixing_ratio", (50,), "o3"),
 )
 
 def _dates(year, month, days):
@@ -51,6 +52,8 @@ def _cap_rows(dataset, var, levels, days):
             mean = base.polar_cap_mean(values, lats)
             if var == "t":
                 results[day][f"tcap_{level}"] = base.safe_number(mean-273.15)
+            elif var == "o3":
+                results[day][f"o3cap_{level}"] = base.safe_number(mean*1e6)
             else:
                 results[day][f"zcap_{level}"] = base.safe_number(mean/9.80665)
                 if level == 10:
@@ -149,7 +152,7 @@ def choose_backfill_year():
         rows=base.read_rows(year)
         expected=366 if calendar.isleap(year) else 365
         if len(rows)<expected or any(any(k not in row for k in
-             ("tcap_10","tcap_50","tcap_100","zcap_10","wave1_10","wave2_10")) for row in rows):
+             ("tcap_10","tcap_50","tcap_100","zcap_10","wave1_10","wave2_10","o3cap_50")) for row in rows):
             return year
     return None
 
@@ -162,14 +165,18 @@ def test():
             "latitude":lat, "longitude":lon,"pressure_level": [10,50,100]}
     temp=np.stack([np.full((2,len(lat),len(lon)),v) for v in (225.,235.,245.)],axis=1)
     z=np.full((2,3,len(lat),len(lon)),30000.*9.80665)
+    o3=np.full((2,3,len(lat),len(lon)),4e-6)
     ds=Dataset({"t":DataArray(temp,dims=("valid_time","pressure_level","latitude","longitude"),coords=coords),
-                "z":DataArray(z,dims=("valid_time","pressure_level","latitude","longitude"),coords=coords)})
+                "z":DataArray(z,dims=("valid_time","pressure_level","latitude","longitude"),coords=coords),
+                "o3":DataArray(o3,dims=("valid_time","pressure_level","latitude","longitude"),coords=coords)})
     days=["2026-10-01","2026-10-02"]
     t=_cap_rows(ds,"t",(10,50,100),days)
     g=_cap_rows(ds,"z",(10,),days)
+    o=_cap_rows(ds,"o3",(50,),days)
     assert abs(t[days[0]]["tcap_10"]-(225.-273.15))<.001
     assert abs(t[days[1]]["tcap_100"]-(245.-273.15))<.001
     assert abs(g[days[0]]["zcap_10"]-30000)<.001
+    assert abs(o[days[0]]["o3cap_50"]-4)<.001
     assert abs(g[days[0]]["wave1_10"])<.001
     assert abs(g[days[0]]["wave2_10"])<.001
     print("ERA5 polar-cap stage-2 scientific self-test OK")
