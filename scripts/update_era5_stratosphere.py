@@ -163,38 +163,89 @@ def normalized_data(ds):
         out[key] = np.asarray(array.values, dtype=float)
     return times, lats, lons, out
 
-def retrieve_month(client, year, month, end_day):
-    import cdsapi  # lazy import, so --self-test works without CDS credentials
-    del cdsapi
-    CACHE.mkdir(parents=True, exist_ok=True)
-    path = CACHE / f"{year}_{month:02d}_{end_day:02d}_v1.nc"
-    if not path.exists() or path.stat().st_size == 0:
+def _wind_rows_from_dataset(dataset, levels, requested):
+    """Read actual ERA5 u at 60 N; reject truncated longitude coverage."""
+    result = {}
+    expected = set(requested)
+    for level in levels:
+        series = select_array(dataset, "u", level)
+        timedim = next((d for d in ("valid_time","time","date") if d in series.dims), None)
+        latdim = next((d for d in ("latitude","lat") if d in series.dims), None)
+        londim = next((d for d in ("longitude","lon") if d in series.dims), None)
+        if not (timedim and latdim and londim):
+            raise ValueError(f"Unexpected CDS ERA5 wind dimensions {series.dims}")
+        lats = np.asarray(series[latdim].values, dtype=float)
+        lons = np.asarray(series[londim].values, dtype=float)
+        idx = int(np.argmin(abs(lats-60)))
+        if abs(lats[idx]-60) > 0.51:
+            raise ValueError("ERA5 60N latitude missing")
+        if len(lons) < 100 or np.ptp(lons) < 350:
+            raise ValueError("Incomplete ERA5 longitude circle at 60N")
+        selected = series.isel({latdim:idx}).transpose(timedim,londim)
+        values = np.asarray(selected.values,dtype=float)
+        dates = [str(np.datetime64(t,"D")) for t in selected[timedim].values]
+        if set(dates) != expected or len(dates) != len(expected):
+            raise ValueError(f"ERA5 days incomplete: requested {sorted(expected)}, received {dates}")
+        for day, row in zip(dates,values):
+            # Drop the repeated longitude endpoint (e.g. -180 and +180).
+            if len(lons)>1 and np.isclose((lons[-1]-lons[0]),360,atol=.01):
+                row = row[:-1]
+            if not np.isfinite(row).all():
+                raise ValueError(f"Non-finite ERA5 u at {level} hPa on {day}")
+            result.setdefault(day,{"date":day})[f"u60_{level}"] = safe_number(np.mean(row))
+    return result
+
+
+def retrieve_wind_chunk(client, year, month, days, levels=(10,30,50,100)):
+    """Request a narrow global 60N band; split CDS cost-limited jobs recursively."""
+    CACHE.mkdir(parents=True,exist_ok=True)
+    days = tuple(sorted(days))
+    levels = tuple(levels)
+    key = f"u60_{year}_{month:02d}_d{days[0]:02d}-{days[-1]:02d}_l{'-'.join(map(str,levels))}_v2.zip"
+    path = CACHE/key
+    if not path.exists() or path.stat().st_size==0:
         request = {
-            "product_type": "reanalysis",
-            "variable": VARS,
-            "pressure_level": LEVELS,
-            "year": str(year),
-            "month": [f"{month:02d}"],
-            "day": [f"{d:02d}" for d in range(1, end_day + 1)],
-            "daily_statistic": "daily_mean",
-            "time_zone": "utc+00:00",
-            "frequency": "3_hourly",
-            "area": [90, -180, 45, 180],
-            "grid": "1/1",
+            "product_type":"reanalysis",
+            "variable":["u_component_of_wind"],
+            "pressure_level":[str(level) for level in levels],
+            "year":str(year),
+            "month":[f"{month:02d}"],
+            "day":[f"{day:02d}" for day in days],
+            "daily_statistic":"daily_mean",
+            "time_zone":"utc+00:00",
+            "frequency":"6_hourly",
+            "area":[61,-180,59,180],
+            "grid":"1/1"
         }
-        print(f"Fetching verified ERA5 {year}-{month:02d} days 1–{end_day}", flush=True)
+        print(f"CDS ERA5 u at 60N {year}-{month:02d}, days {days}, levels {levels}",flush=True)
         try:
-            client.retrieve(DATASET, request, str(path))
-        except Exception:
+            client.retrieve(DATASET,request,str(path))
+        except Exception as exc:
             path.unlink(missing_ok=True)
+            # CDS charges by requested field volume. Retry smaller real requests.
+            if "cost limits exceeded" in str(exc).lower() or "too large" in str(exc).lower():
+                if len(days)>1:
+                    split = len(days)//2
+                    a=retrieve_wind_chunk(client,year,month,days[:split],levels)
+                    b=retrieve_wind_chunk(client,year,month,days[split:],levels)
+                    a.update(b)
+                    return a
+                if len(levels)>1:
+                    split = len(levels)//2
+                    a=retrieve_wind_chunk(client,year,month,days,levels[:split])
+                    b=retrieve_wind_chunk(client,year,month,days,levels[split:])
+                    for day,row in b.items():
+                        a.setdefault(day,{"date":day}).update(row)
+                    return a
             raise
-    dataset = open_cds_file(path)
-    times, lats, lons, fields = normalized_data(dataset)
-    expected = [f"{year}-{month:02d}-{day:02d}" for day in range(1, end_day + 1)]
-    if sorted(times) != expected:
-        raise ValueError(f"Incomplete ERA5 month {year}-{month:02d}: expected {len(expected)} days, got {times}")
-    return [{"date": day, **daily_diagnostics({key:value[i] for key,value in fields.items()},lats,lons)}
-            for i,day in enumerate(times)]
+    try:
+        ds=open_cds_file(path)
+        return _wind_rows_from_dataset(ds,levels,
+            [f"{year}-{month:02d}-{d:02d}" for d in days])
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+
 
 def read_rows(year):
     path = HISTORY / f"{year}.json"
@@ -214,38 +265,49 @@ def last_available_date():
     # CDS daily ERA5 has about a six-day delay; avoid incomplete most recent days.
     return datetime.now(timezone.utc).date() - timedelta(days=8)
 
-def update_year(client, year, *, current=False, max_months=4):
+def update_year(client, year, *, current=False, max_chunks=3):
+    """Incrementally publish authentic Stage-1 zonal-wind data, newest first."""
     cutoff = last_available_date() if current else date(year,12,31)
-    existing = read_rows(year)
-    by_date = {row["date"]:row for row in existing}
-    # Current newest months first; long historical backfill oldest months first.
-    months = range(12,0,-1) if current else range(1,13)
-    fetched = 0
+    by_date={row["date"]:row for row in read_rows(year)}
+    months=range(12,0,-1) if current else range(1,13)
+    processed=0
     for month in months:
-        if fetched >= max_months:
+        if processed>=max_chunks:
             break
-        final = date(year,month,1)
-        if final > cutoff:
+        if date(year,month,1)>cutoff:
             continue
-        days = calendar.monthrange(year,month)[1]
-        if year == cutoff.year and month == cutoff.month:
-            days = min(days,cutoff.day)
-        expected = [f"{year}-{month:02d}-{day:02d}" for day in range(1,days+1)]
-        if all(day in by_date for day in expected):
-            continue
-        try:
-            rows = retrieve_month(client,year,month,days)
-        except Exception as error:
-            print(f"ERA5 {year}-{month:02d} unavailable: {error}. Keeping existing real values.",flush=True)
-            if current:
+        day_count=calendar.monthrange(year,month)[1]
+        if year==cutoff.year and month==cutoff.month:
+            day_count=min(day_count,cutoff.day)
+        chunks=[list(range(start,min(start+5,day_count+1)))
+                for start in range(1,day_count+1,5)]
+        if current:
+            chunks.reverse()
+        for days in chunks:
+            if processed>=max_chunks:
+                break
+            stamp=[f"{year}-{month:02d}-{day:02d}" for day in days]
+            if all(all(f"u60_{lev}" in by_date.get(day,{}) for lev in (10,30,50,100))
+                   for day in stamp):
                 continue
-            break
-        for row in rows:
-            by_date[row["date"]] = row
-        store_rows(year,list(by_date.values()))
-        fetched += 1
-        print(f"Saved {year}-{month:02d}: {len(rows)} verified daily records",flush=True)
+            try:
+                rows=retrieve_wind_chunk(client,year,month,days)
+            except Exception as error:
+                print(f"ERROR: real ERA5 wind could not be retrieved: {error}",flush=True)
+                # Keep verified earlier data. If no data exist, fail clearly at fetch.
+                if not by_date:
+                    raise
+                return len(by_date)
+            for day,row in rows.items():
+                values={**by_date.get(day,{"date":day}),**row}
+                if "u60_10" in values:
+                    values["ssw_wind_reversal"]=int(values["u60_10"]<0)
+                by_date[day]=values
+            store_rows(year,list(by_date.values()))
+            processed+=1
+            print(f"Saved {len(rows)} real 60N daily ERA5 wind records; total {len(by_date)} in {year}",flush=True)
     return len(by_date)
+
 
 def choose_backfill_year():
     cutoff = last_available_date().year
