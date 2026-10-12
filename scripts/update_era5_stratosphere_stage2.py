@@ -151,7 +151,6 @@ def test():
     lat=np.arange(90,59,-1)
     lon=np.arange(-180,180,1)
     from xarray import DataArray, Dataset
-    import numpy as np
     dims=("valid_time","latitude","longitude")
     coords={"valid_time":np.array(["2026-10-01","2026-10-02"],dtype="datetime64[ns]"),
             "latitude":lat, "longitude":lon,"pressure_level": [10,50,100]}
