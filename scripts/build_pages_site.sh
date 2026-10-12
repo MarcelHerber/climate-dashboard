@@ -8,6 +8,9 @@ mkdir -p _site/data
 required_root_files=(
   index.html
   stratosphaere.html
+  tiefdruck_tracker.html
+  tiefdruck_tracker.css
+  tiefdruck_tracker.js
   sst_europe.js
   sst_europe.css
   t850_ensembles.js

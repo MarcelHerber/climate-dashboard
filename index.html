@@ -1213,6 +1213,7 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
           <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='stratosphaere.html'">Stratosphäre</button>
+          <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='tiefdruck_tracker.html'">Tiefdruck-Tracker</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('state-monthly-ensemble')">Monatsausblick</button>
         </div>
       </div>
@@ -16497,7 +16498,8 @@ function initializeMobileTabNavigation(){
     ["jahresextremwerte.html","Jahresextreme"],
     ["dekadenrekorde.html","Dekadenrekorde"],
     ["feiertagsextremwerte.html","Feiertags-Extreme"],
-    ["stratosphaere.html","Stratosphäre (60° N)"]
+    ["stratosphaere.html","Stratosphäre (60° N)"],
+    ["tiefdruck_tracker.html","Tiefdruck-Tracker"]
   ].forEach(([href,label])=>{
     const option=document.createElement("option");
     option.value=href;
