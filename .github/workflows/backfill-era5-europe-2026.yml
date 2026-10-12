@@ -1,0 +1,160 @@
+name: ERA5 Atmosphäre 2026 Monatsarchiv nachfüllen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/backfill-era5-europe-2026.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-atmosphere-2026-backfill
+  cancel-in-progress: false
+
+jobs:
+  build-months:
+    name: ERA5 Monat 2026-${{ matrix.month }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        month: ["01", "02", "03", "04", "05", "06", "07", "08"]
+    steps:
+      - name: Skripte und ERA5-Bestand auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: ERA5-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+
+      - name: CDS-Zugang konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CDSAPI_KEY:-}" ]]; then
+            echo "::error::CDSAPI_KEY fehlt"
+            exit 1
+          fi
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: ERA5-Monatscache wiederherstellen
+        uses: actions/cache@v4
+        with:
+          path: .era5_europe_cache
+          key: era5-atmos-backfill-2026-${{ matrix.month }}-${{ github.run_id }}
+          restore-keys: |
+            era5-atmos-backfill-2026-${{ matrix.month }}-
+
+      - name: Monat aus ERA5 1940-2026 berechnen
+        env:
+          TARGET_MONTH: ${{ matrix.month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_era5_europe.py --year 2026 --month "$((10#$TARGET_MONTH))"
+
+      - name: Zwölf Karten validieren
+        env:
+          TARGET_MONTH: ${{ matrix.month }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          m = os.environ["TARGET_MONTH"]
+          p = Path("era5_europe/archive") / f"2026-{m}"
+          d = json.loads((p / "index.json").read_text(encoding="utf-8"))
+          assert d["period"] == f"2026-{m}"
+          assert set(d["products"]) == {"t850", "z500", "wind300", "mslp"}
+          for k, v in d["products"].items():
+              for view in ("absolute", "anomaly", "rank"):
+                  f = Path(v[view]["file"])
+                  assert f.is_file() and f.stat().st_size > 1000, (k, view, f)
+              assert v["rank"]["history_start"] == 1940
+              assert v["rank"]["history_end"] == 2026
+              assert v["rank"]["total_rank_positions"] == 87
+          print(f"Monat 2026-{m}: 12 Karten und Index geprüft.")
+          PY
+
+      - name: Monatskarten als Artefakt sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-europe-2026-${{ matrix.month }}
+          path: era5_europe/archive/2026-${{ matrix.month }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
+
+  publish:
+    name: Januar-August gemeinsam veröffentlichen
+    needs: build-months
+    if: needs.build-months.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Archiv auf main auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            era5_europe
+            scripts
+
+      - name: Acht Monatsartefakte herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: era5-europe-2026-*
+          path: .era5-europe-backfill-artifacts
+          merge-multiple: false
+
+      - name: Acht Monate auf aktuellem main konfliktarm veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/finalize_era5_europe_backfill.py --artifacts .era5-europe-backfill-artifacts
+            git add era5_europe/archive era5_europe/index.json
+            if git diff --cached --quiet; then
+              echo "Januar-August bereits veröffentlicht."
+              exit 0
+            fi
+            git commit -m "ERA5 Atmosphäre Monatsarchiv Januar-August 2026 aufgefüllt"
+            if git push origin HEAD:main; then
+              echo "Alle acht ERA5-Monate veröffentlicht."
+              exit 0
+            fi
+            echo "Push-Konflikt: Versuch $attempt/3; neuer Abgleich."
+          done
+          echo "::error::Archiv konnte nicht veröffentlicht werden."
+          exit 1
