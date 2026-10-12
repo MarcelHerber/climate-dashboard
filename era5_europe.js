@@ -213,3 +213,15 @@ async function ensureEra5AtmosphereLoaded(){
     }
   }
 }
+
+
+/* ERA5_STRATOSPHERE_MODULE_V1 */
+/* Optional and isolated: loading the stratosphere module never blocks ERA5 maps. */
+(function(){
+  if(document.querySelector('script[data-era5-stratosphere]'))return;
+  const el=document.createElement('script');
+  el.src='era5_stratosphere.js?v=1';
+  el.async=true;
+  el.setAttribute('data-era5-stratosphere','1');
+  document.head.appendChild(el);
+})();
