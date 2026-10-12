@@ -1,0 +1,66 @@
+name: Stratosphäre 60N – NASA-Winddaten aktualisieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-stratosphere.yml"
+      - "scripts/update_stratosphere.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stratosphere-wind-archive
+  cancel-in-progress: false
+
+jobs:
+  sync-nasa-stratosphere:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Quellcode laden
+        uses: actions/checkout@v5
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Bestehenden Datenstand laden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --single-branch --branch stratosphere-data "$REMOTE" /tmp/stratosphere-public
+          else
+            mkdir -p /tmp/stratosphere-public
+            git -C /tmp/stratosphere-public init -b stratosphere-data -q
+            git -C /tmp/stratosphere-public remote add origin "$REMOTE"
+          fi
+
+      - name: NASA Ozone Watch Archiv aktualisieren und Referenzwerte berechnen
+        run: |
+          python scripts/update_stratosphere.py --out /tmp/stratosphere-public/data/stratosphere
+
+      - name: Datenbranch veröffentlichen (getrennt von Pages und ERA5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/stratosphere-public
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Keine neuen Stratosphärendaten."
+            exit 0
+          fi
+          git commit -m "NASA Stratosphäre 60N: Tageswerte und Klimatologie" >/dev/null
+          git push --quiet origin HEAD:refs/heads/stratosphere-data
