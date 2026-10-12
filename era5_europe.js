@@ -1,6 +1,7 @@
 let era5AtmosIndex=null;
 let era5AtmosPayload=null;
 let era5AtmosLoaded=false;
+const era5AtmosHistoryCache=new Map();
 
 function era5AtmosFormat(value,unit="",signed=false,digits=1){
   const number=Number(value);
@@ -26,26 +27,68 @@ async function era5AtmosLoadPeriod(period){
     era5AtmosPayload=era5AtmosIndex;
     return;
   }
+  const year=Number(period.slice(0,4));
+  if((era5AtmosIndex.history_years||[]).includes(year)){
+    let manifest=era5AtmosHistoryCache.get(year);
+    if(!manifest){
+      const url=`era5_europe/history/${year}.json?ts=${Date.now()}`;
+      const response=await fetch(url,{cache:"no-store"});
+      if(!response.ok)throw new Error(`ERA5-Historie ${year}: HTTP ${response.status}`);
+      manifest=await response.json();
+      if(manifest.year!==year || !manifest.ready)throw new Error(`ERA5-Historienmanifest ungültig: ${year}`);
+      era5AtmosHistoryCache.set(year,manifest);
+    }
+    era5AtmosPayload=manifest.periods?.[period];
+    if(!era5AtmosPayload?.ready)throw new Error(`ERA5-Historienmonat fehlt: ${period}`);
+    return;
+  }
   const response=await fetch(`era5_europe/archive/${period}/index.json?ts=${Date.now()}`,{cache:"no-store"});
   if(!response.ok)throw new Error(`ERA5-Archiv ${period}: HTTP ${response.status}`);
   era5AtmosPayload=await response.json();
 }
 
-function era5AtmosFillControls(){
+function era5AtmosAvailablePeriods(){
+  const recent=era5AtmosIndex?.available_periods||[];
+  const historical=(era5AtmosIndex?.history_years||[])
+    .flatMap(year=>Array.from({length:12},(_,month)=>`${year}-${String(month+1).padStart(2,"0")}`));
+  return [...new Set([...historical,...recent])].sort();
+}
+
+function era5AtmosFillMonths(preferred){
   const periodSelect=document.getElementById("era5AtmosPeriod");
+  const yearSelect=document.getElementById("era5AtmosYear");
+  if(!periodSelect)return;
+  const year=yearSelect?.value||era5AtmosIndex?.latest_month_key?.slice(0,4);
+  const available=era5AtmosAvailablePeriods().filter(period=>period.startsWith(year+"-"));
+  periodSelect.innerHTML="";
+  available.reverse().forEach(period=>{
+    const option=document.createElement("option");
+    option.value=period;
+    const [y,month]=period.split("-");
+    option.textContent=`${month}.${y}`;
+    periodSelect.appendChild(option);
+  });
+  if(available.includes(preferred))periodSelect.value=preferred;
+  else if(available.includes(era5AtmosIndex?.latest_month_key))periodSelect.value=era5AtmosIndex.latest_month_key;
+}
+
+function era5AtmosFillControls(){
+  const yearSelect=document.getElementById("era5AtmosYear");
   const parameterSelect=document.getElementById("era5AtmosParameter");
-  if(periodSelect){
-    const previous=periodSelect.value;
-    periodSelect.innerHTML="";
-    [...(era5AtmosIndex?.available_periods||[])].reverse().forEach(period=>{
+  const periods=era5AtmosAvailablePeriods();
+  if(yearSelect){
+    const previous=yearSelect.value;
+    const years=[...new Set(periods.map(period=>period.slice(0,4)))].reverse();
+    yearSelect.innerHTML="";
+    years.forEach(year=>{
       const option=document.createElement("option");
-      option.value=period;
-      const [year,month]=period.split("-");
-      option.textContent=`${month}.${year}`;
-      periodSelect.appendChild(option);
+      option.value=year;
+      option.textContent=year;
+      yearSelect.appendChild(option);
     });
-    periodSelect.value=[...periodSelect.options].some(o=>o.value===previous)?previous:era5AtmosIndex.latest_month_key;
+    yearSelect.value=years.includes(previous)?previous:era5AtmosIndex.latest_month_key.slice(0,4);
   }
+  era5AtmosFillMonths(era5AtmosIndex.latest_month_key);
   if(parameterSelect){
     const previous=parameterSelect.value;
     parameterSelect.innerHTML="";
@@ -57,6 +100,11 @@ function era5AtmosFillControls(){
     });
     if([...parameterSelect.options].some(o=>o.value===previous))parameterSelect.value=previous;
   }
+}
+
+async function era5AtmosChangeYear(){
+  era5AtmosFillMonths();
+  await era5AtmosChangePeriod();
 }
 
 function era5AtmosRender(){
@@ -138,7 +186,17 @@ async function ensureEra5AtmosphereLoaded(){
     if(!era5AtmosIndex?.ready)throw new Error("ERA5-Index ist noch nicht bereit.");
     era5AtmosPayload=era5AtmosIndex;
     era5AtmosFillControls();
+    document.getElementById("era5AtmosYear")?.addEventListener("change",era5AtmosChangeYear);
     document.getElementById("era5AtmosPeriod")?.addEventListener("change",era5AtmosChangePeriod);
+    document.getElementById("era5AtmosImage")?.addEventListener("error",()=>{
+      const img=document.getElementById("era5AtmosImage");
+      const placeholder=document.getElementById("era5AtmosPlaceholder");
+      if(img)img.hidden=true;
+      if(placeholder){
+        placeholder.hidden=false;
+        placeholder.textContent="Diese historische Karte konnte nicht geladen werden. Bitte prüfe die Release-Datei.";
+      }
+    });
     document.getElementById("era5AtmosParameter")?.addEventListener("change",era5AtmosRender);
     document.getElementById("era5AtmosView")?.addEventListener("change",era5AtmosRender);
     era5AtmosLoaded=true;
