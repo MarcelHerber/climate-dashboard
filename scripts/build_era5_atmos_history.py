@@ -76,32 +76,72 @@ def reference_month(month: int, destination: Path) -> None:
     print(f"Reference {month:02d} ready: {destination.stat().st_size / 1048576:.1f} MiB", flush=True)
 
 
-def render_map_webp(
-    values: np.ndarray,
+def render_triptych(
+    current: np.ndarray,
+    anomaly: np.ndarray,
+    rank: np.ndarray,
     lat: np.ndarray,
     lon: np.ndarray,
     *,
-    title: str,
-    subtitle: str,
-    unit: str,
+    meta: dict,
+    key: str,
+    label: str,
     destination: Path,
-    cmap: str,
-    bounds: list[float] | None = None,
-    vmin: float | None = None,
-    vmax: float | None = None,
 ) -> None:
-    png = destination.with_suffix(".png")
+    """Keep absolute/anomaly/rank maps in a single three-column WEBP atlas."""
+    base = destination.with_suffix("")
+    tmp_files = [
+        base.with_name(base.name + f"_{view}.png")
+        for view in VIEWS
+    ]
+    lo, hi = robust_range(current)
+    configs = [
+        {
+            "field": current,
+            "title": f"{meta['label']} · {label}",
+            "subtitle": "ERA5 Monatsmittel",
+            "unit": meta["unit"],
+            "cmap": meta["absolute_cmap"],
+            "vmin": lo,
+            "vmax": hi,
+        },
+        {
+            "field": anomaly,
+            "title": f"{meta['label']} · Abweichung {label}",
+            "subtitle": "gegenüber 1991–2020",
+            "unit": "K" if key == "t850" else meta["unit"],
+            "cmap": meta["anomaly_cmap"],
+            "bounds": meta["anomaly_bounds"],
+        },
+        {
+            "field": rank,
+            "title": f"{meta['label']} · Rang {label}",
+            "subtitle": f"{HISTORY_START}–{HISTORY_END} · {meta['rank_label']}",
+            "unit": "Rang 1–86",
+            "cmap": "Spectral",
+            "vmin": 1,
+            "vmax": len(EXPECTED_YEARS),
+        },
+    ]
     try:
-        render_field(
-            values, lat, lon, title=title, subtitle=subtitle, unit=unit,
-            filename=png, cmap=cmap, bounds=bounds, vmin=vmin, vmax=vmax
-        )
-        with Image.open(png) as image:
-            image.convert("RGB").save(destination, format="WEBP", quality=78, method=4)
-        if destination.stat().st_size < 1000:
-            raise RuntimeError(f"Image suspiciously small: {destination}")
+        for filename, config in zip(tmp_files, configs, strict=True):
+            render_field(
+                config.pop("field"), lat, lon, filename=filename, **config
+            )
+        with Image.open(tmp_files[0]) as first:
+            width, height = first.size
+        atlas = Image.new("RGB", (width * 3, height), "white")
+        for index, filename in enumerate(tmp_files):
+            with Image.open(filename) as frame:
+                if frame.size != (width, height):
+                    raise RuntimeError(f"Inconsistent map dimensions in {filename}")
+                atlas.paste(frame.convert("RGB"), (index * width, 0))
+        atlas.save(destination, format="WEBP", quality=80, method=4)
+        if destination.stat().st_size <= 1000:
+            raise RuntimeError(f"Map atlas is suspiciously small: {destination}")
     finally:
-        png.unlink(missing_ok=True)
+        for filename in tmp_files:
+            filename.unlink(missing_ok=True)
 
 
 def render_year(year: int, reference_dir: Path, output: Path) -> None:
@@ -134,50 +174,29 @@ def render_year(year: int, reference_dir: Path, output: Path) -> None:
                 anomaly = (current - normal).astype(np.float32)
                 rank = rank_field(current, values)
                 valid = np.isfinite(rank)
-                range_lo, range_hi = robust_range(current)
-
                 basename = f"{period}-{key}"
-                images = {
-                    view: output / f"{basename}-{view}.webp"
-                    for view in VIEWS
-                }
-                render_map_webp(
-                    current, lat, lon, title=f"{meta['label']} · {label}",
-                    subtitle="ERA5 Monatsmittel", unit=meta["unit"],
-                    destination=images["absolute"],
-                    cmap=meta["absolute_cmap"],
-                    vmin=range_lo, vmax=range_hi,
+                atlas = output / f"{basename}.webp"
+                render_triptych(
+                    current, anomaly, rank, lat, lon,
+                    meta=meta, key=key, label=label, destination=atlas,
                 )
-                render_map_webp(
-                    anomaly, lat, lon, title=f"{meta['label']} · Abweichung {label}",
-                    subtitle="gegenüber 1991–2020",
-                    unit="K" if key == "t850" else meta["unit"],
-                    destination=images["anomaly"], cmap=meta["anomaly_cmap"],
-                    bounds=meta["anomaly_bounds"],
-                )
-                render_map_webp(
-                    rank, lat, lon, title=f"{meta['label']} · Rang {label}",
-                    subtitle=f"{HISTORY_START}–{HISTORY_END} · {meta['rank_label']}",
-                    unit="Rang 1–86", destination=images["rank"],
-                    cmap="Spectral", vmin=1, vmax=len(EXPECTED_YEARS),
+                url = (
+                    f"https://github.com/{REPO}/releases/download/"
+                    f"era5-atmos-history-{year}-v1/{atlas.name}"
                 )
 
-                url_base = (
-                    f"https://github.com/{REPO}/releases/download/"
-                    f"era5-atmos-history-{year}-v1/"
-                )
                 period_products[key] = {
                     "label": meta["label"],
                     "short_label": meta["short_label"],
                     "unit": meta["unit"],
                     "level_hpa": int(meta["level"]) if "level" in meta else None,
-                    "absolute": {"file": url_base + images["absolute"].name},
+                    "absolute": {"file": url, "tile_index": 0},
                     "anomaly": {
-                        "file": url_base + images["anomaly"].name,
+                        "file": url, "tile_index": 1,
                         "reference_period": "1991–2020"
                     },
                     "rank": {
-                        "file": url_base + images["rank"].name,
+                        "file": url, "tile_index": 2,
                         "history_start": HISTORY_START,
                         "history_end": HISTORY_END,
                         "comparison_years": len(EXPECTED_YEARS) - 1,
@@ -217,9 +236,9 @@ def render_year(year: int, reference_dir: Path, output: Path) -> None:
         encoding="utf-8",
     )
     actual_images = list(output.glob("*.webp"))
-    if len(actual_images) != 12 * len(PRODUCTS) * len(VIEWS):
-        raise RuntimeError(f"Only {len(actual_images)} of 144 images ready")
-    print(f"Historical year {year}: 144 WEBP maps verified", flush=True)
+    if len(actual_images) != 12 * len(PRODUCTS):
+        raise RuntimeError(f"Only {len(actual_images)} of 48 map atlases ready")
+    print(f"Historical year {year}: 144 maps in 48 WEBP files verified", flush=True)
 
 
 def main() -> int:
