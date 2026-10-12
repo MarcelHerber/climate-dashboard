@@ -35,10 +35,13 @@ def read_values(content: str) -> dict[str, tuple[float, int]]:
     found = {}
     for line in content.splitlines():
         cols = line.split()
-        if len(cols) < 10 or not DATE_RE.fullmatch(cols[0]):
+        # NASA historical MERRA-2 seasons have 9 columns (no Fcst field).
+        # Current GEOS-FP season has a 10th column: forecast lead in hours.
+        if len(cols) < 9 or not DATE_RE.fullmatch(cols[0]):
             continue
         try:
-            value, forecast = float(cols[1]), int(cols[9])
+            value = float(cols[1])
+            forecast = int(cols[9]) if len(cols) >= 10 else 0
         except ValueError:
             continue
         if value <= -9000:
