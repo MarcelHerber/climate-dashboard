@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20260922-7">'
-JS_TAG = '<script src="t850_ensembles.js?v=20260922-7"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20261012-axis2">'
+JS_TAG = '<script src="t850_ensembles.js?v=20261012-axis2"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
@@ -40,6 +41,13 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
         <option value="aifs">ECMWF AIFS ENS groß</option>
         <option value="icon">DWD ICON-EU EPS / Fallback</option>
         <option value="four">4er-Tafel + Modellvergleich</option>
+      </select>
+    </div>
+    <div class="control-group t850-axis-control">
+      <label for="t850YAxisMode">Y-Achse</label>
+      <select id="t850YAxisMode">
+        <option value="individual" selected>Automatisch je Modell</option>
+        <option value="shared">Gleiche Skala für alle</option>
       </select>
     </div>
     <button id="t850LoadButton" class="action" type="submit">Ensembles laden</button>
@@ -99,6 +107,9 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
 
 def patch_html(text: str) -> str:
+    # Versionierte Ressourcen ersetzen statt alte Script-Tags zu duplizieren.
+    text = re.sub(r'<link rel="stylesheet" href="t850_ensembles\\.css\\?v=[^"]+">', CSS_TAG, text)
+    text = re.sub(r'<script src="t850_ensembles\\.js\\?v=[^"]+"></script>', JS_TAG, text)
     if CSS_TAG not in text:
         if "</head>" not in text:
             raise RuntimeError("</head> fehlt")
@@ -116,6 +127,18 @@ def patch_html(text: str) -> str:
         if footer not in text:
             raise RuntimeError("Dashboard-Footer als Panel-Marker fehlt")
         text = text.replace(footer, PANEL + "\n\n" + footer, 1)
+    if 'id="t850YAxisMode"' not in text:
+        marker = '    <button id="t850LoadButton" class="action" type="submit">Ensembles laden</button>'
+        if marker not in text:
+            raise RuntimeError("Ensemble-Button für Y-Achsen-Auswahl fehlt")
+        select = '''    <div class="control-group t850-axis-control">
+      <label for="t850YAxisMode">Y-Achse</label>
+      <select id="t850YAxisMode">
+        <option value="individual" selected>Automatisch je Modell</option>
+        <option value="shared">Gleiche Skala für alle</option>
+      </select>
+    </div>'''
+        text = text.replace(marker, select + "\n" + marker, 1)
 
     if JS_TAG not in text:
         marker = '<script src="sst_europe.js"></script>'
