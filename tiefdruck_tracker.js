@@ -1,10 +1,12 @@
 (function(){
 "use strict";
-const DATA_URL="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/tracks.json";
-const MODEL_LABEL={ifs:"ECMWF IFS",aifs:"ECMWF AIFS",ens:"ECMWF IFS ENS"};
-const COLOR={ifs:"#d54632",aifs:"#245fb1",ens:"#288c73"};
+const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/";
+const DATA_URL=BASE+"tracks.json";
+const ATLANTIC_URL=BASE+"atlantic.json";
+const MODEL_LABEL={gfs:"GFS Nordatlantik / Hart-CPS",ifs:"ECMWF IFS",aifs:"ECMWF AIFS",ens:"ECMWF IFS ENS"};
+const COLOR={gfs:"#8b5cf6",ifs:"#d54632",aifs:"#245fb1",ens:"#288c73"};
 const $=id=>document.getElementById(id);
-let map,lines,allData=null,visible=[],activeId=null,intensityChart=null,cpsChart=null,totalMatching=0;
+let map,lines,allData=null,visible=[],activeId=null,intensityChart=null,cpsChart=null,cpsUpperChart=null,totalMatching=0;
 const number=(v,d=1)=>Number.isFinite(v)?v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";
 function stamp(raw){
   if(!raw)return"–";
@@ -107,7 +109,7 @@ function listTracks(){
   parent.append(fragment);
 }
 function details(t){
-  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";plotIntensity(null);plotCps(null);return;}
+  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";$("phaseLabel").textContent="Kernstruktur: –";plotIntensity(null);plotCps(null);return;}
   const p=atHour(t);
   $("vname").textContent=displayName(t);
   $("vmodel").textContent=(MODEL_LABEL[t.model]||t.model)+(t.is_ensemble?" · Mitglied "+t.member:"");
@@ -115,6 +117,8 @@ function details(t){
   $("vrun").textContent="Modellstart: "+stamp(t.run)+" / +"+p.h+" h";
   $("vpressure").textContent=Number.isFinite(p.mslp_hpa)?number(p.mslp_hpa)+" hPa":"–";
   $("vwind").textContent=Number.isFinite(p.vmax_ms)?number(p.vmax_ms*3.6,0)+" km/h":"–";
+  const phase=p.phase||"nicht bestimmt";
+  $("phaseLabel").textContent=t.model==="gfs"?"GFS-Kernstruktur: "+phase:"Kernstruktur: Für dieses ECMWF-TC-Produkt nicht berechnet";
   plotIntensity(t);plotCps(t);
 }
 function plotIntensity(t){
@@ -134,18 +138,34 @@ function plotIntensity(t){
 }
 function plotCps(t){
   if(cpsChart){cpsChart.destroy();cpsChart=null;}
-  const values=(t?.points||[]).filter(p=>p.cps
-    &&Number.isFinite(p.cps.b)&&Number.isFinite(p.cps.vt_lower)&&Number.isFinite(p.cps.vt_upper));
-  $("cpsEmpty").hidden=values.length>0;
-  $("cpsWrap").hidden=values.length===0;
-  if(!values.length)return;
-  cpsChart=new Chart($("cpsChart"),{type:"scatter",
-    data:{datasets:[{label:"Hart-CPS",data:values.map(p=>({x:p.cps.b,y:p.cps.vt_lower})),
-      showLine:true,borderColor:"#1766ab",backgroundColor:"#1766ab",pointRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{title:{display:true,text:"Thermische Asymmetrie B [m]"}},
-        y:{title:{display:true,text:"Unterer thermischer Wind −VTᴸ"}}}}
-  });
+  if(cpsUpperChart){cpsUpperChart.destroy();cpsUpperChart=null;}
+  const pts=(t?.points||[]).filter(p=>p.cps&&Number.isFinite(p.cps.b)
+    &&Number.isFinite(p.cps.vt_lower)&&Number.isFinite(p.cps.vt_upper));
+  $("cpsEmpty").hidden=Boolean(pts.length);
+  $("cpsWrap").hidden=!pts.length;
+  $("cpsUpperWrap").hidden=!pts.length;
+  $("cpsPng").disabled=!pts.length;
+  if(!pts.length)return;
+  const obs=pts.map((p,i)=>({h:p.h,index:i,b:p.cps.b,low:p.cps.vt_lower,upper:p.cps.vt_upper}));
+  function graph(canvasId,points,xTitle,yTitle,zeroThreshold){
+    const line={label:"CPS-Verlauf",data:points,showLine:true,pointRadius:4,
+      pointHoverRadius:7,pointBackgroundColor:points.map((p,i)=>i===points.length-1?"#e24b20":"#1766ab"),
+      borderColor:"#1766ab",borderWidth:2,tension:0};
+    const series=[line];
+    return new Chart($(canvasId),{type:"scatter",data:{datasets:series},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:item=>{
+            const p=pts[item.dataIndex];
+            return "+"+p.h+" h: B="+number(p.cps.b,1)+" m, −VTᴸ="+number(p.cps.vt_lower,1)+", −VTᵁ="+number(p.cps.vt_upper,1);
+          }}}},
+        scales:{
+          x:{title:{display:true,text:xTitle},grid:{color:"#e6ebf0"}},
+          y:{title:{display:true,text:yTitle},grid:{color:"#e6ebf0"}}
+        }}});
+  }
+  cpsChart=graph("cpsChart",obs.map(p=>({x:p.b,y:p.low})),"Asymmetrie B [m]","−VTᴸ (900–600 hPa)");
+  cpsUpperChart=graph("cpsUpperChart",obs.map(p=>({x:p.low,y:p.upper})),"−VTᴸ (900–600 hPa)","−VTᵁ (600–300 hPa)");
 }
 function selectTrack(id){activeId=id;drawMap(false);listTracks();details(visible.find(t=>t.id===id)||null);}
 function repaint(fit=false){
@@ -157,24 +177,36 @@ function repaint(fit=false){
   drawMap(fit);listTracks();details(visible.find(t=>t.id===activeId)||null);
 }
 async function load(){
-  $("refresh").disabled=true;setStatus("Modell-Zugbahnen werden geladen …");
+  $("refresh").disabled=true;setStatus("GFS- und ECMWF-Modell-Zugbahnen werden geladen …");
   try{
-    const response=await fetch(DATA_URL+"?v="+Date.now(),{cache:"no-store"});
-    if(!response.ok)throw Error("Datenarchiv HTTP "+response.status);
-    const j=await response.json();
-    if(j.schema!==1||!Array.isArray(j.models)||!Array.isArray(j.tracks))throw Error("Unerwartetes Datenformat");
-    allData=j;
-    $("updated").textContent="Datenstand: "+stamp(j.updated_utc)+(j.refresh_attempt_utc?" · neuer Abruf fehlgeschlagen":"");
-    $("modelruns").textContent=j.models.map(m=>(MODEL_LABEL[m.model]||m.model)+": "
+    async function get(url){
+      const response=await fetch(url+"?v="+Date.now(),{cache:"no-store"});
+      if(!response.ok)throw Error("HTTP "+response.status);
+      const data=await response.json();
+      if(data.schema!==1||!Array.isArray(data.models)||!Array.isArray(data.tracks))
+        throw Error("Unerwartetes Datenformat");
+      return data;
+    }
+    const result=await Promise.allSettled([get(DATA_URL),get(ATLANTIC_URL)]);
+    const success=result.filter(r=>r.status==="fulfilled").map(r=>r.value);
+    if(!success.length)throw Error("ECMWF- und GFS-Archiv derzeit nicht erreichbar");
+    const issues=result.map((r,i)=>r.status==="rejected"?(i===0?"ECMWF":"GFS")+": "+r.reason.message:null).filter(Boolean);
+    allData={schema:1,models:success.flatMap(j=>j.models),tracks:success.flatMap(j=>j.tracks)};
+    const latest=success.map(j=>j.updated_utc).filter(Boolean).sort().at(-1);
+    $("updated").textContent="Aktuellster Datenabruf: "+stamp(latest);
+    $("modelruns").textContent=allData.models.map(m=>(MODEL_LABEL[m.model]||m.model)+": "
       +(m.status==="ok"?stamp(m.run):m.status==="no_storms"?"kein Tropenzyklon":"nicht verfügbar")).join(" · ");
-    populate();$("hour").value="240";repaint(true);
-    const working=j.models.filter(m=>m.status==="ok"||m.status==="no_storms").length;
-    const failures=j.models.length-working;
-    if(j.tracks.length)setStatus(j.tracks.length+" echte ECMWF-Modellzugbahnen geladen. CPS-Parameter noch nicht berechnet."+(failures?" · "+failures+" Modellquellen nicht verfügbar.":""));
-    else setStatus(working?"Aktuell keine tropischen Zyklonen in den abrufbaren Modellprodukten. Andere Tiefs werden noch nicht getrackt.":"Keine nutzbaren Modell-Zugbahnen verfügbar.",!working);
+    if(allData.models.some(m=>m.model==="gfs"))$("model").value="gfs";
+    else if($("model").value==="gfs")$("model").value="all";
+    populate();$("hour").value=$("model").value==="gfs"?"120":"240";repaint(true);
+    const gfs=success.find(j=>j.models.some(m=>m.model==="gfs"));
+    setStatus((gfs?gfs.tracks.length+" GFS-Nordatlantik-Tiefbahnen und "+
+      (gfs.cps_points||0)+" berechnete CPS-Zeitpunkte. ":"")+
+      allData.tracks.length+" reale Modell-Zugbahnen verfügbar."+
+      (issues.length?" Teilweise fehlende Quellen: "+issues.join("; "):""));
   }catch(err){
     allData=null;visible=[];if(lines)lines.clearLayers();repaint(false);
-    setStatus("Live-Daten fehlen: "+err.message+". Erst nach einem erfolgreichen GitHub-Datenlauf werden echte Werte angezeigt.",true);
+    setStatus("Live-Daten fehlen: "+err.message+". Keine erfundenen Tiefzentren oder CPS-Werte.",true);
     $("updated").textContent="Datenstand: nicht verfügbar";
   }finally{$("refresh").disabled=false;}
 }
@@ -187,7 +219,21 @@ function savePng(){
   const a=document.createElement("a");a.download="Zyklone_Intensitaet_"+activeId+".png";
   a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
 }
-map=L.map("map",{worldCopyJump:true}).setView([25,-38],3);
+function saveCpsPng(){
+  if(!cpsChart||!cpsUpperChart||!activeId)return;
+  const left=cpsChart.canvas,right=cpsUpperChart.canvas;
+  const canvas=document.createElement("canvas"),gap=25;
+  canvas.width=left.width+right.width+gap*3;
+  canvas.height=Math.max(left.height,right.height)+gap*2+35;
+  const ctx=canvas.getContext("2d");if(!ctx)return;
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#16263b";ctx.font="bold 22px Arial";
+  ctx.fillText("Hart Cyclone Phase Space · "+activeId,gap,26);
+  ctx.drawImage(left,gap,gap+35);ctx.drawImage(right,left.width+gap*2,gap+35);
+  const a=document.createElement("a");a.href=canvas.toDataURL("image/png");
+  a.download="Hart_CPS_"+activeId+".png";document.body.append(a);a.click();a.remove();
+}
+map=L.map("map",{worldCopyJump:true}).setView([48,-45],4);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
   attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:9
 }).addTo(map);
@@ -198,5 +244,6 @@ $("ensemble").addEventListener("change",()=>repaint(true));
 $("hour").addEventListener("input",()=>repaint(false));
 $("refresh").addEventListener("click",load);
 $("png").addEventListener("click",savePng);
+$("cpsPng").addEventListener("click",saveCpsPng);
 load();
 })();
