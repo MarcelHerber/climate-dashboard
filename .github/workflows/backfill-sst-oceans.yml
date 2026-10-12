@@ -1,6 +1,7 @@
 name: SST Ozeanregionen Monats-Backfill
 # Historischer OISST-Backfill für Pazifik, Niño 3.4 und Indischen Ozean.
 # Rettet vorhandene erfolgreiche Tagesartefakte, ohne NOAA erneut anzufragen.
+# Der Recovery-Modus verwendet nur bereits hochgeladene GitHub-Artefakte.
 
 on:
   push:
