@@ -101,8 +101,10 @@ function parse(text){
   const rows=new Map();
   for(const line of text.split(/\r?\n/)){
     const c=line.trim().split(/\s+/);
-    if(c.length<10||!/^20\d\d-|^19\d\d-/.test(c[0]))continue;
-    const value=missing(Number(c[1])),lead=Number(c[9]);
+    // Historical NASA MERRA-2: nine columns without a forecast field.
+    // Live GEOS-FP seasons: ten columns, field 10 is forecast lead.
+    if(c.length<9||!/^\d{4}-\d{2}-\d{2}$/.test(c[0]))continue;
+    const value=missing(Number(c[1])),lead=c.length>=10?Number(c[9]):0;
     if(value===null||!Number.isFinite(lead)||lead<0)continue;
     rows.set(c[0].slice(5),{value,lead,date:c[0]});
   }
