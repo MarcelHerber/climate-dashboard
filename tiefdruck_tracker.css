@@ -40,3 +40,6 @@ button{cursor:pointer}button:hover{background:#eef6fd}button.primary{background:
 .prose{color:var(--muted)}.prose h2{color:var(--ink)}
 @media(max-width:1000px){.layout{grid-template-columns:1fr}.panels{grid-template-columns:1fr}}
 @media(max-width:620px){main{padding:17px 10px 50px}.card{padding:12px}.top{padding:12px}#map{height:390px}.filters{gap:10px}}
+
+/* Keyboard navigation for map, filter and storm selectors. */
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(23,102,171,.4);outline-offset:2px}
