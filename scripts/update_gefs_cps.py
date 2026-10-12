@@ -2,7 +2,7 @@
 """Real GEFS perturbation-member Hart CPS sampled around tracked GFS Atlantic lows.
 
 NOAA NOMADS 0.5° primary parameters provide HGT 925/850/700/500/400/300;
-900 and 600 hPa are computed by log-pressure interpolation and are therefore
+900, 600 and 400 hPa are computed by log-pressure interpolation and are therefore
 APPROXIMATIONS to classic Hart CPS, NOT direct native GEFS pressure levels.
 
 This is a targeted research pilot: each GEFS member's local MSLP minimum is
@@ -30,7 +30,7 @@ from eccodes import codes_grib_new_from_file,codes_get,codes_get_array,codes_rel
 spec=importlib.util.spec_from_file_location("gfs_tracker",Path(__file__).resolve().with_name("update_north_atlantic_cps.py"))
 gfs=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gfs)
-LEVELS=[925,850,700,500,400,300]
+LEVELS=[925,850,700,500,300]
 FILTER="https://nomads.ncep.noaa.gov/cgi-bin/filter_gefs_atmos_0p50a.pl"
 TIMEOUT=95
 
@@ -64,6 +64,7 @@ def read_grib(path):
     if missing:raise ValueError(f"Missing GEFS fields {missing}; available={list(fields)}")
     fields["z900"]=interpolate_height(900,925,850,fields["z925"],fields["z850"])
     fields["z600"]=interpolate_height(600,700,500,fields["z700"],fields["z500"])
+    fields["z400"]=interpolate_height(400,500,300,fields["z500"],fields["z300"])
     if np.nanmedian(fields["msl"])>1500:fields["msl"]/=100
     if "sp" in fields and np.nanmedian(fields["sp"])>1500:fields["sp"]/=100
     return fields,lat,((lon+180)%360)-180
@@ -129,7 +130,7 @@ def process_member(run,member,base_tracks,steps):
                             (p1["lat"]-p0["lat"])*111.2)
                     cps=gfs.calculate_cps(fields,lat,lon,center,motion)
                     if cps is None:continue
-                    cps["interpolated_levels_hpa"]=[900,600]
+                    cps["interpolated_levels_hpa"]=[900,600,400]
                     out[t["id"]].append({"time":stamp,"h":int((valid-dt.datetime.fromisoformat(t["run"].replace("Z","+00:00"))).total_seconds()/3600),
                          "lat":round(center["lat"],2),"lon":round(center["lon"],2),
                          "mslp_hpa":center["mslp_hpa"],
@@ -178,9 +179,9 @@ def main():
        "run":base_run.strftime("%Y-%m-%dT%H:%M:%SZ"),"model":"GEFS","source":"NOAA/NCEP GEFS 0.5° 30 perturbations + control",
        "members_requested":len(member_ids),
        "members_with_cps":len(set(m["member"] for arr in all_members.values() for m in arr)),
-       "pressure_levels_native":[925,850,700,500,400,300],
-       "pressure_levels_interpolated":[900,600],
-       "method":"Hart 500km around nearest GEFS sea-level-pressure center within 450km of GFS baseline; 900/600hPa log-pressure height interpolation; 12h steps",
+       "pressure_levels_native":[925,850,700,500,300],
+       "pressure_levels_interpolated":[900,600,400],
+       "method":"Hart 500km around nearest GEFS sea-level-pressure center within 450km of GFS baseline; 900/600/400hPa log-pressure height interpolation; 12h steps",
        "status":"partial" if errors else "ok","errors":errors,"storms":[
          {"base_id":tid,"members":records} for tid,records in all_members.items() if records]}
     args.out.parent.mkdir(parents=True,exist_ok=True)
