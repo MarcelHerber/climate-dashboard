@@ -252,7 +252,23 @@ function saveAs(blob,name){
   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);
 }
 $("png").addEventListener("click",()=>{if(!chart||!last)return;
-  const a=document.createElement("a");a.href=chart.toBase64Image("image/png",1);a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+".png";a.click();
+  // Chart.js canvas is transparent by default. Flatten the export onto white
+  // so dark-mode image viewers do not show a dark background behind dark text.
+  const source=chart.canvas;
+  const exportCanvas=document.createElement("canvas");
+  exportCanvas.width=source.width;
+  exportCanvas.height=source.height;
+  const ctx=exportCanvas.getContext("2d");
+  if(!ctx)return;
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,exportCanvas.width,exportCanvas.height);
+  ctx.drawImage(source,0,0);
+  const a=document.createElement("a");
+  a.href=exportCanvas.toDataURL("image/png");
+  a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+".png";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 });
 $("csv").addEventListener("click",()=>{if(!last)return;
   const {level,year,selected,climo}=last;
