@@ -1,0 +1,200 @@
+name: ERA5 Atmosphaere Historie 2010-2025 reparieren
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/repair-era5-atmos-history.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-atmos-repair-2010-2025
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: ERA5 Historie ${{ matrix.year }} reparieren
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        year: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    steps:
+      - name: Historien-Skripte auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: scripts
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Historienpakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy xarray matplotlib cartopy pillow cdsapi netCDF4
+
+      - name: Bereits vollständige Jahres-Releases erkennen
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH=scripts
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from publish_era5_atmos_history_release import gh
+          year = int(os.environ["TARGET_YEAR"])
+          tag = f"era5-atmos-history-{year}-v1"
+          try:
+              assets = set(gh("release", "view", tag, "--json", "assets", "--jq", ".assets[].name").splitlines())
+          except RuntimeError as exc:
+              if "404" not in str(exc).lower() and "not found" not in str(exc).lower():
+                  raise
+              assets = set()
+          ready = "manifest.json" in assets and len([item for item in assets if item.endswith(".webp")]) == 48
+          Path(os.environ["GITHUB_OUTPUT"]).open("a").write(f"ready={'true' if ready else 'false'}\n")
+          if ready:
+              print(f"ERA5 Jahr {year} bereits vollständig. Download des Manifests genügt.")
+          else:
+              print(f"ERA5 Jahr {year}: {len([item for item in assets if item.endswith('.webp')])}/48 Atlanten vorhanden.")
+          PY
+
+      - name: Feste historische Monatsreferenzen laden
+        if: steps.existing.outputs.ready != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .era5-atmos-history-refs
+          export PYTHONPATH=scripts
+          python - <<'PY'
+          from pathlib import Path
+          from publish_era5_atmos_history_release import gh
+          gh(
+              "release", "download", "era5-atmos-history-reference-1940-2025-v1",
+              "--pattern", "month_*.npz",
+              "--dir", ".era5-atmos-history-refs",
+          )
+          files = list(Path(".era5-atmos-history-refs").glob("month_*.npz"))
+          if len(files) != 12:
+              raise RuntimeError(f"Nur {len(files)} von 12 Referenzmonaten heruntergeladen")
+          print("12 historische Referenzmonate bereit.")
+          PY
+
+      - name: Fehlendes Jahr mit allen zwölf Monaten rendern
+        if: steps.existing.outputs.ready != 'true'
+        env:
+          TARGET_YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_atmos_history.py render \
+            --year "$TARGET_YEAR" \
+            --reference-dir .era5-atmos-history-refs \
+            --output ".era5-history-output/$TARGET_YEAR"
+          test "$(find ".era5-history-output/$TARGET_YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 48
+
+      - name: Jahresrelease mit Limit-Retry vervollständigen
+        if: steps.existing.outputs.ready != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/publish_era5_atmos_history_release.py \
+            --year "$TARGET_YEAR" \
+            --directory ".era5-history-output/$TARGET_YEAR"
+
+      - name: Vorhandenes Jahresmanifest sichern
+        if: steps.existing.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_YEAR: ${{ matrix.year }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ".era5-history-output/$TARGET_YEAR"
+          export PYTHONPATH=scripts
+          python - <<'PY'
+          import os
+          from publish_era5_atmos_history_release import gh
+          year = os.environ["TARGET_YEAR"]
+          gh(
+              "release", "download", f"era5-atmos-history-{year}-v1",
+              "--pattern", "manifest.json",
+              "--dir", f".era5-history-output/{year}",
+              "--clobber",
+          )
+          PY
+
+      - name: Fertiges Jahresmanifest für Pages bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-atmos-repair-manifest-${{ matrix.year }}
+          path: .era5-history-output/${{ matrix.year }}/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Alle erfolgreichen Jahre zur Website synchronisieren
+    needs: repair
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+
+      - name: Fertige Jahresmanifeste sammeln
+        uses: actions/download-artifact@v4
+        with:
+          pattern: era5-atmos-repair-manifest-*
+          path: .era5-history-manifests
+          merge-multiple: false
+
+      - name: Neue historische Jahre veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/finalize_era5_atmos_history.py --artifacts .era5-history-manifests
+            git add era5_europe/history era5_europe/index.json
+            if git diff --cached --quiet; then
+              echo "ERA5-Historienindex ist bereits aktuell."
+              exit 0
+            fi
+            git commit -m "ERA5 historische Monatsarchive 2010-2025 vervollständigt"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push-Konflikt, Wiederholung $attempt/3."
+          done
+          exit 1
