@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Pages artifact schema: ERA5 atmosphere v1
 set -euo pipefail
 
 rm -rf _site
