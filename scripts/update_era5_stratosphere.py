@@ -403,7 +403,7 @@ def main():
         year=choose_backfill_year()
         if year is not None:
             print(f"Backfilling historical ERA5 year {year}",flush=True)
-            update_year(client,year,max_months=6)
+            update_year(client,year,max_chunks=1)
         else:
             print("Historical ERA5 years completed")
     rebuild_index()
