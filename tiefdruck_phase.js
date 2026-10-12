@@ -4,7 +4,7 @@
 "use strict";
 const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/";
 const $=id=>document.getElementById(id);
-let maps=null, charts=[null,null], source=null, histories=[], chosen=null, loadState="Nicht geladen",counter=0;
+let maps=null, charts=[null,null], source=null, histories=[], chosen=null, loadState="Nicht geladen",lastDrawKey=null;
 function num(n,p=0){return Number.isFinite(n)?n.toLocaleString("de-DE",{maximumFractionDigits:p,minimumFractionDigits:p}):"–";}
 function iso(x){return new Date(x).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";}
 function valid(p){return p&&p.cps&&["b","vt_lower","vt_upper"].every(k=>Number.isFinite(p.cps[k]));}
@@ -261,15 +261,20 @@ function update(t){
    charts=[null,null];
    $("cpsModuleEmpty").hidden=false;
    $("cpsModuleContent").hidden=true;
+   lastDrawKey=null;
    $("cpsModuleEmpty").textContent=t&&t.model!=="gfs"
      ?"ECMWF-Zugbahnen besitzen hier noch keine berechnete thermische Kernstruktur. Bitte ein GFS-Nordatlantik-Tief wählen."
      :"Bitte ein GFS-Tief auf der Karte auswählen.";
    return;
  }
+ const drawKey=String(t.id)+":"+String(t.run)+":"+histories.length;
+ if(drawKey===lastDrawKey&&charts[0])return;
+ lastDrawKey=drawKey;
  const tracks=findComparisons(t,histories);
  const points=tracks.flatMap(t=>t.points.filter(valid));
  if(points.length<2){
    $("cpsModuleEmpty").hidden=false;$("cpsModuleContent").hidden=true;
+   lastDrawKey=null;
    $("cpsModuleEmpty").textContent="Für dieses Tief sind nicht genügend echte CPS-Werte vorhanden.";
    return;
  }
