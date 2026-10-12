@@ -1,0 +1,63 @@
+name: ECMWF Zyklonen-Zugbahnen aktualisieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 5,11,17,23 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-cyclone-tracker.yml"
+      - "scripts/update_cyclone_tracker.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyclone-tracker-data
+  cancel-in-progress: false
+
+jobs:
+  update-tracks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF Open Data Bibliotheken
+        run: pip install "ecmwf-opendata>=0.3.21,<1" "eccodes>=2.38,<3"
+      - name: Bisherigen separaten Datenbranch auschecken
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code origin refs/heads/cyclone-tracker-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/cyclone-tracker-public
+          else
+            mkdir -p /tmp/cyclone-tracker-public
+            git -C /tmp/cyclone-tracker-public init -q -b cyclone-tracker-data
+            git -C /tmp/cyclone-tracker-public remote add origin "$REMOTE"
+          fi
+      - name: Reale Modell-Zugbahnen dekodieren
+        run: python scripts/update_cyclone_tracker.py --out /tmp/cyclone-tracker-public/data/cyclone-tracker
+      - name: Tracks veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/cyclone-tracker-public
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Zugbahnen unverändert."
+            exit 0
+          fi
+          git commit -m "ECMWF Open Data: Zyklonen-Zugbahnen aktualisieren"
+          git push --quiet origin HEAD:refs/heads/cyclone-tracker-data
