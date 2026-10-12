@@ -4,7 +4,7 @@ const DATA_URL="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard
 const MODEL_LABEL={ifs:"ECMWF IFS",aifs:"ECMWF AIFS",ens:"ECMWF IFS ENS"};
 const COLOR={ifs:"#d54632",aifs:"#245fb1",ens:"#288c73"};
 const $=id=>document.getElementById(id);
-let map,lines,allData=null,visible=[],activeId=null,intensityChart=null,cpsChart=null;
+let map,lines,allData=null,visible=[],activeId=null,intensityChart=null,cpsChart=null,totalMatching=0;
 const number=(v,d=1)=>Number.isFinite(v)?v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";
 function stamp(raw){
   if(!raw)return"–";
@@ -41,13 +41,17 @@ function populate(){
 function selectedTracks(){
   if(!allData)return[];
   const model=$("model").value,system=$("system").value,showEns=$("ensemble").checked;
-  return allData.tracks.filter(t=>validTrack(t)
+  const matching=allData.tracks.filter(t=>validTrack(t)
     &&(model==="all"||t.model===model)
     &&(system==="all"||String(t.storm_id)===system)
     &&(t.model!=="ens"||showEns)
   ).sort((a,b)=>(a.model||"").localeCompare(b.model||"")
        ||String(a.storm_id).localeCompare(String(b.storm_id))
        ||(a.member||0)-(b.member||0));
+  totalMatching=matching.length;
+  // Avoid rendering thousands of Leaflet shapes when all ENS systems are on.
+  // Selecting one storm restores all matching ensemble members.
+  return system==="all"&&matching.length>220?matching.slice(0,220):matching;
 }
 function drawMap(fit){
   if(!map)return;
@@ -82,7 +86,7 @@ function drawMap(fit){
     }).addTo(lines).on("click",()=>selectTrack(track.id))
       .bindTooltip(displayName(track)+" +"+last.h+" h");
   }
-  $("count").textContent=visible.length+" Zugbahnen";
+  $("count").textContent=(totalMatching>visible.length?visible.length+" von "+totalMatching:visible.length)+" Zugbahnen";
   if(fit&&bounds.length)map.fitBounds(bounds,{padding:[25,25],maxZoom:5});
 }
 function listTracks(){
@@ -188,7 +192,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
   attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:9
 }).addTo(map);
 lines=L.layerGroup().addTo(map);
-$("model").addEventListener("change",()=>{if(allData){populate();repaint(true);}});
+$("model").addEventListener("change",()=>{if(allData){if($("model").value==="ens")$("ensemble").checked=true;populate();repaint(true);}});
 $("system").addEventListener("change",()=>repaint(true));
 $("ensemble").addEventListener("change",()=>repaint(true));
 $("hour").addEventListener("input",()=>repaint(false));
