@@ -180,8 +180,7 @@ def retrieve_month(client, year, month, end_day):
             "time_zone": "utc+00:00",
             "frequency": "3_hourly",
             "area": [90, -180, 45, 180],
-            "grid": [1.0, 1.0],
-            "data_format": "netcdf",
+            "grid": "1/1",
         }
         print(f"Fetching verified ERA5 {year}-{month:02d} days 1–{end_day}", flush=True)
         try:
