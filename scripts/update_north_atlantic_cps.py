@@ -260,6 +260,28 @@ def wind_radii_10m(fields, lat, lon, point, search_km=600):
             "quadrants":out}
 
 
+def sampled_wind_cells(fields, lat, lon, point):
+    """Direct sampled GFS 10-m wind speeds (~1° spacing within 550 km).
+
+    Native GFS is 0.25°, but only every fourth gridpoint is sent to the
+    browser to keep the JSON small. NOT gridded interpolation/isotachs.
+    """
+    if "u10" not in fields or "v10" not in fields:
+        return None
+    _,_,_,r=region(lat,lon,point["lat"],point["lon"],550)
+    speed=np.hypot(fields["u10"],fields["v10"])
+    select=(r[::4,::4]<=550)&np.isfinite(speed[::4,::4])&(speed[::4,::4]>=10)
+    rows,cols=np.where(select)
+    if rows.size==0:
+        return []
+    lats=lat[::4,::4];lons=lon[::4,::4];winds=speed[::4,::4]
+    result=[]
+    for i,j in zip(rows[:220],cols[:220]):
+        result.append([round(float(lats[i,j]),2),round(float(lons[i,j]),2),
+                       round(float(winds[i,j]),1)])
+    return result
+
+
 def enrich(tracks,grids):
     by_hour={}
     for t in tracks:
@@ -283,6 +305,7 @@ def enrich(tracks,grids):
                     good=speed[np.isfinite(speed)]
                     if good.size:p["vmax_ms"]=round(float(good.max()),2)
                 p["wind_radii"]=wind_radii_10m(fields,lat,lon,p)
+                p["wind_cells_10m"]=sampled_wind_cells(fields,lat,lon,p)
     # Exact +24h track-matched central-pressure differences only.
     # Never infer intensification from the current pressure alone.
     for t in tracks:
