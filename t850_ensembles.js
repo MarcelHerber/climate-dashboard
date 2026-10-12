@@ -539,9 +539,74 @@ function filename(ext){
   const view=el("t850PanelSelect")?.value||"gefs",param=getParam();
   return "Ensembles_"+param.key+"_"+view+"_"+String(lastPlace&&lastPlace.name||"Ort").replace(/[^a-z0-9äöüß_-]+/gi,"_")+"."+ext;
 }
+function exportMetadata(){
+  const param=getParam(),metric=displayMetric();
+  const view=el("t850PanelSelect")?.value||"gefs";
+  const model=MODELS.find(function(m){return m.key===view;});
+  const place=lastPlace?placeLabel(lastPlace):String(el("t850LocationInput")?.value||"–").trim();
+  const rows=[
+    "Ort: "+place,
+    "Parameter: "+param.label+" ["+param.unit+"]"
+  ];
+  if(metric==="prob"){
+    const value=Number(el("t850Threshold")?.value||0);
+    const threshold=Number.isFinite(value)?value.toLocaleString("de-DE",{maximumFractionDigits:3}):"–";
+    const comparator=el("t850ThresholdDirection")?.value==="below"?"≤":"≥";
+    rows.push("Auswertung: Schwellenwert-Wahrscheinlichkeit");
+    rows.push("Schwellenwert: "+param.label+" "+comparator+" "+threshold+" "+param.unit);
+  }else if(metric==="spread"){
+    rows.push("Auswertung: Ensemble-Spread (Standardabweichung)");
+  }else{
+    rows.push("Auswertung: Ensemble-Member, Mittelwert und Perzentile");
+  }
+  rows.push("Ansicht: "+(view==="four"?"4er-Tafel und Modellvergleich":model?.label||"GFS / GEFS"));
+  return rows;
+}
+function wrapExportLine(ctx,text,maxWidth){
+  const words=String(text).split(/\s+/),out=[];
+  let line="";
+  for(const word of words){
+    const candidate=line?line+" "+word:word;
+    if(line&&ctx.measureText(candidate).width>maxWidth){
+      out.push(line);line=word;
+    }else{line=candidate;}
+  }
+  if(line)out.push(line);
+  return out;
+}
+function withExportHeader(source){
+  // Draw into the generated PNG/PDF bitmap, leaving the live Chart.js layout untouched.
+  const host=el("t850ExportArea");
+  const hostWidth=host?.getBoundingClientRect().width||source.width/2;
+  const scale=source.width/Math.max(1,hostWidth);
+  const padding=20*scale,availableWidth=Math.max(1,source.width-2*padding);
+  const measure=document.createElement("canvas").getContext("2d");
+  if(!measure)return source;
+  measure.font="700 "+(24*scale)+"px Arial, sans-serif";
+  const titleLines=wrapExportLine(measure,"Ensemblevorhersage",availableWidth);
+  measure.font=(15*scale)+"px Arial, sans-serif";
+  const bodyLines=exportMetadata().flatMap(function(row){return wrapExportLine(measure,row,availableWidth);});
+  const titleHeight=29*scale,lineHeight=21*scale;
+  const headerHeight=Math.ceil(16*scale+titleLines.length*titleHeight+9*scale+bodyLines.length*lineHeight+18*scale);
+  const combined=document.createElement("canvas");
+  combined.width=source.width;combined.height=source.height+headerHeight;
+  const ctx=combined.getContext("2d");
+  if(!ctx)return source;
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,combined.width,combined.height);
+  let y=padding;
+  ctx.textBaseline="top";ctx.fillStyle="#172033";ctx.font="700 "+(24*scale)+"px Arial, sans-serif";
+  titleLines.forEach(function(line){ctx.fillText(line,padding,y);y+=titleHeight;});
+  y+=9*scale;ctx.fillStyle="#475569";ctx.font=(15*scale)+"px Arial, sans-serif";
+  bodyLines.forEach(function(line){ctx.fillText(line,padding,y);y+=lineHeight;});
+  ctx.strokeStyle="#cbd5e1";ctx.lineWidth=Math.max(1,scale);
+  ctx.beginPath();ctx.moveTo(padding,headerHeight-8*scale);ctx.lineTo(source.width-padding,headerHeight-8*scale);ctx.stroke();
+  ctx.drawImage(source,0,headerHeight);
+  return combined;
+}
 async function exportCanvas(){
   if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
-  return window.html2canvas(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
+  const captured=await window.html2canvas(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
+  return withExportHeader(captured);
 }
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}
 async function png(){try{const c=await exportCanvas();c.toBlob(function(b){if(b)saveBlob(b,filename("png"));},"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
