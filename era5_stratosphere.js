@@ -10,8 +10,8 @@
     ["tcap_50","Polkappentemperatur 60–90° N · 50 hPa","°C",2],
     ["tcap_100","Polkappentemperatur 60–90° N · 100 hPa","°C",2],
     ["zcap_10","Polkappen-Geopotentialhöhe · 10 hPa","gpm",2],
-    ["wave1_10","Planetare Welle 1 · 10 hPa","gpm",3],
-    ["wave2_10","Planetare Welle 2 · 10 hPa","gpm",3],
+    ["wave1_10","Zonale Welle 1 · 60° N / 10 hPa","gpm",3],
+    ["wave2_10","Zonale Welle 2 · 60° N / 10 hPa","gpm",3],
     ["heatflux_100","Eddy-Wärmefluss 60° N · 100 hPa","K m/s",3],
     ["o3cap_50","Ozon-Massenmischungsverhältnis 60–90° N · 50 hPa","mg/kg",3],
     ["pv60_10","Potenzielle Vorticity 60° N · 10 hPa","PVU",3],
@@ -39,7 +39,7 @@
       '<div id="era5StratoStatus" class="era5-atmos-status" role="status">Lade Stratosphärendaten …</div>'+
       '<div id="era5StratoChartFrame" style="position:relative;height:390px"><canvas id="era5StratoChart" aria-label="Stratosphärenzeitreihe" role="img"></canvas></div>'+
       '<p id="era5StratoInfo" style="margin-top:10px"></p>'+
-      '<p class="era5-atmos-source">Quelle: Copernicus C3S ERA5, Tagesmittel UTC aus 3-stündlichen Werten, 1°-Diagnostikraster. Referenz 1991–2020 nach vollständigem Backfill. Eine Windumkehr ist noch kein bestätigtes Major SSW. Keine interpolierten oder erfundenen Daten.</p>';
+      '<p class="era5-atmos-source">Quelle: Copernicus C3S ERA5, Tagesmittel UTC aus 6-stündlichen Werten (00/06/12/18 UTC), 1°-Diagnostikraster. Die Polkappenwerte sind flächengewichtet. Referenz 1991–2020 nach vollständigem Backfill. Eine Windumkehr ist noch kein bestätigtes Major SSW. Keine interpolierten oder erfundenen Daten.</p>';
     layout.insertAdjacentElement("afterend",section);
     const param=document.getElementById("era5StratoMetric");
     [1,2,3,4].forEach(stage=>{
