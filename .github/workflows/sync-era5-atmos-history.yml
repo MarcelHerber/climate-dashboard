@@ -1,0 +1,86 @@
+name: ERA5 historische Jahresarchive zur Website synchronisieren
+
+on:
+  schedule:
+    - cron: "10 * * * *"
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/sync-era5-atmos-history.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-atmos-history-index
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Metadaten und Skripte auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+
+      - name: Alle vollständig veröffentlichten Jahre erfassen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .era5-history-manifests
+          for year in $(seq 1940 2025); do
+            TAG="era5-atmos-history-$year-v1"
+            if ! gh release view "$TAG" >/dev/null 2>&1; then
+              continue
+            fi
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+            count="$(printf '%s\n' "$assets" | grep -c '\.webp$' || true)"
+            if [[ "$count" != 48 ]] || ! printf '%s\n' "$assets" | grep -qx manifest.json; then
+              continue
+            fi
+            mkdir -p ".era5-history-manifests/year-$year"
+            gh release download "$TAG" --pattern manifest.json \
+              --dir ".era5-history-manifests/year-$year" --clobber
+            echo "Historisches ERA5-Jahr $year: vollständige 48 Atlanten erkannt"
+          done
+          if ! find .era5-history-manifests -name manifest.json -print -quit | grep -q .; then
+            echo "Noch keine fertigen historischen Jahre, keine Indexänderung."
+          fi
+
+      - name: Jahresmanifeste sicher auf main publizieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! find .era5-history-manifests -name manifest.json -print -quit | grep -q .; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/finalize_era5_atmos_history.py --artifacts .era5-history-manifests
+            git add era5_europe/history era5_europe/index.json
+            if git diff --cached --quiet; then
+              echo "Der historische ERA5-Index ist aktuell."
+              exit 0
+            fi
+            git commit -m "ERA5 historische Monatsarchive aktualisiert"
+            if git push origin HEAD:main; then
+              echo "Historische Jahre sind auf main veröffentlicht; Pages-Deploy folgt."
+              exit 0
+            fi
+            echo "Push-Konflikt $attempt/3, neuer Stand wird erneut geprüft."
+          done
+          echo "::error::ERA5 Historienindex konnte nicht veröffentlicht werden."
+          exit 1
