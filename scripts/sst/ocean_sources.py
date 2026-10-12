@@ -13,14 +13,24 @@ import xarray as xr
 
 from .config import OCEAN_REGIONS
 
-NOAA_OISST_DAILY_NCSS = (
-    "https://psl.noaa.gov/thredds/ncss/grid/Datasets/"
-    "noaa.oisst.v2.highres/sst.day.mean.{year}.nc"
+# Kleine, einzeln archivierte OISST-v2.1-Tagesdateien direkt von NOAA NCEI.
+# Entlastet den PSL-THREDDS/NCSS-Server, der bei zwei parallelen
+# historischen Tagesjobs mit HTTP 429 / HTTP 500 reagiert hat.
+NOAA_OISST_DAILY_NCEI = (
+    "https://www.ncei.noaa.gov/data/sea-surface-temperature-optimum-interpolation/"
+    "v2.1/access/avhrr/{yearmonth}/oisst-avhrr-v02r01.{day}.nc"
 )
-NOAA_NORMALS_OPENDAP = (
-    "https://psl.noaa.gov/thredds/dodsC/Datasets/"
-    "noaa.oisst.v2.highres/sst.day.mean.ltm.1991-2020.nc"
+# Separate NOAA-ERDDAP-Instanz für die tägliche Klimatologie 1991–2020;
+# keine wiederholten OPeNDAP-Abfragen gegen den überlasteten PSL-Server.
+NOAA_NORMALS_ERDDAP = (
+    "https://comet.nefsc.noaa.gov/erddap/griddap/"
+    "noaa_psl_4e02_3713_6583.nc?sst"
 )
+OISST_GRID_LAT_START = -89.875
+OISST_GRID_LON_START = 0.125
+OISST_GRID_STEP = 0.25
+OISST_GRID_LAT_COUNT = 720
+OISST_GRID_LON_COUNT = 1440
 OISST_MAX_ATTEMPTS = 5
 OISST_RETRY_DELAYS = (5, 15, 30, 60)
 OISST_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
@@ -84,27 +94,17 @@ def _get_with_retry(session, url: str, **kwargs):
     raise RuntimeError("NOAA-OISST-Anfrage blieb nach allen Wiederholungen erfolglos.")
 
 
-def _daily_params(day: date, *, tiny: bool = False) -> dict[str, str | int | float]:
-    west, south, east, north = ocean_union_bounds()
-    if tiny:
-        west, south, east, north = 200.0, 0.0, 200.5, 0.5
-    return {
-        "var": "sst",
-        "north": north,
-        "west": west,
-        "east": east,
-        "south": south,
-        "horizStride": 1,
-        "time": f"{day.isoformat()}T00:00:00Z",
-        "accept": "netcdf4",
-    }
+def _ncei_daily_url(day: date) -> str:
+    return NOAA_OISST_DAILY_NCEI.format(
+        yearmonth=f"{day:%Y%m}",
+        day=f"{day:%Y%m%d}",
+    )
 
 
 def oisst_date_available(day: date, session=requests) -> bool:
     response = _get_with_retry(
         session,
-        NOAA_OISST_DAILY_NCSS.format(year=day.year),
-        params=_daily_params(day, tiny=True),
+        _ncei_daily_url(day),
         stream=True,
         timeout=90,
     )
@@ -138,8 +138,7 @@ def download_oisst_daily_subset(
 ) -> Path:
     response = _get_with_retry(
         session,
-        NOAA_OISST_DAILY_NCSS.format(year=day.year),
-        params=_daily_params(day),
+        _ncei_daily_url(day),
         stream=True,
         timeout=180,
     )
@@ -182,39 +181,33 @@ def download_oisst_normal_subset(
 ) -> Path:
     west, south, east, north = ocean_union_bounds()
     time_start, time_stop = _normal_time_indices(day)
+    latitudes = OISST_GRID_LAT_START + np.arange(OISST_GRID_LAT_COUNT) * OISST_GRID_STEP
+    longitudes = OISST_GRID_LON_START + np.arange(OISST_GRID_LON_COUNT) * OISST_GRID_STEP
+    lat_indices = np.flatnonzero((latitudes >= south) & (latitudes <= north))
+    lon_indices = np.flatnonzero((longitudes >= west) & (longitudes <= east))
+    if not len(lat_indices) or not len(lon_indices):
+        raise RuntimeError("NOAA-OISST-Klimamittel: Region liegt außerhalb des Gitters.")
+    query = (
+        f"{NOAA_NORMALS_ERDDAP}"
+        f"[{time_start}:1:{time_stop}]"
+        f"[{int(lat_indices[0])}:1:{int(lat_indices[-1])}]"
+        f"[{int(lon_indices[0])}:1:{int(lon_indices[-1])}]"
+    )
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(destination.suffix + ".part")
-    try:
-        # Direktes OPeNDAP-Hyperslab statt vieler kleiner ERDDAP-Anfragen.
-        # NOAA/THREDDS kann sporadisch mit NetCDF "Access failure" abbrechen;
-        # deshalb wird der komplette Remote-Slice mit Backoff wiederholt.
-        field = None
-        last_error = None
-        for attempt in range(OISST_MAX_ATTEMPTS):
-            try:
-                with xr.open_dataset(
-                    NOAA_NORMALS_OPENDAP,
-                    engine="netcdf4",
-                    decode_times=False,
-                ) as remote:
-                    standardized = _standardize_subset(remote)
-                    field = standardized["sst"].isel(time=slice(time_start, time_stop + 1))
-                    field = field.sel(
-                        lat=slice(south, north),
-                        lon=slice(west, east),
-                    ).load()
-                last_error = None
-                break
-            except (OSError, RuntimeError) as exc:
-                last_error = exc
-                if attempt >= OISST_MAX_ATTEMPTS - 1:
-                    raise
-                time.sleep(OISST_RETRY_DELAYS[attempt])
+    with tempfile.TemporaryDirectory(prefix="oisst-ocean-normal-", dir=destination.parent) as tmp:
+        path = Path(tmp) / "normal.nc"
+        response = _get_with_retry(session, query, stream=True, timeout=180)
+        try:
+            _write_response_atomic(response, path)
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
-        if field is None:
-            raise RuntimeError(f"NOAA-OISST-Klimamittel konnte nicht geladen werden: {last_error!r}")
-
+        with xr.open_dataset(path, decode_times=False) as raw:
+            standardized = _standardize_subset(raw.load())
+        field = standardized["sst"]
         if int(field.sizes.get("time", 1)) == 2:
             field = field.mean("time", skipna=True, keep_attrs=True)
             reference_method = "feb29_interpolated"
@@ -226,13 +219,14 @@ def download_oisst_normal_subset(
 
         out = xr.Dataset({"sst": field})
         out.attrs["reference_method"] = reference_method
-        out.to_netcdf(
-            temporary,
-            engine="netcdf4",
-            encoding={"sst": {"zlib": True, "complevel": 4}},
-        )
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+        temporary = destination.with_suffix(destination.suffix + ".part")
+        try:
+            out.to_netcdf(
+                temporary,
+                engine="netcdf4",
+                encoding={"sst": {"zlib": True, "complevel": 4}},
+            )
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
     return destination
-
