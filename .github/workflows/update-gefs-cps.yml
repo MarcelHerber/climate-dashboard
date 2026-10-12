@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 43
     env:
-      GEFS_MEMBERS: "30"
+      GEFS_MEMBERS: "10"
     steps:
       - name: Quellcode laden
         uses: actions/checkout@v5
@@ -44,7 +44,7 @@ jobs:
       - name: Echte GEFS-Mitglieder und CPS abrufen
         shell: bash
         run: |
-          python scripts/update_gefs_cps.py             --atlantic /tmp/real-gefs/data/cyclone-tracker/atlantic.json             --out /tmp/real-gefs/data/cyclone-tracker/gefs.json             --members 30 --max-hour 72
+          python scripts/update_gefs_cps.py             --atlantic /tmp/real-gefs/data/cyclone-tracker/atlantic.json             --out /tmp/real-gefs/data/cyclone-tracker/gefs.json             --members 10 --max-hour 72
       - name: Datensatz veröffentlichen
         shell: bash
         run: |
