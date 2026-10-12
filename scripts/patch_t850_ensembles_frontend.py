@@ -108,8 +108,8 @@ PANEL = r'''<!-- ================= T850 ENSEMBLES ================= -->
 
 def patch_html(text: str) -> str:
     # Versionierte Ressourcen ersetzen statt alte Script-Tags zu duplizieren.
-    text = re.sub(r'<link rel="stylesheet" href="t850_ensembles\\.css\\?v=[^"]+">', CSS_TAG, text)
-    text = re.sub(r'<script src="t850_ensembles\\.js\\?v=[^"]+"></script>', JS_TAG, text)
+    text = re.sub(r'<link rel="stylesheet" href="t850_ensembles\.css\?v=[^"]+">', CSS_TAG, text)
+    text = re.sub(r'<script src="t850_ensembles\.js\?v=[^"]+"></script>', JS_TAG, text)
     if CSS_TAG not in text:
         if "</head>" not in text:
             raise RuntimeError("</head> fehlt")
