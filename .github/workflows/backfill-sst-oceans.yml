@@ -17,6 +17,10 @@ on:
         required: false
         default: false
         type: boolean
+      recovery_run_id:
+        description: "Optional: Erfolgreiche Tagesartefakte aus einem abgebrochenen Lauf retten"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -28,7 +32,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-ocean-archive') }}
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[start-sst-ocean-archive') || contains(github.event.head_commit.message, '[recover-sst-ocean-archive:') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -37,11 +41,13 @@ jobs:
       day_count: ${{ steps.plan.outputs.day_count }}
       latest_month: ${{ steps.plan.outputs.latest_month }}
       chain_mode: ${{ steps.plan.outputs.chain_mode }}
+      recovery_run_id: ${{ steps.plan.outputs.recovery_run_id }}
 
     env:
       BACKFILL_MONTH: ${{ github.event_name == 'push' && '' || inputs.month }}
       START_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
       CHAIN_MODE: ${{ github.event_name == 'push' || inputs.chain }}
+      RECOVERY_RUN_ID: ${{ inputs.recovery_run_id || '' }}
 
     steps:
       - name: Hauptrepository auschecken
@@ -79,11 +85,16 @@ jobs:
           from scripts.sst.config import ARCHIVE_START, OCEAN_REGIONS
           from scripts.sst.ocean_sources import latest_available_oisst_date
 
+          message = os.environ.get('START_COMMIT_MESSAGE', '')
+          recovery_match = re.search(r'\[recover-sst-ocean-archive:(\d{4}-\d{2}):(\d+)\]', message)
+          recovery_run_id = (os.environ.get('RECOVERY_RUN_ID', '').strip()
+                             or (recovery_match.group(2) if recovery_match else '0'))
+          if not recovery_run_id.isdecimal():
+              raise SystemExit('Ungültige Recovery-Run-ID.')
           month = os.environ.get('BACKFILL_MONTH', '').strip()
           if not month:
-              message = os.environ.get('START_COMMIT_MESSAGE', '')
               match = re.search(r'\[start-sst-ocean-archive:(\d{4}-\d{2})\]', message)
-              month = match.group(1) if match else '2020-01'
+              month = recovery_match.group(1) if recovery_match else (match.group(1) if match else '2020-01')
           if not re.fullmatch(r'\d{4}-\d{2}', month):
               raise SystemExit('Monat muss YYYY-MM entsprechen.')
 
@@ -118,12 +129,13 @@ jobs:
               pass
 
           days = []
-          current = start
-          while current <= end:
-              iso = current.isoformat()
-              if iso not in existing_complete:
-                  days.append(iso)
-              current += timedelta(days=1)
+          if recovery_run_id == '0':
+              current = start
+              while current <= end:
+                  iso = current.isoformat()
+                  if iso not in existing_complete:
+                      days.append(iso)
+                  current += timedelta(days=1)
 
           output = os.environ['GITHUB_OUTPUT']
           with open(output, 'a', encoding='utf-8') as handle:
@@ -132,8 +144,12 @@ jobs:
               print(f'day_count={len(days)}', file=handle)
               print(f'latest_month={newest_month:%Y-%m}', file=handle)
               print(f"chain_mode={str(os.environ.get('CHAIN_MODE', '')).lower()}", file=handle)
+              print(f'recovery_run_id={recovery_run_id}', file=handle)
 
-          print(f'{month}: {len(days)} Ozean-SST-Tage zu bauen von {start} bis {end}', flush=True)
+          if recovery_run_id != '0':
+              print(f'{month}: Stelle vorhandene Artefakte aus Run {recovery_run_id} wieder her.', flush=True)
+          else:
+              print(f'{month}: {len(days)} Ozean-SST-Tage zu bauen von {start} bis {end}', flush=True)
           PY
 
   build_day:
@@ -143,7 +159,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         day: ${{ fromJSON(needs.prepare.outputs.days_json) }}
 
@@ -214,7 +230,7 @@ jobs:
 
   publish:
     needs: [prepare, build_day]
-    if: ${{ always() && needs.prepare.result == 'success' && (needs.build_day.result == 'success' || needs.build_day.result == 'skipped') }}
+    if: ${{ always() && needs.prepare.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
@@ -224,6 +240,7 @@ jobs:
     env:
       BACKFILL_MONTH: ${{ needs.prepare.outputs.month }}
       DAY_COUNT: ${{ needs.prepare.outputs.day_count }}
+      RECOVERY_RUN_ID: ${{ needs.prepare.outputs.recovery_run_id }}
 
     steps:
       - name: Hauptrepository auschecken
@@ -233,12 +250,25 @@ jobs:
           fetch-depth: 1
 
       - name: Tagesartefakte herunterladen
-        if: ${{ needs.prepare.outputs.day_count != '0' }}
+        if: ${{ needs.prepare.outputs.day_count != '0' && needs.prepare.outputs.recovery_run_id == '0' }}
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           pattern: sst-ocean-backfill-day-*
           path: /tmp/sst-ocean-days
           merge-multiple: false
+
+      - name: Vorhandene Artefakte aus früherem Lauf sichern
+        if: ${{ needs.prepare.outputs.recovery_run_id != '0' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sst-ocean-days
+          gh run download "$RECOVERY_RUN_ID" -R "$GITHUB_REPOSITORY" \
+            -p "sst-ocean-backfill-day-*" -D /tmp/sst-ocean-days
+          echo "Tagesartefakte: $(find /tmp/sst-ocean-days -name manifest.json | wc -l)"
 
       - name: Aktuellen SST-Archivstand laden
         shell: bash
@@ -266,8 +296,13 @@ jobs:
           merged = json.loads(manifest_path.read_text(encoding='utf-8'))
           manifests = sorted(source_root.rglob('manifest.json')) if source_root.exists() else []
           expected = int(os.environ.get('DAY_COUNT', '0'))
-          if len(manifests) != expected:
-              raise RuntimeError(f'Erwartet {expected} Ozean-Tages-Manifeste, gefunden {len(manifests)}')
+          if os.environ.get('RECOVERY_RUN_ID', '0') == '0' and len(manifests) > expected:
+              raise RuntimeError(f'Erwartet höchstens {expected} Ozean-Tages-Manifeste, gefunden {len(manifests)}')
+          if not manifests:
+              print('Keine erfolgreich gebauten Tagesartefakte vorhanden; Archiv bleibt unverändert.')
+              raise SystemExit(0)
+          if os.environ.get('RECOVERY_RUN_ID', '0') == '0' and len(manifests) < expected:
+              print(f'Nur {len(manifests)}/{expected} Tage erfolgreich; verfügbare Ergebnisse werden trotzdem veröffentlicht.')
 
           dates = dict(merged.get('dates', {}))
           available = set(merged.get('available_dates', []))
@@ -349,7 +384,7 @@ jobs:
           git push --force-with-lease origin "$COMMIT:refs/heads/sst-archive"
 
       - name: Nächsten Ozean-Archivmonat anstoßen
-        if: ${{ needs.prepare.outputs.chain_mode == 'true' }}
+        if: ${{ needs.prepare.outputs.chain_mode == 'true' && needs.prepare.outputs.recovery_run_id == '0' && (needs.build_day.result == 'success' || (needs.build_day.result == 'skipped' && needs.prepare.outputs.day_count == '0')) }}
         shell: bash
         env:
           CURRENT_MONTH: ${{ needs.prepare.outputs.month }}
