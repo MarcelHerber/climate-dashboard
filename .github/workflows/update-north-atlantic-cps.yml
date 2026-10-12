@@ -1,0 +1,66 @@
+name: Nordatlantik GFS Hart CPS berechnen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3,9,15,21 * * *"
+  push:
+    branches: [main, "feature/north-atlantic-hart-cps-20261012"]
+    paths:
+      - ".github/workflows/update-north-atlantic-cps.yml"
+      - "scripts/update_north_atlantic_cps.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyclone-tracker-data
+  cancel-in-progress: false
+
+jobs:
+  gfs-atlantic-cps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    steps:
+      - name: Repository
+        uses: actions/checkout@v5
+
+      - name: Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Numerik und GRIB
+        run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+
+      - name: Bestehende Zyklon-Daten laden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code origin refs/heads/cyclone-tracker-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/cyclone-cps-public
+          else
+            mkdir -p /tmp/cyclone-cps-public
+            git -C /tmp/cyclone-cps-public init -q -b cyclone-tracker-data
+            git -C /tmp/cyclone-cps-public remote add origin "$REMOTE"
+          fi
+
+      - name: GFS Nordatlantik-Tiefs und Hart-CPS berechnen
+        run: |
+          python scripts/update_north_atlantic_cps.py --out /tmp/cyclone-cps-public/data/cyclone-tracker/atlantic.json
+
+      - name: Neue CPS-Daten veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/cyclone-cps-public
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GFS Nordatlantik: echte Tiefdruckzugbahnen und Hart-CPS"
+          git push --quiet origin HEAD:refs/heads/cyclone-tracker-data
