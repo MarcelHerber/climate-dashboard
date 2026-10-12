@@ -179,7 +179,28 @@ def decode_bufr(filename: Path, model: dict) -> list[dict]:
     for t in tracks:
         if t["id"] not in out or len(t["points"]) > len(out[t["id"]]["points"]):
             out[t["id"]] = t
-    return list(out.values())
+    # ECMWF's "pre-existing" and "genesis" categories may encode the
+    # same model trajectory with different storm identifiers (e.g. 34W/70W).
+    # Keep one exact trajectory per member while preserving distinct tracks.
+    unique = {}
+    for track in out.values():
+        signature = (
+            track["member"],
+            tuple((p["h"], p["lat"], p["lon"], p["mslp_hpa"]) for p in track["points"]),
+        )
+        prior = unique.get(signature)
+        if prior is None:
+            unique[signature] = track
+        else:
+            # Prefer an established identifier over a numbered genesis ID.
+            def preferred(t):
+                try:
+                    return int(t["storm_id"][:2]) < 70
+                except (ValueError, TypeError):
+                    return False
+            if preferred(track) and not preferred(prior):
+                unique[signature] = track
+    return list(unique.values())
 
 
 def candidate_runs(now: dt.datetime):
