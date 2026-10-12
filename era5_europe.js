@@ -128,8 +128,12 @@ function era5AtmosRender(){
 
   if(viewItem?.file){
     if(image){
+      const tiled=Number.isInteger(viewItem.tile_index);
+      image.closest(".era5-atmos-image-wrap")?.classList.toggle("tiled",tiled);
+      image.style.transform=tiled?`translateX(-${(viewItem.tile_index*100/3).toFixed(6)}%)`:"";
       image.hidden=false;
-      image.src=`${viewItem.file}?ts=${encodeURIComponent(era5AtmosIndex?.generated_at||Date.now())}`;
+      const url=viewItem.file;
+      image.src=`${url}${url.includes("?")?"&":"?"}ts=${encodeURIComponent(era5AtmosIndex?.generated_at||Date.now())}`;
       image.alt=`${item.label} ${viewLabels[view]||view} ${label}`;
     }
     if(placeholder)placeholder.hidden=true;
