@@ -43,3 +43,10 @@ button{cursor:pointer}button:hover{background:#eef6fd}button.primary{background:
 
 /* Keyboard navigation for map, filter and storm selectors. */
 button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid rgba(23,102,171,.4);outline-offset:2px}
+
+/* Hart-CPS outputs / ensure dynamic empty state really disappears. */
+[hidden]{display:none!important}
+.phase-label{margin-top:14px;padding:10px 12px;border:1px solid #cbdde9;border-radius:8px;
+ background:#f1f7fd;color:#174d78;font-weight:700;font-size:12px}
+#cpsUpperWrap{border-top:1px solid #e5e9ee;margin-top:14px;padding-top:14px}
+#cpsPng{margin-top:10px}
