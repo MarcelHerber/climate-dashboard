@@ -85,10 +85,21 @@ def _get_with_retry(session, url: str, **kwargs):
 
         status = int(getattr(response, "status_code", 200))
         if status in OISST_RETRYABLE_STATUS and attempt < OISST_MAX_ATTEMPTS - 1:
+            # 429 ist eine explizite Server-Drosselung: nicht im Sekundentakt
+            # erneut anfragen. Wenn NOAA Retry-After setzt, respektieren.
+            retry_after = response.headers.get("Retry-After", "")
             close = getattr(response, "close", None)
             if callable(close):
                 close()
-            time.sleep(OISST_RETRY_DELAYS[attempt])
+            if status == 429:
+                try:
+                    wait = max(60, min(300, int(retry_after)))
+                except (ValueError, TypeError):
+                    wait = (60, 120, 180, 240)[attempt]
+                print(f"NOAA Rate-Limit HTTP 429; neuer Versuch nach {wait} Sekunden.", flush=True)
+            else:
+                wait = OISST_RETRY_DELAYS[attempt]
+            time.sleep(wait)
             continue
         return response
     raise RuntimeError("NOAA-OISST-Anfrage blieb nach allen Wiederholungen erfolglos.")
