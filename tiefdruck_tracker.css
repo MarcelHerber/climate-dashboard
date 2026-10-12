@@ -50,3 +50,52 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
  background:#f1f7fd;color:#174d78;font-weight:700;font-size:12px}
 #cpsUpperWrap{border-top:1px solid #e5e9ee;margin-top:14px;padding-top:14px}
 #cpsPng{margin-top:10px}
+
+
+/* Research-class Hart Phase Space plots, modeled after traditional FSU CPS layout. */
+.panels{grid-template-columns:1fr}
+.cps-feature{min-width:0;overflow:hidden}
+.cps-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+.cps-head h2{margin-top:5px;max-width:780px}
+.cps-availability{font-size:12px;font-weight:700;border:1px solid #c4d7e8;background:#ecf5fb;color:#205077;padding:8px 12px;border-radius:7px;margin:8px 0 14px}
+.cps-storm-heading{font-size:17px;font-weight:800;color:#20354c}
+.cps-figure{margin-top:18px;background:#fff;border:1px solid #cbd4de;border-radius:9px;overflow:hidden}
+.cps-figure-title{padding:12px 15px 3px;color:#0c9c39;font-weight:900;letter-spacing:.015em;font-size:clamp(18px,2vw,26px)}
+.cps-figure-title span{color:#38546d;font-size:12px;font-weight:700;letter-spacing:0;margin-left:12px}
+.cps-figure-subtitle{color:#ce4954;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.5;padding:2px 15px 10px}
+.cps-figure-grid{display:grid;grid-template-columns:minmax(0,1fr) 275px;min-width:0;gap:5px;padding:6px 12px 14px}
+.cps-plot-area{height:525px;min-width:0;position:relative;padding:0 0 5px}
+.cps-plot-area>canvas,.cps-chart-fill>canvas{height:100%!important;width:100%!important}
+.cps-chart-fill{height:100%;min-width:0}
+.cps-inset{border-left:1px solid #e0e6ed;padding:2px 0 0 11px;min-width:0}
+.cps-inset-title{font-size:12px;font-weight:800;background:#eaf0f5;padding:5px;color:#24374a}
+.cps-mini-map{height:245px;width:100%;border:1px solid #c7d5e1;background:#dde5ec;z-index:0}
+.cps-map-caption{font-size:10px;color:#536478;padding:4px 0}
+.cps-key{padding:10px 8px;border-top:1px solid #e0e6ed;font-size:12px;line-height:1.9}
+.cps-key strong{display:block;font-size:12px}
+.cps-key small{display:block;line-height:1.45;margin-top:9px;color:#69798a}
+.cps-key-color{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;border:1px solid #939da7}
+.cps-key-color.blue{background:#1233da}
+.cps-key-color.pink{background:#e98dda}
+.cps-key-color.gray{background:#9fa1a4}
+.cps-key-color.violet{background:#8460c3}
+.cps-key-color.black{background:#131820}
+.cps-key-color.magenta{background:#df2282}
+.cps-footnote{font-size:12px;color:#657585;margin:12px 2px 1px}
+.cps-plot-area>.empty{min-height:300px;height:100%;display:flex;align-items:center}
+@media(max-width:920px){
+ .cps-figure-grid{grid-template-columns:1fr}
+ .cps-inset{border-left:0;border-top:1px solid #e0e6ed;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1fr);gap:8px;padding:10px 0 0}
+ .cps-inset-title{grid-column:1/-1}
+ .cps-mini-map{height:220px}
+ .cps-map-caption{grid-column:1/-1;grid-row:3}
+ .cps-key{grid-column:2;grid-row:2;border:0}
+ .cps-plot-area{height:440px}
+}
+@media(max-width:600px){
+ .cps-figure-grid{padding:5px}
+ .cps-plot-area{height:365px}
+ .cps-inset{display:block}
+ .cps-mini-map{height:220px}
+ .cps-figure-title{font-size:18px}
+}

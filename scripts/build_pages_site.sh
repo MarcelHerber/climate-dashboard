@@ -10,6 +10,7 @@ required_root_files=(
   stratosphaere.html
   tiefdruck_tracker.html
   tiefdruck_tracker.css
+  tiefdruck_phase.js
   tiefdruck_tracker.js
   sst_europe.js
   sst_europe.css
