@@ -109,7 +109,7 @@ function listTracks(){
   parent.append(fragment);
 }
 function details(t){
-  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";$("phaseLabel").textContent="Kernstruktur: –";plotIntensity(null);plotCps(null);return;}
+  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";$("phaseLabel").textContent="Kernstruktur: –";plotIntensity(null);plotCps(null);if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(null,allData,chosenHour());return;}
   const p=atHour(t);
   $("vname").textContent=displayName(t);
   $("vmodel").textContent=(MODEL_LABEL[t.model]||t.model)+(t.is_ensemble?" · Mitglied "+t.member:"");
@@ -120,6 +120,7 @@ function details(t){
   const phase=p.phase||"nicht bestimmt";
   $("phaseLabel").textContent=t.model==="gfs"?"GFS-Kernstruktur: "+phase:"Kernstruktur: Für dieses ECMWF-TC-Produkt nicht berechnet";
   plotIntensity(t);plotCps(t);
+  if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(t,allData,chosenHour());
 }
 function plotIntensity(t){
   if(intensityChart){intensityChart.destroy();intensityChart=null;}
@@ -200,6 +201,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
   attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:9
 }).addTo(map);
 lines=L.layerGroup().addTo(map);
+if(window.CycloneDiagnostics)window.CycloneDiagnostics.setMap(map,L);
 $("model").addEventListener("change",()=>{if(allData){if($("model").value==="ens")$("ensemble").checked=true;populate();repaint(true);}});
 $("system").addEventListener("change",()=>repaint(true));
 $("ensemble").addEventListener("change",()=>repaint(true));

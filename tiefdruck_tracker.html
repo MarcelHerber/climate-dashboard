@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=4">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=5">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -48,6 +48,40 @@
       <div id="tracklist" class="tracklist" aria-label="Liste der gefundenen Systeme"></div>
     </aside>
   </div>
+
+  <section class="card advanced">
+    <div class="cps-head">
+      <div>
+        <div class="eyebrow">Intensivierung · Windstruktur · Modellvergleich</div>
+        <h2>Explosive Zyklogenese und Sturmradien</h2>
+        <p class="note">24-h-Bergeron-Normierung nach geografischer Breite. Windsektoren aus echten GFS-10-m-Windkomponenten; Richtungsradien sind 90. Perzentile der Schwellenwert-Überschreitungen, keine offiziellen Sturmwarnradien.</p>
+      </div>
+      <label class="check"><input type="checkbox" id="windOverlay" checked> Windlayer auf der Karte</label>
+      <label class="control">Winddarstellung<select id="windLayerMode">
+        <option value="field">GFS-10-m-Windfeld (abgetastete Rasterpunkte)</option>
+        <option value="sectors">Quadranten-Sturmradien</option>
+      </select></label>
+    </div>
+    <div class="advanced-stats">
+      <div class="stat"><div class="label">24-h-Druckfall</div><div id="advPressure" class="value">–</div><div class="detail">hPa in 24 h (positiv = Vertiefung)</div></div>
+      <div class="stat"><div class="label">Bergeron-Faktor</div><div id="advBergeron" class="value">–</div><div class="detail" id="advBergeronDetail">Breitenkorrigierte 24-h-Intensivierung</div></div>
+      <div class="stat"><div class="label">Windradius ≥ 17,5 m/s</div><div id="advGale" class="value">–</div><div class="detail">Max. 10-m-Quadrantenradius in km</div></div>
+      <div class="stat"><div class="label">Windradius ≥ 24,7 m/s</div><div id="advStorm" class="value">–</div><div class="detail">Max. 10-m-Quadrantenradius in km</div></div>
+    </div>
+    <div id="advWarning" class="advanced-info">Bitte ein GFS-Nordatlantik-Tief wählen.</div>
+    <div class="advanced-grid">
+      <div>
+        <h3>Entwicklung des Bergeron-Faktors</h3>
+        <div class="chartbox"><canvas id="advDeepeningChart"></canvas></div>
+      </div>
+      <div>
+        <h3>Modellvergleich am aktuellen Vorhersagetermin</h3>
+        <p class="note">Räumlich und zeitlich passende ECMWF-Tropenzyklon-Zugbahnen im Umkreis von 550 km. Kein vollständiger Vergleich mit allen außertropischen IFS-Tiefs.</p>
+        <div id="advComparison" class="comparison-table">Wähle ein Tief aus.</div>
+      </div>
+    </div>
+    <p class="note">Die Windkarte zeigt direkt abgetastete GFS-10-m-Werte in etwa 1° Auflösung oder daraus abgeleitete Sektorradien – keine hochaufgelösten Isotachen. Beides ist nicht mit 925-hPa-Sturmradien gleichzusetzen. Hohe Windgeschwindigkeiten weit entfernt vom Zentrum können die Quadrantenradien beeinflussen. Keine Felder unterhalb der Erdoberfläche werden künstlich ergänzt.</p>
+  </section>
   <div class="panels">
     <section class="card"><h2>Kerndruck &amp; Wind</h2><div class="chartbox"><canvas id="intensityChart"></canvas></div>
       <p class="note">Echte Modellwerte entlang der ausgewählten Zugbahn. Fehlende Werte werden nicht interpoliert.</p></section>
@@ -58,16 +92,23 @@
           <h2>Thermische Tiefdruckstruktur – wie beim klassischen FSU-Phasenraum</h2>
           <p class="note">Farbig unterlegte Kernphasen, Zugbahnen und Übereinstimmung mehrerer GFS-Modellstarts. Keine künstlichen GEFS-Ensemblemitglieder.</p>
         </div>
-        <button type="button" id="cpsPng">Phasenraum als PNG</button>
+        <label class="control">CPS-Datenquelle
+         <select id="cpsSource">
+           <option value="gefs">GEFS · echte Ensemblemitglieder</option>
+           <option value="lagged">GFS · zeitversetzte Modellläufe</option>
+         </select>
+       </label>
+       <button type="button" id="cpsPng">Phasenraum als PNG</button>
       </div>
       <div id="cpsRealNotice" class="cps-availability">Warte auf Modellarchiv …</div>
       <div id="cpsModuleEmpty" class="empty">Bitte ein GFS-Nordatlantik-Tief auswählen.</div>
       <div id="cpsModuleContent" hidden>
         <div class="cps-storm-heading" id="cpsStormName">–</div>
         <div id="cpsPhaseStatus" class="note">–</div>
+        <div id="cpsWarmProbability" class="cps-availability">GEFS-Warm-Core-Anteil: noch nicht berechnet</div>
 
         <article class="cps-figure">
-          <div class="cps-figure-title">GFS MULTILAUF SPAGHETTI <span>Hart-CPS · 900–600 hPa</span></div>
+          <div id="cpsSpaghettiTitle" class="cps-figure-title">CPS SPAGHETTI <span>Hart-CPS · 900–600 hPa</span></div>
           <div class="cps-figure-subtitle" id="cpsSpaghettiSubtitle">–</div>
           <div class="cps-figure-grid">
             <div class="cps-plot-area"><canvas id="cpsSpaghettiPlot" aria-label="Hart Phasenraumdiagramm mit GFS-Modelllaufspuren"></canvas></div>
@@ -81,14 +122,14 @@
                 <div><span class="cps-key-color pink"></span>Warmkern / rechts</div>
                 <div><span class="cps-key-color gray"></span>Symmetrisch (B &lt; 10 m)</div>
                 <div><span class="cps-key-color violet"></span>Asymmetrisch (B ≥ 10 m)</div>
-                <small>Jede Linie: anderer GFS-Starttermin, nicht GEFS-Mitglied.</small>
+                <small>Je nach Wahl: echtes GEFS-Mitglied oder zeitversetzter GFS-Lauf.</small>
               </div>
             </aside>
           </div>
         </article>
 
         <article class="cps-figure">
-          <div class="cps-figure-title">GFS MULTILAUF KONSENS <span>Mittelwert und Streuung</span></div>
+          <div id="cpsConsensusTitle" class="cps-figure-title">CPS KONSENS <span>Mittelwert und Streuung</span></div>
           <div class="cps-figure-subtitle" id="cpsConsensusSubtitle">–</div>
           <div class="cps-figure-grid">
             <div class="cps-plot-area">
@@ -102,16 +143,16 @@
               <div class="cps-key">
                 <strong>Linien und Markierungen</strong>
                 <div><span class="cps-key-color black"></span>Konsens-Mittel</div>
-                <div><span class="cps-key-color gray"></span>±1σ Multilauf-Streuung</div>
+                <div><span class="cps-key-color gray"></span>±1σ-Streuung der gewählten Datenquelle</div>
                 <div><span class="cps-key-color magenta"></span>Farbmarkierung nach Kerndruck</div>
-                <small>Eine graue Streuung wird nur berechnet, wenn mehrere Läufe denselben gültigen Prognosetermin abdecken.</small>
+                <small>Eine graue Streuung wird nur aus mindestens zwei gültigen, einander zugeordneten Kurven je Zeitpunkt berechnet.</small>
               </div>
             </aside>
           </div>
         </article>
         <p class="cps-footnote" id="cpsSummary">–</p>
       </div>
-      <p class="note">Wissenschaftlicher Hinweis: Die B-Asymmetrie und −VTᴸ sind aus tatsächlichen GFS-Höhenfeldern berechnet. Die farbigen Struktur-Bereiche orientieren sich an der Darstellung des Hart-Cyclone-Phase-Space; GFS-Multilauf-Streuung ist <strong>kein</strong> klassisches GEFS-Spread.</p>
+      <p class="note">Wissenschaftlicher Hinweis: Die GFS-CPS-Berechnung verwendet direkte GFS-Druckniveaus; beim GEFS sind 900, 600 und 400 hPa aus den benachbarten, verfügbaren Niveaus logarithmisch interpoliert. Das GEFS-Ensemble besteht aus echten Kontroll- und Perturbationsmitgliedern; zeitversetzte GFS-Läufe sind eine separate Vergleichsoption. Beides sind experimentelle Tiefdiagnosen.</p>
     </section>
   </div>
   <section class="card prose"><h2>Datengrenzen und nächster Ausbauschritt</h2>
@@ -120,6 +161,7 @@
     <p>Quellen: <a href="https://nomads.ncep.noaa.gov/" target="_blank" rel="noopener">NOAA/NCEP GFS</a>, <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
   </section>
 </main>
-<script src="tiefdruck_phase.js?v=4"></script>
-<script src="tiefdruck_tracker.js?v=4"></script>
+<script src="tiefdruck_phase.js?v=5"></script>
+<script src="tiefdruck_diagnostics.js?v=5"></script>
+<script src="tiefdruck_tracker.js?v=5"></script>
 </body></html>

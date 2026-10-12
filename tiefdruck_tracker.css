@@ -99,3 +99,23 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
  .cps-mini-map{height:220px}
  .cps-figure-title{font-size:18px}
 }
+
+
+/* Advanced objective cyclogenesis/wind and limited BUFR inter-model comparison. */
+.advanced{margin-top:16px;min-width:0}
+.advanced-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.advanced-info{background:#f4f7fa;color:#37536a;padding:10px 12px;border:1px solid #dce5ed;border-radius:8px;font-size:12px;margin-bottom:15px}
+.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.advanced-grid>div{min-width:0}
+.advanced-grid h3{font-size:16px;margin:5px 0}
+.comparison-table{overflow:auto;margin-top:12px}
+.model-table{width:100%;min-width:420px;border-collapse:collapse;font-size:12px}
+.model-table th{text-align:left;background:#f0f6fc;color:#274d6e}
+.model-table th,.model-table td{padding:9px 7px;border-bottom:1px solid #e0e5ec}
+.model-table tr:nth-child(even){background:#f9fbfd}
+.cps-head .control{min-width:195px;max-width:280px;flex:none}
+@media(max-width:1000px){
+ .advanced-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .advanced-grid{grid-template-columns:1fr}
+}
+@media(max-width:560px){.advanced-stats{grid-template-columns:1fr 1fr}}

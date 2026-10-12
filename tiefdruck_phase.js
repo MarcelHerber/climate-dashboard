@@ -4,7 +4,7 @@
 "use strict";
 const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/";
 const $=id=>document.getElementById(id);
-let maps=null, charts=[null,null], source=null, histories=[], chosen=null, loadState="Nicht geladen",lastDrawKey=null;
+let maps=null, charts=[null,null], source=null, histories=[], chosen=null, loadState="Nicht geladen",lastDrawKey=null,gefs=null,mode="lagged";
 function num(n,p=0){return Number.isFinite(n)?n.toLocaleString("de-DE",{maximumFractionDigits:p,minimumFractionDigits:p}):"–";}
 function iso(x){return new Date(x).toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";}
 function valid(p){return p&&p.cps&&["b","vt_lower","vt_upper"].every(k=>Number.isFinite(p.cps[k]));}
@@ -171,13 +171,14 @@ function makeChart(id,sets,extent,spreads){
  });
  return chart;
 }
-function drawPhase(tracks){
+function drawPhase(tracks,sourceMode){
  for(const c of charts)if(c)c.destroy();
  charts=[null,null];
  if(!tracks.length)return;
  const extent=bounds(tracks);
  const dataSets=tracks.map((t,i)=>({
-    label:"GFS "+new Date(t.run).toISOString().slice(5,16).replace("T"," " )+" UTC",
+    label:sourceMode==="gefs"?"GEFS "+t.member:
+       "GFS "+new Date(t.run).toISOString().slice(5,16).replace("T"," " )+" UTC",
     data:mainValues(t).map(({x,y,pressure})=>({x,y,pressure})),
     borderColor:["#067fc2","#08b6aa","#9b59d0","#2c74e0","#65ae44"][i%5],
     backgroundColor:["#067fc2","#08b6aa","#9b59d0","#2c74e0","#65ae44"][i%5],
@@ -189,11 +190,11 @@ function drawPhase(tracks){
  $("cpsConsensusEmpty").hidden=ready;
  $("cpsConsensusPlotWrap").hidden=!ready;
  $("cpsConsensusSubtitle").textContent=ready
-   ?tracks.length+" GFS-Läufe · graue Flächen zeigen ±1σ der Phasenposition pro gültigem Zeitpunkt."
-   :"Kein statistischer Konsens mit einem einzigen GFS-Lauf. Weitere reale Modellstarts werden benötigt.";
+   ?tracks.length+(sourceMode==="gefs"?" echte GEFS-Mitglieder":" GFS-Läufe")+" · grau: ±1σ je gültigem Termin."
+   :"Kein Konsens mit weniger als zwei vergleichbaren Kurven. Es werden keine Werte ersetzt.";
  if(ready){
    const series={
-     label:"GFS-Multilauf-Mittel · "+tracks.length+" Läufe",
+     label:(sourceMode==="gefs"?"GEFS-Mittel":"GFS-Multilauf-Mittel")+" · "+tracks.length+" Kurven",
      data:c.map(p=>({x:p.x,y:p.y,pressure:p.pressure})),
      showLine:true,borderColor:"#111827",borderWidth:3,
      backgroundColor:c.map(p=>pressureColor(p.pressure)),
@@ -203,10 +204,14 @@ function drawPhase(tracks){
    };
    charts[1]=makeChart("cpsConsensusPlot",[series],extent,c);
  }
- $("cpsSummary").textContent=
-    tracks.length>1?tracks.length+" übereinstimmende GFS-Modellstarts (zeitversetzt, kein GEFS-Ensemble)"
-      :"Nur 1 GFS-Modelllauf dieses Tiefs vorhanden · echter Konsens noch nicht möglich";
- $("cpsPhaseStatus").textContent="Phasenparameter: echte GFS-Geopotenzialfelder · Hart (2003)";
+ $("cpsSummary").textContent=sourceMode==="gefs"?
+   tracks.length+" echte GEFS-Mitglieder, Kontrolllauf plus Perturbationen, räumlich an den GFS-Tieftrack gekoppelt.":
+   tracks.length+" übereinstimmende zeitversetzte GFS-Modellstarts (kein GEFS-Ensemble).";
+ $("cpsPhaseStatus").textContent=sourceMode==="gefs"?
+   "GEFS: HGT 0,5° · 900/600/400 hPa logarithmisch interpoliert · Hart (2003)":
+   "GFS: echte native Geopotenzialfelder · Hart (2003)";
+ $("cpsSpaghettiTitle").childNodes[0].textContent=sourceMode==="gefs"?"GEFS ENSEMBLE SPAGHETTI ":"GFS MULTILAUF SPAGHETTI ";
+ $("cpsConsensusTitle").childNodes[0].textContent=sourceMode==="gefs"?"GEFS ENSEMBLE KONSENS ":"GFS MULTILAUF KONSENS ";
 }
 function makeMap(node){
  return L.map(node,{zoomControl:false,attributionControl:false,
@@ -239,18 +244,70 @@ function geoMapUpdate(tracks){
    }
  }
 }
+function ensembleFor(base){
+ if(!gefs||gefs.run!==base.run||!Array.isArray(gefs.storms))return[];
+ const row=gefs.storms.find(s=>s.base_id===base.id);
+ if(!row)return[];
+ return row.members.filter(m=>m.points.filter(valid).length>=2).map(m=>({
+   id:base.id+":"+m.member,storm_id:base.storm_id,member:m.member,
+   name:m.member,model:"gefs",run:m.run,points:m.points
+ }));
+}
+function displayWarmProbability(base,tracks,sourceMode){
+ const node=$("cpsWarmProbability");
+ if(sourceMode!=="gefs"){
+   node.textContent="Kernphasen-Wahrscheinlichkeiten nur aus echten GEFS-Mitgliedern · GFS-Multilauf hat keine Ensemblewahrscheinlichkeit.";
+   return;
+ }
+ const h=Number($("hour").value);
+ const nominal=Math.floor(h/12)*12;
+ const sample=tracks.map(t=>t.points.find(p=>p.h===nominal&&valid(p))).filter(Boolean);
+ if(!sample.length){
+   node.textContent="GEFS +"+nominal+"h: kein gültiges CPS-Mitglied verfügbar.";
+   return;
+ }
+ const deep=sample.filter(p=>p.cps.vt_lower>0&&p.cps.vt_upper>0).length;
+ const cold=sample.filter(p=>p.cps.vt_lower<=0&&p.cps.vt_upper<=0).length;
+ const warm=sample.filter(p=>p.cps.vt_lower>0).length;
+ const number=n=>(100*n/sample.length).toLocaleString("de-DE",{maximumFractionDigits:0})+" %";
+ node.textContent="GEFS +"+nominal+"h: tiefreichender Warm Core "+number(deep)+
+   ", unterer Warm Core "+number(warm)+", tiefreichender Cold Core "+number(cold)+
+   " · n="+sample.length+" gültige von "+gefs.members_requested+
+   " angeforderten Mitgliedern. Relative Häufigkeit, keine kalibrierte Wahrscheinlichkeit.";
+}
 async function loadHistory(){
- loadState="Lade GFS-Multilaufarchiv …";histories=[];
- try{
-   const response=await fetch(BASE+"atlantic_history_index.json?v="+Date.now(),{cache:"no-store"});
-   if(!response.ok)throw Error("noch kein Multilaufarchiv");
-   const index=await response.json();
-   if(!Array.isArray(index.runs))throw Error("ungültiger Multilaufindex");
-   const candidates=index.runs.filter(p=>/^atlantic_history\/gfs_\d{10}\.json$/.test(p)).slice(0,5);
-   const result=await Promise.allSettled(candidates.map(p=>fetch(BASE+p+"?v="+Date.now(),{cache:"no-store"}).then(r=>{if(!r.ok)throw Error(r.status);return r.json();})));
-   histories=result.filter(x=>x.status==="fulfilled").map(x=>x.value).filter(x=>Array.isArray(x.tracks));
-   loadState=histories.length?histories.length+" historische GFS-Läufe verfügbar":"Noch keine historischen GFS-Läufe";
- }catch(e){loadState="Historische GFS-Läufe noch nicht verfügbar";}
+ loadState="GFS-Archiv und GEFS-Mitglieder werden geladen …";histories=[];gefs=null;
+ const [hist,ensemble]=await Promise.allSettled([
+  (async()=>{
+    const response=await fetch(BASE+"atlantic_history_index.json?v="+Date.now(),{cache:"no-store"});
+    if(!response.ok)throw Error("kein Index");
+    const index=await response.json();
+    const candidates=(index.runs||[]).filter(p=>/^atlantic_history\/gfs_\d{10}\.json$/.test(p)).slice(0,5);
+    const result=await Promise.allSettled(candidates.map(p=>
+      fetch(BASE+p+"?v="+Date.now(),{cache:"no-store"}).then(r=>{
+        if(!r.ok)throw Error(r.status);
+        return r.json();
+      })));
+    return result.filter(r=>r.status==="fulfilled").map(r=>r.value).filter(r=>Array.isArray(r.tracks));
+  })(),
+  (async()=>{
+    const r=await fetch(BASE+"gefs.json?v="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw Error("GEFS "+r.status);
+    const j=await r.json();
+    if(j.schema!==1||!Array.isArray(j.storms))throw Error("GEFS-Schema ungültig");
+    return j;
+  })()
+ ]);
+ histories=hist.status==="fulfilled"?hist.value:[];
+ gefs=ensemble.status==="fulfilled"?ensemble.value:null;
+ loadState=histories.length+" ältere GFS-Läufe · "+
+    (gefs?gefs.members_with_cps+" reale GEFS-Mitglieder insgesamt":"GEFS nicht verfügbar");
+ if(gefs&&chosen&&gefs.run===chosen.run&&ensembleFor(chosen).length>=2){
+   $("cpsSource").value="gefs";
+ }else{
+   $("cpsSource").value="lagged";
+ }
+ lastDrawKey=null;
  if(chosen)update(chosen);
 }
 function update(t){
@@ -258,33 +315,43 @@ function update(t){
  $("cpsRealNotice").textContent=loadState;
  if(!t||t.model!=="gfs"){
    for(const c of charts)if(c)c.destroy();
-   charts=[null,null];
-   $("cpsModuleEmpty").hidden=false;
-   $("cpsModuleContent").hidden=true;
-   lastDrawKey=null;
-   $("cpsModuleEmpty").textContent=t&&t.model!=="gfs"
-     ?"ECMWF-Zugbahnen besitzen hier noch keine berechnete thermische Kernstruktur. Bitte ein GFS-Nordatlantik-Tief wählen."
-     :"Bitte ein GFS-Tief auf der Karte auswählen.";
+   charts=[null,null];lastDrawKey=null;
+   $("cpsModuleEmpty").hidden=false;$("cpsModuleContent").hidden=true;
+   $("cpsModuleEmpty").textContent=t&&t.model!=="gfs"?
+     "Keine Hart-CPS-Kernstruktur aus ECMWF-Tropenzyklonen-BUFR, bitte ein GFS-Nordatlantik-Tief auswählen.":
+     "Bitte ein GFS-Nordatlantik-Tief auf der Karte auswählen.";
    return;
  }
- const drawKey=String(t.id)+":"+String(t.run)+":"+histories.length;
- if(drawKey===lastDrawKey&&charts[0])return;
+ mode=$("cpsSource").value;
+ const ensemble=ensembleFor(t);
+ const tracks=mode==="gefs"?ensemble:findComparisons(t,histories);
+ const source=(mode==="gefs"&&tracks.length>=2)?"gefs":"lagged";
+ if(mode==="gefs"&&tracks.length<2){
+   $("cpsSource").value="lagged";
+   mode="lagged";
+ }
+ const shown=source==="gefs"?tracks:findComparisons(t,histories);
+ const drawKey=String(t.id)+":"+String(t.run)+":"+source+":"+shown.length+":"+histories.length+
+    ":"+(gefs?.updated_utc||"");
+ if(drawKey===lastDrawKey&&charts[0]){
+   displayWarmProbability(t,shown,source);
+   return;
+ }
  lastDrawKey=drawKey;
- const tracks=findComparisons(t,histories);
- const points=tracks.flatMap(t=>t.points.filter(valid));
+ const points=shown.flatMap(x=>x.points.filter(valid));
  if(points.length<2){
    $("cpsModuleEmpty").hidden=false;$("cpsModuleContent").hidden=true;
-   lastDrawKey=null;
-   $("cpsModuleEmpty").textContent="Für dieses Tief sind nicht genügend echte CPS-Werte vorhanden.";
+   lastDrawKey=null;$("cpsModuleEmpty").textContent="Zu wenige echte CPS-Werte für dieses Tief.";
    return;
  }
- $("cpsModuleEmpty").hidden=true;
- $("cpsModuleContent").hidden=false;
- $("cpsStormName").textContent=t.name+" · Hauptlauf "+iso(t.run);
- $("cpsSpaghettiSubtitle").textContent=tracks.length+" tatsächliche GFS-Initialisierungen. Keine Ensemble-Perturbationen.";
- drawPhase(tracks);
- // Leaflet needs visible containers before initialization.
- setTimeout(()=>geoMapUpdate(tracks),0);
+ $("cpsModuleEmpty").hidden=true;$("cpsModuleContent").hidden=false;
+ $("cpsStormName").textContent=t.name+" · Basislauf "+iso(t.run);
+ $("cpsSpaghettiSubtitle").textContent=source==="gefs"?
+   shown.length+" reale GEFS-Kontroll-/Perturbationsmitglieder (0,5°). 900, 600, 400 hPa interpoliert.":
+   shown.length+" zeitversetzte GFS-Modellinitialisierungen (keine Perturbationen).";
+ drawPhase(shown,source);
+ displayWarmProbability(t,shown,source);
+ setTimeout(()=>geoMapUpdate(shown),0);
 }
 function exportPng(){
  if(!charts[0])return;
@@ -297,15 +364,17 @@ function exportPng(){
  let y=gap;
  charts.filter(Boolean).forEach((chart,i)=>{
    ctx.fillStyle="#067039";ctx.font="bold 18px Arial";ctx.fillText(
-     i===0?"GFS-MULTILAUF · PHASENRAUM":"GFS-MULTILAUF · KONSENS (±1σ)",gap,y+25);
+     i===0?(mode==="gefs"?"GEFS ENSEMBLE · PHASENRAUM":"GFS MULTILAUF · PHASENRAUM"):
+       (mode==="gefs"?"GEFS ENSEMBLE · KONSENS":"GFS MULTILAUF · KONSENS"),gap,y+25);
    ctx.fillStyle="#334155";ctx.font="13px Arial";
    ctx.fillText("Hart (2003) | "+String(chosen?.name||"")+
-       " | Modelle: "+(1+histories.length)+" ggf. vergleichbare Läufe",gap,y+45);
+       " | "+(mode==="gefs"?"echte Ensemblemitglieder":"unabhängige GFS-Läufe"),gap,y+45);
    y+=head;ctx.drawImage(chart.canvas,gap,y);y+=chart.canvas.height+gap;
  });
  const a=document.createElement("a");a.href=canvas.toDataURL("image/png");
  a.download="Hart_CPS_Multilauf_"+String(chosen?.id||"tief").replace(/[^A-Za-z0-9_-]/g,"_")+".png";
  document.body.appendChild(a);a.click();a.remove();
 }
+$("cpsSource").addEventListener("change",()=>{lastDrawKey=null;if(chosen)update(chosen);});
 window.HartPhaseSpace={update,loadHistory,exportPng};
 })();
