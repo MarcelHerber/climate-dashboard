@@ -368,7 +368,7 @@ function comparisonChart(results,bounds,lat,lon,c,param){
   results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=metricSeries(r)?.[i]??null;});sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
   if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.climate&&c)sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
-  comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds,param)});
+  comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds,metricParam(param))});
 }
 function renderPlace(p,cp,param){
   const n=el("t850ResolvedLocation");if(!n)return;
@@ -442,7 +442,7 @@ function modelAxisBounds(r,param,sharedBounds){
   if(sharedBounds)return sharedBounds;
   const automatic=commonBounds([r],param),override=axisOverrides[r.model.key]||{};
   const precip=param.kind.startsWith("precip");
-  const min=precip||displayMetric()==="prob"?0:Number.isFinite(override.min)?override.min:automatic.min;
+  const min=(precip||displayMetric()==="prob")?0:Number.isFinite(override.min)?override.min:automatic.min;
   const max=Number.isFinite(override.max)?override.max:automatic.max;
   if(max<=min)return automatic;
   return {min,max};
@@ -495,8 +495,8 @@ async function enrichWithRunInfo(r,p,c,good,signal,param){
 }
 function updateParameterHeader(param){
   const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"")+" · Y-Achse pro Modell anpassbar";
-  const title=el("ensembleComparisonTitle");if(title)title.textContent="Vergleich der Ensemble-Mittel · "+param.label;
-  const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate;
+  const title=el("ensembleComparisonTitle");if(title)title.textContent=(displayMetric()==="prob"?"Modellvergleich · Wahrscheinlichkeit":displayMetric()==="spread"?"Modellvergleich · Spread":"Vergleich der Ensemble-Mittel")+" · "+param.label;
+  const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate||displayMetric()!=="members";
 }
 async function load(q,opts){
   opts=opts||{};q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
@@ -552,7 +552,7 @@ function mount(){
     });
   }
   if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t2m","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
-  if(!el("t850Metric")){const container=document.createElement("div");container.className="control-group";container.innerHTML='<label for="t850Metric">Ensemble-Auswertung</label><select id="t850Metric"><option value="members">Member & Perzentile</option><option value="spread">Spread (Standardabweichung)</option><option value="prob">Schwellenwert-Wahrscheinlichkeit</option></select><label for="t850Threshold">Schwelle</label><input type="number" id="t850Threshold" value="0" step="any" style="width:82px"><select id="t850ThresholdDirection" aria-label="Schwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select>';paramSelect.closest(".control-group").insertAdjacentElement("afterend",container);const redraw=function(){const p=getParam();lastResults.forEach(function(r){r.stats=stats(r);});if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,p);};["t850Metric","t850Threshold","t850ThresholdDirection"].forEach(function(id){el(id)?.addEventListener("change",redraw);});}
+  if(!el("t850Metric")){const container=document.createElement("div");container.className="control-group";container.innerHTML='<label for="t850Metric">Ensemble-Auswertung</label><select id="t850Metric"><option value="members">Member & Perzentile</option><option value="spread">Spread (Standardabweichung)</option><option value="prob">Schwellenwert-Wahrscheinlichkeit</option></select><label for="t850Threshold">Schwelle</label><input type="number" id="t850Threshold" value="0" step="any" style="width:82px"><select id="t850ThresholdDirection" aria-label="Schwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select>';paramSelect.closest(".control-group").insertAdjacentElement("afterend",container);const redraw=function(){const p=getParam();updateParameterHeader(p);lastResults.forEach(function(r){r.stats=stats(r);});if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,p);};["t850Metric","t850Threshold","t850ThresholdDirection"].forEach(function(id){el(id)?.addEventListener("change",redraw);});}
   paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
   updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");
 }
