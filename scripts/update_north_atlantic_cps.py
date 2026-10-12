@@ -297,15 +297,50 @@ def main():
     candidates=([dt.datetime.strptime(args.run,"%Y%m%d%H").replace(tzinfo=UTC)]
                 if args.run else run_candidates(now))
     err=[]
+    main_run = None
     for run in candidates[:4]:
         try:
             process(args.out,run)
-            return
+            main_run = run
+            break
         except Exception as exc:
             logging.warning("Run %s not usable: %s",run,exc)
             err.append(str(exc))
-    # Preserve last known good output, if any, and return failure to GitHub CI.
-    raise SystemExit("No complete GFS North Atlantic CPS run: "+"; ".join(err[:4]))
+    if main_run is None:
+        # Preserve last known good output, if any, and return failure to GitHub CI.
+        raise SystemExit("No complete GFS North Atlantic CPS run: "+"; ".join(err[:4]))
+
+    # Keep recent independent GFS initialization cycles to show a true
+    # lagged-run CPS spaghetti diagram, clearly NOT a GEFS perturbation ensemble.
+    history_dir=args.out.parent/"atlantic_history"
+    history_dir.mkdir(parents=True,exist_ok=True)
+    for previous_run in candidates:
+        if previous_run>=main_run:
+            continue
+        file=history_dir/f"gfs_{previous_run:%Y%m%d%H}.json"
+        if file.exists() and file.stat().st_size>500:
+            continue
+        try:
+            process(file,previous_run)
+        except Exception as exc:
+            logging.warning("Historical run %s missing; no fabricated values: %s",
+                            previous_run,exc)
+        # At most two additional GFS runs per refresh to cap download costs.
+        if len([p for p in history_dir.glob("gfs_*.json") if p.stat().st_size>500])>=5:
+            break
+
+    keep=sorted(history_dir.glob("gfs_*.json"),reverse=True)[:5]
+    for file in history_dir.glob("gfs_*.json"):
+        if file not in keep:
+            file.unlink()
+    index={"schema":1,
+           "description":"GFS multi-run lagged analyses, not GEFS members",
+           "latest_run_utc":main_run.strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "runs":["atlantic.json"]+
+                [f"atlantic_history/{p.name}" for p in keep]}
+    (args.out.parent/"atlantic_history_index.json").write_text(
+        json.dumps(index,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    print("Historical GFS runs:",index["runs"],flush=True)
 
 if __name__=="__main__":
     main()
