@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=1">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=2">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -17,22 +17,22 @@
 <main>
   <div class="eyebrow">Zyklonen · Modellvorhersagen</div>
   <h1>Tiefdruck-Tracker &amp; Cyclone Phase Space</h1>
-  <p class="intro">Modellierte Zugbahnen, Kerndruck und maximale Windgeschwindigkeit aus ECMWF IFS, AIFS und IFS Ensemble. Thermische Warm-/Cold-Core-Diagnosen (Hart CPS) sind vorbereitet, werden aber erst mit echten Geopotenzialfeldern berechnet.</p>
+  <p class="intro">Modellierte Tiefdruck-Zugbahnen im Nordatlantik aus GFS sowie tropische Zyklonen aus ECMWF IFS, AIFS und IFS Ensemble. Für GFS-Tiefs werden die thermische Asymmetrie und der obere und untere thermische Wind nach Hart (2003) aus echten Geopotenzialfeldern berechnet.</p>
   <section class="card">
     <div class="filters">
-      <label class="control">Modell<select id="model"><option value="all">Alle Modelle</option><option value="ifs">ECMWF IFS</option><option value="aifs">ECMWF AIFS</option><option value="ens">ECMWF IFS Ensemble</option></select></label>
+      <label class="control">Modell<select id="model"><option value="gfs">GFS – Nordatlantik-Tiefs + CPS</option><option value="all">Alle Modelle</option><option value="ifs">ECMWF IFS</option><option value="aifs">ECMWF AIFS</option><option value="ens">ECMWF IFS Ensemble</option></select></label>
       <label class="control">Zyklone / Tief<select id="system"><option value="all">Alle Systeme</option></select></label>
       <label class="check"><input id="ensemble" type="checkbox"> Ensemblemitglieder anzeigen</label>
       <button type="button" id="refresh" class="primary">Daten neu laden</button>
       <button type="button" id="png">Intensitätsdiagramm PNG</button>
     </div>
     <div class="status" id="status" role="status">ECMWF-Daten werden geladen …</div>
-    <div class="meta"><span id="updated">Datenstand: –</span><span id="modelruns">Modellläufe: –</span><span>Quelle: ECMWF Open Data BUFR · Modellprognose, keine amtliche Warnung</span></div>
+    <div class="meta"><span id="updated">Datenstand: –</span><span id="modelruns">Modellläufe: –</span><span>Quellen: NOAA GFS 0,25° / ECMWF BUFR · Modellprognosen, keine amtliche Warnung</span></div>
   </section>
   <div class="layout">
     <section class="card mapcard">
       <div class="maphead"><h2>Zugbahnen</h2><span class="pill" id="count">0 Zugbahnen</span></div>
-      <div id="map" role="img" aria-label="Karte der vorhergesagten tropischen Zyklonen"></div>
+      <div id="map" role="img" aria-label="Karte der erkannten Tiefdruckgebiete im Nordatlantik und tropischen Zyklonen"></div>
       <div class="sliderwrap"><label for="hour">Vorhersagestunde</label><input id="hour" type="range" min="0" max="240" value="240" step="6"><strong id="hourlabel">+240 h</strong></div>
       <p class="note">Klicke eine Zugbahn an, um ein System auszuwählen. Die Modellfarben kennzeichnen <em>nicht</em> tropische Eigenschaften. Zuverlässige CPS-Werte werden separat dargestellt.</p>
     </section>
@@ -44,6 +44,7 @@
         <div class="stat"><div class="label">Kerndruck</div><div class="value" id="vpressure">–</div><div class="detail">MSLP, hPa</div></div>
         <div class="stat"><div class="label">Maximalwind</div><div class="value" id="vwind">–</div><div class="detail">10 m, km/h</div></div>
       </div>
+      <div id="phaseLabel" class="phase-label">Kernstruktur: –</div>
       <div id="tracklist" class="tracklist" aria-label="Liste der gefundenen Systeme"></div>
     </aside>
   </div>
@@ -51,17 +52,19 @@
     <section class="card"><h2>Kerndruck &amp; Wind</h2><div class="chartbox"><canvas id="intensityChart"></canvas></div>
       <p class="note">Echte Modellwerte entlang der ausgewählten Zugbahn. Fehlende Werte werden nicht interpoliert.</p></section>
     <section class="card"><h2>Thermische Kernstruktur (Hart CPS)</h2>
-      <div class="pending">Noch keine berechneten CPS-Felder vorhanden</div>
-      <div id="cpsEmpty" class="empty">Für eine verlässliche Warm-Core-/Cold-Core-Diagnostik werden Geopotenzialhöhen in 900, 600 und 300 hPa rund um das Tief benötigt. Diese sind nicht in den ECMWF-Zugbahn-BUFR-Daten enthalten.</div>
+      <div class="pending" id="cpsAvailability">CPS-Diagnose für GFS-Tiefs mit vollständigen Felddaten</div>
+      <div id="cpsEmpty" class="empty">Für diese Zugbahn liegen keine vollständigen CPS-Werte vor. ECMWF-BUFR-Tracks liefern keine thermische Kernstruktur; bei GFS können einzelne Zeitpunkte wegen fehlender Daten oder unterirdischer Druckniveaus maskiert sein.</div>
       <div id="cpsWrap" class="chartbox" hidden><canvas id="cpsChart"></canvas></div>
-      <p class="note">Künftige Phasendiagramme: 900–600-hPa-Symmetrie B, unterer und oberer thermischer Wind. Keine Klassifizierung aus Kerndruck allein.</p>
+      <div id="cpsUpperWrap" class="chartbox" hidden><canvas id="cpsUpperChart"></canvas></div>
+      <button id="cpsPng" type="button">CPS-Diagramme PNG</button>
+      <p class="note">Hart CPS: B = 900–600-hPa-Schichtdickendifferenz (rechts minus links zur Zugrichtung); unterer/oberer thermischer Wind aus den Höhenfeld-Gradienten von 900–600 bzw. 600–300 hPa im Radius von 500 km. Die Phasen sind Forschungsdiagnosen, keine offiziellen Tropensturm-Klassifikationen.</p>
     </section>
   </div>
   <section class="card prose"><h2>Datengrenzen und nächster Ausbauschritt</h2>
-    <p>Die ECMWF-BUFR-Zugbahnen beschreiben <strong>tropische Zyklonen einschließlich prognostizierter Neubildungen</strong>. Noch nicht enthalten ist eine automatische Erkennung sämtlicher außertropischer Tiefdruckgebiete, etwa über dem Nordatlantik. Dafür müssen wir zusätzlich Modell-MSLP-Felder und die dreidimensionale Kernstruktur auswerten.</p>
-    <p>Geplant: Tiefzentrum-Tracking, Symmetrieparameter <em>B</em>, −V<sub>T</sub><sup>L</sup> (900–600 hPa), −V<sub>T</sub><sup>U</sup> (600–300 hPa), Übergänge zwischen warmem und kaltem Kern sowie Modellvergleiche.</p>
-    <p>Quellen: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
+    <p>Der <strong>GFS-Nordatlantik-Tracker</strong> erkennt örtliche MSLP-Minima mit ausreichendem Druckkontrast zwischen 27–75° N und 105–8° W und verfolgt sie in 6-Stunden-Schritten. Für die verfolgten Systeme werden die thermischen Hart-CPS-Parameter aus GFS-Geopotenzialfeldern in 900/850/700/600/500/400/300 hPa im Umkreis von 500 km berechnet. Das ist eine experimentelle Tiefdruck-Diagnostik: Nicht jedes MSLP-Minimum muss ein geschlossenes Tief sein. Die ECMWF-BUFR-Zugbahnen erfassen weiterhin tropische Systeme.</p>
+    <p>Bereits implementiert: GFS-MSLP-Tiefzentrum-Tracking und <em>B</em>, −V<sub>T</sub><sup>L</sup> und −V<sub>T</sub><sup>U</sup>. Als nächste Qualitätsstufen sind die objektive Prüfung geschlossener Isobaren, robuste Track-Identitätsprüfung und die Übertragung derselben CPS-Rechnung auf ECMWF/AIFS vorgesehen.</p>
+    <p>Quellen: <a href="https://nomads.ncep.noaa.gov/" target="_blank" rel="noopener">NOAA/NCEP GFS</a>, <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
   </section>
 </main>
-<script src="tiefdruck_tracker.js?v=1"></script>
+<script src="tiefdruck_tracker.js?v=2"></script>
 </body></html>
