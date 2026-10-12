@@ -133,7 +133,7 @@ jobs:
             --dir .era5-atmos-history-refs
           test "$(find .era5-atmos-history-refs -maxdepth 1 -name 'month_*.npz' | wc -l)" -eq 12
 
-      - name: Historisches Jahr mit zwölf Monaten und 144 Karten rendern
+      - name: Historisches Jahr mit zwölf Monaten und 48 Kartenatlanten rendern
         env:
           TARGET_YEAR: ${{ matrix.year }}
         run: |
@@ -142,7 +142,7 @@ jobs:
             --year "$TARGET_YEAR" \
             --reference-dir .era5-atmos-history-refs \
             --output ".era5-history-output/$TARGET_YEAR"
-          test "$(find ".era5-history-output/$TARGET_YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 144
+          test "$(find ".era5-history-output/$TARGET_YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 48
 
       - name: Historisches Jahr als GitHub Release veröffentlichen
         env:
@@ -155,12 +155,12 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target main \
               --title "ERA5 Atmosphäre historische Monatskarten $TARGET_YEAR" \
-              --notes "144 ERA5-Karten (12 Monate, 4 Parameter, absolut/Anomalie/Rang). Klimanormal 1991–2020, Rankpopulation 1940–2025."
+              --notes "144 ERA5-Ansichten (12 Monate, 4 Parameter, absolut/Anomalie/Rang), kompakt in 48 WebP-Atlanten. Klimanormal 1991–2020, Rankpopulation 1940–2025."
           fi
           gh release upload "$TAG" ".era5-history-output/$TARGET_YEAR/"*.webp --clobber
           count="$(gh release view "$TAG" --json assets --jq '[.assets[] | select(.name | endswith(".webp"))] | length')"
-          test "$count" -eq 144
-          echo "Alle 144 WebP-Karten sind als Jahresrelease verfügbar."
+          test "$count" -eq 48
+          echo "Alle 144 Ansichten in 48 WebP-Dateien sind als Jahresrelease verfügbar."
 
       - name: Validiertes Manifest für Website sichern
         uses: actions/upload-artifact@v4
