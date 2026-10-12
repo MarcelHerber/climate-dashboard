@@ -118,12 +118,23 @@ def process_member(run,member,base_tracks,steps):
                         time.sleep(1)
                 valid=run+dt.timedelta(hours=lead)
                 stamp=valid.strftime("%Y-%m-%dT%H:%M:%SZ")
+                proposals=[]
                 for t in base_tracks:
                     candidates={p["time"]:p for p in t["points"]}
                     p=candidates.get(stamp)
                     if p is None or p.get("cps") is None:continue
                     center=nearest_member_center(fields,lat,lon,p)
                     if center is None:continue
+                    km=gfs.haversine(p["lat"],p["lon"],center["lat"],center["lon"])
+                    proposals.append((km,t,p,center))
+                # Each GEFS member cyclone center may be assigned to ONE GFS
+                # reference cyclone only. Min-distance preference avoids
+                # double-counting nearby lows / false ensemble agreement.
+                used_centers=set()
+                for km,t,p,center in sorted(proposals,key=lambda x:x[0]):
+                    signature=(round(center["lat"],2),round(center["lon"],2))
+                    if signature in used_centers:continue
+                    used_centers.add(signature)
                     idx=t["points"].index(p)
                     p0=t["points"][max(0,idx-1)];p1=t["points"][min(len(t["points"])-1,idx+1)]
                     motion=((p1["lon"]-p0["lon"])*111.2*math.cos(math.radians(center["lat"])),
@@ -134,6 +145,7 @@ def process_member(run,member,base_tracks,steps):
                     out[t["id"]].append({"time":stamp,"h":int((valid-dt.datetime.fromisoformat(t["run"].replace("Z","+00:00"))).total_seconds()/3600),
                          "lat":round(center["lat"],2),"lon":round(center["lon"],2),
                          "mslp_hpa":center["mslp_hpa"],
+                         "match_distance_km":round(km),
                          "cps":cps,"phase":gfs.phase(cps)})
             except Exception as exc:
                 warnings.append(f"+{lead}: {str(exc)[:180]}")
@@ -144,7 +156,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--atlantic",type=Path,required=True)
     parser.add_argument("--out",type=Path,required=True)
-    parser.add_argument("--members",type=int,default=int(os.getenv("GEFS_MEMBERS","10")))
+    parser.add_argument("--members",type=int,default=int(os.getenv("GEFS_MEMBERS","30")))
     parser.add_argument("--max-hour",type=int,default=72)
     args=parser.parse_args()
     atlas=json.loads(args.atlantic.read_text())
