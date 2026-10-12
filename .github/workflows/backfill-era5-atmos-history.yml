@@ -1,0 +1,218 @@
+name: ERA5 Atmosphäre Historienarchiv 1940-2025
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/backfill-era5-atmos-history.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-atmos-historical-1940-2025-v1
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Historischen Referenzspeicher vorbereiten
+    runs-on: ubuntu-latest
+    steps:
+      - name: Historische Referenz-Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG=era5-atmos-history-reference-1940-2025-v1
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Referenz-Release existiert bereits."
+          else
+            gh release create "$TAG" --target main \
+              --title "ERA5 Atmosphäre Historische Monatsreferenz 1940–2025" \
+              --notes "Zwölf feste Referenzfelder für T850, Z500, Wind300, MSLP; ERA5 0,25 Grad."
+          fi
+
+  references:
+    name: Historische Referenz Monat ${{ matrix.month }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        month: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+    steps:
+      - name: Skripte auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: scripts
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: ERA5-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+
+      - name: CDS API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Monatliche historische Referenz berechnen und veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_MONTH: ${{ matrix.month }}
+        run: |
+          set -euo pipefail
+          TAG=era5-atmos-history-reference-1940-2025-v1
+          FILE="month_${TARGET_MONTH}.npz"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$FILE"; then
+            echo "Historischer Monat $TARGET_MONTH ist bereits veröffentlicht."
+            exit 0
+          fi
+          mkdir -p .era5-atmos-history-refs
+          python scripts/build_era5_atmos_history.py reference \
+            --month "$((10#$TARGET_MONTH))" \
+            --output ".era5-atmos-history-refs/$FILE"
+          gh release upload "$TAG" ".era5-atmos-history-refs/$FILE" --clobber
+
+  years:
+    name: Historische Karten ${{ matrix.year }}
+    needs: references
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: [1940, 1941, 1942, 1943, 1944, 1945, 1946, 1947, 1948, 1949, 1950, 1951, 1952, 1953, 1954, 1955, 1956, 1957, 1958, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    steps:
+      - name: Skripte auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: scripts
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Kartografie-Pakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy xarray matplotlib cartopy pillow cdsapi netCDF4
+
+      - name: Gemeinsame historische Datenreferenzen herunterladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p .era5-atmos-history-refs
+          gh release download era5-atmos-history-reference-1940-2025-v1 \
+            --pattern 'month_*.npz' \
+            --dir .era5-atmos-history-refs
+          test "$(find .era5-atmos-history-refs -maxdepth 1 -name 'month_*.npz' | wc -l)" -eq 12
+
+      - name: Historisches Jahr mit zwölf Monaten und 144 Karten rendern
+        env:
+          TARGET_YEAR: ${{ matrix.year }}
+        run: |
+          set -euo pipefail
+          python scripts/build_era5_atmos_history.py render \
+            --year "$TARGET_YEAR" \
+            --reference-dir .era5-atmos-history-refs \
+            --output ".era5-history-output/$TARGET_YEAR"
+          test "$(find ".era5-history-output/$TARGET_YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 144
+
+      - name: Historisches Jahr als GitHub Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_YEAR: ${{ matrix.year }}
+        run: |
+          set -euo pipefail
+          TAG="era5-atmos-history-$TARGET_YEAR-v1"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target main \
+              --title "ERA5 Atmosphäre historische Monatskarten $TARGET_YEAR" \
+              --notes "144 ERA5-Karten (12 Monate, 4 Parameter, absolut/Anomalie/Rang). Klimanormal 1991–2020, Rankpopulation 1940–2025."
+          fi
+          gh release upload "$TAG" ".era5-history-output/$TARGET_YEAR/"*.webp --clobber
+          count="$(gh release view "$TAG" --json assets --jq '[.assets[] | select(.name | endswith(".webp"))] | length')"
+          test "$count" -eq 144
+          echo "Alle 144 WebP-Karten sind als Jahresrelease verfügbar."
+
+      - name: Validiertes Manifest für Website sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-atmos-history-manifest-${{ matrix.year }}
+          path: .era5-history-output/${{ matrix.year }}/manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Fertige historische Jahre in Website einbinden
+    if: ${{ always() && needs.references.result == 'success' }}
+    needs: [references, years]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+
+      - name: Erfolgreiche Jahresmanifeste sammeln
+        uses: actions/download-artifact@v4
+        with:
+          pattern: era5-atmos-history-manifest-*
+          path: .era5-history-manifests
+          merge-multiple: false
+
+      - name: Nur erfolgreich veröffentlichte Jahre in Monatsauswahl übernehmen
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/finalize_era5_atmos_history.py --artifacts .era5-history-manifests
+            git add era5_europe/history era5_europe/index.json
+            if git diff --cached --quiet; then
+              echo "Historisches ERA5-Archiv unverändert."
+              exit 0
+            fi
+            git commit -m "ERA5 Atmosphärenhistorie 1940-2025 erweitern"
+            if git push origin HEAD:main; then
+              echo "Fertige historische Jahre auf GitHub Pages indexiert."
+              exit 0
+            fi
+            echo "Push-Kollision: wiederhole gegen aktuelles main ($attempt/3)."
+          done
+          echo "::error::ERA5-Historienindex konnte nicht veröffentlicht werden."
+          exit 1
