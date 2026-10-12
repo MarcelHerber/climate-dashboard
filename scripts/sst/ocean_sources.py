@@ -4,7 +4,7 @@ import calendar
 import os
 import tempfile
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -105,22 +105,41 @@ def _get_with_retry(session, url: str, **kwargs):
     raise RuntimeError("NOAA-OISST-Anfrage blieb nach allen Wiederholungen erfolglos.")
 
 
-def _ncei_daily_url(day: date) -> str:
-    return NOAA_OISST_DAILY_NCEI.format(
+def _ncei_daily_url(day: date, *, preliminary: bool = False) -> str:
+    url = NOAA_OISST_DAILY_NCEI.format(
         yearmonth=f"{day:%Y%m}",
         day=f"{day:%Y%m%d}",
     )
+    return url.replace(".nc", "_preliminary.nc") if preliminary else url
+
+
+def _ncei_daily_response(day: date, session=requests, *, timeout: int = 90):
+    # NOAA liefert die jüngsten etwa zwei Wochen mit _preliminary.nc;
+    # ältere Tage als endgültige .nc. Während des Übergangs beide prüfen.
+    recent = day >= date.today() - timedelta(days=21)
+    variants = (True, False) if recent else (False, True)
+    for preliminary in variants:
+        response = _get_with_retry(
+            session,
+            _ncei_daily_url(day, preliminary=preliminary),
+            stream=True,
+            timeout=timeout,
+        )
+        if response.status_code == 404:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+            continue
+        return response
+    return None
 
 
 def oisst_date_available(day: date, session=requests) -> bool:
-    response = _get_with_retry(
-        session,
-        _ncei_daily_url(day),
-        stream=True,
-        timeout=90,
-    )
+    response = _ncei_daily_response(day, session=session, timeout=90)
+    if response is None:
+        return False
     try:
-        if response.status_code in {400, 404}:
+        if response.status_code == 400:
             return False
         response.raise_for_status()
         return True
@@ -147,12 +166,9 @@ def download_oisst_daily_subset(
     destination: Path,
     session=requests,
 ) -> Path:
-    response = _get_with_retry(
-        session,
-        _ncei_daily_url(day),
-        stream=True,
-        timeout=180,
-    )
+    response = _ncei_daily_response(day, session=session, timeout=180)
+    if response is None:
+        raise FileNotFoundError(f"NOAA-OISST-Datei für {day.isoformat()} nicht verfügbar.")
     try:
         return _write_response_atomic(response, destination)
     finally:
