@@ -48,7 +48,7 @@ const PARAMS={
   rh850:{key:"rh850",label:"Relative Feuchte 850 hPa",short:"Relative Feuchte 850 hPa",api:"relative_humidity_850hPa",kind:"instant",unit:"%",axis:"Relative Feuchte 850 hPa [%]",climate:false,zeroLine:false},
   precip24:{key:"precip24",label:"Niederschlag 24 h",short:"Niederschlag 24 h",api:"precipitation",kind:"precip24",unit:"mm",axis:"Niederschlag 24 h [mm]",climate:false,zeroLine:false},
   snow:{key:"snow",label:"Neuschnee 6 h",short:"Neuschnee 6 h",api:"snowfall",kind:"sum6",unit:"cm",axis:"Neuschnee 6 h [cm]",climate:false,zeroLine:false},
-  snowdepth:{key:"snowdepth",label:"Schneehöhe",short:"Schneehöhe",api:"snow_depth",kind:"instant",unit:"cm",axis:"Schneehöhe [cm]",climate:false,zeroLine:false},
+  snowdepth:{key:"snowdepth",label:"Schneehöhe",short:"Schneehöhe",api:"snow_depth",kind:"instant",unit:"m",axis:"Schneehöhe [m]",climate:false,zeroLine:false},
   clow:{key:"clow",label:"Tiefe Bewölkung",short:"Tiefe Bewölkung",api:"cloud_cover_low",kind:"instant",unit:"%",axis:"Tiefe Bewölkung [%]",climate:false,zeroLine:false},
   cmid:{key:"cmid",label:"Mittelhohe Bewölkung",short:"Mittelhohe Bewölkung",api:"cloud_cover_mid",kind:"instant",unit:"%",axis:"Mittelhohe Bewölkung [%]",climate:false,zeroLine:false},
   chigh:{key:"chigh",label:"Hohe Bewölkung",short:"Hohe Bewölkung",api:"cloud_cover_high",kind:"instant",unit:"%",axis:"Hohe Bewölkung [%]",climate:false,zeroLine:false},
@@ -292,7 +292,7 @@ function stats(result){
   }
   return {mean:mean,p10:p10,p25:p25,p50:p50,p75:p75,p90:p90,spread:spread,prob:prob};
 }
-function positiveParam(param){return param.kind.startsWith("precip")||param.kind==="sum6"||["%","cm","km/h","J/kg"].includes(param.unit)&&param.key!=="cin";}
+function positiveParam(param){return param.kind.startsWith("precip")||param.kind==="sum6"||["%","cm","km/h","J/kg"].includes(param.unit)&&param.key!=="cin"||param.key==="snowdepth";}
 function boundsForValues(values,param){
   const v=values.filter(Number.isFinite);
   if(!v.length)return positiveParam(param)?{min:0,max:1}:{min:-20,max:20};
@@ -351,6 +351,7 @@ function modelChart(r,bounds,param){
   const labels=r.times.slice(0,validLength).map(fmtTime),sets=[];
   const metric=displayMetric(),special=metric==="prob"||metric==="spread";
   if(!special&&!r.deterministicFallback)sets.push({label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
+  if(!special&&!r.deterministicFallback)sets.push({label:"25.–75. Perzentil",data:r.stats.p25,borderColor:"transparent",backgroundColor:"transparent",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"25.–75. Perzentil",data:r.stats.p75,borderColor:"transparent",backgroundColor:"rgba(37,99,235,.20)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
   if(!special)r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
   if(!special&&r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
   if(special){if(!r.deterministicFallback)sets.push({label:metric==="prob"?"Schwellenwert-Wahrscheinlichkeit":"Ensemble-Spread (σ)",data:metricSeries(r),borderColor:r.model.color,borderWidth:3,pointRadius:0,tension:.14});}
