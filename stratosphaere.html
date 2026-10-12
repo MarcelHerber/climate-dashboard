@@ -194,8 +194,8 @@ function draw(level,year,selected,climo,comparison){
   let from=0,to=dates.length-1;
   if(view==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
   if(view==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
-  const dsets=ds.map(d=>({...d,data:d.data.map((v,i)=>i<from||i>to?null:v)}));
-  const visible=dates.map((d,i)=>i<from||i>to?"":d.label);
+  const dsets=ds.map(d=>({...d,data:d.data.slice(from,to+1)}));
+  const visible=dates.slice(from,to+1).map(d=>d.label);
   const values=dsets.flatMap(d=>d.data).filter(Number.isFinite);
   const min=values.length?Math.min(...values):-25,max=values.length?Math.max(...values):70;
   const padding=Math.max(5,(max-min)*.12);
@@ -214,7 +214,7 @@ function draw(level,year,selected,climo,comparison){
       scales:{
         y:{min:Math.floor((min-padding)/10)*10,max:Math.ceil((max+padding)/10)*10,
           title:{display:true,text:"Zonal gemittelter Wind [m/s]"},grid:{color:"rgba(20,43,65,.1)"}},
-        x:{ticks:{autoSkip:false,maxRotation:0,callback:(value,index)=>{const d=dates[index];return d&&d.key.slice(3)==="01"&&visible[index]?months[d.month-1]:"";}},
+        x:{ticks:{autoSkip:false,maxRotation:0,callback:(value,index)=>{const d=dates[from+index];return d&&d.key.slice(3)==="01"&&visible[index]?months[d.month-1]:"";}},
           grid:{display:false},title:{display:true,text:"Saison "+seasonLabel(year)}}
       }
     }
@@ -255,7 +255,7 @@ $("png").addEventListener("click",()=>{if(!chart||!last)return;
 $("csv").addEventListener("click",()=>{if(!last)return;
   const {level,year,selected,climo}=last;
   const esc=x=>x==null?"":String(x);
-  const content=["Datum;Analyis_m_s;Prognose_m_s;Klimamittel_1991_2020_m_s;P10_m_s;P90_m_s"];
+  const content=["Datum;Analyse_m_s;Prognose_m_s;Klimamittel_1991_2020_m_s;P10_m_s;P90_m_s"];
   for(const [key,v] of selected){
     const ref=climo[key]||{};content.push([v.date,v.lead===0?v.value:"",v.lead>0?v.value:"",esc(ref.mean),esc(ref.p10),esc(ref.p90)].join(";"));
   }
