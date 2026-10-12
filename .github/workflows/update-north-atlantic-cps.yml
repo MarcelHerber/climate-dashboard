@@ -33,6 +33,9 @@ jobs:
       - name: Numerik und GRIB
         run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
 
+      - name: Mathematische Hart-CPS Regressionstests
+        run: python -m unittest discover -s tests -p test_north_atlantic_cps.py -v
+
       - name: Bestehende Zyklon-Daten laden
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
