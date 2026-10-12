@@ -1,0 +1,1606 @@
+{
+  "ready": true,
+  "year": 1946,
+  "history_start": 1940,
+  "history_end": 2025,
+  "reference_period": "1991–2020",
+  "source": "ERA5 monthly means on pressure and single levels",
+  "periods": {
+    "1946-01": {
+      "ready": true,
+      "period": "1946-01",
+      "year": 1946,
+      "month": 1,
+      "label": "Januar 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.04815401614990511
+          },
+          "stats": {
+            "current_area_mean": 0.71231814255429,
+            "reference_area_mean": 1.0346295479846335,
+            "anomaly_area_mean": -0.3223114055174168
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 5550.723220083702,
+            "reference_area_mean": 5543.43410713122,
+            "anomaly_area_mean": 7.289112952481788
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.33595492910576547
+          },
+          "stats": {
+            "current_area_mean": 20.50118073927857,
+            "reference_area_mean": 20.881996066974203,
+            "anomaly_area_mean": -0.3808153277340477
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-01-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.03378498740375547,
+            "top3_area_percent": 3.558288183749389
+          },
+          "stats": {
+            "current_area_mean": 1017.1784646847084,
+            "reference_area_mean": 1015.6797649278103,
+            "anomaly_area_mean": 1.49869975689807
+          }
+        }
+      }
+    },
+    "1946-02": {
+      "ready": true,
+      "period": "1946-02",
+      "year": 1946,
+      "month": 2,
+      "label": "Februar 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.7126412875029919
+          },
+          "stats": {
+            "current_area_mean": 0.32795354865598253,
+            "reference_area_mean": 1.1595296552516976,
+            "anomaly_area_mean": -0.8315761066677521
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 5524.6327986282295,
+            "reference_area_mean": 5540.00884923513,
+            "anomaly_area_mean": -15.376050606901043
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 1.0845201690919652
+          },
+          "stats": {
+            "current_area_mean": 21.357354069315583,
+            "reference_area_mean": 21.52551887522721,
+            "anomaly_area_mean": -0.1681648061660216
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-02-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 1015.3490627942213,
+            "reference_area_mean": 1015.4308523434318,
+            "anomaly_area_mean": -0.08178954921051665
+          }
+        }
+      }
+    },
+    "1946-03": {
+      "ready": true,
+      "period": "1946-03",
+      "year": 1946,
+      "month": 3,
+      "label": "März 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 2.1556506618961135,
+            "reference_area_mean": 2.7753718503927507,
+            "anomaly_area_mean": -0.6197211885341151
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 5553.600983835841,
+            "reference_area_mean": 5557.399802989547,
+            "anomaly_area_mean": -3.798819153705791
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 19.400390205377185,
+            "reference_area_mean": 20.447403279304257,
+            "anomaly_area_mean": -1.0470130741911259
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-03-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 1015.3408201761329,
+            "reference_area_mean": 1014.4497481655453,
+            "anomaly_area_mean": 0.8910720105875555
+          }
+        }
+      }
+    },
+    "1946-04": {
+      "ready": true,
+      "period": "1946-04",
+      "year": 1946,
+      "month": 4,
+      "label": "April 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.7689277377680631,
+            "top3_area_percent": 2.62959714060252
+          },
+          "stats": {
+            "current_area_mean": 5.572638145013688,
+            "reference_area_mean": 5.61060147826667,
+            "anomaly_area_mean": -0.03796333324741918
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.7074823437658705,
+            "top3_area_percent": 5.366900003559237
+          },
+          "stats": {
+            "current_area_mean": 5614.082253109155,
+            "reference_area_mean": 5605.931609429512,
+            "anomaly_area_mean": 8.150643679643931
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 1.4221573528747768
+          },
+          "stats": {
+            "current_area_mean": 18.120013251393544,
+            "reference_area_mean": 18.505850818046856,
+            "anomaly_area_mean": -0.3858375669128337
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-04-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.001455820939473309,
+            "top3_area_percent": 4.508206305686238
+          },
+          "stats": {
+            "current_area_mean": 1014.9479073384648,
+            "reference_area_mean": 1014.1979742487227,
+            "anomaly_area_mean": 0.7499330897422739
+          }
+        }
+      }
+    },
+    "1946-05": {
+      "ready": true,
+      "period": "1946-05",
+      "year": 1946,
+      "month": 5,
+      "label": "Mai 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.9952243175885009,
+            "top3_area_percent": 4.019361795409581
+          },
+          "stats": {
+            "current_area_mean": 8.850796533923983,
+            "reference_area_mean": 9.149072360364476,
+            "anomaly_area_mean": -0.2982758263482506
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 2.065701780559116,
+            "top3_area_percent": 4.734239409338041
+          },
+          "stats": {
+            "current_area_mean": 5673.061260563364,
+            "reference_area_mean": 5676.420684522231,
+            "anomaly_area_mean": -3.3594239588655657
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 1.734609390818374,
+            "top3_area_percent": 4.182424526192071
+          },
+          "stats": {
+            "current_area_mean": 15.55287598188473,
+            "reference_area_mean": 15.508232631954602,
+            "anomaly_area_mean": 0.044643350327021235
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-05-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.02701702981457299,
+            "top3_area_percent": 1.5199964981693213
+          },
+          "stats": {
+            "current_area_mean": 1014.6611288351452,
+            "reference_area_mean": 1014.7303569150604,
+            "anomaly_area_mean": -0.06922807991539824
+          }
+        }
+      }
+    },
+    "1946-06": {
+      "ready": true,
+      "period": "1946-06",
+      "year": 1946,
+      "month": 6,
+      "label": "Juni 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.005864212895154774,
+            "top3_area_percent": 0.6790089486916052
+          },
+          "stats": {
+            "current_area_mean": 12.28959069420293,
+            "reference_area_mean": 12.744306991975456,
+            "anomaly_area_mean": -0.45471629782486145
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 1.7297507361240079,
+            "top3_area_percent": 5.974931013182498
+          },
+          "stats": {
+            "current_area_mean": 5740.588404661003,
+            "reference_area_mean": 5740.708151504718,
+            "anomaly_area_mean": -0.11974684371535793
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 1.025150393386884,
+            "top3_area_percent": 2.6744016019291608
+          },
+          "stats": {
+            "current_area_mean": 11.732215847373018,
+            "reference_area_mean": 12.274539768961068,
+            "anomaly_area_mean": -0.5423239217907306
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-06-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 4.678711594192472,
+            "top3_area_percent": 12.617388936121413
+          },
+          "stats": {
+            "current_area_mean": 1014.7060074729324,
+            "reference_area_mean": 1013.9898511107539,
+            "anomaly_area_mean": 0.7161563621784629
+          }
+        }
+      }
+    },
+    "1946-07": {
+      "ready": true,
+      "period": "1946-07",
+      "year": 1946,
+      "month": 7,
+      "label": "Juli 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.08971141850496152
+          },
+          "stats": {
+            "current_area_mean": 14.686120423166823,
+            "reference_area_mean": 15.118082259978362,
+            "anomaly_area_mean": -0.4319618368266831
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.008525432016226834
+          },
+          "stats": {
+            "current_area_mean": 5779.2517584750885,
+            "reference_area_mean": 5780.413307971078,
+            "anomaly_area_mean": -1.161549495990079
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 4.084851556958782,
+            "top3_area_percent": 7.773289098359464
+          },
+          "stats": {
+            "current_area_mean": 10.84882395346575,
+            "reference_area_mean": 10.531652285137422,
+            "anomaly_area_mean": 0.3171716685930571
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-07-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.10087074583192382,
+            "top3_area_percent": 4.58681988783379
+          },
+          "stats": {
+            "current_area_mean": 1013.7544556936186,
+            "reference_area_mean": 1013.2066365031322,
+            "anomaly_area_mean": 0.54781919048655
+          }
+        }
+      }
+    },
+    "1946-08": {
+      "ready": true,
+      "period": "1946-08",
+      "year": 1946,
+      "month": 8,
+      "label": "August 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.5143349522330065,
+            "top3_area_percent": 2.3308155880709585
+          },
+          "stats": {
+            "current_area_mean": 14.398543138994949,
+            "reference_area_mean": 14.813789700902442,
+            "anomaly_area_mean": -0.41524656190984427
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 1.0317512502783879
+          },
+          "stats": {
+            "current_area_mean": 5768.775109670129,
+            "reference_area_mean": 5775.522413290042,
+            "anomaly_area_mean": -6.747303619912838
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 7.596953266393555,
+            "top3_area_percent": 9.576956151870588
+          },
+          "stats": {
+            "current_area_mean": 10.824705355865353,
+            "reference_area_mean": 10.59299863892432,
+            "anomaly_area_mean": 0.23170671684582347
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-08-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.05017481608056955,
+            "top3_area_percent": 1.9052590671911032
+          },
+          "stats": {
+            "current_area_mean": 1013.4227887064663,
+            "reference_area_mean": 1013.0441183197487,
+            "anomaly_area_mean": 0.3786703867176438
+          }
+        }
+      }
+    },
+    "1946-09": {
+      "ready": true,
+      "period": "1946-09",
+      "year": 1946,
+      "month": 9,
+      "label": "September 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.7424896160109511,
+            "top3_area_percent": 3.9548602431782536
+          },
+          "stats": {
+            "current_area_mean": 12.265601701292375,
+            "reference_area_mean": 12.048007860475506,
+            "anomaly_area_mean": 0.21759384082884273
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.059248971119932346,
+            "top3_area_percent": 1.9440364906025636
+          },
+          "stats": {
+            "current_area_mean": 5730.817802689469,
+            "reference_area_mean": 5733.344705913365,
+            "anomaly_area_mean": -2.5269032238949323
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 10.881868870123046,
+            "reference_area_mean": 12.330417214208701,
+            "anomaly_area_mean": -1.4485483441965326
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-09-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.41236448665948794,
+            "top3_area_percent": 3.9779182902446024
+          },
+          "stats": {
+            "current_area_mean": 1014.0177986846965,
+            "reference_area_mean": 1013.7405458913074,
+            "anomaly_area_mean": 0.2772527933888617
+          }
+        }
+      }
+    },
+    "1946-10": {
+      "ready": true,
+      "period": "1946-10",
+      "year": 1946,
+      "month": 10,
+      "label": "Oktober 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 3.38393933018971,
+            "top3_area_percent": 8.917983350374275
+          },
+          "stats": {
+            "current_area_mean": 7.877053711164602,
+            "reference_area_mean": 8.381382126701062,
+            "anomaly_area_mean": -0.5043284155080483
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 3.636375854166001,
+            "top3_area_percent": 7.083912017687926
+          },
+          "stats": {
+            "current_area_mean": 5663.467208425363,
+            "reference_area_mean": 5670.489549455527,
+            "anomaly_area_mean": -7.022341030163984
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 3.6531644420849023,
+            "top3_area_percent": 8.152634440205455
+          },
+          "stats": {
+            "current_area_mean": 15.362195938728634,
+            "reference_area_mean": 15.07049033323712,
+            "anomaly_area_mean": 0.29170560621703434
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-10-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.17625440885195193,
+            "top3_area_percent": 4.967035163728735
+          },
+          "stats": {
+            "current_area_mean": 1014.7414255257382,
+            "reference_area_mean": 1014.2705726496567,
+            "anomaly_area_mean": 0.47085287608161464
+          }
+        }
+      }
+    },
+    "1946-11": {
+      "ready": true,
+      "period": "1946-11",
+      "year": 1946,
+      "month": 11,
+      "label": "November 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 1.8927965098401307
+          },
+          "stats": {
+            "current_area_mean": 4.74145002225967,
+            "reference_area_mean": 4.703007855174581,
+            "anomaly_area_mean": 0.03844216709770794
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 5608.519385744738,
+            "reference_area_mean": 5610.831978382344,
+            "anomaly_area_mean": -2.3125926376055603
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 15.519700617456119,
+            "reference_area_mean": 17.827987828839486,
+            "anomaly_area_mean": -2.308287211437884
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-11-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 1014.7552687880742,
+            "reference_area_mean": 1015.0171441699446,
+            "anomaly_area_mean": -0.26187538187019066
+          }
+        }
+      }
+    },
+    "1946-12": {
+      "ready": true,
+      "period": "1946-12",
+      "year": 1946,
+      "month": 12,
+      "label": "Dezember 1946",
+      "products": {
+        "t850": {
+          "label": "Temperatur 850 hPa",
+          "short_label": "T850",
+          "unit": "°C",
+          "level_hpa": 850,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-t850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-t850.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-t850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.6680193922655685
+          },
+          "stats": {
+            "current_area_mean": 1.5492741540091426,
+            "reference_area_mean": 2.231118276951901,
+            "anomaly_area_mean": -0.6818441230308827
+          }
+        },
+        "z500": {
+          "label": "Geopotentialhöhe 500 hPa",
+          "short_label": "Z500",
+          "unit": "gpm",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-z500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-z500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-z500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Geopotentialhöhe",
+            "rank1_area_percent": 3.4393651995477463,
+            "top3_area_percent": 7.191613780373405
+          },
+          "stats": {
+            "current_area_mean": 5563.852055546537,
+            "reference_area_mean": 5567.156785552553,
+            "anomaly_area_mean": -3.3047300060165195
+          }
+        },
+        "wind300": {
+          "label": "Wind 300 hPa",
+          "short_label": "300-hPa-Wind",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-wind300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-wind300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-wind300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster Wind",
+            "rank1_area_percent": 0.2458948946104495,
+            "top3_area_percent": 2.8924552203478497
+          },
+          "stats": {
+            "current_area_mean": 19.582399064473403,
+            "reference_area_mean": 19.702384605975112,
+            "anomaly_area_mean": -0.11998554160149034
+          }
+        },
+        "mslp": {
+          "label": "Luftdruck auf Meereshöhe",
+          "short_label": "MSLP",
+          "unit": "hPa",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-mslp.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-mslp.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-history-1946-v1/1946-12-mslp.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchster Luftdruck",
+            "rank1_area_percent": 1.9229859330304724,
+            "top3_area_percent": 6.2890802363522305
+          },
+          "stats": {
+            "current_area_mean": 1016.7427034098905,
+            "reference_area_mean": 1015.4358663838751,
+            "anomaly_area_mean": 1.3068370260153428
+          }
+        }
+      }
+    }
+  }
+}
