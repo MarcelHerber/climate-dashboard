@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "scripts/update_era5_stratosphere.py"
+      - "scripts/update_era5_stratosphere_stage2.py"
       - "era5_stratosphere.js"
       - ".github/workflows/update-era5-stratosphere.yml"
   schedule:
@@ -58,8 +59,12 @@ jobs:
           key: era5-strato-v1-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             era5-strato-v1-${{ runner.os }}-
-      - name: Fetch genuine daily ERA5 plus one historical year
+      - name: Fetch stage-1 ERA5 60N winds and historical chunk
         run: python scripts/update_era5_stratosphere.py --current --backfill-one
+      - name: Verify stage-2 polar-cap calculations
+        run: python scripts/update_era5_stratosphere_stage2.py --self-test
+      - name: Fetch stage-2 real polar-cap temperature and geopotential
+        run: python scripts/update_era5_stratosphere_stage2.py --current --backfill-one
       - name: Validate published data
         run: |
           python - <<'PY'
@@ -74,6 +79,7 @@ jobs:
           assert days == sorted(set(days))
           assert all(date.fromisoformat(day).year>=1940 for day in days)
           assert any("u60_10" in row for row in payload["series"])
+          assert any(all(k in row for k in ("tcap_10","tcap_50","tcap_100","zcap_10")) for row in payload["series"]), "Stage 2 produced no real polar-cap values"
           print("Validated real ERA5 daily diagnostics:",len(days),"days",days[-1])
           PY
       - name: Publish stratosphere data without changing existing ERA5 maps
