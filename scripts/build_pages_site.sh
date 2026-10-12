@@ -10,6 +10,8 @@ required_root_files=(
   sst_europe.css
   t850_ensembles.js
   t850_ensembles.css
+  era5_europe.js
+  era5_europe.css
   state_monthly_ensemble.js
   state_monthly_ensemble.css
   monthly_frequency.js
@@ -111,6 +113,19 @@ else
   echo "HINWEIS: data/alpenwetter_endpoint.json ist noch nicht vorhanden."
 fi
 
+# ERA5 Atmosphäre Europa: Frontend und erzeugte Karten/Indizes werden
+# same-origin mit GitHub Pages veröffentlicht.
+if [[ ! -s era5_europe/index.json ]]; then
+  echo "FEHLER: Für GitHub Pages fehlt: era5_europe/index.json"
+  exit 1
+fi
+if [[ ! -d era5_europe/maps ]] || [[ -z "$(find era5_europe/maps -maxdepth 1 -type f -name '*.png' -print -quit)" ]]; then
+  echo "FEHLER: Für GitHub Pages fehlen ERA5-Atmosphärenkarten."
+  exit 1
+fi
+cp -a era5_europe _site/
+echo "ERA5-Atmosphäre in Pages-Artefakt übernommen."
+
 # Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.
 # index.html lädt europe_stations/index.json direkt beim Seitenstart; die
 # Tages-/Kalenderarchive liegen darunter in europe_stations/calendar/.
@@ -133,5 +148,6 @@ echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
 echo "Aktuelle Schneehöhen: $(find _site/station_snow_height_current -type f -name '*.json' | wc -l) Dateien"
 echo "Europa-Stationsdaten: $(find _site/europe_stations -type f | wc -l) Dateien"
+echo "ERA5-Atmosphäre: $(find _site/era5_europe -type f | wc -l) Dateien"
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
