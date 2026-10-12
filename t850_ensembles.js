@@ -42,7 +42,7 @@ const PARAMS={
   precip6:{key:"precip6",label:"Niederschlag 6 h",short:"RR 6 h",api:"precipitation",kind:"precip6",unit:"mm",axis:"Niederschlag 6 h [mm]",climate:false,zeroLine:false},
   precipCum:{key:"precipCum",label:"Niederschlag kumuliert",short:"RR kum.",api:"precipitation",kind:"precipCum",unit:"mm",axis:"Niederschlag kumuliert [mm]",climate:false,zeroLine:false}
 };
-let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null,lastResults=[];
+let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null,lastResults=[],axisOverrides={};
 function getParam(){const key=el("t850ParamSelect")?.value||"t850";return PARAMS[key]||PARAMS.t850;}
 
 function el(id){return document.getElementById(id);}
@@ -316,7 +316,14 @@ function options(bounds,param){
 }
 function modelChart(r,bounds,param){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
-  const labels=r.times.map(fmtTime),sets=[];
+  // Die API kann für das Modellhorizont-Ende nur noch null liefern.
+  // Keine leere Zeitachse rechts vom letzten gültigen Member anzeigen.
+  let last=-1;
+  [...r.allMembers,r.mainAligned||[],r.stats.mean||[]].forEach(function(arr){
+    arr.forEach(function(v,i){if(Number.isFinite(v))last=Math.max(last,i);});
+  });
+  const validLength=last>=0?last+1:r.times.length;
+  const labels=r.times.slice(0,validLength).map(fmtTime),sets=[];
   if(!r.deterministicFallback)sets.push({label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
   r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
   if(r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
@@ -324,6 +331,8 @@ function modelChart(r,bounds,param){
   else{sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});if(r.mainAligned&&hasFiniteSeries(r.mainAligned))sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});}
   if(param.climate&&r.climate&&hasFiniteSeries(r.climate.values))sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
   if(param.zeroLine)sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
+  // Alle Kurven an die tatsächlich vorhandenen Zeitstempel anpassen.
+  sets.forEach(function(dataset){dataset.data=(dataset.data||[]).slice(0,validLength);});
   charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds,param)});
 }
 function comparisonChart(results,bounds,lat,lon,c,param){
@@ -362,14 +371,85 @@ async function buildEnsembleResult(model,p,c,signal,param){
   const ensemble=await fetchEnsemble(model,p.latitude,p.longitude,signal,param);ensemble.stats=stats(ensemble);ensemble.main=null;ensemble.mainAligned=ensemble.times.map(function(){return null;});
   ensemble.climate=param.climate?climateSeries(c,p.latitude,p.longitude,ensemble.times):{point:null,values:ensemble.times.map(function(){return null;})};return ensemble;
 }
+function ensureModelAxisControls(param,shared){
+  const precip=param.kind.startsWith("precip");
+  MODELS.forEach(function(model){
+    const card=document.querySelector('[data-t850-model="'+model.key+'"]');
+    const head=card?.querySelector(".t850-model-head");
+    if(!head)return;
+    let group=head.querySelector(".t850-model-axis");
+    if(!group){
+      group=document.createElement("div");group.className="t850-model-axis";
+      for(const key of ["min","max"]){
+        const wrapper=document.createElement("label");
+        wrapper.className="t850-axis-field t850-axis-"+key;
+        wrapper.textContent=key==="min"?"Y min":"Y max";
+        const input=document.createElement("input");
+        input.type="number";input.inputMode="decimal";input.step="any";
+        input.placeholder="Auto";input.dataset.bound=key;
+        input.setAttribute("aria-label",model.label+" Y "+key);
+        input.addEventListener("change",function(){
+          const value=String(input.value).trim().replace(",",".");
+          if(!axisOverrides[model.key])axisOverrides[model.key]={};
+          if(value==="")delete axisOverrides[model.key][key];
+          else{
+            const parsed=Number(value);
+            if(Number.isFinite(parsed))axisOverrides[model.key][key]=parsed;
+          }
+          if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,getParam());
+        });
+        wrapper.appendChild(input);group.appendChild(wrapper);
+      }
+      const note=document.createElement("div");note.className="t850-axis-note";note.setAttribute("role","status");
+      group.appendChild(note);head.appendChild(group);
+    }
+    group.hidden=shared;
+    const minField=group.querySelector(".t850-axis-min");
+    if(minField)minField.hidden=precip;
+    group.querySelectorAll("input").forEach(function(input){
+      input.value=axisOverrides[model.key]?.[input.dataset.bound]??"";
+    });
+  });
+}
+function modelAxisBounds(r,param,sharedBounds){
+  if(sharedBounds)return sharedBounds;
+  const automatic=commonBounds([r],param),override=axisOverrides[r.model.key]||{};
+  const precip=param.kind.startsWith("precip");
+  const min=precip?0:Number.isFinite(override.min)?override.min:automatic.min;
+  const max=Number.isFinite(override.max)?override.max:automatic.max;
+  if(max<=min)return automatic;
+  return {min,max};
+}
+function modelAxisNote(r,param,bounds,shared){
+  const group=document.querySelector('[data-t850-model="'+r.model.key+'"] .t850-model-axis');
+  const note=group?.querySelector(".t850-axis-note");
+  if(!note)return;
+  if(shared){note.textContent="";return;}
+  const o=axisOverrides[r.model.key]||{};
+  if(!Number.isFinite(o.max)&&!Number.isFinite(o.min)){note.textContent="";return;}
+  const values=[];
+  [...r.allMembers,r.mainAligned||[]].forEach(function(arr){
+    arr.forEach(function(v){if(Number.isFinite(v))values.push(v);});
+  });
+  const outside=values.filter(function(v){return v<bounds.min||v>bounds.max;}).length;
+  if(outside){
+    const fullMax=Math.max(...values),fullMin=Math.min(...values);
+    note.textContent=outside+" Werte außerhalb der Achse (Datenbereich "+fmtValue(fullMin,param)+" bis "+fmtValue(fullMax,param)+").";
+    note.classList.add("warn");
+  }else{
+    note.textContent="";note.classList.remove("warn");
+  }
+}
 function renderAvailableResults(good,p,c,param){
   if(!good.length)return;
   const shared=el("t850YAxisMode")?.value==="shared";
   const sharedBounds=shared?commonBounds(good,param):null;
+  ensureModelAxisControls(param,shared);
   good.forEach(function(r){
-    // Jedes Modell bekommt standardmäßig seine eigene Y-Skala.
-    // Dadurch ist etwa ein Maximum von 5 mm neben 120 mm gut zu erkennen.
-    modelChart(r,shared?sharedBounds:commonBounds([r],param),param);
+    // Automatische Y-Skala wird ausschließlich aus diesem Modell berechnet.
+    // Optional lassen sich die Grenzen modellweise manuell eingeben.
+    const bounds=modelAxisBounds(r,param,sharedBounds);
+    modelChart(r,bounds,param);modelAxisNote(r,param,bounds,shared);
   });
   comparisonChart(good,comparisonBounds(good,param,p.latitude,p.longitude,c),p.latitude,p.longitude,c,param);
   renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null,param);applyPanelView();
@@ -393,7 +473,7 @@ function updateParameterHeader(param){
 }
 async function load(q,opts){
   opts=opts||{};q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
-  const param=getParam();updateParameterHeader(param);if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;lastResults=[];
+  const param=getParam();updateParameterHeader(param);if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;lastResults=[];axisOverrides={};
   const panelSelect=el("t850PanelSelect");if(panelSelect&&opts.resetPanel!==false)panelSelect.value="";applyPanelView();setBusy(true);setStatus("Ort wird gesucht; GFS/GEFS "+param.short+" wird zuerst geladen …","info");
   MODELS.forEach(function(m){setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");setMeta(m,m.key==="gefs"?"GFS/GEFS wird geladen …":"wartet auf GFS-Startansicht …");});
   try{
