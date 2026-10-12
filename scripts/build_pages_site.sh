@@ -148,6 +148,10 @@ if [[ ! -s europe_stations/calendar/12-31.json.gz ]]; then
 fi
 cp -a europe_stations _site/
 
+for item in tiefdruck_tracker.html tiefdruck_tracker.js tiefdruck_tracker.css; do
+  test -s "_site/$item" || { echo "FEHLER: Tracker-Datei $item fehlt im Pages-Artefakt"; exit 1; }
+done
+echo "Tiefdruck-Tracker HTML, CSS und JavaScript im Pages-Artefakt enthalten."
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
