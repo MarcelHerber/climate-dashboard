@@ -13,3 +13,15 @@
 .era5-atmos-kpi-detail{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.35}
 .era5-atmos-source{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.45}
 @media(max-width:900px){.era5-atmos-layout{grid-template-columns:1fr}.era5-atmos-image-wrap{min-height:360px}}
+
+/* Historische Karten: jeweils Absolutwert, Anomalie und Rang in einem WebP. */
+.era5-atmos-image-wrap.tiled{justify-content:flex-start;align-items:center}
+.era5-atmos-image-wrap.tiled img{
+  width:300%;
+  max-width:none;
+  max-height:none;
+  height:auto;
+  flex:0 0 300%;
+  object-fit:fill;
+  transition:transform .12s ease;
+}
