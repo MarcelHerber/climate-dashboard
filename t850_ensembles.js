@@ -38,6 +38,8 @@ const MODELS=[
 const HOURS=[0,6,12,18];
 const PARAMS={
   t850:{key:"t850",label:"Temperatur 850 hPa",short:"T850",api:"temperature_850hPa",kind:"instant",unit:"°C",axis:"T850 [°C]",climate:true,zeroLine:true},
+  tmax:{key:"tmax",label:"Tmax 2 m (täglich)",short:"Tmax",api:"temperature_2m",kind:"dailyMax",unit:"°C",axis:"Tmax 2 m [°C]",climate:false,zeroLine:true},
+  tmin:{key:"tmin",label:"Tmin 2 m (täglich)",short:"Tmin",api:"temperature_2m",kind:"dailyMin",unit:"°C",axis:"Tmin 2 m [°C]",climate:false,zeroLine:true},
   t2m:{key:"t2m",label:"Temperatur 2 m",short:"T2m",api:"temperature_2m",kind:"instant",unit:"°C",axis:"Temperatur 2 m [°C]",climate:false,zeroLine:true},
   precip6:{key:"precip6",label:"Niederschlag 6 h",short:"RR 6 h",api:"precipitation",kind:"precip6",unit:"mm",axis:"Niederschlag 6 h [mm]",climate:false,zeroLine:false},
   dew2:{key:"dew2",label:"Taupunkt 2 m",short:"Taupunkt 2 m",api:"dew_point_2m",kind:"instant",unit:"°C",axis:"Taupunkt 2 m [°C]",climate:false,zeroLine:true},
@@ -186,6 +188,23 @@ function transformSeries(times,raw,param,maxHours){
   const indexed=(times||[]).map(function(t,i){return {t:t,i:i,d:parseUtc(t)};}).filter(function(x){return !Number.isNaN(x.d.getTime());});
   if(!indexed.length)return {times:[],values:[]};
   const first=indexed[0].d.getTime(),limit=Number.isFinite(Number(maxHours))?first+Number(maxHours)*3600000+60000:Infinity;
+  if(param.kind==="dailyMax"||param.kind==="dailyMin"){
+    const groups=new Map();
+    for(const x of indexed){
+      if(x.d.getTime()>limit)break;
+      const day=x.t.slice(0,10),value=finite(raw[x.i]);
+      if(!groups.has(day))groups.set(day,{values:[],times:[]});
+      const group=groups.get(day);group.times.push(x.t);
+      if(value!==null)group.values.push(value);
+    }
+    const dates=[],values=[];
+    for(const [day,group] of groups){
+      // Exclude incomplete UTC calendar days to avoid misleading Tmax/Tmin.
+      if(group.times.length<24||group.values.length<24)continue;
+      dates.push(day+"T12:00");values.push(round(param.kind==="dailyMax"?Math.max(...group.values):Math.min(...group.values),2));
+    }
+    return {times:dates,values:values};
+  }
   if(param.kind==="instant"){
     const keep=synopticIndexes(times,maxHours);
     return {times:keep.map(function(x){return x.t;}),values:keep.map(function(x){return finite(raw[x.i]);})};
@@ -552,7 +571,7 @@ function mount(){
       if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,getParam());
     });
   }
-  if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t2m","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
+  if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t2m","tmax","tmin","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
   if(!el("t850Metric")){const container=document.createElement("div");container.className="control-group";container.innerHTML='<label for="t850Metric">Ensemble-Auswertung</label><select id="t850Metric"><option value="members">Member & Perzentile</option><option value="spread">Spread (Standardabweichung)</option><option value="prob">Schwellenwert-Wahrscheinlichkeit</option></select><label for="t850Threshold">Schwelle</label><input type="number" id="t850Threshold" value="0" step="any" style="width:82px"><select id="t850ThresholdDirection" aria-label="Schwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select>';paramSelect.closest(".control-group").insertAdjacentElement("afterend",container);const redraw=function(){const p=getParam();updateParameterHeader(p);lastResults.forEach(function(r){r.stats=stats(r);});if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,p);};["t850Metric","t850Threshold","t850ThresholdDirection"].forEach(function(id){el(id)?.addEventListener("change",redraw);});}
   paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
   updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");
