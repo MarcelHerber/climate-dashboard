@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=4">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=5">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -48,6 +48,36 @@
       <div id="tracklist" class="tracklist" aria-label="Liste der gefundenen Systeme"></div>
     </aside>
   </div>
+
+  <section class="card advanced">
+    <div class="cps-head">
+      <div>
+        <div class="eyebrow">Intensivierung · Windstruktur · Modellvergleich</div>
+        <h2>Explosive Zyklogenese und Sturmradien</h2>
+        <p class="note">24-h-Bergeron-Normierung nach geografischer Breite. Windsektoren aus echten GFS-10-m-Windkomponenten; Richtungsradien sind 90. Perzentile der Schwellenwert-Überschreitungen, keine offiziellen Sturmwarnradien.</p>
+      </div>
+      <label class="check"><input type="checkbox" id="windOverlay" checked> Windsektoren auf der Karte</label>
+    </div>
+    <div class="advanced-stats">
+      <div class="stat"><div class="label">24-h-Druckfall</div><div id="advPressure" class="value">–</div><div class="detail">hPa in 24 h (positiv = Vertiefung)</div></div>
+      <div class="stat"><div class="label">Bergeron-Faktor</div><div id="advBergeron" class="value">–</div><div class="detail" id="advBergeronDetail">Breitenkorrigierte 24-h-Intensivierung</div></div>
+      <div class="stat"><div class="label">Windradius ≥ 17,5 m/s</div><div id="advGale" class="value">–</div><div class="detail">Max. 10-m-Quadrantenradius in km</div></div>
+      <div class="stat"><div class="label">Windradius ≥ 24,7 m/s</div><div id="advStorm" class="value">–</div><div class="detail">Max. 10-m-Quadrantenradius in km</div></div>
+    </div>
+    <div id="advWarning" class="advanced-info">Bitte ein GFS-Nordatlantik-Tief wählen.</div>
+    <div class="advanced-grid">
+      <div>
+        <h3>Entwicklung des Bergeron-Faktors</h3>
+        <div class="chartbox"><canvas id="advDeepeningChart"></canvas></div>
+      </div>
+      <div>
+        <h3>Modellvergleich am aktuellen Vorhersagetermin</h3>
+        <p class="note">Räumlich und zeitlich passende ECMWF-Tropenzyklon-Zugbahnen im Umkreis von 550 km. Kein vollständiger Vergleich mit allen außertropischen IFS-Tiefs.</p>
+        <div id="advComparison" class="comparison-table">Wähle ein Tief aus.</div>
+      </div>
+    </div>
+    <p class="note">Die dargestellten Windausdehnungen beruhen auf modellierten 10-m-Werten, nicht auf 925-hPa-Windradien. Hohe Windgeschwindigkeiten weit entfernt vom Zentrum können die Quadrantenradien beeinflussen. Keine Felder unterhalb der Erdoberfläche werden künstlich ergänzt.</p>
+  </section>
   <div class="panels">
     <section class="card"><h2>Kerndruck &amp; Wind</h2><div class="chartbox"><canvas id="intensityChart"></canvas></div>
       <p class="note">Echte Modellwerte entlang der ausgewählten Zugbahn. Fehlende Werte werden nicht interpoliert.</p></section>
@@ -120,6 +150,7 @@
     <p>Quellen: <a href="https://nomads.ncep.noaa.gov/" target="_blank" rel="noopener">NOAA/NCEP GFS</a>, <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
   </section>
 </main>
-<script src="tiefdruck_phase.js?v=4"></script>
-<script src="tiefdruck_tracker.js?v=4"></script>
+<script src="tiefdruck_phase.js?v=5"></script>
+<script src="tiefdruck_diagnostics.js?v=5"></script>
+<script src="tiefdruck_tracker.js?v=5"></script>
 </body></html>
