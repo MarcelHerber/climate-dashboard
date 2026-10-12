@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: "55 10,22 * * *"
   push:
-    branches: [main, "feature/cyclone-advanced-diagnostics-20261012"]
+    branches: [main]
     paths:
       - ".github/workflows/update-gefs-cps.yml"
       - "scripts/update_gefs_cps.py"
