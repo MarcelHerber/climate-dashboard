@@ -7,6 +7,7 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  stratosphaere.html
   sst_europe.js
   sst_europe.css
   t850_ensembles.js
