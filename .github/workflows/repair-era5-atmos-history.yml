@@ -10,22 +10,24 @@ on:
 permissions:
   contents: write
 
+# On replacing this workflow, cancel the older, serial build so it cannot
+# publish the same release assets concurrently with the new publisher.
 concurrency:
   group: era5-atmos-repair-2010-2025
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    name: ERA5 Historie ${{ matrix.year }} reparieren
+  calculate:
+    name: ERA5 ${{ matrix.year }} berechnen
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         year: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
     steps:
-      - name: Historien-Skripte auschecken
+      - name: ERA5-Skripte laden
         uses: actions/checkout@v6
         with:
           ref: main
@@ -37,12 +39,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Historienpakete installieren
+      - name: Kartografie-Pakete installieren
         run: |
           python -m pip install --upgrade pip
           python -m pip install numpy xarray matplotlib cartopy pillow cdsapi netCDF4
 
-      - name: Bereits vollständige Jahres-Releases erkennen
+      - name: Fertigen Jahresrelease erkennen und Manifest wiederverwenden
         id: existing
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,15 +66,19 @@ jobs:
               if "404" not in str(exc).lower() and "not found" not in str(exc).lower():
                   raise
               assets = set()
-          ready = "manifest.json" in assets and len([item for item in assets if item.endswith(".webp")]) == 48
-          Path(os.environ["GITHUB_OUTPUT"]).open("a").write(f"ready={'true' if ready else 'false'}\n")
-          if ready:
-              print(f"ERA5 Jahr {year} bereits vollständig. Download des Manifests genügt.")
+          complete = "manifest.json" in assets and len([asset for asset in assets if asset.endswith(".webp")]) == 48
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as out:
+              out.write(f"ready={'true' if complete else 'false'}\n")
+          if complete:
+              target = Path(".era5-history-output") / str(year)
+              target.mkdir(parents=True, exist_ok=True)
+              gh("release", "download", tag, "--pattern", "manifest.json", "--dir", str(target))
+              print(f"{year}: bereits vollständig, keine Neuberechnung.", flush=True)
           else:
-              print(f"ERA5 Jahr {year}: {len([item for item in assets if item.endswith('.webp')])}/48 Atlanten vorhanden.")
+              print(f"{year}: {len([x for x in assets if x.endswith('.webp')])}/48 Atlanten, Neuberechnung erforderlich.", flush=True)
           PY
 
-      - name: Feste historische Monatsreferenzen laden
+      - name: Historische Referenzpakete herunterladen
         if: steps.existing.outputs.ready != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,18 +91,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from publish_era5_atmos_history_release import gh
-          gh(
-              "release", "download", "era5-atmos-history-reference-1940-2025-v1",
-              "--pattern", "month_*.npz",
-              "--dir", ".era5-atmos-history-refs",
-          )
-          files = list(Path(".era5-atmos-history-refs").glob("month_*.npz"))
-          if len(files) != 12:
-              raise RuntimeError(f"Nur {len(files)} von 12 Referenzmonaten heruntergeladen")
-          print("12 historische Referenzmonate bereit.")
+          gh("release", "download", "era5-atmos-history-reference-1940-2025-v1",
+             "--pattern", "month_*.npz", "--dir", ".era5-atmos-history-refs")
+          refs = list(Path(".era5-atmos-history-refs").glob("month_*.npz"))
+          if len(refs) != 12:
+              raise RuntimeError(f"Nur {len(refs)} von 12 Referenzmonaten")
           PY
 
-      - name: Fehlendes Jahr mit allen zwölf Monaten rendern
+      - name: Historische Karten erzeugen
         if: steps.existing.outputs.ready != 'true'
         env:
           TARGET_YEAR: ${{ matrix.year }}
@@ -109,21 +111,41 @@ jobs:
             --output ".era5-history-output/$TARGET_YEAR"
           test "$(find ".era5-history-output/$TARGET_YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 48
 
-      - name: Jahresrelease mit Limit-Retry vervollständigen
-        if: steps.existing.outputs.ready != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TARGET_YEAR: ${{ matrix.year }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/publish_era5_atmos_history_release.py \
-            --year "$TARGET_YEAR" \
-            --directory ".era5-history-output/$TARGET_YEAR"
+      - name: Jahr für die getrennte Upload-Warteschlange sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: era5-atmos-calculated-${{ matrix.year }}
+          path: .era5-history-output/${{ matrix.year }}/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
 
-      - name: Vorhandenes Jahresmanifest sichern
-        if: steps.existing.outputs.ready == 'true'
+  upload:
+    name: ERA5 ${{ matrix.year }} seriell hochladen
+    needs: calculate
+    if: needs.calculate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        year: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    steps:
+      - name: Upload-Skript laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: scripts
+
+      - name: Fertiges Jahresartefakt laden
+        uses: actions/download-artifact@v4
+        with:
+          name: era5-atmos-calculated-${{ matrix.year }}
+          path: .era5-year-to-publish
+
+      - name: Jahresrelease prüfen oder vervollständigen
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -131,36 +153,44 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ".era5-history-output/$TARGET_YEAR"
           export PYTHONPATH=scripts
           python - <<'PY'
           import os
-          from publish_era5_atmos_history_release import gh
-          year = os.environ["TARGET_YEAR"]
-          gh(
-              "release", "download", f"era5-atmos-history-{year}-v1",
-              "--pattern", "manifest.json",
-              "--dir", f".era5-history-output/{year}",
-              "--clobber",
-          )
+          from pathlib import Path
+          from publish_era5_atmos_history_release import gh, publish
+          year = int(os.environ["TARGET_YEAR"])
+          target = Path(".era5-year-to-publish")
+          atlases = list(target.glob("*.webp"))
+          if len(atlases) == 48:
+              publish(year, target)
+          elif len(atlases) == 0:
+              tag = f"era5-atmos-history-{year}-v1"
+              assets = set(gh("release", "view", tag, "--json", "assets", "--jq", ".assets[].name").splitlines())
+              if "manifest.json" not in assets or sum(x.endswith(".webp") for x in assets) != 48:
+                  raise RuntimeError(f"{year}: keine Bilder im Artefakt und Release unvollständig")
+              print(f"{year}: vorhandener kompletter Release bestätigt.")
+          else:
+              raise RuntimeError(f"{year}: nur {len(atlases)} von 48 Atlanten im Artefakt")
+          if not (target / "manifest.json").is_file():
+              raise RuntimeError(f"{year}: Monatsmanifest fehlt")
           PY
 
-      - name: Fertiges Jahresmanifest für Pages bereitstellen
+      - name: Nur bestätigtes Manifest für Pages bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: era5-atmos-repair-manifest-${{ matrix.year }}
-          path: .era5-history-output/${{ matrix.year }}/manifest.json
+          name: era5-atmos-verified-${{ matrix.year }}
+          path: .era5-year-to-publish/manifest.json
           if-no-files-found: error
           retention-days: 30
 
   publish:
-    name: Alle erfolgreichen Jahre zur Website synchronisieren
-    needs: repair
-    if: always()
+    name: Bestätigte Historienjahre auf GitHub Pages aktivieren
+    needs: [calculate, upload]
+    if: always() && needs.upload.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Repository auschecken
+      - name: Repository und Finalisierungsskript laden
         uses: actions/checkout@v6
         with:
           ref: main
@@ -169,14 +199,14 @@ jobs:
             scripts
             era5_europe
 
-      - name: Fertige Jahresmanifeste sammeln
+      - name: Bestätigte Jahresmanifeste sammeln
         uses: actions/download-artifact@v4
         with:
-          pattern: era5-atmos-repair-manifest-*
+          pattern: era5-atmos-verified-*
           path: .era5-history-manifests
           merge-multiple: false
 
-      - name: Neue historische Jahre veröffentlichen
+      - name: Archiv auf aktuellem main zusammenführen
         shell: bash
         run: |
           set -euo pipefail
@@ -188,13 +218,14 @@ jobs:
             python scripts/finalize_era5_atmos_history.py --artifacts .era5-history-manifests
             git add era5_europe/history era5_europe/index.json
             if git diff --cached --quiet; then
-              echo "ERA5-Historienindex ist bereits aktuell."
+              echo "Historischer ERA5-Index bereits vollständig."
               exit 0
             fi
-            git commit -m "ERA5 historische Monatsarchive 2010-2025 vervollständigt"
+            git commit -m "ERA5 Atmosphäre historische Jahre 2010-2025 nachgetragen"
             if git push origin HEAD:main; then
+              echo "Fertige ERA5-Historie auf main; Pages kann veröffentlichen."
               exit 0
             fi
-            echo "Push-Konflikt, Wiederholung $attempt/3."
+            echo "Push-Konflikt, neuer Versuch $attempt/3"
           done
           exit 1
