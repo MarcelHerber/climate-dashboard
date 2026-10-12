@@ -53,6 +53,10 @@ def _cap_rows(dataset, var, levels, days):
                 results[day][f"tcap_{level}"] = base.safe_number(mean-273.15)
             else:
                 results[day][f"zcap_{level}"] = base.safe_number(mean/9.80665)
+                if level == 10:
+                    z60 = base.zonal_at_60(values,lats) / 9.80665
+                    results[day]["wave1_10"] = base.safe_number(base.spectral_amplitude(z60,1))
+                    results[day]["wave2_10"] = base.safe_number(base.spectral_amplitude(z60,2))
     return results
 
 def retrieve_chunk(client, year, month, days, group):
@@ -121,8 +125,10 @@ def update_year_polar(client, year, *, current=False, max_chunks=2):
             dates = _dates(year,month,days)
             needs = [
                 group for group in GROUPS
-                if any(any(f"{group[2]}cap_{level}" not in existing.get(day,{})
-                           for level in group[1]) for day in dates)
+                if any(any(k not in existing.get(day,{}) for k in (
+                    tuple(f"{group[2]}cap_{level}" for level in group[1])
+                    + (("wave1_10","wave2_10") if group[2]=="z" else ())
+                )) for day in dates)
             ]
             if not needs: continue
             fetched = {day:{"date":day} for day in dates}
@@ -143,7 +149,7 @@ def choose_backfill_year():
         rows=base.read_rows(year)
         expected=366 if calendar.isleap(year) else 365
         if len(rows)<expected or any(any(k not in row for k in
-             ("tcap_10","tcap_50","tcap_100","zcap_10")) for row in rows):
+             ("tcap_10","tcap_50","tcap_100","zcap_10","wave1_10","wave2_10")) for row in rows):
             return year
     return None
 
@@ -164,6 +170,8 @@ def test():
     assert abs(t[days[0]]["tcap_10"]-(225.-273.15))<.001
     assert abs(t[days[1]]["tcap_100"]-(245.-273.15))<.001
     assert abs(g[days[0]]["zcap_10"]-30000)<.001
+    assert abs(g[days[0]]["wave1_10"])<.001
+    assert abs(g[days[0]]["wave2_10"])<.001
     print("ERA5 polar-cap stage-2 scientific self-test OK")
 
 def main():
