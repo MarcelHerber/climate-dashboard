@@ -104,7 +104,14 @@ jobs:
           if start < ARCHIVE_START:
               raise SystemExit(f'Backfill beginnt frühestens {ARCHIVE_START:%Y-%m}.')
 
-          latest = latest_available_oisst_date(date.today(), lookback_days=14)
+          # Abgeschlossene historische Monate brauchen keinen NOAA-Online-Check
+          # im Planer. Das vermeidet 429 und erlaubt reine Artefakt-Rettung.
+          today = date.today()
+          current_month = date(today.year, today.month, 1)
+          if start < current_month:
+              latest = today - timedelta(days=1)
+          else:
+              latest = latest_available_oisst_date(today, lookback_days=14)
           newest_month = date(latest.year, latest.month, 1)
           if start > newest_month:
               raise SystemExit(f'{month} liegt nach dem neuesten OISST-Monat {newest_month:%Y-%m}.')
