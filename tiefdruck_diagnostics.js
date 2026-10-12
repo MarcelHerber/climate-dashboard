@@ -25,7 +25,21 @@ function current(){
 function renderWind(p){
  if(!layer)return;
  layer.clearLayers();
- if(!$("windOverlay").checked||!p?.wind_radii)return;
+ if(!$("windOverlay").checked||!p)return;
+ if($("windLayerMode").value==="field"){
+   // Real GFS values sampled every 4th native 0.25° gridpoint; no synthetic
+   // interpolation and no misleading wind-isotach polygons.
+   const samples=p.wind_cells_10m||[];
+   for(const sample of samples){
+     if(!Array.isArray(sample)||sample.length!==3)continue;
+     const [la,lo,ms]=sample;
+     const color=ms>=32.9?"#d92d58":ms>=24.7?"#f59e0b":ms>=17.5?"#17a9c3":"#5ba3f0";
+     leaflet.circleMarker([la,lo],{radius:7.5,color,weight:0,fillColor:color,
+       fillOpacity:.38,interactive:false}).addTo(layer);
+   }
+   return;
+ }
+ if(!p.wind_radii)return;
  const caps=[
    ["gale34","#21b7d0",0.19],
    ["storm48","#f59e0b",0.24],
@@ -137,5 +151,6 @@ function setMap(mapReference,leafletReference){
  if(!layer)layer=leaflet.layerGroup().addTo(map);
 }
 $("windOverlay").addEventListener("change",()=>renderWind(current()));
+$("windLayerMode").addEventListener("change",()=>renderWind(current()));
 window.CycloneDiagnostics={update,setMap};
 })();
