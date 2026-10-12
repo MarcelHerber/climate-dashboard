@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: "23 3,9,15,21 * * *"
   push:
-    branches: [main, "feature/cyclone-phase-visual-20261012"]
+    branches: [main]
     paths:
       - ".github/workflows/update-north-atlantic-cps.yml"
       - "scripts/update_north_atlantic_cps.py"
