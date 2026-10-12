@@ -1,0 +1,58 @@
+name: GEFS Hart CPS Mitglieder berechnen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "55 10,22 * * *"
+  push:
+    branches: [main, "feature/cyclone-advanced-diagnostics-20261012"]
+    paths:
+      - ".github/workflows/update-gefs-cps.yml"
+      - "scripts/update_gefs_cps.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyclone-tracker-data
+  cancel-in-progress: false
+
+jobs:
+  gefs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 43
+    env:
+      GEFS_MEMBERS: "10"
+    steps:
+      - name: Quellcode laden
+        uses: actions/checkout@v5
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Numerik und GRIB installieren
+        run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+      - name: Bestehenden Datenbranch laden
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/real-gefs
+          test -s /tmp/real-gefs/data/cyclone-tracker/atlantic.json
+      - name: Echte GEFS-Mitglieder und CPS abrufen
+        shell: bash
+        run: |
+          python scripts/update_gefs_cps.py             --atlantic /tmp/real-gefs/data/cyclone-tracker/atlantic.json             --out /tmp/real-gefs/data/cyclone-tracker/gefs.json             --members 10 --max-hour 72
+      - name: Datensatz veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/real-gefs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cyclone-tracker/gefs.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GEFS: genuine ensemble-member CPS (pilot)"
+          git push --quiet origin HEAD:refs/heads/cyclone-tracker-data
