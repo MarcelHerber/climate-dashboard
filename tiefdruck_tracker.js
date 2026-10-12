@@ -137,35 +137,7 @@ function plotIntensity(t){
   });
 }
 function plotCps(t){
-  if(cpsChart){cpsChart.destroy();cpsChart=null;}
-  if(cpsUpperChart){cpsUpperChart.destroy();cpsUpperChart=null;}
-  const pts=(t?.points||[]).filter(p=>p.cps&&Number.isFinite(p.cps.b)
-    &&Number.isFinite(p.cps.vt_lower)&&Number.isFinite(p.cps.vt_upper));
-  $("cpsEmpty").hidden=Boolean(pts.length);
-  $("cpsWrap").hidden=!pts.length;
-  $("cpsUpperWrap").hidden=!pts.length;
-  $("cpsPng").disabled=!pts.length;
-  if(!pts.length)return;
-  const obs=pts.map((p,i)=>({h:p.h,index:i,b:p.cps.b,low:p.cps.vt_lower,upper:p.cps.vt_upper}));
-  function graph(canvasId,points,xTitle,yTitle,zeroThreshold){
-    const line={label:"CPS-Verlauf",data:points,showLine:true,pointRadius:4,
-      pointHoverRadius:7,pointBackgroundColor:points.map((p,i)=>i===points.length-1?"#e24b20":"#1766ab"),
-      borderColor:"#1766ab",borderWidth:2,tension:0};
-    const series=[line];
-    return new Chart($(canvasId),{type:"scatter",data:{datasets:series},
-      options:{responsive:true,maintainAspectRatio:false,animation:false,
-        plugins:{legend:{display:false},
-          tooltip:{callbacks:{label:item=>{
-            const p=pts[item.dataIndex];
-            return "+"+p.h+" h: B="+number(p.cps.b,1)+" m, −VTᴸ="+number(p.cps.vt_lower,1)+", −VTᵁ="+number(p.cps.vt_upper,1);
-          }}}},
-        scales:{
-          x:{title:{display:true,text:xTitle},grid:{color:"#e6ebf0"}},
-          y:{title:{display:true,text:yTitle},grid:{color:"#e6ebf0"}}
-        }}});
-  }
-  cpsChart=graph("cpsChart",obs.map(p=>({x:p.b,y:p.low})),"Asymmetrie B [m]","−VTᴸ (900–600 hPa)");
-  cpsUpperChart=graph("cpsUpperChart",obs.map(p=>({x:p.low,y:p.upper})),"−VTᴸ (900–600 hPa)","−VTᵁ (600–300 hPa)");
+  if(window.HartPhaseSpace)window.HartPhaseSpace.update(t);
 }
 function selectTrack(id){activeId=id;drawMap(false);listTracks();details(visible.find(t=>t.id===id)||null);}
 function repaint(fit=false){
@@ -199,6 +171,7 @@ async function load(){
     if(allData.models.some(m=>m.model==="gfs"))$("model").value="gfs";
     else if($("model").value==="gfs")$("model").value="all";
     populate();$("hour").value=$("model").value==="gfs"?"120":"240";repaint(true);
+    if(window.HartPhaseSpace)window.HartPhaseSpace.loadHistory();
     const gfs=success.find(j=>j.models.some(m=>m.model==="gfs"));
     setStatus((gfs?gfs.tracks.length+" GFS-Nordatlantik-Tiefbahnen und "+
       (gfs.cps_points||0)+" berechnete CPS-Zeitpunkte. ":"")+
@@ -220,18 +193,7 @@ function savePng(){
   a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
 }
 function saveCpsPng(){
-  if(!cpsChart||!cpsUpperChart||!activeId)return;
-  const left=cpsChart.canvas,right=cpsUpperChart.canvas;
-  const canvas=document.createElement("canvas"),gap=25;
-  canvas.width=left.width+right.width+gap*3;
-  canvas.height=Math.max(left.height,right.height)+gap*2+35;
-  const ctx=canvas.getContext("2d");if(!ctx)return;
-  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#16263b";ctx.font="bold 22px Arial";
-  ctx.fillText("Hart Cyclone Phase Space · "+activeId,gap,26);
-  ctx.drawImage(left,gap,gap+35);ctx.drawImage(right,left.width+gap*2,gap+35);
-  const a=document.createElement("a");a.href=canvas.toDataURL("image/png");
-  a.download="Hart_CPS_"+activeId+".png";document.body.append(a);a.click();a.remove();
+  if(window.HartPhaseSpace)window.HartPhaseSpace.exportPng();
 }
 map=L.map("map",{worldCopyJump:true}).setView([48,-45],4);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
