@@ -215,24 +215,36 @@ def last_available_date():
     # CDS daily ERA5 has about a six-day delay; avoid incomplete most recent days.
     return datetime.now(timezone.utc).date() - timedelta(days=8)
 
-def update_year(client, year, *, current=False):
+def update_year(client, year, *, current=False, max_months=4):
     cutoff = last_available_date() if current else date(year,12,31)
     existing = read_rows(year)
     by_date = {row["date"]:row for row in existing}
-    for month in range(1,13):
+    # Current newest months first; long historical backfill oldest months first.
+    months = range(12,0,-1) if current else range(1,13)
+    fetched = 0
+    for month in months:
+        if fetched >= max_months:
+            break
         final = date(year,month,1)
         if final > cutoff:
-            break
+            continue
         days = calendar.monthrange(year,month)[1]
         if year == cutoff.year and month == cutoff.month:
             days = min(days,cutoff.day)
         expected = [f"{year}-{month:02d}-{day:02d}" for day in range(1,days+1)]
         if all(day in by_date for day in expected):
             continue
-        rows = retrieve_month(client,year,month,days)
+        try:
+            rows = retrieve_month(client,year,month,days)
+        except Exception as error:
+            print(f"ERA5 {year}-{month:02d} unavailable: {error}. Keeping existing real values.",flush=True)
+            if current:
+                continue
+            break
         for row in rows:
             by_date[row["date"]] = row
         store_rows(year,list(by_date.values()))
+        fetched += 1
         print(f"Saved {year}-{month:02d}: {len(rows)} verified daily records",flush=True)
     return len(by_date)
 
@@ -330,7 +342,7 @@ def main():
         year=choose_backfill_year()
         if year is not None:
             print(f"Backfilling historical ERA5 year {year}",flush=True)
-            update_year(client,year)
+            update_year(client,year,max_months=6)
         else:
             print("Historical ERA5 years completed")
     rebuild_index()
