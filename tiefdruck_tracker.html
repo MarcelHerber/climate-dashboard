@@ -56,7 +56,11 @@
         <h2>Explosive Zyklogenese und Sturmradien</h2>
         <p class="note">24-h-Bergeron-Normierung nach geografischer Breite. Windsektoren aus echten GFS-10-m-Windkomponenten; Richtungsradien sind 90. Perzentile der Schwellenwert-Überschreitungen, keine offiziellen Sturmwarnradien.</p>
       </div>
-      <label class="check"><input type="checkbox" id="windOverlay" checked> Windsektoren auf der Karte</label>
+      <label class="check"><input type="checkbox" id="windOverlay" checked> Windlayer auf der Karte</label>
+      <label class="control">Winddarstellung<select id="windLayerMode">
+        <option value="field">GFS-10-m-Windfeld (abgetastete Rasterpunkte)</option>
+        <option value="sectors">Quadranten-Sturmradien</option>
+      </select></label>
     </div>
     <div class="advanced-stats">
       <div class="stat"><div class="label">24-h-Druckfall</div><div id="advPressure" class="value">–</div><div class="detail">hPa in 24 h (positiv = Vertiefung)</div></div>
@@ -76,7 +80,7 @@
         <div id="advComparison" class="comparison-table">Wähle ein Tief aus.</div>
       </div>
     </div>
-    <p class="note">Die dargestellten Windausdehnungen beruhen auf modellierten 10-m-Werten, nicht auf 925-hPa-Windradien. Hohe Windgeschwindigkeiten weit entfernt vom Zentrum können die Quadrantenradien beeinflussen. Keine Felder unterhalb der Erdoberfläche werden künstlich ergänzt.</p>
+    <p class="note">Die Windkarte zeigt direkt abgetastete GFS-10-m-Werte in etwa 1° Auflösung oder daraus abgeleitete Sektorradien – keine hochaufgelösten Isotachen. Beides ist nicht mit 925-hPa-Sturmradien gleichzusetzen. Hohe Windgeschwindigkeiten weit entfernt vom Zentrum können die Quadrantenradien beeinflussen. Keine Felder unterhalb der Erdoberfläche werden künstlich ergänzt.</p>
   </section>
   <div class="panels">
     <section class="card"><h2>Kerndruck &amp; Wind</h2><div class="chartbox"><canvas id="intensityChart"></canvas></div>
