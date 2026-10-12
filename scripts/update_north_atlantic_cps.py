@@ -213,6 +213,53 @@ def phase(cps):
     if lower<=0 and upper<=0:return "Kaltkern"
     return "Asymmetrisch / Übergangsstruktur" if b>=10 else "Thermisch gemischter Kern"
 
+def bergeron_24h(current, previous):
+    """Latitude-adjusted 24-hour Bergeron scale, defined for 25–75N."""
+    if previous is None or current is None:
+        return None
+    lat=float(current["lat"])
+    if not 25<=lat<=75:
+        return None
+    fall=float(previous["mslp_hpa"])-float(current["mslp_hpa"])
+    reference=24*math.sin(math.radians(lat))/math.sin(math.radians(60))
+    if reference<=0:
+        return None
+    return {"pressure_drop_hpa_24h":round(fall,1),
+            "bergeron":round(fall/reference,2),
+            "explosive":bool(fall>=reference),
+            "reference_hpa_24h":round(reference,1)}
+
+
+def wind_radii_10m(fields, lat, lon, point, search_km=600):
+    """Directional 10-m wind threshold radii from actual GFS gridpoints.
+
+    These are radial-reach estimates, NOT operational 925-hPa gale radii,
+    closed isotach contours, or wind-swath probabilities.
+    """
+    if "u10" not in fields or "v10" not in fields:
+        return None
+    inside,dx,dy,distance=region(lat,lon,point["lat"],point["lon"],search_km)
+    speed=np.hypot(fields["u10"],fields["v10"])
+    finite_mask=inside&np.isfinite(speed)&(distance>=10)
+    if np.count_nonzero(finite_mask)<100:
+        return None
+    sectors={
+        "NE":(dx>=0)&(dy>=0),"SE":(dx>=0)&(dy<0),
+        "SW":(dx<0)&(dy<0),"NW":(dx<0)&(dy>=0),
+    }
+    out={}
+    for key,threshold in (("gale34",17.5),("storm48",24.7),("hurricane64",32.9)):
+        quartiles={}
+        for quadrant,sector in sectors.items():
+            distances=distance[finite_mask&sector&(speed>=threshold)]
+            # A few isolated gridpoints are not enough to describe a storm radius.
+            quartiles[quadrant]=round(float(np.percentile(distances,90))) if distances.size>=3 else 0
+        out[key]=quartiles
+    return {"unit":"km","height":"10 m","method":"90th percentile radial reach of threshold-exceeding GFS gridpoints per geographic quadrant",
+            "search_radius_km":search_km,"thresholds_ms":{"gale34":17.5,"storm48":24.7,"hurricane64":32.9},
+            "quadrants":out}
+
+
 def enrich(tracks,grids):
     by_hour={}
     for t in tracks:
@@ -230,11 +277,21 @@ def enrich(tracks,grids):
             if c is not None:
                 p["cps"]=c;p["phase"]=phase(c)
             if "u10" in fields and "v10" in fields:
-                disk,_,_,dist=region(lat,lon,p["lat"],p["lon"],300)
+                disk,_,_,dist=region(lat,lon,p["lat"],p["lon"],400)
                 if disk.any():
                     speed=np.hypot(fields["u10"][disk],fields["v10"][disk])
                     good=speed[np.isfinite(speed)]
                     if good.size:p["vmax_ms"]=round(float(good.max()),2)
+                p["wind_radii"]=wind_radii_10m(fields,lat,lon,p)
+    # Exact +24h track-matched central-pressure differences only.
+    # Never infer intensification from the current pressure alone.
+    for t in tracks:
+        by_h={p["h"]:p for p in t["points"]}
+        for p in t["points"]:
+            if p["h"]-24 not in by_h:
+                p["cyclogenesis_24h"]=None
+            else:
+                p["cyclogenesis_24h"]=bergeron_24h(p,by_h[p["h"]-24])
     return tracks
 
 def run_candidates(now):
