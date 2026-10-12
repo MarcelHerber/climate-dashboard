@@ -17,8 +17,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-fast-deploy
-  cancel-in-progress: true
+  # Isolated group: the old pages-fast-deploy queue is repeatedly cancelling jobs before startup.
+  group: pages-dashboard-v2
+  cancel-in-progress: false
 
 jobs:
   deploy:
