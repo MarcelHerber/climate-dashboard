@@ -40,6 +40,26 @@ const PARAMS={
   t850:{key:"t850",label:"Temperatur 850 hPa",short:"T850",api:"temperature_850hPa",kind:"instant",unit:"°C",axis:"T850 [°C]",climate:true,zeroLine:true},
   t2m:{key:"t2m",label:"Temperatur 2 m",short:"T2m",api:"temperature_2m",kind:"instant",unit:"°C",axis:"Temperatur 2 m [°C]",climate:false,zeroLine:true},
   precip6:{key:"precip6",label:"Niederschlag 6 h",short:"RR 6 h",api:"precipitation",kind:"precip6",unit:"mm",axis:"Niederschlag 6 h [mm]",climate:false,zeroLine:false},
+  dew2:{key:"dew2",label:"Taupunkt 2 m",short:"Taupunkt 2 m",api:"dew_point_2m",kind:"instant",unit:"°C",axis:"Taupunkt 2 m [°C]",climate:false,zeroLine:true},
+  t925:{key:"t925",label:"Temperatur 925 hPa",short:"Temperatur 925 hPa",api:"temperature_925hPa",kind:"instant",unit:"°C",axis:"Temperatur 925 hPa [°C]",climate:false,zeroLine:true},
+  t700:{key:"t700",label:"Temperatur 700 hPa",short:"Temperatur 700 hPa",api:"temperature_700hPa",kind:"instant",unit:"°C",axis:"Temperatur 700 hPa [°C]",climate:false,zeroLine:true},
+  t500:{key:"t500",label:"Temperatur 500 hPa",short:"Temperatur 500 hPa",api:"temperature_500hPa",kind:"instant",unit:"°C",axis:"Temperatur 500 hPa [°C]",climate:false,zeroLine:true},
+  rh2:{key:"rh2",label:"Relative Feuchte 2 m",short:"Relative Feuchte 2 m",api:"relative_humidity_2m",kind:"instant",unit:"%",axis:"Relative Feuchte 2 m [%]",climate:false,zeroLine:false},
+  rh850:{key:"rh850",label:"Relative Feuchte 850 hPa",short:"Relative Feuchte 850 hPa",api:"relative_humidity_850hPa",kind:"instant",unit:"%",axis:"Relative Feuchte 850 hPa [%]",climate:false,zeroLine:false},
+  precip24:{key:"precip24",label:"Niederschlag 24 h",short:"Niederschlag 24 h",api:"precipitation",kind:"precip24",unit:"mm",axis:"Niederschlag 24 h [mm]",climate:false,zeroLine:false},
+  snow:{key:"snow",label:"Neuschnee 6 h",short:"Neuschnee 6 h",api:"snowfall",kind:"sum6",unit:"cm",axis:"Neuschnee 6 h [cm]",climate:false,zeroLine:false},
+  snowdepth:{key:"snowdepth",label:"Schneehöhe",short:"Schneehöhe",api:"snow_depth",kind:"instant",unit:"cm",axis:"Schneehöhe [cm]",climate:false,zeroLine:false},
+  clow:{key:"clow",label:"Tiefe Bewölkung",short:"Tiefe Bewölkung",api:"cloud_cover_low",kind:"instant",unit:"%",axis:"Tiefe Bewölkung [%]",climate:false,zeroLine:false},
+  cmid:{key:"cmid",label:"Mittelhohe Bewölkung",short:"Mittelhohe Bewölkung",api:"cloud_cover_mid",kind:"instant",unit:"%",axis:"Mittelhohe Bewölkung [%]",climate:false,zeroLine:false},
+  chigh:{key:"chigh",label:"Hohe Bewölkung",short:"Hohe Bewölkung",api:"cloud_cover_high",kind:"instant",unit:"%",axis:"Hohe Bewölkung [%]",climate:false,zeroLine:false},
+  wind:{key:"wind",label:"Wind 10 m",short:"Wind 10 m",api:"wind_speed_10m",kind:"instant",unit:"km/h",axis:"Wind 10 m [km/h]",climate:false,zeroLine:false},
+  gust:{key:"gust",label:"Windböen 10 m",short:"Windböen 10 m",api:"wind_gusts_10m",kind:"instant",unit:"km/h",axis:"Windböen 10 m [km/h]",climate:false,zeroLine:false},
+  mslp:{key:"mslp",label:"Luftdruck MSLP",short:"Luftdruck MSLP",api:"pressure_msl",kind:"instant",unit:"hPa",axis:"Luftdruck MSLP [hPa]",climate:false,zeroLine:false},
+  z500:{key:"z500",label:"Geopotenzialhöhe 500 hPa",short:"Geopotenzialhöhe 500 hPa",api:"geopotential_height_500hPa",kind:"instant",unit:"m",axis:"Geopotenzialhöhe 500 hPa [m]",climate:false,zeroLine:false},
+  cape:{key:"cape",label:"CAPE",short:"CAPE",api:"cape",kind:"instant",unit:"J/kg",axis:"CAPE [J/kg]",climate:false,zeroLine:false},
+  cin:{key:"cin",label:"CIN",short:"CIN",api:"convective_inhibition",kind:"instant",unit:"J/kg",axis:"CIN [J/kg]",climate:false,zeroLine:false},
+  omega700:{key:"omega700",label:"Vertikalgeschwindigkeit 700 hPa",short:"Vertikalgeschwindigkeit 700 hPa",api:"vertical_velocity_700hPa",kind:"instant",unit:"Pa/s",axis:"Vertikalgeschwindigkeit 700 hPa [Pa/s]",climate:false,zeroLine:false},
+  omega500:{key:"omega500",label:"Vertikalgeschwindigkeit 500 hPa",short:"Vertikalgeschwindigkeit 500 hPa",api:"vertical_velocity_500hPa",kind:"instant",unit:"Pa/s",axis:"Vertikalgeschwindigkeit 500 hPa [Pa/s]",climate:false,zeroLine:false},
   precipCum:{key:"precipCum",label:"Niederschlag kumuliert",short:"RR kum.",api:"precipitation",kind:"precipCum",unit:"mm",axis:"Niederschlag kumuliert [mm]",climate:false,zeroLine:false}
 };
 let mounted=false,charts={},comparison=null,climate=null,climatePromise=null,lastPlace=null,aborter=null,lastResults=[],axisOverrides={};
@@ -175,12 +195,12 @@ function transformSeries(times,raw,param,maxHours){
     if(x.d.getTime()>limit)break;
     const value=finite(raw[x.i]);
     if(param.kind==="precipCum"){if(value==null)cumulativeValid=false;else if(cumulativeValid)cumulative+=Math.max(0,value);}
-    if(param.kind==="precip6"){rolling.push(value);if(rolling.length>6)rolling.shift();}
+    if(["precip6","precip24","sum6"].includes(param.kind)){rolling.push(value);const windowSize=param.kind==="precip24"?24:6;if(rolling.length>windowSize)rolling.shift();}
     if(!HOURS.includes(x.d.getUTCHours()))continue;
     outTimes.push(x.t);
     if(param.kind==="precipCum")outValues.push(cumulativeValid?round(cumulative,2):null);
     else{
-      const valid=rolling.length===6&&rolling.every(Number.isFinite);
+      const valid=rolling.length===(param.kind==="precip24"?24:6)&&rolling.every(Number.isFinite);
       outValues.push(valid?round(rolling.reduce(function(s,v){return s+Math.max(0,v);},0),2):null);
     }
   }
@@ -264,18 +284,19 @@ function quantile(a,q){
 }
 function stats(result){
   if(result.precomputedStats)return result.precomputedStats;
-  const mean=[],p10=[],p90=[];
+  const mean=[],p10=[],p25=[],p50=[],p75=[],p90=[],spread=[],prob=[];
   for(let i=0;i<result.times.length;i++){
     const a=result.allMembers.map(function(m){return m[i];}).filter(Number.isFinite).sort(function(x,y){return x-y;});
-    if(!a.length){mean.push(null);p10.push(null);p90.push(null);continue;}
-    mean.push(round(a.reduce(function(s,v){return s+v;},0)/a.length,2));p10.push(round(quantile(a,.1),2));p90.push(round(quantile(a,.9),2));
+    if(!a.length){mean.push(null);p10.push(null);p25.push(null);p50.push(null);p75.push(null);p90.push(null);spread.push(null);prob.push(null);continue;}
+    mean.push(round(a.reduce(function(s,v){return s+v;},0)/a.length,2));p10.push(round(quantile(a,.1),2));p90.push(round(quantile(a,.9),2));p25.push(round(quantile(a,.25),2));p50.push(round(quantile(a,.5),2));p75.push(round(quantile(a,.75),2));const avg=mean[mean.length-1];spread.push(round(Math.sqrt(a.reduce(function(sum,v){return sum+(v-avg)**2;},0)/a.length),2));const threshold=Number(el("t850Threshold")?.value||0),above=el("t850ThresholdDirection")?.value!=="below";prob.push(round(100*a.filter(function(v){return above?v>=threshold:v<=threshold;}).length/a.length,1));
   }
-  return {mean:mean,p10:p10,p90:p90};
+  return {mean:mean,p10:p10,p25:p25,p50:p50,p75:p75,p90:p90,spread:spread,prob:prob};
 }
+function positiveParam(param){return param.kind.startsWith("precip")||param.kind==="sum6"||["%","cm","km/h","J/kg"].includes(param.unit)&&param.key!=="cin";}
 function boundsForValues(values,param){
   const v=values.filter(Number.isFinite);
-  if(!v.length)return param.kind.startsWith("precip")?{min:0,max:1}:{min:-20,max:20};
-  if(param.kind.startsWith("precip")){
+  if(!v.length)return positiveParam(param)?{min:0,max:1}:{min:-20,max:20};
+  if(positiveParam(param)){
     // Auch geringe 6-h-Mengen (z. B. 0,5 bis 5 mm) mit passender
     // Skalierung ab 0 mm darstellen, ohne den Bereich künstlich auf 10 mm zu zwingen.
     const mx=Math.max(...v);
@@ -286,12 +307,13 @@ function boundsForValues(values,param){
     const top=Math.ceil((mx*1.08+step*0.01)/step)*step;
     return {min:0,max:Number(top.toPrecision(12))};
   }
-  let mn=Math.floor((Math.min(...v)-2)/5)*5,mx=Math.ceil((Math.max(...v)+2)/5)*5;
-  if(mx-mn<15){mn-=5;mx+=5;}
-  return {min:mn,max:mx};
+  const minV=Math.min(...v),maxV=Math.max(...v),span=Math.max(maxV-minV,1e-6),step=Math.pow(10,Math.floor(Math.log10(span/5))),pad=Math.max(step,span*.08);let mn=Math.floor((minV-pad)/step)*step,mx=Math.ceil((maxV+pad)/step)*step;
+  if(mx<=mn){mn-=step;mx+=step;}
+  return {min:Number(mn.toPrecision(12)),max:Number(mx.toPrecision(12))};
 }
 function commonBounds(results,param){
   const v=[];
+  if(["prob","spread"].includes(displayMetric())){results.forEach(function(r){(metricSeries(r)||[]).forEach(function(x){if(Number.isFinite(x))v.push(x);});});return displayMetric()==="prob"?{min:0,max:100}:boundsForValues(v,metricParam(param));}
   results.forEach(function(r){
     r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
     if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});
@@ -304,16 +326,19 @@ function comparisonBounds(results,param,lat,lon,c){
   // Einzelne extreme Member sollen deren Y-Achse nicht unnötig aufspreizen.
   const v=[];
   results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){
-    r.stats.mean.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+    (metricSeries(r)||[]).forEach(function(x){if(Number.isFinite(x))v.push(x);});
   });
-  if(param.climate&&c)climateSeries(c,lat,lon,Array.from(new Set(results.flatMap(function(r){return r.times;})))).values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
-  return boundsForValues(v,param);
+  if(displayMetric()==="members"&&param.climate&&c)climateSeries(c,lat,lon,Array.from(new Set(results.flatMap(function(r){return r.times;})))).values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+  return displayMetric()==="prob"?{min:0,max:100}:boundsForValues(v,metricParam(param));
 }
 function options(bounds,param){
   return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
-    scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:11}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:param.axis},ticks:{callback:function(v){return param.kind.startsWith("precip")?v+" mm":v+"°";}}}},
+    scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:11}},grid:{display:false}},y:{min:bounds.min,max:bounds.max,title:{display:true,text:param.axis},ticks:{callback:function(v){return v+" "+param.unit;}}}},
     plugins:{datalabels:{display:false},legend:{position:"bottom",labels:{boxWidth:16,usePointStyle:true,filter:function(item,data){return !data.datasets[item.datasetIndex]._hideLegend;}}},tooltip:{filter:function(item){return item.dataset._tooltip!==false;},callbacks:{label:function(ctx){return ctx.dataset.label+": "+fmtValue(ctx.parsed.y,param);}}},zoom:{pan:{enabled:true,mode:"x",modifierKey:"shift"},zoom:{wheel:{enabled:true},pinch:{enabled:true},mode:"x"}}}};
 }
+function displayMetric(){return el("t850Metric")?.value||"members";}
+function metricParam(param){const metric=displayMetric();return metric==="prob"?{...param,unit:"%",axis:"Wahrscheinlichkeit [%]",kind:"probability"}:metric==="spread"?{...param,axis:"Standardabweichung ["+param.unit+"]",kind:"spread",zeroLine:false}:param;}
+function metricSeries(r){const metric=displayMetric();if(metric==="prob"||metric==="spread")return r.stats[metric];return r.stats.mean;}
 function modelChart(r,bounds,param){
   const c=el(r.model.canvas);if(!c)return;if(charts[r.model.key])charts[r.model.key].destroy();
   // Die API kann für das Modellhorizont-Ende nur noch null liefern.
@@ -324,23 +349,25 @@ function modelChart(r,bounds,param){
   });
   const validLength=last>=0?last+1:r.times.length;
   const labels=r.times.slice(0,validLength).map(fmtTime),sets=[];
-  if(!r.deterministicFallback)sets.push({label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
-  r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
-  if(r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
-  if(r.deterministicFallback)sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
+  const metric=displayMetric(),special=metric==="prob"||metric==="spread";
+  if(!special&&!r.deterministicFallback)sets.push({label:"10.–90. Perzentil",data:r.stats.p10,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,0)",pointRadius:0,borderWidth:0,_hideLegend:true},{label:"10.–90. Perzentil",data:r.stats.p90,borderColor:"rgba(37,99,235,0)",backgroundColor:"rgba(37,99,235,.12)",pointRadius:0,borderWidth:0,fill:"-1",_hideLegend:true});
+  if(!special)r.members.forEach(function(m,i){sets.push({label:"Member "+(i+1),data:m,borderColor:"rgba(71,85,105,.20)",backgroundColor:"rgba(71,85,105,0)",borderWidth:1,pointRadius:0,tension:.12,spanGaps:true,_hideLegend:true,_tooltip:false});});
+  if(!special&&r.control&&hasFiniteSeries(r.control))sets.push({label:"Kontrolllauf",data:r.control,borderColor:"#4b5563",backgroundColor:"#4b5563",borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.14,spanGaps:true});
+  if(special){if(!r.deterministicFallback)sets.push({label:metric==="prob"?"Schwellenwert-Wahrscheinlichkeit":"Ensemble-Spread (σ)",data:metricSeries(r),borderColor:r.model.color,borderWidth:3,pointRadius:0,tension:.14});}
+  else if(r.deterministicFallback)sets.push({label:"ICON-EU Hauptlauf (EPS-T850 derzeit nicht verfügbar)",data:r.stats.mean,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});
   else{sets.push({label:"Ensemble-Mittel",data:r.stats.mean,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:3,pointRadius:0,tension:.16,spanGaps:true});if(r.mainAligned&&hasFiniteSeries(r.mainAligned))sets.push({label:"Hauptlauf · "+fmtRun(r.main.run),data:r.mainAligned,borderColor:"#111827",backgroundColor:"#111827",borderWidth:4,pointRadius:0,tension:.15,spanGaps:true});}
-  if(param.climate&&r.climate&&hasFiniteSeries(r.climate.values))sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
-  if(param.zeroLine)sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
+  if(!special&&param.climate&&r.climate&&hasFiniteSeries(r.climate.values))sets.push({label:"1991–2020 ERA5",data:r.climate.values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
+  if(!special&&param.zeroLine)sets.push({label:"0 °C",data:labels.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   // Alle Kurven an die tatsächlich vorhandenen Zeitstempel anpassen.
   sets.forEach(function(dataset){dataset.data=(dataset.data||[]).slice(0,validLength);});
-  charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds,param)});
+  charts[r.model.key]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:sets},options:options(bounds,metricParam(param))});
 }
 function comparisonChart(results,bounds,lat,lon,c,param){
   const canvas=el("t850ComparisonChart");if(!canvas)return;if(comparison)comparison.destroy();
   const set=new Set();results.forEach(function(r){r.times.forEach(function(t){set.add(t);});});const times=Array.from(set).sort(),map=new Map(times.map(function(t,i){return [t,i];})),sets=[];
-  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=r.stats.mean[i];});sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
-  if(param.climate&&c)sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
-  if(param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
+  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){const d=times.map(function(){return null;});r.times.forEach(function(t,i){d[map.get(t)]=metricSeries(r)?.[i]??null;});sets.push({label:r.model.label,data:d,borderColor:r.model.color,backgroundColor:r.model.color,borderWidth:2.6,pointRadius:0,tension:.16,spanGaps:true});});
+  if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.climate&&c)sets.push({label:"1991–2020 ERA5",data:climateSeries(c,lat,lon,times).values,borderColor:"#c62828",backgroundColor:"#c62828",borderWidth:4,pointRadius:0,tension:.22,spanGaps:true});
+  if(displayMetric()!=="prob"&&displayMetric()!=="spread"&&param.zeroLine)sets.push({label:"0 °C",data:times.map(function(){return 0;}),borderColor:"rgba(31,41,55,.45)",borderDash:[6,5],borderWidth:1.3,pointRadius:0,_hideLegend:true,_tooltip:false});
   comparison=new Chart(canvas.getContext("2d"),{type:"line",data:{labels:times.map(fmtTime),datasets:sets},options:options(bounds,param)});
 }
 function renderPlace(p,cp,param){
@@ -372,7 +399,7 @@ async function buildEnsembleResult(model,p,c,signal,param){
   ensemble.climate=param.climate?climateSeries(c,p.latitude,p.longitude,ensemble.times):{point:null,values:ensemble.times.map(function(){return null;})};return ensemble;
 }
 function ensureModelAxisControls(param,shared){
-  const precip=param.kind.startsWith("precip");
+  const precip=positiveParam(param);
   MODELS.forEach(function(model){
     const card=document.querySelector('[data-t850-model="'+model.key+'"]');
     const head=card?.querySelector(".t850-model-head");
@@ -415,7 +442,7 @@ function modelAxisBounds(r,param,sharedBounds){
   if(sharedBounds)return sharedBounds;
   const automatic=commonBounds([r],param),override=axisOverrides[r.model.key]||{};
   const precip=param.kind.startsWith("precip");
-  const min=precip?0:Number.isFinite(override.min)?override.min:automatic.min;
+  const min=precip||displayMetric()==="prob"?0:Number.isFinite(override.min)?override.min:automatic.min;
   const max=Number.isFinite(override.max)?override.max:automatic.max;
   if(max<=min)return automatic;
   return {min,max};
@@ -524,6 +551,8 @@ function mount(){
       if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,getParam());
     });
   }
+  if(paramSelect){const original=paramSelect.value;paramSelect.innerHTML="";const groups=new Map();for(const p of Object.values(PARAMS)){const group=["t850","t2m","dew2","t925","t700","t500"].includes(p.key)?"Temperatur & Taupunkt":["rh2","rh850","clow","cmid","chigh"].includes(p.key)?"Feuchte & Wolken":["precip6","precip24","precipCum","snow","snowdepth"].includes(p.key)?"Niederschlag & Schnee":["wind","gust","mslp","z500"].includes(p.key)?"Wind & Druck":"Konvektion & Dynamik";if(!groups.has(group)){const opt=document.createElement("optgroup");opt.label=group;groups.set(group,opt);paramSelect.appendChild(opt);}const option=document.createElement("option");option.value=p.key;option.textContent=p.label;groups.get(group).appendChild(option);}paramSelect.value=PARAMS[original]?original:"t850";}
+  if(!el("t850Metric")){const container=document.createElement("div");container.className="control-group";container.innerHTML='<label for="t850Metric">Ensemble-Auswertung</label><select id="t850Metric"><option value="members">Member & Perzentile</option><option value="spread">Spread (Standardabweichung)</option><option value="prob">Schwellenwert-Wahrscheinlichkeit</option></select><label for="t850Threshold">Schwelle</label><input type="number" id="t850Threshold" value="0" step="any" style="width:82px"><select id="t850ThresholdDirection" aria-label="Schwellenwert-Richtung"><option value="above">≥</option><option value="below">≤</option></select>';paramSelect.closest(".control-group").insertAdjacentElement("afterend",container);const redraw=function(){const p=getParam();lastResults.forEach(function(r){r.stats=stats(r);});if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,p);};["t850Metric","t850Threshold","t850ThresholdDirection"].forEach(function(id){el(id)?.addEventListener("change",redraw);});}
   paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
   updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");
 }
