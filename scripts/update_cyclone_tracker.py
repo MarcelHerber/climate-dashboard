@@ -34,11 +34,11 @@ from eccodes import (
 UTC = dt.timezone.utc
 MODELS = (
     {"id": "ifs", "label": "ECMWF IFS", "model": None,
-     "stream": "oper", "step": 240, "type": "tf"},
+     "stream": "oper", "step": 360, "type": "tf"},
     {"id": "aifs", "label": "ECMWF AIFS", "model": "aifs-single",
      "stream": "oper", "step": 360, "type": "tf"},
     {"id": "ens", "label": "ECMWF IFS ENS", "model": None,
-     "stream": "enfo", "step": 240, "type": "tf"},
+     "stream": "enfo", "step": 360, "type": "tf"},
 )
 MISSING_LIMIT = 1e30
 
