@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stratosphäre · 60° N zonaler Wind – Climate Dashboard</title>
+<meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Arial,Helvetica,sans-serif}
+a{color:#0a5699}button,select{font:inherit}button{cursor:pointer}
+header{background:#fff;border-bottom:1px solid var(--line)}.nav{max-width:1350px;margin:auto;padding:18px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:space-between}
+.brand{font-size:17px;font-weight:800;text-decoration:none;color:var(--ink)}.navlinks{display:flex;gap:15px}
+main{max-width:1350px;margin:0 auto;padding:24px 22px 65px}.intro{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+h1{font-size:clamp(26px,3.3vw,38px);line-height:1.15;margin:6px 0 12px}h2{font-size:21px;margin:0 0 9px}
+p{margin:4px 0 12px;color:var(--muted)}.eyebrow{font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--blue)}
+.pill{display:inline-block;border-radius:99px;background:#e8f2ff;color:#205988;padding:5px 11px;font-weight:700;font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:0 4px 18px rgba(20,40,60,.045);margin-top:18px}
+.controls{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px}.controls label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);font-weight:700;min-width:165px}
+select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;background:#fff;color:var(--ink);min-height:43px}
+.btn{font-weight:700;white-space:nowrap}.btn:hover{background:#f1f7fe}.btn.primary{background:#165c98;border-color:#165c98;color:#fff}.btn.primary:hover{background:#104b7f}
+.comparison{display:flex;gap:9px 17px;align-items:center;flex-wrap:wrap;margin-top:15px;color:#43556b;font-size:13px}
+.comparison label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}.comparison input{accent-color:#195a94}
+.info{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:13px 0 2px}
+.error{color:#a42125;background:#fff0f0;border:1px solid #ffd0d0;padding:12px;border-radius:9px;margin-top:12px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:12px;margin-top:16px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:12px 15px;background:#fafcfe}.kpi .name{color:var(--muted);font-size:12px;font-weight:700}.kpi .value{font-size:clamp(19px,2.1vw,26px);font-weight:800;margin-top:4px}.kpi .detail{font-size:12px;color:var(--muted)}
+.chart{position:relative;height:520px;width:100%;margin:20px auto 5px}.chart canvas{width:100%!important;height:100%!important}
+.legendnotes{font-size:12px;color:#5f6c79;line-height:1.5}.method{display:grid;grid-template-columns:1fr 1fr;gap:22px}.method p{font-size:13px;line-height:1.6}
+.source{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;font-size:12px;line-height:1.5}
+@media(max-width:750px){main{padding:16px 11px 50px}.card{padding:14px}.kpis{grid-template-columns:1fr 1fr}.chart{height:400px}.method{grid-template-columns:1fr}.controls label{min-width:120px;flex:1}.nav{padding:13px}.navlinks{font-size:12px}}
+@media(max-width:420px){.kpis{grid-template-columns:1fr 1fr}.kpi{padding:10px}.chart{height:350px}}
+</style>
+</head>
+<body>
+<header><nav class="nav" aria-label="Navigation">
+<a class="brand" href="./index.html">Climate Dashboard Deutschland</a>
+<div class="navlinks"><a href="./index.html">Übersicht</a><a href="./index.html#t850-ensembles">Ensembles</a><strong>Stratosphäre</strong></div>
+</nav></header>
+<main>
+<div class="intro">
+<div><div class="eyebrow">Stratosphären-Monitoring</div><h1>Zonaler Wind bei 60° Nord</h1>
+<p>Polarwirbel-Diagnostik vom Sommer bis zum folgenden Frühsommer · tägliche Analyse, GEOS-FP-Prognose und historische Winter.</p></div>
+<div><span class="pill" id="badge">Daten werden geladen …</span></div>
+</div>
+<section class="card">
+<h2>Verlauf des zonal gemittelten zonalen Windes</h2>
+<div class="controls">
+<label for="level">Druckniveau<select id="level"><option value="10">10 hPa · ~30 km</option><option value="30">30 hPa · ~24 km</option><option value="50">50 hPa · ~21 km</option><option value="70">70 hPa · ~18 km</option><option value="100">100 hPa · ~16 km</option></select></label>
+<label for="season">Winter / Saison<select id="season"></select></label>
+<label for="view">Zeitraum<select id="view"><option value="winter">September – Mai</option><option value="full">Juli – Juni</option><option value="ssw">November – März</option></select></label>
+<button class="btn primary" id="reload" type="button">Daten laden</button>
+<button class="btn" id="png" type="button">PNG speichern</button>
+<button class="btn" id="csv" type="button">CSV speichern</button>
+</div>
+<div class="comparison" aria-label="Historische Vergleichswinter">
+<strong>Zusätzlich vergleichen:</strong>
+<label><input type="checkbox" value="2017">2017/18</label>
+<label><input type="checkbox" value="2009">2009/10</label>
+<label><input type="checkbox" value="2025">2025/26</label>
+<label><input type="checkbox" value="2018">2018/19</label>
+</div>
+<div id="error" class="error" hidden></div>
+<div class="info"><span id="status" aria-live="polite">Lade Daten …</span><span id="updated"></span></div>
+<div class="kpis">
+<div class="kpi"><div class="name">Letzte Analyse</div><div class="value" id="latest">–</div><div class="detail" id="latestDate">–</div></div>
+<div class="kpi"><div class="name">Abweichung zur Referenz</div><div class="value" id="anomaly">–</div><div class="detail">Gleiches Kalenderdatum · 1991–2020</div></div>
+<div class="kpi"><div class="name">Windumkehr im Winter</div><div class="value" id="reversals">–</div><div class="detail">Übergänge zu Ostwind, Nov–März</div></div>
+<div class="kpi"><div class="name">Tage mit Ostwind</div><div class="value" id="easterlies">–</div><div class="detail">Analysewerte &lt; 0 m/s, Nov–März</div></div>
+</div>
+<div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
+<div class="legendnotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+</section>
+<section class="card method">
+<div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
+<div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
+</section>
+<section class="card"><h2>Nächste Stratosphären-Module</h2><p>Für die spätere Erweiterung sind polare 10-hPa-Geopotenzialkarten mit Polarwirbelzentrum und Ellipse, Wellenzahl 1/2, Temperatur am Pol sowie zonale Höhen-/Breitenschnitte sinnvoll. Diese sind hier noch nicht als Live-Produkt integriert.</p><div class="source">Quelle: <a href="https://ozonewatch.gsfc.nasa.gov/meteorology/" target="_blank" rel="noopener">NASA Ozone Watch</a> · Datenarchiv wird über einen separaten GitHub-Workflow gespiegelt, um Browser-CORS-Probleme zu vermeiden. Download der Grafik und Tabellendaten über die Schaltflächen oben.</div></section>
+</main>
+<script>
+(function () {
+"use strict";
+const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-data/data/stratosphere/";
+const today=new Date();
+const currentYear=today.getUTCMonth()>=6?today.getUTCFullYear():today.getUTCFullYear()-1;
+const $=id=>document.getElementById(id);
+const months=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+const dates=[];
+for(let t=Date.UTC(1999,6,1);t<=Date.UTC(2000,5,30);t+=86400000){
+  const d=new Date(t);
+  dates.push({key:String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0"),label:d.getUTCDate()+". "+months[d.getUTCMonth()],month:d.getUTCMonth()+1});
+}
+const keys=dates.map(x=>x.key);
+const fetched=new Map();
+let chart=null,last=null,seq=0;
+function seasonLabel(y){return y+"/"+String((y+1)%100).padStart(2,"0");}
+function fmt(value,d=1){return Number.isFinite(value)?value.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";}
+function missing(v){return !Number.isFinite(v)||v<=-9000?null:v;}
+function parse(text){
+  const rows=new Map();
+  for(const line of text.split(/\r?\n/)){
+    const c=line.trim().split(/\s+/);
+    if(c.length<10||!/^20\d\d-|^19\d\d-/.test(c[0]))continue;
+    const value=missing(Number(c[1])),lead=Number(c[9]);
+    if(value===null||!Number.isFinite(lead)||lead<0)continue;
+    rows.set(c[0].slice(5),{value,lead,date:c[0]});
+  }
+  return rows;
+}
+async function getText(level,year){
+  const filename="u60n_"+level+"_"+year+"_merra2.txt";
+  const key=level+"-"+year;
+  if(fetched.has(key))return fetched.get(key);
+  const res=await fetch(BASE+filename+"?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
+  if(!res.ok)throw new Error("Datenreihe "+seasonLabel(year)+" ("+level+" hPa) nicht verfügbar: HTTP "+res.status);
+  const rows=parse(await res.text());
+  if(rows.size<5)throw new Error("NASA-Datei ist unvollständig: "+filename);
+  fetched.set(key,rows);
+  return rows;
+}
+async function getClimo(level){
+  const res=await fetch(BASE+"climatology_"+level+"hpa.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
+  if(!res.ok)throw new Error("Klimatologie für "+level+" hPa fehlt (HTTP "+res.status+").");
+  const data=await res.json();
+  if(!data.daily||!data.reference)throw new Error("Ungültiges Klimatologieformat.");
+  return data.daily;
+}
+function line(label,data,color,width=2,more={}){
+  return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.12,spanGaps:true,fill:false,...more};
+}
+function band(low,high,label,color){
+  return [
+    line("_"+label+" Untergrenze",low,"rgba(0,0,0,0)",0),
+    line(label,high,"rgba(0,0,0,0)",0,{fill:{target:"-1",above:color,below:color}})
+  ];
+}
+function setError(message){const el=$("error");el.hidden=!message;el.textContent=message||"";}
+function chooseSeasonOptions(){
+  for(let y=Math.max(currentYear,1978);y>=1978;y--){
+    const option=document.createElement("option");option.value=String(y);option.textContent=seasonLabel(y);
+    $("season").appendChild(option);
+  }
+  $("season").value=String(currentYear);
+}
+function seasonsSelected(){return Array.from(document.querySelectorAll(".comparison input:checked")).map(x=>+x.value).filter(x=>x!==+$("season").value);}
+function arraysFor(series,field){
+  return dates.map(d=>{const value=series.get(d.key);return value&&(!field||field(value))?value.value:null;});
+}
+function analysisRows(rows){return [...rows.values()].filter(x=>x.lead===0).sort((a,b)=>a.date.localeCompare(b.date));}
+function updateKpis(series,climo,selectedYear,level){
+  const actual=analysisRows(series);
+  const latest=actual.at(-1);
+  $("latest").textContent=latest?fmt(latest.value)+" m/s":"–";
+  $("latestDate").textContent=latest?latest.date+" · "+level+" hPa":"Noch keine Analyse";
+  const ref=latest?climo[latest.date.slice(5)]?.mean:null;
+  $("anomaly").textContent=latest&&Number.isFinite(ref)?(latest.value-ref>0?"+":"")+fmt(latest.value-ref)+" m/s":"–";
+  let easterly=0,reversals=0,prev=null;
+  for(const v of actual){
+    const m=Number(v.date.slice(5,7));
+    if(!([11,12,1,2,3].includes(m)))continue;
+    if(v.value<0){easterly++;if(prev!==null&&prev>=0)reversals++;}
+    prev=v.value;
+  }
+  $("easterlies").textContent=String(easterly);
+  $("reversals").textContent=String(reversals);
+}
+function draw(level,year,selected,climo,comparison){
+  const c=field=>dates.map(d=>missing(climo[d.key]?.[field]));
+  const ds=[
+    ...band(c("p10"),c("p90"),"10.–90. Perzentil","rgba(140,163,185,.15)"),
+    ...band(c("p30"),c("p70"),"30.–70. Perzentil","rgba(80,130,188,.2)"),
+    line("Historisches Minimum",c("min"),"rgba(100,116,139,.45)",1),
+    line("Historisches Maximum",c("max"),"rgba(100,116,139,.45)",1),
+    line("Mittel 1991–2020",c("mean"),"#b91c1c",3.2),
+    line("0 m/s · Windumkehr",dates.map(()=>0),"#4b5563",1.6,{borderDash:[5,5]}),
+    line("Winter "+seasonLabel(year)+" · Analyse",arraysFor(selected,r=>r.lead===0),"#075985",3),
+  ];
+  const analyzed=analysisRows(selected);
+  const latest=analyzed.at(-1);
+  const forecast=arraysFor(selected,r=>r.lead>0);
+  // Connect the forecast dash visually to the last analysis without labelling that point as forecast.
+  if(latest){
+    const k=keys.indexOf(latest.date.slice(5));
+    if(k>=0&&forecast.some(v=>v!==null))forecast[k]=latest.value;
+  }
+  ds.push(line("Winter "+seasonLabel(year)+" · Vorhersage",forecast,"#075985",2.6,{borderDash:[7,5]}));
+  const palette=["#7c3aed","#c27a08","#087f57","#db2777"];
+  for(let i=0;i<comparison.length;i++){
+    const [y,rows]=comparison[i];
+    ds.push(line("Vergleich "+seasonLabel(y),arraysFor(rows,r=>r.lead===0),palette[i%palette.length],1.8));
+  }
+  const view=$("view").value;
+  let from=0,to=dates.length-1;
+  if(view==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
+  if(view==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
+  const dsets=ds.map(d=>({...d,data:d.data.map((v,i)=>i<from||i>to?null:v)}));
+  const visible=dates.map((d,i)=>i<from||i>to?"":d.label);
+  const values=dsets.flatMap(d=>d.data).filter(Number.isFinite);
+  const min=values.length?Math.min(...values):-25,max=values.length?Math.max(...values):70;
+  const padding=Math.max(5,(max-min)*.12);
+  if(chart)chart.destroy();
+  chart=new Chart($("windChart"),{
+    type:"line",
+    data:{labels:visible,datasets:dsets},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{position:"bottom",labels:{boxWidth:19,usePointStyle:false,filter:item=>!item.text.startsWith("_"),font:{size:11}}},
+        tooltip:{mode:"index",intersect:false,filter:item=>!item.dataset.label.startsWith("_")&&item.parsed.y!==null,
+          callbacks:{label:item=>item.dataset.label+": "+fmt(item.parsed.y,2)+" m/s"}},
+      },
+      scales:{
+        y:{min:Math.floor((min-padding)/10)*10,max:Math.ceil((max+padding)/10)*10,
+          title:{display:true,text:"Zonal gemittelter Wind [m/s]"},grid:{color:"rgba(20,43,65,.1)"}},
+        x:{ticks:{autoSkip:false,maxRotation:0,callback:(value,index)=>{const d=dates[index];return d&&d.key.slice(3)==="01"&&visible[index]?months[d.month-1]:"";}},
+          grid:{display:false},title:{display:true,text:"Saison "+seasonLabel(year)}}
+      }
+    }
+  });
+  last={level,year,selected,climo,comparison};
+}
+let loading=false;
+async function render(){
+  if(loading)return;
+  loading=true;const ticket=++seq;
+  $("reload").disabled=true;$("status").textContent="NASA-Winddaten werden geladen …";
+  setError("");
+  try{
+    const level=+$("level").value,year=+$("season").value;
+    const comparisonYears=seasonsSelected();
+    const all=await Promise.all([getText(level,year),getClimo(level),...comparisonYears.map(y=>getText(level,y).then(rows=>[y,rows]).catch(()=>null))]);
+    if(ticket!==seq)return;
+    const [series,climo,...pairs]=all;
+    draw(level,year,series,climo,pairs.filter(Boolean));
+    updateKpis(series,climo,year,level);
+    const analyses=analysisRows(series),forecast=[...series.values()].filter(x=>x.lead>0);
+    $("status").textContent="Saison "+seasonLabel(year)+" · "+analyses.length+" Analysetage · "+forecast.length+" Prognosetage"+(pairs.some(p=>!p)?" · einzelne Vergleichsjahre fehlen":"");
+    $("badge").textContent=analyses.length?"Daten bis "+analyses.at(-1).date:"Nur Klimatologie / Vorhersage";
+  }catch(err){
+    setError("Daten derzeit nicht verfügbar. "+(err?.message||err)+". Der Daten-Workflow muss veröffentlicht und erfolgreich gelaufen sein.");
+    $("status").textContent="Kein verifizierter Datenstand";
+    $("badge").textContent="Daten fehlen";
+    if(chart){chart.destroy();chart=null;}
+  }finally{loading=false;$("reload").disabled=false;}
+}
+function saveAs(blob,name){
+  const a=document.createElement("a"),u=URL.createObjectURL(blob);
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);
+}
+$("png").addEventListener("click",()=>{if(!chart||!last)return;
+  const a=document.createElement("a");a.href=chart.toBase64Image("image/png",1);a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+".png";a.click();
+});
+$("csv").addEventListener("click",()=>{if(!last)return;
+  const {level,year,selected,climo}=last;
+  const esc=x=>x==null?"":String(x);
+  const content=["Datum;Analyis_m_s;Prognose_m_s;Klimamittel_1991_2020_m_s;P10_m_s;P90_m_s"];
+  for(const [key,v] of selected){
+    const ref=climo[key]||{};content.push([v.date,v.lead===0?v.value:"",v.lead>0?v.value:"",esc(ref.mean),esc(ref.p10),esc(ref.p90)].join(";"));
+  }
+  saveAs(new Blob(["\ufeff"+content.join("\r\n")],{type:"text/csv;charset=utf-8"}),"Stratosphaere_60N_"+level+"hPa_"+seasonLabel(year).replace("/","-")+".csv");
+});
+$("reload").addEventListener("click",render);
+$("level").addEventListener("change",render);
+$("season").addEventListener("change",render);
+$("view").addEventListener("change",()=>last?draw(last.level,last.year,last.selected,last.climo,last.comparison):render());
+document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
+(async()=>{
+  chooseSeasonOptions();
+  try{
+    const res=await fetch(BASE+"manifest.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
+    if(res.ok){
+      const m=await res.json();
+      $("updated").textContent="Archiv aktualisiert: "+new Date(m.updated_utc).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short",timeZone:"UTC"})+" UTC";
+      if(m.winter_start_year && m.winter_start_year>currentYear){
+        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);
+      }
+    }
+  }catch(e){$("updated").textContent="Archiv-Metadaten aktuell nicht erreichbar";}
+  await render();
+})();
+})();
+</script>
+</body>
+</html>
