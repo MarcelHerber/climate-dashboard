@@ -5,8 +5,8 @@ import argparse
 import re
 from pathlib import Path
 
-CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20261012-axis2">'
-JS_TAG = '<script src="t850_ensembles.js?v=20261012-axis2"></script>'
+CSS_TAG = '<link rel="stylesheet" href="t850_ensembles.css?v=20261012-parameters1">'
+JS_TAG = '<script src="t850_ensembles.js?v=20261012-parameters1"></script>'
 NAV_ANCHOR = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 NAV_BUTTON = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 PANEL_MARKER = '<!-- ================= T850 ENSEMBLES ================= -->'
