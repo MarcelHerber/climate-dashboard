@@ -1,7 +1,7 @@
 name: Zyklonen-Dashboard Diagnose-Checks
 on:
   push:
-    branches: [main, "feature/cyclone-advanced-diagnostics-20261012"]
+    branches: [main]
     paths:
       - "tests/test_cyclone_dashboard_integrity.py"
       - "tests/test_north_atlantic_cps.py"
