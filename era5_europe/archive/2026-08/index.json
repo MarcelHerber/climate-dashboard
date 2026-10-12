@@ -1,0 +1,121 @@
+{
+  "ready": true,
+  "period": "2026-08",
+  "year": 2026,
+  "month": 8,
+  "label": "August 2026",
+  "products": {
+    "t850": {
+      "label": "Temperatur 850 hPa",
+      "short_label": "T850",
+      "unit": "°C",
+      "level_hpa": 850,
+      "absolute": {
+        "file": "era5_europe/archive/2026-08/t850_absolute.png"
+      },
+      "anomaly": {
+        "file": "era5_europe/archive/2026-08/t850_anomaly.png",
+        "reference_period": "1991–2020"
+      },
+      "rank": {
+        "file": "era5_europe/archive/2026-08/t850_rank.png",
+        "history_start": 1940,
+        "history_end": 2026,
+        "comparison_years": 86,
+        "total_rank_positions": 87,
+        "direction": "1 = wärmster",
+        "rank1_area_percent": 6.674218002927984,
+        "top3_area_percent": 15.425005137966355
+      },
+      "stats": {
+        "current_area_mean": 15.695074425019826,
+        "reference_area_mean": 14.813789700902442,
+        "anomaly_area_mean": 0.8812847241093975
+      }
+    },
+    "z500": {
+      "label": "Geopotentialhöhe 500 hPa",
+      "short_label": "Z500",
+      "unit": "gpm",
+      "level_hpa": 500,
+      "absolute": {
+        "file": "era5_europe/archive/2026-08/z500_absolute.png"
+      },
+      "anomaly": {
+        "file": "era5_europe/archive/2026-08/z500_anomaly.png",
+        "reference_period": "1991–2020"
+      },
+      "rank": {
+        "file": "era5_europe/archive/2026-08/z500_rank.png",
+        "history_start": 1940,
+        "history_end": 2026,
+        "comparison_years": 86,
+        "total_rank_positions": 87,
+        "direction": "1 = höchste Geopotentialhöhe",
+        "rank1_area_percent": 22.806102221393914,
+        "top3_area_percent": 37.454516447101604
+      },
+      "stats": {
+        "current_area_mean": 5796.609467118142,
+        "reference_area_mean": 5775.522413290042,
+        "anomaly_area_mean": 21.087053828099958
+      }
+    },
+    "wind300": {
+      "label": "Wind 300 hPa",
+      "short_label": "300-hPa-Wind",
+      "unit": "m/s",
+      "level_hpa": 300,
+      "absolute": {
+        "file": "era5_europe/archive/2026-08/wind300_absolute.png"
+      },
+      "anomaly": {
+        "file": "era5_europe/archive/2026-08/wind300_anomaly.png",
+        "reference_period": "1991–2020"
+      },
+      "rank": {
+        "file": "era5_europe/archive/2026-08/wind300_rank.png",
+        "history_start": 1940,
+        "history_end": 2026,
+        "comparison_years": 86,
+        "total_rank_positions": 87,
+        "direction": "1 = stärkster Wind",
+        "rank1_area_percent": 0.22900885817892783,
+        "top3_area_percent": 1.3392255576566843
+      },
+      "stats": {
+        "current_area_mean": 10.32901728500061,
+        "reference_area_mean": 10.59299863892432,
+        "anomaly_area_mean": -0.26398135391181793
+      }
+    },
+    "mslp": {
+      "label": "Luftdruck auf Meereshöhe",
+      "short_label": "MSLP",
+      "unit": "hPa",
+      "level_hpa": null,
+      "absolute": {
+        "file": "era5_europe/archive/2026-08/mslp_absolute.png"
+      },
+      "anomaly": {
+        "file": "era5_europe/archive/2026-08/mslp_anomaly.png",
+        "reference_period": "1991–2020"
+      },
+      "rank": {
+        "file": "era5_europe/archive/2026-08/mslp_rank.png",
+        "history_start": 1940,
+        "history_end": 2026,
+        "comparison_years": 86,
+        "total_rank_positions": 87,
+        "direction": "1 = höchster Luftdruck",
+        "rank1_area_percent": 0.05240853085256615,
+        "top3_area_percent": 3.198867465847938
+      },
+      "stats": {
+        "current_area_mean": 1013.8440355304159,
+        "reference_area_mean": 1013.0441183197487,
+        "anomaly_area_mean": 0.7999172106675637
+      }
+    }
+  }
+}
