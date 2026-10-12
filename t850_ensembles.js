@@ -272,11 +272,42 @@ function stats(result){
   }
   return {mean:mean,p10:p10,p90:p90};
 }
+function boundsForValues(values,param){
+  const v=values.filter(Number.isFinite);
+  if(!v.length)return param.kind.startsWith("precip")?{min:0,max:1}:{min:-20,max:20};
+  if(param.kind.startsWith("precip")){
+    // Auch geringe 6-h-Mengen (z. B. 0,5 bis 5 mm) mit passender
+    // Skalierung ab 0 mm darstellen, ohne den Bereich künstlich auf 10 mm zu zwingen.
+    const mx=Math.max(...v);
+    if(mx<=0)return {min:0,max:1};
+    const idealStep=mx*1.1/6,power=Math.pow(10,Math.floor(Math.log10(idealStep)));
+    const factors=[1,1.25,1.5,2,2.5,5,10];
+    const step=factors.find(function(x){return x*power>=idealStep-1e-12;})*power;
+    const top=Math.ceil((mx*1.08+step*0.01)/step)*step;
+    return {min:0,max:Number(top.toPrecision(12))};
+  }
+  let mn=Math.floor((Math.min(...v)-2)/5)*5,mx=Math.ceil((Math.max(...v)+2)/5)*5;
+  if(mx-mn<15){mn-=5;mx+=5;}
+  return {min:mn,max:mx};
+}
 function commonBounds(results,param){
-  const v=[];results.forEach(function(r){r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});if(r.climate&&r.climate.values)r.climate.values.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
-  if(!v.length)return param.kind.startsWith("precip")?{min:0,max:10}:{min:-20,max:20};
-  if(param.kind.startsWith("precip")){const mx=Math.max.apply(null,v),step=mx>100?20:mx>40?10:5;return {min:0,max:Math.max(step,Math.ceil((mx*1.08+0.5)/step)*step)};}
-  let mn=Math.floor((Math.min.apply(null,v)-2)/5)*5,mx=Math.ceil((Math.max.apply(null,v)+2)/5)*5;if(mx-mn<15){mn-=5;mx+=5;}return {min:mn,max:mx};
+  const v=[];
+  results.forEach(function(r){
+    r.allMembers.forEach(function(m){m.forEach(function(x){if(Number.isFinite(x))v.push(x);});});
+    if(r.mainAligned)r.mainAligned.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+    if(r.climate&&r.climate.values)r.climate.values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+  });
+  return boundsForValues(v,param);
+}
+function comparisonBounds(results,param,lat,lon,c){
+  // Die Vergleichsgrafik zeigt nur Ensemble-Mittel (und ggf. die Klimareferenz).
+  // Einzelne extreme Member sollen deren Y-Achse nicht unnötig aufspreizen.
+  const v=[];
+  results.filter(function(r){return !r.deterministicFallback;}).forEach(function(r){
+    r.stats.mean.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+  });
+  if(param.climate&&c)climateSeries(c,lat,lon,Array.from(new Set(results.flatMap(function(r){return r.times;})))).values.forEach(function(x){if(Number.isFinite(x))v.push(x);});
+  return boundsForValues(v,param);
 }
 function options(bounds,param){
   return {responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
@@ -332,7 +363,16 @@ async function buildEnsembleResult(model,p,c,signal,param){
   ensemble.climate=param.climate?climateSeries(c,p.latitude,p.longitude,ensemble.times):{point:null,values:ensemble.times.map(function(){return null;})};return ensemble;
 }
 function renderAvailableResults(good,p,c,param){
-  if(!good.length)return;const bounds=commonBounds(good,param);good.forEach(function(r){modelChart(r,bounds,param);});comparisonChart(good,bounds,p.latitude,p.longitude,c,param);renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null,param);applyPanelView();
+  if(!good.length)return;
+  const shared=el("t850YAxisMode")?.value==="shared";
+  const sharedBounds=shared?commonBounds(good,param):null;
+  good.forEach(function(r){
+    // Jedes Modell bekommt standardmäßig seine eigene Y-Skala.
+    // Dadurch ist etwa ein Maximum von 5 mm neben 120 mm gut zu erkennen.
+    modelChart(r,shared?sharedBounds:commonBounds([r],param),param);
+  });
+  comparisonChart(good,comparisonBounds(good,param,p.latitude,p.longitude,c),p.latitude,p.longitude,c,param);
+  renderPlace(p,param.climate?gridPoint(c,p.latitude,p.longitude):null,param);applyPanelView();
 }
 function updateModelMeta(r,param){
   if(r.deterministicFallback){setMeta(r.model,"EPS-T850 liefert aktuell keine gültigen Werte · zeige ICON-EU Hauptlauf als Fallback · "+fmtTime(r.times[0])+" bis "+fmtTime(r.times[r.times.length-1])+(r.climate&&r.climate.point?" · Klima geladen":""),"warn");return;}
@@ -347,13 +387,13 @@ async function enrichWithRunInfo(r,p,c,good,signal,param){
   if(signal.aborted)return;r.main=main;r.mainAligned=main?alignSeries(main,r.times):r.times.map(function(){return null;});renderAvailableResults(good,p,c,param);setRun(m,"Ensemble: "+ensembleText+" · Hauptlauf: "+(main?fmtRun(main.run)+" · "+m.mainLabel:"nicht verfügbar"));
 }
 function updateParameterHeader(param){
-  const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"");
+  const node=el("ensembleParameterStatus");if(node)node.textContent=param.label+" · 4 Modelle · voller Modellhorizont · Hauptlauf"+(param.climate?" · ERA5 1991–2020":"")+" · Y-Achse pro Modell anpassbar";
   const title=el("ensembleComparisonTitle");if(title)title.textContent="Vergleich der Ensemble-Mittel · "+param.label;
   const climateLegend=el("ensembleClimateLegend");if(climateLegend)climateLegend.hidden=!param.climate;
 }
 async function load(q,opts){
   opts=opts||{};q=String(q||"").trim();if(q.length<2){setStatus("Bitte einen Ort eingeben.","warn");return;}
-  const param=getParam();updateParameterHeader(param);if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;
+  const param=getParam();updateParameterHeader(param);if(aborter)aborter.abort();aborter=new AbortController();const signal=aborter.signal;lastResults=[];
   const panelSelect=el("t850PanelSelect");if(panelSelect&&opts.resetPanel!==false)panelSelect.value="";applyPanelView();setBusy(true);setStatus("Ort wird gesucht; GFS/GEFS "+param.short+" wird zuerst geladen …","info");
   MODELS.forEach(function(m){setRun(m,"Ensemble-Lauf wird bestimmt … · Hauptlauf folgt");setMeta(m,m.key==="gefs"?"GFS/GEFS wird geladen …":"wartet auf GFS-Startansicht …");});
   try{
@@ -390,6 +430,20 @@ function mount(){
   const form=el("t850SearchForm"),input=el("t850LocationInput"),view=el("t850PanelSelect"),paramSelect=el("t850ParamSelect");if(!form||!input)return;mounted=true;
   form.addEventListener("submit",function(e){e.preventDefault();load(input.value,{resetPanel:true});});
   el("t850ResetZoom")?.addEventListener("click",resetZoom);el("t850PngDownload")?.addEventListener("click",png);el("t850PdfDownload")?.addEventListener("click",pdf);view?.addEventListener("change",applyPanelView);
+  // Achsenwahl ohne neue API-Abfrage: vorhandene Ensemble-Daten neu zeichnen.
+  const viewGroup=view?.closest(".control-group");
+  if(viewGroup&&!el("t850YAxisMode")){
+    const group=document.createElement("div");group.className="control-group t850-axis-control";
+    const label=document.createElement("label");label.htmlFor="t850YAxisMode";label.textContent="Y-Achse";
+    const select=document.createElement("select");select.id="t850YAxisMode";
+    [{value:"individual",text:"Automatisch je Modell"},{value:"shared",text:"Gleiche Skala für alle"}].forEach(function(item){
+      const option=document.createElement("option");option.value=item.value;option.textContent=item.text;select.appendChild(option);
+    });
+    group.appendChild(label);group.appendChild(select);viewGroup.insertAdjacentElement("afterend",group);
+    select.addEventListener("change",function(){
+      if(lastPlace&&lastResults.length)renderAvailableResults(lastResults,lastPlace,climate,getParam());
+    });
+  }
   paramSelect?.addEventListener("change",function(){updateParameterHeader(getParam());if(String(input.value||"").trim().length>=2)load(input.value,{resetPanel:false});});
   updateParameterHeader(getParam());applyPanelView();setStatus("Ort eingeben und „Ensembles laden“ wählen. Danach wird zuerst GFS/GEFS groß gezeigt; Parameter und weitere Panels kannst du oben wechseln.","info");
 }
