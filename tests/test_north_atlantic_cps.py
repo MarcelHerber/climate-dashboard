@@ -43,6 +43,29 @@ class TestHartNorthAtlantic(unittest.TestCase):
         self.assertLess(result["b"],-5)
         self.assertEqual(result["radius_km"],500)
 
+    def test_bergeron_60n_explosive_threshold(self):
+        previous={"lat":60,"mslp_hpa":1005}
+        current={"lat":60,"mslp_hpa":979}
+        d=mod.bergeron_24h(current,previous)
+        self.assertTrue(d["explosive"])
+        self.assertEqual(d["pressure_drop_hpa_24h"],26)
+        self.assertGreater(d["bergeron"],1)
+        self.assertFalse(mod.bergeron_24h({"lat":60,"mslp_hpa":996},previous)["explosive"])
+
+    def test_wind_radii_from_real_synthetic_grid(self):
+        axis=np.linspace(-5,5,101)
+        lon,lat=np.meshgrid(axis-40,axis+40)
+        shape=lat.shape
+        rad=np.hypot((lat-40)*111.195,(lon+40)*85)
+        # Compact circular modeled 10m gale region, no field outside.
+        speed=np.where(rad<=250,21.0,4.0).astype(float)
+        result=mod.wind_radii_10m({"u10":speed,"v10":np.zeros(shape)},lat,lon,
+                                  {"lat":40,"lon":-40})
+        self.assertIsNotNone(result)
+        self.assertGreater(result["quadrants"]["gale34"]["NE"],120)
+        self.assertEqual(result["quadrants"]["storm48"]["NE"],0)
+        self.assertEqual(result["height"],"10 m")
+
     def test_tracker_requires_three_times_and_contrast(self):
         run=mod.dt.datetime(2026,10,12,0,tzinfo=mod.UTC)
         obs=lambda lat,lon,p:{"lat":lat,"lon":lon,"mslp_hpa":p,"contrast_hpa":7}
