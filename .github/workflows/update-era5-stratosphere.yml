@@ -1,0 +1,101 @@
+name: ERA5 Stratosphäre Tagesdaten
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/update_era5_stratosphere.py"
+      - "era5_stratosphere.js"
+      - ".github/workflows/update-era5-stratosphere.yml"
+  schedule:
+    - cron: "45 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-stratosphere-daily
+  cancel-in-progress: false
+
+jobs:
+  daily-and-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_stratosphere
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install data analysis dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf pandas
+      - name: Verify daily diagnostic algorithms
+        run: python scripts/update_era5_stratosphere.py --self-test
+      - name: Configure Copernicus Climate Data Store
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: .era5_stratosphere_cache
+          key: era5-strato-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            era5-strato-v1-${{ runner.os }}-
+      - name: Fetch genuine daily ERA5 plus one historical year
+        run: python scripts/update_era5_stratosphere.py --current --backfill-one
+      - name: Validate published data
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import date
+          from pathlib import Path
+          path=Path("era5_stratosphere/index.json")
+          payload=json.loads(path.read_text())
+          assert payload["schema_version"]==1 and payload["ready"]
+          assert payload["series"]
+          days=[row["date"] for row in payload["series"]]
+          assert days == sorted(set(days))
+          assert all(date.fromisoformat(day).year>=1940 for day in days)
+          assert any("u60_10" in row for row in payload["series"])
+          print("Validated real ERA5 daily diagnostics:",len(days),"days",days[-1])
+          PY
+      - name: Publish stratosphere data without changing existing ERA5 maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a era5_stratosphere /tmp/era5_stratosphere_publish
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            rm -rf era5_stratosphere
+            cp -a /tmp/era5_stratosphere_publish era5_stratosphere
+            git add era5_stratosphere/
+            if git diff --cached --quiet; then
+              echo "ERA5 stratosphere has no new daily data"
+              exit 0
+            fi
+            git commit -m "Publish verified ERA5 stratosphere daily values"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push race detected, retry ${attempt}/3"
+          done
+          echo "Could not publish after three retries"
+          exit 1
