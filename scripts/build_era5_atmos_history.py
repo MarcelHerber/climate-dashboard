@@ -109,7 +109,7 @@ def render_triptych(
             "field": anomaly,
             "title": f"{meta['label']} · Abweichung {label}",
             "subtitle": "gegenüber 1991–2020",
-            "unit": "K" if key == "t850" else meta["unit"],
+            "unit": meta.get("anomaly_unit", "K" if key == "t850" else meta["unit"]),
             "cmap": meta["anomaly_cmap"],
             "bounds": meta["anomaly_bounds"],
         },
