@@ -233,7 +233,8 @@ def main():
         try:previous=json.loads(args.out.read_text())
         except Exception:previous=None
     # Resume a partially completed set, but NEVER mix model initializations.
-    if previous and previous.get("run")==base_run.strftime("%Y-%m-%dT%H:%M:%SZ"):
+    if (previous and previous.get("run")==base_run.strftime("%Y-%m-%dT%H:%M:%SZ")
+            and previous.get("matching_version")==2):
         for storm in previous.get("storms",[]):
             if storm.get("base_id") in all_members:
                 all_members[storm["base_id"]].extend(storm.get("members",[]))
@@ -272,6 +273,7 @@ def main():
     payload={"schema":1,"updated_utc":dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
        "run":base_run.strftime("%Y-%m-%dT%H:%M:%SZ"),"model":"GEFS","source":"NOAA/NCEP GEFS 0.5° 30 perturbations + control",
        "members_requested":31,
+       "matching_version":2,
        "members_processed_this_batch":len(member_ids),
        "members_complete":len(successful)==31,
        "members_with_cps":len(set(m["member"] for arr in all_members.values() for m in arr)),
