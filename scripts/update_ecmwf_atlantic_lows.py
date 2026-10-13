@@ -167,7 +167,7 @@ def update(out,model_ids):
         "source":"ECMWF IFS & AIFS Open Data forecasts, MSLP, 0.25°",
         "scope":"North Atlantic 27–75N, 105W–8W",
         "method":"Local MSLP minima and >=3 hPa annular pressure contrast; nearest-center trajectory matching every 6h, >=12h persistence",
-        "limitations":"Research low-center matching, not validated storm identity. No Hart CPS on these models until ECMWF geopotential fields are ingested. No 10-m wind radii from an MSLP-only forecast.",
+        "limitations":"Research low-center matching, not validated storm identity. This MSLP-only archive has no CPS; model-run-matched Hart CPS is published separately from ECMWF geopotential and surface pressure fields when available. No 10-m wind radii from an MSLP-only forecast.",
         "models":results,"tracks":tracks,"errors":errors
     }
     out.parent.mkdir(parents=True,exist_ok=True)

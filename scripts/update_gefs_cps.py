@@ -90,19 +90,54 @@ def retrieve(run,member,lead,target):
         raise ValueError(f"GEFS {name}: invalid GRIB")
     target.write_bytes(data)
 
-def nearest_member_center(fields,lat,lon,target):
-    # Prefer the modeled local sea-level-pressure center rather than assuming
-    # all members share the deterministic GFS central location.
-    la,lo=target["lat"],target["lon"]
-    inside,_,_,dist=gfs.region(lat,lon,la,lo,450)
-    eligible=inside&np.isfinite(fields["msl"])&(lat>=26)&(lat<=76)
-    if not eligible.any():return None
-    search=np.where(eligible,fields["msl"],np.inf)
-    i,j=np.unravel_index(np.argmin(search),search.shape)
-    center={"lat":float(lat[i,j]),"lon":float(lon[i,j]),
-            "mslp_hpa":round(float(fields["msl"][i,j]),1)}
-    if gfs.haversine(la,lo,center["lat"],center["lon"])>450:return None
-    return center
+def potential_member_centers(fields, lat, lon, reference, previous=None,
+                             hours_after_last=None):
+    """Return plausible, separate local MSLP minima (not simply lowest gridpoint).
+
+    The reference GFS low sets a 450-km candidate radius. When a GEFS member
+    was previously matched, its center must also respect a plausible speed
+    and 12h central-pressure tendency. This lowers false track swaps near
+    merging or splitting lows. Ambiguous/no-minimum positions are omitted.
+    """
+    from scipy.ndimage import minimum_filter
+    p=fields["msl"]
+    inside,_,_,distance=gfs.region(lat,lon,reference["lat"],reference["lon"],450)
+    local=minimum_filter(p,size=9,mode="nearest")
+    mask=inside&np.isfinite(p)&(p<=local+.04)&(lat>=26)&(lat<=76)
+    ixs,jxs=np.where(mask)
+    candidates=[]
+    for i,j in zip(ixs,jxs):
+        center={"lat":round(float(lat[i,j]),3),"lon":round(float(lon[i,j]),3),
+                "mslp_hpa":round(float(p[i,j]),1)}
+        km=gfs.haversine(reference["lat"],reference["lon"],
+                         center["lat"],center["lon"])
+        if km>450:
+            continue
+        separation=None
+        if previous is not None and hours_after_last is not None:
+            if not 0<hours_after_last<=24:
+                continue
+            separation=gfs.haversine(previous["lat"],previous["lon"],
+                                     center["lat"],center["lon"])
+            if separation>min(1250,hours_after_last*95):
+                continue
+            if abs(previous["mslp_hpa"]-center["mslp_hpa"])>32*hours_after_last/12:
+                continue
+        # Favor proximity to GFS reference and persistent member trajectory.
+        cost=km+(0.55*separation if separation is not None else 0)
+        candidates.append((cost,center))
+    candidates.sort(key=lambda pair:pair[0])
+    distinct=[]
+    for cost,c in candidates:
+        if any(gfs.haversine(c["lat"],c["lon"],o["lat"],o["lon"])<100
+               for _,o in distinct):
+            continue
+        distinct.append((cost,c))
+        if len(distinct)>=7:
+            break
+    return distinct
+
+
 
 def process_member(run,member,base_tracks,steps):
     out={t["id"]:[] for t in base_tracks}
@@ -127,21 +162,30 @@ def process_member(run,member,base_tracks,steps):
                 stamp=valid.strftime("%Y-%m-%dT%H:%M:%SZ")
                 proposals=[]
                 for t in base_tracks:
-                    candidates={p["time"]:p for p in t["points"]}
-                    p=candidates.get(stamp)
-                    if p is None or p.get("cps") is None:continue
-                    center=nearest_member_center(fields,lat,lon,p)
-                    if center is None:continue
+                    reference=next((p for p in t["points"] if p["time"]==stamp and p.get("cps") is not None),None)
+                    if reference is None:
+                        continue
+                    prior=out[t["id"]][-1] if out[t["id"]] else None
+                    gap=(lead-(prior["gefs_lead_h"] if prior else lead)) if prior else None
+                    candidates=potential_member_centers(
+                        fields,lat,lon,reference,previous=prior,
+                        hours_after_last=gap)
+                    for cost,candidate in candidates:
+                        proposals.append((cost,t,reference,candidate))
+                # Joint greedy matching by position+continuity cost: one
+                # reference track per step and no two references may claim
+                # a physically indistinguishable GEFS minimum.
+                assigned_tracks=set()
+                chosen_centers=[]
+                for cost,t,p,center in sorted(proposals,key=lambda x:x[0]):
+                    if t["id"] in assigned_tracks:
+                        continue
+                    if any(gfs.haversine(center["lat"],center["lon"],x["lat"],x["lon"])<140
+                           for x in chosen_centers):
+                        continue
+                    assigned_tracks.add(t["id"])
+                    chosen_centers.append(center)
                     km=gfs.haversine(p["lat"],p["lon"],center["lat"],center["lon"])
-                    proposals.append((km,t,p,center))
-                # Each GEFS member cyclone center may be assigned to ONE GFS
-                # reference cyclone only. Min-distance preference avoids
-                # double-counting nearby lows / false ensemble agreement.
-                used_centers=set()
-                for km,t,p,center in sorted(proposals,key=lambda x:x[0]):
-                    signature=(round(center["lat"],2),round(center["lon"],2))
-                    if signature in used_centers:continue
-                    used_centers.add(signature)
                     idx=t["points"].index(p)
                     p0=t["points"][max(0,idx-1)];p1=t["points"][min(len(t["points"])-1,idx+1)]
                     motion=((p1["lon"]-p0["lon"])*111.2*math.cos(math.radians(center["lat"])),
@@ -153,6 +197,8 @@ def process_member(run,member,base_tracks,steps):
                          "lat":round(center["lat"],2),"lon":round(center["lon"],2),
                          "mslp_hpa":center["mslp_hpa"],
                          "match_distance_km":round(km),
+                         "gefs_lead_h":lead,
+                         "matching_method":"unique local MSLP minimum with spatial and trajectory-continuity gates",
                          "cps":cps,"phase":gfs.phase(cps)})
             except Exception as exc:
                 warnings.append(f"+{lead}: {str(exc)[:180]}")
@@ -168,7 +214,7 @@ def main():
                         help="First GEFS member to process in this refresh batch")
     parser.add_argument("--member-end",type=int,default=None,
                         help="Last GEFS member in this batch, inclusive")
-    parser.add_argument("--max-hour",type=int,default=72)
+    parser.add_argument("--max-hour",type=int,default=96)
     args=parser.parse_args()
     atlas=json.loads(args.atlantic.read_text())
     base_tracks=[t for t in atlas.get("tracks",[]) if t.get("model")=="gfs" and
@@ -187,7 +233,9 @@ def main():
         try:previous=json.loads(args.out.read_text())
         except Exception:previous=None
     # Resume a partially completed set, but NEVER mix model initializations.
-    if previous and previous.get("run")==base_run.strftime("%Y-%m-%dT%H:%M:%SZ"):
+    if (previous and previous.get("run")==base_run.strftime("%Y-%m-%dT%H:%M:%SZ")
+            and previous.get("matching_version")==2
+            and previous.get("forecast_hours_requested")==args.max_hour):
         for storm in previous.get("storms",[]):
             if storm.get("base_id") in all_members:
                 all_members[storm["base_id"]].extend(storm.get("members",[]))
@@ -226,12 +274,14 @@ def main():
     payload={"schema":1,"updated_utc":dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
        "run":base_run.strftime("%Y-%m-%dT%H:%M:%SZ"),"model":"GEFS","source":"NOAA/NCEP GEFS 0.5° 30 perturbations + control",
        "members_requested":31,
+       "matching_version":2,
+       "forecast_hours_requested":args.max_hour,
        "members_processed_this_batch":len(member_ids),
        "members_complete":len(successful)==31,
        "members_with_cps":len(set(m["member"] for arr in all_members.values() for m in arr)),
        "pressure_levels_native":[925,850,700,500,300],
        "pressure_levels_interpolated":[900,600,400],
-       "method":"Hart 500km around nearest GEFS sea-level-pressure center within 450km of GFS baseline; 900/600/400hPa log-pressure height interpolation; 12h steps",
+       "method":"Hart 500km around unique GEFS local sea-level-pressure minima within 450km of GFS baseline, matched by position+trajectory continuity and one-to-one storm center; 900/600/400hPa log-pressure interpolation; 12h steps",
        "status":"complete" if len(successful)==31 else "partial","errors":errors,"storms":[
          {"base_id":tid,"members":records} for tid,records in all_members.items() if records]}
     args.out.parent.mkdir(parents=True,exist_ok=True)

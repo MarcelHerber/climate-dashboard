@@ -1,6 +1,6 @@
 /* Atlantic low diagnostics: Bergeron deepening, real 10-m wind quadrants,
  * and nearest available ECMWF tropical-track comparison.
- * No 925-hPa radius or IFS extratropical CPS is implied. */
+ * Wind radii are calculated only from available GFS 10-m grids. IFS/AIFS Hart CPS is loaded separately from real geopotential fields. */
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
@@ -65,7 +65,7 @@ function renderWind(p){
 }
 function trend(t){
  if(chart){chart.destroy();chart=null;}
- if(!t||t.model!=="gfs")return;
+ if(!t)return;
  const valid=t.points.filter(p=>p.cyclogenesis_24h);
  if(!valid.length)return;
  chart=new Chart($("advDeepeningChart"),{
@@ -91,7 +91,7 @@ function chooseModels(t,p){
  if(!t||!p||!all){root.textContent="Bitte ein Tief wählen.";return;}
  const names={gfs:"GFS Nordatlantik","ifs-atl":"IFS Nordatlantik","aifs-atl":"AIFS Nordatlantik",
    ifs:"IFS Tropenzyklonen",aifs:"AIFS Tropenzyklonen",ens:"IFS ENS Tropenzyklonen"};
- const rows=[{model:names[t.model]||t.model,pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,reason:"Referenz"}];
+ const rows=[{model:names[t.model]||t.model,pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,cps:p.cps,phase:p.phase,reason:"Referenz"}];
  const groups=Object.entries(names).filter(([id])=>id!==t.model);
  for(const [id,name] of groups){
    let best=null;
@@ -102,13 +102,13 @@ function chooseModels(t,p){
        if(pt.time!==p.time||!Number.isFinite(pt.lat)||!Number.isFinite(pt.lon))continue;
        const km=distance(pt,p);
        if(km>550||best&&km>=best.km)continue;
-       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,reason:id==="ifs"||id==="aifs"||id==="ens"?"TC-BUFR":"MSLP-Zentrum"};
+       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,cps:pt.cps,phase:pt.phase,reason:id==="ifs"||id==="aifs"||id==="ens"?"TC-BUFR":"MSLP-Zentrum"};
      }
    }
    rows.push(best||{model:name,pressure:null,km:null,wind:null,reason:"Kein zeitgleiches Tief im Umkreis 550 km"});
  }
  const table=document.createElement("table");table.className="model-table";
- const labels=["Modell / Datenprodukt","Zentraldruck","Abstand","10-m-Wind"];
+ const labels=["Modell / Datenprodukt","Kerndruck","Abstand","10-m-Wind","B [m]","−VTᴸ","−VTᵁ","Kernstruktur"];
  const thead=document.createElement("thead"),header=document.createElement("tr");
  labels.forEach(n=>{const th=document.createElement("th");th.textContent=n;header.append(th);});
  thead.append(header);table.append(thead);
@@ -118,7 +118,11 @@ function chooseModels(t,p){
    [r.model+(r.reason.startsWith("Kein")?" · nicht verfügbar":""),
     Number.isFinite(r.pressure)?fmt(r.pressure)+" hPa":"–",
     Number.isFinite(r.km)?fmt(r.km,0)+" km":"–",
-    Number.isFinite(r.wind)?fmt(r.wind*3.6,0)+" km/h":"–"].forEach(x=>{
+    Number.isFinite(r.wind)?fmt(r.wind*3.6,0)+" km/h":"–",
+    Number.isFinite(r.cps?.b)?fmt(r.cps.b,1):"–",
+    Number.isFinite(r.cps?.vt_lower)?fmt(r.cps.vt_lower,1):"–",
+    Number.isFinite(r.cps?.vt_upper)?fmt(r.cps.vt_upper,1):"–",
+    r.cps&&r.phase?r.phase:"–"].forEach(x=>{
        const td=document.createElement("td");td.textContent=x;tr.append(td);
     });
    tbody.append(tr);
@@ -141,7 +145,7 @@ function update(t,d,h){
  $("advGale").textContent=biggest("gale34")===null?"–":fmt(biggest("gale34"),0)+" km";
  $("advStorm").textContent=biggest("storm48")===null?"–":fmt(biggest("storm48"),0)+" km";
  $("advWarning").textContent=!t?"Bitte ein GFS-Nordatlantik-Tief wählen."
-   :t.model!=="gfs"?"Für ECMWF-Tiefs sind in dieser Stufe nur Drucktendenzen aus MSLP verfügbar; keine Windfelder und noch keine Hart-CPS-Diagnose."
+   :t.model!=="gfs"?"ECMWF: Bergeron-Drucktendenzen aus MSLP. Hart-CPS nur bei passenden Geopotenzialfeldern; keine GFS-10-m-Windsektoren für dieses ECMWF-Tief."
    :rate?.explosive?"Dieses GFS-Tief erreicht im ausgewählten 24-h-Intervall das breitenkorrigierte Bergeron-Kriterium."
    :"GFS-Modellwerte. Negative Druckfallwerte bedeuten Druckanstieg. Sektoren schätzen radiale Windschwellenausdehnungen.";
  renderWind(p);
