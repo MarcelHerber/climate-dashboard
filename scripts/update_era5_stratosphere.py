@@ -27,7 +27,7 @@ VARS = ["u_component_of_wind", "v_component_of_wind", "temperature",
 LEVELS = ["10", "30", "50", "100"]
 METRICS = [
     "u60_10", "u60_30", "u60_50", "u60_100",
-    "tcap_10", "tcap_50", "tcap_100", "zcap_10",
+    "tcap_10", "tcap_30", "tcap_50", "tcap_100", "zcap_10",
     "wave1_10", "wave2_10", "heatflux_100", "o3cap_50",
     "pv60_10", "ssw_wind_reversal", "ssw_major_events", "nam_10", "vortex_area_10"
 ]
