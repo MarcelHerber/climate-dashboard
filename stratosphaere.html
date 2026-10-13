@@ -282,33 +282,54 @@ function saveAs(blob,name){
   const a=document.createElement("a"),u=URL.createObjectURL(blob);
   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);
 }
+function exportViewLabel(){
+  return ($("mode").value==="anomaly"?"Abweichung zu 1991–2020":"Zonaler Wind · Absolutwerte")+
+    " · "+($("view").selectedOptions[0]?.textContent||"Saison");
+}
 $("png").addEventListener("click",()=>{if(!chart||!last)return;
-  // Chart.js canvas is transparent by default. Flatten the export onto white
-  // so dark-mode image viewers do not show a dark background behind dark text.
+  // Export is always opaque white, independently of site or image-viewer theme.
   const source=chart.canvas;
+  const pixelScale=source.width/Math.max(1,source.getBoundingClientRect().width);
+  const height=Math.round(110*pixelScale),pad=Math.round(21*pixelScale);
   const exportCanvas=document.createElement("canvas");
   exportCanvas.width=source.width;
-  exportCanvas.height=source.height;
+  exportCanvas.height=source.height+height;
   const ctx=exportCanvas.getContext("2d");
   if(!ctx)return;
   ctx.fillStyle="#ffffff";
   ctx.fillRect(0,0,exportCanvas.width,exportCanvas.height);
-  ctx.drawImage(source,0,0);
+  ctx.textBaseline="top";
+  ctx.fillStyle="#16253c";
+  ctx.font="700 "+Math.round(22*pixelScale)+"px Arial, sans-serif";
+  ctx.fillText("Zonaler Wind bei 60° Nord · "+last.level+" hPa",pad,14*pixelScale,source.width-2*pad);
+  ctx.fillStyle="#42566b";
+  ctx.font=Math.round(15*pixelScale)+"px Arial, sans-serif";
+  ctx.fillText("Saison "+seasonLabel(last.year)+" · "+exportViewLabel(),pad,49*pixelScale,source.width-2*pad);
+  ctx.font=Math.round(12*pixelScale)+"px Arial, sans-serif";
+  ctx.fillText("NASA Ozone Watch · MERRA-2 / GEOS-FP · Klimatologie 1991–2020 · Analyse und Prognose getrennt",pad,75*pixelScale,source.width-2*pad);
+  ctx.strokeStyle="#dce3eb";
+  ctx.beginPath();ctx.moveTo(pad,height-6*pixelScale);ctx.lineTo(source.width-pad,height-6*pixelScale);ctx.stroke();
+  ctx.drawImage(source,0,height);
   const a=document.createElement("a");
   a.href=exportCanvas.toDataURL("image/png");
-  a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+".png";
+  a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+
+    ($("mode").value==="anomaly"?"_Anomalie":"")+".png";
   document.body.appendChild(a);
-  a.click();
-  a.remove();
+  a.click();a.remove();
 });
 $("csv").addEventListener("click",()=>{if(!last)return;
   const {level,year,selected,climo}=last;
   const esc=x=>x==null?"":String(x);
-  const content=["Datum;Analyse_m_s;Prognose_m_s;Klimamittel_1991_2020_m_s;P10_m_s;P90_m_s"];
+  const content=["Datum;Analyse_m_s;Prognose_m_s;Anomalie_Analyse_m_s;Anomalie_Prognose_m_s;Klimamittel_1991_2020_m_s;P10_m_s;P90_m_s"];
   for(const [key,v] of selected){
-    const ref=climo[key]||{};content.push([v.date,v.lead===0?v.value:"",v.lead>0?v.value:"",esc(ref.mean),esc(ref.p10),esc(ref.p90)].join(";"));
+    const ref=climo[key]||{};
+    const anom=Number.isFinite(ref.mean)?Number((v.value-ref.mean).toFixed(3)):null;
+    content.push([v.date,v.lead===0?v.value:"",v.lead>0?v.value:"",
+      v.lead===0?esc(anom):"",v.lead>0?esc(anom):"",
+      esc(ref.mean),esc(ref.p10),esc(ref.p90)].join(";"));
   }
-  saveAs(new Blob(["\ufeff"+content.join("\r\n")],{type:"text/csv;charset=utf-8"}),"Stratosphaere_60N_"+level+"hPa_"+seasonLabel(year).replace("/","-")+".csv");
+  saveAs(new Blob(["\\ufeff"+content.join("\\r\\n")],{type:"text/csv;charset=utf-8"}),
+    "Stratosphaere_60N_"+level+"hPa_"+seasonLabel(year).replace("/","-")+".csv");
 });
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
