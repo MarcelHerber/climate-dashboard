@@ -225,7 +225,7 @@ def backfill_priority_temperatures(client, *, max_chunks=9):
         completed += 1
         print(f"Saved verified ERA5 polar temperature: {year}-{month:02d}, "
               f"{len(existing)} year records", flush=True)
-    return completed, not bool(priority_work_plan(by_year, 1))
+    return completed, not bool(priority_work_plan(by_year, 1)), failed
 
 
 def priority_self_test():
@@ -452,10 +452,11 @@ def main():
     priority_incomplete = False
     if args.priority_backfill:
         try:
-            done, finished = backfill_priority_temperatures(
+            done, finished, p_failed = backfill_priority_temperatures(
                 client, max_chunks=args.priority_chunks)
             priority_incomplete = not finished
             run_stats["priority_chunks_completed"]=done
+            run_stats["priority_errors"]=p_failed
             run_stats["priority_complete"]=finished
             print(f"Priority SSW ERA5 chunks in this run: {done}; "
                   f"all target windows complete: {finished}",flush=True)
