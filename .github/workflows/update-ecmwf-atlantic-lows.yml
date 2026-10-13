@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: "45 6,18 * * *"
   push:
-    branches: [main, "feature/gefs31-ifs-aifs-extratropical-20261013"]
+    branches: [main]
     paths:
       - "scripts/update_ecmwf_atlantic_lows.py"
       - ".github/workflows/update-ecmwf-atlantic-lows.yml"
