@@ -141,6 +141,10 @@ if [[ -s era5_stratosphere/index.json ]]; then
   mkdir -p _site/era5_stratosphere
   cp era5_stratosphere/index.json _site/era5_stratosphere/index.json
   echo "ERA5-Stratosphäre Index in Pages-Artefakt übernommen."
+  if [[ -s era5_stratosphere/backfill_status.json ]]; then
+    cp era5_stratosphere/backfill_status.json _site/era5_stratosphere/backfill_status.json
+    echo "ERA5-Backfillstatus mit realen Abdeckungszahlen veröffentlicht."
+  fi
 else
   echo "HINWEIS: ERA5-Stratosphäre Index fehlt, Frontend verwendet GitHub-Raw-Fallback."
 fi
