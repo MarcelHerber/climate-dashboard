@@ -29,6 +29,11 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .chart{position:relative;height:520px;width:100%;margin:20px auto 5px}.chart canvas{width:100%!important;height:100%!important}
 .legendnotes{font-size:12px;color:#5f6c79;line-height:1.5}.method{display:grid;grid-template-columns:1fr 1fr;gap:22px}.method p{font-size:13px;line-height:1.6}
 .source{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;font-size:12px;line-height:1.5}
+.heatmap-stage{height:365px;position:relative;margin-top:15px;min-width:0}
+.heatmap-stage canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.heatmap-tooltip{position:absolute;z-index:10;pointer-events:none;max-width:min(290px,90%);white-space:pre-line;padding:9px 12px;border-radius:8px;background:#14243a;color:white;border:1px solid #526780;box-shadow:0 5px 16px rgba(10,25,40,.24);font-size:12px;line-height:1.5}
+.heatmap-tooltip[hidden]{display:none}
+@media(max-width:750px){.heatmap-stage{height:340px}}
 .levels-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .levels-heading p{max-width:780px}
 .levels-actions{display:flex;gap:9px;flex-wrap:wrap}
@@ -98,6 +103,24 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
   <div id="levelsLatest" class="levels-latest" aria-label="Letzte Analysewerte je Druckniveau"></div>
   <p class="legendnotes" id="levelsNotes">Durchgezogene Linien: analysierter zonaler Wind · gestrichelt: GEOS-FP-Prognosen, falls vorhanden. Die Nulllinie bedeutet im Absolutmodus Windumkehr; in der Anomalieansicht markiert sie das tägliche Klimamittel. Jeder Druckfläche liegt ihre eigene 1991–2020-Referenz zugrunde. Eine Windumkehr allein ist kein bestätigtes Major SSW.</p>
 </section>
+<section class="card" id="heatmapCard">
+  <div class="levels-heading">
+    <div>
+      <h2>Zeit-Höhen-Heatmap · zonaler Wind bei 60° Nord</h2>
+      <p>Jeder farbige Streifen steht für ein gemessenes oder analysiertes Druckniveau (10, 30, 50, 70 und 100 hPa) an einem Kalendertag. Keine Interpolation zwischen den Höhen.</p>
+    </div>
+    <div class="levels-actions">
+      <button class="btn" id="heatmapPng" type="button" disabled>Heatmap als PNG</button>
+      <button class="btn" id="heatmapCsv" type="button" disabled>Heatmap als CSV</button>
+    </div>
+  </div>
+  <div class="info" id="heatmapStatus" role="status" aria-live="polite">Lade NASA-Winddaten für die Heatmap …</div>
+  <div class="heatmap-stage" id="heatmapStage">
+    <canvas id="heatmapCanvas" role="img" aria-label="Heatmap des zonalen Windes bei 60 Grad Nord mit den Druckniveaus 10, 30, 50, 70 und 100 hPa im zeitlichen Verlauf"></canvas>
+    <div id="heatmapTooltip" class="heatmap-tooltip" role="status" hidden></div>
+  </div>
+  <p class="legendnotes" id="heatmapNotes">Blau: negative Werte · Rot: positive Werte · weiß: Werte nahe 0 m/s · hellgrau: fehlende Daten · diagonal schraffiert: Prognose. In der absoluten Ansicht bedeutet negativ Ostwind; in der Anomalieansicht eine negative Abweichung zur Tagesklimatologie 1991–2020. Schraffierte Werte sind Modellprognosen, keine Beobachtungen.</p>
+</section>
 <section class="card method">
 <div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
 <div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
@@ -122,7 +145,7 @@ const fetched=new Map();
 const climoCache=new Map();
 const LEVELS=[10,30,50,70,100];
 const LEVEL_COLORS={"10":"#1d4ed8","30":"#7c3aed","50":"#047857","70":"#c47d0a","100":"#c2410c"};
-let chart=null,last=null,seq=0,levelsChart=null,levelsState=null;
+let chart=null,last=null,seq=0,levelsChart=null,levelsState=null,heatmapLayout=null;
 function seasonLabel(y){return y+"/"+String((y+1)%100).padStart(2,"0");}
 function fmt(value,d=1){return Number.isFinite(value)?value.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";}
 function missing(v){return !Number.isFinite(v)||v<=-9000?null:v;}
@@ -375,18 +398,159 @@ async function loadLevels(year,ticket){
   });
   if(!items.length){
     levelsState=null;
+    drawHeatmap();
     $("levelsStatus").textContent="Keine gültigen Daten für die fünf Druckniveaus. "+failed.join("; ");
     return;
   }
   levelsState={year,items};
   redrawLevels();
+  drawHeatmap();
   $("levelsStatus").textContent=seasonLabel(year)+" · "+items.length+"/5 Druckniveaus mit gültigen NASA-Winddaten"+
     (failed.length?" · Nicht verfügbar: "+failed.join("; "):" · Alle Höhen geladen");
   $("levelsPng").disabled=false;$("levelsCsv").disabled=false;
 }
+
+function heatmapData(){
+  if(!levelsState)return null;
+  const {from,to}=visibleRange(),mode=$("mode").value;
+  const columns=dates.slice(from,to+1);
+  const results=LEVELS.map(level=>{
+    const source=levelsState.items.find(item=>item.level===level);
+    return {level,values:columns.map(day=>{
+      if(!source)return null;
+      const entry=source.rows.get(day.key);
+      if(!entry||!Number.isFinite(entry.value)||entry.lead<0)return null;
+      const reference=source.climo[day.key]?.mean;
+      if(mode==="anomaly"&&!Number.isFinite(reference))return null;
+      return {absolute:entry.value,reference:Number.isFinite(reference)?reference:null,
+        value:mode==="anomaly"?entry.value-reference:entry.value,
+        lead:entry.lead,forecast:entry.lead>0,date:entry.date};
+    })};
+  });
+  const values=results.flatMap(row=>row.values.map(v=>v?.value)).filter(Number.isFinite);
+  const sorted=values.map(Math.abs).sort((a,b)=>a-b);
+  // Robust, common symmetric color range across the five heights.
+  const cap=sorted.length?sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*.98))]:5;
+  const scale=Math.max(5,Math.ceil(cap/5)*5);
+  return {columns,results,from,to,mode,scale,valid:values.length};
+}
+function heatColor(value,limit){
+  if(!Number.isFinite(value))return "#eef1f5";
+  const fraction=Math.max(-1,Math.min(1,value/limit));
+  const blend=(a,b,weight)=>Math.round(a+(b-a)*weight);
+  const cold=[37,99,235],hot=[220,38,38],neutral=[249,250,251];
+  const tone=fraction<0?cold:hot,w=Math.abs(fraction);
+  return "rgb("+neutral.map((v,i)=>blend(v,tone[i],w)).join(",")+")";
+}
+function drawHeatmap(){
+  const canvas=$("heatmapCanvas"),stage=$("heatmapStage");
+  if(!canvas||!stage)return;
+  const width=Math.max(260,stage.clientWidth||canvas.clientWidth||900);
+  const height=Math.max(240,stage.clientHeight||365);
+  const dpr=Math.min(3,Math.max(1,window.devicePixelRatio||1));
+  canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+  const ctx=canvas.getContext("2d");
+  if(!ctx)return;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,width,height);
+  const plot=heatmapData();
+  if(!plot||!plot.valid){
+    ctx.fillStyle="#64748b";ctx.font="14px Arial, sans-serif";
+    ctx.fillText("Keine verifizierten Windwerte für diese Saison und Darstellung.",20,50);
+    heatmapLayout=null;$("heatmapPng").disabled=true;$("heatmapCsv").disabled=true;
+    $("heatmapStatus").textContent="Keine gültigen Datenpunkte verfügbar.";
+    return;
+  }
+  const left=width<430?63:76,right=width<430?9:18,top=32,bottom=105;
+  const chartWidth=width-left-right,chartHeight=height-top-bottom;
+  const cellWidth=chartWidth/plot.columns.length,rowHeight=chartHeight/LEVELS.length;
+  ctx.textBaseline="middle";
+  ctx.fillStyle="#172c43";ctx.font="700 13px Arial, sans-serif";
+  ctx.fillText(plot.mode==="anomaly"?"Anomalie [m/s]":"Zonalwind [m/s]",left,14);
+  for(let row=0;row<plot.results.length;row++){
+    const item=plot.results[row],y=top+row*rowHeight;
+    ctx.fillStyle="#eff3f7";ctx.fillRect(left,y,chartWidth,rowHeight-2);
+    for(let i=0;i<item.values.length;i++){
+      const v=item.values[i];if(!v)continue;
+      const x=left+i*cellWidth;
+      ctx.fillStyle=heatColor(v.value,plot.scale);
+      ctx.fillRect(x,y,Math.max(0.9,cellWidth+.2),rowHeight-2);
+      if(v.forecast){
+        // Forecasts are never silently merged with analyzed values.
+        ctx.save();ctx.beginPath();ctx.rect(x,y,Math.max(1,cellWidth),rowHeight-2);ctx.clip();
+        ctx.strokeStyle="rgba(18,35,52,.53)";ctx.lineWidth=.75;
+        for(let shift=-rowHeight;shift<cellWidth+rowHeight;shift+=7){
+          ctx.beginPath();ctx.moveTo(x+shift,y+rowHeight-2);ctx.lineTo(x+shift+rowHeight,y);ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+    ctx.fillStyle="#25384e";ctx.font="700 12px Arial, sans-serif";
+    ctx.textAlign="right";ctx.fillText(item.level+" hPa",left-9,y+(rowHeight-2)/2);
+  }
+  ctx.textAlign="left";
+  for(let i=0;i<plot.columns.length;i++){
+    const day=plot.columns[i];
+    if(day.key.slice(3)!=="01")continue;
+    const x=left+i*cellWidth;
+    ctx.strokeStyle="rgba(30,50,70,.20)";ctx.lineWidth=.8;
+    ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,top+chartHeight);ctx.stroke();
+    ctx.fillStyle="#45556b";ctx.font="11px Arial, sans-serif";ctx.textAlign="center";
+    ctx.fillText(months[day.month-1],Math.min(left+chartWidth-17,Math.max(left+16,x+17)),top+chartHeight+17);
+  }
+  ctx.fillStyle="#45556b";ctx.textAlign="left";ctx.font="11px Arial, sans-serif";
+  ctx.fillText("10 hPa = obere Stratosphäre · 100 hPa = untere Stratosphäre",left,top+chartHeight+39);
+  const legendY=height-37,barWidth=Math.min(320,chartWidth*.72),barLeft=left+(chartWidth-barWidth)/2;
+  const grad=ctx.createLinearGradient(barLeft,0,barLeft+barWidth,0);
+  grad.addColorStop(0,heatColor(-plot.scale,plot.scale));
+  grad.addColorStop(.5,heatColor(0,plot.scale));
+  grad.addColorStop(1,heatColor(plot.scale,plot.scale));
+  ctx.fillStyle=grad;ctx.fillRect(barLeft,legendY,barWidth,12);
+  ctx.strokeStyle="#cbd5e1";ctx.strokeRect(barLeft,legendY,barWidth,12);
+  ctx.font="11px Arial, sans-serif";ctx.fillStyle="#384a5e";
+  ctx.textAlign="left";ctx.fillText("−"+fmt(plot.scale,0),barLeft,legendY+26);
+  ctx.textAlign="center";ctx.fillText("0",barLeft+barWidth/2,legendY+26);
+  ctx.textAlign="right";ctx.fillText("+"+fmt(plot.scale,0)+" m/s",barLeft+barWidth,legendY+26);
+  ctx.textAlign="left";
+  heatmapLayout={...plot,left,top,chartWidth,chartHeight,cellWidth,rowHeight,width,height};
+  $("heatmapStatus").textContent="Saison "+seasonLabel(levelsState.year)+" · "+plot.valid+
+    " echte Tages-/Höhenwerte · "+levelsState.items.length+"/5 Druckniveaus · Farbskala ±"+
+    fmt(plot.scale,0)+" m/s (98. Perzentil, darüber gesättigt)";
+  $("heatmapPng").disabled=false;$("heatmapCsv").disabled=false;
+}
+function heatmapHover(event){
+  const box=$("heatmapTooltip"),layout=heatmapLayout;
+  if(!layout){box.hidden=true;return;}
+  const rect=$("heatmapCanvas").getBoundingClientRect();
+  const x=(event.clientX-rect.left)*layout.width/Math.max(1,rect.width);
+  const y=(event.clientY-rect.top)*layout.height/Math.max(1,rect.height);
+  if(x<layout.left||x>=layout.left+layout.chartWidth||y<layout.top||y>=layout.top+layout.chartHeight){
+    box.hidden=true;return;
+  }
+  const idx=Math.min(layout.columns.length-1,Math.floor((x-layout.left)/layout.cellWidth));
+  const row=Math.min(LEVELS.length-1,Math.floor((y-layout.top)/layout.rowHeight));
+  const day=layout.columns[idx],item=layout.results[row],v=item.values[idx];
+  const yyyy=levelsState.year+(day.month<=6?1:0);
+  const date=yyyy+"-"+day.key;
+  const desc=v?
+    (v.forecast?"Prognose (+"+v.lead+" h)":"Analyse")+
+      "\nWind: "+fmt(v.absolute,2)+" m/s"+
+      (v.reference!==null?"\nKlimamittel: "+fmt(v.reference,2)+" m/s":"")+
+      (v.reference!==null?"\nAnomalie: "+(v.absolute-v.reference>=0?"+":"")+fmt(v.absolute-v.reference,2)+" m/s":""):
+    "Keine verifizierten Daten für diesen Tag / dieses Niveau.";
+  box.textContent=date+" · "+item.level+" hPa\n"+desc;
+  box.hidden=false;
+  const maxLeft=Math.max(5,rect.width-box.offsetWidth-8),maxTop=Math.max(5,rect.height-box.offsetHeight-8);
+  box.style.left=Math.max(5,Math.min(maxLeft,event.clientX-rect.left+14))+"px";
+  box.style.top=Math.max(5,Math.min(maxTop,event.clientY-rect.top+14))+"px";
+}
+function heatmapFilename(ext){
+  return "Stratosphaere_Zeit_Hoehen_60N_"+seasonLabel(levelsState.year).replace("/","-")+
+    "_"+($("mode").value==="anomaly"?"Anomalie":"Absolut")+"_"+$("view").value+"."+ext;
+}
 function refreshCharts(){
   if(last)draw(last.level,last.year,last.selected,last.climo,last.comparison);
-  if(levelsState&&levelsState.year===+$( "season" ).value)redrawLevels();
+  if(levelsState&&levelsState.year===+$( "season" ).value){redrawLevels();drawHeatmap();$("heatmapTooltip").hidden=true;}
 }
 let loading=false;
 async function render(){
@@ -395,6 +559,10 @@ async function render(){
   setError("");
   const level=+$("level").value,year=+$("season").value;
   levelsState=null;
+  $("heatmapTooltip").hidden=true;
+  $("heatmapStatus").textContent="Lade die fünf Druckniveaus für die Heatmap …";
+  $("heatmapPng").disabled=true;$("heatmapCsv").disabled=true;
+  drawHeatmap();
   if(levelsChart){levelsChart.destroy();levelsChart=null;}
   $("levelsLatest").textContent="";
   void loadLevels(year,ticket).catch(error=>{
@@ -528,6 +696,42 @@ $("levelsCsv").addEventListener("click",()=>{
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",render);
+$("heatmapCanvas").addEventListener("mousemove",heatmapHover);
+$("heatmapCanvas").addEventListener("mouseleave",()=>{$("heatmapTooltip").hidden=true;});
+window.addEventListener("resize",()=>{if(levelsState)drawHeatmap();});
+$("heatmapPng").addEventListener("click",()=>{
+  if(!heatmapLayout||!levelsState)return;
+  const source=$("heatmapCanvas"),scale=source.width/Math.max(1,heatmapLayout.width);
+  const header=98*scale,pad=20*scale;
+  const out=document.createElement("canvas");out.width=source.width;out.height=Math.round(source.height+header);
+  const ctx=out.getContext("2d");if(!ctx)return;
+  ctx.fillStyle="#fff";ctx.fillRect(0,0,out.width,out.height);
+  ctx.textBaseline="top";ctx.fillStyle="#16253c";ctx.font="700 "+Math.round(21*scale)+"px Arial";
+  ctx.fillText("Zonaler Wind bei 60° Nord · Zeit-Höhen-Diagramm",pad,12*scale,source.width-2*pad);
+  ctx.fillStyle="#42566b";ctx.font=Math.round(14*scale)+"px Arial";
+  ctx.fillText("10 / 30 / 50 / 70 / 100 hPa · Saison "+seasonLabel(levelsState.year),pad,42*scale,source.width-2*pad);
+  ctx.font=Math.round(12*scale)+"px Arial";
+  ctx.fillText(exportViewLabel()+" · NASA MERRA-2 / GEOS-FP · Referenz 1991–2020",pad,67*scale,source.width-2*pad);
+  ctx.drawImage(source,0,header);
+  const a=document.createElement("a");a.href=out.toDataURL("image/png");a.download=heatmapFilename("png");
+  document.body.appendChild(a);a.click();a.remove();
+});
+$("heatmapCsv").addEventListener("click",()=>{
+  const layout=heatmapLayout;if(!layout||!levelsState)return;
+  const lines=["Datum;Druckniveau_hPa;Status;Prognosevorlauf_h;Wind_m_s;Klimamittel_1991_2020_m_s;Anomalie_m_s;Dargestellter_Wert_m_s"];
+  for(let i=0;i<layout.columns.length;i++){
+    const day=layout.columns[i],yyyy=levelsState.year+(day.month<=6?1:0);
+    if(day.key==="02-29"&&!(yyyy%4===0&&(yyyy%100!==0||yyyy%400===0)))continue;
+    for(const row of layout.results){
+      const v=row.values[i];
+      lines.push([yyyy+"-"+day.key,row.level,v?(v.forecast?"Prognose":"Analyse"):"Fehlend",
+        v?.forecast?v.lead:0,v?.absolute??"",v?.reference??"",
+        v?.reference!==null&&v!==null?Number((v.absolute-v.reference).toFixed(3)):"",
+        v?.value??""].join(";"));
+    }
+  }
+  saveAs(new Blob([String.fromCharCode(65279)+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}),heatmapFilename("csv"));
+});
 $("view").addEventListener("change",refreshCharts);
 $("mode").addEventListener("change",refreshCharts);
 document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
