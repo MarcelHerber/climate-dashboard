@@ -3,7 +3,7 @@ name: GEFS Tiefzuordnung Qualitätsprüfung
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "feature/ifs-aifs-cps-gefs-track-quality-20261013"]
     paths:
       - "scripts/update_gefs_cps.py"
       - ".github/workflows/test-gefs-tracking-quality.yml"
@@ -32,7 +32,7 @@ jobs:
             -o /tmp/gfs_atlantic.json
           python scripts/update_gefs_cps.py \
             --atlantic /tmp/gfs_atlantic.json --out /tmp/gefs_track_qc.json \
-            --members 1 --member-start 0 --member-end 1 --max-hour 48
+            --members 1 --member-start 0 --member-end 1 --max-hour 96
           python - <<'PY'
           import json
           obj=json.load(open("/tmp/gefs_track_qc.json"))
