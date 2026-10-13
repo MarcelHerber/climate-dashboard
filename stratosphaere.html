@@ -470,6 +470,61 @@ $("csv").addEventListener("click",()=>{if(!last)return;
   saveAs(new Blob(["\\ufeff"+content.join("\\r\\n")],{type:"text/csv;charset=utf-8"}),
     "Stratosphaere_60N_"+level+"hPa_"+seasonLabel(year).replace("/","-")+".csv");
 });
+function levelExportName(extension){
+  if(!levelsState)return "Zonalwind_60N_5_Druckniveaus."+extension;
+  return "Stratosphaere_60N_5_Hoehen_"+seasonLabel(levelsState.year).replace("/","-")+
+    ($("mode").value==="anomaly"?"_Anomalien":"_Absolut")+
+    "_"+$("view").value+"."+extension;
+}
+$("levelsPng").addEventListener("click",()=>{
+  if(!levelsChart||!levelsState)return;
+  const source=levelsChart.canvas,scale=source.width/Math.max(1,source.getBoundingClientRect().width);
+  const header=Math.ceil(99*scale),pad=20*scale;
+  const output=document.createElement("canvas");
+  output.width=source.width;output.height=source.height+header;
+  const ctx=output.getContext("2d");if(!ctx)return;
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,output.width,output.height);
+  ctx.textBaseline="top";ctx.fillStyle="#16253c";
+  ctx.font="700 "+Math.round(21*scale)+"px Arial, sans-serif";
+  ctx.fillText("Zonaler Wind 60° Nord · 10 / 30 / 50 / 70 / 100 hPa",pad,13*scale,source.width-2*pad);
+  ctx.fillStyle="#43556b";ctx.font=Math.round(14*scale)+"px Arial, sans-serif";
+  ctx.fillText("Saison "+seasonLabel(levelsState.year)+" · "+exportViewLabel(),pad,44*scale,source.width-2*pad);
+  ctx.font=Math.round(12*scale)+"px Arial, sans-serif";
+  ctx.fillText("NASA Ozone Watch · MERRA-2 / GEOS-FP · Niveau-spezifische Referenz 1991–2020",pad,69*scale,source.width-2*pad);
+  ctx.strokeStyle="#dce3eb";ctx.beginPath();
+  ctx.moveTo(pad,header-5*scale);ctx.lineTo(output.width-pad,header-5*scale);ctx.stroke();
+  ctx.drawImage(source,0,header);
+  const a=document.createElement("a");
+  a.href=output.toDataURL("image/png");a.download=levelExportName("png");
+  document.body.appendChild(a);a.click();a.remove();
+});
+$("levelsCsv").addEventListener("click",()=>{
+  if(!levelsState)return;
+  const {from,to}=visibleRange(),header=["Datum"];
+  for(const item of levelsState.items){
+    const prefix="u60N_"+item.level+"hPa";
+    header.push(prefix+"_Analyse_m_s",prefix+"_Prognose_m_s",
+      prefix+"_Klima_1991_2020_m_s",prefix+"_Anomalie_Analyse_m_s",prefix+"_Anomalie_Prognose_m_s");
+  }
+  const rows=[header.join(";")];
+  for(let i=from;i<=to;i++){
+    const date=dates[i],seasonYear=levelsState.year+(date.month<=6?1:0);
+    const yyyy=seasonYear+"-"+date.key;
+    const values=[yyyy];
+    for(const item of levelsState.items){
+      const row=item.rows.get(date.key),reference=item.climo[date.key]?.mean;
+      const mean=Number.isFinite(reference)?reference:null;
+      const actual=row?.lead===0?row.value:null,forecast=row?.lead>0?row.value:null;
+      const anomalyA=Number.isFinite(actual)&&mean!==null?Number((actual-mean).toFixed(3)):null;
+      const anomalyF=Number.isFinite(forecast)&&mean!==null?Number((forecast-mean).toFixed(3)):null;
+      values.push(actual??"",forecast??"",mean??"",anomalyA??"",anomalyF??"");
+    }
+    // The artificial leap day exists only in leap-year seasons.
+    if(date.key==="02-29" && !(seasonYear%4===0 && (seasonYear%100!==0 || seasonYear%400===0)))continue;
+    rows.push(values.join(";"));
+  }
+  saveAs(new Blob([String.fromCharCode(0xFEFF)+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}),levelExportName("csv"));
+});
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",render);
