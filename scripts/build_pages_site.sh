@@ -8,6 +8,7 @@ mkdir -p _site/data
 required_root_files=(
   index.html
   stratosphaere.html
+  stratosphere_temperature.js
   tiefdruck_tracker.html
   tiefdruck_tracker.css
   tiefdruck_phase.js
@@ -132,6 +133,16 @@ if [[ ! -d era5_europe/maps ]] || [[ -z "$(find era5_europe/maps -maxdepth 1 -ty
 fi
 cp -a era5_europe _site/
 echo "ERA5-Atmosphäre in Pages-Artefakt übernommen."
+
+# Eigenständige ERA5-Stratosphärendiagnostik: nur verifizierte JSON-Tagesdaten.
+# Keine Daten generieren oder extrapolieren; die Quelle wird über GitHub Actions befüllt.
+if [[ -s era5_stratosphere/index.json ]]; then
+  mkdir -p _site/era5_stratosphere
+  cp era5_stratosphere/index.json _site/era5_stratosphere/index.json
+  echo "ERA5-Stratosphäre Index in Pages-Artefakt übernommen."
+else
+  echo "HINWEIS: ERA5-Stratosphäre Index fehlt, Frontend verwendet GitHub-Raw-Fallback."
+fi
 
 # Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.
 # index.html lädt europe_stations/index.json direkt beim Seitenstart; die
