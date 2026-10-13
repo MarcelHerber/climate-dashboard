@@ -124,8 +124,8 @@ jobs:
           else:
             lines.append("- Noch kein Backfill-Bericht erzeugt.")
           if target:
-            with open(target,"a",encoding="utf-8") as handle: handle.write("\\n".join(lines)+"\\n")
-          print("\\n".join(lines))
+            with open(target,"a",encoding="utf-8") as handle: handle.write("\n".join(lines)+"\n")
+          print("\n".join(lines))
           PY
       - name: Publish stratosphere data without changing existing ERA5 maps
         shell: bash
