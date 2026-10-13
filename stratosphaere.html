@@ -34,6 +34,24 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .heatmap-tooltip{position:absolute;z-index:10;pointer-events:none;max-width:min(290px,90%);white-space:pre-line;padding:9px 12px;border-radius:8px;background:#14243a;color:white;border:1px solid #526780;box-shadow:0 5px 16px rgba(10,25,40,.24);font-size:12px;line-height:1.5}
 .heatmap-tooltip[hidden]{display:none}
 @media(max-width:750px){.heatmap-stage{height:340px}}
+.ssw-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:15px 0}
+.ssw-kpi{border:1px solid var(--line);border-radius:9px;padding:12px;background:#f8fafc}
+.ssw-kpi .ssw-label{display:block;font-size:12px;color:var(--muted)}
+.ssw-kpi strong{font-size:22px;color:var(--ink)}
+.ssw-events{display:grid;gap:12px;margin-top:13px}
+.ssw-event{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.ssw-event-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.ssw-event-head strong{font-size:16px}
+.ssw-event-state{font-size:12px;border-radius:5px;background:#edf2f7;color:#294766;padding:3px 8px;font-weight:700}
+.ssw-event-state.confirmed{background:#e7f4eb;color:#23613d}
+.ssw-event-state.final{background:#fff1dd;color:#855513}
+.ssw-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:11px 0}
+.ssw-details>div{font-size:12px;color:var(--muted)}
+.ssw-details strong{font-size:16px;color:var(--ink);display:block}
+.ssw-lags{display:flex;flex-wrap:wrap;gap:7px}
+.ssw-lag{font-size:11px;background:#eef3f9;border:1px solid #dbe5ef;padding:4px 7px;border-radius:5px}
+.ssw-warning{font-size:12px;color:#77603c;margin-top:8px}
+@media(max-width:750px){.ssw-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ssw-details{grid-template-columns:1fr 1fr}}
 .levels-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .levels-heading p{max-width:780px}
 .levels-actions{display:flex;gap:9px;flex-wrap:wrap}
@@ -121,6 +139,20 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
   </div>
   <p class="legendnotes" id="heatmapNotes">Blau: negative Werte · Rot: positive Werte · weiß: Werte nahe 0 m/s · hellgrau: fehlende Daten · diagonal schraffiert: Prognose. In der absoluten Ansicht bedeutet negativ Ostwind; in der Anomalieansicht eine negative Abweichung zur Tagesklimatologie 1991–2020. Schraffierte Werte sind Modellprognosen, keine Beobachtungen.</p>
 </section>
+<section class="card" id="sswEventsCard">
+  <div class="levels-heading">
+    <div>
+      <h2>SSW-Ereignisdiagnostik · 60° N / 10 hPa</h2>
+      <p>Windbasierte Prüfung nach Charlton und Polvani (CP07) für die ausgewählte Saison. Separate Höhenreaktionen werden ohne Annahme einer Ursache ausgewiesen.</p>
+    </div>
+    <button class="btn" type="button" id="sswCsv" disabled>Ereignisse als CSV</button>
+  </div>
+  <div id="sswStatus" class="info" role="status" aria-live="polite">Die Ereignisse werden aus den NASA-Analysen berechnet …</div>
+  <div id="sswSummary" class="ssw-summary"></div>
+  <div id="sswEventList" class="ssw-events"></div>
+  <p class="legendnotes ssw-method">Definition: erstes Unterschreiten von 0 m/s bei 60° N und 10 hPa zwischen November und März; für ein neues Ereignis sind seit dem vorherigen mindestens 20 zusammenhängende Westwindtage erforderlich. Als windbasiertes Major SSW wird es erst nach zehn aufeinanderfolgenden Westwindtagen bis einschließlich 30. April eingestuft. Sonst: Kandidat bzw. bei lückenlos dokumentiertem Ausbleiben der Rückkehr „finales Warming“. Prognosen zählen nie als Nachweis. Die Temperaturgradienten-Prüfung nach dem strengeren WMO-Kriterium erfolgt hier nicht.</p>
+  <p class="source">Methodik: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium · Charlton-Polvani-Kriterien</a>. Historische Ereignisdaten sind vom jeweiligen Datensatz abhängig und keine verbindliche WMO-Einstufung.</p>
+</section>
 <section class="card method">
 <div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
 <div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
@@ -145,7 +177,7 @@ const fetched=new Map();
 const climoCache=new Map();
 const LEVELS=[10,30,50,70,100];
 const LEVEL_COLORS={"10":"#1d4ed8","30":"#7c3aed","50":"#047857","70":"#c47d0a","100":"#c2410c"};
-let chart=null,last=null,seq=0,levelsChart=null,levelsState=null,heatmapLayout=null;
+let chart=null,last=null,seq=0,levelsChart=null,levelsState=null,heatmapLayout=null,sswResult=null;
 function seasonLabel(y){return y+"/"+String((y+1)%100).padStart(2,"0");}
 function fmt(value,d=1){return Number.isFinite(value)?value.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";}
 function missing(v){return !Number.isFinite(v)||v<=-9000?null:v;}
@@ -399,12 +431,14 @@ async function loadLevels(year,ticket){
   if(!items.length){
     levelsState=null;
     drawHeatmap();
+    renderSSW();
     $("levelsStatus").textContent="Keine gültigen Daten für die fünf Druckniveaus. "+failed.join("; ");
     return;
   }
   levelsState={year,items};
   redrawLevels();
   drawHeatmap();
+  renderSSW();
   $("levelsStatus").textContent=seasonLabel(year)+" · "+items.length+"/5 Druckniveaus mit gültigen NASA-Winddaten"+
     (failed.length?" · Nicht verfügbar: "+failed.join("; "):" · Alle Höhen geladen");
   $("levelsPng").disabled=false;$("levelsCsv").disabled=false;
@@ -548,6 +582,154 @@ function heatmapFilename(ext){
   return "Stratosphaere_Zeit_Hoehen_60N_"+seasonLabel(levelsState.year).replace("/","-")+
     "_"+($("mode").value==="anomaly"?"Anomalie":"Absolut")+"_"+$("view").value+"."+ext;
 }
+
+function utcDay(value){return Date.parse(value+"T00:00:00Z");}
+function seasonDate(year,month,day){
+  return String(month<=6?year+1:year)+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+}
+function utcSequence(start,end){
+  const days=[],first=utcDay(start),last=utcDay(end);
+  for(let time=first;time<=last;time+=86400000)days.push(new Date(time).toISOString().slice(0,10));
+  return days;
+}
+function analyzedMap(rows){
+  return new Map([...rows.values()].filter(v=>v.lead===0&&Number.isFinite(v.value)).map(v=>[v.date,v.value]));
+}
+function firstTransition(source,onset,lowerBound,upperBound){
+  const start=utcDay(onset)+lowerBound*86400000,end=utcDay(onset)+upperBound*86400000;
+  if(!source)return null;
+  let best=null;
+  const days=utcSequence(new Date(start).toISOString().slice(0,10),new Date(end).toISOString().slice(0,10));
+  for(let i=1;i<days.length;i++){
+    const previous=source.get(days[i-1]),now=source.get(days[i]);
+    if(Number.isFinite(previous)&&previous>=0&&Number.isFinite(now)&&now<0){
+      // First chronological reversal in the +/- window; lag is descriptive, not causal.
+      best={date:days[i],lag:Math.round((utcDay(days[i])-utcDay(onset))/86400000),value:now};
+      break;
+    }
+  }
+  return best;
+}
+function diagnoseSSW(year,items){
+  const ten=items.find(item=>item.level===10);
+  if(!ten)return {year,events:[],available:false,description:"10-hPa-Analysedaten fehlen."};
+  const wind=analyzedMap(ten.rows);
+  const start=seasonDate(year,11,1),end=seasonDate(year+1,4,30);
+  // seasonDate accepts the starting season year, so for Apr it advances one year.
+  const april=String(year+1)+"-04-30";
+  const days=utcSequence(start,april),endWindow=String(year+1)+"-03-31";
+  const lastAnalyzed=[...wind.keys()].sort().at(-1)||null;
+  const events=[];
+  let previous=null,westDays=0,hasTwentyWest=false;
+  for(const day of days){
+    const value=wind.get(day);
+    if(events.length){
+      if(Number.isFinite(value)&&value>0){westDays++;if(westDays>=20)hasTwentyWest=true;}
+      else westDays=0;
+    }
+    const month=Number(day.slice(5,7)),inWinter=day<=endWindow&&([11,12,1,2,3].includes(month));
+    if(inWinter&&Number.isFinite(value)&&value<0&&Number.isFinite(previous)&&previous>=0&&
+      (!events.length||hasTwentyWest)){
+      const event={date:day,initialWind:value,levelLags:[]};
+      events.push(event);westDays=0;hasTwentyWest=false;
+    }
+    previous=Number.isFinite(value)?value:null;
+  }
+  for(const event of events){
+    const onset=utcDay(event.date);
+    let duration=0,min=Infinity,episodeGap=false;
+    for(let time=onset;time<=utcDay(april);time+=86400000){
+      const day=new Date(time).toISOString().slice(0,10),v=wind.get(day);
+      if(!Number.isFinite(v)){episodeGap=true;break;}
+      if(v>=0)break;
+      duration++;min=Math.min(min,v);
+    }
+    event.duration=duration;event.minimum=Number.isFinite(min)?min:null;
+    event.durationUncertain=episodeGap;
+    let consecutiveWest=0,recovered=null,missingAfter=false;
+    for(let time=onset+86400000;time<=utcDay(april);time+=86400000){
+      const day=new Date(time).toISOString().slice(0,10),v=wind.get(day);
+      if(!Number.isFinite(v)){missingAfter=true;consecutiveWest=0;continue;}
+      consecutiveWest=v>0?consecutiveWest+1:0;
+      if(consecutiveWest>=10){recovered=day;break;}
+    }
+    event.recoveredAt=recovered;
+    const completeThroughApril=days.filter(d=>utcDay(d)>=onset).every(d=>wind.has(d));
+    if(recovered){event.status="confirmed";event.statusLabel="Major SSW · CP07-Windkriterium erfüllt";}
+    else if(completeThroughApril){event.status="final";event.statusLabel="Finales Warming · ausgeschlossen";}
+    else{event.status="candidate";event.statusLabel="Windumkehr · Einstufung offen";}
+    event.note=recovered?"Westwind-Rückkehr über mindestens 10 Tage bis "+recovered:
+      completeThroughApril?"Keine zehn aufeinanderfolgenden Westwindtage bis 30. April.":
+      "Rückkehrkriterium noch nicht belegt (laufende Saison oder Datenlücken).";
+    event.levelLags=LEVELS.filter(l=>l!==10).map(level=>{
+      const series=items.find(item=>item.level===level);
+      const crossing=firstTransition(series?analyzedMap(series.rows):null,event.date,-20,60);
+      return {level,date:crossing?.date||null,lag:crossing?.lag??null};
+    });
+    event.lastAnalyzed=lastAnalyzed;
+  }
+  return {year,events,available:wind.size>0,lastAnalyzed,daysObserved:[...wind.keys()].filter(d=>d>=start&&d<=april).length};
+}
+function appendSswKpi(parent,name,value){
+  const card=document.createElement("div");card.className="ssw-kpi";
+  const title=document.createElement("span");title.className="ssw-label";title.textContent=name;
+  const number=document.createElement("strong");number.textContent=String(value);
+  card.append(title,number);parent.appendChild(card);
+}
+function appendSswDetail(parent,label,value){
+  const cell=document.createElement("div");cell.textContent=label;
+  const bold=document.createElement("strong");bold.textContent=value;
+  cell.prepend(bold);parent.appendChild(cell);
+}
+function renderSSW(){
+  const summary=$("sswSummary"),list=$("sswEventList"),status=$("sswStatus");
+  summary.replaceChildren();list.replaceChildren();
+  $("sswCsv").disabled=true;
+  if(!levelsState||levelsState.year!==Number($("season").value)){
+    status.textContent="SSW-Analyse wartet auf die Winddaten der gewählten Saison.";return;
+  }
+  const result=diagnoseSSW(levelsState.year,levelsState.items);
+  sswResult=result;
+  if(!result.available){
+    status.textContent="Ohne analysierte 10-hPa-Winddaten ist keine SSW-Klassifikation möglich.";return;
+  }
+  const confirmed=result.events.filter(e=>e.status==="confirmed").length,
+    pending=result.events.filter(e=>e.status==="candidate").length,
+    finals=result.events.filter(e=>e.status==="final").length;
+  appendSswKpi(summary,"Major SSW (windbasiert)",confirmed);
+  appendSswKpi(summary,"Noch offen",pending);
+  appendSswKpi(summary,"Finale Warmings",finals);
+  appendSswKpi(summary,"10-hPa-Umkehrungen als Ereignisse",result.events.length);
+  status.textContent="Saison "+seasonLabel(result.year)+" · "+result.daysObserved+
+    " analysierte Tage November–April · letzte 10-hPa-Analyse: "+(result.lastAnalyzed||"–")+
+    " · Prognosen für die Einstufung ausgeschlossen";
+  if(!result.events.length){
+    const note=document.createElement("p");note.textContent="Im verfügbaren Analysezeitraum wurde keine eigenständige 10-hPa-Windumkehr nach den CP07-Auswahlregeln erkannt. Für eine vollständige Saisonbewertung sind Daten bis Ende April nötig.";
+    list.appendChild(note);
+  }
+  for(const event of result.events){
+    const article=document.createElement("article");article.className="ssw-event";
+    const header=document.createElement("div");header.className="ssw-event-head";
+    const date=document.createElement("strong");date.textContent="Zentraldatum: "+event.date;
+    const badge=document.createElement("span");badge.className="ssw-event-state "+event.status;
+    badge.textContent=event.statusLabel;header.append(date,badge);
+    const metrics=document.createElement("div");metrics.className="ssw-details";
+    appendSswDetail(metrics,"Minimum 10 hPa",fmt(event.minimum,2)+" m/s");
+    appendSswDetail(metrics,"Anfängliche Ostwindphase",event.duration+" Tage"+(event.durationUncertain?" (mindestens)":""));
+    appendSswDetail(metrics,"Rückkehr des Westwinds",event.recoveredAt||"nicht belegt");
+    const lags=document.createElement("div");lags.className="ssw-lags";
+    for(const item of event.levelLags){
+      const chip=document.createElement("span");chip.className="ssw-lag";
+      chip.textContent=item.level+" hPa: "+(item.lag===null?"keine Umkehr ±20/60 Tage":
+        (item.lag>0?"+":"")+item.lag+" Tage · "+item.date);
+      lags.appendChild(chip);
+    }
+    const disclaimer=document.createElement("p");disclaimer.className="ssw-warning";
+    disclaimer.textContent=event.note+" · Zeitabstände anderer Druckniveaus zeigen nur zeitliche Koinzidenz, keine bewiesene Ausbreitung.";
+    article.append(header,metrics,lags,disclaimer);list.appendChild(article);
+  }
+  $("sswCsv").disabled=false;
+}
 function refreshCharts(){
   if(last)draw(last.level,last.year,last.selected,last.climo,last.comparison);
   if(levelsState&&levelsState.year===+$( "season" ).value){redrawLevels();drawHeatmap();$("heatmapTooltip").hidden=true;}
@@ -558,7 +740,10 @@ async function render(){
   $("reload").disabled=true;$("status").textContent="NASA-Winddaten werden geladen …";
   setError("");
   const level=+$("level").value,year=+$("season").value;
-  levelsState=null;
+  levelsState=null;sswResult=null;
+  $("sswStatus").textContent="Lade SSW-Ereignisdaten …";
+  $("sswSummary").replaceChildren();$("sswEventList").replaceChildren();
+  $("sswCsv").disabled=true;
   $("heatmapTooltip").hidden=true;
   $("heatmapStatus").textContent="Lade die fünf Druckniveaus für die Heatmap …";
   $("heatmapPng").disabled=true;$("heatmapCsv").disabled=true;
@@ -732,6 +917,21 @@ $("heatmapCsv").addEventListener("click",()=>{
     }
   }
   saveAs(new Blob([String.fromCharCode(65279)+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}),heatmapFilename("csv"));
+});
+$("sswCsv").addEventListener("click",()=>{
+  if(!sswResult?.available)return;
+  const fields=["Saison","Zentraldatum_UTC","Klassifikation","Minimum_10hPa_m_s",
+    "Erste_Ostwindphase_Tage","Dauer_unsicher","Westwind_Rueckkehr_10_Tage_am",
+    ...LEVELS.filter(l=>l!==10).flatMap(l=>["Umkehr_"+l+"hPa_Datum","Zeitversatz_"+l+"hPa_Tage"])];
+  const rows=[fields.join(";")];
+  for(const event of sswResult.events){
+    rows.push([seasonLabel(sswResult.year),event.date,event.status,
+      event.minimum??"",event.duration,event.durationUncertain?"ja":"nein",
+      event.recoveredAt||"",
+      ...event.levelLags.flatMap(l=>[l.date||"",l.lag??""])].join(";"));
+  }
+  saveAs(new Blob([String.fromCharCode(65279)+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}),
+    "Stratosphaere_SSW_CP07_"+seasonLabel(sswResult.year).replace("/","-")+".csv");
 });
 $("view").addEventListener("change",refreshCharts);
 $("mode").addEventListener("change",refreshCharts);
