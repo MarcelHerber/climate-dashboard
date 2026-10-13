@@ -178,6 +178,7 @@ function drawPhase(tracks,sourceMode){
  const extent=bounds(tracks);
  const dataSets=tracks.map((t,i)=>({
     label:sourceMode==="gefs"?"GEFS "+t.member:
+       sourceMode==="single"?(t.model==="ifs-atl"?"ECMWF IFS":"ECMWF AIFS")+" · "+iso(t.run):
        "GFS "+new Date(t.run).toISOString().slice(5,16).replace("T"," " )+" UTC",
     data:mainValues(t).map(({x,y,pressure})=>({x,y,pressure})),
     borderColor:["#067fc2","#08b6aa","#9b59d0","#2c74e0","#65ae44"][i%5],
@@ -189,9 +190,10 @@ function drawPhase(tracks,sourceMode){
  const ready=c.length>=2&&tracks.length>=2;
  $("cpsConsensusEmpty").hidden=ready;
  $("cpsConsensusPlotWrap").hidden=!ready;
- $("cpsConsensusSubtitle").textContent=ready
-   ?tracks.length+(sourceMode==="gefs"?" echte GEFS-Mitglieder":" GFS-Läufe")+" · grau: ±1σ je gültigem Termin."
-   :"Kein Konsens mit weniger als zwei vergleichbaren Kurven. Es werden keine Werte ersetzt.";
+ $("cpsConsensusSubtitle").textContent=sourceMode==="single"?
+   "Einzelmodell: kein Ensemble-Konsens und keine Streuung aus nur einem Modelllauf.":
+   ready?tracks.length+(sourceMode==="gefs"?" echte GEFS-Mitglieder":" GFS-Läufe")+" · grau: ±1σ je gültigem Termin.":
+   "Kein Konsens mit weniger als zwei vergleichbaren Kurven. Es werden keine Werte ersetzt.";
  if(ready){
    const series={
      label:(sourceMode==="gefs"?"GEFS-Mittel":"GFS-Multilauf-Mittel")+" · "+tracks.length+" Kurven",
@@ -204,14 +206,18 @@ function drawPhase(tracks,sourceMode){
    };
    charts[1]=makeChart("cpsConsensusPlot",[series],extent,c);
  }
- $("cpsSummary").textContent=sourceMode==="gefs"?
-   tracks.length+" echte GEFS-Mitglieder, Kontrolllauf plus Perturbationen, räumlich an den GFS-Tieftrack gekoppelt.":
+ $("cpsSummary").textContent=sourceMode==="single"?
+   "Einzelner IFS-/AIFS-Phasenpfad; kein Ensemble und keine Ensemble-Wahrscheinlichkeit.":
+   sourceMode==="gefs"?tracks.length+" echte GEFS-Mitglieder, Kontrolllauf plus Perturbationen, räumlich an den GFS-Tieftrack gekoppelt.":
    tracks.length+" übereinstimmende zeitversetzte GFS-Modellstarts (kein GEFS-Ensemble).";
- $("cpsPhaseStatus").textContent=sourceMode==="gefs"?
-   "GEFS: HGT 0,5° · 900/600/400 hPa logarithmisch interpoliert · Hart (2003)":
+ $("cpsPhaseStatus").textContent=sourceMode==="single"?
+   "ECMWF IFS/AIFS: echte Geopotenzialfelder · 900 hPa aus 925/850 hPa interpoliert, Bodendruckmaske · Hart (2003)":
+   sourceMode==="gefs"?"GEFS: HGT 0,5° · 900/600/400 hPa interpoliert · Hart (2003)":
    "GFS: echte native Geopotenzialfelder · Hart (2003)";
- $("cpsSpaghettiTitle").childNodes[0].textContent=sourceMode==="gefs"?"GEFS ENSEMBLE SPAGHETTI ":"GFS MULTILAUF SPAGHETTI ";
- $("cpsConsensusTitle").childNodes[0].textContent=sourceMode==="gefs"?"GEFS ENSEMBLE KONSENS ":"GFS MULTILAUF KONSENS ";
+ $("cpsSpaghettiTitle").childNodes[0].textContent=sourceMode==="single"?"ECMWF EINZELMODELL · HART CPS ":
+   sourceMode==="gefs"?"GEFS ENSEMBLE SPAGHETTI ":"GFS MULTILAUF SPAGHETTI ";
+ $("cpsConsensusTitle").childNodes[0].textContent=sourceMode==="single"?"KEIN ENSEMBLE-KONSENS ":
+   sourceMode==="gefs"?"GEFS ENSEMBLE KONSENS ":"GFS MULTILAUF KONSENS ";
 }
 function makeMap(node){
  return L.map(node,{zoomControl:false,attributionControl:false,
@@ -256,7 +262,9 @@ function ensembleFor(base){
 function displayWarmProbability(base,tracks,sourceMode){
  const node=$("cpsWarmProbability");
  if(sourceMode!=="gefs"){
-   node.textContent="Kernphasen-Wahrscheinlichkeiten nur aus echten GEFS-Mitgliedern · GFS-Multilauf hat keine Ensemblewahrscheinlichkeit.";
+   node.textContent=sourceMode==="single"?
+     "ECMWF IFS/AIFS: einzelner Modelllauf · Warm-Core-Anteil ohne Ensemble nicht definiert.":
+     "Kernphasen-Wahrscheinlichkeiten nur aus echten GEFS-Mitgliedern · GFS-Multilauf hat keine Ensemblewahrscheinlichkeit.";
    return;
  }
  const h=Number($("hour").value);
@@ -313,26 +321,41 @@ async function loadHistory(){
 function update(t){
  chosen=t;
  $("cpsRealNotice").textContent=loadState;
- if(!t||t.model!=="gfs"){
+ const isEcmwf=t&&(t.model==="ifs-atl"||t.model==="aifs-atl");
+ const isGfs=t?.model==="gfs";
+ const control=$("cpsSource");
+ if(!isGfs&&!isEcmwf){
+   control.disabled=false;
    for(const c of charts)if(c)c.destroy();
    charts=[null,null];lastDrawKey=null;
-   $("cpsModuleEmpty").hidden=false;$("cpsModuleContent").hidden=true;
-   $("cpsModuleEmpty").textContent=t&&t.model!=="gfs"?
-     "Keine Hart-CPS-Kernstruktur aus ECMWF-Tropenzyklonen-BUFR, bitte ein GFS-Nordatlantik-Tief auswählen.":
-     "Bitte ein GFS-Nordatlantik-Tief auf der Karte auswählen.";
+   $("cpsModuleEmpty").hidden=false;
+   $("cpsModuleContent").hidden=true;
+   $("cpsModuleEmpty").textContent=t?
+     "Für dieses Tropenzyklonen-BUFR-Produkt liegen keine Hart-CPS-Geopotenzialfelder vor.":
+     "Bitte ein GFS-, IFS- oder AIFS-Nordatlantik-Tief auswählen.";
    return;
  }
- mode=$("cpsSource").value;
- const ensemble=ensembleFor(t);
- const tracks=mode==="gefs"?ensemble:findComparisons(t,histories);
- const source=(mode==="gefs"&&tracks.length>=2)?"gefs":"lagged";
- if(mode==="gefs"&&tracks.length<2){
-   $("cpsSource").value="lagged";
+ if(isEcmwf){
+   control.value="single";
+   control.disabled=true;
+ }else{
+   control.disabled=false;
+   if(control.value==="single"){
+     control.value=ensembleFor(t).length>=2?"gefs":"lagged";
+   }
+ }
+ mode=control.value;
+ const members=isGfs?ensembleFor(t):[];
+ let source=isEcmwf?"single":mode==="gefs"&&members.length>=2?"gefs":"lagged";
+ if(isGfs&&mode==="gefs"&&members.length<2){
+   control.value="lagged";
    mode="lagged";
  }
- const shown=source==="gefs"?tracks:findComparisons(t,histories);
- const drawKey=String(t.id)+":"+String(t.run)+":"+source+":"+shown.length+":"+histories.length+
-    ":"+(gefs?.updated_utc||"");
+ const shown=source==="single"?[t]:
+    source==="gefs"?members:findComparisons(t,histories);
+ const lastCps=shown.reduce((n,t)=>n+t.points.filter(valid).length,0);
+ const drawKey=String(t.id)+":"+String(t.run)+":"+source+":"+shown.length+":"+
+   lastCps+":"+histories.length+":"+(gefs?.updated_utc||"");
  if(drawKey===lastDrawKey&&charts[0]){
    displayWarmProbability(t,shown,source);
    return;
@@ -340,15 +363,24 @@ function update(t){
  lastDrawKey=drawKey;
  const points=shown.flatMap(x=>x.points.filter(valid));
  if(points.length<2){
-   $("cpsModuleEmpty").hidden=false;$("cpsModuleContent").hidden=true;
-   lastDrawKey=null;$("cpsModuleEmpty").textContent="Zu wenige echte CPS-Werte für dieses Tief.";
+   for(const c of charts)if(c)c.destroy();
+   charts=[null,null];
+   $("cpsModuleEmpty").hidden=false;
+   $("cpsModuleContent").hidden=true;
+   lastDrawKey=null;
+   $("cpsModuleEmpty").textContent=isEcmwf?
+     "Für diesen IFS-/AIFS-Tieftrack sind noch nicht mindestens zwei echte Hart-CPS-Diagnosen verfügbar.":
+     "Zu wenige echte CPS-Werte für dieses Tief.";
    return;
  }
- $("cpsModuleEmpty").hidden=true;$("cpsModuleContent").hidden=false;
- $("cpsStormName").textContent=t.name+" · Basislauf "+iso(t.run);
- $("cpsSpaghettiSubtitle").textContent=source==="gefs"?
-   shown.length+" reale GEFS-Kontroll-/Perturbationsmitglieder (0,5°). 900, 600, 400 hPa interpoliert.":
-   shown.length+" zeitversetzte GFS-Modellinitialisierungen (keine Perturbationen).";
+ $("cpsModuleEmpty").hidden=true;
+ $("cpsModuleContent").hidden=false;
+ $("cpsStormName").textContent=t.name+" · Modellstart "+iso(t.run);
+ $("cpsSpaghettiSubtitle").textContent=source==="single"?
+    "ECMWF "+(t.model==="ifs-atl"?"IFS":"AIFS")+"-Einzellauf · 900 hPa interpoliert, 600/300 hPa direkt vorhanden.":
+    source==="gefs"?
+    shown.length+" reale GEFS-Kontroll-/Perturbationsmitglieder (0,5°); 900/600/400 hPa interpoliert.":
+    shown.length+" zeitversetzte GFS-Initialisierungen (kein GEFS-Ensemble).";
  drawPhase(shown,source);
  displayWarmProbability(t,shown,source);
  setTimeout(()=>geoMapUpdate(shown),0);
@@ -364,11 +396,11 @@ function exportPng(){
  let y=gap;
  charts.filter(Boolean).forEach((chart,i)=>{
    ctx.fillStyle="#067039";ctx.font="bold 18px Arial";ctx.fillText(
-     i===0?(mode==="gefs"?"GEFS ENSEMBLE · PHASENRAUM":"GFS MULTILAUF · PHASENRAUM"):
-       (mode==="gefs"?"GEFS ENSEMBLE · KONSENS":"GFS MULTILAUF · KONSENS"),gap,y+25);
+     i===0?(mode==="single"?"ECMWF · HART CPS":mode==="gefs"?"GEFS ENSEMBLE · PHASENRAUM":"GFS MULTILAUF · PHASENRAUM"):
+       (mode==="single"?"KEIN ENSEMBLE":mode==="gefs"?"GEFS ENSEMBLE · KONSENS":"GFS MULTILAUF · KONSENS"),gap,y+25);
    ctx.fillStyle="#334155";ctx.font="13px Arial";
    ctx.fillText("Hart (2003) | "+String(chosen?.name||"")+
-       " | "+(mode==="gefs"?"echte Ensemblemitglieder":"unabhängige GFS-Läufe"),gap,y+45);
+       " | "+(mode==="single"?"ECMWF Einzelmodell":mode==="gefs"?"echte Ensemblemitglieder":"unabhängige GFS-Läufe"),gap,y+45);
    y+=head;ctx.drawImage(chart.canvas,gap,y);y+=chart.canvas.height+gap;
  });
  const a=document.createElement("a");a.href=canvas.toDataURL("image/png");
