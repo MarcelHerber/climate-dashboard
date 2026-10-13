@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 
 import numpy as np
 import update_era5_stratosphere as base
@@ -255,6 +255,123 @@ def priority_self_test():
     print("Priority ERA5 SSW backfill self-test OK", flush=True)
 
 
+def reference_chunk_plan():
+    """Five-day calendar windows in SSW-relevant order (then the remaining year)."""
+    windows = []
+    for month in range(1, 13):
+        for first in range(1, calendar.monthrange(2000, month)[1]+1, 5):
+            finish = min(first+4, calendar.monthrange(2000, month)[1])
+            canonical = [date(2000, month, day) for day in range(first, finish+1)]
+            key = min(abs((point-event).days) for point in canonical
+                      for event in (date(2000, 1, 2),date(2000, 2, 9),
+                                    date(2000, 2, 12),date(2000, 3, 24)))
+            windows.append((key,month,first))
+    return sorted(windows)
+
+
+def climatology_work_plan(rows_by_year, max_chunks):
+    """Group equal calendar dates across the 30 reference years to release real
+    complete-day means as early as possible, not a partial-year 'climatology'."""
+    requests = []
+    for _, month, first in reference_chunk_plan():
+        for year in range(1991, 2021):
+            count = calendar.monthrange(year,month)[1]
+            if first>count:
+                continue
+            days = tuple(range(first,min(first+5,count+1)))
+            stamps = _dates(year,month,days)
+            old = rows_by_year.get(year,{})
+            levels = tuple(level for level in TEMPERATURE_LEVELS if
+                any(f"tcap_{level}" not in old.get(d,{}) for d in stamps))
+            if levels:
+                requests.append((year,month,days,levels))
+                if len(requests)>=max_chunks:
+                    return requests
+    return requests
+
+
+def backfill_reference_temperatures(client, *, max_chunks=2):
+    """Fills four true polar-cap T levels in 1991–2020, without guessing means."""
+    years = range(1991,2021)
+    by_year = {y:{row["date"]:row for row in base.read_rows(y)} for y in years}
+    plan = climatology_work_plan(by_year,max_chunks)
+    done,failed = 0,0
+    for year,month,days,levels in plan:
+        try:
+            result=retrieve_chunk(client,year,month,days,("temperature",levels,"t"))
+        except Exception as error:
+            failed+=1
+            print(f"WARNING: reference 1991–2020 {year}-{month:02d} "
+                  f"{days[0]}–{days[-1]} failed: {error}",flush=True)
+            if failed>=2:
+                break
+            continue
+        for day,row in result.items():
+            old=by_year[year].get(day,{"date":day})
+            by_year[year][day]={**old,**row}
+        base.store_rows(year,list(by_year[year].values()))
+        done+=1
+        print(f"Saved real reference-temperature chunk {year}-{month:02d} "
+              f"{days[0]}–{days[-1]}",flush=True)
+    return done,not bool(climatology_work_plan(by_year,1)),failed
+
+
+def coverage_summary():
+    """Report four-level completeness separately from any historical wind data."""
+    seasons={}
+    all_years={}
+    for season,_ in PRIORITY_EVENTS:
+        all_years.setdefault(season,{row["date"]:row for row in base.read_rows(season)})
+        all_years.setdefault(season+1,{row["date"]:row for row in base.read_rows(season+1)})
+        complete,total=0,0
+        per_level={str(level):0 for level in TEMPERATURE_LEVELS}
+        for year,months in ((season,range(9,13)),(season+1,range(1,6))):
+            for month in months:
+                for d in range(1,calendar.monthrange(year,month)[1]+1):
+                    stamp=f"{year}-{month:02d}-{d:02d}"
+                    row=all_years[year].get(stamp,{})
+                    total+=1
+                    for level in TEMPERATURE_LEVELS:
+                        if isinstance(row.get(f"tcap_{level}"),(int,float)):
+                            per_level[str(level)]+=1
+                    if all(isinstance(row.get(field),(int,float))
+                           for field in TEMPERATURE_FIELDS):
+                        complete+=1
+        seasons[str(season)]={"days_total":total,"all_four_days":complete,
+                             "days_per_level":per_level}
+    ref_by_year={}
+    reference_complete=0
+    for year in range(1991,2021):
+        rows=all_years.get(year)
+        if rows is None:
+            rows={r["date"]:r for r in base.read_rows(year)}
+        days=366 if calendar.isleap(year) else 365
+        good=sum(1 for r in rows.values()
+                 if all(isinstance(r.get(field),(int,float))
+                        for field in TEMPERATURE_FIELDS))
+        ref_by_year[str(year)]={"complete_days":good,"total_days":days}
+        if good==days:
+            reference_complete+=1
+    return {"priority_seasons":seasons,"reference_1991_2020":{
+        "years_complete_four_temperatures":reference_complete,
+        "years":ref_by_year}}
+
+
+def publish_backfill_status(stats):
+    base.OUTPUT.mkdir(parents=True,exist_ok=True)
+    summary={"schema_version":1,
+             "updated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds"),
+             "source":"Copernicus C3S ERA5; verified values only",
+             "last_run":stats,**coverage_summary()}
+    (base.OUTPUT/"backfill_status.json").write_text(
+        json.dumps(summary,ensure_ascii=False,separators=(",",":"))+"\\n",
+        encoding="utf-8")
+    print("Polar ERA5 backfill status",json.dumps(
+        {"priority":summary["priority_seasons"],
+         "reference_completed":summary["reference_1991_2020"][
+             "years_complete_four_temperatures"],"run":stats}),flush=True)
+
+
 def choose_backfill_year():
     endyear=base.last_available_date().year
     for year in [*range(1991,2021),*range(1940,1991),*range(2021,endyear)]:
@@ -299,18 +416,29 @@ def main():
                         help="fill historical SSW winters 2009/10, 2017/18 and 2018/19 first")
     parser.add_argument("--priority-chunks",type=int,default=9,
                         help="max sequential priority 5-day ERA5 requests")
+    parser.add_argument("--climatology-backfill",action="store_true",
+                        help="also fill 1991–2020 temperature baseline in shared calendar windows")
+    parser.add_argument("--climatology-chunks",type=int,default=2,
+                        help="max real 5-day requests for climatology per run")
     parser.add_argument("--self-test",action="store_true")
     args=parser.parse_args()
     if args.self_test:
         test()
         priority_self_test()
+        assert len(reference_chunk_plan())>70
+        early=climatology_work_plan({},4)
+        assert [r[0] for r in early]==[1991,1992,1993,1994]
+        assert all(len(r[3])==4 for r in early)
+        print("ERA5 climatology reference scheduling self-test OK",flush=True)
         return
-    if not any((args.current, args.backfill_one, args.priority_backfill)):
+    if not any((args.current, args.backfill_one, args.priority_backfill, args.climatology_backfill)):
         parser.error("Select --current, --priority-backfill or --backfill-one")
-    if not 1 <= args.priority_chunks <= 30:
-        parser.error("--priority-chunks must be between 1 and 30")
+    if not 1 <= args.priority_chunks <= 30 or not 1 <= args.climatology_chunks <= 12:
+        parser.error("Priority chunks must be 1..30; climatology chunks 1..12")
     import cdsapi
     client=cdsapi.Client(quiet=False,progress=False)
+    run_stats={"current":bool(args.current),"priority_chunks_completed":0,
+               "climatology_chunks_completed":0,"climatology_errors":0}
     if args.current:
         for year in range(2026,base.last_available_date().year+1):
             print(f"Stage 2 current {year}: {update_year_polar(client,year,current=True,max_chunks=2)} new chunks",flush=True)
@@ -319,8 +447,16 @@ def main():
         done, finished = backfill_priority_temperatures(
             client, max_chunks=args.priority_chunks)
         priority_incomplete = not finished
+        run_stats["priority_chunks_completed"]=done
+        run_stats["priority_complete"]=finished
         print(f"Priority SSW ERA5 chunks in this run: {done}; "
               f"all target windows complete: {finished}", flush=True)
+    if args.climatology_backfill:
+        c_done,c_finished,c_failed=backfill_reference_temperatures(
+            client,max_chunks=args.climatology_chunks)
+        run_stats["climatology_chunks_completed"]=c_done
+        run_stats["climatology_errors"]=c_failed
+        run_stats["climatology_complete"]=c_finished
     if args.backfill_one and not priority_incomplete:
         year=choose_backfill_year()
         if year is not None:
@@ -329,6 +465,7 @@ def main():
         print("Defer regular historical stage-2 backfill until SSW temperature "
               "priority windows complete.",flush=True)
     base.rebuild_index()
+    publish_backfill_status(run_stats)
 
 if __name__=="__main__":
     main()
