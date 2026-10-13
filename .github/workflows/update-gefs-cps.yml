@@ -20,9 +20,9 @@ concurrency:
 jobs:
   gefs:
     runs-on: ubuntu-latest
-    timeout-minutes: 43
+    timeout-minutes: 58
     env:
-      GEFS_MEMBERS: "10"
+      GEFS_MEMBERS: "30"
     steps:
       - name: Quellcode laden
         uses: actions/checkout@v5
@@ -41,10 +41,28 @@ jobs:
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/real-gefs
           test -s /tmp/real-gefs/data/cyclone-tracker/atlantic.json
-      - name: Echte GEFS-Mitglieder und CPS abrufen
+      - name: 31 GEFS-Mitglieder in schonenden, fortsetzbaren Chargen
         shell: bash
         run: |
-          python scripts/update_gefs_cps.py             --atlantic /tmp/real-gefs/data/cyclone-tracker/atlantic.json             --out /tmp/real-gefs/data/cyclone-tracker/gefs.json             --members 10 --max-hour 72
+          set -euo pipefail
+          ATLAS=/tmp/real-gefs/data/cyclone-tracker/atlantic.json
+          RESULT=/tmp/real-gefs/data/cyclone-tracker/gefs.json
+          for bounds in "0 7" "8 15" "16 23" "24 30"; do
+            read -r FIRST LAST <<< "$bounds"
+            echo "::group::Echte GEFS-Member ${FIRST} bis ${LAST}"
+            if ! python scripts/update_gefs_cps.py \
+              --atlantic "$ATLAS" --out "$RESULT" \
+              --members 30 --member-start "$FIRST" --member-end "$LAST" --max-hour 72; then
+              echo "::warning::GEFS-Teilcharge ${FIRST}-${LAST} teilweise fehlgeschlagen; weiter mit anderen realen Mitgliedern."
+            fi
+            echo "::endgroup::"
+            if [ "$LAST" -lt 30 ]; then
+              echo "Kurze Pause zur Schonung des NOAA-Servers."
+              sleep 75
+            fi
+          done
+          test -s "$RESULT"
+          python -c 'import json;d=json.load(open("/tmp/real-gefs/data/cyclone-tracker/gefs.json"));print("GEFS available:", d["members_with_cps"], "/ 31");assert d["members_with_cps"]>=2'
       - name: Datensatz veröffentlichen
         shell: bash
         run: |
@@ -54,5 +72,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/cyclone-tracker/gefs.json
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "GEFS: genuine ensemble-member CPS (pilot)"
+          git commit -m "GEFS: full 31-member CPS attempted, with valid-count reporting"
           git push --quiet origin HEAD:refs/heads/cyclone-tracker-data

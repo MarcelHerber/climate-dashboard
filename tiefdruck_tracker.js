@@ -3,8 +3,9 @@
 const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/";
 const DATA_URL=BASE+"tracks.json";
 const ATLANTIC_URL=BASE+"atlantic.json";
-const MODEL_LABEL={gfs:"GFS Nordatlantik / Hart-CPS",ifs:"ECMWF IFS",aifs:"ECMWF AIFS",ens:"ECMWF IFS ENS"};
-const COLOR={gfs:"#8b5cf6",ifs:"#d54632",aifs:"#245fb1",ens:"#288c73"};
+const ECMWF_LOW_URL=BASE+"ecmwf_atlantic.json";
+const MODEL_LABEL={gfs:"GFS Nordatlantik / Hart-CPS","ifs-atl":"IFS Nordatlantik-Tiefs","aifs-atl":"AIFS Nordatlantik-Tiefs",ifs:"IFS Tropenzyklonen",aifs:"AIFS Tropenzyklonen",ens:"IFS ENS Tropenzyklonen"};
+const COLOR={gfs:"#8b5cf6","ifs-atl":"#bd332a","aifs-atl":"#175aad",ifs:"#f58049",aifs:"#5ba4db",ens:"#288c73"};
 const $=id=>document.getElementById(id);
 let map,lines,allData=null,visible=[],activeId=null,intensityChart=null,cpsChart=null,cpsUpperChart=null,totalMatching=0;
 const number=(v,d=1)=>Number.isFinite(v)?v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";
@@ -118,7 +119,10 @@ function details(t){
   $("vpressure").textContent=Number.isFinite(p.mslp_hpa)?number(p.mslp_hpa)+" hPa":"–";
   $("vwind").textContent=Number.isFinite(p.vmax_ms)?number(p.vmax_ms*3.6,0)+" km/h":"–";
   const phase=p.phase||"nicht bestimmt";
-  $("phaseLabel").textContent=t.model==="gfs"?"GFS-Kernstruktur: "+phase:"Kernstruktur: Für dieses ECMWF-TC-Produkt nicht berechnet";
+  $("phaseLabel").textContent=t.model==="gfs"?"GFS-Kernstruktur: "+phase:
+    (t.model==="ifs-atl"||t.model==="aifs-atl"?
+     "Kernstruktur: ECMWF-MSLP-Tiefbahnen, Hart-CPS noch nicht berechnet":
+     "Kernstruktur: Für diesen ECMWF-Tropenzyklonen-Track nicht berechnet");
   plotIntensity(t);plotCps(t);
   if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(t,allData,chosenHour());
 }
@@ -160,18 +164,18 @@ async function load(){
         throw Error("Unerwartetes Datenformat");
       return data;
     }
-    const result=await Promise.allSettled([get(DATA_URL),get(ATLANTIC_URL)]);
+    const result=await Promise.allSettled([get(DATA_URL),get(ATLANTIC_URL),get(ECMWF_LOW_URL)]);
     const success=result.filter(r=>r.status==="fulfilled").map(r=>r.value);
     if(!success.length)throw Error("ECMWF- und GFS-Archiv derzeit nicht erreichbar");
-    const issues=result.map((r,i)=>r.status==="rejected"?(i===0?"ECMWF":"GFS")+": "+r.reason.message:null).filter(Boolean);
+    const issues=result.map((r,i)=>r.status==="rejected"?["ECMWF-TC","GFS","IFS/AIFS-Tiefs"][i]+": "+r.reason.message:null).filter(Boolean);
     allData={schema:1,models:success.flatMap(j=>j.models),tracks:success.flatMap(j=>j.tracks)};
     const latest=success.map(j=>j.updated_utc).filter(Boolean).sort().at(-1);
     $("updated").textContent="Aktuellster Datenabruf: "+stamp(latest);
     $("modelruns").textContent=allData.models.map(m=>(MODEL_LABEL[m.model]||m.model)+": "
-      +(m.status==="ok"?stamp(m.run):m.status==="no_storms"?"kein Tropenzyklon":"nicht verfügbar")).join(" · ");
+      +(m.status==="ok"?stamp(m.run):m.status==="no_storms"?"keine passenden Tiefbahnen":m.status==="stale"?"älterer Datenstand "+stamp(m.run):"nicht verfügbar")).join(" · ");
     if(allData.models.some(m=>m.model==="gfs"))$("model").value="gfs";
     else if($("model").value==="gfs")$("model").value="all";
-    populate();$("hour").value=$("model").value==="gfs"?"120":"240";repaint(true);
+    populate();$("hour").value=$("model").value==="gfs"?"120":"48";repaint(true);
     if(window.HartPhaseSpace)window.HartPhaseSpace.loadHistory();
     const gfs=success.find(j=>j.models.some(m=>m.model==="gfs"));
     setStatus((gfs?gfs.tracks.length+" GFS-Nordatlantik-Tiefbahnen und "+

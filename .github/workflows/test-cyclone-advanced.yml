@@ -4,12 +4,14 @@ on:
     branches: [main]
     paths:
       - "tests/test_cyclone_dashboard_integrity.py"
+      - "tests/test_ecmwf_gefs31.py"
       - "tests/test_north_atlantic_cps.py"
       - "tiefdruck_tracker.html"
       - "tiefdruck_tracker.js"
       - "tiefdruck_phase.js"
       - "tiefdruck_diagnostics.js"
       - "scripts/update_gefs_cps.py"
+      - "scripts/update_ecmwf_atlantic_lows.py"
       - "scripts/update_north_atlantic_cps.py"
       - ".github/workflows/test-cyclone-advanced.yml"
   workflow_dispatch:
@@ -25,8 +27,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install numeric and GRIB libraries
-        run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+        run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3" "ecmwf-opendata>=0.3.21,<1"
       - name: Syntax of real GFS and GEFS backend
-        run: python -m compileall -q scripts/update_north_atlantic_cps.py scripts/update_gefs_cps.py
+        run: python -m compileall -q scripts/update_north_atlantic_cps.py scripts/update_gefs_cps.py scripts/update_ecmwf_atlantic_lows.py
       - name: Test meteorological math and frontend integration
-        run: python -m unittest discover -s tests -p "test_*cps.py" -v && python -m unittest discover -s tests -p test_cyclone_dashboard_integrity.py -v
+        run: python -m unittest discover -s tests -p "test_*cps.py" -v && python -m unittest discover -s tests -p test_cyclone_dashboard_integrity.py -v && python -m unittest discover -s tests -p test_ecmwf_gefs31.py -v

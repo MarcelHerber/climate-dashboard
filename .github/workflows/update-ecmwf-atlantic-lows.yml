@@ -1,0 +1,51 @@
+name: IFS AIFS Nordatlantik-Tiefs berechnen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 6,18 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_ecmwf_atlantic_lows.py"
+      - ".github/workflows/update-ecmwf-atlantic-lows.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyclone-tracker-data
+  cancel-in-progress: false
+
+jobs:
+  ifs-aifs-atlantic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Open Data und meteorologische Numerik
+        run: pip install "ecmwf-opendata>=0.3.21,<1" "numpy>=2,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+      - name: Bestehendes Datenarchiv auschecken
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/ifs-atlantic-public
+      - name: Reale IFS AIFS MSLP-Tiefs erkennen
+        run: python scripts/update_ecmwf_atlantic_lows.py --out /tmp/ifs-atlantic-public/data/cyclone-tracker/ecmwf_atlantic.json
+      - name: Aktualisiertes Modellarchiv veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/ifs-atlantic-public
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cyclone-tracker/ecmwf_atlantic.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "IFS AIFS: Nordatlantische Tiefzentren aus realen MSLP-Feldern"
+          git push --quiet origin HEAD:refs/heads/cyclone-tracker-data

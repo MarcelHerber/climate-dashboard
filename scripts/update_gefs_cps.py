@@ -70,6 +70,9 @@ def read_grib(path):
     return fields,lat,((lon+180)%360)-180
 
 def retrieve(run,member,lead,target):
+    # Gentle request pacing. NOAA NOMADS temporarily redirected/limited bursts
+    # when requesting 31 members simultaneously in earlier tests.
+    time.sleep(2.0)
     prefix="gec00" if member==0 else f"gep{member:02d}"
     name=f"{prefix}.t{run:%H}z.pgrb2a.0p50.f{lead:03d}"
     query={
@@ -108,14 +111,18 @@ def process_member(run,member,base_tracks,steps):
         for lead in steps:
             path=Path(temp)/f"{member:02d}_{lead:03d}.grb2"
             try:
-                for attempt in range(2):
+                for attempt in range(3):
                     try:
                         retrieve(run,member,lead,path)
                         fields,lat,lon=read_grib(path)
                         break
-                    except Exception:
-                        if attempt:raise
-                        time.sleep(1)
+                    except Exception as exc:
+                        if attempt>=2:raise
+                        wait=10*(attempt+1)**2
+                        if "302" in str(exc) or "429" in str(exc):
+                            wait=40*(attempt+1)
+                        print(f"GEFS member {member:02d} +{lead}: retry in {wait}s after {str(exc)[:110]}",flush=True)
+                        time.sleep(wait)
                 valid=run+dt.timedelta(hours=lead)
                 stamp=valid.strftime("%Y-%m-%dT%H:%M:%SZ")
                 proposals=[]
@@ -157,6 +164,10 @@ def main():
     parser.add_argument("--atlantic",type=Path,required=True)
     parser.add_argument("--out",type=Path,required=True)
     parser.add_argument("--members",type=int,default=int(os.getenv("GEFS_MEMBERS","30")))
+    parser.add_argument("--member-start",type=int,default=0,
+                        help="First GEFS member to process in this refresh batch")
+    parser.add_argument("--member-end",type=int,default=None,
+                        help="Last GEFS member in this batch, inclusive")
     parser.add_argument("--max-hour",type=int,default=72)
     args=parser.parse_args()
     atlas=json.loads(args.atlantic.read_text())
@@ -166,11 +177,25 @@ def main():
     base_run=dt.datetime.fromisoformat(atlas["models"][0]["run"].replace("Z","+00:00"))
     # GEFS cycles are 00,06,12,18 UTC; use the same initialization for
     # comparable valid dates and explicitly encode it in exported metadata.
-    member_ids=list(range(min(30,args.members)+1))
+    member_end=min(30,args.members,args.member_end if args.member_end is not None else args.members)
+    member_ids=list(range(max(0,args.member_start),member_end+1))
     steps=list(range(0,args.max_hour+1,12))
     all_members={t["id"]:[] for t in base_tracks}
     errors={}
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    previous=None
+    if args.out.exists():
+        try:previous=json.loads(args.out.read_text())
+        except Exception:previous=None
+    # Resume a partially completed set, but NEVER mix model initializations.
+    if previous and previous.get("run")==base_run.strftime("%Y-%m-%dT%H:%M:%SZ"):
+        for storm in previous.get("storms",[]):
+            if storm.get("base_id") in all_members:
+                all_members[storm["base_id"]].extend(storm.get("members",[]))
+        errors.update(previous.get("errors",{}))
+    already={m["member"] for members in all_members.values() for m in members}
+    member_ids=[m for m in member_ids
+                if f"ge{'c00' if m==0 else 'p'+str(m).zfill(2)}" not in already]
+    with ThreadPoolExecutor(max_workers=1) as pool:
         tasks={pool.submit(process_member,base_run,m,base_tracks,steps):m for m in member_ids}
         for future in as_completed(tasks):
             m=tasks[future]
@@ -185,20 +210,33 @@ def main():
                 if fail:errors[str(m)]=fail[:2]
             except Exception as exc:errors[str(m)]=[str(exc)[:160]]
             print(f"GEFS member {m:02d}: completed",flush=True)
+    # Same member is represented only once per storm in resumed output.
+    for tid,records in all_members.items():
+        dedup={r["member"]:r for r in records if r.get("member")}
+        all_members[tid]=list(dedup.values())
+    successful={m["member"] for records in all_members.values() for m in records}
+    for member in successful:
+        try:
+            ident=0 if member=="gec00" else int(member[3:])
+            errors.pop(str(ident),None)
+        except ValueError:
+            pass
     valid_members={t:len(m) for t,m in all_members.items() if len(m)>=2}
     if not valid_members:raise SystemExit(f"No verified 2-member GEFS matched CPS tracks, errors={errors}")
     payload={"schema":1,"updated_utc":dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
        "run":base_run.strftime("%Y-%m-%dT%H:%M:%SZ"),"model":"GEFS","source":"NOAA/NCEP GEFS 0.5° 30 perturbations + control",
-       "members_requested":len(member_ids),
+       "members_requested":31,
+       "members_processed_this_batch":len(member_ids),
+       "members_complete":len(successful)==31,
        "members_with_cps":len(set(m["member"] for arr in all_members.values() for m in arr)),
        "pressure_levels_native":[925,850,700,500,300],
        "pressure_levels_interpolated":[900,600,400],
        "method":"Hart 500km around nearest GEFS sea-level-pressure center within 450km of GFS baseline; 900/600/400hPa log-pressure height interpolation; 12h steps",
-       "status":"partial" if errors else "ok","errors":errors,"storms":[
+       "status":"complete" if len(successful)==31 else "partial","errors":errors,"storms":[
          {"base_id":tid,"members":records} for tid,records in all_members.items() if records]}
     args.out.parent.mkdir(parents=True,exist_ok=True)
     args.out.write_text(json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n")
     print(json.dumps({"run":payload["run"],"storm_matches":len(valid_members),
-        "valid_members":payload["members_with_cps"],"requested":len(member_ids),"errors":len(errors)}),flush=True)
+        "valid_members":payload["members_with_cps"],"requested":31,"batch":member_ids,"errors":len(errors)}),flush=True)
 
 if __name__=="__main__":main()
