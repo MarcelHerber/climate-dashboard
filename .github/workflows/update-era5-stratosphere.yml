@@ -63,8 +63,10 @@ jobs:
         run: python scripts/update_era5_stratosphere.py --current --backfill-one
       - name: Verify stage-2 polar-cap calculations
         run: python scripts/update_era5_stratosphere_stage2.py --self-test
-      - name: Fetch stage-2 real polar-cap temperature and geopotential
-        run: python scripts/update_era5_stratosphere_stage2.py --current --backfill-one
+      - name: Fetch current polar-cap diagnostics and priority SSW temperatures
+        run: |
+          python scripts/update_era5_stratosphere_stage2.py \
+            --current --priority-backfill --priority-chunks 9 --backfill-one
       - name: Validate published data
         run: |
           python - <<'PY'
@@ -80,6 +82,13 @@ jobs:
           assert all(date.fromisoformat(day).year>=1940 for day in days)
           assert any("u60_10" in row for row in payload["series"])
           assert any(all(k in row for k in ("tcap_10","tcap_50","tcap_100","zcap_10")) for row in payload["series"]), "Stage 2 produced no real polar-cap values"
+          levels=("tcap_10","tcap_30","tcap_50","tcap_100")
+          priority=(("2009-09-01","2010-05-31"),("2017-09-01","2018-05-31"),("2018-09-01","2019-05-31"))
+          for start,end in priority:
+            sub=[row for row in payload["series"] if start<=row["date"]<=end]
+            counts={name:sum(isinstance(r.get(name),(float,int)) for r in sub) for name in levels}
+            print("Priority SSW temperature coverage",start,end,counts)
+          assert all(k in payload["metrics"] for k in levels), "Four temperature diagnostics missing"
           print("Validated real ERA5 daily diagnostics:",len(days),"days",days[-1])
           PY
       - name: Publish stratosphere data without changing existing ERA5 maps
