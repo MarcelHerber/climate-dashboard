@@ -9,7 +9,7 @@
   const COLORS={10:"#2563eb",30:"#8b5cf6",50:"#0f766e",100:"#d97706"};
   const MON=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
   let era=null,rows=new Map(),chart=null,wind=new Map(),windRef=new Map(),status="",ticket=0,plot=null;
-  let cachedSeason=null,temperatureReady=false;
+  let cachedSeason=null,temperatureReady=false,backfillStatus=null;
   const $=id=>document.getElementById(id);
   function fmt(v,d=1){return Number.isFinite(v)?v.toLocaleString("de-DE",{maximumFractionDigits:d,minimumFractionDigits:d}):"–";}
   function dayOf(date){return Date.parse(date+"T00:00:00Z");}
@@ -64,6 +64,32 @@
       }catch(e){last=e;}
     }
     throw last||Error("ERA5-Archiv nicht erreichbar");
+  }
+  async function loadBackfillStatus(){
+    const urls=["era5_stratosphere/backfill_status.json",
+      "https://raw.githubusercontent.com/"+REPO+"/main/era5_stratosphere/backfill_status.json"];
+    for(const url of urls){
+      try{
+        const r=await fetch(url+"?ts="+Math.floor(Date.now()/300000),{cache:"no-store"});
+        if(!r.ok)continue;
+        const data=await r.json();
+        if(data.schema_version===1){backfillStatus=data;return;}
+      }catch(e){/* Data workflow has not published a status yet. */}
+    }
+    backfillStatus=null;
+  }
+  function renderRunHealth(){
+    const node=$("polarTempRunHealth");if(!node)return;
+    if(!backfillStatus){
+      node.textContent="CDS-Laufbericht noch nicht veröffentlicht. Die Balken zeigen ausschließlich echte ERA5-Werte im Index.";
+      return;
+    }
+    const run=backfillStatus.last_run||{},time=backfillStatus.updated_utc||"–";
+    const totalErrors=(run.priority_errors||0)+(run.climatology_errors||0)+(run.errors||[]).length;
+    node.textContent="Letzter Datenlauf: "+time+
+      " · SSW-Pakete: "+(run.priority_chunks_completed??"–")+
+      " · Referenzpakete: "+(run.climatology_chunks_completed??"–")+
+      (totalErrors?" · Fehler/abgebrochene Pakete: "+totalErrors:" · keine gemeldeten CDS-Fehler");
   }
   async function loadERA(){
     const value=await fetchJsonWithFallback(ERA_URLS);
@@ -358,7 +384,7 @@
     $("polarTempWarning").textContent=mode==="anomaly"&&!hasRef?
       "Die 1991–2020-Klimatologie ist noch nicht vollständig. ERA5-Anomalien werden deshalb nicht berechnet; die NASA-Windabweichungen können unabhängig davon bereits gezeigt werden.":
       "Temperaturen aus ERA5 (Polkappenmittel 60–90° N), Wind aus NASA MERRA-2/GEOS-FP (60° N). Unterschiedliche Datengrundlagen sind separat gekennzeichnet; keine fehlenden Tage oder Druckniveaus werden interpoliert.";
-    renderPriorityCoverage();drawKpis(dates,lag);drawTrend(dates,mode,lag);drawPaired(dates,mode,lag);
+    renderPriorityCoverage();renderRunHealth();drawKpis(dates,lag);drawTrend(dates,mode,lag);drawPaired(dates,mode,lag);
   }
   async function load(){
     const year=Number($("season").value),token=++ticket;
@@ -371,6 +397,8 @@
         return;
       }
     }
+    if(token!==ticket)return;
+    await loadBackfillStatus();
     if(token!==ticket)return;
     if(cachedSeason!==year){
       try{await loadNASA(year,token);}catch(e){if(token===ticket)status=String(e);}
@@ -421,6 +449,7 @@
       '<option value="2018">2018/19</option><option value="2025">2025/26</option></select></label>',
       '</div><div id="polarTempStatus" class="info" aria-live="polite">ERA5-Tageswerte werden geladen …</div>',
       '<h3>ERA5-Backfillstand der SSW-Vergleichswinter</h3>',
+      '<p id="polarTempRunHealth" class="polar-temp-note">Laufbericht wird geladen …</p>',
       '<div id="polarTempBackfill" class="polar-backfill" aria-label="ERA5-Historienfortschritt"></div>',
       '<div class="polar-temp-kpis" id="polarTempKpis"></div>',
       '<h3>Polkappentemperatur nach Druckniveau</h3>',
