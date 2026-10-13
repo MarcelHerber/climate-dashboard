@@ -31,6 +31,11 @@ jobs:
           sparse-checkout: |
             scripts
             era5_europe/extra
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Planungsbibliotheken bereitstellen
+        run: python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
       - name: Nächsten noch nicht veröffentlichten Monatsblock wählen
         id: next
         shell: bash
@@ -250,6 +255,11 @@ jobs:
           sparse-checkout: |
             scripts
             era5_europe
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Python-Bibliotheken für Manifestprüfung bereitstellen
+        run: python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
       - uses: actions/download-artifact@v4
         with:
           pattern: era5-atmos-extra-verified-*
