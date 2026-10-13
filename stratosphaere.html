@@ -614,13 +614,13 @@ function diagnoseSSW(year,items){
   const ten=items.find(item=>item.level===10);
   if(!ten)return {year,events:[],available:false,description:"10-hPa-Analysedaten fehlen."};
   const wind=analyzedMap(ten.rows);
-  const start=seasonDate(year,11,1),end=seasonDate(year+1,4,30);
+  const start=seasonDate(year,11,1);
   // seasonDate accepts the starting season year, so for Apr it advances one year.
   const april=String(year+1)+"-04-30";
   const days=utcSequence(start,april),endWindow=String(year+1)+"-03-31";
   const lastAnalyzed=[...wind.keys()].sort().at(-1)||null;
   const events=[];
-  let previous=null,westDays=0,hasTwentyWest=false;
+  let previous=wind.get(String(year)+"-10-31")??null,westDays=0,hasTwentyWest=false;
   for(const day of days){
     const value=wind.get(day);
     if(events.length){
@@ -645,7 +645,7 @@ function diagnoseSSW(year,items){
       duration++;min=Math.min(min,v);
     }
     event.duration=duration;event.minimum=Number.isFinite(min)?min:null;
-    event.durationUncertain=episodeGap;
+    event.durationUncertain=episodeGap||(duration>0&&wind.get(april)<0&&onset+(duration-1)*86400000===utcDay(april));
     let consecutiveWest=0,recovered=null,missingAfter=false;
     for(let time=onset+86400000;time<=utcDay(april);time+=86400000){
       const day=new Date(time).toISOString().slice(0,10),v=wind.get(day);
