@@ -1,0 +1,55 @@
+name: IFS AIFS echte Hart CPS diagnostizieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "25 7,19 * * *"
+  push:
+    branches: [main, "feature/ifs-aifs-cps-gefs-track-quality-20261013"]
+    paths:
+      - "scripts/update_ecmwf_atlantic_cps.py"
+      - ".github/workflows/update-ecmwf-atlantic-cps.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyclone-tracker-data
+  cancel-in-progress: false
+
+jobs:
+  ecmwf-hart-cps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: GRIB und wissenschaftliche Bibliotheken
+        run: pip install "ecmwf-opendata>=0.3.21,<1" "numpy>=2,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+      - name: IFS/AIFS-Tiefzentren aus bestehendem Datenbranch laden
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git clone --quiet --depth 1 --single-branch --branch cyclone-tracker-data "$REMOTE" /tmp/ifs-cps-public
+          test -s /tmp/ifs-cps-public/data/cyclone-tracker/ecmwf_atlantic.json
+      - name: Echte IFS/AIFS Hart-CPS aus z/pl und sp/sfc berechnen
+        run: |
+          python scripts/update_ecmwf_atlantic_cps.py \
+            --atlantic /tmp/ifs-cps-public/data/cyclone-tracker/ecmwf_atlantic.json \
+            --out /tmp/ifs-cps-public/data/cyclone-tracker/ecmwf_atlantic_cps.json
+      - name: Diagnosen veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/ifs-cps-public
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cyclone-tracker/ecmwf_atlantic_cps.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "ECMWF: Hart-CPS aus echten IFS/AIFS-Geopotenzialfeldern"
+          git push --quiet origin HEAD:refs/heads/cyclone-tracker-data
