@@ -1,7 +1,7 @@
 name: Zyklonen-Dashboard Diagnose-Checks
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/ifs-aifs-cps-gefs-track-quality-20261013"]
     paths:
       - "tests/test_cyclone_dashboard_integrity.py"
       - "tests/test_ecmwf_gefs31.py"
