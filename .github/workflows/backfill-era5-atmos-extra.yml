@@ -1,0 +1,281 @@
+name: ERA5 Erweiterungsarchiv 1940-2025 schrittweise
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/backfill-era5-atmos-extra.yml"
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A single serial planner; at most two CDS / rendering jobs at once.
+concurrency:
+  group: era5-atmos-extra-1940-2025
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      has_work: ${{ steps.next.outputs.has_work }}
+      month: ${{ steps.next.outputs.month }}
+      years: ${{ steps.next.outputs.years }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts
+            era5_europe/extra
+      - name: Nächsten noch nicht veröffentlichten Monatsblock wählen
+        id: next
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/era5_atmos_extra.py plan \
+            --index era5_europe/extra/index.json \
+            --output "$GITHUB_OUTPUT" --batch-size 4
+
+  prepare:
+    needs: plan
+    if: needs.plan.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gemeinsamen historischen Referenz-Release bereitstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG=era5-atmos-extra-reference-1940-2025-v1
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target main \
+              --title "ERA5 erweiterte Druckniveaus: Monatsreferenzen 1940-2025" \
+              --notes "Echte ERA5-Monatsmittel, je Parameter und Kalendermonat; 0,25 Grad."
+          fi
+
+  references:
+    needs: [plan, prepare]
+    if: needs.plan.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        parameter: [t925, t700, t500, rh700, omega500, u300]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET_MONTH: ${{ needs.plan.outputs.month }}
+      PARAM: ${{ matrix.parameter }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CDS-Pakete und Kartenbibliotheken einrichten
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+      - name: Vorhandene Referenz erkennen
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="month_${TARGET_MONTH}_${PARAM}.npz"
+          if gh release view era5-atmos-extra-reference-1940-2025-v1 \
+              --json assets --jq '.assets[].name' | grep -Fxq "$FILE"; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "$FILE ist bereits veröffentlicht."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: CDS API einrichten
+        if: steps.existing.outputs.ready != 'true'
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Ein Parameter-Monatsarchiv 1940-2025 berechnen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="month_${TARGET_MONTH}_${PARAM}.npz"
+          mkdir -p .era5-extra-refs
+          python scripts/era5_atmos_extra.py reference \
+            --month "$((10#$TARGET_MONTH))" --parameter "$PARAM" \
+            --output ".era5-extra-refs/$FILE"
+          gh release upload era5-atmos-extra-reference-1940-2025-v1 \
+            ".era5-extra-refs/$FILE" --clobber
+      - name: Veröffentlichtes Referenzpaket verifizieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="month_${TARGET_MONTH}_${PARAM}.npz"
+          gh release view era5-atmos-extra-reference-1940-2025-v1 \
+            --json assets --jq '.assets[].name' | grep -Fxq "$FILE"
+
+  render:
+    needs: [plan, references]
+    if: needs.references.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        year: ${{ fromJSON(needs.plan.outputs.years) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET_MONTH: ${{ needs.plan.outputs.month }}
+      TARGET_YEAR: ${{ matrix.year }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - name: Python und Kartografie installieren
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
+      - name: Fertigen Monatsrelease wiederverwenden
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR="$TARGET_YEAR"
+          MONTH="$TARGET_MONTH"
+          PERIOD="$YEAR-$MONTH"
+          TAG="era5-atmos-extra-$YEAR-v1"
+          OUT=".era5-extra-year/$YEAR"
+          mkdir -p "$OUT"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+            READY=true
+            for KEY in t925 t700 t500 rh700 omega500 u300; do
+              if ! grep -Fxq "$PERIOD-$KEY.webp" <<< "$ASSETS"; then READY=false; fi
+            done
+            if ! grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"; then READY=false; fi
+            if [[ "$READY" == true ]]; then
+              gh release download "$TAG" --pattern "$PERIOD-manifest.json" --dir "$OUT"
+              mv "$OUT/$PERIOD-manifest.json" "$OUT/manifest.json"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "$PERIOD bereits vollständig publiziert."
+              exit 0
+            fi
+          fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+      - name: Sechs verifizierte Monatspakete laden
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .era5-extra-refs
+          gh release download era5-atmos-extra-reference-1940-2025-v1 \
+            --pattern "month_${TARGET_MONTH}_*.npz" --dir .era5-extra-refs
+          test "$(find .era5-extra-refs -maxdepth 1 -name '*.npz' | wc -l)" -eq 6
+      - name: Sechs echte ERA5-Kartenatlanten pro Monat erzeugen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR="$TARGET_YEAR"
+          python scripts/era5_atmos_extra.py render \
+            --year "$YEAR" --month "$((10#$TARGET_MONTH))" \
+            --references .era5-extra-refs --output ".era5-extra-year/$YEAR"
+          test "$(find ".era5-extra-year/$YEAR" -maxdepth 1 -name '*.webp' | wc -l)" -eq 6
+      - name: Separaten Jahresrelease sicher vervollständigen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          YEAR="$TARGET_YEAR"
+          PERIOD="$YEAR-$TARGET_MONTH"
+          TAG="era5-atmos-extra-$YEAR-v1"
+          OUT=".era5-extra-year/$YEAR"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target main \
+              --title "ERA5 erweiterte atmosphärische Monatskarten $YEAR" \
+              --notes "Nur validierte ERA5-Reanalysedaten, 1991-2020 Referenz, 1940-2025 Rang."
+          fi
+          gh release upload "$TAG" "$OUT"/*.webp --clobber
+          cp "$OUT/manifest.json" "$OUT/$PERIOD-manifest.json"
+          gh release upload "$TAG" "$OUT/$PERIOD-manifest.json" --clobber
+      - name: Vollständigkeit des Releases prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          PERIOD="$TARGET_YEAR-$TARGET_MONTH"
+          TAG="era5-atmos-extra-$TARGET_YEAR-v1"
+          ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for KEY in t925 t700 t500 rh700 omega500 u300; do
+            grep -Fxq "$PERIOD-$KEY.webp" <<< "$ASSETS"
+          done
+          grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"
+          test -s ".era5-extra-year/$TARGET_YEAR/manifest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-atmos-extra-verified-${{ matrix.year }}
+          path: .era5-extra-year/${{ matrix.year }}/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: render
+    if: needs.render.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: era5-atmos-extra-verified-*
+          path: .era5-extra-verified
+          merge-multiple: false
+      - name: Nur verifizierte Jahre/Monate im Pages-Index aktivieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/era5_atmos_extra.py merge \
+              --artifacts .era5-extra-verified --repo .
+            git add era5_europe/extra
+            if git diff --cached --quiet; then
+              echo "Bereits veröffentlicht."
+              exit 0
+            fi
+            git commit -m "Publish verified ERA5 expanded historical month batch"
+            if git push origin HEAD:main; then
+              echo "Verifizierter ERA5-Erweiterungsblock auf main."
+              exit 0
+            fi
+            echo "Git-Konflikt; wiederhole auf neuem main ($attempt/3)."
+          done
+          exit 1
