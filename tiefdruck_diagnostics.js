@@ -89,8 +89,10 @@ function trend(t){
 function chooseModels(t,p){
  const root=$("advComparison");root.replaceChildren();
  if(!t||!p||!all){root.textContent="Bitte ein Tief wählen.";return;}
- const rows=[{model:"GFS-Nordatlantik",pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,reason:"Referenz"}];
- const groups=[["ifs","ECMWF IFS"],["aifs","ECMWF AIFS"],["ens","ECMWF IFS ENS"]];
+ const names={gfs:"GFS Nordatlantik","ifs-atl":"IFS Nordatlantik","aifs-atl":"AIFS Nordatlantik",
+   ifs:"IFS Tropenzyklonen",aifs:"AIFS Tropenzyklonen",ens:"IFS ENS Tropenzyklonen"};
+ const rows=[{model:names[t.model]||t.model,pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,reason:"Referenz"}];
+ const groups=Object.entries(names).filter(([id])=>id!==t.model);
  for(const [id,name] of groups){
    let best=null;
    for(const candidate of all.tracks){
@@ -100,10 +102,10 @@ function chooseModels(t,p){
        if(pt.time!==p.time||!Number.isFinite(pt.lat)||!Number.isFinite(pt.lon))continue;
        const km=distance(pt,p);
        if(km>550||best&&km>=best.km)continue;
-       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,reason:"TC-BUFR"};
+       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,reason:id==="ifs"||id==="aifs"||id==="ens"?"TC-BUFR":"MSLP-Zentrum"};
      }
    }
-   rows.push(best||{model:name,pressure:null,km:null,wind:null,reason:"Kein passender TC-BUFR-Track"});
+   rows.push(best||{model:name,pressure:null,km:null,wind:null,reason:"Kein zeitgleiches Tief im Umkreis 550 km"});
  }
  const table=document.createElement("table");table.className="model-table";
  const labels=["Modell / Datenprodukt","Zentraldruck","Abstand","10-m-Wind"];
@@ -139,7 +141,7 @@ function update(t,d,h){
  $("advGale").textContent=biggest("gale34")===null?"–":fmt(biggest("gale34"),0)+" km";
  $("advStorm").textContent=biggest("storm48")===null?"–":fmt(biggest("storm48"),0)+" km";
  $("advWarning").textContent=!t?"Bitte ein GFS-Nordatlantik-Tief wählen."
-   :t.model!=="gfs"?"Für ECMWF-Tropenzyklonen-Tracks sind hier keine 10-m-Flächen und kein 24-h-Bergeron-Diagnostikum vorhanden."
+   :t.model!=="gfs"?"Für ECMWF-Tiefs sind in dieser Stufe nur Drucktendenzen aus MSLP verfügbar; keine Windfelder und noch keine Hart-CPS-Diagnose."
    :rate?.explosive?"Dieses GFS-Tief erreicht im ausgewählten 24-h-Intervall das breitenkorrigierte Bergeron-Kriterium."
    :"GFS-Modellwerte. Negative Druckfallwerte bedeuten Druckanstieg. Sektoren schätzen radiale Windschwellenausdehnungen.";
  renderWind(p);
