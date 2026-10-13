@@ -226,7 +226,7 @@ def bergeron_24h(current, previous):
         return None
     return {"pressure_drop_hpa_24h":round(fall,1),
             "bergeron":round(fall/reference,2),
-            "explosive":bool(fall>=reference),
+            "explosive":bool(fall+1e-9>=reference),
             "reference_hpa_24h":round(reference,1)}
 
 
