@@ -364,7 +364,7 @@ def publish_backfill_status(stats):
              "source":"Copernicus C3S ERA5; verified values only",
              "last_run":stats,**coverage_summary()}
     (base.OUTPUT/"backfill_status.json").write_text(
-        json.dumps(summary,ensure_ascii=False,separators=(",",":"))+"\\n",
+        json.dumps(summary,ensure_ascii=False,separators=(",",":"))+"\n",
         encoding="utf-8")
     print("Polar ERA5 backfill status",json.dumps(
         {"priority":summary["priority_seasons"],
