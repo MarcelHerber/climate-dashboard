@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: "25 7,19 * * *"
   push:
-    branches: [main, "feature/ifs-aifs-cps-gefs-track-quality-20261013"]
+    branches: [main]
     paths:
       - "scripts/update_ecmwf_atlantic_cps.py"
       - ".github/workflows/update-ecmwf-atlantic-cps.yml"
