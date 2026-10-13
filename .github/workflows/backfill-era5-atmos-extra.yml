@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 # A single serial planner; at most two CDS / rendering jobs at once.
 concurrency:
@@ -289,3 +290,30 @@ jobs:
             echo "Git-Konflikt; wiederhole auf neuem main ($attempt/3)."
           done
           exit 1
+      - name: Nächsten Archivblock unmittelbar nach Veröffentlichung anstoßen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Use the locally verified and pushed index. A dispatch caused by
+          # GITHUB_TOKEN is explicitly allowed to trigger another workflow.
+          REMAINING="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          idx = json.loads(Path("era5_europe/extra/index.json").read_text(encoding="utf-8"))
+          done = int(idx["completed"])
+          expected = int(idx["expected"])
+          if not 0 <= done <= expected:
+              raise SystemExit(f"Invalid archive progress: {done}/{expected}")
+          print(expected - done)
+          PY
+          )"
+          if [[ "$REMAINING" -eq 0 ]]; then
+            echo "Alle historischen ERA5-Erweiterungsmonate veröffentlicht; Backfill beendet."
+            exit 0
+          fi
+          echo "Noch $REMAINING Monatsblöcke offen. Nächsten Lauf sofort starten."
+          gh workflow run backfill-era5-atmos-extra.yml --ref main
+          echo "Nächster Backfill angefordert. Stündlicher Cron bleibt als Fehler-Fallback aktiv."
