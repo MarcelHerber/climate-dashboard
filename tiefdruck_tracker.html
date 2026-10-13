@@ -17,7 +17,7 @@
 <main>
   <div class="eyebrow">Zyklonen · Modellvorhersagen</div>
   <h1>Tiefdruck-Tracker &amp; Cyclone Phase Space</h1>
-  <p class="intro">Modellierte Nordatlantik-Tiefdruckzugbahnen aus GFS, ECMWF IFS und AIFS sowie tropische Zyklonen aus IFS/AIFS-Ensembleprodukten. Für GFS-Tiefs werden die Hart-CPS-Parameter aus GFS-Höhenfeldern berechnet; für IFS und AIFS zeigen wir die gleiche Diagnose, sobald passende 925/850/700/600/500/400/300-hPa-Geopotenzialfelder und Bodendruckdaten vorliegen. 900 hPa wird für ECMWF logarithmisch interpoliert.</p>
+  <p class="intro">Modellierte Nordatlantik-Tiefdruckzugbahnen aus GFS, ECMWF IFS und AIFS sowie tropische Zyklonen aus IFS/AIFS-Ensembleprodukten. Für GFS-Tiefs werden die Hart-CPS-Parameter aus GFS-Höhenfeldern berechnet; für IFS/AIFS werden bei passenden Modellläufen ebenfalls echte Hart-CPS-Parameter aus Geopotenzial- und Bodendruckfeldern angezeigt. 900 hPa wird für ECMWF logarithmisch interpoliert.</p>
   <section class="card">
     <div class="filters">
       <label class="control">Modell<select id="model"><option value="gfs">GFS – Nordatlantik-Tiefs + CPS</option><option value="all">Alle Modelle</option><option value="ifs-atl">IFS – Nordatlantik-Tiefs</option><option value="aifs-atl">AIFS – Nordatlantik-Tiefs</option><option value="ifs">IFS – Tropenzyklonen</option><option value="aifs">AIFS – Tropenzyklonen</option><option value="ens">IFS ENS – Tropenzyklonen</option></select></label>
@@ -101,7 +101,7 @@
        <button type="button" id="cpsPng">Phasenraum als PNG</button>
       </div>
       <div id="cpsRealNotice" class="cps-availability">Warte auf Modellarchiv …</div>
-      <div id="cpsModuleEmpty" class="empty">Bitte ein GFS-Nordatlantik-Tief auswählen.</div>
+      <div id="cpsModuleEmpty" class="empty">Bitte ein GFS-, IFS- oder AIFS-Nordatlantik-Tief auswählen.</div>
       <div id="cpsModuleContent" hidden>
         <div class="cps-storm-heading" id="cpsStormName">–</div>
         <div id="cpsPhaseStatus" class="note">–</div>
@@ -111,10 +111,10 @@
           <div id="cpsSpaghettiTitle" class="cps-figure-title">CPS SPAGHETTI <span>Hart-CPS · 900–600 hPa</span></div>
           <div class="cps-figure-subtitle" id="cpsSpaghettiSubtitle">–</div>
           <div class="cps-figure-grid">
-            <div class="cps-plot-area"><canvas id="cpsSpaghettiPlot" aria-label="Hart Phasenraumdiagramm mit GFS-Modelllaufspuren"></canvas></div>
+            <div class="cps-plot-area"><canvas id="cpsSpaghettiPlot" aria-label="Hart Phasenraumdiagramm für GFS, GEFS, IFS oder AIFS"></canvas></div>
             <aside class="cps-inset">
               <div class="cps-inset-title">Zugbahn · Nordatlantik</div>
-              <div class="cps-mini-map" id="cpsMiniMapTop" aria-label="Tiefdruck-Zugbahnen aus GFS-Modellläufen"></div>
+              <div class="cps-mini-map" id="cpsMiniMapTop" aria-label="Tiefdruck-Zugbahnen des ausgewählten Modells"></div>
               <div class="cps-map-caption">OpenStreetMap-Karte · keine SST-Analyse</div>
               <div class="cps-key">
                 <strong>Thermischer Kern</strong>
@@ -133,12 +133,12 @@
           <div class="cps-figure-subtitle" id="cpsConsensusSubtitle">–</div>
           <div class="cps-figure-grid">
             <div class="cps-plot-area">
-              <div id="cpsConsensusEmpty" class="empty">Für eine Konsensberechnung sind mindestens zwei echte GFS-Läufe desselben Tiefs nötig.</div>
+              <div id="cpsConsensusEmpty" class="empty">Ein Ensemble-Konsens benötigt mindestens zwei echte Mitglieder bzw. GFS-Läufe; IFS/AIFS-Einzelmodelle haben keinen Ensemble-Konsens.</div>
               <div id="cpsConsensusPlotWrap" class="cps-chart-fill" hidden><canvas id="cpsConsensusPlot" aria-label="Hart CPS Multilauf-Konsens mit statistischer Streuung"></canvas></div>
             </div>
             <aside class="cps-inset">
               <div class="cps-inset-title">Gemeinsame Zugbahnübersicht</div>
-              <div class="cps-mini-map" id="cpsMiniMapBottom" aria-label="Vergleich der GFS-Modelllauf-Zugbahnen"></div>
+              <div class="cps-mini-map" id="cpsMiniMapBottom" aria-label="Vergleich der verfügbaren Modellzugbahnen"></div>
               <div class="cps-map-caption">Aus Modell-Zentren, kein interpolierter Sturmtrack</div>
               <div class="cps-key">
                 <strong>Linien und Markierungen</strong>
