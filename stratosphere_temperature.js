@@ -103,7 +103,7 @@
     const latest=x.all.filter(x=>x.level===10).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const list=[
       ["Letzte 10-hPa-Temperatur",latest?fmt(latest.temperature,1)+" °C":"–",latest?.date||"Keine ERA5-Daten"],
-      ["Stärkste Erwärmung / "+lag+" Tage",x.strongest?("+"+fmt(x.strongest.change,1)+" K"):"–",
+      ["Größte Temperaturänderung / "+lag+" Tage",x.strongest?((x.strongest.change>0?"+":"")+fmt(x.strongest.change,1)+" K"):"–",
         x.strongest?x.strongest.level+" hPa · "+x.strongest.date:"Benötigt zwei echte Tageswerte"],
       ["Temperaturmaximum 10 hPa",x.peak?fmt(x.peak.temperature,1)+" °C":"–",
         x.peak?.date||"Noch nicht verfügbar"],
