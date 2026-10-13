@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=6">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=7">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -17,7 +17,7 @@
 <main>
   <div class="eyebrow">Zyklonen · Modellvorhersagen</div>
   <h1>Tiefdruck-Tracker &amp; Cyclone Phase Space</h1>
-  <p class="intro">Modellierte Nordatlantik-Tiefdruckzugbahnen aus GFS, ECMWF IFS und AIFS sowie tropische Zyklonen aus IFS/AIFS-Ensembleprodukten. Für GFS-Tiefs werden die thermische Asymmetrie und der obere und untere thermische Wind nach Hart (2003) aus echten Geopotenzialfeldern berechnet.</p>
+  <p class="intro">Modellierte Nordatlantik-Tiefdruckzugbahnen aus GFS, ECMWF IFS und AIFS sowie tropische Zyklonen aus IFS/AIFS-Ensembleprodukten. Für GFS-Tiefs werden die Hart-CPS-Parameter aus GFS-Höhenfeldern berechnet; für IFS und AIFS zeigen wir die gleiche Diagnose, sobald passende 925/850/700/600/500/400/300-hPa-Geopotenzialfelder und Bodendruckdaten vorliegen. 900 hPa wird für ECMWF logarithmisch interpoliert.</p>
   <section class="card">
     <div class="filters">
       <label class="control">Modell<select id="model"><option value="gfs">GFS – Nordatlantik-Tiefs + CPS</option><option value="all">Alle Modelle</option><option value="ifs-atl">IFS – Nordatlantik-Tiefs</option><option value="aifs-atl">AIFS – Nordatlantik-Tiefs</option><option value="ifs">IFS – Tropenzyklonen</option><option value="aifs">AIFS – Tropenzyklonen</option><option value="ens">IFS ENS – Tropenzyklonen</option></select></label>
@@ -94,7 +94,7 @@
         </div>
         <label class="control">CPS-Datenquelle
          <select id="cpsSource">
-           <option value="gefs">GEFS · echte Ensemblemitglieder</option>
+           <option value="single">IFS / AIFS · einzelner Modelllauf (Hart-CPS)</option><option value="gefs">GEFS · echte Ensemblemitglieder</option>
            <option value="lagged">GFS · zeitversetzte Modellläufe</option>
          </select>
        </label>
@@ -152,16 +152,16 @@
         </article>
         <p class="cps-footnote" id="cpsSummary">–</p>
       </div>
-      <p class="note">Wissenschaftlicher Hinweis: Die GFS-CPS-Berechnung verwendet direkte GFS-Druckniveaus; beim GEFS sind 900, 600 und 400 hPa aus den benachbarten, verfügbaren Niveaus logarithmisch interpoliert. Das GEFS-Ensemble besteht aus echten Kontroll- und Perturbationsmitgliedern; zeitversetzte GFS-Läufe sind eine separate Vergleichsoption. Beides sind experimentelle Tiefdiagnosen.</p>
+      <p class="note">Wissenschaftlicher Hinweis: GFS-CPS verwendet direkte GFS-Druckniveaus. IFS/AIFS nutzt native 925/850/700/600/500/400/300-hPa-Felder und interpoliert 900 hPa logarithmisch. Beim GEFS sind 900, 600 und 400 hPa interpoliert. Das GEFS-Ensemble besteht aus echten Kontroll- und Perturbationsmitgliedern; zeitversetzte GFS-Läufe sind eine separate Vergleichsoption. Beides sind experimentelle Tiefdiagnosen.</p>
     </section>
   </div>
   <section class="card prose"><h2>Datengrenzen und nächster Ausbauschritt</h2>
     <p>Der <strong>GFS-Nordatlantik-Tracker</strong> erkennt örtliche MSLP-Minima mit ausreichendem Druckkontrast zwischen 27–75° N und 105–8° W und verfolgt sie in 6-Stunden-Schritten. Für die verfolgten Systeme werden die thermischen Hart-CPS-Parameter aus GFS-Geopotenzialfeldern in 900/850/700/600/500/400/300 hPa im Umkreis von 500 km berechnet. Das ist eine experimentelle Tiefdruck-Diagnostik: Nicht jedes MSLP-Minimum muss ein geschlossenes Tief sein. Die ECMWF-BUFR-Zugbahnen erfassen weiterhin tropische Systeme.</p>
-    <p>Bereits implementiert: GFS-MSLP-Tiefzentrum-Tracking und <em>B</em>, −V<sub>T</sub><sup>L</sup> und −V<sub>T</sub><sup>U</sup>. Als nächste wissenschaftliche Qualitätsstufen bleiben die objektive Prüfung geschlossener Isobaren, robuste Tief-Identitätsprüfung und die Übertragung der CPS-Höhenfelddiagnose auf IFS/AIFS. Für IFS/AIFS ist jetzt die MSLP-Tiefzentrum-Erkennung eigenständig aktiv.</p>
+    <p>Bereits implementiert: GFS-MSLP-Tiefzentrum-Tracking und <em>B</em>, −V<sub>T</sub><sup>L</sup> und −V<sub>T</sub><sup>U</sup>. Das Hart-CPS-Verfahren wird ergänzend für IFS/AIFS auf Basis echter ECMWF-Geopotenzialfelder berechnet. 900 hPa wird aus 925/850 hPa interpoliert; unterirdische Druckniveaus werden ausgeschlossen. Fehlen die zum Tief passenden Felder, bleibt die thermische Einordnung leer. Offene Entwicklungsaufgaben sind die unabhängige Validierung von Tiefidentitäten bei Teilung/Verschmelzung sowie der Vergleich der drei Modell-CPS-Phasendiagramme über gemeinsame Gültigkeitszeiten.</p>
     <p>Quellen: <a href="https://nomads.ncep.noaa.gov/" target="_blank" rel="noopener">NOAA/NCEP GFS</a>, <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
   </section>
 </main>
-<script src="tiefdruck_phase.js?v=6"></script>
+<script src="tiefdruck_phase.js?v=7"></script>
 <script src="tiefdruck_diagnostics.js?v=6"></script>
-<script src="tiefdruck_tracker.js?v=6"></script>
+<script src="tiefdruck_tracker.js?v=7"></script>
 </body></html>
