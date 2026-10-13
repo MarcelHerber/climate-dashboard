@@ -91,7 +91,7 @@ function chooseModels(t,p){
  if(!t||!p||!all){root.textContent="Bitte ein Tief wählen.";return;}
  const names={gfs:"GFS Nordatlantik","ifs-atl":"IFS Nordatlantik","aifs-atl":"AIFS Nordatlantik",
    ifs:"IFS Tropenzyklonen",aifs:"AIFS Tropenzyklonen",ens:"IFS ENS Tropenzyklonen"};
- const rows=[{model:names[t.model]||t.model,pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,reason:"Referenz"}];
+ const rows=[{model:names[t.model]||t.model,pressure:p.mslp_hpa,km:0,wind:p.vmax_ms,cps:p.cps,phase:p.phase,reason:"Referenz"}];
  const groups=Object.entries(names).filter(([id])=>id!==t.model);
  for(const [id,name] of groups){
    let best=null;
@@ -102,13 +102,13 @@ function chooseModels(t,p){
        if(pt.time!==p.time||!Number.isFinite(pt.lat)||!Number.isFinite(pt.lon))continue;
        const km=distance(pt,p);
        if(km>550||best&&km>=best.km)continue;
-       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,reason:id==="ifs"||id==="aifs"||id==="ens"?"TC-BUFR":"MSLP-Zentrum"};
+       best={model:name,pressure:pt.mslp_hpa,km,wind:pt.vmax_ms,cps:pt.cps,phase:pt.phase,reason:id==="ifs"||id==="aifs"||id==="ens"?"TC-BUFR":"MSLP-Zentrum"};
      }
    }
    rows.push(best||{model:name,pressure:null,km:null,wind:null,reason:"Kein zeitgleiches Tief im Umkreis 550 km"});
  }
  const table=document.createElement("table");table.className="model-table";
- const labels=["Modell / Datenprodukt","Zentraldruck","Abstand","10-m-Wind"];
+ const labels=["Modell / Datenprodukt","Kerndruck","Abstand","10-m-Wind","B [m]","−VTᴸ","−VTᵁ","Kernstruktur"];
  const thead=document.createElement("thead"),header=document.createElement("tr");
  labels.forEach(n=>{const th=document.createElement("th");th.textContent=n;header.append(th);});
  thead.append(header);table.append(thead);
@@ -118,7 +118,11 @@ function chooseModels(t,p){
    [r.model+(r.reason.startsWith("Kein")?" · nicht verfügbar":""),
     Number.isFinite(r.pressure)?fmt(r.pressure)+" hPa":"–",
     Number.isFinite(r.km)?fmt(r.km,0)+" km":"–",
-    Number.isFinite(r.wind)?fmt(r.wind*3.6,0)+" km/h":"–"].forEach(x=>{
+    Number.isFinite(r.wind)?fmt(r.wind*3.6,0)+" km/h":"–",
+    Number.isFinite(r.cps?.b)?fmt(r.cps.b,1):"–",
+    Number.isFinite(r.cps?.vt_lower)?fmt(r.cps.vt_lower,1):"–",
+    Number.isFinite(r.cps?.vt_upper)?fmt(r.cps.vt_upper,1):"–",
+    r.cps&&r.phase?r.phase:"–"].forEach(x=>{
        const td=document.createElement("td");td.textContent=x;tr.append(td);
     });
    tbody.append(tr);
