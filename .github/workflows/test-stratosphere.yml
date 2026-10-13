@@ -9,6 +9,7 @@ on:
       - "stratosphere_temperature.js"
       - "stratosphere_ssw_comparison.js"
       - "stratosphaere.html"
+      - ".github/workflows/update-era5-stratosphere.yml"
       - ".github/workflows/test-stratosphere.yml"
   workflow_dispatch:
 
@@ -39,7 +40,7 @@ jobs:
           import re
           import subprocess
           page=Path("stratosphaere.html").read_text(encoding="utf-8")
-          scripts=re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>",page)
+          scripts=re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>",page)
           for i,code in enumerate(scripts):
               if code.strip():
                   path=Path(f"/tmp/stratosphere-inline-{i}.js")
