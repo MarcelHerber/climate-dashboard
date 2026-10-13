@@ -326,6 +326,25 @@
     }
     downloadBlob(new Blob([String.fromCharCode(65279)+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}),filename("csv"));
   }
+  function renderPriorityCoverage(){
+    const host=$("polarTempBackfill");if(!host||!era)return;
+    host.replaceChildren();
+    for(const year of [2009,2017,2018]){
+      const days=dateList(year,"winter");
+      const counts=LEVELS.map(level=>days.filter(day=>val(day,"tcap_"+level)!==null).length);
+      const complete=days.filter(day=>LEVELS.every(level=>val(day,"tcap_"+level)!==null)).length;
+      const percent=Math.round(100*complete/days.length);
+      const card=document.createElement("div");card.className="polar-backfill-card";
+      const name=document.createElement("strong");name.textContent="Winter "+seasonName(year)+" · "+percent+" %";
+      const total=document.createElement("div");
+      total.textContent=complete+"/"+days.length+" Tage mit allen 4 Druckniveaus";
+      const bar=document.createElement("progress");bar.max=days.length;bar.value=complete;
+      bar.setAttribute("aria-label","ERA5-Abdeckung Winter "+seasonName(year));
+      const perLevel=document.createElement("small");
+      perLevel.textContent=LEVELS.map((level,i)=>level+" hPa: "+counts[i]).join(" · ");
+      card.append(name,total,bar,perLevel);host.appendChild(card);
+    }
+  }
   function refresh(){
     if(!temperatureReady)return;
     const year=Number($("season").value),mode=$("polarTempMode").value,
@@ -339,7 +358,7 @@
     $("polarTempWarning").textContent=mode==="anomaly"&&!hasRef?
       "Die 1991–2020-Klimatologie ist noch nicht vollständig. ERA5-Anomalien werden deshalb nicht berechnet; die NASA-Windabweichungen können unabhängig davon bereits gezeigt werden.":
       "Temperaturen aus ERA5 (Polkappenmittel 60–90° N), Wind aus NASA MERRA-2/GEOS-FP (60° N). Unterschiedliche Datengrundlagen sind separat gekennzeichnet; keine fehlenden Tage oder Druckniveaus werden interpoliert.";
-    drawKpis(dates,lag);drawTrend(dates,mode,lag);drawPaired(dates,mode,lag);
+    renderPriorityCoverage();drawKpis(dates,lag);drawTrend(dates,mode,lag);drawPaired(dates,mode,lag);
   }
   async function load(){
     const year=Number($("season").value),token=++ticket;
@@ -364,6 +383,11 @@
       ".polar-temp-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:13px;margin:14px 0}",
       ".polar-temp-controls label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:#475569}",
       ".polar-temp-controls select{min-width:145px}",
+      ".polar-backfill{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 17px}",
+      ".polar-backfill-card{display:flex;flex-direction:column;gap:5px;padding:10px;border:1px solid #dce3eb;border-radius:9px;background:#f9fbfd;font-size:12px;color:#475569}",
+      ".polar-backfill-card strong{font-size:14px;color:#172033}",
+      ".polar-backfill-card progress{width:100%;height:12px;accent-color:#2563eb}",
+      ".polar-backfill-card small{font-size:11px}",
       ".polar-temp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}",
       ".polar-temp-kpi{padding:12px;border:1px solid #dce3eb;border-radius:8px;background:#f8fafc}",
       ".polar-temp-kpi div{font-size:12px;color:#64748b}",
@@ -375,7 +399,7 @@
       ".polar-temp-tooltip{position:absolute;z-index:15;pointer-events:none;white-space:pre-line;background:#14243a;color:white;font:12px/1.5 Arial;padding:9px 12px;border-radius:8px;max-width:260px}",
       ".polar-temp-tooltip[hidden]{display:none}",
       ".polar-temp-note{color:#475569;font-size:12px}",
-      "@media(max-width:850px){.polar-temp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}"
+      "@media(max-width:850px){.polar-temp-kpis,.polar-backfill{grid-template-columns:repeat(1,minmax(0,1fr))}}"
     ].join("\n");document.head.appendChild(style);
     const section=document.createElement("section");section.id="polarTemperatureCard";section.className="card";
     section.innerHTML=[
@@ -396,6 +420,8 @@
       '<option value="2009">2009/10</option><option value="2017">2017/18</option>',
       '<option value="2018">2018/19</option><option value="2025">2025/26</option></select></label>',
       '</div><div id="polarTempStatus" class="info" aria-live="polite">ERA5-Tageswerte werden geladen …</div>',
+      '<h3>ERA5-Backfillstand der SSW-Vergleichswinter</h3>',
+      '<div id="polarTempBackfill" class="polar-backfill" aria-label="ERA5-Historienfortschritt"></div>',
       '<div class="polar-temp-kpis" id="polarTempKpis"></div>',
       '<h3>Polkappentemperatur nach Druckniveau</h3>',
       '<div class="polar-temp-line"><canvas id="polarTempTrend"></canvas></div>',
