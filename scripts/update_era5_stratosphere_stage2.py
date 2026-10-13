@@ -200,19 +200,32 @@ def backfill_priority_temperatures(client, *, max_chunks=9):
     by_year = {year: {row["date"]: row for row in base.read_rows(year)}
                for year in years}
     work = priority_work_plan(by_year, max_chunks)
+    completed = 0
+    failed = 0
     for season, year, month, days, levels in work:
         print(f"Priority SSW winter {season}/{season+1}: ERA5 T "
               f"{year}-{month:02d} days {days[0]}–{days[-1]}, levels {levels}",
               flush=True)
-        values = retrieve_chunk(client, year, month, days,
-                                ("temperature", levels, "t"))
+        try:
+            values = retrieve_chunk(client, year, month, days,
+                                    ("temperature", levels, "t"))
+        except Exception as error:
+            failed += 1
+            print(f"WARNING: ERA5 priority chunk unavailable, retaining prior data: "
+                  f"{year}-{month:02d} days {days}, {error}", flush=True)
+            if failed >= 2:
+                print("Two ERA5 priority requests failed; preserving completed chunks "
+                      "and publishing the partial verified data.", flush=True)
+                break
+            continue
         existing = by_year[year]
         for day, row in values.items():
             existing[day] = {**existing.get(day, {"date": day}), **row}
         base.store_rows(year, list(existing.values()))
+        completed += 1
         print(f"Saved verified ERA5 polar temperature: {year}-{month:02d}, "
               f"{len(existing)} year records", flush=True)
-    return len(work), not bool(priority_work_plan(by_year, 1))
+    return completed, not bool(priority_work_plan(by_year, 1))
 
 
 def priority_self_test():
