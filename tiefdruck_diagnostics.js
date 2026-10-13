@@ -1,6 +1,6 @@
 /* Atlantic low diagnostics: Bergeron deepening, real 10-m wind quadrants,
  * and nearest available ECMWF tropical-track comparison.
- * No 925-hPa radius or IFS extratropical CPS is implied. */
+ * Wind radii are calculated only from available GFS 10-m grids. IFS/AIFS Hart CPS is loaded separately from real geopotential fields. */
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
@@ -65,7 +65,7 @@ function renderWind(p){
 }
 function trend(t){
  if(chart){chart.destroy();chart=null;}
- if(!t||t.model!=="gfs")return;
+ if(!t)return;
  const valid=t.points.filter(p=>p.cyclogenesis_24h);
  if(!valid.length)return;
  chart=new Chart($("advDeepeningChart"),{
@@ -141,7 +141,7 @@ function update(t,d,h){
  $("advGale").textContent=biggest("gale34")===null?"–":fmt(biggest("gale34"),0)+" km";
  $("advStorm").textContent=biggest("storm48")===null?"–":fmt(biggest("storm48"),0)+" km";
  $("advWarning").textContent=!t?"Bitte ein GFS-Nordatlantik-Tief wählen."
-   :t.model!=="gfs"?"Für ECMWF-Tiefs sind in dieser Stufe nur Drucktendenzen aus MSLP verfügbar; keine Windfelder und noch keine Hart-CPS-Diagnose."
+   :t.model!=="gfs"?"ECMWF: Bergeron-Drucktendenzen aus MSLP. Hart-CPS nur bei passenden Geopotenzialfeldern; keine GFS-10-m-Windsektoren für dieses ECMWF-Tief."
    :rate?.explosive?"Dieses GFS-Tief erreicht im ausgewählten 24-h-Intervall das breitenkorrigierte Bergeron-Kriterium."
    :"GFS-Modellwerte. Negative Druckfallwerte bedeuten Druckanstieg. Sektoren schätzen radiale Windschwellenausdehnungen.";
  renderWind(p);
