@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=5">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=6">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -17,17 +17,17 @@
 <main>
   <div class="eyebrow">Zyklonen · Modellvorhersagen</div>
   <h1>Tiefdruck-Tracker &amp; Cyclone Phase Space</h1>
-  <p class="intro">Modellierte Tiefdruck-Zugbahnen im Nordatlantik aus GFS sowie tropische Zyklonen aus ECMWF IFS, AIFS und IFS Ensemble. Für GFS-Tiefs werden die thermische Asymmetrie und der obere und untere thermische Wind nach Hart (2003) aus echten Geopotenzialfeldern berechnet.</p>
+  <p class="intro">Modellierte Nordatlantik-Tiefdruckzugbahnen aus GFS, ECMWF IFS und AIFS sowie tropische Zyklonen aus IFS/AIFS-Ensembleprodukten. Für GFS-Tiefs werden die thermische Asymmetrie und der obere und untere thermische Wind nach Hart (2003) aus echten Geopotenzialfeldern berechnet.</p>
   <section class="card">
     <div class="filters">
-      <label class="control">Modell<select id="model"><option value="gfs">GFS – Nordatlantik-Tiefs + CPS</option><option value="all">Alle Modelle</option><option value="ifs">ECMWF IFS</option><option value="aifs">ECMWF AIFS</option><option value="ens">ECMWF IFS Ensemble</option></select></label>
+      <label class="control">Modell<select id="model"><option value="gfs">GFS – Nordatlantik-Tiefs + CPS</option><option value="all">Alle Modelle</option><option value="ifs-atl">IFS – Nordatlantik-Tiefs</option><option value="aifs-atl">AIFS – Nordatlantik-Tiefs</option><option value="ifs">IFS – Tropenzyklonen</option><option value="aifs">AIFS – Tropenzyklonen</option><option value="ens">IFS ENS – Tropenzyklonen</option></select></label>
       <label class="control">Zyklone / Tief<select id="system"><option value="all">Alle Systeme</option></select></label>
       <label class="check"><input id="ensemble" type="checkbox"> Ensemblemitglieder anzeigen</label>
       <button type="button" id="refresh" class="primary">Daten neu laden</button>
       <button type="button" id="png">Intensitätsdiagramm PNG</button>
     </div>
     <div class="status" id="status" role="status">ECMWF-Daten werden geladen …</div>
-    <div class="meta"><span id="updated">Datenstand: –</span><span id="modelruns">Modellläufe: –</span><span>Quellen: NOAA GFS 0,25° / ECMWF BUFR · Modellprognosen, keine amtliche Warnung</span></div>
+    <div class="meta"><span id="updated">Datenstand: –</span><span id="modelruns">Modellläufe: –</span><span>Quellen: NOAA GFS / NOAA GEFS / ECMWF Open Data MSLP & BUFR · Modellprognosen, keine amtliche Warnung</span></div>
   </section>
   <div class="layout">
     <section class="card mapcard">
@@ -76,7 +76,7 @@
       </div>
       <div>
         <h3>Modellvergleich am aktuellen Vorhersagetermin</h3>
-        <p class="note">Räumlich und zeitlich passende ECMWF-Tropenzyklon-Zugbahnen im Umkreis von 550 km. Kein vollständiger Vergleich mit allen außertropischen IFS-Tiefs.</p>
+        <p class="note">Zeitgleiche GFS-, IFS- und AIFS-Nordatlantik-Tiefzentren im Umkreis von 550 km. Tropenzyklonen-Tracks werden zusätzlich geprüft. Bei fehlender Tiefzuordnung wird bewusst kein Modellwert angenommen.</p>
         <div id="advComparison" class="comparison-table">Wähle ein Tief aus.</div>
       </div>
     </div>
@@ -157,11 +157,11 @@
   </div>
   <section class="card prose"><h2>Datengrenzen und nächster Ausbauschritt</h2>
     <p>Der <strong>GFS-Nordatlantik-Tracker</strong> erkennt örtliche MSLP-Minima mit ausreichendem Druckkontrast zwischen 27–75° N und 105–8° W und verfolgt sie in 6-Stunden-Schritten. Für die verfolgten Systeme werden die thermischen Hart-CPS-Parameter aus GFS-Geopotenzialfeldern in 900/850/700/600/500/400/300 hPa im Umkreis von 500 km berechnet. Das ist eine experimentelle Tiefdruck-Diagnostik: Nicht jedes MSLP-Minimum muss ein geschlossenes Tief sein. Die ECMWF-BUFR-Zugbahnen erfassen weiterhin tropische Systeme.</p>
-    <p>Bereits implementiert: GFS-MSLP-Tiefzentrum-Tracking und <em>B</em>, −V<sub>T</sub><sup>L</sup> und −V<sub>T</sub><sup>U</sup>. Als nächste Qualitätsstufen sind die objektive Prüfung geschlossener Isobaren, robuste Track-Identitätsprüfung und die Übertragung derselben CPS-Rechnung auf ECMWF/AIFS vorgesehen.</p>
+    <p>Bereits implementiert: GFS-MSLP-Tiefzentrum-Tracking und <em>B</em>, −V<sub>T</sub><sup>L</sup> und −V<sub>T</sub><sup>U</sup>. Als nächste wissenschaftliche Qualitätsstufen bleiben die objektive Prüfung geschlossener Isobaren, robuste Tief-Identitätsprüfung und die Übertragung der CPS-Höhenfelddiagnose auf IFS/AIFS. Für IFS/AIFS ist jetzt die MSLP-Tiefzentrum-Erkennung eigenständig aktiv.</p>
     <p>Quellen: <a href="https://nomads.ncep.noaa.gov/" target="_blank" rel="noopener">NOAA/NCEP GFS</a>, <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>, <a href="https://moe.met.fsu.edu/cyclonephase/" target="_blank" rel="noopener">FSU Cyclone Phase Evolution</a>, <a href="https://doi.org/10.1175/1520-0493(2003)131%3C0585:ACPSDF%3E2.0.CO;2" target="_blank" rel="noopener">Hart (2003)</a>.</p>
   </section>
 </main>
-<script src="tiefdruck_phase.js?v=5"></script>
-<script src="tiefdruck_diagnostics.js?v=5"></script>
-<script src="tiefdruck_tracker.js?v=5"></script>
+<script src="tiefdruck_phase.js?v=6"></script>
+<script src="tiefdruck_diagnostics.js?v=6"></script>
+<script src="tiefdruck_tracker.js?v=6"></script>
 </body></html>
