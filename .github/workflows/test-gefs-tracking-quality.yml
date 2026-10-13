@@ -1,0 +1,44 @@
+name: GEFS Tiefzuordnung Qualitätsprüfung
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/ifs-aifs-cps-gefs-track-quality-20261013"]
+    paths:
+      - "scripts/update_gefs_cps.py"
+      - ".github/workflows/test-gefs-tracking-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-real-tracks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Numerical and GRIB dependencies
+        run: pip install "numpy>=2,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3"
+      - name: Test member assignment using real GEFS fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tests -p test_north_atlantic_cps.py -v
+          curl --fail --location --retry 3 --silent --show-error \
+            https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyclone-tracker-data/data/cyclone-tracker/atlantic.json \
+            -o /tmp/gfs_atlantic.json
+          python scripts/update_gefs_cps.py \
+            --atlantic /tmp/gfs_atlantic.json --out /tmp/gefs_track_qc.json \
+            --members 1 --member-start 0 --member-end 1 --max-hour 48
+          python - <<'PY'
+          import json
+          obj=json.load(open("/tmp/gefs_track_qc.json"))
+          records=[p for st in obj["storms"] for mem in st["members"] for p in mem["points"]]
+          assert records, "No real GEFS CPS records were matched"
+          assert all(p["match_distance_km"]<=450 for p in records)
+          assert all(p["matching_method"].startswith("unique local") for p in records)
+          print("Verified GEFS member continuity; CPS points:",len(records))
+          PY
