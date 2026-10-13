@@ -214,7 +214,7 @@ def main():
                         help="First GEFS member to process in this refresh batch")
     parser.add_argument("--member-end",type=int,default=None,
                         help="Last GEFS member in this batch, inclusive")
-    parser.add_argument("--max-hour",type=int,default=72)
+    parser.add_argument("--max-hour",type=int,default=96)
     args=parser.parse_args()
     atlas=json.loads(args.atlantic.read_text())
     base_tracks=[t for t in atlas.get("tracks",[]) if t.get("model")=="gfs" and
