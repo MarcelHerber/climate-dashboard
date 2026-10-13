@@ -9,6 +9,7 @@ required_root_files=(
   index.html
   stratosphaere.html
   stratosphere_temperature.js
+  stratosphere_ssw_comparison.js
   tiefdruck_tracker.html
   tiefdruck_tracker.css
   tiefdruck_phase.js
