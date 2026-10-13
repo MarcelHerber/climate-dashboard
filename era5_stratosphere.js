@@ -7,6 +7,7 @@
     ["u60_50","Zonaler Wind 60° N · 50 hPa","m/s",1],
     ["u60_100","Zonaler Wind 60° N · 100 hPa","m/s",1],
     ["tcap_10","Polkappentemperatur 60–90° N · 10 hPa","°C",2],
+    ["tcap_30","Polkappentemperatur 60–90° N · 30 hPa","°C",2],
     ["tcap_50","Polkappentemperatur 60–90° N · 50 hPa","°C",2],
     ["tcap_100","Polkappentemperatur 60–90° N · 100 hPa","°C",2],
     ["zcap_10","Polkappen-Geopotentialhöhe · 10 hPa","gpm",2],
