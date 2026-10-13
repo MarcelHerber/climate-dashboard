@@ -805,6 +805,207 @@
           }
         }
       }
+    },
+    "2020-05": {
+      "ready": true,
+      "period": "2020-05",
+      "year": 2020,
+      "month": 5,
+      "label": "Mai 2020",
+      "products": {
+        "t925": {
+          "label": "Temperatur 925 hPa",
+          "short_label": "T925",
+          "unit": "°C",
+          "level_hpa": 925,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t925.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t925.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "K"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t925.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 0.8926345373788391,
+            "top3_area_percent": 5.27743776649618
+          },
+          "stats": {
+            "current_area_mean": 13.277581356869325,
+            "reference_area_mean": 12.91142700435349,
+            "anomaly_area_mean": 0.36615435253474454
+          }
+        },
+        "t700": {
+          "label": "Temperatur 700 hPa",
+          "short_label": "T700",
+          "unit": "°C",
+          "level_hpa": 700,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t700.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t700.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "K"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t700.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 3.4362474382066703,
+            "top3_area_percent": 9.108270024021582
+          },
+          "stats": {
+            "current_area_mean": 0.3010925270709612,
+            "reference_area_mean": 0.04488951777169329,
+            "anomaly_area_mean": 0.25620300930486956
+          }
+        },
+        "t500": {
+          "label": "Temperatur 500 hPa",
+          "short_label": "T500",
+          "unit": "°C",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "K"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-t500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = wärmster",
+            "rank1_area_percent": 2.9991303835885894,
+            "top3_area_percent": 9.118220924049904
+          },
+          "stats": {
+            "current_area_mean": -16.520652555343307,
+            "reference_area_mean": -16.900489100537854,
+            "anomaly_area_mean": 0.37983654519454496
+          }
+        },
+        "rh700": {
+          "label": "Relative Luftfeuchte 700 hPa",
+          "short_label": "RH700",
+          "unit": "%",
+          "level_hpa": 700,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-rh700.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-rh700.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "Prozentpunkte"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-rh700.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Feuchte",
+            "rank1_area_percent": 1.4793487234774694,
+            "top3_area_percent": 3.5645274300481042
+          },
+          "stats": {
+            "current_area_mean": 43.1379974083442,
+            "reference_area_mean": 43.874071378733255,
+            "anomaly_area_mean": -0.7360739703890669
+          }
+        },
+        "omega500": {
+          "label": "Vertikalbewegung 500 hPa",
+          "short_label": "Omega500",
+          "unit": "Pa/s",
+          "level_hpa": 500,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-omega500.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-omega500.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "Pa/s"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-omega500.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkste Hebung (negatives Omega)",
+            "rank1_area_percent": 1.322922121475241,
+            "top3_area_percent": 4.234867354216947
+          },
+          "stats": {
+            "current_area_mean": 0.006683024595556705,
+            "reference_area_mean": 0.0069963845500030765,
+            "anomaly_area_mean": -0.00031335995306719394
+          }
+        },
+        "u300": {
+          "label": "Zonaler Wind 300 hPa",
+          "short_label": "U300",
+          "unit": "m/s",
+          "level_hpa": 300,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-u300.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-u300.webp",
+            "tile_index": 1,
+            "reference_period": "1991–2020",
+            "unit": "m/s"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-atmos-extra-2020-v1/2020-05-u300.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkste Westwindkomponente",
+            "rank1_area_percent": 0.7538306239947791,
+            "top3_area_percent": 3.432720289566683
+          },
+          "stats": {
+            "current_area_mean": 14.182690802135328,
+            "reference_area_mean": 14.339340438696334,
+            "anomaly_area_mean": -0.15664963637414198
+          }
+        }
+      }
     }
   }
 }
