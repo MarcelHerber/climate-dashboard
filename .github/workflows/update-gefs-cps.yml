@@ -52,7 +52,7 @@ jobs:
             echo "::group::Echte GEFS-Member ${FIRST} bis ${LAST}"
             if ! python scripts/update_gefs_cps.py \
               --atlantic "$ATLAS" --out "$RESULT" \
-              --members 30 --member-start "$FIRST" --member-end "$LAST" --max-hour 72; then
+              --members 30 --member-start "$FIRST" --member-end "$LAST" --max-hour 96; then
               echo "::warning::GEFS-Teilcharge ${FIRST}-${LAST} teilweise fehlgeschlagen; weiter mit anderen realen Mitgliedern."
             fi
             echo "::endgroup::"
