@@ -354,7 +354,23 @@ def rebuild_index():
         "source_name":"Copernicus C3S ERA5 daily pressure-level statistics",
         "source_dataset":DATASET,
         "reference_period":"1991–2020",
-        "reference_years_completed":sum(len(rows_by_year.get(y,[]))==(366 if calendar.isleap(y) else 365) for y in range(1991,2021)),
+        # Do not call a year complete unless all four real temperature levels
+        # exist on every calendar date. Row coverage alone can be only zonal wind.
+        "reference_years_completed":sum(
+            len(rows_by_year.get(y,[]))==(366 if calendar.isleap(y) else 365)
+            and all(all(isinstance(row.get(f"tcap_{level}"),(int,float))
+                        and np.isfinite(row[f"tcap_{level}"])
+                        for level in (10,30,50,100))
+                    for row in rows_by_year.get(y,[]))
+            for y in range(1991,2021)),
+        "reference_temperature_years_completed_by_level":{
+            str(level):sum(
+                len(rows_by_year.get(y,[]))==(366 if calendar.isleap(y) else 365)
+                and all(isinstance(row.get(f"tcap_{level}"),(int,float))
+                        and np.isfinite(row[f"tcap_{level}"])
+                        for row in rows_by_year.get(y,[]))
+                for y in range(1991,2021))
+            for level in (10,30,50,100)},
         "generated_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "data_through":max(row["date"] for row in rows),
         "metrics":METRICS,
