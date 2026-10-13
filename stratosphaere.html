@@ -704,7 +704,10 @@ function renderSSW(){
     " analysierte Tage November–April · letzte 10-hPa-Analyse: "+(result.lastAnalyzed||"–")+
     " · Prognosen für die Einstufung ausgeschlossen";
   if(!result.events.length){
-    const note=document.createElement("p");note.textContent="Im verfügbaren Analysezeitraum wurde keine eigenständige 10-hPa-Windumkehr nach den CP07-Auswahlregeln erkannt. Für eine vollständige Saisonbewertung sind Daten bis Ende April nötig.";
+    const note=document.createElement("p");
+    note.textContent=result.lastAnalyzed&&result.lastAnalyzed<String(result.year)+"-11-01"
+      ?"Der SSW-Auswertezeitraum November–März hat im analysierten Datenbestand noch nicht begonnen. Eine Ereignisbewertung ist deshalb noch nicht möglich."
+      :"Im verfügbaren Analysezeitraum wurde keine eigenständige 10-hPa-Windumkehr nach den CP07-Auswahlregeln erkannt. Für eine vollständige Saisonbewertung sind Daten bis Ende April nötig.";
     list.appendChild(note);
   }
   for(const event of result.events){
