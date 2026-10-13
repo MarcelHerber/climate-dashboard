@@ -3,7 +3,7 @@ name: GEFS Tiefzuordnung Qualitätsprüfung
 on:
   workflow_dispatch:
   push:
-    branches: [main, "feature/ifs-aifs-cps-gefs-track-quality-20261013"]
+    branches: [main]
     paths:
       - "scripts/update_gefs_cps.py"
       - ".github/workflows/test-gefs-tracking-quality.yml"
