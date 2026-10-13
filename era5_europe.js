@@ -2,6 +2,8 @@ let era5AtmosIndex=null;
 let era5AtmosPayload=null;
 let era5AtmosLoaded=false;
 const era5AtmosHistoryCache=new Map();
+const era5AtmosExtraHistoryCache=new Map();
+let era5AtmosExtraIndex=null;
 
 function era5AtmosFormat(value,unit="",signed=false,digits=1){
   const number=Number(value);
@@ -72,9 +74,40 @@ function era5AtmosFillMonths(preferred){
   else if(available.includes(era5AtmosIndex?.latest_month_key))periodSelect.value=era5AtmosIndex.latest_month_key;
 }
 
+function era5AtmosFillParameters(){
+  const select=document.getElementById("era5AtmosParameter");
+  if(!select)return;
+  const previous=select.value;
+  select.innerHTML="";
+  Object.entries(era5AtmosPayload?.products||era5AtmosIndex?.products||{}).forEach(([key,item])=>{
+    const option=document.createElement("option");
+    option.value=key;
+    option.textContent=item.short_label||item.label||key;
+    select.appendChild(option);
+  });
+  if([...select.options].some(o=>o.value===previous))select.value=previous;
+}
+
+async function era5AtmosAttachExtra(period){
+  if(!era5AtmosExtraIndex?.available_periods?.includes(period))return;
+  const year=Number(period.slice(0,4));
+  let manifest=era5AtmosExtraHistoryCache.get(year);
+  if(!manifest){
+    const response=await fetch(`era5_europe/extra/history/${year}.json?ts=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)throw new Error(`ERA5-Erweiterung ${year}: HTTP ${response.status}`);
+    manifest=await response.json();
+    if(!manifest?.ready || manifest.year!==year)throw new Error("ERA5-Erweiterungsarchiv ungültig");
+    era5AtmosExtraHistoryCache.set(year,manifest);
+  }
+  const entry=manifest.periods?.[period];
+  if(!entry?.ready || !entry.products)return;
+  era5AtmosPayload={...era5AtmosPayload,products:{
+    ...era5AtmosPayload?.products,...entry.products
+  }};
+}
+
 function era5AtmosFillControls(){
   const yearSelect=document.getElementById("era5AtmosYear");
-  const parameterSelect=document.getElementById("era5AtmosParameter");
   const periods=era5AtmosAvailablePeriods();
   if(yearSelect){
     const previous=yearSelect.value;
@@ -89,17 +122,7 @@ function era5AtmosFillControls(){
     yearSelect.value=years.includes(previous)?previous:era5AtmosIndex.latest_month_key.slice(0,4);
   }
   era5AtmosFillMonths(era5AtmosIndex.latest_month_key);
-  if(parameterSelect){
-    const previous=parameterSelect.value;
-    parameterSelect.innerHTML="";
-    Object.entries(era5AtmosIndex?.products||{}).forEach(([key,item])=>{
-      const option=document.createElement("option");
-      option.value=key;
-      option.textContent=item.short_label||item.label||key;
-      parameterSelect.appendChild(option);
-    });
-    if([...parameterSelect.options].some(o=>o.value===previous))parameterSelect.value=previous;
-  }
+  era5AtmosFillParameters();
 }
 
 async function era5AtmosChangeYear(){
@@ -153,7 +176,7 @@ function era5AtmosRender(){
   };
   set("era5AtmosCurrent",era5AtmosFormat(stats.current_area_mean,unit,false,key==="z500"?0:1),"Europa-Flächenmittel");
   set("era5AtmosReference",era5AtmosFormat(stats.reference_area_mean,unit,false,key==="z500"?0:1),"Mittel 1991–2020");
-  set("era5AtmosAnomaly",era5AtmosFormat(stats.anomaly_area_mean,key==="t850"?"K":unit,true,key==="z500"?0:1),"Abweichung des Europa-Flächenmittels");
+  set("era5AtmosAnomaly",era5AtmosFormat(stats.anomaly_area_mean,item.anomaly?.unit||(key==="t850"?"K":unit),true,key==="z500"?0:1),"Abweichung des Europa-Flächenmittels");
   set("era5AtmosRank1",Number.isFinite(rank.rank1_area_percent)?era5AtmosFormat(rank.rank1_area_percent,"%",false,1):"–",rank.direction||"");
   set("era5AtmosTop3",Number.isFinite(rank.top3_area_percent)?era5AtmosFormat(rank.top3_area_percent,"%",false,1):"–",`Top-3-Flächenanteil · Rang 1–${rank.total_rank_positions||"–"}`);
 
@@ -169,6 +192,8 @@ async function era5AtmosChangePeriod(){
     if(status)status.textContent="ERA5-Archiv wird geladen …";
     const period=document.getElementById("era5AtmosPeriod")?.value||era5AtmosIndex?.latest_month_key;
     await era5AtmosLoadPeriod(period);
+    await era5AtmosAttachExtra(period);
+    era5AtmosFillParameters();
     era5AtmosRender();
   }catch(error){
     console.error("ERA5 Atmosphäre:",error);
@@ -188,6 +213,13 @@ async function ensureEra5AtmosphereLoaded(){
     if(!response.ok)throw new Error(`HTTP ${response.status}`);
     era5AtmosIndex=await response.json();
     if(!era5AtmosIndex?.ready)throw new Error("ERA5-Index ist noch nicht bereit.");
+    try{
+      const extra=await fetch(`era5_europe/extra/index.json?ts=${Date.now()}`,{cache:"no-store"});
+      if(extra.ok){
+        const data=await extra.json();
+        if(data.ready)era5AtmosExtraIndex=data;
+      }
+    }catch(error){console.info("ERA5-Erweiterung noch nicht verfügbar",error);}
     era5AtmosPayload=era5AtmosIndex;
     era5AtmosFillControls();
     document.getElementById("era5AtmosYear")?.addEventListener("change",era5AtmosChangeYear);
