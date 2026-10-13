@@ -50,6 +50,7 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 <label for="level">Druckniveau<select id="level"><option value="10">10 hPa · ~30 km</option><option value="30">30 hPa · ~24 km</option><option value="50">50 hPa · ~21 km</option><option value="70">70 hPa · ~18 km</option><option value="100">100 hPa · ~16 km</option></select></label>
 <label for="season">Winter / Saison<select id="season"></select></label>
 <label for="view">Zeitraum<select id="view"><option value="winter">September – Mai</option><option value="full">Juli – Juni</option><option value="ssw">November – März</option></select></label>
+<label for="mode">Darstellung<select id="mode"><option value="absolute">Absolutwerte (m/s)</option><option value="anomaly">Abweichung zu 1991–2020</option></select></label>
 <button class="btn primary" id="reload" type="button">Daten laden</button>
 <button class="btn" id="png" type="button">PNG speichern</button>
 <button class="btn" id="csv" type="button">CSV speichern</button>
@@ -70,7 +71,7 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 <div class="kpi"><div class="name">Tage mit Ostwind</div><div class="value" id="easterlies">–</div><div class="detail">Analysewerte &lt; 0 m/s, Nov–März</div></div>
 </div>
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
-<div class="legendnotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+<div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
 </section>
 <section class="card method">
 <div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
@@ -150,6 +151,27 @@ function arraysFor(series,field){
   return dates.map(d=>{const value=series.get(d.key);return value&&(!field||field(value))?value.value:null;});
 }
 function analysisRows(rows){return [...rows.values()].filter(x=>x.lead===0).sort((a,b)=>a.date.localeCompare(b.date));}
+function reversalDays(rows){
+  // Require consecutive UTC calendar days so gaps cannot fabricate a reversal.
+  const days=new Map(),actual=analysisRows(rows);
+  let previous=null;
+  for(const point of actual){
+    const month=Number(point.date.slice(5,7));
+    const oneDay=previous && (Date.parse(point.date+"T00:00:00Z")-Date.parse(previous.date+"T00:00:00Z"))===86400000;
+    if(oneDay && [11,12,1,2,3].includes(month) && previous.value>=0 && point.value<0){
+      days.set(point.date.slice(5),point.value);
+    }
+    previous=point;
+  }
+  return days;
+}
+function modeValues(values,climo,mode){
+  if(mode!=="anomaly")return values;
+  return values.map((value,i)=>{
+    const ref=climo[dates[i].key]?.mean;
+    return Number.isFinite(value)&&Number.isFinite(ref)?Number((value-ref).toFixed(3)):null;
+  });
+}
 function updateKpis(series,climo,selectedYear,level){
   const actual=analysisRows(series);
   const latest=actual.at(-1);
@@ -157,27 +179,33 @@ function updateKpis(series,climo,selectedYear,level){
   $("latestDate").textContent=latest?latest.date+" · "+level+" hPa":"Noch keine Analyse";
   const ref=latest?climo[latest.date.slice(5)]?.mean:null;
   $("anomaly").textContent=latest&&Number.isFinite(ref)?(latest.value-ref>0?"+":"")+fmt(latest.value-ref)+" m/s":"–";
-  let easterly=0,reversals=0,prev=null;
-  for(const v of actual){
-    const m=Number(v.date.slice(5,7));
-    if(!([11,12,1,2,3].includes(m)))continue;
-    if(v.value<0){easterly++;if(prev!==null&&prev>=0)reversals++;}
-    prev=v.value;
-  }
+  const easterly=actual.filter(v=>[11,12,1,2,3].includes(Number(v.date.slice(5,7)))&&v.value<0).length;
   $("easterlies").textContent=String(easterly);
-  $("reversals").textContent=String(reversals);
+  $("reversals").textContent=String(reversalDays(series).size);
 }
 function draw(level,year,selected,climo,comparison){
+  const mode=$("mode").value;
+  const transform=values=>modeValues(values,climo,mode);
   const c=field=>dates.map(d=>missing(climo[d.key]?.[field]));
   const ds=[
-    ...band(c("p10"),c("p90"),"10.–90. Perzentil","rgba(140,163,185,.15)"),
-    ...band(c("p30"),c("p70"),"30.–70. Perzentil","rgba(80,130,188,.2)"),
-    line("Historisches Minimum",c("min"),"rgba(100,116,139,.45)",1),
-    line("Historisches Maximum",c("max"),"rgba(100,116,139,.45)",1),
-    line("Mittel 1991–2020",c("mean"),"#b91c1c",3.2),
-    line("0 m/s · Windumkehr",dates.map(()=>0),"#4b5563",1.6,{borderDash:[5,5]}),
-    line("Winter "+seasonLabel(year)+" · Analyse",arraysFor(selected,r=>r.lead===0),"#075985",3),
+    ...band(transform(c("p10")),transform(c("p90")),"10.–90. Perzentil","rgba(140,163,185,.15)"),
+    ...band(transform(c("p30")),transform(c("p70")),"30.–70. Perzentil","rgba(80,130,188,.2)"),
+    line("Historisches Minimum",transform(c("min")),"rgba(100,116,139,.45)",1),
+    line("Historisches Maximum",transform(c("max")),"rgba(100,116,139,.45)",1),
+    line(mode==="anomaly"?"0 m/s · Mittel 1991–2020":"Mittel 1991–2020",transform(c("mean")),"#b91c1c",3.2),
   ];
+  if(mode==="absolute"){
+    ds.push(line("0 m/s · Windumkehr",dates.map(()=>0),"#4b5563",1.6,{borderDash:[5,5]}));
+  }
+  ds.push(line("Winter "+seasonLabel(year)+" · Analyse",transform(arraysFor(selected,r=>r.lead===0)),"#075985",3));
+  const turns=reversalDays(selected);
+  if(turns.size){
+    const crossing=dates.map(d=>turns.has(d.key)?turns.get(d.key):null);
+    ds.push(line("Windumkehr · Analyse (kein Major-SSW-Nachweis)",transform(crossing),"#b45309",0,{
+      showLine:false,pointRadius:5,pointHoverRadius:7,pointStyle:"triangle",pointRotation:180,
+      spanGaps:false
+    }));
+  }
   const analyzed=analysisRows(selected);
   const latest=analyzed.at(-1);
   const forecast=arraysFor(selected,r=>r.lead>0);
@@ -186,11 +214,11 @@ function draw(level,year,selected,climo,comparison){
     const k=keys.indexOf(latest.date.slice(5));
     if(k>=0&&forecast.some(v=>v!==null))forecast[k]=latest.value;
   }
-  ds.push(line("Winter "+seasonLabel(year)+" · Vorhersage",forecast,"#075985",2.6,{borderDash:[7,5]}));
+  ds.push(line("Winter "+seasonLabel(year)+" · Vorhersage",transform(forecast),"#075985",2.6,{borderDash:[7,5]}));
   const palette=["#7c3aed","#c27a08","#087f57","#db2777"];
   for(let i=0;i<comparison.length;i++){
     const [y,rows]=comparison[i];
-    ds.push(line("Vergleich "+seasonLabel(y),arraysFor(rows,r=>r.lead===0),palette[i%palette.length],1.8));
+    ds.push(line("Vergleich "+seasonLabel(y),transform(arraysFor(rows,r=>r.lead===0)),palette[i%palette.length],1.8));
   }
   const view=$("view").value;
   let from=0,to=dates.length-1;
@@ -215,12 +243,15 @@ function draw(level,year,selected,climo,comparison){
       },
       scales:{
         y:{min:Math.floor((min-padding)/10)*10,max:Math.ceil((max+padding)/10)*10,
-          title:{display:true,text:"Zonal gemittelter Wind [m/s]"},grid:{color:"rgba(20,43,65,.1)"}},
+          title:{display:true,text:mode==="anomaly"?"Abweichung zu 1991–2020 [m/s]":"Zonal gemittelter Wind [m/s]"},grid:{color:"rgba(20,43,65,.1)"}},
         x:{ticks:{autoSkip:false,maxRotation:0,callback:(value,index)=>{const d=dates[from+index];return d&&d.key.slice(3)==="01"&&visible[index]?months[d.month-1]:"";}},
           grid:{display:false},title:{display:true,text:"Saison "+seasonLabel(year)}}
       }
     }
   });
+  $("windNotes").textContent=mode==="anomaly"
+    ?"Abweichung vom jeweiligen Kalendertagesmittel 1991–2020: positive Werte bedeuten stärkeren Westwind bzw. schwächeren Ostwind als üblich, negative Werte entsprechend umgekehrt. Die Nulllinie zeigt hier das Klimamittel, nicht die physikalische Windumkehr. Dreiecke markieren tatsächliche West-Ost-Umkehrungen in der Analyse (November–März), keine bestätigten Major-SSW-Ereignisse. Prognosen sind gestrichelt."
+    :"Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März), kein bestätigtes Major SSW. Schattierung: 10.–90. und 30.–70. Perzentil der Referenz 1991–2020; dünne Linien: historische Extremwerte. Gestrichelt: Prognose.";
   last={level,year,selected,climo,comparison};
 }
 let loading=false;
@@ -283,6 +314,7 @@ $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",render);
 $("view").addEventListener("change",()=>last?draw(last.level,last.year,last.selected,last.climo,last.comparison):render());
+$("mode").addEventListener("change",()=>last?draw(last.level,last.year,last.selected,last.climo,last.comparison):render());
 document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
 (async()=>{
   chooseSeasonOptions();
