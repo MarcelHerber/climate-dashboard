@@ -438,29 +438,51 @@ def main():
     import cdsapi
     client=cdsapi.Client(quiet=False,progress=False)
     run_stats={"current":bool(args.current),"priority_chunks_completed":0,
-               "climatology_chunks_completed":0,"climatology_errors":0}
+               "climatology_chunks_completed":0,"climatology_errors":0,
+               "errors":[]}
     if args.current:
         for year in range(2026,base.last_available_date().year+1):
-            print(f"Stage 2 current {year}: {update_year_polar(client,year,current=True,max_chunks=2)} new chunks",flush=True)
+            try:
+                done=update_year_polar(client,year,current=True,max_chunks=2)
+                print(f"Stage 2 current {year}: {done} new chunks",flush=True)
+            except Exception as error:
+                run_stats["errors"].append(f"current {year}: {error}")
+                print(f"WARNING: current ERA5 cap download unavailable: {error}",
+                      flush=True)
     priority_incomplete = False
     if args.priority_backfill:
-        done, finished = backfill_priority_temperatures(
-            client, max_chunks=args.priority_chunks)
-        priority_incomplete = not finished
-        run_stats["priority_chunks_completed"]=done
-        run_stats["priority_complete"]=finished
-        print(f"Priority SSW ERA5 chunks in this run: {done}; "
-              f"all target windows complete: {finished}", flush=True)
+        try:
+            done, finished = backfill_priority_temperatures(
+                client, max_chunks=args.priority_chunks)
+            priority_incomplete = not finished
+            run_stats["priority_chunks_completed"]=done
+            run_stats["priority_complete"]=finished
+            print(f"Priority SSW ERA5 chunks in this run: {done}; "
+                  f"all target windows complete: {finished}",flush=True)
+        except Exception as error:
+            priority_incomplete=True
+            run_stats["errors"].append(f"priority: {error}")
+            print(f"WARNING: priority backfill failed: {error}",flush=True)
     if args.climatology_backfill:
-        c_done,c_finished,c_failed=backfill_reference_temperatures(
-            client,max_chunks=args.climatology_chunks)
-        run_stats["climatology_chunks_completed"]=c_done
-        run_stats["climatology_errors"]=c_failed
-        run_stats["climatology_complete"]=c_finished
+        try:
+            c_done,c_finished,c_failed=backfill_reference_temperatures(
+                client,max_chunks=args.climatology_chunks)
+            run_stats["climatology_chunks_completed"]=c_done
+            run_stats["climatology_errors"]=c_failed
+            run_stats["climatology_complete"]=c_finished
+        except Exception as error:
+            run_stats["errors"].append(f"climatology: {error}")
+            print(f"WARNING: climatology temperature run failed: {error}",
+                  flush=True)
     if args.backfill_one and not priority_incomplete:
         year=choose_backfill_year()
         if year is not None:
-            print(f"Stage 2 historical {year}: {update_year_polar(client,year,max_chunks=1)} new chunks",flush=True)
+            try:
+                done=update_year_polar(client,year,max_chunks=1)
+                print(f"Stage 2 historical {year}: {done} new chunks",flush=True)
+            except Exception as error:
+                run_stats["errors"].append(f"regular history {year}: {error}")
+                print(f"WARNING: regular history {year} failed: {error}",flush=True)
     elif args.backfill_one:
         print("Defer regular historical stage-2 backfill until SSW temperature "
               "priority windows complete.",flush=True)
