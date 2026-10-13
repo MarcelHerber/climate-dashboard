@@ -4,6 +4,7 @@ const BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/cyc
 const DATA_URL=BASE+"tracks.json";
 const ATLANTIC_URL=BASE+"atlantic.json";
 const ECMWF_LOW_URL=BASE+"ecmwf_atlantic.json";
+const ECMWF_CPS_URL=BASE+"ecmwf_atlantic_cps.json";
 const MODEL_LABEL={gfs:"GFS Nordatlantik / Hart-CPS","ifs-atl":"IFS Nordatlantik-Tiefs","aifs-atl":"AIFS Nordatlantik-Tiefs",ifs:"IFS Tropenzyklonen",aifs:"AIFS Tropenzyklonen",ens:"IFS ENS Tropenzyklonen"};
 const COLOR={gfs:"#8b5cf6","ifs-atl":"#bd332a","aifs-atl":"#175aad",ifs:"#f58049",aifs:"#5ba4db",ens:"#288c73"};
 const $=id=>document.getElementById(id);
@@ -119,10 +120,9 @@ function details(t){
   $("vpressure").textContent=Number.isFinite(p.mslp_hpa)?number(p.mslp_hpa)+" hPa":"–";
   $("vwind").textContent=Number.isFinite(p.vmax_ms)?number(p.vmax_ms*3.6,0)+" km/h":"–";
   const phase=p.phase||"nicht bestimmt";
-  $("phaseLabel").textContent=t.model==="gfs"?"GFS-Kernstruktur: "+phase:
-    (t.model==="ifs-atl"||t.model==="aifs-atl"?
-     "Kernstruktur: ECMWF-MSLP-Tiefbahnen, Hart-CPS noch nicht berechnet":
-     "Kernstruktur: Für diesen ECMWF-Tropenzyklonen-Track nicht berechnet");
+  $("phaseLabel").textContent=(t.model==="gfs"?"GFS-Kernstruktur: ":
+     t.model==="ifs-atl"?"IFS-Kernstruktur: ":t.model==="aifs-atl"?"AIFS-Kernstruktur: ":"ECMWF-TC-Kernstruktur: ")+
+   (p.cps?phase:"für diesen Prognosetermin keine Hart-CPS-Diagnose verfügbar");
   plotIntensity(t);plotCps(t);
   if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(t,allData,chosenHour());
 }
@@ -164,11 +164,28 @@ async function load(){
         throw Error("Unerwartetes Datenformat");
       return data;
     }
-    const result=await Promise.allSettled([get(DATA_URL),get(ATLANTIC_URL),get(ECMWF_LOW_URL)]);
-    const success=result.filter(r=>r.status==="fulfilled").map(r=>r.value);
+    const result=await Promise.allSettled([get(DATA_URL),get(ATLANTIC_URL),get(ECMWF_LOW_URL),get(ECMWF_CPS_URL)]);
+    const success=result.slice(0,3).filter(r=>r.status==="fulfilled").map(r=>r.value);
     if(!success.length)throw Error("ECMWF- und GFS-Archiv derzeit nicht erreichbar");
-    const issues=result.map((r,i)=>r.status==="rejected"?["ECMWF-TC","GFS","IFS/AIFS-Tiefs"][i]+": "+r.reason.message:null).filter(Boolean);
+    const issues=result.slice(0,3).map((r,i)=>r.status==="rejected"?["ECMWF-TC","GFS","IFS/AIFS-Tiefs"][i]+": "+r.reason.message:null).filter(Boolean);
     allData={schema:1,models:success.flatMap(j=>j.models),tracks:success.flatMap(j=>j.tracks)};
+    let ecmwfCpsCount=0;
+    if(result[3].status==="fulfilled"){
+      const overlay=result[3].value;
+      // Never overlay thermal structure from a DIFFERENT ECMWF run or
+      // different tracked low; missing values stay explicitly missing.
+      const key=t=>[t.id,t.model,t.run].join("|");
+      const matching=new Map(allData.tracks.map(t=>[key(t),t]));
+      for(const enrichment of overlay.tracks){
+        const t=matching.get(key(enrichment));
+        if(!t)continue;
+        const byTime=new Map(enrichment.points.filter(p=>p.cps).map(p=>[p.time,p]));
+        for(const p of t.points){
+          const q=byTime.get(p.time);
+          if(q&&q.h===p.h){p.cps=q.cps;p.phase=q.phase;ecmwfCpsCount++;}
+        }
+      }
+    }
     const latest=success.map(j=>j.updated_utc).filter(Boolean).sort().at(-1);
     $("updated").textContent="Aktuellster Datenabruf: "+stamp(latest);
     $("modelruns").textContent=allData.models.map(m=>(MODEL_LABEL[m.model]||m.model)+": "
@@ -180,7 +197,9 @@ async function load(){
     const gfs=success.find(j=>j.models.some(m=>m.model==="gfs"));
     setStatus((gfs?gfs.tracks.length+" GFS-Nordatlantik-Tiefbahnen und "+
       (gfs.cps_points||0)+" berechnete CPS-Zeitpunkte. ":"")+
-      allData.tracks.length+" reale Modell-Zugbahnen verfügbar."+
+      allData.tracks.length+" reale Modell-Zugbahnen verfügbar. "+
+      (ecmwfCpsCount?ecmwfCpsCount+" echte IFS/AIFS-Hart-CPS-Punkte aus passenden Modellläufen. ":
+       "IFS/AIFS-CPS: zurzeit keine passenden Geopotenzial-Diagnosen. ")+
       (issues.length?" Teilweise fehlende Quellen: "+issues.join("; "):""));
   }catch(err){
     allData=null;visible=[];if(lines)lines.clearLayers();repaint(false);
