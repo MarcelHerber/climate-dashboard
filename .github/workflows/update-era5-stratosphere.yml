@@ -60,13 +60,16 @@ jobs:
           restore-keys: |
             era5-strato-v1-${{ runner.os }}-
       - name: Fetch stage-1 ERA5 60N winds and historical chunk
+        id: stage1
+        continue-on-error: true
         run: python scripts/update_era5_stratosphere.py --current --backfill-one
       - name: Verify stage-2 polar-cap calculations
         run: python scripts/update_era5_stratosphere_stage2.py --self-test
       - name: Fetch current polar-cap diagnostics and priority SSW temperatures
         run: |
           python scripts/update_era5_stratosphere_stage2.py \
-            --current --priority-backfill --priority-chunks 9 --backfill-one
+            --current --priority-backfill --priority-chunks 6 \
+            --climatology-backfill --climatology-chunks 2 --backfill-one
       - name: Validate published data
         run: |
           python - <<'PY'
@@ -90,6 +93,39 @@ jobs:
             print("Priority SSW temperature coverage",start,end,counts)
           assert all(k in payload["metrics"] for k in levels), "Four temperature diagnostics missing"
           print("Validated real ERA5 daily diagnostics:",len(days),"days",days[-1])
+          status_file=Path("era5_stratosphere/backfill_status.json")
+          assert status_file.exists(), "Backfill progress report missing"
+          status=json.loads(status_file.read_text())
+          assert status.get("schema_version")==1
+          for season in ("2009","2017","2018"):
+            result=status["priority_seasons"][season]
+            assert 0<=result["all_four_days"]<=result["days_total"]
+          print("Priority ERA5 status validated:",status["last_run"])
+          PY
+      - name: Add run diagnostics to GitHub summary
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          target=os.environ.get("GITHUB_STEP_SUMMARY")
+          status_file=Path("era5_stratosphere/backfill_status.json")
+          lines=["### ERA5 Stratosphäre · CDS-Datenlauf",
+                 "- Status Stufe 1 (60°N Wind): ${{ steps.stage1.outcome }}"]
+          if status_file.exists():
+            data=json.loads(status_file.read_text())
+            for year,entry in data["priority_seasons"].items():
+              lines.append(f"- SSW {year}/{int(year)+1}: "
+                f"{entry['all_four_days']}/{entry['days_total']} Tage (4 Temperaturhöhen)")
+            ref=data["reference_1991_2020"]
+            lines.append(f"- 1991–2020: {ref['years_complete_four_temperatures']}/30 Temperaturjahre vollständig")
+            lines.append(f"- Letzter Lauf: {data['last_run']}")
+          else:
+            lines.append("- Noch kein Backfill-Bericht erzeugt.")
+          if target:
+            with open(target,"a",encoding="utf-8") as handle: handle.write("\\n".join(lines)+"\\n")
+          print("\\n".join(lines))
           PY
       - name: Publish stratosphere data without changing existing ERA5 maps
         shell: bash
