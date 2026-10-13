@@ -107,7 +107,7 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
   <div class="levels-heading">
     <div>
       <h2>Zeit-Höhen-Heatmap · zonaler Wind bei 60° Nord</h2>
-      <p>Jeder farbige Streifen steht für ein gemessenes oder analysiertes Druckniveau (10, 30, 50, 70 und 100 hPa) an einem Kalendertag. Keine Interpolation zwischen den Höhen.</p>
+      <p>Jedes farbige Höhenband zeigt den zonal gemittelten Wind auf einem Druckniveau (10, 30, 50, 70 oder 100 hPa) für einzelne Kalendertage. Keine Interpolation zwischen den Höhen.</p>
     </div>
     <div class="levels-actions">
       <button class="btn" id="heatmapPng" type="button" disabled>Heatmap als PNG</button>
@@ -696,8 +696,9 @@ $("levelsCsv").addEventListener("click",()=>{
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",render);
-$("heatmapCanvas").addEventListener("mousemove",heatmapHover);
-$("heatmapCanvas").addEventListener("mouseleave",()=>{$("heatmapTooltip").hidden=true;});
+$("heatmapCanvas").addEventListener("pointermove",heatmapHover);
+$("heatmapCanvas").addEventListener("pointerdown",heatmapHover);
+$("heatmapCanvas").addEventListener("pointerleave",()=>{$("heatmapTooltip").hidden=true;});
 window.addEventListener("resize",()=>{if(levelsState)drawHeatmap();});
 $("heatmapPng").addEventListener("click",()=>{
   if(!heatmapLayout||!levelsState)return;
