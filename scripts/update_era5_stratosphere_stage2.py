@@ -146,6 +146,102 @@ def update_year_polar(client, year, *, current=False, max_chunks=2):
             print(f"Saved ERA5 polar cap on {dates[0]} … {dates[-1]}; year has {len(existing)} dates",flush=True)
     return completed
 
+# Prioritize complete Sep–May seasons surrounding major SSW central dates.
+# The dates control retrieval order; they are not synthetic ERA5 values.
+PRIORITY_EVENTS = (
+    (2009, (date(2010, 2, 9), date(2010, 3, 24))),
+    (2017, (date(2018, 2, 12),)),
+    (2018, (date(2019, 1, 2),)),
+)
+TEMPERATURE_LEVELS = (10, 30, 50, 100)
+TEMPERATURE_FIELDS = tuple(f"tcap_{level}" for level in TEMPERATURE_LEVELS)
+
+
+def priority_chunk_plan(start_year):
+    """All 5-day calendar chunks September–May, sorted by SSW onset proximity."""
+    events = dict(PRIORITY_EVENTS)[start_year]
+    chunks = []
+    for year, months in ((start_year, range(9, 13)), (start_year + 1, range(1, 6))):
+        for month in months:
+            end = calendar.monthrange(year, month)[1]
+            for first in range(1, end + 1, 5):
+                days = tuple(range(first, min(first + 5, end + 1)))
+                distance = min(abs((date(year, month, d) - onset).days)
+                               for d in days for onset in events)
+                chunks.append((distance, year, month, days))
+    return sorted(chunks, key=lambda c: (c[0], c[1], c[2], c[3][0]))
+
+
+def priority_work_plan(rows_by_year, max_chunks):
+    """Round-robin the three SSW winters; request only the missing pressure levels."""
+    queues = []
+    for season, _ in PRIORITY_EVENTS:
+        queue = []
+        for _, year, month, days in priority_chunk_plan(season):
+            existing = rows_by_year.get(year, {})
+            stamps = _dates(year, month, days)
+            levels = tuple(level for level in TEMPERATURE_LEVELS if
+                any(f"tcap_{level}" not in existing.get(day, {}) for day in stamps))
+            if levels:
+                queue.append((season, year, month, days, levels))
+        queues.append(queue)
+    result = []
+    while len(result) < max_chunks and any(queues):
+        for queue in queues:
+            if queue and len(result) < max_chunks:
+                result.append(queue.pop(0))
+    return result
+
+
+def backfill_priority_temperatures(client, *, max_chunks=9):
+    """Retrieve real ERA5 temperatures only; preserve wind, geopotential and ozone."""
+    years = sorted({year for season, _ in PRIORITY_EVENTS
+                    for year in (season, season + 1)})
+    by_year = {year: {row["date"]: row for row in base.read_rows(year)}
+               for year in years}
+    work = priority_work_plan(by_year, max_chunks)
+    for season, year, month, days, levels in work:
+        print(f"Priority SSW winter {season}/{season+1}: ERA5 T "
+              f"{year}-{month:02d} days {days[0]}–{days[-1]}, levels {levels}",
+              flush=True)
+        values = retrieve_chunk(client, year, month, days,
+                                ("temperature", levels, "t"))
+        existing = by_year[year]
+        for day, row in values.items():
+            existing[day] = {**existing.get(day, {"date": day}), **row}
+        base.store_rows(year, list(existing.values()))
+        print(f"Saved verified ERA5 polar temperature: {year}-{month:02d}, "
+              f"{len(existing)} year records", flush=True)
+    return len(work), not bool(priority_work_plan(by_year, 1))
+
+
+def priority_self_test():
+    """Verify season boundaries, round-robin, missing-level repair and resumability."""
+    assert len(PRIORITY_EVENTS) == 3
+    for season, _ in PRIORITY_EVENTS:
+        plan = priority_chunk_plan(season)
+        included = {d for _, year, month, days in plan
+                    for d in _dates(year, month, days)}
+        assert f"{season}-09-01" in included
+        assert f"{season+1}-05-31" in included
+        assert f"{season+1}-06-01" not in included
+        assert len(included) == (date(season+1, 6, 1)-date(season, 9, 1)).days
+    work = priority_work_plan({}, 6)
+    assert len(work) == 6 and [r[0] for r in work] == [2009, 2017, 2018]*2
+    _, year, month, days, levels = work[0]
+    assert levels == TEMPERATURE_LEVELS
+    old = {year: {d: {"date": d, "tcap_10": -50.0,
+                     "tcap_50": -55.0, "tcap_100": -60.0}
+                  for d in _dates(year, month, days)}}
+    again = priority_work_plan(old, 3)
+    assert again[0][4] == (30,)
+    for d in _dates(year, month, days):
+        old[year][d]["tcap_30"] = -52.0
+    skipped = priority_work_plan(old, 3)
+    assert skipped[0][1:4] != (year, month, days)
+    print("Priority ERA5 SSW backfill self-test OK", flush=True)
+
+
 def choose_backfill_year():
     endyear=base.last_available_date().year
     for year in [*range(1991,2021),*range(1940,1991),*range(2021,endyear)]:
@@ -186,22 +282,39 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--current",action="store_true")
     parser.add_argument("--backfill-one",action="store_true")
+    parser.add_argument("--priority-backfill",action="store_true",
+                        help="fill historical SSW winters 2009/10, 2017/18 and 2018/19 first")
+    parser.add_argument("--priority-chunks",type=int,default=9,
+                        help="max sequential priority 5-day ERA5 requests")
     parser.add_argument("--self-test",action="store_true")
     args=parser.parse_args()
     if args.self_test:
         test()
+        priority_self_test()
         return
-    if not args.current and not args.backfill_one:
-        parser.error("Select --current or --backfill-one")
+    if not any((args.current, args.backfill_one, args.priority_backfill)):
+        parser.error("Select --current, --priority-backfill or --backfill-one")
+    if not 1 <= args.priority_chunks <= 30:
+        parser.error("--priority-chunks must be between 1 and 30")
     import cdsapi
     client=cdsapi.Client(quiet=False,progress=False)
     if args.current:
         for year in range(2026,base.last_available_date().year+1):
             print(f"Stage 2 current {year}: {update_year_polar(client,year,current=True,max_chunks=2)} new chunks",flush=True)
-    if args.backfill_one:
+    priority_incomplete = False
+    if args.priority_backfill:
+        done, finished = backfill_priority_temperatures(
+            client, max_chunks=args.priority_chunks)
+        priority_incomplete = not finished
+        print(f"Priority SSW ERA5 chunks in this run: {done}; "
+              f"all target windows complete: {finished}", flush=True)
+    if args.backfill_one and not priority_incomplete:
         year=choose_backfill_year()
         if year is not None:
             print(f"Stage 2 historical {year}: {update_year_polar(client,year,max_chunks=1)} new chunks",flush=True)
+    elif args.backfill_one:
+        print("Defer regular historical stage-2 backfill until SSW temperature "
+              "priority windows complete.",flush=True)
     base.rebuild_index()
 
 if __name__=="__main__":
