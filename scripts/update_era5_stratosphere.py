@@ -72,7 +72,7 @@ def daily_diagnostics(fields, lats, longitudes):
     for level in (10, 30, 50, 100):
         metric[f"u60_{level}"] = safe_number(
             np.nanmean(zonal_at_60(fields[f"u_{level}"], lats)))
-    for level in (10, 50, 100):
+    for level in (10, 30, 50, 100):
         metric[f"tcap_{level}"] = safe_number(
             polar_cap_mean(fields[f"t_{level}"], lats) - 273.15)
     metric["zcap_10"] = safe_number(
@@ -153,7 +153,7 @@ def normalized_data(ds):
     variables = {f"{name}_{level}": select_array(ds, name, level)
                  for name, level in (
                      ("u",10),("u",30),("u",50),("u",100),
-                     ("t",10),("t",50),("t",100),("z",10),
+                     ("t",10),("t",30),("t",50),("t",100),("z",10),
                      ("v",100),("o3",50),("pv",10))}
     out = {}
     for key, array in variables.items():
@@ -387,12 +387,13 @@ def self_test():
     phase=np.deg2rad(lons)
     a=np.broadcast_to((5*np.cos(phase)+2*np.cos(2*phase)),(len(lats),len(lons)))
     fields={f"u_{lev}":np.full_like(a,15.) for lev in (10,30,50,100)}
-    fields.update({f"t_{lev}":np.full_like(a,230.) for lev in (10,50,100)})
+    fields.update({f"t_{lev}":np.full_like(a,230.) for lev in (10,30,50,100)})
     fields.update({"z_10":(30000+a)*9.80665,"v_100":np.broadcast_to(np.cos(phase),a.shape),
         "o3_50":np.full_like(a,4e-6),"pv_10":np.full_like(a,2e-5)})
     x=daily_diagnostics(fields,lats,lons)
     assert abs(x["u60_10"]-15)<.001
     assert abs(x["tcap_10"]-(230-273.15))<.001
+    assert abs(x["tcap_30"]-(230-273.15))<.001
     assert abs(x["wave1_10"]-5)<.001
     assert abs(x["wave2_10"]-2)<.001
     assert abs(x["o3cap_50"]-4)<.001
