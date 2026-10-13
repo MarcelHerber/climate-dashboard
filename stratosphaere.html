@@ -29,6 +29,15 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .chart{position:relative;height:520px;width:100%;margin:20px auto 5px}.chart canvas{width:100%!important;height:100%!important}
 .legendnotes{font-size:12px;color:#5f6c79;line-height:1.5}.method{display:grid;grid-template-columns:1fr 1fr;gap:22px}.method p{font-size:13px;line-height:1.6}
 .source{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;font-size:12px;line-height:1.5}
+.levels-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.levels-heading p{max-width:780px}
+.levels-actions{display:flex;gap:9px;flex-wrap:wrap}
+.levels-chart{height:490px}
+.levels-latest{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:8px 0 15px}
+.levels-value{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted)}
+.levels-value strong{display:block;font-size:15px;color:var(--ink)}
+.levels-value .levels-date{display:block;font-size:11px}
+@media(max-width:750px){.levels-latest{grid-template-columns:repeat(2,minmax(0,1fr))}.levels-chart{height:420px}}
 @media(max-width:750px){main{padding:16px 11px 50px}.card{padding:14px}.kpis{grid-template-columns:1fr 1fr}.chart{height:400px}.method{grid-template-columns:1fr}.controls label{min-width:120px;flex:1}.nav{padding:13px}.navlinks{font-size:12px}}
 @media(max-width:420px){.kpis{grid-template-columns:1fr 1fr}.kpi{padding:10px}.chart{height:350px}}
 </style>
@@ -73,6 +82,22 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
 <div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
 </section>
+<section class="card" id="levelsCard">
+  <div class="levels-heading">
+    <div>
+      <h2>Vertikale Entwicklung des Polarwirbels · 10 bis 100 hPa</h2>
+      <p>Fünf Druckniveaus gleichzeitig, passend zur oben gewählten Saison, zum Zeitraum und zur Absolut- oder Anomalie-Darstellung.</p>
+    </div>
+    <div class="levels-actions">
+      <button class="btn" id="levelsPng" type="button" disabled>PNG speichern</button>
+      <button class="btn" id="levelsCsv" type="button" disabled>CSV speichern</button>
+    </div>
+  </div>
+  <div class="info"><span id="levelsStatus" role="status" aria-live="polite">Lade die fünf Windprofile …</span></div>
+  <div class="chart levels-chart"><canvas id="levelsChart" role="img" aria-label="Zonaler Wind bei 60 Grad Nord auf 10, 30, 50, 70 und 100 hPa"></canvas></div>
+  <div id="levelsLatest" class="levels-latest" aria-label="Letzte Analysewerte je Druckniveau"></div>
+  <p class="legendnotes" id="levelsNotes">Durchgezogene Linien: analysierter zonaler Wind · gestrichelt: GEOS-FP-Prognosen, falls vorhanden. Die Nulllinie bedeutet im Absolutmodus Windumkehr; in der Anomalieansicht markiert sie das tägliche Klimamittel. Jeder Druckfläche liegt ihre eigene 1991–2020-Referenz zugrunde. Eine Windumkehr allein ist kein bestätigtes Major SSW.</p>
+</section>
 <section class="card method">
 <div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
 <div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
@@ -94,7 +119,10 @@ for(let t=Date.UTC(1999,6,1);t<=Date.UTC(2000,5,30);t+=86400000){
 }
 const keys=dates.map(x=>x.key);
 const fetched=new Map();
-let chart=null,last=null,seq=0;
+const climoCache=new Map();
+const LEVELS=[10,30,50,70,100];
+const LEVEL_COLORS={"10":"#1d4ed8","30":"#7c3aed","50":"#047857","70":"#c47d0a","100":"#c2410c"};
+let chart=null,last=null,seq=0,levelsChart=null,levelsState=null;
 function seasonLabel(y){return y+"/"+String((y+1)%100).padStart(2,"0");}
 function fmt(value,d=1){return Number.isFinite(value)?value.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}):"–";}
 function missing(v){return !Number.isFinite(v)||v<=-9000?null:v;}
@@ -123,11 +151,16 @@ async function getText(level,year){
   return rows;
 }
 async function getClimo(level){
-  const res=await fetch(BASE+"climatology_"+level+"hpa.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
-  if(!res.ok)throw new Error("Klimatologie für "+level+" hPa fehlt (HTTP "+res.status+").");
-  const data=await res.json();
-  if(!data.daily||!data.reference)throw new Error("Ungültiges Klimatologieformat.");
-  return data.daily;
+  if(climoCache.has(level))return climoCache.get(level);
+  const request=(async()=>{
+    const res=await fetch(BASE+"climatology_"+level+"hpa.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
+    if(!res.ok)throw new Error("Klimatologie für "+level+" hPa fehlt (HTTP "+res.status+").");
+    const data=await res.json();
+    if(!data.daily||!data.reference)throw new Error("Ungültiges Klimatologieformat.");
+    return data.daily;
+  })();
+  climoCache.set(level,request);
+  try{return await request;}catch(error){climoCache.delete(level);throw error;}
 }
 function line(label,data,color,width=2,more={}){
   return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.12,spanGaps:true,fill:false,...more};
@@ -254,14 +287,120 @@ function draw(level,year,selected,climo,comparison){
     :"Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März), kein bestätigtes Major SSW. Schattierung: 10.–90. und 30.–70. Perzentil der Referenz 1991–2020; dünne Linien: historische Extremwerte. Gestrichelt: Prognose.";
   last={level,year,selected,climo,comparison};
 }
+function visibleRange(){
+  let from=0,to=dates.length-1;
+  if($("view").value==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
+  if($("view").value==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
+  return {from,to};
+}
+function levelArrays(item){
+  const mode=$("mode").value;
+  const analysis=modeValues(arraysFor(item.rows,r=>r.lead===0),item.climo,mode);
+  const forecast=modeValues(arraysFor(item.rows,r=>r.lead>0),item.climo,mode);
+  const analyzed=analysisRows(item.rows);
+  // Connect only the last analyzed day when a forecast exists on the following UTC day.
+  const last=analyzed.at(-1),lastIndex=last?keys.indexOf(last.date.slice(5)):-1;
+  if(lastIndex>=0 && lastIndex+1<dates.length && Number.isFinite(forecast[lastIndex+1])){
+    forecast[lastIndex]=analysis[lastIndex];
+  }
+  return {analysis,forecast};
+}
+function redrawLevels(){
+  if(!levelsState)return;
+  const mode=$("mode").value,{from,to}=visibleRange();
+  const sets=[];
+  for(const item of levelsState.items){
+    const label=item.level+" hPa",color=LEVEL_COLORS[item.level],values=levelArrays(item);
+    sets.push(line(label+" · Analyse",values.analysis.slice(from,to+1),color,2.6,{spanGaps:false}));
+    if(values.forecast.some(v=>Number.isFinite(v))){
+      sets.push(line(label+" · Prognose",values.forecast.slice(from,to+1),color,2.4,{spanGaps:false,borderDash:[7,5],_forecast:true}));
+    }
+  }
+  sets.push(line(mode==="anomaly"?"0 m/s · tägliches Klimamittel":"0 m/s · Windumkehr",
+    dates.slice(from,to+1).map(()=>0),"#475569",1.4,{spanGaps:false,borderDash:[4,5],_reference:true}));
+  const vals=sets.flatMap(d=>d.data).filter(Number.isFinite);
+  const min=vals.length?Math.min(...vals):0,max=vals.length?Math.max(...vals):30;
+  const margin=Math.max(3,(max-min)*.09);
+  let ymin=Math.floor((min-margin)/5)*5,ymax=Math.ceil((max+margin)/5)*5;
+  if(mode==="anomaly"){
+    const limit=Math.ceil((Math.max(Math.abs(ymin),Math.abs(ymax))+1)/5)*5;
+    ymin=-limit;ymax=limit;
+  }
+  if(ymax<=ymin)ymax=ymin+10;
+  if(levelsChart)levelsChart.destroy();
+  levelsChart=new Chart($("levelsChart"),{
+    type:"line",data:{labels:dates.slice(from,to+1).map(d=>d.label),datasets:sets},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
+      interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"bottom",labels:{boxWidth:19,font:{size:11},filter:(entry,data)=>!data.datasets[entry.datasetIndex]._forecast&&!data.datasets[entry.datasetIndex]._reference}},
+        tooltip:{mode:"index",intersect:false,filter:entry=>entry.parsed.y!==null&&!entry.dataset._reference,
+          callbacks:{label:entry=>entry.dataset.label+": "+fmt(entry.parsed.y,2)+" m/s"}}},
+      scales:{
+        y:{min:ymin,max:ymax,title:{display:true,text:mode==="anomaly"?"Abweichung zum Tagesmittel 1991–2020 [m/s]":"Zonal gemittelter Wind [m/s]"},grid:{color:"rgba(20,43,65,.1)"}},
+        x:{ticks:{autoSkip:false,maxRotation:0,callback:(value,index)=>{const d=dates[from+index];return d&&d.key.slice(3)==="01"?months[d.month-1]:"";}},grid:{display:false},title:{display:true,text:"Saison "+seasonLabel(levelsState.year)}}
+      }
+    }
+  });
+  $("levelsNotes").textContent=mode==="anomaly"?
+    "Anomalien zum jeweiligen Kalendertagesmittel 1991–2020, individuell je Druckniveau. Durchgezogen: Analyse; gestrichelt: Prognose. Die Nulllinie ist hier das Klimamittel und keine Windumkehrgrenze. Eine echte Windumkehr liegt erst bei absoluten Winden unter 0 m/s vor.":
+    "Zonal gemittelter Wind auf fünf Druckniveaus: positive Werte = Westwind, negative Werte = Ostwind. Durchgezogen: Analyse; gestrichelt: GEOS-FP-Prognose, sofern vorhanden. Die Nulllinie zeigt die Windumkehr. Daraus allein folgt keine bestätigte Major-SSW-Diagnose.";
+  const latest=$("levelsLatest");latest.textContent="";
+  for(const item of levelsState.items){
+    const row=analysisRows(item.rows).at(-1);
+    const c=document.createElement("div");c.className="levels-value";
+    c.style.borderTop="3px solid "+LEVEL_COLORS[item.level];
+    const name=document.createElement("strong");name.textContent=item.level+" hPa";
+    const value=document.createElement("span");
+    const ref=row?item.climo[row.date.slice(5)]?.mean:null;
+    const displayed=mode==="anomaly"&&Number.isFinite(ref)?row.value-ref:mode==="absolute"?row?.value:null;
+    value.textContent=fmt(displayed)+" m/s";
+    const date=document.createElement("span");date.className="levels-date";
+    date.textContent=row?row.date+(mode==="anomaly"?" · Abweichung":" · Analyse"):"Keine Analyse";
+    c.append(name,value,date);latest.appendChild(c);
+  }
+}
+async function loadLevels(year,ticket){
+  $("levelsStatus").textContent="Lade 10, 30, 50, 70 und 100 hPa für "+seasonLabel(year)+" …";
+  $("levelsPng").disabled=true;$("levelsCsv").disabled=true;
+  const outcomes=await Promise.allSettled(LEVELS.map(async level=>{
+    const [rows,climo]=await Promise.all([getText(level,year),getClimo(level)]);
+    if(!analysisRows(rows).length && ![...rows.values()].some(v=>v.lead>0))throw new Error("Keine gültigen Windwerte");
+    return {level,rows,climo};
+  }));
+  if(ticket!==seq)return;
+  const items=[],failed=[];
+  outcomes.forEach((result,i)=>{
+    if(result.status==="fulfilled")items.push(result.value);
+    else failed.push(LEVELS[i]+" hPa ("+(result.reason?.message||"unbekannt")+")");
+  });
+  if(!items.length){
+    levelsState=null;
+    $("levelsStatus").textContent="Keine gültigen Daten für die fünf Druckniveaus. "+failed.join("; ");
+    return;
+  }
+  levelsState={year,items};
+  redrawLevels();
+  $("levelsStatus").textContent=seasonLabel(year)+" · "+items.length+"/5 Druckniveaus mit gültigen NASA-Winddaten"+
+    (failed.length?" · Nicht verfügbar: "+failed.join("; "):" · Alle Höhen geladen");
+  $("levelsPng").disabled=false;$("levelsCsv").disabled=false;
+}
+function refreshCharts(){
+  if(last)draw(last.level,last.year,last.selected,last.climo,last.comparison);
+  if(levelsState&&levelsState.year===+$( "season" ).value)redrawLevels();
+}
 let loading=false;
 async function render(){
-  if(loading)return;
   loading=true;const ticket=++seq;
   $("reload").disabled=true;$("status").textContent="NASA-Winddaten werden geladen …";
   setError("");
+  const level=+$("level").value,year=+$("season").value;
+  levelsState=null;
+  if(levelsChart){levelsChart.destroy();levelsChart=null;}
+  $("levelsLatest").textContent="";
+  void loadLevels(year,ticket).catch(error=>{
+    if(ticket===seq)$("levelsStatus").textContent="Höhenvergleich fehlgeschlagen: "+(error?.message||error);
+  });
   try{
-    const level=+$("level").value,year=+$("season").value;
     const comparisonYears=seasonsSelected();
     const all=await Promise.all([getText(level,year),getClimo(level),...comparisonYears.map(y=>getText(level,y).then(rows=>[y,rows]).catch(()=>null))]);
     if(ticket!==seq)return;
@@ -276,7 +415,7 @@ async function render(){
     $("status").textContent="Kein verifizierter Datenstand";
     $("badge").textContent="Daten fehlen";
     if(chart){chart.destroy();chart=null;}
-  }finally{loading=false;$("reload").disabled=false;}
+  }finally{if(ticket===seq){loading=false;$("reload").disabled=false;}}
 }
 function saveAs(blob,name){
   const a=document.createElement("a"),u=URL.createObjectURL(blob);
@@ -334,8 +473,8 @@ $("csv").addEventListener("click",()=>{if(!last)return;
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",render);
-$("view").addEventListener("change",()=>last?draw(last.level,last.year,last.selected,last.climo,last.comparison):render());
-$("mode").addEventListener("change",()=>last?draw(last.level,last.year,last.selected,last.climo,last.comparison):render());
+$("view").addEventListener("change",refreshCharts);
+$("mode").addEventListener("change",refreshCharts);
 document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
 (async()=>{
   chooseSeasonOptions();
