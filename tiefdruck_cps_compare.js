@@ -13,7 +13,7 @@ function hasPosition(p) {
  return p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && typeof p.time==="string";
 }
 function hasCps(p) {
- return p && p.cps && ["b","vt_lower","vt_upper"].every(k=>Number.isFinite(p.cps[k]));
+ return Boolean(p && p.cps && ["b","vt_lower","vt_upper"].every(k=>Number.isFinite(p.cps[k])));
 }
 function kilometers(a,b) {
  const rad=Math.PI/180,dlat=(a.lat-b.lat)*rad,dlon=(a.lon-b.lon)*rad;
