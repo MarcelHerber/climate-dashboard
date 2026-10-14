@@ -102,7 +102,7 @@
       ".mosmix-period-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:7px}",
       ".mosmix-period-head h4{margin:0!important}",
       ".mosmix-period-group{display:flex;flex-wrap:wrap;gap:3px;align-items:center}",
-      ".mosmix-period-button{border:1px solid #cbd5df;border-radius:5px;background:#fff;color:#334155;font:700 11px/1.2 inherit;padding:5px 7px;cursor:pointer}",
+      ".mosmix-period-button{border:1px solid #cbd5df;border-radius:5px;background:#fff;color:#334155;font-size:11px;font-weight:700;line-height:1.2;padding:5px 7px;cursor:pointer}",
       ".mosmix-period-button.active{background:#10213d;color:#fff;border-color:#10213d}",
       ".mosmix-period-hint{font-size:10px;color:#64748b;margin:0 0 4px}",
       ".mosmix-export-status{font-size:11px;color:#475569;margin-right:auto}",
@@ -371,9 +371,12 @@
     ].join("-");
   }
 
+  const mosmixAxisCache = new Map();
+
   function mosmixAxisTime(index) {
     const iso = data && data.timesteps && data.timesteps[index];
     if (!iso) return null;
+    if (mosmixAxisCache.has(iso)) return mosmixAxisCache.get(iso);
     const parts = berlinDateParts(iso);
     if (!parts) return null;
     const weekday = new Intl.DateTimeFormat("de-DE", {
@@ -381,7 +384,9 @@
     }).format(new Date(iso)).replace(/\.$/, "");
     const day = String(parts.day).padStart(2,"0");
     const month = String(parts.month).padStart(2,"0");
-    return {hour:parts.hour,dayLabel:weekday+" "+day+"."+month+"."};
+    const result = {hour:parts.hour,dayLabel:weekday+" "+day+"."+month+"."};
+    mosmixAxisCache.set(iso,result);
+    return result;
   }
 
   function baseChartOptions(yTitle) {
