@@ -62,3 +62,51 @@ jobs:
             sleep $((attempt * 4))
           done
           exit 1
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-dashboard-v2
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Aktuellen Datenstand auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: NOAA-Datenbestand vor Veröffentlichung prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path("climate_indices/index.json").read_text())
+          assert p["ready"]
+          assert len(p["teleconnections"]["nao"]["daily"]) > 25000
+          assert len(p["teleconnections"]["ao"]["daily"]) > 25000
+          assert len(p["enso"]["oni"]["seasons"]) > 880
+          assert len(p["enso"]["roni"]["seasons"]) > 880
+          print("NOAA/CPC-Daten geprüft, neues Pages-Artefakt wird gebaut.")
+          PY
+      - name: Schlankes Pages-Artefakt erzeugen
+        run: bash scripts/build_pages_site.sh
+      - name: Pages konfigurieren
+        uses: actions/configure-pages@v5
+      - name: Website-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "github-pages-noaa-${{ github.run_id }}"
+      - name: GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          reporting_interval: "10000"
+          artifact_name: "github-pages-noaa-${{ github.run_id }}"
