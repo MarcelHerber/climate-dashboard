@@ -1,0 +1,15 @@
+/* Independent ERA5 synoptic analyses: real 12 UTC snapshots and verified-hour frequencies. */
+.era5-synoptic-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:16px 0;}
+.era5-synoptic-controls .control-group{min-width:170px;flex:1 1 160px;}
+.era5-synoptic-controls .control-group select{width:100%;}
+.era5-synoptic-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,300px);gap:16px;align-items:start;}
+.era5-synoptic-panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:15px;box-shadow:var(--shadow);}
+.era5-synoptic-panel h3{margin-top:0}
+.era5-synoptic-panel p{font-size:13px;line-height:1.55;color:var(--muted)}
+.era5-synoptic-panel img{width:100%;height:auto;border-radius:8px;display:block;}
+.era5-synoptic-panel img[hidden]{display:none;}
+.era5-synoptic-status{font-size:13px;margin:12px 0;color:var(--muted)}
+.era5-synoptic-panel a{display:inline-block;margin:8px 0 0;color:var(--accent,#1c6a93);font-weight:650;text-decoration:underline}
+.era5-synoptic-method{font-size:12px;line-height:1.7;color:var(--muted);}
+.era5-synoptic-method strong{color:var(--text,#293238);}
+@media(max-width:900px){.era5-synoptic-layout{grid-template-columns:1fr}}
