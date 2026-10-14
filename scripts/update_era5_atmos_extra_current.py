@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -54,8 +55,19 @@ def build(period: str, references: Path, output: Path) -> None:
             ref_lat = np.asarray(pack["lat"], dtype=np.float32)
             ref_lon = np.asarray(pack["lon"], dtype=np.float32)
         source = output / f"{period}-{key}.nc"
-        request_pressure(client, variable=[meta["variable"]],
-                         level=str(meta["level"]), years=[year], month=month, target=source)
+        for attempt in range(1, 4):
+            try:
+                request_pressure(client, variable=[meta["variable"]],
+                                 level=str(meta["level"]), years=[year], month=month, target=source)
+                if not source.is_file() or source.stat().st_size < 1024:
+                    raise RuntimeError(f"{period}/{key}: ERA5 NetCDF fehlt oder ist leer")
+                break
+            except Exception:
+                source.unlink(missing_ok=True)
+                if attempt == 3:
+                    raise
+                print(f"ERA5 CDS request {period}/{key}: attempt {attempt}/3 failed; retrying", flush=True)
+                time.sleep(10 * attempt)
         try:
             with xr.open_dataset(source) as ds:
                 lat, lon, times, current_cube = normalize_dataarray(ds, tuple(meta["aliases"]))
