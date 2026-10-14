@@ -4,6 +4,8 @@ let era5AtmosLoaded=false;
 const era5AtmosHistoryCache=new Map();
 const era5AtmosExtraHistoryCache=new Map();
 let era5AtmosExtraIndex=null;
+let era5AtmosClimateIndex=null;
+const era5AtmosClimateHistoryCache=new Map();
 
 function era5AtmosFormat(value,unit="",signed=false,digits=1){
   const number=Number(value);
@@ -56,9 +58,10 @@ function era5AtmosAvailablePeriods(){
   const recent=era5AtmosIndex?.available_periods||[];
   const extra=era5AtmosExtraIndex?.available_periods||[];
   const currentExtra=era5AtmosExtraIndex?.current_periods||[];
+  const climate=era5AtmosClimateIndex?.available_periods||[];
   const historical=(era5AtmosIndex?.history_years||[])
     .flatMap(year=>Array.from({length:12},(_,month)=>`${year}-${String(month+1).padStart(2,"0")}`));
-  return [...new Set([...historical,...extra,...currentExtra,...recent])].sort();
+  return [...new Set([...historical,...extra,...currentExtra,...climate,...recent])].sort();
 }
 
 function era5AtmosFillMonths(preferred){
@@ -101,6 +104,7 @@ function era5AtmosFillParameters(){
   };
   appendGroup("Basisparameter",era5AtmosIndex?.products);
   appendGroup("Neue Druckniveau- und Dynamikparameter",era5AtmosExtraIndex?.products,true);
+  appendGroup("Klimatologische Monatskarten · Ausbau",era5AtmosClimateIndex?.products,true);
   if([...select.options].some(o=>o.value===previous))select.value=previous;
   else if(era5AtmosIndex?.products?.t850)select.value="t850";
 }
@@ -133,6 +137,31 @@ async function era5AtmosAttachExtra(period){
   }
   const entry=manifest.periods?.[period];
   if(!entry?.ready || !entry.products)return;
+  era5AtmosPayload={...era5AtmosPayload,products:{
+    ...era5AtmosPayload?.products,...entry.products
+  }};
+}
+
+async function era5AtmosAttachClimatology(period){
+  if(!era5AtmosClimateIndex?.available_periods?.includes(period))return;
+  const year=Number(period.slice(0,4));
+  let entry;
+  if(year<=2025){
+    let manifest=era5AtmosClimateHistoryCache.get(year);
+    if(!manifest){
+      const response=await fetch(`era5_europe/climatology/history/${year}.json?ts=${Date.now()}`,{cache:"no-store"});
+      if(!response.ok)throw new Error(`ERA5-Klimaarchiv ${year}: HTTP ${response.status}`);
+      manifest=await response.json();
+      if(!manifest.ready||manifest.year!==year)throw new Error("ERA5-Klimaarchiv ungültig");
+      era5AtmosClimateHistoryCache.set(year,manifest);
+    }
+    entry=manifest.periods?.[period];
+  }else{
+    const response=await fetch(`era5_europe/climatology/current/${period}.json?ts=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)throw new Error(`ERA5-Klimakarte ${period}: HTTP ${response.status}`);
+    entry=await response.json();
+  }
+  if(!entry?.ready||entry.period!==period)return;
   era5AtmosPayload={...era5AtmosPayload,products:{
     ...era5AtmosPayload?.products,...entry.products
   }};
@@ -237,6 +266,7 @@ async function era5AtmosChangePeriod(){
     const period=document.getElementById("era5AtmosPeriod")?.value||era5AtmosIndex?.latest_month_key;
     await era5AtmosLoadPeriod(period);
     await era5AtmosAttachExtra(period);
+    await era5AtmosAttachClimatology(period);
     era5AtmosFillParameters();
     era5AtmosRender();
   }catch(error){
@@ -264,13 +294,20 @@ async function ensureEra5AtmosphereLoaded(){
         if(data.ready)era5AtmosExtraIndex=data;
       }
     }catch(error){console.info("ERA5-Erweiterung noch nicht verfügbar",error);}
+    try{
+      const climate=await fetch(`era5_europe/climatology/index.json?ts=${Date.now()}`,{cache:"no-store"});
+      if(climate.ok){
+        const data=await climate.json();
+        if(data.ready)era5AtmosClimateIndex=data;
+      }
+    }catch(error){console.info("ERA5-Klimamodule noch nicht verfügbar",error);}
     era5AtmosPayload=era5AtmosIndex;
     era5AtmosFillControls();
     const parameterControl=document.getElementById("era5AtmosParameter")?.closest(".control-group");
     if(parameterControl&&era5AtmosExtraIndex?.completed===era5AtmosExtraIndex?.expected){
       const info=document.createElement("small");
       info.className="era5-atmos-archive-hint";
-      info.textContent="10 Parameter · Zusatzarchiv 1940–2025 vollständig";
+      info.textContent="10 Basis- und Zusatzparameter · Klimamonatskarten im Ausbau";
       parameterControl.appendChild(info);
     }
     document.getElementById("era5AtmosYear")?.addEventListener("change",era5AtmosChangeYear);
