@@ -40,10 +40,13 @@ class ExtraIndexTest(unittest.TestCase):
     def test_mjo_bom_fields_and_missing(self):
         from datetime import date,timedelta
         start=date(1974,6,1);lines=[]
-        for i in range(17600):
+        for i in range((date.today()-start).days+1):
             d=start+timedelta(days=i)
             lines.append(f"{d.year} {d.month} {d.day} 1.0 0.0 4 1.0 WHE")
         r=parse_mjo("\n".join(lines))
         self.assertEqual(r[0],["1974-06-01",1.0,0.0,4,1.0])
         self.assertTrue(len(r)>17000)
+        self.assertEqual(r[-1][0],date.today().isoformat())
+        with self.assertRaisesRegex(ValueError, "source stale"):
+            parse_mjo("\n".join(lines[:-40]))
 if __name__=="__main__":unittest.main()
