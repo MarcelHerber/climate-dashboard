@@ -7,6 +7,7 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  dashboard_cleanup.css
   stratosphaere.html
   stratosphere_temperature.js
   stratosphere_ssw_comparison.js
