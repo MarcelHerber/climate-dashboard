@@ -28,6 +28,7 @@ required_root_files=(
   state_monthly_ensemble.css
   monthly_frequency.js
   mosmix.js
+  station_thresholds.js
   dwd_station_daily_map.js
   dwd_station_daily_map.css
   hyras_historical_temperature_1km.js
@@ -195,6 +196,15 @@ for item in tiefdruck_tracker.html tiefdruck_tracker.js tiefdruck_tracker.css; d
   test -s "_site/$item" || { echo "FEHLER: Tracker-Datei $item fehlt im Pages-Artefakt"; exit 1; }
 done
 echo "Tiefdruck-Tracker HTML, CSS und JavaScript im Pages-Artefakt enthalten."
+# Historische Stationstemperaturen werden separat und nur bei Bedarf geladen.
+# Vor dem erstmaligen DWD-Backfill bleibt die Funktion mit Statusmeldung sichtbar.
+if [[ -d station_threshold_daily ]] && [[ -n "$(find station_threshold_daily -maxdepth 1 -type f -name '*.json' -print -quit)" ]]; then
+  cp -a station_threshold_daily _site/
+  echo "Stations-Schwellenwerte: $(find _site/station_threshold_daily -type f -name '*.json' | wc -l) Stationsarchive."
+else
+  echo "HINWEIS: Stations-Schwellenwert-Tagesarchiv wird erst beim DWD-Backfill erzeugt."
+fi
+
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
