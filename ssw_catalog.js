@@ -28,7 +28,7 @@ function renderTable(){
 }
 function drawChart(){
  if(!window.Chart)return;
- const complete=catalog.seasons.filter(x=>x.status==="complete");
+ const complete=catalog.seasons.filter(x=>x.status==="complete"||x.status==="leap_gap");
  if(chart)chart.destroy();
  chart=new Chart($("sswArchiveChart"),{type:"bar",
   data:{labels:complete.map(s=>s.label),datasets:[{label:"Major SSW (windbasiert)",data:complete.map(s=>s.events),backgroundColor:"#2672b4",borderRadius:2,maxBarThickness:14}]},
@@ -51,16 +51,16 @@ async function load(){
   const x=await r.json();
   if(x.schema_version!==1||!Array.isArray(x.events)||!Array.isArray(x.seasons)||!Array.isArray(x.excluded_final_warmings))throw Error("Archivschema nicht gültig");
   catalog=x;
-  const full=catalog.seasons.filter(s=>s.status==="complete");
+  const full=catalog.seasons.filter(s=>s.status==="complete"||s.status==="leap_gap");
   $("sswArchiveEventCount").textContent=String(catalog.event_count);
   $("sswArchiveWinterCount").textContent=String(full.length);
   $("sswArchiveLastEvent").textContent=fmt(catalog.events[0]?.date);
   $("sswArchiveDataDate").textContent=fmt(catalog.analysis_through);
   const years=$("sswArchiveWinter");years.replaceChildren(new Option("Alle Winter",""));
-  for(const s of [...catalog.seasons].reverse())if(s.status==="complete")years.add(new Option(s.label,String(s.year)));
+  for(const s of [...catalog.seasons].reverse())if(s.status==="complete"||s.status==="leap_gap")years.add(new Option(s.label,String(s.year)));
   $("sswArchiveStatus").textContent="MERRA-2-Tagesanalysen · "+
-   catalog.complete_seasons+" vollständige Winter · "+
-   catalog.incomplete_seasons+" unvollständige ältere Winter · Katalog erstellt "+String(catalog.generated_utc).slice(0,16).replace("T"," ")+" UTC.";
+   catalog.complete_seasons+" lückenlose Winter · "+(catalog.leap_gap_seasons||0)+" Winter ohne 29. Februar · "+
+   catalog.incomplete_seasons+" nicht auswertbare ältere Winter · Katalog erstellt "+String(catalog.generated_utc).slice(0,16).replace("T"," ")+" UTC.";
   $("sswArchiveCsv").disabled=false;renderTable();drawChart();
  }catch(err){$("sswArchiveStatus").textContent="Ereignisarchiv noch nicht verfügbar: "+err.message+" · Bestehende Winddiagramme bleiben nutzbar.";}
 }
