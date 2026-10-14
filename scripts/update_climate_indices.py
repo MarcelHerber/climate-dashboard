@@ -131,7 +131,9 @@ def parse_enso_seasons(text: str, name: str) -> list[list[str | float]]:
         if len(parts) < 3 or parts[0] not in SEASONS or not re.fullmatch(r"(?:19|20)\d{2}", parts[1]):
             continue
         yr = int(parts[1])
-        val = number(parts[2])
+        # CPC RONI: SEAS YR ANOM; CPC ONI: SEAS YR TOTAL ANOM.
+        # The anomaly is always the final field, never the raw SST total.
+        val = number(parts[-1])
         if val is None:
             continue
         # DJF is centered on January of label-year, NDJ on December.
