@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="wettergefahren.css?v=2">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="wettergefahren.js?v=2"></script>
+<script defer src="wettergefahren.js?v=3"></script>
 </head>
 <body>
 <header>
@@ -40,7 +40,7 @@
             <option value="snow">Schneefall (Wasseräquivalent)</option>
             <option value="heat">Hitze</option>
             <option value="cold">Kälte</option>
-            <option value="fog">Nebel / eingeschränkte Sicht</option>
+            <option value="fog">Nebel / eingeschränkte Sicht (Gelb)</option>
           </select>
         </label>
         <div class="toolbar"><button id="refresh" type="button">Neu laden ↻</button></div>
@@ -70,7 +70,7 @@
       <div class="legend-row"><span class="legend-pattern" style="color:#2278d7">×</span> Schnee · Kreuze</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#c85c10">═</span> Hitze · Querlinien</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#2454b7">║</span> Kälte · Längslinien</div>
-      <div class="legend-row"><span class="legend-pattern" style="color:#677782">┄</span> Nebel · gestrichelte Ränder</div>
+      <div class="legend-row"><span class="legend-pattern" style="color:#677782">┄</span> Nebel · gestrichelte Ränder (nur Gelb)</div>
       <p class="note"><strong>Hinweis:</strong> Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Muster helfen bei der Unterscheidung, werden bei sehr kleinem Zoom zugunsten der Lesbarkeit reduziert. Fehlende Felder bleiben transparent, nicht grün.</p>
       <p class="note" id="availability">Datenverfügbarkeit wird geprüft …</p>
       <p class="note" id="rainCoverage"></p>
@@ -89,10 +89,10 @@
       <section><h3>Niederschlag 24 h (mm)</h3><p>Gelb ≥ 20 · Orange ≥ 30 · Rot ≥ 50 · Violett ≥ 80</p></section>
       <section><h3>Schnee 24 h (mm Wasseräquivalent)</h3><p>Gelb ≥ 5 · Orange ≥ 10 · Rot ≥ 20 · Violett ≥ 40</p></section>
       <section><h3>Hitze / Kälte (°C)</h3><p>Hitze ab 30 / 35 / 38 / 40 °C; Kälte ab −5 / −10 / −15 / −20 °C</p></section>
-      <section><h3>Sichtweite (m)</h3><p>Gelb &lt; 500 · Orange &lt; 200 · Rot &lt; 100 · Violett &lt; 50</p></section>
+      <section><h3>Sichtweite (m)</h3><p>Nur Gelb bei Sichtweite &lt; 500 m, auch bei dichterem Nebel keine höhere Stufe</p></section>
     </div>
     <p class="note">Für Niederschlag werden zusätzlich 3-h-Grenzen 15/20/30/50 mm und 6-h-Grenzen 15/20/35/60 mm überprüft. Es gewinnt die höchste Stufe aus 1, 3, 6 und 24 h, soweit die jeweilige Zeitauflösung des Modells vorliegt.</p>
-    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und zur Anzeige räumlich auf 0,5° zusammengefasst. Dadurch können kleine betroffene Gebiete größer erscheinen. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen.</p>
+    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und zur Anzeige räumlich auf 0,5° zusammengefasst. Dadurch können kleine betroffene Gebiete größer erscheinen. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen und wird deshalb ausschließlich als Gelbhinweis eingestuft.</p>
     <p class="note"><strong>Gewitter und Hagel:</strong> Für diese beiden Gefahren ist eine robuste Kombination von CAPE, Auslösebedingungen, Scherung und weiteren Parametern erforderlich. Bis dahin werden keine vermeintlichen Gewitterwarnungen auf der Gesamtkarte ausgegeben.</p>
     <p class="note">Datenquelle: <a href="https://opendata.dwd.de/weather/nwp/icon-eu/grib/" target="_blank" rel="noopener">Deutscher Wetterdienst · ICON-EU Open Data</a>. Die Einstufungen sind eigene, experimentelle Modellindikatoren und <strong>keine amtlichen Warnungen</strong>. Amtliche Warnungen bei den jeweiligen nationalen Wetterdiensten prüfen.</p>
   </section>
