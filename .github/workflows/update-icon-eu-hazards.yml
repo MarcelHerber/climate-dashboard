@@ -37,7 +37,7 @@ jobs:
           a=mod.Aggregator()
           assert a.classify("wind",np.array([64.9,65,84.9,85,104.9,105,119.9,120])/3.6).tolist()==[0,1,1,2,2,3,3,4]
           assert a.classify("rain",np.array([9.9,10,15,25,40],dtype=float),duration=1).tolist()==[0,1,2,3,4]
-          assert a.classify("fog",np.array([500,499,200,199,100,99,50,49],dtype=float)).tolist()==[0,1,1,2,2,3,3,4]
+          assert a.classify("fog",np.array([500,499,200,199,100,99,50,49,float("nan")],dtype=float)).tolist()==[0,1,1,1,1,1,1,1,0]
           assert len(mod.WINDOWS)==5 and mod.WINDOWS[-1]==(96,120)
           print("Schwellenwerte und Zeitfenster geprüft")
           PY
@@ -55,6 +55,9 @@ jobs:
           for period in doc["periods"]:
               assert len(base64.b64decode(period["layers"]["wind"]))==size
               assert len(base64.b64decode(period["layers"]["rain"]))==size
+              fog=base64.b64decode(period["layers"]["fog"])
+              assert len(fog)==size
+              assert set(fog).issubset({0,1}), "Nebel darf maximal Gelb sein"
               assert period["rain_intervals_available"]["24"]>=1
           print("5 x 24 h ICON-EU Wind/Regen geprüft",doc["run_utc"])
           PY

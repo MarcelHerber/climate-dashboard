@@ -35,7 +35,7 @@ LIMITS = {
     "snow": (5, 10, 20, 40),      # 24-h snow-water equivalent, mm
     "heat": (30, 35, 38, 40),     # max 2-m temp, Celsius
     "cold": (-5, -10, -15, -20),  # min 2-m temp, Celsius
-    "fog": (500, 200, 100, 50),  # minimum visibility, metres
+    "fog": (500,),  # visibility below 500 m: yellow only (level 1)
 }
 HAZARDS = tuple(LIMITS)
 HTTP_HEADERS = {"User-Agent": "ClimateDashboardICONHazardMonitor/1.0 (public open-data processing)"}
@@ -184,10 +184,8 @@ class Aggregator:
         elif key == "cold":
             arr = np.searchsorted((5, 10, 15, 20), 273.15 - values, side="right")
         elif key == "fog":
-            arr = ((values < 500).astype(np.uint8) +
-                   (values < 200).astype(np.uint8) +
-                   (values < 100).astype(np.uint8) +
-                   (values < 50).astype(np.uint8))
+            # Fog is an informational yellow indicator only, regardless of visibility.
+            arr = (values < LIMITS["fog"][0]).astype(np.uint8)
         else:
             raise KeyError(key)
         arr[~np.isfinite(values)] = 0
@@ -339,7 +337,7 @@ def build(cycle, output):
             "snow": "SNOW_GSP + SNOW_CON, Schneewasseräquivalent über 24 h, keine Neuschneehöhe",
             "heat": "ICON-EU TMAX_2M, Maximum der verfügbaren Ausgabeintervalle",
             "cold": "ICON-EU TMIN_2M, Minimum der verfügbaren Ausgabeintervalle",
-            "fog": "ICON-EU Sichtweite, Minimum der verfügbaren Ausgabetermine",
+            "fog": "ICON-EU Sichtweite, Gelb bei < 500 m (maximal Stufe 1), Minimum der verfügbaren Ausgabetermine",
             "convective": "Gewitter-/Hagelwarnungen nicht aus CAPE allein ableitbar; noch nicht in der Übersicht",
         },
     }

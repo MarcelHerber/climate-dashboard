@@ -8,7 +8,7 @@
     snow: {name:"Schneefall",color:"#2278d7",pattern:"cross"},
     heat: {name:"Hitze",color:"#c85c10",pattern:"horizontal"},
     cold: {name:"Kälte",color:"#2454b7",pattern:"vertical"},
-    fog: {name:"Nebel / Sicht",color:"#677782",pattern:"dash"}
+    fog: {name:"Nebel / Sicht (nur Gelb)",color:"#677782",pattern:"dash"}
   };
   const SEVERITY = ["Keine Schwelle","#ead44b","#f6a244","#de434c","#9a49b4"];
   const NAMES = ["Keine","Gelb","Orange","Rot","Violett"];
@@ -84,7 +84,11 @@
       const bytes=atob(s);
       if(bytes.length!==count)throw new Error("Rastergröße ungültig ("+key+")");
       const arr=new Uint8Array(count);
-      for(let i=0;i<count;i++)arr[i]=bytes.charCodeAt(i);
+      // Clamp older data-branch forecasts too, without waiting for a new ICON run.
+      for(let i=0;i<count;i++){
+        const level=bytes.charCodeAt(i);
+        arr[i]=key==="fog"?(level>0?1:0):level;
+      }
       layers[key]=arr;
     });
     return layers;
