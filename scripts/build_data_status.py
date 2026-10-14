@@ -73,6 +73,7 @@ def external_archives():
         "mosmix": "mosmix-data/data/mosmix/mosmix_ttt.json",
         "icon": "icon-hazards-data/data/icon-hazards/current.json",
         "sst": "sst-archive/manifest.json",
+        "ssw": "stratosphere-data/data/stratosphere/ssw_catalog.json",
     }
     result = {}
     for name, suffix in sources.items():
@@ -156,6 +157,19 @@ def add_external(items, remote):
     else:
         items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
             None, None, "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    ssw = remote.get("ssw")
+    if ssw and ssw.get("schema_version") == 1:
+        evaluated = ssw.get("evaluated_seasons", ssw.get("complete_seasons", 0))
+        items.append(result("ssw_catalog", "Polarwirbel · historischer SSW-Katalog", "Atmosphäre",
+            ssw.get("analysis_through"), ssw.get("generated_utc"),
+            f"{evaluated} auswertbare Winter · {ssw.get('event_count', '–')} Major-SSW-Ereignisse",
+            f"NASA-MERRA-2-Winddaten · {ssw.get('leap_gap_seasons', 0)} Winter mit fehlendem 29. Februar",
+            allowed_delay=8, incomplete=bool(ssw.get("incomplete_seasons",0))))
+    else:
+        items.append(result("ssw_catalog", "Polarwirbel · historischer SSW-Katalog",
+            "Atmosphäre", None, None, "Katalogmetadaten nicht erreichbar",
+            "Das Windarchiv wird getrennt von GitHub Pages aktualisiert"))
 
     manifest = remote.get("sst")
     groups = [
