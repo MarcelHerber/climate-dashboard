@@ -13,6 +13,7 @@ on:
       - "tiefdruck_diagnostics.js"
       - "tiefdruck_cps_compare.js"
       - "tests/test_cps_model_comparison.js"
+      - "tests/test_cps_comparison_integrity.py"
       - "scripts/build_pages_site.sh"
       - "scripts/update_gefs_cps.py"
       - "scripts/update_ecmwf_atlantic_lows.py"
@@ -37,6 +38,8 @@ jobs:
         run: |
           node --check tiefdruck_cps_compare.js
           node tests/test_cps_model_comparison.js
+      - name: Verify CPS chart placement and HTML integration
+        run: python -m unittest discover -s tests -p test_cps_comparison_integrity.py -v
       - name: Syntax of real GFS and GEFS backend
         run: python -m compileall -q scripts/update_north_atlantic_cps.py scripts/update_gefs_cps.py scripts/update_ecmwf_atlantic_lows.py scripts/update_ecmwf_atlantic_cps.py
       - name: Test meteorological math and frontend integration
