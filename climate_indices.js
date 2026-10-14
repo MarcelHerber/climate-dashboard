@@ -107,6 +107,40 @@
     setStatus("NOAA/CPC-Beobachtungen · NAO bis "+ln.latest_date+" · AO bis "+la.latest_date+
       (mode==="monthly"?" · Monatswerte ≥90 % Tagesabdeckung":""));
   }
+  const ENSO_PHASE_COLORS={cold:"#296fb1",neutral:"#687786",warm:"#bb3a39"};
+
+  function ensoPhaseColor(value) {
+    return value < -0.5 ? ENSO_PHASE_COLORS.cold :
+      value > 0.5 ? ENSO_PHASE_COLORS.warm : ENSO_PHASE_COLORS.neutral;
+  }
+
+  function ensoSegmentColor(context) {
+    const a=context.p0?.parsed?.y, b=context.p1?.parsed?.y;
+    if(!Number.isFinite(a)||!Number.isFinite(b))return ENSO_PHASE_COLORS.neutral;
+    const crossing=[-.5,.5]
+      .filter(limit=>(a<limit&&b>limit)||(b<limit&&a>limit))
+      .map(limit=>(limit-a)/(b-a))
+      .sort((x,y)=>x-y);
+    if(!crossing.length)return ensoPhaseColor((a+b)/2);
+    const p0=context.p0, p1=context.p1, canvas=context.chart?.ctx;
+    if(!canvas || !Number.isFinite(p0.x) || !Number.isFinite(p1.x))
+      return ensoPhaseColor((a+b)/2);
+
+    // Split each original Chart.js segment exactly at -0.5 / +0.5:
+    // repeated color stops at the same position create an abrupt change
+    // *inside* the segment, without interpolating new ENSO observations.
+    const gradient=canvas.createLinearGradient(p0.x,p0.y,p1.x,p1.y);
+    const stops=[0,...crossing,1];
+    const band=i=>ensoPhaseColor(a+(b-a)*(stops[i]+stops[i+1])/2);
+    gradient.addColorStop(0,band(0));
+    for(let i=1;i<stops.length-1;i++){
+      gradient.addColorStop(stops[i],band(i-1));
+      gradient.addColorStop(stops[i],band(i));
+    }
+    gradient.addColorStop(1,band(stops.length-2));
+    return gradient;
+  }
+
   function classify(v){return v>=.5?1:v<=-.5?-1:0;}
   function episodes(rows) {
     // Only contiguous, overlapping triple-month seasons count toward >=5.
@@ -143,12 +177,9 @@
     currentRows=[["Zentrierter Monat","Jahreszeit",which.toUpperCase(),other.toUpperCase()],...rows];
     currentTitle="ENSO · "+which.toUpperCase()+(compare?" und "+other.toUpperCase():"")+" · "+rows[0][0]+" bis "+rows.at(-1)[0];
     const datasets=[{
-      label:which.toUpperCase(),data:rows.map(r=>r[2]),borderColor:COLORS[which],
-      backgroundColor:COLORS[which],borderWidth:2.4,
-      segment:{borderColor:ctx=>{
-        const a=ctx.p0.parsed.y,b=ctx.p1.parsed.y;
-        return a>=.5&&b>=.5?"#bb3a39":a<=-.5&&b<=-.5?"#296fb1":COLORS[which];
-      }}
+      label:which.toUpperCase(),data:rows.map(r=>r[2]),
+      borderColor:ENSO_PHASE_COLORS.neutral,backgroundColor:ENSO_PHASE_COLORS.neutral,
+      borderWidth:2.4,segment:{borderColor:ensoSegmentColor}
     }];
     if(compare)datasets.push({label:other.toUpperCase(),data:rows.map(r=>r[3]),
       borderColor:"#7c8794",backgroundColor:"#7c8794",borderDash:[5,4],borderWidth:1.25});
