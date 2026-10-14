@@ -362,7 +362,7 @@
     if (!parts) return null;
     const weekday = new Intl.DateTimeFormat("de-DE", {
       timeZone:"Europe/Berlin",weekday:"short"
-    }).format(new Date(iso)).replace(/\\.$/, "");
+    }).format(new Date(iso)).replace(/\.$/, "");
     const day = String(parts.day).padStart(2,"0");
     const month = String(parts.month).padStart(2,"0");
     return {hour:parts.hour,dayLabel:weekday+" "+day+"."+month+"."};
