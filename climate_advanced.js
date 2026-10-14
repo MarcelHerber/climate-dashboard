@@ -40,7 +40,7 @@ function markup(){
  function controls(opts,compare){
   return '<div class="toolbar"><label>Index<select id="advIndex">'+opts+'</select></label>'+
    (compare?'<label>Vergleich<select id="advCompare"><option value="none">Kein Vergleich</option>'+
-   options([["nao","NAO"],["ao","AO"],["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],["gbi","GBI"],["soi","SOI"],["mei","MEI.v2"],["u30","QBO 30"],["u50","QBO 50"]])+'</select></label>':"")+
+   options(module==="qbo"?[["u30","QBO 30 hPa"],["u50","QBO 50 hPa"]]:[["nao","NAO"],["ao","AO"],["scand","SCAND"],["ea","EA"],["eawr","EA/WR"],["gbi","GBI"]])+'</select></label>':"")+
    '<label>Zeitraum<select id="advRange"><option value="5">5 Jahre</option><option value="10" selected>10 Jahre</option><option value="30">30 Jahre</option><option value="all">Gesamte Messreihe</option></select></label>'+
    exportButtons()+'</div><div class="status" id="advStatus">Daten laden …</div><div class="kpis" id="advKpis"></div>'+
    '<div class="chart-box" style="height:365px"><canvas id="advChart"></canvas></div><p class="small" id="advInfo"></p>';
@@ -87,8 +87,9 @@ function mjoRender(){
   for(let i=0;i<8;i++){const a=i*Math.PI/4;
    ctx.beginPath();ctx.moveTo(x.getPixelForValue(0),y.getPixelForValue(0));
    ctx.lineTo(x.getPixelForValue(maximum*Math.cos(a)),y.getPixelForValue(maximum*Math.sin(a)));ctx.stroke();}
-  ctx.setLineDash([]);ctx.beginPath();ctx.arc(x.getPixelForValue(0),y.getPixelForValue(0),
-   Math.abs(x.getPixelForValue(1)-x.getPixelForValue(0)),0,Math.PI*2);ctx.stroke();
+  ctx.setLineDash([]);ctx.beginPath();ctx.ellipse(x.getPixelForValue(0),y.getPixelForValue(0),
+   Math.abs(x.getPixelForValue(1)-x.getPixelForValue(0)),
+   Math.abs(y.getPixelForValue(1)-y.getPixelForValue(0)),0,0,Math.PI*2);ctx.stroke();
   ctx.fillStyle="#51657b";ctx.textAlign="center";ctx.font="bold 12px Arial";
   [202.5,247.5,292.5,337.5,22.5,67.5,112.5,157.5].forEach((d,i)=>{
    const a=d*Math.PI/180,r=maximum*.83;
