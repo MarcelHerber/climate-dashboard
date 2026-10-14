@@ -222,7 +222,7 @@
     return {slope:slope,intercept:my-slope*mx};
   }
   function dayLabel(offset,season){
-    const anchors={spring:"2001-03-01",summer:"2001-06-01",autumn:"2001-09-01",winter:"1999-12-01",year:"2001-01-01"};
+    const anchors={spring:"2001-03-01",summer:"2001-06-01",autumn:"2001-09-01",winter:"2001-12-01",year:"2001-01-01"};
     const d=new Date(utc(anchors[season]).getTime()+Math.round(offset)*86400000);
     return String(d.getUTCDate()).padStart(2,"0")+"."+String(d.getUTCMonth()+1).padStart(2,"0")+".";
   }
@@ -353,46 +353,55 @@
 
   function chartCalendarTicks(season,minDay,maxDay) {
     const bounds=periodBounds(2001,season);
-    const dayCount=Math.round((bounds.end-bounds.start)/86400000)+1;
     const span=maxDay-minDay;
     const ticks=[];
     const add=function(index){
       if(index>=minDay && index<=maxDay && !ticks.includes(index))ticks.push(index);
     };
-    // Monatsanfang und Monatsmitte als feste, gut lesbare Zeitmarken.
-    // Ist der sichtbare Ausschnitt sehr klein, zusätzlich Wochenmarken.
-    for(let i=0;i<dayCount;i++){
+    // Auch die Pufferzone vor und nach dem eigentlichen Zeitraum
+    // berücksichtigen: dort liegen ggf. 15.02. / 01.06. usw.
+    for(let i=Math.floor(minDay);i<=Math.ceil(maxDay);i++){
       const day=new Date(bounds.start.getTime()+i*86400000);
-      if(day.getUTCDate()===1 || day.getUTCDate()===15)add(i);
+      if(day.getUTCDate()===1 ||
+        (season!=="year" && day.getUTCDate()===15))add(i);
     }
     if(span<=28){
       for(let i=Math.ceil(minDay/7)*7;i<=maxDay;i+=7)add(i);
     }
-    ticks.sort(function(a,b){return a-b;});
-    // Bei einem ungewöhnlich engen Wertebereich wenigstens drei Datumsmarken.
+    // In sehr engen Ausschnitten weiterhin ausreichend Datumsmarken.
     if(ticks.length<3){
       const step=Math.max(1,Math.round(span/3));
       for(let i=Math.ceil(minDay);i<=maxDay;i+=step)add(i);
-      ticks.sort(function(a,b){return a-b;});
     }
-    return ticks;
+    return ticks.sort(function(a,b){return a-b;});
   }
 
   function stationThresholdYRange(datasets,season) {
     const bounds=periodBounds(2001,season);
-    const seasonalMaximum=Math.round((bounds.end-bounds.start)/86400000);
+    const seasonEnd=Math.round((bounds.end-bounds.start)/86400000);
     const values=datasets.flatMap(function(ds){
-      return (ds.data||[]).map(function(p){return p&&p.y;})
+      return (ds.data||[]).map(function(point){return point&&point.y;})
         .filter(Number.isFinite);
     });
-    if(!values.length)return {min:0,max:seasonalMaximum};
-    const low=Math.max(0,Math.min.apply(null,values)-7);
-    const high=Math.min(seasonalMaximum,Math.max.apply(null,values)+8);
-    const center=(low+high)/2;
-    const minSpan=Math.min(28,seasonalMaximum);
-    let min=Math.max(0,Math.floor(Math.min(low,center-minSpan/2)));
-    let max=Math.min(seasonalMaximum,Math.ceil(Math.max(high,min+minSpan)));
-    if(max-min<minSpan)min=Math.max(0,max-minSpan);
+    if(!values.length)return {min:-7,max:seasonEnd+7};
+
+    const first=Math.min.apply(null,values);
+    const last=Math.max.apply(null,values);
+    const nearEdgeDays=2;
+    const edgePadding=8;
+    // Je sechs bzw. sieben Tage Abstand zu den Punkten;
+    // bei Ereignissen direkt am Periodenrand acht Tage außerhalb der Saison.
+    let min=first<=nearEdgeDays ? -edgePadding : Math.floor(first-6);
+    let max=last>=seasonEnd-nearEdgeDays ? seasonEnd+edgePadding : Math.ceil(last+7);
+
+    // Auch bei sehr dicht beieinanderliegenden Punkten mindestens
+    // 28 Tage zeigen, aber nicht auf die gesamte Saison aufblähen.
+    const minimumSpan=28;
+    if(max-min<minimumSpan){
+      const missing=minimumSpan-(max-min);
+      min-=Math.floor(missing/2);
+      max+=Math.ceil(missing/2);
+    }
     return {min:min,max:max};
   }
 
