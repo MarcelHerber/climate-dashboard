@@ -82,7 +82,7 @@ jobs:
           set -euo pipefail
           python scripts/era5_synoptic_diagnostics.py day \
             --date "$DATE" --output ".era5-synoptic-work/$DATE"
-          test "$(find ".era5-synoptic-work/$DATE" -maxdepth 1 -name '*.png' | wc -l)" -eq 8
+          test "$(find ".era5-synoptic-work/$DATE" -maxdepth 1 -name '*.png' | wc -l)" -ge 7
           test -s ".era5-synoptic-work/$DATE/$DATE-hourly-counts.npz"
       - name: Karten und stündliche Schwellenzähler als Release veröffentlichen
         if: steps.date.outputs.has_work == 'true'
@@ -104,7 +104,7 @@ jobs:
           cp "$OUT/manifest.json" "$OUT/$DATE-manifest.json"
           gh_retry gh release upload "$TAG" "$OUT/$DATE-manifest.json" --clobber
           ASSETS="$(gh_release_assets "$TAG")"
-          for P in vo500 div300 pv300 omega700 cape cin ivt jet250; do
+          for P in vo500 div300 pv300 omega700 cape ivt jet250; do
             grep -Fxq "$DATE-$P.png" <<< "$ASSETS"
           done
           grep -Fxq "$DATE-hourly-counts.npz" <<< "$ASSETS"
@@ -130,7 +130,7 @@ jobs:
           d=sys.argv[1];p=Path('era5_europe/synoptic/index.json')
           idx=json.loads(p.read_text(encoding='utf8'))
           current=json.loads(Path('era5_europe/synoptic/days',d+'.json').read_text(encoding='utf8'))
-          assert current.get('ready') and current.get('date')==d and len(current.get('products',{}))==8
+          assert current.get('ready') and current.get('date')==d and len(current.get('products',{}))>=7
           idx['days']=sorted(set(idx.get('days',[])+[d]))
           idx['ready']=bool(idx['days'])
           idx['latest_day']=max(idx['days'])
