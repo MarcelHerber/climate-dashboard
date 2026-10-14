@@ -8,8 +8,10 @@ on:
       - "scripts/update_era5_stratosphere_stage2.py"
       - "era5_stratosphere.js"
       - ".github/workflows/update-era5-stratosphere.yml"
+  # Four scheduled starts/day; GitHub may delay cron jobs.
+  # Existing concurrency lock keeps CDS requests sequential, not parallel.
   schedule:
-    - cron: "45 5 * * *"
+    - cron: "45 5,11,17,23 * * *"
   workflow_dispatch:
 
 permissions:
