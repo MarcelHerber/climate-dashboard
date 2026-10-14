@@ -1,0 +1,124 @@
+name: NSIDC Meereis Nord und Süd aktualisieren
+
+on:
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/update-sea-ice.yml"
+      - "scripts/update_sea_ice.py"
+      - "tests/test_sea_ice.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nsidc-sea-ice-data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Python installieren
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Datumsachsen und Standardabweichung testen
+        run: |
+          python -m unittest discover -s tests -p test_sea_ice.py -v
+          node --check meereis.js
+      - name: Meereisausdehnung Arktis und Antarktis laden
+        run: python scripts/update_sea_ice.py
+      - name: Daten archivieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta
+          from pathlib import Path
+          p = json.loads(Path("sea_ice/index.json").read_text(encoding="utf-8"))
+          assert p["ready"] and p["reference_period"] == [1991, 2020]
+          assert p["calendar_days"][59] == "02-29"
+          for hemisphere in ("north", "south"):
+              record = p[hemisphere]
+              assert len(record["years"]) >= 45
+              assert len(record["normal"]) == 366
+              assert min(x[2] for i,x in enumerate(record["normal"]) if i!=59) >= 25
+              assert record["normal"][59][2] >= 7
+              assert date.fromisoformat(record["latest_date"]) >= date.today()-timedelta(days=35)
+          print("NSIDC v4 Arktis & Antarktis: Daten und Referenz 1991-2020 geprüft.")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sea_ice/index.json
+          if git diff --cached --quiet; then
+            echo "Keine neuen NSIDC-Daten."
+            exit 0
+          fi
+          git commit -m "NSIDC Meereis-Nord-Sued-Tagesdaten aktualisieren"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Meereisdaten gespeichert."
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
+
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-dashboard-v2
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Aktuelles Repository inklusive Daten laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: NSIDC-Daten überprüfen
+        run: |
+          test -s sea_ice/index.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path("sea_ice/index.json").read_text())
+          assert p["ready"] and len(p["north"]["normal"])==366 and len(p["south"]["normal"])==366
+          PY
+      - name: Pages-Artefakt bauen
+        run: bash scripts/build_pages_site.sh
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+      - name: Pages-Artefakt hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "github-pages-seaice-${{ github.run_id }}"
+      - name: Meereis-Diagramme veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          reporting_interval: "10000"
+          artifact_name: "github-pages-seaice-${{ github.run_id }}"
