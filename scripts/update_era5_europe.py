@@ -534,6 +534,25 @@ def build(year: int, month: int, force: bool = False) -> Path:
         "available_periods": available_periods,
         "archive_index_pattern": "era5_europe/archive/{period}/index.json",
     }
+    # Monthly builds must never erase the historical-year selection.
+    # Derive published years from validated on-disk manifests (not a possibly
+    # stale index); the separate historical backfill owns these files.
+    history_years = []
+    for manifest_path in sorted((OUT_DIR / "history").glob("????.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            year = int(manifest_path.stem)
+            if (1940 <= year <= 2025 and manifest.get("ready")
+                    and int(manifest.get("year", -1)) == year
+                    and len(manifest.get("periods", {})) == 12):
+                history_years.append(year)
+        except (ValueError, OSError, KeyError, TypeError):
+            continue
+    if history_years:
+        payload["history_years"] = history_years
+        payload["history_archive_start"] = min(history_years)
+        payload["history_archive_end"] = max(history_years)
+        payload["history_archive_type"] = "monthly-remote-webp-releases"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     INDEX_PATH.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
