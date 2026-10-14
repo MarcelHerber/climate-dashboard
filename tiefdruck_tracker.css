@@ -119,3 +119,27 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
  .advanced-grid{grid-template-columns:1fr}
 }
 @media(max-width:560px){.advanced-stats{grid-template-columns:1fr 1fr}}
+
+
+/* Shared-axis, model-matched Hart Cyclone Phase Space comparison. */
+.cps-model-compare{margin-top:16px;overflow:hidden;min-width:0}
+.cps-compare-actions{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.cps-compare-actions .control{max-width:345px;min-width:270px;flex:none}
+.cps-compare-storm{font-size:17px;font-weight:800;color:#1e3954;margin-bottom:8px}
+.cps-compare-meta{display:flex;gap:8px 20px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:8px 0 13px;font-size:12px;color:#465c72;font-weight:700}
+.cps-compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:15px}
+.cps-compare-model{min-width:0;padding:12px 8px;border-radius:9px;border:1px solid var(--line);background:#fff}
+.cps-compare-model h3{display:flex;align-items:center;gap:7px;margin:1px 7px 6px;font-size:16px}
+.cps-compare-desc{font-size:11px;line-height:1.5;min-height:55px;color:#4a6073;margin:0 7px 7px;overflow-wrap:anywhere}
+.cps-compare-dot{width:12px;height:12px;border-radius:99px;display:inline-block}
+.cps-compare-dot.gfs{background:#7c3aed}.cps-compare-dot.ifs{background:#d14b36}.cps-compare-dot.aifs{background:#1767b8}
+.cps-compare-chart{position:relative;min-width:0;height:305px}
+.cps-compare-chart canvas,.cps-compare-combined-chart canvas{width:100%!important;height:100%!important}
+.cps-compare-unavailable{height:100%;min-height:165px;border:1px dashed #b9cbd7;border-radius:8px;padding:25px 12px;display:flex;align-items:center;justify-content:center;text-align:center;background:#f6f9fc;color:#56687b;font-size:12px}
+.cps-compare-now{font-size:11px;color:#506578;margin:10px 7px 2px;min-height:31px}
+.cps-compare-overlay{margin-top:17px;border-top:1px solid var(--line);padding-top:17px}
+.cps-compare-overlay h3{margin:0 0 7px;font-size:17px}
+.cps-compare-combined-chart{height:395px;max-width:850px;margin:12px auto 0;position:relative}
+.cps-compare-caveat{border-top:1px solid var(--line);padding-top:13px}
+@media(max-width:1120px){.cps-compare-grid{grid-template-columns:1fr 1fr}.cps-compare-grid .cps-compare-model:last-child{grid-column:1/-1}.cps-compare-chart{height:330px}}
+@media(max-width:690px){.cps-compare-grid{grid-template-columns:1fr}.cps-compare-grid .cps-compare-model:last-child{grid-column:auto}.cps-compare-chart{height:345px}.cps-compare-combined-chart{height:345px}.cps-compare-actions .control{min-width:210px;max-width:100%}}
