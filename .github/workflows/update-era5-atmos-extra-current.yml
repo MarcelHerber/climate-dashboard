@@ -1,0 +1,269 @@
+name: ERA5 Zusatzparameter laufende Monate 2026+
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-era5-atmos-extra-current.yml"
+  workflow_run:
+    workflows: ["ERA5 Europa Atmosphäre aktualisieren"]
+    types: [completed]
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: era5-atmos-extra-current
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      has_work: ${{ steps.next.outputs.has_work }}
+      periods: ${{ steps.next.outputs.periods }}
+      year: ${{ steps.next.outputs.year }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts
+            era5_europe
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Abhängigkeiten installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then
+              break
+            fi
+            if [[ "$i" -eq 3 ]]; then exit 1; fi
+            sleep "$((15*i))"
+          done
+      - name: Fehlende Monate aus regulärem ERA5-Index bestimmen
+        id: next
+        run: |
+          python scripts/update_era5_atmos_extra_current.py plan \
+            --main era5_europe/index.json \
+            --extra era5_europe/extra/index.json \
+            --output "$GITHUB_OUTPUT" --batch-size 2
+
+  prepare:
+    needs: plan
+    if: needs.plan.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET_YEAR: ${{ needs.plan.outputs.year }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - name: Release für aktuelle Ergänzungen bereitstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          TAG="era5-atmos-extra-current-$TARGET_YEAR-v1"
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
+              --title "ERA5 sechs Zusatzparameter $TARGET_YEAR" \
+              --notes "Echte ERA5 Monatskarten, Absolut/Anomalie 1991-2020/Rang gegen 1940-2025."
+          fi
+
+  months:
+    needs: [plan, prepare]
+    if: needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        period: ${{ fromJSON(needs.plan.outputs.periods) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PERIOD: ${{ matrix.period }}
+      CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Pakete mit Wiederholungen installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then
+              break
+            fi
+            if [[ "$i" -eq 3 ]]; then exit 1; fi
+            sleep "$((15*i))"
+          done
+      - name: ERA5-CDS konfigurieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Bereits vollständig veröffentlichte Monatskarten erkennen
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          YEAR="${PERIOD%%-*}"
+          TAG="era5-atmos-extra-current-$YEAR-v1"
+          mkdir -p ".era5-extra-current/$PERIOD"
+          ASSETS="$(gh_release_assets "$TAG")"
+          COMPLETE=true
+          for PARAM in t925 t700 t500 rh700 omega500 u300; do
+            if ! grep -Fxq "$PERIOD-$PARAM.webp" <<< "$ASSETS"; then COMPLETE=false; fi
+          done
+          if ! grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"; then COMPLETE=false; fi
+          if [[ "$COMPLETE" == true ]]; then
+            gh_retry gh release download "$TAG" --pattern "$PERIOD-manifest.json" \
+              --dir ".era5-extra-current/$PERIOD"
+            mv ".era5-extra-current/$PERIOD/$PERIOD-manifest.json" \
+              ".era5-extra-current/$PERIOD/manifest.json"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Referenzarchive aller sechs Parameter herunterladen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          MONTH="${PERIOD#*-}"
+          mkdir -p .era5-extra-reference
+          gh_retry gh release download era5-atmos-extra-reference-1940-2025-v1 \
+            --pattern "month_${MONTH}_*.npz" --dir .era5-extra-reference
+          test "$(find .era5-extra-reference -maxdepth 1 -name '*.npz' | wc -l)" -eq 6
+      - name: Sechs echte ERA5-Monatskarten inklusive Rang bauen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_era5_atmos_extra_current.py build \
+            --period "$PERIOD" --references .era5-extra-reference \
+            --output ".era5-extra-current/$PERIOD"
+          test "$(find ".era5-extra-current/$PERIOD" -maxdepth 1 -name '*.webp' | wc -l)" -eq 6
+      - name: Verifizierte Karten und Manifest veröffentlichen
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          YEAR="${PERIOD%%-*}"
+          TAG="era5-atmos-extra-current-$YEAR-v1"
+          OUT=".era5-extra-current/$PERIOD"
+          gh_retry gh release upload "$TAG" "$OUT"/*.webp --clobber
+          cp "$OUT/manifest.json" "$OUT/$PERIOD-manifest.json"
+          gh_retry gh release upload "$TAG" "$OUT/$PERIOD-manifest.json" --clobber
+      - name: Alle veröffentlichten Karten prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          TAG="era5-atmos-extra-current-${PERIOD%%-*}-v1"
+          ASSETS="$(gh_release_assets "$TAG")"
+          for PARAM in t925 t700 t500 rh700 omega500 u300; do
+            grep -Fxq "$PERIOD-$PARAM.webp" <<< "$ASSETS"
+          done
+          grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"
+          test -s ".era5-extra-current/$PERIOD/manifest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-extra-current-${{ matrix.period }}
+          path: .era5-extra-current/${{ matrix.period }}/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: months
+    if: needs.months.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Pakete bereitstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then
+              break
+            fi
+            if [[ "$i" -eq 3 ]]; then exit 1; fi
+            sleep "$((15*i))"
+          done
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: era5-extra-current-*
+          path: .era5-current-verified
+          merge-multiple: false
+      - name: Nach Release-Prüfung neue ERA5-Karten indexieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/update_era5_atmos_extra_current.py merge \
+              --artifacts .era5-current-verified --root .
+            git add era5_europe/extra
+            if git diff --cached --quiet; then
+              echo "Alle Monatskarten bereits indexiert."
+              break
+            fi
+            git commit -m "Publish six additional ERA5 current atmospheric parameters"
+            if git push origin HEAD:main; then break; fi
+            if [[ "$i" -eq 3 ]]; then exit 1; fi
+          done
+      - name: Weitere fehlende ERA5-Monate sofort starten
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python scripts/update_era5_atmos_extra_current.py plan \
+            --main era5_europe/index.json \
+            --extra era5_europe/extra/index.json \
+            --output /tmp/era5-more-output.txt
+          if grep -Fxq 'has_work=true' /tmp/era5-more-output.txt; then
+            gh workflow run update-era5-atmos-extra-current.yml --ref main
+            echo "Nächster Monatsblock angefordert."
+          else
+            echo "Alle aktuell verfügbaren ERA5 Zusatzmonate veröffentlicht."
+          fi
