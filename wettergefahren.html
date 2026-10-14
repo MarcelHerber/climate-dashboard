@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="wettergefahren.css?v=1">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="wettergefahren.js?v=1"></script>
+<script defer src="wettergefahren.js?v=2"></script>
 </head>
 <body>
 <header>
@@ -54,6 +54,7 @@
     <section class="panel map-panel">
       <div class="map-heading"><h2>Gesamtgefahrenkarte</h2><span class="range" id="periodLabel">+0 bis +24 Stunden</span></div>
       <div id="hazardMap" role="application" aria-label="Interaktive Europa-Karte mit modellbasierten Gefahrenflächen"></div>
+      <div id="basemapStatus" class="basemap-status" role="status" hidden></div>
       <div class="tips">In die Karte klicken, um alle verfügbaren Gefahrenstufen am ausgewählten Rasterpunkt anzuzeigen. Die farbige Fläche zeigt die höchste Stufe; unterschiedliche Muster stehen für Gefahrenarten. Bei Überlagerungen werden höchstens zwei Muster gleichzeitig dargestellt, im Kartenklick jedoch alle verfügbaren Gefahren aufgelistet.</div>
     </section>
     <aside class="panel side-panel" aria-label="Legende und Hinweise">
