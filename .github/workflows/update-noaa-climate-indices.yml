@@ -1,0 +1,63 @@
+name: NOAA NAO AO ENSO aktualisieren
+
+on:
+  schedule:
+    - cron: "42 14 * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/update-noaa-climate-indices.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noaa-climate-indices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: NOAA-Auswertung testen
+        run: |
+          python -m unittest discover -s tests -p test_climate_indices.py -v
+          node --check climate_indices.js
+      - name: NOAA/CPC-Tages- und ENSO-Archive abrufen
+        run: python scripts/update_climate_indices.py
+      - name: Ergebnisse versionieren und für Pages veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s climate_indices/index.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add climate_indices/index.json
+          if git diff --cached --quiet; then
+            echo "NOAA-Daten unverändert."
+            exit 0
+          fi
+          git commit -m "NOAA NAO AO und ENSO Indizes aktualisieren"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "NOAA-Indizes gespeichert; Pages-Deploy übernimmt die Daten."
+              exit 0
+            fi
+            sleep $((attempt * 4))
+          done
+          exit 1
