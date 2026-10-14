@@ -134,7 +134,7 @@
       '<div class="mosmix-chart-card"><h4>Wind &amp; Böen</h4><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div></div>',
       '</div>',
-      '<p class="mosmix-note">Wind wird in km/h, Niederschlag in mm und Luftdruck in hPa dargestellt. Einzelne Parameter oder Termine können in MOSMIX fehlen.</p>',
+      '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. Die Dreiecke TX (18 UTC) und Rauten TN (06 UTC) sind eigenständige 12-h-Extremprognosen. Wind in km/h, Niederschlag in mm und Luftdruck in hPa. Nicht alle Parameter müssen für jeden Termin vorliegen.</p>',
       '</div></div></div>'
     ].join("");
   }
@@ -351,45 +351,6 @@
     ].join("-");
   }
 
-  function temperatureExtrema(values) {
-    const dayGroups = new Map();
-    const nightGroups = new Map();
-
-    data.timesteps.forEach(function(iso,index) {
-      const value = values && values[index];
-      if (!Number.isFinite(value)) return;
-      const p = berlinDateParts(iso);
-      if (!p) return;
-
-      if (p.hour >= 6 && p.hour <= 18) {
-        const key = dateKey(p.year,p.month,p.day,0);
-        const prev = dayGroups.get(key);
-        if (!prev || value > prev.value) dayGroups.set(key,{index:index,value:value});
-      }
-
-      if (p.hour >= 19 || p.hour <= 5) {
-        const key = p.hour >= 19
-          ? dateKey(p.year,p.month,p.day,1)
-          : dateKey(p.year,p.month,p.day,0);
-        const prev = nightGroups.get(key);
-        if (!prev || value < prev.value) nightGroups.set(key,{index:index,value:value});
-      }
-    });
-
-    const result = new Map();
-    dayGroups.forEach(function(item) {
-      result.set(item.index,{type:"max",label:"Tmax " + item.value.toFixed(1).replace(".",",") + "°"});
-    });
-    nightGroups.forEach(function(item) {
-      // If an unusual partial forecast puts a day maximum and night minimum
-      // on the same index, prefer the daytime label at that point.
-      if (!result.has(item.index)) {
-        result.set(item.index,{type:"min",label:"Tmin " + item.value.toFixed(1).replace(".",",") + "°"});
-      }
-    });
-    return result;
-  }
-
   function baseChartOptions(yTitle) {
     return {
       responsive:true,
@@ -416,37 +377,29 @@
     const labels = meteogramLabels();
     const commonLine = {pointRadius:0,pointHoverRadius:3,borderWidth:2,tension:.18,spanGaps:true};
 
-    const tempExtrema = temperatureExtrema(p.TTT || []);
+    const officialTX=(p.TX||[]).map(function(v,i){
+      return new Date(data.timesteps[i]).getUTCHours()===18 && Number.isFinite(v) ? v : null;
+    });
+    const officialTN=(p.TN||[]).map(function(v,i){
+      return new Date(data.timesteps[i]).getUTCHours()===6 && Number.isFinite(v) ? v : null;
+    });
     const tempOptions = baseChartOptions("°C");
     tempOptions.plugins.datalabels = {
-      display:function(context) {
-        return context.datasetIndex === 0 && tempExtrema.has(context.dataIndex);
+      display:function(context){
+        return context.datasetIndex>=2 && Number.isFinite(context.raw);
       },
-      formatter:function(value,context) {
-        const hit = tempExtrema.get(context.dataIndex);
-        return hit ? hit.label : "";
+      formatter:function(value,context){
+        return (context.datasetIndex===2?"TX ":"TN ")+
+          value.toFixed(1).replace(".",",")+" °C";
       },
-      anchor:function(context) {
-        const hit = tempExtrema.get(context.dataIndex);
-        return hit && hit.type === "min" ? "start" : "end";
-      },
-      align:function(context) {
-        const hit = tempExtrema.get(context.dataIndex);
-        return hit && hit.type === "min" ? "bottom" : "top";
-      },
-      offset:4,
-      clamp:true,
-      clip:false,
-      color:function(context) {
-        const hit = tempExtrema.get(context.dataIndex);
-        return hit && hit.type === "min" ? "#1f5f99" : "#a5271f";
-      },
-      backgroundColor:"rgba(255,255,255,.88)",
+      anchor:"end",
+      align:function(context){return context.datasetIndex===2?"top":"bottom";},
+      offset:4,clamp:true,clip:false,
+      color:function(context){return context.datasetIndex===2?"#a5271f":"#1f5f99";},
+      backgroundColor:"rgba(255,255,255,.9)",
       borderColor:"rgba(100,116,139,.25)",
-      borderWidth:1,
-      borderRadius:4,
-      padding:{top:3,right:5,bottom:3,left:5},
-      font:{size:10,weight:"700"}
+      borderWidth:1,borderRadius:4,
+      padding:{top:3,right:5,bottom:3,left:5},font:{size:10,weight:"700"}
     };
 
     meteogramCharts.push(new Chart(document.getElementById("mosmixTempChart"), {
@@ -457,10 +410,14 @@
           data:p.TTT || [],
           borderColor:"#c62828",
           backgroundColor:"rgba(198,40,40,.08)",
-          pointRadius:function(context){ return tempExtrema.has(context.dataIndex) ? 3 : 0; },
+          pointRadius:0,
           pointHoverRadius:4
         }),
-        Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine)
+        Object.assign({label:"Taupunkt",data:p.Td || [],borderColor:"#1769c2",backgroundColor:"rgba(23,105,194,.08)"},commonLine),
+        {label:"TX 12 h · 18 UTC",data:officialTX,showLine:false,pointRadius:3.5,
+         pointHoverRadius:5,pointStyle:"triangle",borderColor:"#a5271f",backgroundColor:"#a5271f"},
+        {label:"TN 12 h · 06 UTC",data:officialTN,showLine:false,pointRadius:3.5,
+         pointHoverRadius:5,pointStyle:"rectRot",borderColor:"#1f5f99",backgroundColor:"#1f5f99"}
       ]},
       options:tempOptions
     }));
