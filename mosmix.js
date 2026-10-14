@@ -79,6 +79,8 @@
       ".mosmix-map{height:650px;border:1px solid #d5dde4;border-radius:9px;overflow:hidden;background:#eef2f5}",
       ".mosmix-map .leaflet-control-attribution{font-size:9px}",
       ".mosmix-topline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;margin-bottom:12px}",
+      ".mosmix-topline-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px}",
+      ".mosmix-topline-actions .mosmix-button{padding:6px 10px;font-size:12px}",
       ".mosmix-status{font-size:13px;color:#475569}.mosmix-status strong{color:#0f172a}",
       ".mosmix-legend{display:flex;flex-wrap:wrap;gap:5px 9px;align-items:center;margin-top:11px;font-size:11px;color:#64748b}",
       ".mosmix-legend span{display:inline-flex;align-items:center;gap:4px}.mosmix-legend i{display:inline-block;width:18px;height:10px;border:1px solid rgba(0,0,0,.16);border-radius:2px}",
@@ -109,7 +111,7 @@
       '</div>',
       '<div class="mosmix-grid">',
       '<div class="mosmix-card">',
-      '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-status" id="mosmixValidInfo"></div></div>',
+      '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
       '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button></div>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
@@ -386,7 +388,7 @@
     const tempOptions = baseChartOptions("°C");
     tempOptions.plugins.datalabels = {
       display:function(context){
-        return context.datasetIndex>=2 && Number.isFinite(context.raw);
+        return context.datasetIndex>=2 && Number.isFinite(context.dataset.data[context.dataIndex]);
       },
       formatter:function(value,context){
         return (context.datasetIndex===2?"TX ":"TN ")+
@@ -922,6 +924,39 @@
     }, 650);
   }
 
+  function updateIssueDisplay(){
+    document.getElementById("mosmixRunInfo").innerHTML =
+      'DWD MOSMIX-L · Lauf <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
+      data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte';
+    document.getElementById("mosmixSectionStatus").textContent =
+      'MOSMIX-L: TTT stündlich · TX 12 h bis 18 UTC · TN 12 h bis 06 UTC · Lauf '+
+      fmtTime(data.issue_time);
+  }
+
+  async function refreshForecast(){
+    const button=document.getElementById("mosmixReload");
+    const previousKey=selectedStationKey;
+    if(button){button.disabled=true;button.textContent="Aktualisiere …";}
+    try{
+      const updated=await loadData();
+      data=updated;
+      detailCache.clear();
+      selectedStationKey=null;
+      populateStationSearch();
+      updateIssueDisplay();
+      setMapMode(mapMode);
+      const target=data.stations.find(s=>s.key===previousKey);
+      if(target)selectStation(target);
+      else document.getElementById("mosmixMeteogramStatus").textContent="Aktuellen Lauf geladen. Bitte Station auswählen.";
+      setTimeout(function(){map?.invalidateSize();},75);
+    }catch(error){
+      document.getElementById("mosmixRunInfo").textContent =
+        "MOSMIX-L: Aktualisierung fehlgeschlagen ("+error.message+"). Der bisherige Lauf bleibt erhalten.";
+    }finally{
+      if(button){button.disabled=false;button.textContent="Neuen Lauf laden ↻";}
+    }
+  }
+
   async function init() {
     if (loaded) {
       setTimeout(function(){ if (map) map.invalidateSize(); }, 50);
@@ -945,6 +980,7 @@
         setIndex(mapMode==="hourly" ? chooseInitialIndex() : chooseExtremaIndex());
       });
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
+      document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
       document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
       document.getElementById("mosmixStationSearch").addEventListener("keydown", function(event){
         if (event.key === "Enter") {
@@ -955,11 +991,7 @@
       populateStationSearch();
       map.on("zoomend", renderCurrentMap);
 
-      document.getElementById("mosmixRunInfo").innerHTML =
-        'Lauf: <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
-        data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte';
-      document.getElementById("mosmixSectionStatus").textContent =
-        'MOSMIX-L TTT · Lauf ' + fmtTime(data.issue_time);
+      updateIssueDisplay();
 
       renderLegend();
       setIndex(chooseInitialIndex());
