@@ -51,7 +51,7 @@ footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-
 <header><div class="nav"><a href="index.html"><strong>Climate Dashboard</strong></a><a href="index.html">Startseite</a><a href="datenstatus.html" aria-current="page"><strong>Datenstatus</strong></a></div></header>
 <main>
 <h1>Datenstatus-Zentrale</h1>
-<p class="intro">Hier siehst du, <strong>bis wann Messdaten und Analysen tatsächlich vorliegen</strong>, wann die zugrunde liegenden Archive zuletzt erstellt wurden und welche historischen Daten noch fehlen. Die Bewertung beruht auf den veröffentlichten Archiv-Metadaten – nicht allein auf erfolgreich abgeschlossenen Aktualisierungsläufen.</p>
+<p class="intro">Hier siehst du, <strong>bis wann Messdaten und Analysen tatsächlich vorliegen</strong>, wann die zugrunde liegenden Archive zuletzt erstellt wurden und welche historischen Daten noch fehlen. Die Bewertung beruht auf den veröffentlichten Archiv-Metadaten – nicht allein auf erfolgreich abgeschlossenen Aktualisierungsläufen. Der Status wird bei der nächsten Website-Veröffentlichung neu berechnet.</p>
 <div class="cards" aria-label="Statusübersicht">
 <div class="card"><span>Aktuell</span><strong id="countCurrent">–</strong></div>
 <div class="card"><span>Archiv unvollständig</span><strong id="countIncomplete">–</strong></div>
@@ -59,7 +59,7 @@ footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-
 <div class="card"><span>Nicht prüfbar</span><strong id="countUnknown">–</strong></div>
 </div>
 <section class="panel">
-<div class="toolbar"><div><h2>Verfügbare Datenprodukte</h2><div id="updated" role="status">Archivstatus wird geladen …</div></div><button id="refresh" type="button">Aktualisieren</button></div>
+<div class="toolbar"><div><h2>Verfügbare Datenprodukte</h2><div id="updated" role="status">Archivstatus wird geladen …</div></div><button id="refresh" type="button">Status neu laden</button></div>
 <div class="filters">
 <label>Bereich<select id="filterGroup"><option value="">Alle Bereiche</option></select></label>
 <label>Status<select id="filterStatus"><option value="">Alle Status</option><option value="current">Aktuell</option><option value="incomplete">Unvollständig</option><option value="delayed">Verzögert</option><option value="unknown">Nicht prüfbar</option></select></label>
