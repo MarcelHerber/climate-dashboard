@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tiefdruck-Tracker – Climate Dashboard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="tiefdruck_tracker.css?v=7">
+<link rel="stylesheet" href="tiefdruck_tracker.css?v=8">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -82,6 +82,68 @@
     </div>
     <p class="note">Die Windkarte zeigt direkt abgetastete GFS-10-m-Werte in etwa 1° Auflösung oder daraus abgeleitete Sektorradien – keine hochaufgelösten Isotachen. Beides ist nicht mit 925-hPa-Sturmradien gleichzusetzen. Hohe Windgeschwindigkeiten weit entfernt vom Zentrum können die Quadrantenradien beeinflussen. Keine Felder unterhalb der Erdoberfläche werden künstlich ergänzt.</p>
   </section>
+  <section class="card cps-model-compare" aria-label="Gemeinsamer GFS IFS AIFS Hart-CPS Vergleich">
+    <div class="cps-head">
+      <div>
+        <div class="eyebrow">GFS · IFS · AIFS | Cyclone Phase Space</div>
+        <h2>Gemeinsamer CPS-Modellvergleich</h2>
+        <p class="note">Ein ausgewähltes Tief in drei Modellvorhersagen: identische Achsen und nur tatsächlich berechnete Hart-CPS-Werte. Die Tiefbahn-Verknüpfung benötigt mindestens zwei gemeinsame UTC-Termine und eine gegenseitig eindeutige, räumlich plausible Zuordnung.</p>
+      </div>
+      <div class="cps-compare-actions">
+        <label class="control" for="cpsCompareMetric">Phasenraum
+          <select id="cpsCompareMetric">
+            <option value="asymmetry">Asymmetrie B gegen unteren thermischen Wind</option>
+            <option value="upper">Oberer gegen unteren thermischen Wind</option>
+          </select>
+        </label>
+        <button id="cpsCompareExport" type="button">Vergleich als PNG</button>
+      </div>
+    </div>
+    <div id="cpsCompareEmpty" class="empty">Bitte ein GFS-, IFS- oder AIFS-Nordatlantik-Tief auf der Karte auswählen.</div>
+    <div id="cpsCompareContent" hidden>
+      <div id="cpsCompareStorm" class="cps-compare-storm">–</div>
+      <div class="cps-compare-meta">
+        <span id="cpsCompareSelectedTime">Gültiger Termin: –</span>
+        <span id="cpsCompareAxes">Identische Phasenraum-Achsen</span>
+      </div>
+      <div class="cps-compare-grid">
+        <article class="cps-compare-model">
+          <h3><span class="cps-compare-dot gfs"></span>GFS</h3>
+          <p class="cps-compare-desc" id="cpsCompareStatusGFS">–</p>
+          <div class="cps-compare-chart">
+            <canvas id="cpsCompareGfs" aria-label="Hart Phasenraum des zugeordneten GFS-Tiefs"></canvas>
+            <div id="cpsCompareUnavailableGFS" class="cps-compare-unavailable" hidden>Keine CPS-Werte.</div>
+          </div>
+          <p class="cps-compare-now" id="cpsCompareNowGFS">–</p>
+        </article>
+        <article class="cps-compare-model">
+          <h3><span class="cps-compare-dot ifs"></span>IFS</h3>
+          <p class="cps-compare-desc" id="cpsCompareStatusIFS">–</p>
+          <div class="cps-compare-chart">
+            <canvas id="cpsCompareIfs" aria-label="Hart Phasenraum des zugeordneten IFS-Tiefs"></canvas>
+            <div id="cpsCompareUnavailableIFS" class="cps-compare-unavailable" hidden>Keine CPS-Werte.</div>
+          </div>
+          <p class="cps-compare-now" id="cpsCompareNowIFS">–</p>
+        </article>
+        <article class="cps-compare-model">
+          <h3><span class="cps-compare-dot aifs"></span>AIFS</h3>
+          <p class="cps-compare-desc" id="cpsCompareStatusAIFS">–</p>
+          <div class="cps-compare-chart">
+            <canvas id="cpsCompareAifs" aria-label="Hart Phasenraum des zugeordneten AIFS-Tiefs"></canvas>
+            <div id="cpsCompareUnavailableAIFS" class="cps-compare-unavailable" hidden>Keine CPS-Werte.</div>
+          </div>
+          <p class="cps-compare-now" id="cpsCompareNowAIFS">–</p>
+        </article>
+      </div>
+      <div class="cps-compare-overlay">
+        <h3>Alle verfügbaren Modellpfade in einem Phasenraum</h3>
+        <p class="note">GFS violett, IFS rot, AIFS blau. Die größeren umrandeten Markierungen zeigen den ausgewählten UTC-Termin, sofern zu diesem Termin ein berechneter CPS-Wert vorliegt.</p>
+        <div class="cps-compare-combined-chart"><canvas id="cpsCompareTogether" aria-label="Überlagerte Hart CPS Phasendiagramme von GFS IFS AIFS"></canvas></div>
+      </div>
+      <p class="note cps-compare-caveat">Zuordnung anhand mindestens zweier identischer Vorhersagetermine, räumlicher Nähe und gegenseitiger Bestzuordnung; bei mehrdeutigen Tiefzentren wird das Modell ausgelassen. Es erfolgt weder eine zeitliche CPS-Interpolation noch die Gleichsetzung unterschiedlich initialisierter Vorhersagen. Die Phasenparameter sind Forschungsdiagnosen, keine offizielle Zyklonenklassifikation.</p>
+    </div>
+  </section>
+
   <div class="panels">
     <section class="card"><h2>Kerndruck &amp; Wind</h2><div class="chartbox"><canvas id="intensityChart"></canvas></div>
       <p class="note">Echte Modellwerte entlang der ausgewählten Zugbahn. Fehlende Werte werden nicht interpoliert.</p></section>
@@ -163,5 +225,6 @@
 </main>
 <script src="tiefdruck_phase.js?v=7"></script>
 <script src="tiefdruck_diagnostics.js?v=7"></script>
-<script src="tiefdruck_tracker.js?v=7"></script>
+<script src="tiefdruck_cps_compare.js?v=1"></script>
+<script src="tiefdruck_tracker.js?v=8"></script>
 </body></html>
