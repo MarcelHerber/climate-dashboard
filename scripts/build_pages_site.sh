@@ -248,6 +248,11 @@ else
   echo "HINWEIS: NSIDC-Archiv wird durch den ersten Meereis-Workflow erzeugt."
 fi
 
+# Generiere öffentliche Datenstände aus den tatsächlich veröffentlichten
+# Archiv-Metadaten. Keine GitHub-API im Browser für die Datenabdeckung nötig.
+python scripts/build_data_status.py --output _site/data/status/status.json
+test -s _site/data/status/status.json || { echo "FEHLER: Datenstatus fehlt"; exit 1; }
+
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
