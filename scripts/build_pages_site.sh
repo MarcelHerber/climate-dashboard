@@ -18,6 +18,8 @@ required_root_files=(
   meereis.html
   meereis.js
   meereis.css
+  ace.html
+  ace.js
   climate_advanced.js
   climate_indices.js
   climate_indices.css
@@ -260,6 +262,14 @@ PY
 node --check /tmp/climate-data-status-check.js
 python scripts/build_data_status.py --output _site/data/status/status.json
 test -s _site/data/status/status.json || { echo "FEHLER: Datenstatus fehlt"; exit 1; }
+
+if [[ -s ace/index.json ]]; then
+  mkdir -p _site/ace
+  cp ace/index.json _site/ace/index.json
+  echo "NHC ACE-Daten übernommen."
+else
+  echo "HINWEIS: ACE-Daten werden beim ersten HURDAT2-Import erstellt."
+fi
 
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
