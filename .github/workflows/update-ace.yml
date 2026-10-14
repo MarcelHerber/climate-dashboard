@@ -1,0 +1,31 @@
+name: NHC ACE Best Track aktualisieren
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 9 10 * *'
+  push:
+    paths:
+      - scripts/update_ace.py
+      - .github/workflows/update-ace.yml
+permissions:
+  contents: write
+jobs:
+  ace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/update_ace.py
+      - name: Save dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ace/index.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update NHC ACE best-track archive"
+          git pull --rebase origin main
+          git push origin HEAD:main
