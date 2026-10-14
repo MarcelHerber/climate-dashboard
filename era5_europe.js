@@ -78,14 +78,44 @@ function era5AtmosFillParameters(){
   const select=document.getElementById("era5AtmosParameter");
   if(!select)return;
   const previous=select.value;
-  select.innerHTML="";
-  Object.entries(era5AtmosPayload?.products||era5AtmosIndex?.products||{}).forEach(([key,item])=>{
-    const option=document.createElement("option");
-    option.value=key;
-    option.textContent=item.short_label||item.label||key;
-    select.appendChild(option);
-  });
+  select.replaceChildren();
+  const appendGroup=(title,products,extra=false)=>{
+    if(!products||!Object.keys(products).length)return;
+    const group=document.createElement("optgroup");
+    group.label=title;
+    Object.entries(products).forEach(([key,item])=>{
+      const option=document.createElement("option");
+      option.value=key;
+      option.textContent=`${item.short_label||key} · ${item.label||key}`;
+      if(extra)option.dataset.historicalOnly="true";
+      group.appendChild(option);
+    });
+    select.appendChild(group);
+  };
+  appendGroup("Basisparameter · auch 2026",era5AtmosIndex?.products);
+  appendGroup("NEU · Historie 1940–2025",era5AtmosExtraIndex?.products,true);
   if([...select.options].some(o=>o.value===previous))select.value=previous;
+  else if(era5AtmosIndex?.products?.t850)select.value="t850";
+}
+
+async function era5AtmosChangeParameter(){
+  const key=document.getElementById("era5AtmosParameter")?.value;
+  const period=document.getElementById("era5AtmosPeriod")?.value||"";
+  const historical=era5AtmosExtraIndex?.available_periods||[];
+  // Historical additions stop at 2025. If a user chooses one while
+  // viewing the latest 2026 map, jump to the same month in 2025.
+  if(era5AtmosExtraIndex?.products?.[key]&&!historical.includes(period)&&historical.length){
+    const yearSelect=document.getElementById("era5AtmosYear");
+    const month=period.slice(5)||"09";
+    const lastYear=String(era5AtmosExtraIndex.year_end||2025);
+    const preferred=`${lastYear}-${month}`;
+    const target=historical.includes(preferred)?preferred:historical[historical.length-1];
+    if(yearSelect)yearSelect.value=target.slice(0,4);
+    era5AtmosFillMonths(target);
+    await era5AtmosChangePeriod();
+    return;
+  }
+  era5AtmosRender();
 }
 
 async function era5AtmosAttachExtra(period){
@@ -140,7 +170,19 @@ function era5AtmosRender(){
 
   const [key,item]=era5AtmosProductMeta();
   const view=era5AtmosView();
-  if(!item)return;
+  if(!item){
+    const text="Dieser Zusatzparameter ist für historische Monate von 1940 bis 2025 verfügbar. Bitte ein Jahr bis 2025 auswählen.";
+    if(image)image.hidden=true;
+    if(placeholder){placeholder.hidden=false;placeholder.textContent=text;}
+    if(title)title.textContent="Historischer ERA5-Zusatzparameter";
+    if(subtitle)subtitle.textContent="Monatsarchiv 1940–2025";
+    for(const id of ["era5AtmosCurrent","era5AtmosReference","era5AtmosAnomaly","era5AtmosRank1","era5AtmosTop3"]){
+      const node=document.getElementById(id);
+      if(node)node.textContent="–";
+    }
+    if(status)status.textContent=text;
+    return;
+  }
   const viewItem=item[view];
   const period=era5AtmosPayload.latest_month_key||era5AtmosPayload.period||"";
   const label=era5AtmosPayload.label||period;
@@ -222,6 +264,13 @@ async function ensureEra5AtmosphereLoaded(){
     }catch(error){console.info("ERA5-Erweiterung noch nicht verfügbar",error);}
     era5AtmosPayload=era5AtmosIndex;
     era5AtmosFillControls();
+    const parameterControl=document.getElementById("era5AtmosParameter")?.closest(".control-group");
+    if(parameterControl&&era5AtmosExtraIndex?.completed===era5AtmosExtraIndex?.expected){
+      const info=document.createElement("small");
+      info.className="era5-atmos-archive-hint";
+      info.textContent="10 Parameter · Zusatzarchiv 1940–2025 vollständig";
+      parameterControl.appendChild(info);
+    }
     document.getElementById("era5AtmosYear")?.addEventListener("change",era5AtmosChangeYear);
     document.getElementById("era5AtmosPeriod")?.addEventListener("change",era5AtmosChangePeriod);
     document.getElementById("era5AtmosImage")?.addEventListener("error",()=>{
@@ -233,7 +282,7 @@ async function ensureEra5AtmosphereLoaded(){
         placeholder.textContent="Diese historische Karte konnte nicht geladen werden. Bitte prüfe die Release-Datei.";
       }
     });
-    document.getElementById("era5AtmosParameter")?.addEventListener("change",era5AtmosRender);
+    document.getElementById("era5AtmosParameter")?.addEventListener("change",era5AtmosChangeParameter);
     document.getElementById("era5AtmosView")?.addEventListener("change",era5AtmosRender);
     era5AtmosLoaded=true;
     era5AtmosRender();
