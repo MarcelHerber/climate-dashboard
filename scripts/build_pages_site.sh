@@ -25,6 +25,9 @@ required_root_files=(
   tiefdruck_diagnostics.js
   tiefdruck_cps_compare.js
   tiefdruck_tracker.js
+  wettergefahren.html
+  wettergefahren.js
+  wettergefahren.css
   sst_europe.js
   sst_europe.css
   t850_ensembles.js
@@ -205,6 +208,10 @@ for item in tiefdruck_tracker.html tiefdruck_tracker.js tiefdruck_tracker.css; d
   test -s "_site/$item" || { echo "FEHLER: Tracker-Datei $item fehlt im Pages-Artefakt"; exit 1; }
 done
 echo "Tiefdruck-Tracker HTML, CSS und JavaScript im Pages-Artefakt enthalten."
+for item in wettergefahren.html wettergefahren.js wettergefahren.css; do
+  test -s "_site/$item" || { echo "FEHLER: ICON-EU-Gefahrenmonitor-Datei $item fehlt."; exit 1; }
+done
+echo "ICON-EU-Gefahrenmonitor HTML, CSS und JavaScript im Pages-Artefakt enthalten."
 # Historische Stationstemperaturen werden separat und nur bei Bedarf geladen.
 # Vor dem erstmaligen DWD-Backfill bleibt die Funktion mit Statusmeldung sichtbar.
 if [[ -d station_threshold_daily ]] && [[ -n "$(find station_threshold_daily -maxdepth 1 -type f -name '*.json' -print -quit)" ]]; then
