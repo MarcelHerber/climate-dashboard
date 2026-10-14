@@ -202,9 +202,13 @@ class Aggregator:
 def hours_for(param):
     if param in ("SNOW_GSP", "SNOW_CON"):
         return list(range(0, 121, 24))
-    if param in ("TMAX_2M", "TMIN_2M", "VIS"):
-        return list(range(3, 121, 3))
-    return list(range(0, 49)) + list(range(51, 121, 3))
+    if param in ("TMAX_2M", "TMIN_2M"):
+        # ICON-EU extrema: hourly through +51 h, later six-hour products.
+        return list(range(1, 52)) + list(range(54, 121, 6))
+    # Remaining full-range output: 1-hour products through +75 h,
+    # thereafter 3-hour products, if made available for that variable.
+    # Missing files are explicitly skipped and coverage is reported.
+    return list(range(0, 76)) + list(range(78, 121, 3))
 
 
 def download_parameter(cycle, name):
@@ -335,7 +339,7 @@ def build(cycle, output):
             "snow": "SNOW_GSP + SNOW_CON, Schneewasseräquivalent über 24 h, keine Neuschneehöhe",
             "heat": "ICON-EU TMAX_2M, Maximum der verfügbaren Ausgabeintervalle",
             "cold": "ICON-EU TMIN_2M, Minimum der verfügbaren Ausgabeintervalle",
-            "fog": "ICON-EU Sichtweite, Minimum der 3-stündlich abgetasteten Termine",
+            "fog": "ICON-EU Sichtweite, Minimum der verfügbaren Ausgabetermine",
             "convective": "Gewitter-/Hagelwarnungen nicht aus CAPE allein ableitbar; noch nicht in der Übersicht",
         },
     }
