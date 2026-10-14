@@ -1,0 +1,66 @@
+name: DWD Stationstemperaturen Erstarchiv (Schwellenwerte)
+
+on:
+  push:
+    paths:
+      - ".github/workflows/build-station-threshold-daily.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-station-threshold-first-build
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python installieren
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r requirements.txt
+
+      - name: Tagesdatenformat testen
+        run: python -m unittest discover -s tests -p test_station_threshold_history.py -v
+
+      - name: DWD-KL-Tagesarchive der ausgewählten Stationen aufbauen
+        run: python scripts/build_station_threshold_daily.py --workers 8 --min-stations 150
+
+      - name: Prüfen und nur neue Tagesdaten committen
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find station_threshold_daily -maxdepth 1 -name '*.json' -type f | wc -l)" -ge 150
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add station_threshold_daily
+          if git diff --cached --quiet; then
+            echo "Keine Änderung im historischen Stationsarchiv."
+            exit 0
+          fi
+          git commit -m "DWD Tagesarchive fuer Schwellenwertanalyse erstellen"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:main; then
+              echo "Stationstemperaturarchiv veröffentlicht; Pages-Deploy wird ausgelöst."
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
