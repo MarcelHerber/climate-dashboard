@@ -10,6 +10,10 @@ required_root_files=(
   dashboard_cleanup.css
   monthly_layout.js
   stratosphaere.html
+  zirkulation.html
+  enso.html
+  climate_indices.js
+  climate_indices.css
   stratosphere_temperature.js
   stratosphere_ssw_comparison.js
   tiefdruck_tracker.html
@@ -203,6 +207,17 @@ if [[ -d station_threshold_daily ]] && [[ -n "$(find station_threshold_daily -ma
   echo "Stations-Schwellenwerte: $(find _site/station_threshold_daily -type f -name '*.json' | wc -l) Stationsarchive."
 else
   echo "HINWEIS: Stations-Schwellenwert-Tagesarchiv wird erst beim DWD-Backfill erzeugt."
+fi
+
+# Die NOAA/CPC-Tages- und ENSO-Indizes werden durch einen eigenen
+# täglichen Workflow geladen. Vor dem Erstlauf zeigen die Seiten einen
+# klaren Archivstatus statt erfundene oder veraltete Indexwerte.
+if [[ -s climate_indices/index.json ]]; then
+  mkdir -p _site/climate_indices
+  cp climate_indices/index.json _site/climate_indices/index.json
+  echo "NOAA-Zirkulations- und ENSO-Indizes in Pages-Artefakt übernommen."
+else
+  echo "HINWEIS: NOAA-Indexarchiv noch nicht erstellt."
 fi
 
 touch _site/.nojekyll
