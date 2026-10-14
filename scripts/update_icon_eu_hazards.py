@@ -86,24 +86,30 @@ def decode(raw):
     handle = None
     try:
         data = bz2.decompress(raw)
-        import io
-        handle = eccodes.codes_grib_new_from_file(io.BytesIO(data))
-        if handle is None:
-            return None
-        values = np.asarray(eccodes.codes_get_values(handle), dtype=np.float32)
-        start_step = int(eccodes.codes_get(handle, "startStep"))
-        end_step = int(eccodes.codes_get(handle, "endStep"))
-        layout = (
-            int(eccodes.codes_get(handle, "numberOfPoints")),
-            str(eccodes.codes_get(handle, "gridType")),
-        )
-        return values, start_step, end_step, layout, handle
+        import tempfile
+        # ecCodes requires a real fileno() -- BytesIO is not supported.
+        with tempfile.TemporaryFile() as source:
+            source.write(data)
+            source.seek(0)
+            handle = eccodes.codes_grib_new_from_file(source)
+            if handle is None:
+                return None
+            values = np.asarray(eccodes.codes_get_values(handle), dtype=np.float32)
+            start_step = int(eccodes.codes_get(handle, "startStep"))
+            end_step = int(eccodes.codes_get(handle, "endStep"))
+            layout = (
+                int(eccodes.codes_get(handle, "numberOfPoints")),
+                str(eccodes.codes_get(handle, "gridType")),
+            )
+        result = (values, start_step, end_step, layout, handle)
+        handle = None  # The caller releases the returned GRIB handle.
+        return result
     except Exception as exc:
         log.warning("GRIB-Dekodierung: %s", exc)
         return None
     finally:
-        # Returned handle is consumed by its caller for the first grid.
-        pass
+        if handle is not None:
+            eccodes.codes_release(handle)
 
 
 def grid_index(handle):
