@@ -146,14 +146,14 @@ main > section.card.method {display:grid !important;}
   <div class="levels-heading">
     <div>
       <h2>Polarwirbel · historischer SSW-Ereigniskatalog</h2>
-      <p>Windbasierte Major-SSW-Ereignisse aus täglichen NASA-MERRA-2-Analysen bei 60° N / 10 hPa. Nur vollständig geprüfte Winter, keine Modellprognosen.</p>
+      <p>Windbasierte Major-SSW-Ereignisse aus täglichen NASA-MERRA-2-Analysen bei 60° N / 10 hPa. Nur meteorologisch prüfbare Winter, keine Modellprognosen. In NASA-Reihen teilweise fehlende Schalttage bleiben Datenlücken.</p>
     </div>
     <button id="sswArchiveReload" class="btn" type="button">Neu laden</button>
   </div>
   <p class="info" id="sswArchiveStatus" role="status">Historische Winddaten werden geprüft …</p>
   <div class="ssw-catalog-summary" aria-label="SSW-Statistik">
     <div class="ssw-catalog-stat">Bestätigte Windereignisse<strong id="sswArchiveEventCount">–</strong></div>
-    <div class="ssw-catalog-stat">Vollständige Winter<strong id="sswArchiveWinterCount">–</strong></div>
+    <div class="ssw-catalog-stat">Ausgewertete Winter<strong id="sswArchiveWinterCount">–</strong></div>
     <div class="ssw-catalog-stat">Jüngstes Ereignis<strong id="sswArchiveLastEvent">–</strong></div>
     <div class="ssw-catalog-stat">Letzte Analyse<strong id="sswArchiveDataDate">–</strong></div>
   </div>
@@ -172,7 +172,7 @@ main > section.card.method {display:grid !important;}
     <thead><tr><th>Winter</th><th>Zentraldatum</th><th>Klassifikation</th><th>Minimum der folgenden 30 Tage</th><th>Erste Ostwindphase</th><th>10-Tage-Windrückkehr</th></tr></thead>
     <tbody id="sswArchiveRows"><tr><td colspan="6">Bitte Datenarchiv laden.</td></tr></tbody>
   </table></div>
-  <p class="legendnotes" style="margin-top:15px"><strong>Methodik:</strong> Erstmalige Windumkehr zu Ostwind im November–März; 20 aufeinanderfolgende Westwindtage zur Trennung zweier Ereignisse; mindestens zehn aufeinanderfolgende Westwindtage bis einschließlich 30. April zur Abgrenzung der finalen Erwärmung. Unvollständige Winter gehen nicht in die Ereigniszählung ein. Dies ist eine windbasierte Diagnose, keine offizielle Warnung und keine Vorhersage. Referenz: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium</a>.</p>
+  <p class="legendnotes" style="margin-top:15px"><strong>Methodik:</strong> Erstmalige Windumkehr zu Ostwind im November–März; 20 aufeinanderfolgende Westwindtage zur Trennung zweier Ereignisse; mindestens zehn aufeinanderfolgende Westwindtage bis einschließlich 30. April zur Abgrenzung der finalen Erwärmung. Winter mit größeren Datenlücken gehen nicht in die Ereigniszählung ein. Fehlende 29. Februare werden niemals interpoliert und unterbrechen zusammenhängende Windphasen. Dies ist eine windbasierte Diagnose, keine offizielle Warnung und keine Vorhersage. Referenz: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium</a>.</p>
 </section>
 <section class="card" id="heatmapCard">
   <div class="levels-heading">
