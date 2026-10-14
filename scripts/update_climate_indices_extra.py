@@ -17,7 +17,7 @@ SOI_URL="https://www.cpc.ncep.noaa.gov/data/indices/soi"
 MEI_URL="https://psl.noaa.gov/enso/mei/data/meiv2.data"
 QBO30_URL="https://www.cpc.ncep.noaa.gov/data/indices/qbo.u30.index"
 QBO50_URL="https://www.cpc.ncep.noaa.gov/data/indices/qbo.u50.index"
-MJO_URL="https://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt"
+MJO_URL="https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
 SOURCES={"tele":TELE_URL,"gbi":GBI_URL,"soi":SOI_URL,"mei":MEI_URL,
          "qbo30":QBO30_URL,"qbo50":QBO50_URL,"mjo":MJO_URL}
 
@@ -111,6 +111,10 @@ def parse_mjo(text):
         rows[dt.isoformat()]=[dt.isoformat(),round(r1,3),round(r2,3),phase,round(amp,3)]
     result=[rows[k] for k in sorted(rows)]
     if len(result)<17000 or result[0][0]>"1975-01-01":raise ValueError("MJO RMM history incomplete")
+    # Never publish an archived/stale BOM file as a current realtime index.
+    # A few days of operational latency are normal; two weeks are not.
+    if date.fromisoformat(result[-1][0]) < date.today()-timedelta(days=14):
+        raise ValueError(f"MJO RMM source stale: last valid observation {result[-1][0]}")
     return result
 
 def load_all(fetch):
