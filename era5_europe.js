@@ -89,7 +89,8 @@ function era5AtmosFillParameters(){
   if(!select)return;
   const previous=select.value;
   select.replaceChildren();
-  const appendGroup=(title,products,extra=false)=>{
+  const chosenPeriod=document.getElementById("era5AtmosPeriod")?.value||"";
+  const appendGroup=(title,products,extra=false,verifiedOnly=false)=>{
     if(!products||!Object.keys(products).length)return;
     const group=document.createElement("optgroup");
     group.label=title;
@@ -98,14 +99,18 @@ function era5AtmosFillParameters(){
       option.value=key;
       option.textContent=`${item.short_label||key} · ${item.label||key}`;
       if(extra)option.dataset.historicalOnly="true";
+      if(verifiedOnly&&!era5AtmosClimateIndex?.available_periods?.includes(chosenPeriod)){
+        option.disabled=true;
+        option.title="Für diesen Monat wird das Klimakarten-Archiv noch berechnet.";
+      }
       group.appendChild(option);
     });
     select.appendChild(group);
   };
   appendGroup("Basisparameter",era5AtmosIndex?.products);
   appendGroup("Neue Druckniveau- und Dynamikparameter",era5AtmosExtraIndex?.products,true);
-  appendGroup("Klimatologische Monatskarten · Ausbau",era5AtmosClimateIndex?.products,true);
-  if([...select.options].some(o=>o.value===previous))select.value=previous;
+  appendGroup("Klimatologische Monatskarten · Ausbau",era5AtmosClimateIndex?.products,true,true);
+  if([...select.options].some(o=>o.value===previous&&!o.disabled))select.value=previous;
   else if(era5AtmosIndex?.products?.t850)select.value="t850";
 }
 
@@ -227,7 +232,10 @@ function era5AtmosRender(){
 
   const viewLabels={absolute:"Absolutwert",anomaly:"Abweichung 1991–2020",rank:"historischer Rang"};
   if(title)title.textContent=`${item.label} · ${viewLabels[view]||view}`;
-  if(subtitle)subtitle.textContent=`${label} · ERA5 ${item.level_hpa?item.level_hpa+" hPa":"Single Level"}`;
+  const verticalLabel=key==="thickness"?"Schicht 1000–500 hPa":
+    key==="wind250"?"250 hPa":key==="q850"?"850 hPa":
+    item.level_hpa?item.level_hpa+" hPa":"Single Level";
+  if(subtitle)subtitle.textContent=`${label} · ERA5 ${verticalLabel}`;
 
   if(viewItem?.file){
     if(image){
