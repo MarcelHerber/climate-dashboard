@@ -280,9 +280,16 @@ async function era5AtmosChangePeriod(){
     if(status)status.textContent="ERA5-Archiv wird geladen …";
     const period=document.getElementById("era5AtmosPeriod")?.value||era5AtmosIndex?.latest_month_key;
     await era5AtmosLoadPeriod(period);
-    await era5AtmosAttachExtra(period);
-    await era5AtmosAttachClimatology(period);
+    // Supplemental archives must not take down the verified ERA5 base maps.
+    for(const [label,attach] of [
+      ["Zusatzparameter",era5AtmosAttachExtra],
+      ["Klimakarten",era5AtmosAttachClimatology]
+    ]){
+      try{await attach(period);}
+      catch(error){console.warn("ERA5 "+label+" für "+period+" nicht geladen:",error);}
+    }
     era5AtmosFillParameters();
+    if(status)status.classList.remove("error");
     era5AtmosRender();
   }catch(error){
     console.error("ERA5 Atmosphäre:",error);
@@ -339,7 +346,9 @@ async function ensureEra5AtmosphereLoaded(){
     document.getElementById("era5AtmosParameter")?.addEventListener("change",era5AtmosChangeParameter);
     document.getElementById("era5AtmosView")?.addEventListener("change",era5AtmosRender);
     era5AtmosLoaded=true;
-    era5AtmosRender();
+    // Include current-year supplemental and climatological products immediately,
+    // rather than waiting for a manual month change.
+    await era5AtmosChangePeriod();
   }catch(error){
     console.error("ERA5 Atmosphäre:",error);
     if(status){
