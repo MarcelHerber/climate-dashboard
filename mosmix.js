@@ -104,14 +104,14 @@
       '<div id="mosmix" class="tab-content">',
       '<div class="section-header">',
       '<h2>DWD MOSMIX – Vorhersagekarte</h2>',
-      '<p>MOSMIX-L Punktprognosen für Deutschland. Erste Version: 2-m-Temperatur (TTT) mit stündlichem Zeitschieber und Animation.</p>',
+      '<p>MOSMIX-L Punktvorhersagen: stündliche 2-m-Temperatur (TTT), originales 12-h-Maximum TX (18 UTC) und Minimum TN (06 UTC).</p>',
       '<div class="section-status" id="mosmixSectionStatus">Daten werden geladen …</div>',
       '</div>',
       '<div class="mosmix-grid">',
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-status" id="mosmixValidInfo"></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button">Tmax</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button">Tmin</button></div>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button></div>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
@@ -120,7 +120,7 @@
       '<div class="mosmix-card">',
       '<div id="mosmixMap" class="mosmix-map"></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
-      '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Gezeigt werden originale MOSMIX-Punktprognosen. Eine flächige Interpolation wird separat ergänzt und ausdrücklich als interpolierte Darstellung gekennzeichnet.</p>',
+      '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC (20 Uhr MESZ), Tmin = originales TN bis 06 UTC (08 Uhr MESZ). Im Kartenexport wird eine Interpolation ausdrücklich gekennzeichnet. Die Stationsauswahl und der Modelllauf können sich von Metmaps unterscheiden.</p>',
       '</div>',
       '<div class="mosmix-card mosmix-meteogram-card">',
       '<div class="mosmix-meteogram-head">',
@@ -563,45 +563,33 @@
     const parts=String(key).split("-");
     const d=new Date(Date.UTC(Number(parts[0]),Number(parts[1])-1,Number(parts[2]),12));
     const date=new Intl.DateTimeFormat("de-DE",{timeZone:"Europe/Berlin",weekday:"short",day:"2-digit",month:"2-digit"}).format(d);
-    return (mode==="tmax" ? "Tmax " : "Tmin ") + date;
+    return (mode==="tmax" ? "Tmax (TX, 12 h bis 18 UTC) " : "Tmin (TN, 12 h bis 06 UTC) ") + date;
   }
 
   function buildExtremaFrames(mode) {
-    const groups=new Map();
-    data.timesteps.forEach(function(iso,index) {
-      const p=berlinDateParts(iso);
-      if (!p) return;
-      let key=null;
-      if (mode==="tmax" && p.hour>=6 && p.hour<=18) {
-        key=dateKey(p.year,p.month,p.day,0);
-      } else if (mode==="tmin" && (p.hour>=19 || p.hour<=5)) {
-        key=p.hour>=19 ? dateKey(p.year,p.month,p.day,1) : dateKey(p.year,p.month,p.day,0);
-      }
-      if (!key) return;
-      if (!groups.has(key)) groups.set(key,[]);
-      groups.get(key).push(index);
-    });
-    return Array.from(groups.entries())
-      .filter(function(entry){ return entry[1].length>=4; })
-      .sort(function(a,b){ return a[0].localeCompare(b[0]); })
-      .map(function(entry){ return {key:entry[0],indices:entry[1],label:extremaFrameLabel(mode,entry[0])}; });
+    // DWD MOSMIX-L TX/TN are independent 12-hour forecasts; extrema must
+    // never be reconstructed from the individual hourly TTT forecasts.
+    // The DWD recommends TX valid at 18 UTC for European stations;
+    // TN valid at 06 UTC describes the preceding night.
+    const kind=mode==="tmax" ? "tx12" : "tn12";
+    const hour=mode==="tmax" ? 18 : 6;
+    return data.timesteps.map(function(iso,index) {
+      const valid=new Date(iso);
+      if (Number.isNaN(valid.getTime()) || valid.getUTCHours()!==hour) return null;
+      const hasValues=data.stations.some(function(station) {
+        return Number.isFinite(station[kind] && station[kind][index]);
+      });
+      if (!hasValues) return null;
+      return {key:valid.toISOString().slice(0,10),
+        index:index,indices:[index],kind:kind,
+        label:extremaFrameLabel(mode,valid.toISOString().slice(0,10))};
+    }).filter(Boolean);
   }
 
   function extremaHit(station,frame) {
     if (!station || !frame) return null;
-    let bestValue=null;
-    let bestIndex=null;
-    frame.indices.forEach(function(index) {
-      const value=station.values && station.values[index];
-      if (!Number.isFinite(value)) return;
-      if (bestValue===null ||
-          (mapMode==="tmax" && value>bestValue) ||
-          (mapMode==="tmin" && value<bestValue)) {
-        bestValue=value;
-        bestIndex=index;
-      }
-    });
-    return Number.isFinite(bestValue) ? {value:bestValue,index:bestIndex} : null;
+    const value=station[frame.kind] && station[frame.kind][frame.index];
+    return Number.isFinite(value) ? {value:value,index:frame.index} : null;
   }
 
   function renderExtrema() {
@@ -618,6 +606,7 @@
     const vals=[];
     let shown=0;
     let labelled=0;
+    let above20=0;
 
     data.stations.forEach(function(station) {
       const hit=extremaHit(station,frame);
@@ -625,6 +614,7 @@
       const value=hit.value;
       vals.push(value);
       shown++;
+      if(mapMode==="tmax" && value>=20) above20++;
       const color=colorForTemp(value);
       const latlng=L.latLng(station.lat,station.lon);
 
@@ -666,6 +656,7 @@
     let info='Auswahl: <strong>'+esc(frame.label)+'</strong> · '+shown+' Punkte';
     if (useLabels) info+=' · '+labelled+' Werte beschriftet';
     if (Number.isFinite(min)) info+=' · '+min.toFixed(1).replace(".",",")+' bis '+max.toFixed(1).replace(".",",")+' °C';
+    if(mapMode==="tmax") info+=" · <strong>"+above20+" Stationen ≥ 20,0 °C</strong> (Kartenausschnitt)";
     document.getElementById("mosmixValidInfo").innerHTML=info;
   }
 
@@ -705,6 +696,16 @@
 
     extremaFrames=buildExtremaFrames(mapMode);
     slider.max=String(Math.max(0,extremaFrames.length-1));
+    if(!extremaFrames.length){
+      markerLayer?.clearLayers();
+      title.textContent=mapMode==="tmax"?"MOSMIX TX · 12 h":"MOSMIX TN · 12 h";
+      document.getElementById("mosmixSliderLabel").textContent="Noch keine Originalwerte";
+      document.getElementById("mosmixValidInfo").textContent=
+        "Dieser Datenlauf enthält noch keine echten MOSMIX-"+
+        (mapMode==="tmax"?"TX-":"TN-")+"Werte am DWD-Standardtermin. "+
+        "Der Datenimport wird aktualisiert – stündliche TTT-Werte sind kein Ersatz.";
+      return;
+    }
     sliderIndex=chooseExtremaIndex();
     title.textContent="Vorhersagetag";
     nowButton.textContent="Aktueller Tag";
