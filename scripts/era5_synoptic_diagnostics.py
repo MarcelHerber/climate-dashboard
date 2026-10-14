@@ -88,8 +88,13 @@ def hourly(client, which: str, day: date, folder: Path):
             expected=[f"{day.isoformat()}T{h[:2]}" for h in HOURS]
             if slots!=expected or values.shape!=(24,len(lat),len(lon)):
                 raise RuntimeError(f"Hourly coverage incomplete for {which}/{day}: {slots[:4]}")
-            if np.isfinite(values).mean()<.95:
+            finite_fraction=float(np.isfinite(values).mean())
+            if which!="cin" and finite_fraction<.95:
                 raise RuntimeError(f"Missing gridded ERA5 data {which}/{day}")
+            # CIN may be masked/undefined where convection is absent; missing
+            # samples must never be silently reinterpreted as zero inhibition.
+            if which=="cin":
+                print(f"CIN valid-grid fraction: {finite_fraction:.1%}",flush=True)
             return lat,lon,np.asarray(values,dtype="float32")
         except Exception:
             if attempt==3: raise
@@ -116,12 +121,17 @@ def build_day(day_str: str, folder: Path):
             lat,lon=la,lo
         else:
             valid_grid(lon,lat,lo,la)
+        if which=="cin" and np.isfinite(data).mean()<0.05:
+            print("CIN too sparsely defined for a representative map; omit, never fill NaN with zero",flush=True)
+            continue
         cubes[which]=data
         print(f"ERA5 daily {day}: {which} 24/24 hourly samples",flush=True)
     cubes["ivt"]=np.hypot(cubes.pop("ivte"),cubes.pop("ivtn"))
     cubes["jet250"]=np.hypot(cubes.pop("u250"),cubes.pop("v250"))
     result={}
     for key,(label,unit,cmap,scale) in MAPS.items():
+        if key not in cubes:
+            continue
         field=cubes[key][12]*np.float32(scale)
         target=folder/f"{day}-{key}.png"
         lo,hi=robust_range(field)
@@ -146,6 +156,7 @@ def build_day(day_str: str, folder: Path):
         "ready":True,"date":day_str,"analysis_time":"12:00 UTC",
         "source":"ERA5 hourly reanalysis","resolution":"0.5°",
         "hourly_samples":24,"products":result,
+        "cin_policy":"Missing CIN is retained as missing; omit image if valid-grid coverage is below 5%.",
         "hourly_counts_file":f"{day_str}-hourly-counts.npz",
         "thresholds":{key:{"label":v[3],"operator":v[1],"value":v[2]}
                        for key,v in THRESHOLDS.items()},
