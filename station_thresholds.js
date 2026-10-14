@@ -7,6 +7,7 @@
   let lastAnalysis = null;
   let sequence = 0;
   let yearView = "recent";
+  let customStartYear = null;
   const fmt = new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC"});
 
   function iso(d) { return d.toISOString().slice(0,10); }
@@ -49,6 +50,12 @@
         ".station-threshold-options label{display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}",
         ".station-threshold-options input{accent-color:#2563a9}",
         ".station-threshold-view-note{font-size:12px;color:#64748b;margin:3px 0 11px}",
+        ".station-threshold-year-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #d9e2ea;background:#f8fafc;border-radius:8px}",
+        ".station-threshold-year-box label{display:flex;align-items:center;gap:7px;font-size:12px;color:#475569;font-weight:700}",
+        ".station-threshold-year-box input{width:92px;border:1px solid #bdc9d4;border-radius:6px;padding:7px;font:inherit;color:#172033;background:#fff}",
+        ".station-threshold-year-box input:focus{outline:2px solid #90b8df}",
+        ".station-threshold-range button:disabled{opacity:.5;cursor:not-allowed}",
+        ".station-threshold-year-hint{font-size:11px;color:#64748b;flex-basis:100%}",
         "@media(max-width:700px){.station-threshold-range{width:100%}.station-threshold-range button{flex:1;padding:9px 6px;font-size:12px}}"
       ].join("");
       document.head.appendChild(style);
@@ -73,6 +80,7 @@
       '<div class="station-threshold-view-tools">'+
       '<div class="station-threshold-range" role="group" aria-label="Angezeigte Jahre"><button id="stationThresholdRecent" class="active" type="button" aria-pressed="true">Letzte 40 Jahre</button><button id="stationThresholdAll" type="button" aria-pressed="false">Gesamte Messreihe</button></div>'+
       '<div class="station-threshold-options"><label><input id="stationThresholdTrend" type="checkbox" checked> Trendlinie</label><label><input id="stationThresholdMedian" type="checkbox" checked> Median 1991–2020</label><label><input id="stationThresholdExtremes" type="checkbox"> Extremjahre markieren</label></div></div>'+
+      '<div class="station-threshold-year-box"><button id="stationThresholdComplete" class="action" type="button" aria-pressed="false" disabled>Ab lückenloser Messreihe</button><label for="stationThresholdStartYear">Oder Startjahr selbst wählen: <input id="stationThresholdStartYear" type="number" step="1" inputmode="numeric" placeholder="z. B. 1950" aria-label="Eigenes Startjahr"></label><span id="stationThresholdYearHint" class="station-threshold-year-hint">Vollständige Jahre werden für den gewählten Zeitraum und Temperaturparameter geprüft.</span></div>'+
       '<div id="stationThresholdViewNote" class="station-threshold-view-note"></div>'+
       '<div style="position:relative;height:340px"><canvas id="stationThresholdChart"></canvas></div>'+
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin:12px 0">'+
@@ -89,6 +97,14 @@
     document.getElementById("stationThresholdCSV").addEventListener("click",exportCsv);
     document.getElementById("stationThresholdRecent").addEventListener("click",function(){setYearView("recent");});
     document.getElementById("stationThresholdAll").addEventListener("click",function(){setYearView("all");});
+    document.getElementById("stationThresholdComplete").addEventListener("click",function(){setYearView("complete");});
+    document.getElementById("stationThresholdStartYear").addEventListener("change",function(event){
+      const entered=Number(event.target.value);
+      if(event.target.value.trim()===""){customStartYear=null;setYearView("recent");return;}
+      if(!Number.isInteger(entered)){setStatus("Bitte ein gültiges Startjahr eingeben.");return;}
+      customStartYear=entered;
+      setYearView("custom");
+    });
     ["stationThresholdTrend","stationThresholdMedian","stationThresholdExtremes"].forEach(function(id){
       document.getElementById(id).addEventListener("change",function(){if(lastAnalysis)draw(lastAnalysis);});
     });
@@ -231,7 +247,10 @@
       const finished=points.filter(function(r){return !r.provisional;});
       const reference=finished.filter(function(r){return r.year>=1991&&r.year<=2020;});
       const trend=regression(finished);
-      lastAnalysis={station,cfg,rows,points,reference,trend};
+      const completeRange=completeObservationYears(history,id,cfg,rows);
+      lastAnalysis={station,cfg,rows,points,reference,trend,completeRange};
+      if(yearView==="complete"&&!completeRange)yearView="recent";
+      syncYearControls(lastAnalysis);
       draw(lastAnalysis);
       const complete=rows.filter(function(r){return ["gefunden","keine Serie"].includes(r.status);}).length;
       setStatus(rows.length+" Jahre geprüft · "+complete+" mit eindeutig auswertbarer Ereignisfrage · "+
@@ -241,15 +260,70 @@
       if(token===sequence){setStatus("Auswertung nicht verfügbar: "+e.message);document.getElementById("stationThresholdResults").hidden=true;}
     }finally{if(token===sequence)button.disabled=false;}
   }
+  function completeObservationYears(history,station,cfg,rows) {
+    // 100 % der Tage im gewählten Zeitfenster müssen für TXK/TNK/TMK
+    // vorliegen. Ein Ereignisfund allein genügt für diese Prüfung nicht.
+    const through=utc(stationClimateDaysIndex.data_through);
+    const complete=[];
+    for(const row of rows) {
+      const bounds=periodBounds(row.year,cfg.season);
+      if(bounds.end>through)continue; // laufende Jahreszeit nicht als vollständig werten
+      let valid=true;
+      for(let day=bounds.start;day<=bounds.end;day=advance(day)) {
+        if(!Number.isFinite(tempAt(history,station,day,cfg.metric))){
+          valid=false;
+          break;
+        }
+      }
+      if(valid)complete.push(row.year);
+    }
+    if(!complete.length)return null;
+    // Wähle die längste lückenlose Folge vollständig beobachteter Jahre.
+    // Bei Gleichstand hat die jüngere Reihe Vorrang.
+    let candidate=null,first=complete[0],last=first;
+    function consider() {
+      const run={first:first,last:last,years:last-first+1};
+      if(!candidate||run.years>candidate.years||(run.years===candidate.years&&run.last>candidate.last))candidate=run;
+    }
+    for(let i=1;i<complete.length;i++) {
+      const year=complete[i];
+      if(year===last+1)last=year;
+      else {consider();first=last=year;}
+    }
+    consider();
+    return candidate;
+  }
+
+  function syncYearControls(result) {
+    const complete=result&&result.completeRange;
+    const button=document.getElementById("stationThresholdComplete");
+    button.disabled=!complete;
+    button.textContent=complete
+      ?"Lückenlose Jahre: "+complete.first+"–"+complete.last
+      :"Keine lückenlose Reihe verfügbar";
+    const custom=document.getElementById("stationThresholdStartYear");
+    const first=result.rows[0]?.year, last=result.rows[result.rows.length-1]?.year;
+    custom.min=String(first);custom.max=String(last);
+    if(customStartYear!==null) {
+      customStartYear=Math.min(last,Math.max(first,customStartYear));
+      custom.value=String(customStartYear);
+    }
+    for(const name of ["recent","all","complete"]){
+      const id=name==="recent"?"stationThresholdRecent":name==="all"?"stationThresholdAll":"stationThresholdComplete";
+      const el=document.getElementById(id);
+      el.classList.toggle("active",name===yearView);
+      el.setAttribute("aria-pressed",String(name===yearView));
+    }
+    const hint=document.getElementById("stationThresholdYearHint");
+    hint.textContent=complete
+      ?"Automatisch: längste zusammenhängende Folge mit 100 % gültigen Tageswerten je "+(result.cfg.season==="year"?"Jahr":"Jahreszeit")+" ("+["Tmax","Tmin","Tmittel"][result.cfg.metric]+"). Fehlende Tage schließen ein Jahr aus."
+      :"Keine vollständig beobachteten Jahre im gewählten Zeitraum für diesen Temperaturparameter. Eigenes Startjahr bleibt möglich.";
+  }
+
   function setYearView(view) {
-    yearView = view === "all" ? "all" : "recent";
-    ["recent","all"].forEach(function(value){
-      const button=document.getElementById(value==="all"?"stationThresholdAll":"stationThresholdRecent");
-      const active=yearView===value;
-      button.classList.toggle("active",active);
-      button.setAttribute("aria-pressed",String(active));
-    });
-    if(lastAnalysis)draw(lastAnalysis);
+    if(view==="complete"&&!lastAnalysis?.completeRange)return;
+    yearView=["all","complete","custom"].includes(view)?view:"recent";
+    if(lastAnalysis){syncYearControls(lastAnalysis);draw(lastAnalysis);}
   }
 
   function chartOptionsEnabled(id) {
@@ -260,7 +334,15 @@
     const years=rows.map(function(row){return row.year;});
     if(!years.length)return {first:1900,last:2026};
     const last=years[years.length-1];
-    return {first:yearView==="all"?years[0]:Math.max(years[0],last-39),last:last};
+    if(yearView==="all")return {first:years[0],last:last};
+    if(yearView==="complete"&&lastAnalysis?.completeRange)return {
+      first:lastAnalysis.completeRange.first,
+      last:lastAnalysis.completeRange.last
+    };
+    if(yearView==="custom"&&Number.isInteger(customStartYear))return {
+      first:Math.min(last,Math.max(years[0],customStartYear)),last:last
+    };
+    return {first:Math.max(years[0],last-39),last:last};
   }
 
   function chartCalendarTicks(season,minDay,maxDay) {
@@ -336,8 +418,8 @@
 
     document.getElementById("stationThresholdViewNote").textContent=
       "Diagramm "+range.first+"–"+range.last+" · "+visible.length+" Ereignisse · "+
-      "Jahr und genaues Datum beim Berühren eines Punkts · "+
-      "die Jahrestabelle darunter enthält weiterhin die vollständige Reihe.";
+      (yearView==="complete"?"100 % vollständige "+(cfg.season==="year"?"Jahre":"Jahreszeiten")+" für "+["Tmax","Tmin","Tmittel"][cfg.metric]+" · ":"")+
+      "Jahr und Datum beim Berühren eines Punkts · vollständige Jahrestabelle darunter.";
 
     if(chart){chart.destroy();chart=null;}
     const extremeLabel=function(rec){
