@@ -35,6 +35,7 @@ jobs:
           python -m unittest discover -s tests -p test_climate_indices.py -v
           python -m unittest discover -s tests -p test_climate_indices_extra.py -v
           node --check climate_indices.js
+          node --check climate_advanced.js
       - name: NOAA/CPC-Tages- und ENSO-Archive abrufen
         run: python scripts/update_climate_indices.py
       - name: Ergebnisse versionieren und für Pages veröffentlichen
