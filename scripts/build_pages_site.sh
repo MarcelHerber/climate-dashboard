@@ -14,6 +14,7 @@ required_root_files=(
   tiefdruck_tracker.css
   tiefdruck_phase.js
   tiefdruck_diagnostics.js
+  tiefdruck_cps_compare.js
   tiefdruck_tracker.js
   sst_europe.js
   sst_europe.css

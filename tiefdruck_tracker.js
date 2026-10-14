@@ -111,7 +111,7 @@ function listTracks(){
   parent.append(fragment);
 }
 function details(t){
-  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";$("phaseLabel").textContent="Kernstruktur: –";plotIntensity(null);plotCps(null);if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(null,allData,chosenHour());return;}
+  if(!t){for(const id of ["vname","vmodel","vtime","vrun","vpressure","vwind"])$(id).textContent="–";$("phaseLabel").textContent="Kernstruktur: –";plotIntensity(null);plotCps(null);if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(null,allData,chosenHour());if(window.CycloneCpsComparison)window.CycloneCpsComparison.update(null,allData,chosenHour());return;}
   const p=atHour(t);
   $("vname").textContent=displayName(t);
   $("vmodel").textContent=(MODEL_LABEL[t.model]||t.model)+(t.is_ensemble?" · Mitglied "+t.member:"");
@@ -125,6 +125,7 @@ function details(t){
    (p.cps?phase:"für diesen Prognosetermin keine Hart-CPS-Diagnose verfügbar");
   plotIntensity(t);plotCps(t);
   if(window.CycloneDiagnostics)window.CycloneDiagnostics.update(t,allData,chosenHour());
+  if(window.CycloneCpsComparison)window.CycloneCpsComparison.update(t,allData,chosenHour());
 }
 function plotIntensity(t){
   if(intensityChart){intensityChart.destroy();intensityChart=null;}
