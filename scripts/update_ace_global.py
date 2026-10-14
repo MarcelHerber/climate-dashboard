@@ -24,6 +24,7 @@ FIRST, LAST_REFERENCE = 1980, 2020
 def aggregate(rows):
     counts = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
     seen = set()
+    latest = None
     for row in rows:
         stamp = (row.get("ISO_TIME") or "").strip()
         basin = (row.get("BASIN") or "").strip()
@@ -46,12 +47,14 @@ def aggregate(rows):
         if year < FIRST:
             continue
         counts[basin][year][dt.strftime("%m-%d")] += wind * wind / 10000.0
-    return counts
+        if latest is None or dt > latest: latest = dt
+    return counts, latest
 
 def build(rows):
-    observations = aggregate(rows)
-    # Exclude current partial year. Historical values are not forecasts.
-    last_year = datetime.now(timezone.utc).year - 1
+    observations, latest_observation = aggregate(rows)
+    current_year = datetime.now(timezone.utc).year
+    last_year = current_year if latest_observation and latest_observation.year == current_year else current_year - 1
+    last_observed_date = latest_observation.date() if latest_observation else None
     all_basins = {**{key:NAMES[key] for key in CODES}, "GLOBAL":"Global"}
     records = {}
     start = date(2000,1,1)
@@ -66,9 +69,17 @@ def build(rows):
             total=0.0
             curve=[]
             for day in days:
+                if year == current_year and day != "02-29" and (not last_observed_date or date(year, int(day[:2]), int(day[3:])) > last_observed_date):
+                    curve.append(None)
+                    continue
+                if year == current_year and day == "02-29" and year % 4:
+                    curve.append(None)
+                    continue
                 total += values[day]
                 curve.append(round(total,3))
-            years[str(year)] = {"total":round(total,2),"daily_cumulative":curve}
+            years[str(year)] = {"total":round(total,2),"daily_cumulative":curve,
+                                "provisional":year==current_year,
+                                "last_date":last_observed_date.isoformat() if year==current_year else None}
         reference = [years[str(y)]["total"] for y in range(1991,LAST_REFERENCE+1)]
         climatology = [round(sum(years[str(y)]["daily_cumulative"][i] for y in range(1991,2021))/30,3) for i in range(366)]
         records[basin] = {"name":name,"first_year":FIRST,"last_year":last_year,
@@ -78,7 +89,9 @@ def build(rows):
         "source_url":URL,"wind_column":"USA_WIND","reference_period":[1991,2020],
         "method":"6-hourly USA_WIND >=34 kt, NATURE TS/SS, squared wind / 10000, calendar years",
         "note":"Comparable ACE approximation, not official basin RSMC ACE totals; retrospective IBTrACS data may be revised.",
-        "updated_utc":datetime.now(timezone.utc).isoformat(),"basins":records}
+        "updated_utc":datetime.now(timezone.utc).isoformat(),
+        "last_observation":latest_observation.isoformat() if latest_observation else None,
+        "basins":records}
 
 def main():
     req = Request(URL,headers={"User-Agent":"ClimateDashboard/1.0"})
