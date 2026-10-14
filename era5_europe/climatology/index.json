@@ -1,0 +1,62 @@
+{
+  "ready": true,
+  "reference_period": "1991–2020",
+  "rank_baseline": "1940–2025",
+  "year_start": 1940,
+  "year_end": 2025,
+  "products": {
+    "thickness": {
+      "label": "Schichtdicke 1000–500 hPa",
+      "short_label": "ΔZ1000–500",
+      "unit": "gpm",
+      "kind": "derived"
+    },
+    "tcwv": {
+      "label": "Gesamtsäulenwasserdampf",
+      "short_label": "TCWV",
+      "unit": "kg/m²",
+      "kind": "monthly_mean"
+    },
+    "q850": {
+      "label": "Spezifische Feuchte 850 hPa",
+      "short_label": "q850",
+      "unit": "g/kg",
+      "kind": "monthly_mean"
+    },
+    "wind250": {
+      "label": "Betrag des mittleren Windvektors 250 hPa",
+      "short_label": "Wind250",
+      "unit": "m/s",
+      "kind": "vector_mean_magnitude"
+    },
+    "lcc": {
+      "label": "Tiefe Wolkenbedeckung",
+      "short_label": "Tiefe Wolken",
+      "unit": "%",
+      "kind": "monthly_mean"
+    },
+    "mcc": {
+      "label": "Mittlere Wolkenbedeckung",
+      "short_label": "Mittlere Wolken",
+      "unit": "%",
+      "kind": "monthly_mean"
+    },
+    "hcc": {
+      "label": "Hohe Wolkenbedeckung",
+      "short_label": "Hohe Wolken",
+      "unit": "%",
+      "kind": "monthly_mean"
+    },
+    "blh": {
+      "label": "Grenzschichthöhe",
+      "short_label": "BLH",
+      "unit": "m",
+      "kind": "monthly_mean"
+    }
+  },
+  "available_periods": [],
+  "completed": 0,
+  "expected_historical_periods": 1032,
+  "latest_month": null,
+  "note": "Only real ERA5 monthly maps backed by verified GitHub Release assets will be listed. No hourly weather extremes are inferred from monthly means."
+}
