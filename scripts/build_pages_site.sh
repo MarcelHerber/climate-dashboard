@@ -271,6 +271,14 @@ else
   echo "HINWEIS: ACE-Daten werden beim ersten HURDAT2-Import erstellt."
 fi
 
+if [[ -s ace/global.json ]]; then
+  mkdir -p _site/ace
+  cp ace/global.json _site/ace/global.json
+  echo "IBTrACS globale ACE-Daten übernommen."
+else
+  echo "HINWEIS: IBTrACS-Daten werden durch den globalen ACE-Workflow erzeugt."
+fi
+
 touch _site/.nojekyll
 echo "Pages-Artefakt erfolgreich gebaut."
 echo "Schneehöhenprofile: $(find _site/station_snow_height_profiles -type f -name '*.json' | wc -l) Dateien"
