@@ -29,6 +29,15 @@ KML="""<?xml version="1.0" encoding="UTF-8"?>
         <dwd:Forecast dwd:elementName="TTT">286.15 287.15 289.15 282.15</dwd:Forecast>
         <dwd:Forecast dwd:elementName="TX">299.15 305.15 295.15 -</dwd:Forecast>
         <dwd:Forecast dwd:elementName="TN">281.15 274.15 230.15 280.15</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="RR1c">0.1 0.2 0.3 0.4</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="RR3c">- 0.8 - 1.2</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="RR6c">- - 2.4 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="RRhc">- - 5.3 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="RRdc">- - 7.8 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="FF">3 4 5 6</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="FX1">7 8 9 10</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="FX3">8 9 10 11</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="FFXh">- - 13 -</dwd:Forecast>
       </kml:ExtendedData>
     </kml:Placemark>
   </kml:Document>
@@ -39,6 +48,10 @@ class MOSMIXExtremaTests(unittest.TestCase):
     def test_unit_conversion(self):
         self.assertEqual(mos.convert_values("TX",[293.15,None]),[20.0,None])
         self.assertEqual(mos.convert_values("TN",[271.15]),[-2.0])
+        self.assertEqual(mos.convert_values("FX3",[5.0,None]),[18.0,None])
+        self.assertEqual(mos.convert_values("FXh",[10.0]),[36.0])
+        self.assertEqual(mos.convert_values("FFXh",[10.0]),[36.0])
+        self.assertEqual(mos.convert_values("RRdc",[6.789]),[6.79])
 
     def test_daily_extrema_use_only_dwd_standard_synop_times(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -59,6 +72,14 @@ class MOSMIXExtremaTests(unittest.TestCase):
             saved=json.loads((details/(station["key"]+".json")).read_text())
             self.assertEqual(saved["parameters"]["TX"][2],22.0)
             self.assertEqual(saved["parameters"]["TN"][0],8.0)
+            self.assertEqual(saved["parameters"]["RR1c"][0],0.1)
+            self.assertEqual(saved["parameters"]["RR3c"][1],0.8)
+            self.assertEqual(saved["parameters"]["RR6c"][2],2.4)
+            self.assertEqual(saved["parameters"]["RRhc"][2],5.3)
+            self.assertEqual(saved["parameters"]["RRdc"][2],7.8)
+            self.assertEqual(saved["parameters"]["FX3"][2],36.0)
+            self.assertEqual(saved["parameters"]["FXh"][2],46.8)
+            self.assertNotIn("FFXh",saved["parameters"])
 
     def test_sparse_original_extrema_not_hourly_maximum(self):
         # The DWD 12-h maximum differs from the hourly 2-m temperatures.
