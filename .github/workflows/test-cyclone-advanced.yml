@@ -1,7 +1,7 @@
 name: Zyklonen-Dashboard Diagnose-Checks
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/hart-cps-three-model-compare-20261014"]
     paths:
       - "tests/test_cyclone_dashboard_integrity.py"
       - "tests/test_ecmwf_gefs31.py"
@@ -11,6 +11,9 @@ on:
       - "tiefdruck_tracker.js"
       - "tiefdruck_phase.js"
       - "tiefdruck_diagnostics.js"
+      - "tiefdruck_cps_compare.js"
+      - "tests/test_cps_model_comparison.js"
+      - "scripts/build_pages_site.sh"
       - "scripts/update_gefs_cps.py"
       - "scripts/update_ecmwf_atlantic_lows.py"
       - "scripts/update_ecmwf_atlantic_cps.py"
@@ -30,6 +33,10 @@ jobs:
           python-version: "3.12"
       - name: Install numeric and GRIB libraries
         run: pip install "numpy>=2.0,<3" "scipy>=1.14,<2" "eccodes>=2.38,<3" "ecmwf-opendata>=0.3.21,<1"
+      - name: JavaScript CPS matching and model comparison tests
+        run: |
+          node --check tiefdruck_cps_compare.js
+          node tests/test_cps_model_comparison.js
       - name: Syntax of real GFS and GEFS backend
         run: python -m compileall -q scripts/update_north_atlantic_cps.py scripts/update_gefs_cps.py scripts/update_ecmwf_atlantic_lows.py scripts/update_ecmwf_atlantic_cps.py
       - name: Test meteorological math and frontend integration
