@@ -153,6 +153,8 @@ def construct(fetch=download) -> dict:
     nao = parse_daily_csv(fetch(SOURCES["nao"]), "NAO")
     oni = parse_enso_seasons(fetch(SOURCES["oni"]), "ONI")
     roni = parse_enso_seasons(fetch(SOURCES["roni"]), "RONI")
+    from update_climate_indices_extra import load_all
+    extra = load_all(fetch)
     return {
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -171,6 +173,7 @@ def construct(fetch=download) -> dict:
             "oni": {"label": "Oceanic Niño Index · ERSSTv6", "seasons": oni, "latest_season": oni[-1][0]},
             "roni": {"label": "Relative Oceanic Niño Index · ERSSTv6", "seasons": roni, "latest_season": roni[-1][0]},
         },
+        **extra,
     }
 
 
