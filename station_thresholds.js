@@ -74,7 +74,7 @@
       '<div class="station-threshold-range" role="group" aria-label="Angezeigte Jahre"><button id="stationThresholdRecent" class="active" type="button" aria-pressed="true">Letzte 40 Jahre</button><button id="stationThresholdAll" type="button" aria-pressed="false">Gesamte Messreihe</button></div>'+
       '<div class="station-threshold-options"><label><input id="stationThresholdTrend" type="checkbox" checked> Trendlinie</label><label><input id="stationThresholdMedian" type="checkbox" checked> Median 1991–2020</label><label><input id="stationThresholdExtremes" type="checkbox"> Extremjahre markieren</label></div></div>'+
       '<div id="stationThresholdViewNote" class="station-threshold-view-note"></div>'+
-      '<div style="position:relative;height:405px"><canvas id="stationThresholdChart"></canvas></div>'+
+      '<div style="position:relative;height:340px"><canvas id="stationThresholdChart"></canvas></div>'+
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin:12px 0">'+
       '<button id="stationThresholdPNG" type="button" class="action">⬇ PNG</button>'+
       '<button id="stationThresholdPDF" type="button" class="action">⬇ PDF</button>'+
@@ -263,15 +263,49 @@
     return {first:yearView==="all"?years[0]:Math.max(years[0],last-39),last:last};
   }
 
-  function chartCalendarTicks(season) {
+  function chartCalendarTicks(season,minDay,maxDay) {
     const bounds=periodBounds(2001,season);
+    const dayCount=Math.round((bounds.end-bounds.start)/86400000)+1;
+    const span=maxDay-minDay;
     const ticks=[];
-    for(let d=bounds.start;d<=bounds.end;d=advance(d)){
-      if(d.getUTCDate()===1 || (season!=="year" && d.getUTCDate()===15)){
-        ticks.push(Math.round((d-bounds.start)/86400000));
-      }
+    const add=function(index){
+      if(index>=minDay && index<=maxDay && !ticks.includes(index))ticks.push(index);
+    };
+    // Monatsanfang und Monatsmitte als feste, gut lesbare Zeitmarken.
+    // Ist der sichtbare Ausschnitt sehr klein, zusätzlich Wochenmarken.
+    for(let i=0;i<dayCount;i++){
+      const day=new Date(bounds.start.getTime()+i*86400000);
+      if(day.getUTCDate()===1 || day.getUTCDate()===15)add(i);
+    }
+    if(span<=28){
+      for(let i=Math.ceil(minDay/7)*7;i<=maxDay;i+=7)add(i);
+    }
+    ticks.sort(function(a,b){return a-b;});
+    // Bei einem ungewöhnlich engen Wertebereich wenigstens drei Datumsmarken.
+    if(ticks.length<3){
+      const step=Math.max(1,Math.round(span/3));
+      for(let i=Math.ceil(minDay);i<=maxDay;i+=step)add(i);
+      ticks.sort(function(a,b){return a-b;});
     }
     return ticks;
+  }
+
+  function stationThresholdYRange(datasets,season) {
+    const bounds=periodBounds(2001,season);
+    const seasonalMaximum=Math.round((bounds.end-bounds.start)/86400000);
+    const values=datasets.flatMap(function(ds){
+      return (ds.data||[]).map(function(p){return p&&p.y;})
+        .filter(Number.isFinite);
+    });
+    if(!values.length)return {min:0,max:seasonalMaximum};
+    const low=Math.max(0,Math.min.apply(null,values)-7);
+    const high=Math.min(seasonalMaximum,Math.max.apply(null,values)+8);
+    const center=(low+high)/2;
+    const minSpan=Math.min(28,seasonalMaximum);
+    let min=Math.max(0,Math.floor(Math.min(low,center-minSpan/2)));
+    let max=Math.min(seasonalMaximum,Math.ceil(Math.max(high,min+minSpan)));
+    if(max-min<minSpan)min=Math.max(0,max-minSpan);
+    return {min:min,max:max};
   }
 
   function draw(result) {
@@ -338,8 +372,10 @@
         data:[{x:range.first,y:med},{x:range.last,y:med}],
         borderColor:"#64748b",borderDash:[6,5],borderWidth:1.5,pointRadius:0,fill:false});
     }
-    const ticks=chartCalendarTicks(cfg.season);
-    const maxDay=Math.round((periodBounds(2001,cfg.season).end-periodBounds(2001,cfg.season).start)/86400000);
+    // Nur den tatsächlich belegten Datumsbereich abbilden.
+    // Trend und Median werden berücksichtigt, damit keine Linie abgeschnitten wird.
+    const yRange=stationThresholdYRange(datasets,cfg.season);
+    const ticks=chartCalendarTicks(cfg.season,yRange.min,yRange.max);
     chart=new Chart(document.getElementById("stationThresholdChart"),{
       type:"scatter",
       data:{datasets:datasets},
@@ -358,7 +394,7 @@
             }
           },
           y:{
-            min:0,max:maxDay,reverse:true,
+            min:yRange.min,max:yRange.max,reverse:true,
             title:{display:true,text:"Datum des ersten Auftretens"},
             grid:{color:"rgba(148,163,184,.22)"},
             afterBuildTicks:function(scale){
@@ -420,8 +456,13 @@
   }
   function exportPng(){
     if(!lastAnalysis||!chart)return;
+    const source=chart.canvas;
+    const width=1420;
+    const height=Math.round(width*source.height/source.width);
+    // Die Exportseite wird an die Grafik angepasst, statt mit fixer
+    // 910-px-Höhe mehrere hundert Pixel leeren Weißraum zu erzeugen.
     const canvas=document.createElement("canvas");
-    canvas.width=1500;canvas.height=910;
+    canvas.width=1500;canvas.height=167+height+52;
     const ctx=canvas.getContext("2d");
     ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle="#0f172a";ctx.font="bold 34px Arial";
@@ -430,11 +471,9 @@
     ctx.fillText(lastAnalysis.station.name,46,99);
     ctx.fillStyle="#475569";ctx.font="19px Arial";
     ctx.fillText(exportAnalysisSubtitle(),46,131);
-    const source=chart.canvas,ratio=source.width/source.height;
-    const width=Math.min(1420,630*ratio),height=width/ratio;
     ctx.drawImage(source,(canvas.width-width)/2,167,width,height);
     ctx.font="17px Arial";ctx.fillStyle="#64748b";
-    ctx.fillText("Quelle: DWD CDC Tageswerte · Fehlende Tage unterbrechen Serien · vorläufige Daten gekennzeichnet",46,876);
+    ctx.fillText("Quelle: DWD CDC Tageswerte · Fehlende Tage unterbrechen Serien · vorläufige Daten gekennzeichnet",46,canvas.height-18);
     canvas.toBlob(function(blob){if(blob)download(blob,"png");},"image/png");
   }
   function exportPdf(){
