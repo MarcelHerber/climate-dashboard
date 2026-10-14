@@ -116,9 +116,14 @@ jobs:
           for attempt in 1 2 3; do
             git fetch origin main
             git reset --hard origin/main
-            rm -rf era5_europe
-            cp -a /tmp/era5_europe_publish era5_europe
-            git add era5_europe
+            # Only replace this workflow's own maps, 2026 archives and main index.
+            # Never overwrite the independently published six-parameter
+            # extension, its historical manifests or concurrent backfill data.
+            mkdir -p era5_europe/archive
+            cp -a /tmp/era5_europe_publish/maps/. era5_europe/maps/
+            cp -a /tmp/era5_europe_publish/archive/. era5_europe/archive/
+            cp /tmp/era5_europe_publish/index.json era5_europe/index.json
+            git add era5_europe/index.json era5_europe/maps era5_europe/archive
             if git diff --cached --quiet; then
               echo "Keine neuen ERA5-Europa-Daten."
               exit 0
