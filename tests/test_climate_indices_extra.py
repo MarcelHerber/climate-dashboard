@@ -23,7 +23,7 @@ class ExtraIndexTest(unittest.TestCase):
         self.assertEqual(len(v),912)
     def test_gbi_monthly_from_daily_standardized(self):
         from datetime import date,timedelta
-        first=date(1981,1,1);last=date(2011,1,1)
+        first=date(1948,1,1);last=date(2026,1,1)
         rows=[]
         x=first
         while x<last:
@@ -31,12 +31,12 @@ class ExtraIndexTest(unittest.TestCase):
             x+=timedelta(days=1)
         # Add a sufficiently long later period for validation
         x=last
-        while x<date(2050,1,1):
+        while x<date(2027,1,1):
             rows.append(f"{x.year} {x.month} {x.day} 5450")
             x+=timedelta(days=1)
         g=parse_gbi("\n".join(rows))
         self.assertTrue(len(g)>=750)
-        self.assertEqual(g[0][0],"1981-01")
+        self.assertEqual(g[0][0],"1948-01")
     def test_mjo_bom_fields_and_missing(self):
         from datetime import date,timedelta
         start=date(1974,6,1);lines=[]
