@@ -26,7 +26,7 @@ USER_AGENT = "climate-dashboard-mosmix/2.0 (+GitHub Actions; DWD Open Data)"
 LON_MIN, LON_MAX = 5.45, 15.55
 LAT_MIN, LAT_MAX = 47.15, 55.15
 
-METEOGRAM_PARAMS = ("TTT", "Td", "RR1c", "FF", "FX1", "DD", "N", "PPPP")
+METEOGRAM_PARAMS = ("TTT", "TX", "TN", "Td", "RR1c", "FF", "FX1", "DD", "N", "PPPP")
 
 
 def local_name(tag: str) -> str:
@@ -72,7 +72,7 @@ def convert_values(parameter: str, values: list[float | None]) -> list[float | N
             converted.append(None)
             continue
 
-        if parameter in {"TTT", "Td"}:
+        if parameter in {"TTT", "Td", "TX", "TN"}:
             converted.append(round(value - 273.15, 1))
         elif parameter in {"FF", "FX1"}:
             # MOSMIX wind is m/s; display files use km/h for the dashboard.
@@ -118,6 +118,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
     stations: list[dict] = []
     issue_time: str | None = None
     models: list[dict] = []
+    tx_indices: list[int] = []
+    tn_indices: list[int] = []
     detail_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(path) as zf:
@@ -137,7 +139,16 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                 if name == "TimeStep":
                     text = (elem.text or "").strip()
                     if text:
+                        index = len(timesteps)
                         timesteps.append(text)
+                        # DWD: in Europe TX valid 18 UTC and TN valid 06 UTC;
+                        # both forecast a 12-hour extrema interval.
+                        stamp = datetime.fromisoformat(text.replace("Z", "+00:00"))
+                        utc_hour = stamp.astimezone(timezone.utc).hour
+                        if utc_hour == 18:
+                            tx_indices.append(index)
+                        elif utc_hour == 6:
+                            tn_indices.append(index)
                     elem.clear()
                     continue
 
@@ -197,8 +208,13 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     values = convert_values(element_name, raw_values(node))
                     forecasts[element_name] = normalize_length(values, len(timesteps))
 
-                ttt = forecasts.get("TTT")
-                if not ttt or not any(v is not None for v in ttt):
+                ttt = forecasts.get("TTT") or [None] * len(timesteps)
+                tx = forecasts.get("TX") or []
+                tn = forecasts.get("TN") or []
+                # Sparse maps avoid adding hundreds of nulls per station.
+                tx12 = {str(i): tx[i] for i in tx_indices if i < len(tx) and tx[i] is not None}
+                tn12 = {str(i): tn[i] for i in tn_indices if i < len(tn) and tn[i] is not None}
+                if not (any(v is not None for v in ttt) or tx12 or tn12):
                     elem.clear()
                     continue
 
@@ -211,7 +227,10 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     "elev_m": None if elev is None else round(elev, 1),
                     "key": key,
                 }
-                stations.append({**station_meta, "values": ttt})
+                stations.append({
+                    **station_meta, "values": ttt,
+                    "tx12": tx12, "tn12": tn12,
+                })
 
                 detail = {
                     **station_meta,
@@ -228,7 +247,11 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
     if not timesteps:
         raise RuntimeError("Keine MOSMIX-Zeitschritte gefunden.")
     if not stations:
-        raise RuntimeError("Keine MOSMIX-TTT-Punkte im Deutschlandausschnitt gefunden.")
+        raise RuntimeError("Keine MOSMIX-Temperaturpunkte im Deutschlandausschnitt gefunden.")
+    if not any(station["tx12"] for station in stations):
+        raise RuntimeError("Kein originaler MOSMIX-TX-Wert für 18 UTC gefunden.")
+    if not any(station["tn12"] for station in stations):
+        raise RuntimeError("Kein originaler MOSMIX-TN-Wert für 06 UTC gefunden.")
 
     seen = set()
     unique_models = []
@@ -241,7 +264,11 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
 
     return {
         "product": "DWD MOSMIX-L",
-        "parameter": "TTT",
+        "parameter": "TTT / TX / TN",
+        "extrema_reference": {
+            "TX": {"valid_hour_utc": 18, "period_hours": 12, "unit": "°C"},
+            "TN": {"valid_hour_utc": 6, "period_hours": 12, "unit": "°C"},
+        },
         "unit": "°C",
         "issue_time": issue_time,
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -252,6 +279,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
         "station_count": len(stations),
         "meteogram_parameters": {
             "TTT": {"label": "2-m-Temperatur", "unit": "°C"},
+            "TX": {"label": "Temperaturmaximum letzte 12 h, 18 UTC", "unit": "°C"},
+            "TN": {"label": "Temperaturminimum letzte 12 h, 06 UTC", "unit": "°C"},
             "Td": {"label": "2-m-Taupunkt", "unit": "°C"},
             "RR1c": {"label": "1-h-Niederschlag", "unit": "mm"},
             "FF": {"label": "Wind", "unit": "km/h"},
