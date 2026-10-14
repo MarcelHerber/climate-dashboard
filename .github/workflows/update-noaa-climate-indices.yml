@@ -8,6 +8,10 @@ on:
   push:
     paths:
       - ".github/workflows/update-noaa-climate-indices.yml"
+      - "scripts/update_climate_indices.py"
+      - "scripts/update_climate_indices_extra.py"
+      - "tests/test_climate_indices.py"
+      - "tests/test_climate_indices_extra.py"
 
 permissions:
   contents: write
@@ -104,6 +108,9 @@ jobs:
           assert len(p["qbo"]["u30"]["monthly"]) > 500
           assert len(p["qbo"]["u50"]["monthly"]) > 500
           assert len(p["mjo"]["daily"]) > 17000
+          from datetime import date, timedelta
+          assert date.fromisoformat(p["mjo"]["latest_date"]) >= date.today()-timedelta(days=14), "MJO-Archiv ist veraltet"
+          assert p["mjo"]["source_url"] == "https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
           print("NOAA/CPC-Daten geprüft, neues Pages-Artefakt wird gebaut.")
           PY
       - name: Schlankes Pages-Artefakt erzeugen
