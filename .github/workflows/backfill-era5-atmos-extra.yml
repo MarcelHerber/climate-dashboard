@@ -36,7 +36,20 @@ jobs:
         with:
           python-version: "3.13"
       - name: Planungsbibliotheken bereitstellen
-        run: python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow; then
+              exit 0
+            fi
+            echo "::warning::Python Paketserver vorübergehend nicht erreichbar; Installationsversuch $attempt/3"
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "::error::Paketinstallation auch nach drei Versuchen fehlgeschlagen"
+              exit 1
+            fi
+            sleep "$((attempt * 15))"
+          done
       - name: Nächsten noch nicht veröffentlichten Monatsblock wählen
         id: next
         shell: bash
@@ -95,9 +108,20 @@ jobs:
         with:
           python-version: "3.13"
       - name: CDS-Pakete und Kartenbibliotheken einrichten
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow; then
+              exit 0
+            fi
+            echo "::warning::Python Paketserver vorübergehend nicht erreichbar; Installationsversuch $attempt/3"
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "::error::Paketinstallation auch nach drei Versuchen fehlgeschlagen"
+              exit 1
+            fi
+            sleep "$((attempt * 15))"
+          done
       - name: Vorhandene Referenz erkennen
         id: existing
         shell: bash
@@ -168,9 +192,21 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: |
-          python -m pip install --upgrade pip
-          python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
+      - name: Python-Pakete mit Wiederholungen installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow; then
+              exit 0
+            fi
+            echo "::warning::Python Paketserver vorübergehend nicht erreichbar; Installationsversuch $attempt/3"
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "::error::Paketinstallation auch nach drei Versuchen fehlgeschlagen"
+              exit 1
+            fi
+            sleep "$((attempt * 15))"
+          done
       - name: Fertigen Monatsrelease wiederverwenden
         id: existing
         shell: bash
@@ -275,7 +311,20 @@ jobs:
         with:
           python-version: "3.13"
       - name: Python-Bibliotheken für Manifestprüfung bereitstellen
-        run: python -m pip install numpy xarray netCDF4 matplotlib cartopy pillow cdsapi
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pillow; then
+              exit 0
+            fi
+            echo "::warning::Python Paketserver vorübergehend nicht erreichbar; Installationsversuch $attempt/3"
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "::error::Paketinstallation auch nach drei Versuchen fehlgeschlagen"
+              exit 1
+            fi
+            sleep "$((attempt * 15))"
+          done
       - uses: actions/download-artifact@v4
         with:
           pattern: era5-atmos-extra-verified-*
