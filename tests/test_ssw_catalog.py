@@ -63,6 +63,15 @@ class SSWCatalogTests(unittest.TestCase):
         self.assertEqual(events,[])
         self.assertEqual(final,[])
 
+    def test_only_missing_feb29_does_not_discard_winter(self):
+        wind = wind_season(2019)
+        del wind[date(2020,2,29)]
+        reverse(wind,date(2020,1,10),5)
+        season,events,_=ssw.classify(2019,wind,date(2020,5,1))
+        self.assertEqual(season["status"],"leap_gap")
+        self.assertEqual(len(events),1)
+        self.assertTrue(season["missing_feb29"])
+
     def test_ongoing_season_not_confirmed(self):
         wind=wind_season(2026)
         season,events,_=ssw.classify(2026,wind,date(2026,12,1))
