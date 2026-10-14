@@ -21,12 +21,12 @@ concurrency:
 
 jobs:
   plan:
-    if: \${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
-      has_work: \${{ steps.next.outputs.has_work }}
-      month: \${{ steps.next.outputs.month }}
-      years: \${{ steps.next.outputs.years }}
+      has_work: ${{ steps.next.outputs.has_work }}
+      month: ${{ steps.next.outputs.month }}
+      years: ${{ steps.next.outputs.years }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -59,8 +59,8 @@ jobs:
     if: needs.plan.outputs.has_work == 'true'
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: \${{ github.token }}
-      GH_REPO: \${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -88,11 +88,11 @@ jobs:
       matrix:
         key: [thickness, tcwv, q850, wind250, lcc, mcc, hcc, blh]
     env:
-      GH_TOKEN: \${{ github.token }}
-      GH_REPO: \${{ github.repository }}
-      TARGET_MONTH: \${{ needs.plan.outputs.month }}
-      PRODUCT: \${{ matrix.key }}
-      CDSAPI_KEY: \${{ secrets.CDSAPI_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET_MONTH: ${{ needs.plan.outputs.month }}
+      PRODUCT: ${{ matrix.key }}
+      CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -114,7 +114,7 @@ jobs:
           FILE="month_$TARGET_MONTH"_"$PRODUCT.npz"
           ASSETS="$(gh_release_assets era5-climate-reference-1940-2025-v1)"
           if ! grep -Fxq "$FILE" <<< "$ASSETS"; then
-            test -n "\${CDSAPI_KEY:-}"
+            test -n "${CDSAPI_KEY:-}"
             printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
             chmod 600 "$HOME/.cdsapirc"
             mkdir -p .era5-climate-reference
@@ -136,12 +136,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        period: \${{ fromJSON(needs.plan.outputs.years) }}
+        period: ${{ fromJSON(needs.plan.outputs.years) }}
     env:
-      GH_TOKEN: \${{ github.token }}
-      GH_REPO: \${{ github.repository }}
-      PERIOD: \${{ matrix.period }}
-      CDSAPI_KEY: \${{ secrets.CDSAPI_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PERIOD: ${{ matrix.period }}
+      CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -160,8 +160,8 @@ jobs:
             sleep "$((n*15))"
           done
           source scripts/era5_gh_retry.sh
-          YEAR="\${PERIOD%%-*}"
-          MONTH="\${PERIOD#*-}"
+          YEAR="${PERIOD%%-*}"
+          MONTH="${PERIOD#*-}"
           TAG="era5-climate-$YEAR-v1"
           OUT=".era5-climate-year/$PERIOD"
           mkdir -p "$OUT"
@@ -179,12 +179,12 @@ jobs:
               --pattern "$PERIOD-manifest.json" --dir "$OUT"
             mv "$OUT/$PERIOD-manifest.json" "$OUT/manifest.json"
           else
-            test -n "\${CDSAPI_KEY:-}"
+            test -n "${CDSAPI_KEY:-}"
             printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
             chmod 600 "$HOME/.cdsapirc"
             mkdir -p .era5-climate-reference
             gh_retry gh release download era5-climate-reference-1940-2025-v1 \
-              --pattern "month_\${MONTH}_*.npz" --dir .era5-climate-reference
+              --pattern "month_${MONTH}_*.npz" --dir .era5-climate-reference
             test "$(find .era5-climate-reference -maxdepth 1 -name '*.npz' | wc -l)" -eq 8
             python scripts/era5_monthly_climatology.py render \
               --period "$PERIOD" --references .era5-climate-reference --output "$OUT"
@@ -206,8 +206,8 @@ jobs:
           test -s "$OUT/manifest.json"
       - uses: actions/upload-artifact@v4
         with:
-          name: era5-climate-verified-\${{ matrix.period }}
-          path: .era5-climate-year/\${{ matrix.period }}/manifest.json
+          name: era5-climate-verified-${{ matrix.period }}
+          path: .era5-climate-year/${{ matrix.period }}/manifest.json
           if-no-files-found: error
           retention-days: 14
 
@@ -262,8 +262,8 @@ jobs:
       - name: Weitere Archivmonate ohne Wartezeit anstoßen
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPO: \${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           python scripts/era5_monthly_climatology.py plan \
