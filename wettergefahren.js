@@ -302,5 +302,10 @@
         error.message+"). Keine simulierten Daten werden angezeigt.","error");
     }
   }
+  // Read-only snapshot bridge for the dedicated PNG export module.
+  window.iconEuHazardExportState = () => ({
+    map, data, decoded, currentPeriod, currentType, TYPES, SEVERITY, NAMES,
+    basemapIndex, paintGlyph
+  });
   load();
 })();
