@@ -6,6 +6,7 @@
 <title>Stratosphäre · 60° N zonaler Wind – Climate Dashboard</title>
 <meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="ssw_catalog.js?v=20261014-1"></script>
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Arial,Helvetica,sans-serif}
@@ -52,7 +53,18 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .ssw-lag{font-size:11px;background:#eef3f9;border:1px solid #dbe5ef;padding:4px 7px;border-radius:5px}
 .ssw-warning{font-size:12px;color:#77603c;margin-top:8px}
 @media(max-width:750px){.ssw-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ssw-details{grid-template-columns:1fr 1fr}}
-/* Kompakte Ansicht: Heatmap und SSW-Ereigniskarten ausblenden; Methodik und Datenquellen sichtbar lassen. */
+.ssw-catalog-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:13px 0}
+.ssw-catalog-stat{border:1px solid var(--line);background:#f8fafc;padding:12px;border-radius:9px;font-size:12px;color:var(--muted)}
+.ssw-catalog-stat strong{display:block;font-size:23px;color:var(--ink)}
+.ssw-catalog-chart{height:210px;margin:12px 0 20px}
+.ssw-catalog-table{overflow:auto;max-height:420px}
+.ssw-catalog-table table{border-collapse:collapse;width:100%;min-width:670px;font-size:12px}
+.ssw-catalog-table th,.ssw-catalog-table td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left}
+.ssw-catalog-table th{position:sticky;top:0;background:#edf3f9}
+.ssw-catalog-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.ssw-catalog-controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:700}
+@media(max-width:750px){.ssw-catalog-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ssw-catalog-chart{height:185px}}
+/* Kompakte Ansicht: Heatmap und ältere SSW-Ereigniskarten ausblenden; Methodik sichtbar lassen. */
 main > #heatmapCard, main > #sswEventsCard {display:none !important;}
 main > section.card.method {display:grid !important;}
 
@@ -129,6 +141,38 @@ main > section.card.method {display:grid !important;}
 <section class="card method">
 <div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
 <div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
+</section>
+<section class="card" id="sswArchiveCard">
+  <div class="levels-heading">
+    <div>
+      <h2>Polarwirbel · historischer SSW-Ereigniskatalog</h2>
+      <p>Windbasierte Major-SSW-Ereignisse aus täglichen NASA-MERRA-2-Analysen bei 60° N / 10 hPa. Nur vollständig geprüfte Winter, keine Modellprognosen.</p>
+    </div>
+    <button id="sswArchiveReload" class="btn" type="button">Neu laden</button>
+  </div>
+  <p class="info" id="sswArchiveStatus" role="status">Historische Winddaten werden geprüft …</p>
+  <div class="ssw-catalog-summary" aria-label="SSW-Statistik">
+    <div class="ssw-catalog-stat">Bestätigte Windereignisse<strong id="sswArchiveEventCount">–</strong></div>
+    <div class="ssw-catalog-stat">Vollständige Winter<strong id="sswArchiveWinterCount">–</strong></div>
+    <div class="ssw-catalog-stat">Jüngstes Ereignis<strong id="sswArchiveLastEvent">–</strong></div>
+    <div class="ssw-catalog-stat">Letzte Analyse<strong id="sswArchiveDataDate">–</strong></div>
+  </div>
+  <h3>Häufigkeit pro Winter</h3>
+  <div class="ssw-catalog-chart"><canvas id="sswArchiveChart" role="img" aria-label="Windbasierte Major-SSW-Ereignisse pro vollständigem Winter"></canvas></div>
+  <div class="ssw-catalog-controls">
+    <label>Winter<select id="sswArchiveWinter"><option value="">Alle Winter</option></select></label>
+    <label>Ereignisart<select id="sswArchiveType">
+      <option value="major">Windbasiertes Major SSW</option>
+      <option value="final">Ausgeschlossene finale Erwärmungen</option>
+    </select></label>
+    <button id="sswArchiveCsv" class="btn" type="button" disabled>CSV herunterladen</button>
+  </div>
+  <p class="legendnotes" id="sswArchiveCountLabel">Ereignisse werden geladen …</p>
+  <div class="ssw-catalog-table"><table>
+    <thead><tr><th>Winter</th><th>Zentraldatum</th><th>Klassifikation</th><th>Minimum der folgenden 30 Tage</th><th>Erste Ostwindphase</th><th>10-Tage-Windrückkehr</th></tr></thead>
+    <tbody id="sswArchiveRows"><tr><td colspan="6">Bitte Datenarchiv laden.</td></tr></tbody>
+  </table></div>
+  <p class="legendnotes" style="margin-top:15px"><strong>Methodik:</strong> Erstmalige Windumkehr zu Ostwind im November–März; 20 aufeinanderfolgende Westwindtage zur Trennung zweier Ereignisse; mindestens zehn aufeinanderfolgende Westwindtage bis einschließlich 30. April zur Abgrenzung der finalen Erwärmung. Unvollständige Winter gehen nicht in die Ereigniszählung ein. Dies ist eine windbasierte Diagnose, keine offizielle Warnung und keine Vorhersage. Referenz: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium</a>.</p>
 </section>
 <section class="card" id="heatmapCard">
   <div class="levels-heading">
