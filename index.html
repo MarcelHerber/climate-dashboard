@@ -1235,6 +1235,7 @@ button.action:hover{background:#1f2937}
           <div class="nav-menu-divider"></div>
           <div class="nav-menu-heading">Ozean &amp; Atmosphäre</div>
           <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='enso.html'">ENSO · El Niño / La Niña</button>
+          <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='meereis.html'">Meereis · Arktis &amp; Antarktis</button>
         </div>
       </div>
 
@@ -16593,7 +16594,8 @@ function initializeMobileTabNavigation(){
     ["zirkulation.html","Sonstiges · NAO, AO & Zirkulationsmuster"],
     ["enso.html","Sonstiges · ENSO / El Niño / La Niña"],
     ["qbo.html","Sonstiges · QBO"],
-    ["mjo.html","Sonstiges · MJO"]
+    ["mjo.html","Sonstiges · MJO"],
+    ["meereis.html","Sonstiges · Meereis Nord & Süd"]
   ].forEach(([href,label])=>{
     const option=document.createElement("option");
     option.value=href;
