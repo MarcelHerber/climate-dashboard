@@ -6,6 +6,7 @@
   let chart = null;
   let lastAnalysis = null;
   let sequence = 0;
+  let yearView = "recent";
   const fmt = new Intl.DateTimeFormat("de-DE", {day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC"});
 
   function iso(d) { return d.toISOString().slice(0,10); }
@@ -35,6 +36,23 @@
   function install() {
     const parent=document.getElementById("stationClimateDaysSummary");
     if (!parent || document.getElementById("stationThresholdPanel")) return;
+    if (!document.getElementById("stationThresholdStyle")) {
+      const style=document.createElement("style");
+      style.id="stationThresholdStyle";
+      style.textContent=[
+        ".station-threshold-view-tools{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:15px 0 9px}",
+        ".station-threshold-range{display:flex;gap:0;border:1px solid #cbd5df;border-radius:8px;overflow:hidden}",
+        ".station-threshold-range button{padding:8px 12px;background:#fff;border:0;border-right:1px solid #cbd5df;color:#334155;font-weight:700;cursor:pointer}",
+        ".station-threshold-range button:last-child{border-right:0}",
+        ".station-threshold-range button.active{background:#10213d;color:#fff}",
+        ".station-threshold-options{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#334155;font-size:13px}",
+        ".station-threshold-options label{display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}",
+        ".station-threshold-options input{accent-color:#2563a9}",
+        ".station-threshold-view-note{font-size:12px;color:#64748b;margin:3px 0 11px}",
+        "@media(max-width:700px){.station-threshold-range{width:100%}.station-threshold-range button{flex:1;padding:9px 6px;font-size:12px}}"
+      ].join("");
+      document.head.appendChild(style);
+    }
     const section=document.createElement("section");
     section.id="stationThresholdPanel";
     section.className="chart-container auto";
@@ -52,6 +70,10 @@
       '<div id="stationThresholdStatus" role="status" style="font-size:13px;color:#52606d;margin:12px 0">Station auswählen und auf „Auswerten“ klicken. Historische Tagesdaten werden bei Bedarf geladen.</div>'+
       '<div id="stationThresholdResults" hidden>'+
       '<div id="stationThresholdSummary" class="summary-box" style="margin:9px 0"></div>'+
+      '<div class="station-threshold-view-tools">'+
+      '<div class="station-threshold-range" role="group" aria-label="Angezeigte Jahre"><button id="stationThresholdRecent" class="active" type="button" aria-pressed="true">Letzte 40 Jahre</button><button id="stationThresholdAll" type="button" aria-pressed="false">Gesamte Messreihe</button></div>'+
+      '<div class="station-threshold-options"><label><input id="stationThresholdTrend" type="checkbox" checked> Trendlinie</label><label><input id="stationThresholdMedian" type="checkbox" checked> Median 1991–2020</label><label><input id="stationThresholdExtremes" type="checkbox"> Extremjahre markieren</label></div></div>'+
+      '<div id="stationThresholdViewNote" class="station-threshold-view-note"></div>'+
       '<div style="position:relative;height:405px"><canvas id="stationThresholdChart"></canvas></div>'+
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin:12px 0">'+
       '<button id="stationThresholdPNG" type="button" class="action">⬇ PNG</button>'+
@@ -65,6 +87,11 @@
     document.getElementById("stationThresholdPNG").addEventListener("click",exportPng);
     document.getElementById("stationThresholdPDF").addEventListener("click",exportPdf);
     document.getElementById("stationThresholdCSV").addEventListener("click",exportCsv);
+    document.getElementById("stationThresholdRecent").addEventListener("click",function(){setYearView("recent");});
+    document.getElementById("stationThresholdAll").addEventListener("click",function(){setYearView("all");});
+    ["stationThresholdTrend","stationThresholdMedian","stationThresholdExtremes"].forEach(function(id){
+      document.getElementById(id).addEventListener("change",function(){if(lastAnalysis)draw(lastAnalysis);});
+    });
     document.getElementById("stationClimateDaysStationSelect").addEventListener("change",function(){
       sequence++;
       document.getElementById("stationThresholdResults").hidden=true;
@@ -214,13 +241,54 @@
       if(token===sequence){setStatus("Auswertung nicht verfügbar: "+e.message);document.getElementById("stationThresholdResults").hidden=true;}
     }finally{if(token===sequence)button.disabled=false;}
   }
+  function setYearView(view) {
+    yearView = view === "all" ? "all" : "recent";
+    ["recent","all"].forEach(function(value){
+      const button=document.getElementById(value==="all"?"stationThresholdAll":"stationThresholdRecent");
+      const active=yearView===value;
+      button.classList.toggle("active",active);
+      button.setAttribute("aria-pressed",String(active));
+    });
+    if(lastAnalysis)draw(lastAnalysis);
+  }
+
+  function chartOptionsEnabled(id) {
+    return !!document.getElementById(id)?.checked;
+  }
+
+  function selectedYearRange(rows) {
+    const years=rows.map(function(row){return row.year;});
+    if(!years.length)return {first:1900,last:2026};
+    const last=years[years.length-1];
+    return {first:yearView==="all"?years[0]:Math.max(years[0],last-39),last:last};
+  }
+
+  function chartCalendarTicks(season) {
+    const bounds=periodBounds(2001,season);
+    const ticks=[];
+    for(let d=bounds.start;d<=bounds.end;d=advance(d)){
+      if(d.getUTCDate()===1 || (season!=="year" && d.getUTCDate()===15)){
+        ticks.push(Math.round((d-bounds.start)/86400000));
+      }
+    }
+    return ticks;
+  }
+
   function draw(result) {
-    const {station,cfg,rows,points,reference,trend}=result;
+    const {station,cfg,rows,points,reference}=result;
+    const range=selectedYearRange(rows);
+    const visible=points.filter(function(p){return p.year>=range.first && p.year<=range.last;});
+    const finished=visible.filter(function(p){return !p.provisional;});
+    const trend=regression(finished);
+    result.visibleTrend=trend;
+    result.visibleRange=range;
+    const showTrend=chartOptionsEnabled("stationThresholdTrend");
+    const showMedian=chartOptionsEnabled("stationThresholdMedian");
+    const showExtremes=chartOptionsEnabled("stationThresholdExtremes");
     const stat=document.getElementById("stationThresholdSummary");
     const med=median(reference.map(function(r){return r.doy;}));
-    const series=points.filter(function(x){return !x.provisional;});
-    const earliest=series.slice().sort(function(a,b){return a.doy-b.doy;})[0];
-    const latest=series.slice().sort(function(a,b){return b.doy-a.doy;})[0];
+    const earliest=finished.slice().sort(function(a,b){return a.doy-b.doy || a.year-b.year;})[0]||null;
+    const latest=finished.slice().sort(function(a,b){return b.doy-a.doy || a.year-b.year;})[0]||null;
     const labels=["Tmax","Tmin","Tmittel"];
     const ops={lt:"<",le:"≤",gt:">",ge:"≥"};
     const seasonLabels={autumn:"Herbst",spring:"Frühling",summer:"Sommer",winter:"Winter",year:"Kalenderjahr"};
@@ -228,34 +296,110 @@
     const trendText=trend ? (trend.slope*10).toLocaleString("de-DE",{maximumFractionDigits:1,minimumFractionDigits:1})+" Tage/Dekade" : "nicht ausreichend Daten";
     stat.innerHTML="<strong>"+htmlEscape(station.name)+"</strong> · "+htmlEscape(header)+
       "<div style='margin-top:8px'>Median 1991–2020: <strong>"+(med===null?"–":dayLabel(med,cfg.season))+
-      "</strong> ("+reference.length+" Jahre) · Linearer Trend: <strong>"+trendText+"</strong></div>"+
-      "<div style='margin-top:5px'>Frühester Beginn: <strong>"+(earliest?humanDate(earliest.first):"–")+
+      "</strong> ("+reference.length+" Jahre) · Linearer Trend "+range.first+"–"+range.last+": <strong>"+trendText+"</strong></div>"+
+      "<div style='margin-top:5px'>Frühester Beginn in der Auswahl: <strong>"+(earliest?humanDate(earliest.first):"–")+
       "</strong> · Spätester Beginn: <strong>"+(latest?humanDate(latest.first):"–")+"</strong></div>";
+
+    document.getElementById("stationThresholdViewNote").textContent=
+      "Diagramm "+range.first+"–"+range.last+" · "+visible.length+" Ereignisse · "+
+      "Jahr und genaues Datum beim Berühren eines Punkts · "+
+      "die Jahrestabelle darunter enthält weiterhin die vollständige Reihe.";
+
     if(chart){chart.destroy();chart=null;}
-    const data=[{type:"scatter",label:"Erster Schwellenwerttermin",data:points.map(function(r){return {x:r.year,y:r.doy,record:r};}),
-      pointRadius:4.2,pointHoverRadius:7,backgroundColor:"#1769c2",borderColor:"#1769c2"}];
-    if(trend&&series.length>=8){
-      const x0=Math.min.apply(null,series.map(function(p){return p.year;}));
-      const x1=Math.max.apply(null,series.map(function(p){return p.year;}));
-      data.push({type:"line",label:"Linearer Trend",data:[{x:x0,y:trend.slope*x0+trend.intercept},{x:x1,y:trend.slope*x1+trend.intercept}],
+    const extremeLabel=function(rec){
+      if(!showExtremes || !rec)return "";
+      if(rec===earliest && rec===latest)return "Extremjahr "+rec.year;
+      if(rec===earliest)return "Frühester: "+rec.year;
+      if(rec===latest)return "Spätester: "+rec.year;
+      return "";
+    };
+    const datasets=[{
+      type:"scatter",label:"Erster Schwellenwerttermin",
+      data:visible.map(function(rec){return {x:rec.year,y:rec.doy,record:rec};}),
+      order:1,showLine:false,
+      pointRadius:function(ctx){return extremeLabel(ctx.raw&&ctx.raw.record)?7:4.2;},
+      pointHoverRadius:8,
+      pointStyle:function(ctx){return extremeLabel(ctx.raw&&ctx.raw.record)?"rectRot":"circle";},
+      backgroundColor:function(ctx){
+        const rec=ctx.raw&&ctx.raw.record;
+        return rec===earliest&&showExtremes?"#0b806b":rec===latest&&showExtremes?"#c16512":"#1769c2";
+      },
+      borderColor:"#ffffff",borderWidth:1.1
+    }];
+    if(showTrend&&trend&&finished.length>=8){
+      const x0=Math.min.apply(null,finished.map(function(p){return p.year;}));
+      const x1=Math.max.apply(null,finished.map(function(p){return p.year;}));
+      datasets.push({type:"line",label:"Linearer Trend",order:2,
+        data:[{x:x0,y:trend.slope*x0+trend.intercept},{x:x1,y:trend.slope*x1+trend.intercept}],
         borderColor:"#c0392b",borderWidth:2,pointRadius:0,fill:false});
     }
-    if(med!==null&&points.length){
-      const x0=rows[0].year,x1=rows[rows.length-1].year;
-      data.push({type:"line",label:"Median 1991–2020",data:[{x:x0,y:med},{x:x1,y:med}],
-        borderColor:"#64748b",borderDash:[6,5],borderWidth:1.4,pointRadius:0});
+    if(showMedian&&med!==null&&visible.length){
+      datasets.push({type:"line",label:"Median 1991–2020",order:3,
+        data:[{x:range.first,y:med},{x:range.last,y:med}],
+        borderColor:"#64748b",borderDash:[6,5],borderWidth:1.5,pointRadius:0,fill:false});
     }
-    const totalDays=Math.round((periodBounds(2001,cfg.season).end-periodBounds(2001,cfg.season).start)/86400000)+1;
+    const ticks=chartCalendarTicks(cfg.season);
+    const maxDay=Math.round((periodBounds(2001,cfg.season).end-periodBounds(2001,cfg.season).start)/86400000);
     chart=new Chart(document.getElementById("stationThresholdChart"),{
-      type:"scatter",data:{datasets:data},
-      options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
-        scales:{x:{type:"linear",title:{display:true,text:"Jahr"},ticks:{precision:0,maxTicksLimit:14}},
-          y:{min:0,max:Math.max(totalDays-1,...points.map(function(r){return r.doy;})),
-            reverse:true,title:{display:true,text:"Datum des ersten Auftretens"},
-            ticks:{stepSize:10,callback:function(value){return dayLabel(value,cfg.season);}}}},
-        plugins:{legend:{display:true,position:"bottom"},
-          tooltip:{callbacks:{title:function(items){const p=items[0]&&items[0].raw;return p&&p.record?String(p.record.year):"";},
-            label:function(ctx){return ctx.raw.record?"Beginn "+humanDate(ctx.raw.record.first)+(ctx.raw.record.provisional?" (vorläufig)":""):ctx.dataset.label;}}}}}
+      type:"scatter",
+      data:{datasets:datasets},
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+        interaction:{mode:"nearest",intersect:true},
+        scales:{
+          x:{
+            type:"linear",min:range.first-0.8,max:range.last+0.8,
+            title:{display:true,text:"Jahr"},
+            grid:{color:"rgba(148,163,184,.16)"},
+            ticks:{
+              maxTicksLimit:window.innerWidth<700?6:11,
+              precision:0,
+              callback:function(value){return Number.isInteger(value)?String(value):"";}
+            }
+          },
+          y:{
+            min:0,max:maxDay,reverse:true,
+            title:{display:true,text:"Datum des ersten Auftretens"},
+            grid:{color:"rgba(148,163,184,.22)"},
+            afterBuildTicks:function(scale){
+              scale.ticks=ticks.map(function(value){return {value:value};});
+            },
+            ticks:{autoSkip:false,padding:8,
+              callback:function(value){return dayLabel(value,cfg.season);}}
+          }
+        },
+        plugins:{
+          // ChartDataLabels is registered globally by the dashboard. Never
+          // print point objects; permit only the two explicitly chosen extrema.
+          datalabels:{
+            display:function(ctx){
+              return ctx.datasetIndex===0 &&
+                !!extremeLabel(ctx.dataset.data[ctx.dataIndex]?.record);
+            },
+            formatter:function(value){return extremeLabel(value&&value.record);},
+            align:"top",anchor:"end",offset:5,clamp:true,
+            font:{size:10,weight:"bold"},color:"#334155",
+            backgroundColor:"rgba(255,255,255,.93)",
+            borderColor:"rgba(100,116,139,.28)",borderWidth:1,borderRadius:4,
+            padding:3
+          },
+          legend:{display:true,position:"bottom",labels:{boxWidth:15,usePointStyle:true}},
+          tooltip:{
+            filter:function(item){return !!item.raw?.record;},
+            callbacks:{
+              title:function(items){
+                const rec=items[0]&&items[0].raw&&items[0].raw.record;
+                return rec?String(rec.year):"";
+              },
+              label:function(ctx){
+                const rec=ctx.raw&&ctx.raw.record;
+                return rec?"Erster Tag: "+humanDate(rec.first)+" · letzter Serientag: "+
+                  humanDate(rec.last)+(rec.provisional?" (vorläufig)":""):"";
+              }
+            }
+          }
+        }
+      }
     });
     document.querySelector("#stationThresholdTable tbody").innerHTML=
       rows.map(function(r){return "<tr><td>"+r.year+"</td><td>"+(r.first?humanDate(r.first):"–")+
