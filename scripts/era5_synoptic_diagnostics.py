@@ -145,7 +145,10 @@ def build_day(day_str: str, folder: Path):
     counts={}
     for key,(source,op,value,label) in THRESHOLDS.items():
         raw=cubes[source]
-        counts[key]=np.sum(raw>=value if op==">=" else raw<=value,axis=0).astype("uint8")
+        finite=np.isfinite(raw)
+        hit=(raw>=value if op==">=" else raw<=value)&finite
+        counts[key]=np.sum(hit,axis=0).astype("uint8")
+        counts["valid_"+key]=np.sum(finite,axis=0).astype("uint8")
     countfile=folder/f"{day}-hourly-counts.npz"
     np.savez_compressed(countfile,lat=lat.astype("float32"),lon=lon.astype("float32"),
                         date=np.str_(day_str),samples=np.int16(24),**counts)
@@ -157,6 +160,7 @@ def build_day(day_str: str, folder: Path):
         "source":"ERA5 hourly reanalysis","resolution":"0.5°",
         "hourly_samples":24,"products":result,
         "cin_policy":"Missing CIN is retained as missing; omit image if valid-grid coverage is below 5%.",
+        "event_count_policy":"Hourly exceedances and per-grid valid-hour denominators are stored separately.",
         "hourly_counts_file":f"{day_str}-hourly-counts.npz",
         "thresholds":{key:{"label":v[3],"operator":v[1],"value":v[2]}
                        for key,v in THRESHOLDS.items()},
@@ -170,6 +174,7 @@ def monthly_stats(month: str, directory: Path, output: Path):
     yy,mm=map(int,month.split("-"))
     days=calendar.monthrange(yy,mm)[1]
     counts={}
+    valid_hours={}
     lat=lon=None
     for dd in range(1,days+1):
         date_str=f"{yy:04d}-{mm:02d}-{dd:02d}"
@@ -183,17 +188,27 @@ def monthly_stats(month: str, directory: Path, output: Path):
                 lat=np.asarray(pack["lat"])
                 lon=np.asarray(pack["lon"])
                 counts={key:np.zeros((len(lat),len(lon)),dtype="float64") for key in THRESHOLDS}
+                valid_hours={key:np.zeros((len(lat),len(lon)),dtype="float64") for key in THRESHOLDS}
             else:
                 valid_grid(lon,lat,pack["lon"],pack["lat"])
             for key in THRESHOLDS:
                 arr=np.asarray(pack[key])
                 if np.any(arr>24):raise ValueError(f"Bad counts for {date_str}/{key}")
+                nvalid=np.asarray(pack["valid_"+key])
+                if np.any(nvalid>24) or np.any(arr>nvalid):
+                    raise ValueError(f"Invalid valid-hour counters: {date_str}/{key}")
                 counts[key]+=arr
+                valid_hours[key]+=nvalid
     output.mkdir(parents=True,exist_ok=True)
     products={}
     denominator=days*24
     for key,total in counts.items():
-        field=total*100./denominator
+        grid_valid=valid_hours[key]
+        field=np.full(total.shape,np.nan,dtype="float64")
+        np.divide(total*100.,grid_valid,out=field,
+                  where=grid_valid>=np.ceil(denominator*.95))
+        if not np.isfinite(field).any():
+            raise RuntimeError(f"No reliable grid cells for monthly frequency: {month}/{key}")
         target=output/f"{month}-{key}.png"
         render_field(field,lat,lon,title=THRESHOLDS[key][3],
                      subtitle=f"{MONTH_NAMES[mm]} {yy} · Anteil aller {denominator} Stunden",
@@ -203,7 +218,9 @@ def monthly_stats(month: str, directory: Path, output: Path):
             "file":f"https://github.com/{REPO}/releases/download/era5-synoptic-events-{yy}-v1/{target.name}",
             "denominator_hours":denominator}
     manifest={"ready":True,"month":month,"hours":denominator,
-              "sample_coverage":"100%","grid":"0.5°","products":products}
+              "sample_coverage":"100% of expected hourly timestamps",
+              "min_grid_hour_coverage":0.95,
+              "grid":"0.5°","products":products}
     (output/"manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,
         indent=2,allow_nan=False)+"\n",encoding="utf-8")
 
