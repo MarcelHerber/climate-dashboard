@@ -124,7 +124,7 @@ if(typeof module!=="undefined"&&module.exports) {
 if(!root||!root.document)return;
 const $=id=>document.getElementById(id);
 const ID={gfs:"cpsCompareGfs","ifs-atl":"cpsCompareIfs","aifs-atl":"cpsCompareAifs"};
-let selection=null,whole=null,matched=null,chartMap={},lastKey=null,validTime=null;
+let selection=null,whole=null,matched=null,chartMap={},lastKey=null,lastData=null,validTime=null;
 const cpsBackground={
  id:"cpsSharedRegions",
  beforeDraw(chart, _args,options){
@@ -286,10 +286,10 @@ function update(selected,allData,hour) {
  validTime=prior?.time||selection.points?.[0]?.time||null;
  const key=[selection.model,selection.id,selection.run,whole.tracks.length,
    $("cpsCompareMetric").value].join("|");
- if(lastKey===key&&matched){
+ if(lastKey===key&&lastData===whole&&matched){
    markTime();return;
  }
- lastKey=key;
+ lastKey=key;lastData=whole;
  matched=matchModels(selection,whole.tracks);
  const available=Object.values(matched.models).filter(t=>t?.points?.some(hasCps));
  if(!available.length){
