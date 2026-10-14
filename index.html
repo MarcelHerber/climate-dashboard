@@ -1151,7 +1151,8 @@ button.action:hover{background:#1f2937}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
-<link rel="stylesheet" href="era5_europe.css?v=2">\n<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
+<link rel="stylesheet" href="era5_europe.css?v=2">
+<link rel="stylesheet" href="era5_synoptic.css?v=20261014-synoptic-v1">\n<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
 <link rel="stylesheet" href="dashboard_cleanup.css?v=20261014-gebietsmittel3">
 </head>
 <body>
@@ -1213,6 +1214,7 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeStations')">Europa-Stationen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Atmosphere')">ERA5 Atmosphäre</button>
+          <button class="tab-button" id="era5SynopticNav" hidden data-nav-group="europe" onclick="switchTab('era5Synoptic')">ERA5 Tageskarten &amp; Ereignisse</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
           <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='stratosphaere.html'">Stratosphäre</button>
           <div class="nav-menu-divider"></div>
@@ -1528,6 +1530,48 @@ button.action:hover{background:#1f2937}
         <div class="era5-atmos-kpi"><div class="era5-atmos-kpi-label">Top-3 Fläche</div><div id="era5AtmosTop3" class="era5-atmos-kpi-value">–</div><div id="era5AtmosTop3Detail" class="era5-atmos-kpi-detail"></div></div>
       </div>
       <div class="era5-atmos-source">Quelle: Copernicus Climate Change Service / ECMWF · ERA5 monthly averaged data on pressure levels and single levels.</div>
+    </aside>
+  </div>
+</div>
+
+
+<!-- ================= ERA5 TAGESKARTEN UND EREIGNISSTATISTIK ================= -->
+<div id="era5Synoptic" class="tab-content">
+  <div class="section-header">
+    <h2>ERA5 – Synoptische Tageskarten und Ereignishäufigkeiten</h2>
+    <p>Zwei getrennte Auswertungen: reale ERA5-Analysen um 12 UTC für dynamische Wetterprozesse sowie monatliche Schwellenhäufigkeiten, die ausschließlich aus vollständig geprüften stündlichen Messfeldern berechnet werden.</p>
+    <span class="section-status">ERA5 stündlich · 0,5° Pilot · Copernicus C3S / ECMWF</span>
+  </div>
+  <div id="era5SynopticStatus" class="era5-synoptic-status">Geprüfte ERA5-Datensätze werden gesucht …</div>
+  <div class="controls era5-synoptic-controls">
+    <div class="control-group">
+      <label for="era5SynopticMode">Darstellung</label>
+      <select id="era5SynopticMode">
+        <option value="daily">Tageskarte · 12 UTC</option>
+        <option value="monthly">Monatliche Ereignishäufigkeit</option>
+      </select>
+    </div>
+    <div class="control-group" id="era5SynopticDateControl">
+      <label for="era5SynopticDate">Datum / Monat</label>
+      <select id="era5SynopticDate"></select>
+    </div>
+    <div class="control-group">
+      <label for="era5SynopticParameter">Parameter / Ereignis</label>
+      <select id="era5SynopticParameter"></select>
+    </div>
+  </div>
+  <div class="era5-synoptic-layout">
+    <div class="era5-synoptic-panel">
+      <h3 id="era5SynopticTitle">ERA5-Synoptik</h3>
+      <p id="era5SynopticNote">Nur nach Datenprüfung freigeschaltete Karten.</p>
+      <img id="era5SynopticImage" alt="ERA5-Synoptikkarte" hidden>
+      <a id="era5SynopticDownload" target="_blank" rel="noopener noreferrer" hidden>Originalkarte öffnen / PNG speichern</a>
+    </div>
+    <aside class="era5-synoptic-panel">
+      <h3>Wissenschaftliche Einordnung</h3>
+      <p class="era5-synoptic-method"><strong>Tageskarten:</strong> einzelne ERA5-Analysen zum synoptischen Termin 12 UTC. Das ist kein Tagesmittel.</p>
+      <p class="era5-synoptic-method"><strong>Ereignisstatistiken:</strong> Häufigkeiten von CAPE, IVT, Jet, Hebung und Vorticity aus 24 stündlichen Feldern pro Tag. Ein Monat erscheint nur mit vollständiger Stundenabdeckung.</p>
+      <p class="era5-synoptic-method"><strong>Auflösung:</strong> zunächst 0,5° zur ressourcenschonenden Erprobung. Quelle: ERA5 Reanalysis, Copernicus/ECMWF.</p>
     </aside>
   </div>
 </div>
@@ -4118,6 +4162,7 @@ function switchTab(tab,{persist=true}={}){
   if(tab==="hyras") ensureHyrasLoaded();
   if(tab==="era5Europe"){ensureEra5EuropeLoaded();ensureEra5RunningTemperatureRanksLoaded().catch(()=>{});}
   if(tab==="era5Atmosphere") ensureEra5AtmosphereLoaded();
+  if(tab==="era5Synoptic") ensureEra5SynopticLoaded();
   if(tab==="europeStations") ensureEuropeStationMap();
   if(tab==="state-monthly-ensemble") window.ensureStateMonthlyEnsembleLoaded?.();
   if(tab==="monthly") window.setTimeout(()=>{
@@ -17228,7 +17273,8 @@ hyrasSwitchParameter=async function(){
 <script src="monthly_frequency.js?v=20261014-freshness1"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
 <script src="mosmix.js?v=20261014-interval-export-v1"></script>
-<script src="station_thresholds.js?v=20261014-season-edge-buffer-v5"></script>\n<script src="era5_europe.js?v=20261014-archive-years-and-months"></script>
+<script src="station_thresholds.js?v=20261014-season-edge-buffer-v5"></script>\n<script src="era5_europe.js?v=20261014-climatology-v1"></script>
+<script src="era5_synoptic.js?v=20261014-synoptic-v1"></script>
 <script src="monthly_layout.js?v=20261014-gebietsmittel2"></script>
 </body>
 </html>
