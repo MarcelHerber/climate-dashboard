@@ -14,7 +14,7 @@ class DashboardCleanupTests(unittest.TestCase):
         cls.builder = (ROOT / "scripts/build_pages_site.sh").read_text(encoding="utf-8")
 
     def test_stylesheet_is_part_of_pages_artifact(self):
-        self.assertIn('href="dashboard_cleanup.css?v=20261014-1"', self.page)
+        self.assertIn('href="dashboard_cleanup.css?v=20261014-gebietsmittel2"', self.page)
         self.assertIn("  dashboard_cleanup.css\n", self.builder)
 
     def test_all_europe_modules_still_accessible(self):
