@@ -1,0 +1,80 @@
+/* Climate Dashboard Deutschland – behutsame Layoutbereinigung.
+   Navigation und Lesbarkeit; keine Änderungen an Messdaten oder Diagrammlogik. */
+:root{--dashboard-radius:12px}
+
+/* Mehr Platz für die eigentlichen Inhalte statt eines hohen Menübands. */
+.dashboard-header-inner{
+  min-height:70px;
+  grid-template-columns:minmax(225px,1fr) auto minmax(150px,1fr);
+  gap:16px;
+  padding-inline:clamp(18px,2.5vw,38px);
+}
+.dashboard-brand-title{font-size:clamp(19px,1.55vw,25px);line-height:1.15}
+.primary-nav{gap:1px}
+.primary-nav .nav-link,
+.primary-nav .nav-dropdown-toggle{padding-inline:13px;font-size:14px}
+.header-actions{gap:3px}
+.header-action{padding:9px 8px}
+
+/* Die umfangreichen Menüs bleiben scrollbar und sind nach Themen gegliedert. */
+.nav-dropdown-menu{
+  width:max-content;
+  min-width:252px;
+  max-width:min(330px,calc(100vw - 24px));
+  max-height:min(73vh,610px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  border-radius:12px;
+  padding:9px;
+}
+.nav-dropdown-menu .nav-menu-heading{
+  margin-top:4px;
+  padding:9px 11px 4px;
+  color:#536579;
+  font-size:11px;
+  letter-spacing:.055em;
+}
+.nav-dropdown-menu .nav-menu-heading:first-child{margin-top:0}
+.nav-dropdown-menu .tab-button{padding:9px 12px;line-height:1.35}
+.nav-dropdown-menu .nav-menu-divider{margin:9px 5px 5px}
+.nav-dropdown-menu .tab-button:focus-visible,
+.primary-nav button:focus-visible,
+.header-actions button:focus-visible,
+.overview-quicklink:focus-visible{
+  outline:2px solid #176aa6;
+  outline-offset:2px;
+}
+
+/* Karten und Eingaben optisch zusammenführen, ohne Chart-Maße zu verändern. */
+.dashboard-main{padding-inline:clamp(16px,2.5vw,38px)}
+.dashboard-main .section-header,
+.dashboard-main .overview-card,
+.dashboard-main .controls{
+  border-radius:var(--dashboard-radius);
+}
+.dashboard-main .controls{gap:12px;padding:14px 16px}
+.dashboard-main .control-group label{line-height:1.35}
+.dashboard-main .section-header p{max-width:95ch}
+.dashboard-main .overview-page-header{margin-bottom:16px}
+.dashboard-main .overview-quicklink{border-radius:10px}
+
+/* Mittlere Bildschirmbreiten: Titel, Menü und Datenstand ohne Überlappung. */
+@media (min-width:801px) and (max-width:1320px){
+  .dashboard-header-inner{grid-template-columns:minmax(180px,1fr) auto auto;gap:8px;padding-inline:16px}
+  .dashboard-brand-title{font-size:19px;white-space:normal}
+  .primary-nav .nav-link,
+  .primary-nav .nav-dropdown-toggle{padding-inline:9px;font-size:13px}
+  .header-action .action-label{display:none}
+  .nav-dropdown-menu{max-width:min(320px,calc(100vw - 20px))}
+}
+@media(max-width:800px){
+  .dashboard-header-inner{min-height:64px;padding-inline:16px}
+  .dashboard-main{padding-inline:14px}
+  .mobile-tab-navigation select{min-height:44px;border-radius:9px}
+}
+@media(max-width:580px){
+  .dashboard-main .section-header,
+  .dashboard-main .overview-card{border-radius:10px}
+  .dashboard-main .controls{padding:12px;gap:10px}
+  .dashboard-main .control-group{min-width:min(100%,170px)}
+}
