@@ -355,6 +355,19 @@
     ].join("-");
   }
 
+  function mosmixAxisTime(index) {
+    const iso = data && data.timesteps && data.timesteps[index];
+    if (!iso) return null;
+    const parts = berlinDateParts(iso);
+    if (!parts) return null;
+    const weekday = new Intl.DateTimeFormat("de-DE", {
+      timeZone:"Europe/Berlin",weekday:"short"
+    }).format(new Date(iso)).replace(/\\.$/, "");
+    const day = String(parts.day).padStart(2,"0");
+    const month = String(parts.month).padStart(2,"0");
+    return {hour:parts.hour,dayLabel:weekday+" "+day+"."+month+"."};
+  }
+
   function baseChartOptions(yTitle) {
     return {
       responsive:true,
@@ -367,7 +380,33 @@
         datalabels:{display:false}
       },
       scales:{
-        x:{ticks:{maxTicksLimit:12,maxRotation:0,autoSkip:true},grid:{display:false}},
+        x:{
+          ticks:{
+            autoSkip:false,maxRotation:0,minRotation:0,padding:8,
+            font:{size:11},
+            callback:function(value,index) {
+              const t = mosmixAxisTime(index);
+              if (!t) return "";
+              // Show the date once per day, and 00/12 local time only.
+              if (t.hour === 0) return [t.dayLabel,"00 Uhr"];
+              if (t.hour === 12 && window.innerWidth >= 700 &&
+                  data.timesteps.length <= 120) return "12 Uhr";
+              return "";
+            }
+          },
+          grid:{
+            drawTicks:true,
+            color:function(ctx) {
+              const t = mosmixAxisTime(ctx.index);
+              return t && t.hour === 0 ? "rgba(100,116,139,.38)" :
+                t && t.hour === 12 ? "rgba(148,163,184,.16)" : "rgba(0,0,0,0)";
+            },
+            lineWidth:function(ctx) {
+              const t = mosmixAxisTime(ctx.index);
+              return t && t.hour === 0 ? 1.5 : 0.8;
+            }
+          }
+        },
         y:{title:{display:true,text:yTitle}}
       }
     };
