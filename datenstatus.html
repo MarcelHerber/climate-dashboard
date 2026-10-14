@@ -66,7 +66,7 @@ footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-
 <label>Suche<input id="filterSearch" type="search" placeholder="DWD, ERA5, Meereis …"></label>
 </div>
 <div class="scroll"><table><thead><tr><th>Datensatz</th><th>Letzter Datenstand</th><th>Archiv aktualisiert</th><th>Abdeckung und Hinweis</th><th>Status</th></tr></thead><tbody id="rows"><tr><td colspan="5">Daten werden geladen …</td></tr></tbody></table></div>
-<div class="legend"><span><b>Aktuell:</b> innerhalb einer produktspezifischen Aktualisierungstoleranz</span><span><b>Unvollständig:</b> bekannter fehlender Archivbestand</span><span><b>Verzögert:</b> letzter Datenstand überschreitet die Toleranz</span><span><b>Nicht prüfbar:</b> keine belastbaren Metadaten</span></div>
+<div class="legend"><span><b>Aktuell:</b> letzter Datenstand oder Modelllauf innerhalb einer produktspezifischen Toleranz</span><span><b>Unvollständig:</b> bekannter fehlender Archivbestand</span><span><b>Verzögert:</b> letzter Datenstand überschreitet die Toleranz</span><span><b>Nicht prüfbar:</b> keine belastbaren Metadaten</span></div>
 <p class="footnote">Zeitangaben zur Archiv-Erstellung in UTC; Messdaten stammen aus den angegebenen Quellarchiven. Eine aktuelle Tagesmeldung belegt nicht die historische Vollständigkeit. Monatsdaten werden getrennt von Tagesdaten bewertet. Der verfügbare Messzeitraum ist keine Prognose.</p>
 </section>
 </main>
@@ -85,7 +85,11 @@ const pages={
  dwd_monthly:"index.html",dwd_daily:"index.html",station_records:"index.html",
  station_precip:"index.html",station_climate_days:"index.html",station_heatwaves:"index.html",
  snow:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
- ice_north:"meereis.html",ice_south:"meereis.html"
+ ice_north:"meereis.html",ice_south:"meereis.html",
+ mosmix:"index.html",icon_hazards:"wettergefahren.html",ensembles:"index.html",
+ sst_europe:"index.html",sst_oceans:"index.html",
+ nao:"zirkulation.html",ao:"zirkulation.html",enso:"enso.html",soi_mei:"enso.html",
+ qbo:"qbo.html",circulation:"zirkulation.html",mjo:"mjo.html",noaa_indices:"zirkulation.html"
 };
 function textCell(tr,txt,cls){
  const td=tr.insertCell();td.textContent=txt==null?"–":String(txt);
