@@ -31,6 +31,8 @@ required_root_files=(
   t850_ensembles.css
   era5_europe.js
   era5_europe.css
+  era5_synoptic.js
+  era5_synoptic.css
   state_monthly_ensemble.js
   state_monthly_ensemble.css
   monthly_frequency.js
