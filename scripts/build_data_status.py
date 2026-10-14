@@ -197,6 +197,14 @@ def add_climate_indices(items):
         "Monatsangabe ist das Zentrum der überlappenden 3-Monatsperiode",
         cadence="monthly", allowed_delay=3,
         incomplete=min(len(oni.get("seasons") or []),len(roni.get("seasons") or []))<300))
+    extra = p.get("enso_extra") or {}
+    soi, mei = extra.get("soi") or {}, extra.get("mei") or {}
+    items.append(result("soi_mei", "ENSO · SOI / MEI.v2", "Indizes",
+        common_latest(soi.get("latest_month"), mei.get("latest_month")), stamp,
+        f"SOI: {len(soi.get('monthly') or [])} · MEI.v2: {len(mei.get('monthly') or [])} Monatswerte",
+        "Monatliche ENSO-Indizes; Datenstand des älteren Produkts",
+        cadence="monthly", allowed_delay=4,
+        incomplete=min(len(soi.get("monthly") or []),len(mei.get("monthly") or []))<300))
     qbo = p.get("qbo") or {}
     q30,q50=qbo.get("u30") or {},qbo.get("u50") or {}
     items.append(result("qbo", "QBO · 30 / 50 hPa", "Indizes",
@@ -293,6 +301,11 @@ def build(remote=None):
 
     add_climate_indices(items)
     add_external(items, remote or {})
+    # Ensembles are fetched per chosen location/model in the browser, not as a
+    # central saved archive. No representative run date can be honestly asserted.
+    items.append(result("ensembles", "Modell-Ensembles", "Vorhersagen", None, None,
+        "ECMWF, AIFS, ICON-EU EPS und GEFS · standortbezogen",
+        "Vorhersagedaten werden beim Ortsaufruf geladen; kein zentraler Modelllauf-Nachweis"))
 
     status_counts = {key: sum(x["status"] == key for x in items)
                      for key in ("current", "incomplete", "delayed", "unknown")}
