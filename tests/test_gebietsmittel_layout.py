@@ -36,7 +36,7 @@ class GebietsmittelLayoutTests(unittest.TestCase):
                   "regionalDetailChart","regionalDetailDiffChart","regionalRankingBody",
                   "regionalReportText","monthlyAnomalyTable","monthlyAbsoluteAnomalyCard",
                   "monthlyAbsoluteAnomalyTable")
-        ids=re.findall(r'\\bid="([^"]+)"',m)
+        ids=re.findall(r'\bid="([^"]+)"',m)
         self.assertEqual(len(ids),len(set(ids)))
         for id in expected:
             with self.subTest(element=id):
@@ -49,7 +49,7 @@ class GebietsmittelLayoutTests(unittest.TestCase):
         m=self.monthly
         for tag in ("div","section","details","nav"):
             with self.subTest(tag=tag):
-                self.assertEqual(len(re.findall(r"<"+tag+r"(?:\\s|>)",m)),
+                self.assertEqual(len(re.findall(r"<"+tag+r"(?:\s|>)",m)),
                                  m.count("</"+tag+">"))
         self.assertEqual(m.count("<details"),3)
         self.assertEqual(m.count("</details>"),3)
@@ -66,8 +66,8 @@ class GebietsmittelLayoutTests(unittest.TestCase):
     def test_files_published_by_pages(self):
         self.assertIn('href="dashboard_cleanup.css?v=20261014-gebietsmittel2"',self.page)
         self.assertIn('src="monthly_layout.js?v=20261014-gebietsmittel2"',self.page)
-        self.assertIn("  dashboard_cleanup.css\\n",self.builder)
-        self.assertIn("  monthly_layout.js\\n",self.builder)
+        self.assertIn("  dashboard_cleanup.css\n",self.builder)
+        self.assertIn("  monthly_layout.js\n",self.builder)
         self.assertEqual(self.css.count("{"),self.css.count("}"))
 
 
