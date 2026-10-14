@@ -2,7 +2,7 @@ name: IBTrACS Global ACE aktualisieren
 on:
   workflow_dispatch:
   schedule:
-    - cron: '37 10 12 * *'
+    - cron: '37 10 * * *'
   push:
     paths:
       - scripts/update_ace_global.py
