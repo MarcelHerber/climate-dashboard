@@ -35,6 +35,14 @@ class NOAAIndicesTests(unittest.TestCase):
         self.assertEqual(out[11],["1950-12","NDJ",0.5])
         self.assertEqual(out[12],["1951-01","DJF",0.5])
         self.assertEqual(out[-1],["2026-12","NDJ",0.5])
+        # ONI has an extra SST TOTAL field, unlike RONI.
+        oni="SEAS YR TOTAL ANOM\n"
+        for y in range(1950,2027):
+            for season in mod.SEASONS:
+                oni+=f"{season} {y} 25.90 -0.75\n"
+        oni_rows=mod.parse_enso_seasons(oni,"ONI")
+        self.assertEqual(oni_rows[0],["1950-01","DJF",-0.75])
+        self.assertEqual(oni_rows[-1],["2026-12","NDJ",-0.75])
 
     def test_monthly_gaps_are_not_invented(self):
         daily=[[f"2025-01-{n:02d}", 1.] for n in range(1,31)]
