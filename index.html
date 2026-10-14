@@ -1744,7 +1744,13 @@ button.action:hover{background:#1f2937}
       <label for="monthlyReferenceStart">Startjahr</label>
       <input id="monthlyReferenceStart" type="number" min="1881" max="1997" step="1" value="1951" inputmode="numeric">
     </div>
-    <div class="control-group">
+    <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
+  </div>
+
+  <details class="monthly-advanced" id="monthlyAdvancedSection">
+    <summary><span>Weitere Diagrammoptionen</span><small>Gleitendes Mittel und Glättung</small></summary>
+    <div class="monthly-advanced-content">
+<div class="control-group">
       <label for="monthlyRollingSelect">Gleitendes Mittel</label>
       <select id="monthlyRollingSelect">
         <option value="0">Aus</option>
@@ -1759,11 +1765,50 @@ button.action:hover{background:#1f2937}
       <label for="monthlyRollingYears">Fensterbreite</label>
       <input id="monthlyRollingYears" type="number" min="2" max="60" step="1" value="15" inputmode="numeric">
     </div>
-    <button class="action" onclick="resetMonthlyZoom()">Zoom zurücksetzen</button>
+    </div>
+  </details>
+
+  <nav class="monthly-section-navigation" aria-label="Gebietsmittel-Inhalte">
+    <button type="button" class="monthly-section-link" data-monthly-target="monthlyTimeSeries">Zeitreihen</button>
+    <button type="button" class="monthly-section-link" data-monthly-target="monthlyMapSection">Kartenvergleich</button>
+    <button type="button" class="monthly-section-link" data-monthly-target="monthlyTablesSection">Jahrestabellen</button>
+  </nav>
+
+
+  <section class="monthly-primary-output" id="monthlyTimeSeries" aria-label="Gebietsmittel im Zeitverlauf">
+    <div class="monthly-content-heading">
+      <div><h3>Entwicklung im Zeitverlauf</h3><p>Jahreswerte, Klimamittel, Rekorde und Abweichungen für das gewählte Gebiet.</p></div>
+    </div>
+<div class="chart-container">
+    <canvas id="monthlyChart"></canvas>
   </div>
 
+  <div class="chart-container auto">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <h4 id="monthlyClimateMeanTitle">Mittel 1991–2020</h4>
+        <div id="climateMean">–</div>
+      </div>
+      <div class="stat-card">
+        <h4>Top 3 höchste Werte</h4>
+        <ul id="top3High"></ul>
+      </div>
+      <div class="stat-card">
+        <h4>Top 3 niedrigste Werte</h4>
+        <ul id="top3Low"></ul>
+      </div>
+    </div>
+  </div>
 
-  <div class="chart-container auto regional-map-card">
+  <div class="chart-container">
+    <canvas id="monthlyDeviationChart"></canvas>
+  </div>
+  </section>
+
+  <details class="monthly-expand-section" id="monthlyMapSection">
+    <summary><span class="monthly-expand-title">Deutschland-Kartenvergleich</span><span class="monthly-expand-copy">Jahr A gegen Jahr B · Bundesländer, Ranglisten und Bericht</span></summary>
+    <div class="monthly-expand-body">
+<div class="chart-container auto regional-map-card">
     <div class="regional-map-heading">
       <div>
         <h2>Gebietsmittel-Kartenvergleich Deutschland</h2>
@@ -1920,33 +1965,13 @@ button.action:hover{background:#1f2937}
     </section>
     <p id="regionalMapNote" class="regional-map-note">Berlin nutzt das DWD-Gebietsmittel Brandenburg/Berlin; Hamburg und Bremen das DWD-Gebietsmittel Niedersachsen/Hamburg/Bremen, sofern keine eigenen DWD-Gebietsspalten vorliegen.</p>
   </div>
-
-  <div class="chart-container">
-    <canvas id="monthlyChart"></canvas>
-  </div>
-
-  <div class="chart-container auto">
-    <div class="stat-grid">
-      <div class="stat-card">
-        <h4 id="monthlyClimateMeanTitle">Mittel 1991–2020</h4>
-        <div id="climateMean">–</div>
-      </div>
-      <div class="stat-card">
-        <h4>Top 3 höchste Werte</h4>
-        <ul id="top3High"></ul>
-      </div>
-      <div class="stat-card">
-        <h4>Top 3 niedrigste Werte</h4>
-        <ul id="top3Low"></ul>
-      </div>
     </div>
-  </div>
+  </details>
 
-  <div class="chart-container">
-    <canvas id="monthlyDeviationChart"></canvas>
-  </div>
-
-  <div class="chart-container auto anomaly-table-card">
+  <details class="monthly-expand-section" id="monthlyTablesSection">
+    <summary><span class="monthly-expand-title">Historische Abweichungstabellen</span><span class="monthly-expand-copy">Alle Jahre und Zeiträume · prozentuale und absolute Abweichungen</span></summary>
+    <div class="monthly-expand-body">
+<div class="chart-container auto anomaly-table-card">
     <div class="anomaly-table-heading">
       <div>
         <h2 id="monthlyAnomalyTitle">Abweichungstabelle 1991–2020</h2>
@@ -1979,6 +2004,8 @@ button.action:hover{background:#1f2937}
     </div>
     <p id="monthlyAbsoluteAnomalyTableNote" class="anomaly-table-note"></p>
   </div>
+    </div>
+  </details>
 </div>
 
 <!-- ================= KLIMA-INDEX ================= -->
