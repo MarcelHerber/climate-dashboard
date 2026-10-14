@@ -1,0 +1,41 @@
+name: IBTrACS Global ACE aktualisieren
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 10 12 * *'
+  push:
+    paths:
+      - scripts/update_ace_global.py
+      - .github/workflows/update-ace-global.yml
+permissions:
+  contents: write
+jobs:
+  global-ace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build IBTrACS global ACE
+        run: python scripts/update_ace_global.py
+      - name: Commit data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ace/global.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update IBTrACS global ACE"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1
