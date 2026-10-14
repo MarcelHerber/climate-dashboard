@@ -6,10 +6,10 @@
 <meta name="color-scheme" content="light">
 <title>Meereisausdehnung · Arktis & Antarktis · Climate Dashboard</title>
 <link rel="stylesheet" href="climate_indices.css?v=1">
-<link rel="stylesheet" href="meereis.css?v=20261014-sea-v1">
+<link rel="stylesheet" href="meereis.css?v=20261014-sea-v2">
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script defer src="meereis.js?v=20261014-sea-v1"></script>
+<script defer src="meereis.js?v=20261014-sea-v2"></script>
 </head>
 <body>
 <header>
@@ -20,7 +20,7 @@
     <a href="enso.html">ENSO</a>
     <a href="qbo.html">QBO</a>
     <a href="mjo.html">MJO</a>
-    <a href="meereis.html" aria-current="page">Meereis</a>
+    <a href="index.html">Sonstiges</a>
   </nav>
 </header>
 <main>
@@ -48,6 +48,10 @@
     <div class="chart-box sea-ice-main-chart"><canvas data-ice-chart="extent" role="img" aria-label="Arktis Meereisausdehnung mit Mittel und Standardabweichung"></canvas></div>
     <h3 class="sea-ice-subheading">Abweichung vom Tagesmittel 1991–2020</h3>
     <div class="chart-box sea-ice-anomaly-chart"><canvas data-ice-chart="anomaly" role="img" aria-label="Arktis Meereis Abweichung von 1991–2020"></canvas></div>
+    <h3 class="sea-ice-subheading">Langfristige Entwicklung · jährliche Minima und Maxima</h3>
+    <p class="small">Jährliche Extremwerte der täglichen Meereisausdehnung seit 1979. Unvollständige Jahre einschließlich des laufenden Jahres werden für diese Statistik ausgelassen. Die gestrichelten Linien zeigen die Mittelwerte der jährlichen Minima und Maxima 1991–2020.</p>
+    <div class="chart-box sea-ice-longterm-chart"><canvas data-ice-chart="extremes" role="img" aria-label="Langfristige Meereis Minima und Maxima"></canvas></div>
+    <p class="small" data-ice-extreme-note></p>
     <p class="small" data-ice-footer></p>
   </section>
   <section class="panel" id="seaIceSouth" data-ice-region="south">
@@ -69,6 +73,10 @@
     <div class="chart-box sea-ice-main-chart"><canvas data-ice-chart="extent" role="img" aria-label="Antarktis Meereisausdehnung mit Mittel und Standardabweichung"></canvas></div>
     <h3 class="sea-ice-subheading">Abweichung vom Tagesmittel 1991–2020</h3>
     <div class="chart-box sea-ice-anomaly-chart"><canvas data-ice-chart="anomaly" role="img" aria-label="Antarktis Meereis Abweichung von 1991–2020"></canvas></div>
+    <h3 class="sea-ice-subheading">Langfristige Entwicklung · jährliche Minima und Maxima</h3>
+    <p class="small">Jährliche Extremwerte der täglichen Meereisausdehnung seit 1979. Unvollständige Jahre einschließlich des laufenden Jahres werden für diese Statistik ausgelassen. Die gestrichelten Linien zeigen die Mittelwerte der jährlichen Minima und Maxima 1991–2020.</p>
+    <div class="chart-box sea-ice-longterm-chart"><canvas data-ice-chart="extremes" role="img" aria-label="Langfristige Meereis Minima und Maxima"></canvas></div>
+    <p class="small" data-ice-extreme-note></p>
     <p class="small" data-ice-footer></p>
   </section>
   <section class="panel">
