@@ -17,6 +17,9 @@ required_root_files=(
   climate_advanced.js
   climate_indices.js
   climate_indices.css
+  meereis.html
+  meereis.css
+  meereis.js
   stratosphere_temperature.js
   stratosphere_ssw_comparison.js
   tiefdruck_tracker.html
@@ -230,6 +233,16 @@ if [[ -s climate_indices/index.json ]]; then
   echo "NOAA-Zirkulations- und ENSO-Indizes in Pages-Artefakt übernommen."
 else
   echo "HINWEIS: NOAA-Indexarchiv noch nicht erstellt."
+fi
+
+# NSIDC daily sea ice v4: compact 1978-present extent and 1991–2020
+# climatology. First deploy can render a status until initial backfill finishes.
+if [[ -s sea_ice/index.json ]]; then
+  mkdir -p _site/sea_ice
+  cp sea_ice/index.json _site/sea_ice/index.json
+  echo "NSIDC Arktis/Antarktis Daten im Pages-Artefakt enthalten."
+else
+  echo "HINWEIS: NSIDC-Archiv wird durch den ersten Meereis-Workflow erzeugt."
 fi
 
 touch _site/.nojekyll
