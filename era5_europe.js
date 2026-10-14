@@ -110,7 +110,14 @@ function era5AtmosFillParameters(){
 }
 
 async function era5AtmosChangeParameter(){
-  era5AtmosRender();
+  const key=document.getElementById("era5AtmosParameter")?.value;
+  // The first page view shows only the newest four base products. When
+  // choosing a verified additional atlas, load that period's manifests.
+  if(key&&!era5AtmosPayload?.products?.[key]){
+    await era5AtmosChangePeriod();
+  }else{
+    era5AtmosRender();
+  }
 }
 
 async function era5AtmosAttachExtra(period){
