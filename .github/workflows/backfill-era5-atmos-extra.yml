@@ -42,6 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           python scripts/era5_atmos_extra.py plan \
             --index era5_europe/extra/index.json \
             --output "$GITHUB_OUTPUT" --batch-size 4
@@ -51,15 +52,20 @@ jobs:
     if: needs.plan.outputs.has_work == 'true'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
       - name: Gemeinsamen historischen Referenz-Release bereitstellen
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           TAG=era5-atmos-extra-reference-1940-2025-v1
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target main \
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
               --title "ERA5 erweiterte Druckniveaus: Monatsreferenzen 1940-2025" \
               --notes "Echte ERA5-Monatsmittel, je Parameter und Kalendermonat; 0,25 Grad."
           fi
@@ -97,9 +103,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           FILE="month_${TARGET_MONTH}_${PARAM}.npz"
-          if gh release view era5-atmos-extra-reference-1940-2025-v1 \
-              --json assets --jq '.assets[].name' | grep -Fxq "$FILE"; then
+          ASSETS="$(gh_release_assets era5-atmos-extra-reference-1940-2025-v1)"
+          if grep -Fxq "$FILE" <<< "$ASSETS"; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "$FILE ist bereits veröffentlicht."
           else
@@ -111,6 +118,7 @@ jobs:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           test -n "${CDSAPI_KEY:-}"
           printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
           chmod 600 "$HOME/.cdsapirc"
@@ -119,20 +127,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           FILE="month_${TARGET_MONTH}_${PARAM}.npz"
           mkdir -p .era5-extra-refs
           python scripts/era5_atmos_extra.py reference \
             --month "$((10#$TARGET_MONTH))" --parameter "$PARAM" \
             --output ".era5-extra-refs/$FILE"
-          gh release upload era5-atmos-extra-reference-1940-2025-v1 \
+          gh_retry gh release upload era5-atmos-extra-reference-1940-2025-v1 \
             ".era5-extra-refs/$FILE" --clobber
       - name: Veröffentlichtes Referenzpaket verifizieren
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           FILE="month_${TARGET_MONTH}_${PARAM}.npz"
-          gh release view era5-atmos-extra-reference-1940-2025-v1 \
-            --json assets --jq '.assets[].name' | grep -Fxq "$FILE"
+          ASSETS="$(gh_release_assets era5-atmos-extra-reference-1940-2025-v1)"
+          grep -Fxq "$FILE" <<< "$ASSETS"
 
   render:
     needs: [plan, references]
@@ -166,21 +176,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           YEAR="$TARGET_YEAR"
           MONTH="$TARGET_MONTH"
           PERIOD="$YEAR-$MONTH"
           TAG="era5-atmos-extra-$YEAR-v1"
           OUT=".era5-extra-year/$YEAR"
           mkdir -p "$OUT"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          if gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            ASSETS="$(gh_release_assets "$TAG")"
             READY=true
             for KEY in t925 t700 t500 rh700 omega500 u300; do
               if ! grep -Fxq "$PERIOD-$KEY.webp" <<< "$ASSETS"; then READY=false; fi
             done
             if ! grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"; then READY=false; fi
             if [[ "$READY" == true ]]; then
-              gh release download "$TAG" --pattern "$PERIOD-manifest.json" --dir "$OUT"
+              gh_retry gh release download "$TAG" --pattern "$PERIOD-manifest.json" --dir "$OUT"
               mv "$OUT/$PERIOD-manifest.json" "$OUT/manifest.json"
               echo "ready=true" >> "$GITHUB_OUTPUT"
               echo "$PERIOD bereits vollständig publiziert."
@@ -193,8 +204,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           mkdir -p .era5-extra-refs
-          gh release download era5-atmos-extra-reference-1940-2025-v1 \
+          gh_retry gh release download era5-atmos-extra-reference-1940-2025-v1 \
             --pattern "month_${TARGET_MONTH}_*.npz" --dir .era5-extra-refs
           test "$(find .era5-extra-refs -maxdepth 1 -name '*.npz' | wc -l)" -eq 6
       - name: Sechs echte ERA5-Kartenatlanten pro Monat erzeugen
@@ -202,6 +214,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           YEAR="$TARGET_YEAR"
           python scripts/era5_atmos_extra.py render \
             --year "$YEAR" --month "$((10#$TARGET_MONTH))" \
@@ -212,25 +225,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           YEAR="$TARGET_YEAR"
           PERIOD="$YEAR-$TARGET_MONTH"
           TAG="era5-atmos-extra-$YEAR-v1"
           OUT=".era5-extra-year/$YEAR"
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target main \
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
               --title "ERA5 erweiterte atmosphärische Monatskarten $YEAR" \
               --notes "Nur validierte ERA5-Reanalysedaten, 1991-2020 Referenz, 1940-2025 Rang."
           fi
-          gh release upload "$TAG" "$OUT"/*.webp --clobber
+          gh_retry gh release upload "$TAG" "$OUT"/*.webp --clobber
           cp "$OUT/manifest.json" "$OUT/$PERIOD-manifest.json"
-          gh release upload "$TAG" "$OUT/$PERIOD-manifest.json" --clobber
+          gh_retry gh release upload "$TAG" "$OUT/$PERIOD-manifest.json" --clobber
       - name: Vollständigkeit des Releases prüfen
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           PERIOD="$TARGET_YEAR-$TARGET_MONTH"
           TAG="era5-atmos-extra-$TARGET_YEAR-v1"
-          ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          ASSETS="$(gh_release_assets "$TAG")"
           for KEY in t925 t700 t500 rh700 omega500 u300; do
             grep -Fxq "$PERIOD-$KEY.webp" <<< "$ASSETS"
           done
@@ -270,6 +285,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for attempt in 1 2 3; do
@@ -297,6 +313,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          source scripts/era5_gh_retry.sh
           # Use the locally verified and pushed index. A dispatch caused by
           # GITHUB_TOKEN is explicitly allowed to trigger another workflow.
           REMAINING="$(python - <<'PY'
