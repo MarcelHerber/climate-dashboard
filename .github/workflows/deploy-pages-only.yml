@@ -9,6 +9,10 @@ on:
       - ".github/workflows/**"
       - "tests/**"
       - "docs/**"
+  # Bot commits from ERA5 archive workflows do not trigger a second push
+  # workflow with GITHUB_TOKEN. Periodically publish latest committed data.
+  schedule:
+    - cron: "13 * * * *"
   workflow_dispatch:
 
 permissions:
