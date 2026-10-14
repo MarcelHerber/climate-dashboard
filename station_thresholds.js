@@ -410,18 +410,31 @@
     const a=document.createElement("a");const url=URL.createObjectURL(blob);
     a.href=url;a.download=filename()+"."+ext;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},3000);
   }
+  function exportAnalysisSubtitle(){
+    const cfg=lastAnalysis.cfg, year=lastAnalysis.visibleRange;
+    const metric=["Tmax","Tmin","Tmittel"][cfg.metric];
+    const operator={lt:"<",le:"≤",gt:">",ge:"≥"}[cfg.operator];
+    const season={autumn:"Herbst",spring:"Frühling",summer:"Sommer",winter:"Winter",year:"Gesamtjahr"}[cfg.season];
+    return metric+" "+operator+" "+(cfg.threshold/10).toLocaleString("de-DE")+" °C · "+
+      cfg.days+" Tage in Folge · "+season+" · "+year.first+"–"+year.last;
+  }
   function exportPng(){
     if(!lastAnalysis||!chart)return;
     const canvas=document.createElement("canvas");
-    canvas.width=1500;canvas.height=850;
+    canvas.width=1500;canvas.height=910;
     const ctx=canvas.getContext("2d");
     ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle="#0f172a";ctx.font="bold 34px Arial";
     ctx.fillText("DWD-Stations-Schwellenwertanalyse",46,60);
-    ctx.font="22px Arial";ctx.fillText(lastAnalysis.station.name+" · "+lastAnalysis.cfg.days+" Tage in Folge",46,97);
-    ctx.drawImage(chart.canvas,40,130,1420,640);
+    ctx.font="bold 23px Arial";
+    ctx.fillText(lastAnalysis.station.name,46,99);
+    ctx.fillStyle="#475569";ctx.font="19px Arial";
+    ctx.fillText(exportAnalysisSubtitle(),46,131);
+    const source=chart.canvas,ratio=source.width/source.height;
+    const width=Math.min(1420,630*ratio),height=width/ratio;
+    ctx.drawImage(source,(canvas.width-width)/2,167,width,height);
     ctx.font="17px Arial";ctx.fillStyle="#64748b";
-    ctx.fillText("Quelle: DWD CDC Tageswerte · Fehlende Tage unterbrechen Serien · vorläufige Daten gekennzeichnet",46,818);
+    ctx.fillText("Quelle: DWD CDC Tageswerte · Fehlende Tage unterbrechen Serien · vorläufige Daten gekennzeichnet",46,876);
     canvas.toBlob(function(blob){if(blob)download(blob,"png");},"image/png");
   }
   function exportPdf(){
@@ -431,15 +444,24 @@
     pdf.setFont("helvetica","bold");pdf.setFontSize(16);
     pdf.text("DWD - Stations-Schwellenwertanalyse",12,17);
     pdf.setFont("helvetica","normal");pdf.setFontSize(10);
-    pdf.text(lastAnalysis.station.name+" / "+lastAnalysis.cfg.days+" Tage in Folge",12,25);
-    pdf.addImage(chart.canvas.toDataURL("image/png"),"PNG",12,33,186,104);
-    pdf.setFontSize(8);pdf.text("Quelle: DWD CDC Tageswerte; fehlende Werte unterbrechen Serien.",12,146);
-    pdf.text("Trend: "+(lastAnalysis.trend?(lastAnalysis.trend.slope*10).toFixed(2)+" Tage/Dekade":"nicht ermittelbar"),12,153);
+    pdf.text(lastAnalysis.station.name,12,25);
+    pdf.setFontSize(9);
+    pdf.text(exportAnalysisSubtitle().replace(/[≤≥]/g,function(ch){return ch==="≤"?"<=":">=";}),12,31);
+    const width=186, height=Math.min(111,width*chart.canvas.height/chart.canvas.width);
+    pdf.addImage(chart.canvas.toDataURL("image/png"),"PNG",12,40,width,height);
+    const footerY=40+height+9;
+    pdf.setFontSize(8);
+    pdf.text("Quelle: DWD CDC Tageswerte; fehlende Werte unterbrechen Serien.",12,footerY);
+    const visibleTrend=lastAnalysis.visibleTrend;
+    pdf.text("Trend "+lastAnalysis.visibleRange.first+"-"+lastAnalysis.visibleRange.last+": "+
+      (visibleTrend?(visibleTrend.slope*10).toFixed(2)+" Tage/Dekade":"nicht ermittelbar"),12,footerY+7);
     let row=0;
     pdf.setFontSize(9);
     for(const r of lastAnalysis.rows){
       if(row%48===0){
-        pdf.addPage();pdf.setFont("helvetica","bold");pdf.text("Jahr / Beginn / Serienende / Bewertung",12,16);pdf.setFont("helvetica","normal");
+        pdf.addPage();pdf.setFont("helvetica","bold");
+        pdf.text("Jahr / Beginn / Serienende / Bewertung",12,16);
+        pdf.setFont("helvetica","normal");
       }
       pdf.text(r.year+"     "+(r.first||"-")+"     "+(r.last||"-")+"     "+r.status,12,24+(row%48)*5.4);
       row++;
