@@ -54,6 +54,7 @@
         ".station-threshold-year-box label{display:flex;align-items:center;gap:7px;font-size:12px;color:#475569;font-weight:700}",
         ".station-threshold-year-box input{width:92px;border:1px solid #bdc9d4;border-radius:6px;padding:7px;font:inherit;color:#172033;background:#fff}",
         ".station-threshold-year-box input:focus{outline:2px solid #90b8df}",
+        ".station-threshold-year-box input.active{border-color:#2b6fac;box-shadow:0 0 0 2px rgba(43,111,172,.15)}",
         ".station-threshold-range button:disabled{opacity:.5;cursor:not-allowed}",
         ".station-threshold-year-hint{font-size:11px;color:#64748b;flex-basis:100%}",
         "@media(max-width:700px){.station-threshold-range{width:100%}.station-threshold-range button{flex:1;padding:9px 6px;font-size:12px}}"
@@ -308,6 +309,7 @@
       customStartYear=Math.min(last,Math.max(first,customStartYear));
       custom.value=String(customStartYear);
     }
+    custom.classList.toggle("active",yearView==="custom");
     for(const name of ["recent","all","complete"]){
       const id=name==="recent"?"stationThresholdRecent":name==="all"?"stationThresholdAll":"stationThresholdComplete";
       const el=document.getElementById(id);
@@ -323,6 +325,10 @@
   function setYearView(view) {
     if(view==="complete"&&!lastAnalysis?.completeRange)return;
     yearView=["all","complete","custom"].includes(view)?view:"recent";
+    if(yearView!=="custom") {
+      customStartYear=null;
+      document.getElementById("stationThresholdStartYear").value="";
+    }
     if(lastAnalysis){syncYearControls(lastAnalysis);draw(lastAnalysis);}
   }
 
