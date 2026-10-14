@@ -1,6 +1,6 @@
 (()=>{"use strict";
 const BASE="europe_stations/dwd_daily_map/",MODES={tmax_anom:["Tmax-Anomalie",3,"anom"],tmean_anom:["Tmean-Anomalie",12,"anom"],tmin_anom:["Tmin-Anomalie",4,"anom"],tmax:["Tmax",1,"tmax"],tmean:["Tmean",11,"tmean"],tmin:["Tmin",2,"tmin"],records:["Stationsrekorde",null,"records"],summer_days:["Sommertage · Rekordabstand","summer_days","climate"],hot_days:["Hitzetage · Rekordabstand","hot_days","climate"],very_hot_days:["≥35 °C · Rekordabstand","very_hot_days","climate"],tropical_nights:["Tropennächte · Rekordabstand","tropical_nights","climate"],frost_days:["Frosttage · Rekordabstand","frost_days","climate"],ice_days:["Eistage · Rekordabstand","ice_days","climate"]};
-let idx=null,map=null,layer=null,renderer=null,cache=new Map(),climateCache=null,selected=null,bound=false;
+let idx=null,map=null,layer=null,renderer=null,cache=new Map(),climateCache=null,selected=null,bound=false,idxCheckedAt=0,idxRequest=null;
 const $=id=>document.getElementById(id),esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const tenth=v=>(v===null||v===undefined||v==="")?null:(Number.isFinite(Number(v))?Number(v)/10:null);
 const temp=v=>tenth(v)==null?"–":tenth(v).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" °C";
@@ -17,7 +17,7 @@ function inject(){
   <aside class="dwd-daily-card"><div class="dwd-daily-controls">
    <div class="control-group"><label for="dwdDailyMetric">Darstellung</label><select id="dwdDailyMetric"><optgroup label="Tageswerte"><option value="tmax_anom">Tmax-Anomalie</option><option value="tmean_anom">Tmean-Anomalie</option><option value="tmin_anom">Tmin-Anomalie</option><option value="tmax">Tmax absolut</option><option value="tmean">Tmean absolut</option><option value="tmin">Tmin absolut</option><option value="records">Stationsrekorde</option></optgroup><optgroup label="Kenntage · Abstand zum Jahresrekord"><option value="summer_days">Sommertage ≥25 °C</option><option value="hot_days">Hitzetage ≥30 °C</option><option value="very_hot_days">Sehr heiße Tage ≥35 °C</option><option value="tropical_nights">Tropennächte ≥20 °C</option><option value="frost_days">Frosttage &lt;0 °C</option><option value="ice_days">Eistage &lt;0 °C</option></optgroup></select></div>
    <div class="control-group"><label>Datum</label><div class="dwd-daily-date-nav"><button id="dwdDailyPrev">‹</button><input id="dwdDailyDate" type="date"><button id="dwdDailyNext">›</button></div></div>
-   <p id="dwdDailyReference" class="note">Referenz wird geladen …</p>
+   <button id="dwdDailyRefresh" type="button" class="action" title="Verfügbare DWD-CDC-Tageswerte erneut abrufen">Datenstand prüfen ↻</button><p id="dwdDailyFreshness" class="note" aria-live="polite">Datenstand wird geprüft …</p><p id="dwdDailyReference" class="note">Referenz wird geladen …</p>
   </div><div id="dwdDailyStatus" class="dwd-daily-status">Daten werden geladen …</div>
   <div class="dwd-daily-kpis"><div class="dwd-daily-kpi"><div class="label">Stationen</div><div id="dwdDailyStationCount" class="value">–</div></div><div class="dwd-daily-kpi"><div class="label">mit Anomalie</div><div id="dwdDailyAnomalyCount" class="value">–</div></div><div class="dwd-daily-kpi"><div class="label">Rekordstationen</div><div id="dwdDailyRecordCount" class="value">–</div></div><div class="dwd-daily-kpi"><div class="label">Datenstand</div><div id="dwdDailyDataThrough" class="value">–</div></div></div></aside>
   <section class="dwd-daily-card"><div id="dwdDailyStationMap" class="dwd-daily-map"></div><div id="dwdDailyLegend" class="dwd-daily-legend"></div><div id="dwdDailySelected" class="dwd-daily-selected"><h3>Station auswählen</h3><p>Klicke einen Stationspunkt oder einen Ranglisten-Eintrag an.</p></div></section>
@@ -27,7 +27,30 @@ function inject(){
  const mobile=$("mobileTabSelect");if(mobile&&!mobile.querySelector('option[value="dwdDailyMap"]')){const o=document.createElement("option");o.value="dwdDailyMap";o.textContent="DWD Tageskarte";mobile.appendChild(o);mobile.addEventListener("change",()=>{if(mobile.value==="dwdDailyMap")setTimeout(load,0)})}
 }
 async function gunzip(url){const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);const b=new Uint8Array(await r.arrayBuffer());if(b[0]===31&&b[1]===139){if(!window.DecompressionStream)throw Error("gzip wird vom Browser nicht unterstützt");const s=new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"));return JSON.parse(await new Response(s).text())}return JSON.parse(new TextDecoder().decode(b))}
-async function index(){if(idx)return idx;const r=await fetch(BASE+"index.json?v="+Date.now(),{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);idx=await r.json();if(!idx.ready)throw Error("Tageskarten-Daten sind noch nicht erzeugt");return idx}
+async function index({force=false}={}){
+ if(idx&&!force&&Date.now()-idxCheckedAt<300000)return idx;
+ if(idxRequest)return idxRequest;
+ idxRequest=(async()=>{
+  const r=await fetch(BASE+"index.json?v="+Date.now(),{cache:"no-store"});
+  if(!r.ok)throw Error("HTTP "+r.status);
+  const next=await r.json();
+  if(!next.ready||!Array.isArray(next.dates))throw Error("Tageskarten-Daten sind noch nicht erzeugt");
+  if(!idx||next.generated_at!==idx.generated_at||next.data_through!==idx.data_through){
+    cache.clear();climateCache=null;selected=null;
+  }
+  idx=next;idxCheckedAt=Date.now();return idx;
+ })();
+ try{return await idxRequest}finally{idxRequest=null}
+}
+function showFreshness(){
+ const el=$("dwdDailyFreshness");if(!el||!idx)return;
+ const utcNow=new Date(),start=new Date(idx.data_through+"T00:00:00Z");
+ const days=Number.isFinite(start.getTime())?Math.max(0,Math.floor((Date.UTC(utcNow.getUTCFullYear(),utcNow.getUTCMonth(),utcNow.getUTCDate())-start.getTime())/86400000)):null;
+ const built=idx.generated_at?new Date(idx.generated_at).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short"}):"unbekannt";
+ el.textContent="DWD-Tageswerte bis "+datefmt(idx.data_through)+" · Karten-Update: "+built+
+   (days!==null&&days>=3?" · Hinweis: Datenstand "+days+" Tage zurück; DWD CDC und nächsten Update-Lauf prüfen.":" · DWD CDC veröffentlicht Tageswerte zeitversetzt.");
+ el.style.color=days!==null&&days>=3?"#9a5700":"";
+}
 async function day(iso){const md=iso.slice(5);if(!cache.has(md))cache.set(md,gunzip(BASE+"calendar/"+md+".json.gz?v="+encodeURIComponent(idx.generated_at||"")));return cache.get(md)}
 async function climate(){if(!climateCache){const r=await fetch(BASE+(idx.climate_days_file||"climate_days.json")+"?v="+encodeURIComponent(idx.generated_at||""),{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);climateCache=await r.json()}return climateCache}
 function station(i){const s=idx.stations[i];return s&&{i,id:s[0],dwd:s[1],name:s[2],lat:+s[3],lon:+s[4],elev:s[5],state:s[6]||""}}
@@ -61,7 +84,7 @@ function render(payload,iso){$("dwdDailyRecordTitle").textContent="Rekorde des T
  document.querySelectorAll("#dwdDailyTopList [data-i],#dwdDailyBottomList [data-i],#dwdDailyRecordList [data-i]").forEach(b=>b.onclick=()=>{const i=+b.dataset.i,r=rm.get(i);if(r){selected=i;detail(station(i),r,iso);map.setView([station(i).lat,station(i).lon],Math.max(map.getZoom(),7))}});
  if(selected!=null&&rm.has(selected))detail(station(selected),rm.get(selected),iso);setTimeout(()=>map.invalidateSize(),50)}
 async function draw(){try{await index();syncClimateOptions();const m=mode(),isClimate=m[3]==="climate",dateInput=$("dwdDailyDate"),prev=$("dwdDailyPrev"),next=$("dwdDailyNext");dateInput.disabled=isClimate;prev.disabled=isClimate;next.disabled=isClimate;if(isClimate){$("dwdDailyStatus").textContent=m[1]+" wird geladen …";const p=await climate();renderClimate(p);$("dwdDailyStatus").classList.remove("error");$("dwdDailyStatus").textContent=m[1]+" · Stand "+datefmt(p.data_through)+" · "+(p.metrics?.[m[2]]?.rows?.length||0).toLocaleString("de-DE")+" Stationen · historischer Jahresrekord bis "+(idx.year-1);return}let iso=dateInput.value||idx.data_through;if(!idx.dates.includes(iso)){iso=idx.dates.filter(d=>d<=iso).at(-1)||idx.dates[0];dateInput.value=iso}$("dwdDailyStatus").textContent=datefmt(iso)+" wird geladen …";const p=await day(iso);render(p,iso);$("dwdDailyStatus").classList.remove("error");$("dwdDailyStatus").textContent=MODES[$("dwdDailyMetric").value][0]+" · "+datefmt(iso)+" · "+p.rows.length.toLocaleString("de-DE")+" Stationen · Referenz "+idx.reference_period}catch(e){console.error(e);$("dwdDailyStatus").classList.add("error");$("dwdDailyStatus").textContent="DWD-Tageskarte konnte nicht geladen werden: "+e.message}}
-function bind(){if(bound)return;bound=true;$("dwdDailyMetric").onchange=draw;$("dwdDailyDate").onchange=draw;$("dwdDailyPrev").onclick=()=>{const i=idx.dates.indexOf($("dwdDailyDate").value);if(i>0){$("dwdDailyDate").value=idx.dates[i-1];draw()}};$("dwdDailyNext").onclick=()=>{const i=idx.dates.indexOf($("dwdDailyDate").value);if(i>=0&&i<idx.dates.length-1){$("dwdDailyDate").value=idx.dates[i+1];draw()}}}
-async function load(){inject();try{await index();bind();initMap();const climateReady=syncClimateOptions(),d=$("dwdDailyDate");d.min=idx.dates[0]||"";d.max=idx.data_through||"";if(!d.value)d.value=idx.data_through;$("dwdDailyReference").textContent=climateReady?"Tagesanomalien: Stationsmittel "+idx.reference_period+" · Kenntage: aktueller Jahresstand minus bisheriger Stations-Jahresrekord":"Tagesanomalien: Stationsmittel "+idx.reference_period+" · Kenntage-Rekorde werden gerade erstmalig aufgebaut …";await draw()}catch(e){$("dwdDailyStatus").classList.add("error");$("dwdDailyStatus").textContent="DWD-Tageskarte konnte nicht geladen werden: "+e.message}}
+function bind(){if(bound)return;bound=true;$("dwdDailyRefresh").onclick=()=>load();$("dwdDailyMetric").onchange=draw;$("dwdDailyDate").onchange=draw;$("dwdDailyPrev").onclick=()=>{const i=idx.dates.indexOf($("dwdDailyDate").value);if(i>0){$("dwdDailyDate").value=idx.dates[i-1];draw()}};$("dwdDailyNext").onclick=()=>{const i=idx.dates.indexOf($("dwdDailyDate").value);if(i>=0&&i<idx.dates.length-1){$("dwdDailyDate").value=idx.dates[i+1];draw()}}}
+async function load(){inject();const refresh=$("dwdDailyRefresh");if(refresh){refresh.disabled=true;refresh.textContent="Prüfe …";}try{const oldThrough=idx?.data_through;await index({force:true});bind();initMap();const climateReady=syncClimateOptions(),d=$("dwdDailyDate");d.min=idx.dates[0]||"";d.max=idx.data_through||"";if(!d.value||d.value===oldThrough||d.value>idx.data_through)d.value=idx.data_through;showFreshness();$("dwdDailyReference").textContent=climateReady?"Tagesanomalien: Stationsmittel "+idx.reference_period+" · Kenntage: aktueller Jahresstand minus bisheriger Stations-Jahresrekord":"Tagesanomalien: Stationsmittel "+idx.reference_period+" · Kenntage-Rekorde werden gerade erstmalig aufgebaut …";await draw()}catch(e){$("dwdDailyStatus").classList.add("error");$("dwdDailyStatus").textContent="DWD-Tageskarte konnte nicht geladen werden: "+e.message}finally{if(refresh){refresh.disabled=false;refresh.textContent="Datenstand prüfen ↻"}}}
 inject();window.ensureDwdDailyMapLoaded=load;
 })();
