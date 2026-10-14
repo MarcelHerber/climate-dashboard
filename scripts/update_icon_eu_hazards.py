@@ -95,8 +95,20 @@ def decode(raw):
             if handle is None:
                 return None
             values = np.asarray(eccodes.codes_get_values(handle), dtype=np.float32)
-            start_step = int(eccodes.codes_get(handle, "startStep"))
-            end_step = int(eccodes.codes_get(handle, "endStep"))
+            # ecCodes may return "0m" for GRIB files at +0 h.
+            def to_hours(value):
+                if isinstance(value, (int, float)):
+                    return float(value)
+                value = str(value).strip().lower()
+                if value.endswith("m"):
+                    return float(value[:-1]) / 60
+                if value.endswith("s"):
+                    return float(value[:-1]) / 3600
+                if value.endswith("h"):
+                    return float(value[:-1])
+                return float(value)
+            start_step = to_hours(eccodes.codes_get(handle, "startStep"))
+            end_step = to_hours(eccodes.codes_get(handle, "endStep"))
             layout = (
                 int(eccodes.codes_get(handle, "numberOfPoints")),
                 str(eccodes.codes_get(handle, "gridType")),
