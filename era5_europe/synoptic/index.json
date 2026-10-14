@@ -1,9 +1,11 @@
 {
-  "ready": false,
+  "ready": true,
   "source": "ERA5 hourly reanalysis",
   "grid": "0.5° pilot grid",
   "sampling": "Daily maps: 12 UTC instantaneous analysis. Monthly events: complete 24 hourly observations per day.",
-  "days": [],
+  "days": [
+    "2026-09-30"
+  ],
   "monthly_events": [],
   "parameters": {
     "vo500": {
@@ -66,5 +68,6 @@
       "operator": ">="
     }
   },
-  "note": "No daily or event maps appear as available until all required real ERA5 hourly samples have been verified."
+  "note": "No daily or event maps appear as available until all required real ERA5 hourly samples have been verified.",
+  "latest_day": "2026-09-30"
 }
