@@ -109,6 +109,8 @@
   padding:14px 16px;border-top:1px solid #dfe6ee;
 }
 #monthly .monthly-advanced-content .control-group{min-width:185px}
+#monthly .monthly-advanced-content .control-group[hidden],
+#monthly > .controls .control-group[hidden]{display:none!important}
 #monthly .monthly-section-navigation{
   display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px;
 }
