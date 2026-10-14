@@ -13,10 +13,55 @@
   const SEVERITY = ["Keine Schwelle","#ead44b","#f6a244","#de434c","#9a49b4"];
   const NAMES = ["Keine","Gelb","Orange","Rot","Violett"];
   const map = L.map("hazardMap", {center:[49.8,12.1],zoom:4,minZoom:3,maxZoom:10,preferCanvas:true,worldCopyJump:false});
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution:'&copy; OpenStreetMap-Mitwirkende &copy; CARTO · Modelldaten: DWD ICON-EU',
-    subdomains:"abcd", maxZoom:19
-  }).addTo(map);
+  // CARTO's formerly anonymous light_all tiles now return "API KEY REQUIRED".
+  // Use a verified public OpenStreetMap basemap, switching to Esri on tile errors.
+  const basemaps = [
+    {
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      opts: {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> · ICON-EU: DWD',
+        maxZoom: 19
+      }
+    },
+    {
+      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+      opts: {
+        attribution: 'Tiles &copy; Esri, HERE, Garmin, USGS, EPA, NPS · Modell: DWD ICON-EU',
+        maxZoom: 19
+      }
+    }
+  ];
+  let basemapLayer = null;
+  let basemapIndex = 0;
+  function useBasemap(index) {
+    if (basemapLayer) map.removeLayer(basemapLayer);
+    basemapIndex = index;
+    const provider = basemaps[index];
+    let tileFailures = 0;
+    let tileSuccesses = 0;
+    const candidate = L.tileLayer(provider.url, Object.assign({
+      keepBuffer: 3, updateWhenIdle: true, detectRetina: false
+    }, provider.opts));
+    basemapLayer = candidate;
+    candidate.on("tileload", () => { tileSuccesses++; });
+    candidate.on("tileerror", () => {
+      tileFailures++;
+      if (basemapLayer !== candidate || tileSuccesses > 0 || tileFailures < 3) return;
+      if (basemapIndex + 1 < basemaps.length) {
+        useBasemap(basemapIndex + 1);
+      } else {
+        const notice = $("basemapStatus");
+        if (notice) {
+          notice.hidden = false;
+          notice.textContent = "Die Hintergrundkarte konnte nicht geladen werden. Bitte Netzwerkzugriff auf Kartenkacheln prüfen.";
+        }
+      }
+    });
+    candidate.addTo(map);
+    const notice = $("basemapStatus");
+    if (notice) notice.hidden = true;
+  }
+  useBasemap(0);
   let data=null, decoded=null, currentPeriod=0, currentType="all", overlay;
   function status(text, type) {
     const el=$("status");
