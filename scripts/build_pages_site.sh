@@ -11,6 +11,7 @@ required_root_files=(
   dashboard_cleanup.css
   monthly_layout.js
   stratosphaere.html
+  ssw_catalog.js
   zirkulation.html
   enso.html
   qbo.html
@@ -74,6 +75,12 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Publikationen müssen den neuen SSW-Katalog laden können.
+python -m unittest discover -s tests -p test_ssw_catalog.py -v
+node --check ssw_catalog.js
+test -s _site/ssw_catalog.js
+grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
 
 # Das Layout der Stratosphären-Seite muss trotz ausgeblendeter Heatmap
 # seine Erklärung sichtbar im veröffentlichten HTML behalten.
