@@ -109,6 +109,41 @@ function kpi(name,value,note){
  const small=document.createElement("small");small.textContent=note;
  div.append(label,strong,small);return div;
 }
+
+function annualExtremes(hemi){
+ const h=archive[hemi],all=Object.keys(h.years).map(Number).sort((a,b)=>a-b);
+ return all.filter(y=>y>=1979&&y<currentYear(hemi)).map(y=>{
+  const vals=h.years[String(y)];
+  const valid=vals.filter(Number.isFinite);
+  // Reject missing days; tolerate February 29 absent in ordinary years.
+  const expected=(y%4===0&&(y%100!==0||y%400===0))?366:365;
+  if(valid.length!==expected)return null;
+  return {year:y,min:Math.min(...valid),max:Math.max(...valid)};
+ }).filter(Boolean);
+}
+function drawExtremes(hemi,panel){
+ const rows=annualExtremes(hemi),ref=rows.filter(r=>r.year>=1991&&r.year<=2020);
+ const avg=k=>ref.reduce((sum,r)=>sum+r[k],0)/ref.length;
+ const minAvg=avg("min"),maxAvg=avg("max");
+ const options={responsive:true,maintainAspectRatio:false,animation:false,
+  interaction:{mode:"index",intersect:false},
+  scales:{x:{grid:{display:false},ticks:{maxTicksLimit:12,color:"#62738b"}},
+   y:{title:{display:true,text:"Mio. km²"},grid:{color:"rgba(148,163,184,.18)"}}},
+  plugins:{legend:{position:"bottom"},datalabels:{display:false},
+   tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+fmt(ctx.parsed.y)+" Mio. km²"}}}};
+ const datasets=[
+  {label:"Jahresminimum",data:rows.map(r=>r.min),borderColor:"#1769b4",backgroundColor:"#1769b4",borderWidth:2,pointRadius:1},
+  {label:"Jahresmaximum",data:rows.map(r=>r.max),borderColor:"#c05b4b",backgroundColor:"#c05b4b",borderWidth:2,pointRadius:1},
+  {label:"Minimum-Mittel 1991–2020",data:rows.map(()=>minAvg),borderColor:"#1769b4",borderDash:[5,4],borderWidth:1.3,pointRadius:0},
+  {label:"Maximum-Mittel 1991–2020",data:rows.map(()=>maxAvg),borderColor:"#c05b4b",borderDash:[5,4],borderWidth:1.3,pointRadius:0}
+ ];
+ charts[hemi].push(new Chart(canvas(panel,"extremes"),{type:"line",data:{labels:rows.map(r=>r.year),datasets},options}));
+ const note=panel.querySelector("[data-ice-extreme-note]");
+ note.textContent=rows.length?"Vollständige Jahre: "+rows.length+" · "+rows[0].year+"–"+rows[rows.length-1].year+
+ " · Mittel der Jahresminima 1991–2020: "+fmt(minAvg)+" Mio. km² · Mittel der Jahresmaxima: "+fmt(maxAvg)+" Mio. km².":
+ "Keine vollständigen Jahresreihen für diese Auswertung gefunden.";
+}
+
 function updatePanel(hemi){
  if(!archive)return;
  const panel=document.querySelector('[data-ice-region="'+hemi+'"]');
@@ -127,6 +162,7 @@ function updatePanel(hemi){
   type:"line",data:{labels:dayLabels(),datasets:anomaliesFor(hemi,compare,mode,show)},
   options:anomalyCfg
  }));
+ drawExtremes(hemi,panel);
  const date=h.latest_date,md=date.slice(5),index=dayLabels().indexOf(md);
  const observed=index<0?null:arrayOf(hemi,latest)[index];
  const ref=index<0?null:h.normal[index];
@@ -148,7 +184,7 @@ function updatePanel(hemi){
  ["png","pdf","csv"].forEach(x=>action(panel,x).disabled=false);
 }
 function buildExport(hemi){
- if(charts[hemi].length!==2)throw Error("Noch keine Diagramme");
+ if(charts[hemi].length<2)throw Error("Noch keine Diagramme");
  const panel=document.querySelector('[data-ice-region="'+hemi+'"]');
  const big=charts[hemi][0].canvas,small=charts[hemi][1].canvas;
  const width=1300,header=160,pad=45,area=width-2*pad,between=48,footer=54;
