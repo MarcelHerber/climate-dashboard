@@ -249,10 +249,12 @@
     }).join("");
   }
 
-  function popupHtml(station, value, valid) {
+  function popupHtml(station, value, valid, kind) {
+    const label=kind==="tmax" ? "TX · Maximum der letzten 12 h" :
+      kind==="tmin" ? "TN · Minimum der letzten 12 h" : "TTT · Temperatur 2 m";
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
-      'Temperatur: <strong>' + value.toFixed(1).replace(".", ",") + ' °C</strong><br>' +
+      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' °C</strong><br>' +
       'Gültig: ' + esc(fmtTime(valid));
   }
 
@@ -590,7 +592,7 @@
             iconAnchor:[19,11]
           });
           L.marker(latlng,{icon:icon})
-            .bindPopup(popupHtml(station,value,data.timesteps[hit.index]))
+            .bindPopup(popupHtml(station,value,data.timesteps[hit.index],mapMode))
             .on("click",function(){ selectStation(station); })
             .addTo(markerLayer);
           return;
@@ -603,7 +605,7 @@
         weight:.8,
         fillColor:color,
         fillOpacity:.9
-      }).bindPopup(popupHtml(station,value,data.timesteps[hit.index]))
+      }).bindPopup(popupHtml(station,value,data.timesteps[hit.index],mapMode))
         .on("click",function(){ selectStation(station); })
         .addTo(markerLayer);
     });
