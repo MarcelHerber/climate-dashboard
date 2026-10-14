@@ -1,0 +1,88 @@
+name: ICON-EU Europa-Gefahrenmonitor aktualisieren
+on:
+  schedule:
+    - cron: "30 4,10,16,22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-icon-eu-hazards.yml"
+      - "scripts/update_icon_eu_hazards.py"
+permissions:
+  contents: write
+concurrency:
+  group: icon-eu-hazard-data
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Dashboard-Code laden
+        uses: actions/checkout@v5
+      - name: Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: GRIB-Bibliotheken installieren
+        run: pip install "numpy>=1.26,<3" "eccodes>=2.38,<3"
+      - name: Code und Schwellenwerte prüfen
+        run: |
+          python -m py_compile scripts/update_icon_eu_hazards.py
+          python - <<'PY'
+          import importlib.util
+          spec=importlib.util.spec_from_file_location("icon_hazards","scripts/update_icon_eu_hazards.py")
+          mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+          import numpy as np
+          a=mod.Aggregator()
+          assert a.classify("wind",np.array([64.9,65,84.9,85,104.9,105,119.9,120])/3.6).tolist()==[0,1,1,2,2,3,3,4]
+          assert a.classify("rain",np.array([9.9,10,15,25,40],dtype=float),duration=1).tolist()==[0,1,2,3,4]
+          assert a.classify("fog",np.array([500,499,200,199,100,99,50,49],dtype=float)).tolist()==[0,1,1,2,2,3,3,4]
+          assert len(mod.WINDOWS)==5 and mod.WINDOWS[-1]==(96,120)
+          print("Schwellenwerte und Zeitfenster geprüft")
+          PY
+      - name: Neuesten vollständigen ICON-EU-Lauf auswerten
+        run: |
+          mkdir -p /tmp/icon-hazards-build
+          python scripts/update_icon_eu_hazards.py --output /tmp/icon-hazards-build/current.json
+      - name: Erst bei plausiblen Kartendaten veröffentlichen
+        run: |
+          python - <<'PY'
+          import base64,json,pathlib
+          doc=json.loads(pathlib.Path("/tmp/icon-hazards-build/current.json").read_text())
+          assert len(doc["periods"])==5 and doc["not_official_warning"] is True
+          size=doc["grid"]["rows"]*doc["grid"]["cols"]
+          for period in doc["periods"]:
+              assert len(base64.b64decode(period["layers"]["wind"]))==size
+              assert len(base64.b64decode(period["layers"]["rain"]))==size
+              assert period["rain_intervals_available"]["24"]>=1
+          print("5 x 24 h ICON-EU Wind/Regen geprüft",doc["run_utc"])
+          PY
+      - name: Separate Datenbranch aktualisieren
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          TARGET="/tmp/icon-hazards-public"
+          if git ls-remote --exit-code origin refs/heads/icon-hazards-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --single-branch --branch icon-hazards-data "$REMOTE" "$TARGET"
+          else
+            mkdir -p "$TARGET"
+            git -C "$TARGET" init -q -b icon-hazards-data
+            git -C "$TARGET" remote add origin "$REMOTE"
+          fi
+          mkdir -p "$TARGET/data/icon-hazards"
+          cp /tmp/icon-hazards-build/current.json "$TARGET/data/icon-hazards/current.json"
+          touch "$TARGET/.nojekyll"
+          cd "$TARGET"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Unveränderte ICON-EU-Daten."
+            exit 0
+          fi
+          git commit -m "ICON-EU Europa-Gefahren aktualisiert"
+          git push origin HEAD:refs/heads/icon-hazards-data
