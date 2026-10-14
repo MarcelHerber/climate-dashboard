@@ -9,12 +9,15 @@ import csv
 import io
 import json
 from collections import defaultdict
+from contextlib import ExitStack
+from itertools import chain
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 
 URL = ("https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-"
        "stewardship-ibtracs/v04r01/access/csv/ibtracs.since1980.list.v04r01.csv")
+LATEST_URL = URL.replace("ibtracs.since1980.list", "ibtracs.last3years.list")
 NAMES = {"NA":"Nordatlantik", "EP":"Nordost-/Zentralpazifik",
          "WP":"Nordwestpazifik", "NI":"Nordindischer Ozean",
          "SI":"Südindischer Ozean", "SP":"Südpazifik"}
@@ -86,7 +89,7 @@ def build(rows):
           "reference_mean":round(sum(reference)/30,2),
           "reference_daily":climatology,"years":years}
     return {"ready":True,"source":"NOAA IBTrACS v04r01",
-        "source_url":URL,"wind_column":"USA_WIND","reference_period":[1991,2020],
+        "source_url":URL,"recent_source_url":LATEST_URL,"wind_column":"USA_WIND","reference_period":[1991,2020],
         "method":"6-hourly USA_WIND >=34 kt, NATURE TS/SS, squared wind / 10000, calendar years",
         "note":"Comparable ACE approximation, not official basin RSMC ACE totals; retrospective IBTrACS data may be revised.",
         "updated_utc":datetime.now(timezone.utc).isoformat(),
@@ -94,12 +97,21 @@ def build(rows):
         "basins":records}
 
 def main():
-    req = Request(URL,headers={"User-Agent":"ClimateDashboard/1.0"})
-    with urlopen(req,timeout=180) as response:
-        text=io.TextIOWrapper(response,encoding="utf-8-sig",newline="")
-        reader=csv.DictReader(text)
-        next(reader,None)  # IBTrACS unit descriptions (second CSV row).
-        result=build(reader)
+    def observations(response):
+        text = io.TextIOWrapper(response, encoding="utf-8-sig", newline="")
+        reader = csv.DictReader(text)
+        next(reader, None)  # IBTrACS column units.
+        return reader
+    with ExitStack() as stack:
+        base = stack.enter_context(urlopen(Request(URL, headers={"User-Agent":"ClimateDashboard/1.0"}),timeout=180))
+        feeds = [observations(base)]
+        try:
+            recent = stack.enter_context(urlopen(Request(LATEST_URL,headers={"User-Agent":"ClimateDashboard/1.0"}),timeout=90))
+            feeds.append(observations(recent))
+            print("Recent IBTrACS feed loaded")
+        except Exception as error:
+            print("Recent feed unavailable; only validated base source used:", error)
+        result = build(chain.from_iterable(feeds))
     if result["basins"]["GLOBAL"]["reference_mean"] <= 50:
         raise RuntimeError("Implausible global ACE climatology; source parsing may have failed")
     target=Path("ace/global.json")
