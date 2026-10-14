@@ -1,76 +1,146 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Datenstatus · Climate Dashboard</title>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Datenstatus · Climate Dashboard Deutschland</title>
+<meta name="description" content="Aktueller Datenstand und Archivabdeckung der Wetter- und Klimadaten im Climate Dashboard.">
 <style>
-:root{font-family:Arial,Helvetica,sans-serif;color:#1b2d45;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid #dbe2ec;padding:18px max(18px,calc((100vw - 1240px)/2))}a{color:#1266af}header a{margin-right:20px}main{max-width:1240px;margin:auto;padding:25px 18px 70px}h1{margin:0 0 8px}p{line-height:1.55;color:#506178}.intro{margin-bottom:22px}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}.panel,.tile{background:#fff;border:1px solid #dce4ef;border-radius:12px;padding:18px}.tile strong{display:block;font-size:30px;margin-top:6px}.panel{margin-bottom:18px}table{border-collapse:collapse;width:100%}th,td{padding:12px 9px;border-bottom:1px solid #e6edf4;text-align:left;font-size:14px}th{color:#52647b}td small{display:block;color:#65758b;margin-top:4px}.pill{display:inline-block;border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700;background:#eef2f6}.success{color:#086b47;background:#e5f7ee}.error{color:#a32525;background:#fdebec}.warning{color:#8a5600;background:#fff3d7}.unknown{color:#536277;background:#edf1f5}button{background:#1461a2;color:white;border:0;border-radius:8px;padding:10px 16px;cursor:pointer}.tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.scroll{overflow-x:auto}.hint{font-size:13px}#checked{font-size:13px;color:#627186}footer{max-width:1240px;margin:auto;padding:18px;color:#6b7685;font-size:13px}@media(max-width:680px){th,td{padding:9px 6px;font-size:12px}td:nth-child(3),th:nth-child(3){display:none}}
-</style></head><body><header><a href="index.html"><strong>Climate Dashboard</strong></a><a href="index.html">Startseite</a><a href="datenstatus.html" aria-current="page">Datenstatus</a></header>
-<main><h1>Datenstatus-Zentrale</h1><p class="intro">Aktualisierungsläufe der wichtigsten Datenprodukte. Ein erfolgreicher Workflow beweist nicht automatisch, dass der jüngste Messtag verfügbar ist. Daher werden Prozessstatus und Datenstand getrennt betrachtet.</p>
-<div class="summary"><div class="tile">Erfolgreiche Läufe<strong id="okCount">–</strong></div><div class="tile">Fehler / Abbruch<strong id="badCount">–</strong></div><div class="tile">Laufend<strong id="runningCount">–</strong></div><div class="tile">Unbekannt<strong id="unknownCount">–</strong></div></div>
-<section class="panel"><div class="tools"><button type="button" id="refresh">Erneut prüfen</button><span id="checked" role="status">Noch nicht geladen</span></div></section>
-<section class="panel"><h2>Automatische Datenaktualisierungen</h2><div class="scroll"><table><thead><tr><th>Datensatz</th><th>Letzter Workflow</th><th>Zeitpunkt</th><th>Hinweis</th></tr></thead><tbody id="workflows"></tbody></table></div><p class="hint">Die Übersicht zeigt den letzten technischen Aktualisierungslauf. Ein erfolgreicher Lauf garantiert noch keine vollständigen Messdaten. Falls eine Statusabfrage vorübergehend nicht funktioniert, wird „Nicht prüfbar“ angezeigt.</p></section>
-<section class="panel"><h2>Veröffentlichte Datenstände</h2><div class="scroll"><table><thead><tr><th>Produkt</th><th>Letzte Beobachtung</th><th>Archiv erzeugt</th><th>Vollständigkeit</th></tr></thead><tbody id="datasets"><tr><td colspan="4">Prüfung läuft …</td></tr></tbody></table></div><p class="hint">Die Datenstandsprüfung beginnt mit dem NSIDC-Meereisarchiv. Weitere Produkte werden ergänzt, sobald für sie verlässliche, einheitliche Metadaten verfügbar sind. Fehlende Metadaten werden nicht als aktuell ausgegeben.</p></section>
-</main><footer>Alle Zeitstempel in UTC. Datenstatus-Zentrale · Keine Prognosen oder künstlich ergänzten Beobachtungen.</footer>
+:root{--bg:#f3f6fa;--card:#fff;--ink:#1a2b43;--muted:#596a80;--line:#dce4ef;--blue:#1464a8;--ok:#087047;--warn:#925400;--bad:#ac3434}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,Helvetica,sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line)}
+.nav{max-width:1260px;margin:auto;padding:17px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+a{color:var(--blue)}.nav a{text-decoration:none}.nav a:hover{text-decoration:underline}.nav strong{font-size:17px}
+main{max-width:1260px;margin:auto;padding:27px 20px 60px}
+h1{font-size:clamp(27px,3vw,38px);line-height:1.2;margin:0 0 10px}
+h2{font-size:19px;margin:0 0 14px}
+p{color:var(--muted);margin:6px 0 17px}
+.intro{max-width:950px}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0 20px}
+.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:13px}
+.card{padding:17px 18px}.card span{font-size:13px;color:var(--muted)}
+.card strong{display:block;font-size:34px;margin:2px 0 0}
+.panel{padding:20px;margin:18px 0}
+.toolbar{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:13px 0}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+label{font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:4px;color:#42536a}
+select,input{font:inherit;border:1px solid #cbd5e1;border-radius:8px;padding:9px 11px;background:#fff;color:var(--ink)}
+input{width:235px;max-width:100%}
+button{font:inherit;border:0;background:var(--blue);color:white;border-radius:8px;padding:10px 15px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:12px 10px;border-bottom:1px solid #e6edf5;text-align:left;vertical-align:top}
+th{font-size:12px;color:#52647b}
+td{font-size:14px}
+.name{font-weight:700}
+.small{font-size:12px;color:var(--muted)}
+.status{display:inline-block;font-size:12px;border-radius:15px;padding:4px 9px;font-weight:700;white-space:nowrap}
+.current{color:#086642;background:#e5f6ed}.incomplete{color:#8d5200;background:#fff1d8}
+.delayed{color:#a32b2b;background:#fde9e9}.unknown{color:#576678;background:#eef2f6}
+.scroll{overflow-x:auto}.footnote{font-size:12px;color:var(--muted);margin:13px 0 0}
+#updated{font-size:13px;color:var(--muted)}
+.legend{display:flex;gap:9px 17px;flex-wrap:wrap;margin-top:12px}
+.legend span{font-size:12px;color:var(--muted)}
+footer{max-width:1260px;margin:auto;padding:0 20px 30px;color:var(--muted);font-size:12px}
+@media(max-width:750px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:13px}.filters{width:100%}.filters label{flex:1}select{width:100%}.nav{gap:14px}}
+</style>
+</head>
+<body>
+<header><div class="nav"><a href="index.html"><strong>Climate Dashboard</strong></a><a href="index.html">Startseite</a><a href="datenstatus.html" aria-current="page"><strong>Datenstatus</strong></a></div></header>
+<main>
+<h1>Datenstatus-Zentrale</h1>
+<p class="intro">Hier siehst du, <strong>bis wann Messdaten und Analysen tatsächlich vorliegen</strong>, wann die zugrunde liegenden Archive zuletzt erstellt wurden und welche historischen Daten noch fehlen. Die Bewertung beruht auf den veröffentlichten Archiv-Metadaten – nicht allein auf erfolgreich abgeschlossenen Aktualisierungsläufen.</p>
+<div class="cards" aria-label="Statusübersicht">
+<div class="card"><span>Aktuell</span><strong id="countCurrent">–</strong></div>
+<div class="card"><span>Archiv unvollständig</span><strong id="countIncomplete">–</strong></div>
+<div class="card"><span>Verzögert</span><strong id="countDelayed">–</strong></div>
+<div class="card"><span>Nicht prüfbar</span><strong id="countUnknown">–</strong></div>
+</div>
+<section class="panel">
+<div class="toolbar"><div><h2>Verfügbare Datenprodukte</h2><div id="updated" role="status">Archivstatus wird geladen …</div></div><button id="refresh" type="button">Aktualisieren</button></div>
+<div class="filters">
+<label>Bereich<select id="filterGroup"><option value="">Alle Bereiche</option></select></label>
+<label>Status<select id="filterStatus"><option value="">Alle Status</option><option value="current">Aktuell</option><option value="incomplete">Unvollständig</option><option value="delayed">Verzögert</option><option value="unknown">Nicht prüfbar</option></select></label>
+<label>Suche<input id="filterSearch" type="search" placeholder="DWD, ERA5, Meereis …"></label>
+</div>
+<div class="scroll"><table><thead><tr><th>Datensatz</th><th>Letzter Datenstand</th><th>Archiv aktualisiert</th><th>Abdeckung und Hinweis</th><th>Status</th></tr></thead><tbody id="rows"><tr><td colspan="5">Daten werden geladen …</td></tr></tbody></table></div>
+<div class="legend"><span><b>Aktuell:</b> innerhalb einer produktspezifischen Aktualisierungstoleranz</span><span><b>Unvollständig:</b> bekannter fehlender Archivbestand</span><span><b>Verzögert:</b> letzter Datenstand überschreitet die Toleranz</span><span><b>Nicht prüfbar:</b> keine belastbaren Metadaten</span></div>
+<p class="footnote">Zeitangaben zur Archiv-Erstellung in UTC; Messdaten stammen aus den angegebenen Quellarchiven. Eine aktuelle Tagesmeldung belegt nicht die historische Vollständigkeit. Monatsdaten werden getrennt von Tagesdaten bewertet. Der verfügbare Messzeitraum ist keine Prognose.</p>
+</section>
+</main>
+<footer>Climate Dashboard · Datenstand und Vollständigkeit werden bei der Website-Veröffentlichung neu ermittelt. Fehlende Messwerte werden nicht künstlich ergänzt.</footer>
 <script>
 "use strict";
-const owner="MarcelHerber",repo="climate-dashboard";
-const workflows=[
-["DWD-Tageskarte","update-dwd-daily-map.yml"],
-["MOSMIX","update-mosmix.yml"],
-["ERA5 Europa","update-era5-europe.yml"],
-["ERA5-Land","update-era5-land.yml"],
-["ERA5 Atmosphäre","update-era5-atmos-extra-current.yml"],
-["ERA5 Tagesereignisse","era5-synoptic-daily-events.yml"],
-["HYRAS Temperaturrang","update-hyras-temperature-ranks.yml"],
-["HYRAS Tagesanomalien","update-hyras-daily-anomaly-maps.yml"],
-["Stratosphäre","update-stratosphere.yml"],
-["ERA5 Stratosphäre","update-era5-stratosphere.yml"],
-["Ensembles T850","publish-t850-ensembles.yml"],
-["ICON-EU Wettergefahren","update-icon-eu-hazards.yml"],
-["NOAA Zirkulationsindizes","update-noaa-climate-indices.yml"],
-["Meereis Nord/Süd","update-sea-ice.yml"],
-["SST Europa","update-sst-europe.yml"],
-["SST Ozeane","update-sst-oceans.yml"],
-["Monatsausblick","update-state-monthly-ensemble.yml"]
-];
 const $=id=>document.getElementById(id);
-function when(s){return s?new Date(s).toLocaleString("de-DE",{timeZone:"UTC",dateStyle:"short",timeStyle:"short"})+" UTC":"–"}
-function pill(label,cls){let el=document.createElement("span");el.className="pill "+cls;el.textContent=label;return el}
-function cell(row,value){const td=row.insertCell();if(value instanceof Node)td.append(value);else td.textContent=value;return td}
-async function get(url){const res=await fetch(url,{cache:"no-store"});if(!res.ok)throw Error("HTTP "+res.status);return res.json()}
-async function checkWorkflow(item){
- const [label,file]=item;
- try{
-  const api="https://api.github.com/repos/"+owner+"/"+repo+"/actions/workflows/"+file+"/runs?per_page=1";
-  const data=await get(api),run=data.workflow_runs?.[0];
-  if(!run)return {label,file,status:"unknown",detail:"Kein Lauf",time:"",url:"https://github.com/"+owner+"/"+repo+"/actions/workflows/"+file};
-  let status=run.status!=="completed"?"running":run.conclusion==="success"?"success":run.conclusion==="failure"||run.conclusion==="cancelled"||run.conclusion==="timed_out"?"error":"unknown";
-  return {label,file,status,detail:run.status!=="completed"?"Läuft: "+run.status:run.conclusion||"Unbekannt",time:run.updated_at||run.created_at,url:run.html_url};
- }catch(e){return {label,file,status:"unknown",detail:"Nicht prüfbar ("+e.message+")",time:"",url:"https://github.com/"+owner+"/"+repo+"/actions/workflows/"+file}}
+let items=[];
+const STATUS={
+ current:["Aktuell","current"],
+ incomplete:["Unvollständig","incomplete"],
+ delayed:["Verzögert","delayed"],
+ unknown:["Nicht prüfbar","unknown"]
+};
+const pages={
+ dwd_monthly:"index.html",dwd_daily:"index.html",station_records:"index.html",
+ station_precip:"index.html",station_climate_days:"index.html",station_heatwaves:"index.html",
+ snow:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
+ ice_north:"meereis.html",ice_south:"meereis.html"
+};
+function textCell(tr,txt,cls){
+ const td=tr.insertCell();td.textContent=txt==null?"–":String(txt);
+ if(cls)td.className=cls;return td;
 }
-async function checkArchive(){
- const target=$("datasets");target.replaceChildren();
- try{
-  const a=await get("sea_ice/index.json"),date=a.created_utc;
-  for(const [name,key] of [["Meereis Arktis","north"],["Meereis Antarktis","south"]]){
-   const h=a[key],tr=target.insertRow();cell(tr,name);cell(tr,h?.latest_date||"–");cell(tr,when(date));
-   cell(tr,a.ready&&h?.latest_date?"Archiv bereit · "+Object.keys(h.years||{}).length+" Jahrgänge":"Unvollständig");
-  }
- }catch(e){const tr=target.insertRow();const td=cell(tr,"NSIDC Meereis: Nicht prüfbar ("+e.message+")");td.colSpan=4}
+function formatted(ts){
+ if(!ts)return"–";
+ const d=new Date(ts);return Number.isNaN(d.valueOf())?"–":d.toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})+" UTC";
+}
+function render(){
+ const tbody=$("rows");tbody.replaceChildren();
+ const group=$("filterGroup").value,status=$("filterStatus").value,query=$("filterSearch").value.trim().toLowerCase();
+ const visible=items.filter(x=>(!group||x.group===group)&&(!status||x.status===status)&&(!query||(x.label+" "+x.group+" "+x.coverage+" "+x.note).toLowerCase().includes(query)));
+ if(!visible.length){const tr=tbody.insertRow();const td=textCell(tr,"Keine passenden Datensätze");td.colSpan=5;return;}
+ for(const entry of visible){
+  const tr=tbody.insertRow(),name=tr.insertCell();
+  const a=document.createElement("a");a.href=pages[entry.id]||"index.html";a.textContent=entry.label;a.className="name";name.append(a);
+  name.append(document.createElement("br"));const area=document.createElement("span");area.className="small";area.textContent=entry.group;name.append(area);
+  const last=entry.latest||"–";
+  const lag=entry.lag==null?"":entry.cadence==="monthly"?entry.lag+" Monat(e) seit Datenmonat":entry.lag+" Tag(e) zurück";
+  const c=textCell(tr,last);const sub=document.createElement("div");sub.className="small";sub.textContent=lag;c.append(sub);
+  textCell(tr,formatted(entry.updated));
+  const coverage=textCell(tr,entry.coverage);
+  const note=document.createElement("div");note.className="small";note.textContent=entry.note||"";coverage.append(note);
+  const td=tr.insertCell(),def=STATUS[entry.status]||STATUS.unknown,p=document.createElement("span");
+  p.className="status "+def[1];p.textContent=def[0];td.append(p);
+ }
 }
 async function refresh(){
- $("refresh").disabled=true;$("checked").textContent="Aktualisierungen werden geprüft …";
- const body=$("workflows");body.replaceChildren();
- const out=await Promise.all(workflows.map(checkWorkflow));
- const counts={success:0,error:0,running:0,unknown:0};
- for(const r of out){
-  counts[r.status]++;const tr=body.insertRow();cell(tr,r.label);
-  const s=tr.insertCell();s.append(pill(r.detail,{success:"success",error:"error",running:"warning",unknown:"unknown"}[r.status]));
-  cell(tr,when(r.time));cell(tr,r.status==="success"?"Letzter Lauf erfolgreich":r.status==="running"?"Aktualisierung läuft":r.status==="error"?"Letzter Lauf fehlgeschlagen":"Status derzeit nicht verfügbar");
- }
- $("okCount").textContent=counts.success;$("badCount").textContent=counts.error;
- $("runningCount").textContent=counts.running;$("unknownCount").textContent=counts.unknown;
- $("checked").textContent="Abgefragt: "+when(new Date().toISOString());
- $("refresh").disabled=false;
+ $("refresh").disabled=true;$("updated").textContent="Datenstände werden geladen …";
+ try{
+  const response=await fetch("data/status/status.json",{cache:"no-store"});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const payload=await response.json();
+  if(payload.schema_version!==1||!Array.isArray(payload.datasets))throw Error("ungültiges Archivformat");
+  items=payload.datasets;
+  const groups=[...new Set(items.map(x=>x.group))].sort((a,b)=>a.localeCompare(b,"de"));
+  const select=$("filterGroup"),original=select.value;select.replaceChildren(new Option("Alle Bereiche",""));
+  for(const group of groups)select.add(new Option(group,group));
+  if(groups.includes(original))select.value=original;
+  for(const key of ["current","incomplete","delayed","unknown"]){
+   $("count"+key[0].toUpperCase()+key.slice(1)).textContent=items.filter(x=>x.status===key).length;
+  }
+  $("updated").textContent="Metadaten erstellt: "+formatted(payload.created_utc)+" · "+items.length+" Produkte";
+  render();
+ }catch(e){
+  items=[];
+  $("updated").textContent="Datenstände derzeit nicht verfügbar: "+e.message;
+  for(const id of ["countCurrent","countIncomplete","countDelayed","countUnknown"])$(id).textContent="–";
+  const tbody=$("rows");tbody.replaceChildren();const tr=tbody.insertRow(),td=textCell(tr,"Der Archivstatus konnte nicht geladen werden. Die Messdaten selbst können weiterhin verfügbar sein.");td.colSpan=5;
+ }finally{$("refresh").disabled=false;}
 }
-$("refresh").addEventListener("click",()=>{refresh();checkArchive()});
-refresh();checkArchive();
-</script></body></html>
+for(const id of ["filterGroup","filterStatus","filterSearch"])$(id).addEventListener(id==="filterSearch"?"input":"change",render);
+$("refresh").addEventListener("click",refresh);
+refresh();
+</script>
+</body>
+</html>
