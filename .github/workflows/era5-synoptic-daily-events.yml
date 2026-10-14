@@ -1,0 +1,206 @@
+name: ERA5 Synoptik Tageskarten und Ereignishäufigkeiten
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/era5-synoptic-daily-events.yml"]
+  schedule:
+    - cron: "47 8,20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-synoptic-hourly-pilot
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe/synoptic
+            era5_europe/index.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Analysebibliotheken installieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+            sleep "$((n*15))"
+          done
+          python -m py_compile scripts/era5_synoptic_diagnostics.py
+      - name: Nächsten Tag im neuesten ERA5-Monat bestimmen
+        id: date
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,calendar
+          from pathlib import Path
+          main=json.loads(Path('era5_europe/index.json').read_text())
+          idx=json.loads(Path('era5_europe/synoptic/index.json').read_text())
+          month=main['latest_month_key']
+          yy,mm=map(int,month.split('-'))
+          done=set(idx.get('days',[]))
+          dates=[f'{yy:04d}-{mm:02d}-{dd:02d}' for dd in range(1,calendar.monthrange(yy,mm)[1]+1)]
+          missing=[d for d in dates if d not in done]
+          print('has_work='+('true' if missing else 'false'))
+          print('date='+(missing[-1] if missing else ''))
+          print('month='+month)
+          print('year='+str(yy))
+          PY
+      - name: CDS konfigurieren
+        if: steps.date.outputs.has_work == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}"
+          printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Reale Stundenwerte laden und 12-UTC-Tageskarten erzeugen
+        if: steps.date.outputs.has_work == 'true'
+        shell: bash
+        env:
+          DATE: ${{ steps.date.outputs.date }}
+        run: |
+          set -euo pipefail
+          python scripts/era5_synoptic_diagnostics.py day \
+            --date "$DATE" --output ".era5-synoptic-work/$DATE"
+          test "$(find ".era5-synoptic-work/$DATE" -maxdepth 1 -name '*.png' | wc -l)" -eq 8
+          test -s ".era5-synoptic-work/$DATE/$DATE-hourly-counts.npz"
+      - name: Karten und stündliche Schwellenzähler als Release veröffentlichen
+        if: steps.date.outputs.has_work == 'true'
+        shell: bash
+        env:
+          DATE: ${{ steps.date.outputs.date }}
+          YEAR: ${{ steps.date.outputs.year }}
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          TAG="era5-synoptic-$YEAR-v1"
+          OUT=".era5-synoptic-work/$DATE"
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
+              --title "ERA5 tägliche Synoptik $YEAR" \
+              --notes "ERA5 0,5°, 12UTC absolute Tageskarten; 24 echte stündliche Stichproben je Ereigniszähler."
+          fi
+          gh_retry gh release upload "$TAG" "$OUT"/*.png "$OUT"/*.npz --clobber
+          cp "$OUT/manifest.json" "$OUT/$DATE-manifest.json"
+          gh_retry gh release upload "$TAG" "$OUT/$DATE-manifest.json" --clobber
+          ASSETS="$(gh_release_assets "$TAG")"
+          for P in vo500 div300 pv300 omega700 cape cin ivt jet250; do
+            grep -Fxq "$DATE-$P.png" <<< "$ASSETS"
+          done
+          grep -Fxq "$DATE-hourly-counts.npz" <<< "$ASSETS"
+          grep -Fxq "$DATE-manifest.json" <<< "$ASSETS"
+      - name: Nur verifizierte Tageskarte im Pages-Index aktivieren
+        if: steps.date.outputs.has_work == 'true'
+        shell: bash
+        env:
+          DATE: ${{ steps.date.outputs.date }}
+        run: |
+          set -euo pipefail
+          cp ".era5-synoptic-work/$DATE/manifest.json" /tmp/era5-synoptic-manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for n in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p era5_europe/synoptic/days
+            cp /tmp/era5-synoptic-manifest.json "era5_europe/synoptic/days/$DATE.json"
+            python - "$DATE" <<'PY'
+          import json,sys
+          from pathlib import Path
+          d=sys.argv[1];p=Path('era5_europe/synoptic/index.json')
+          idx=json.loads(p.read_text(encoding='utf8'))
+          current=json.loads(Path('era5_europe/synoptic/days',d+'.json').read_text(encoding='utf8'))
+          assert current.get('ready') and current.get('date')==d and len(current.get('products',{}))==8
+          idx['days']=sorted(set(idx.get('days',[])+[d]))
+          idx['ready']=bool(idx['days'])
+          idx['latest_day']=max(idx['days'])
+          p.write_text(json.dumps(idx,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
+          PY
+            git add era5_europe/synoptic
+            if git diff --cached --quiet; then break; fi
+            git commit -m "Publish verified ERA5 hourly synoptic daily atlas"
+            if git push origin HEAD:main; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+          done
+      - name: Vollständige Monats-Ereignisstatistiken nur aus allen Tagen erstellen
+        if: steps.date.outputs.has_work == 'true'
+        shell: bash
+        env:
+          MONTH: ${{ steps.date.outputs.month }}
+          YEAR: ${{ steps.date.outputs.year }}
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          if ! python - "$MONTH" <<'PY'
+          import json,sys,calendar
+          from pathlib import Path
+          m=sys.argv[1]; yy,mm=map(int,m.split('-'))
+          idx=json.loads(Path('era5_europe/synoptic/index.json').read_text())
+          needed=[f'{m}-{d:02d}' for d in range(1,calendar.monthrange(yy,mm)[1]+1)]
+          raise SystemExit(0 if all(d in set(idx.get('days',[])) for d in needed)
+                           and m not in idx.get('monthly_events',[]) else 1)
+          PY
+          then
+            echo "Month not fully sampled yet (or already published), no event map."
+            exit 0
+          fi
+          mkdir -p .era5-synoptic-counts ".era5-synoptic-events/$MONTH"
+          gh_retry gh release download "era5-synoptic-$YEAR-v1" \
+            --pattern "$MONTH-*-hourly-counts.npz" --dir .era5-synoptic-counts
+          python scripts/era5_synoptic_diagnostics.py month \
+            --month "$MONTH" --counts .era5-synoptic-counts \
+            --output ".era5-synoptic-events/$MONTH"
+          TAG="era5-synoptic-events-$YEAR-v1"
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
+              --title "ERA5 monatliche Ereignishäufigkeiten $YEAR" \
+              --notes "Erst nach vollständiger Prüfung aller 24 Stunden aller Kalendertage berechnet."
+          fi
+          OUT=".era5-synoptic-events/$MONTH"
+          gh_retry gh release upload "$TAG" "$OUT"/*.png --clobber
+          cp "$OUT/manifest.json" "$OUT/$MONTH-manifest.json"
+          gh_retry gh release upload "$TAG" "$OUT/$MONTH-manifest.json" --clobber
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp "$OUT/manifest.json" /tmp/era5-synoptic-month-manifest.json
+          for n in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p era5_europe/synoptic/months
+            cp /tmp/era5-synoptic-month-manifest.json "era5_europe/synoptic/months/$MONTH.json"
+            python - "$MONTH" <<'PY'
+          import json,sys
+          from pathlib import Path
+          m=sys.argv[1];p=Path('era5_europe/synoptic/index.json')
+          idx=json.loads(p.read_text())
+          manifest=json.loads(Path('era5_europe/synoptic/months',m+'.json').read_text())
+          assert manifest['ready'] and manifest['month']==m and manifest['sample_coverage']=='100%'
+          idx['monthly_events']=sorted(set(idx.get('monthly_events',[])+[m]))
+          p.write_text(json.dumps(idx,indent=2,ensure_ascii=False)+'\n')
+          PY
+            git add era5_europe/synoptic
+            if git diff --cached --quiet; then break; fi
+            git commit -m "Publish ERA5 full-hourly monthly event frequencies"
+            if git push origin HEAD:main; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+          done
