@@ -194,7 +194,7 @@ jobs:
           m=sys.argv[1];p=Path('era5_europe/synoptic/index.json')
           idx=json.loads(p.read_text())
           manifest=json.loads(Path('era5_europe/synoptic/months',m+'.json').read_text())
-          assert manifest['ready'] and manifest['month']==m and manifest['sample_coverage']=='100%'
+          assert manifest['ready'] and manifest['month']==m and manifest['sample_coverage']=='100% of expected hourly timestamps'
           idx['monthly_events']=sorted(set(idx.get('monthly_events',[])+[m]))
           p.write_text(json.dumps(idx,indent=2,ensure_ascii=False)+'\n')
           PY
