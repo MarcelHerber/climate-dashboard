@@ -7,6 +7,7 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  datenstatus.html
   dashboard_cleanup.css
   monthly_layout.js
   stratosphaere.html
