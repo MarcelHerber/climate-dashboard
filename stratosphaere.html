@@ -54,6 +54,8 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 @media(max-width:750px){.ssw-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ssw-details{grid-template-columns:1fr 1fr}}
 /* Kompakte Ansicht: Heatmap und SSW-Ereigniskarten ausblenden; Methodik und Datenquellen sichtbar lassen. */
 main > #heatmapCard, main > #sswEventsCard {display:none !important;}
+main > section.card.method {display:grid !important;}
+
 .levels-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
 .levels-heading p{max-width:780px}
 .levels-actions{display:flex;gap:9px;flex-wrap:wrap}
@@ -123,6 +125,11 @@ main > #heatmapCard, main > #sswEventsCard {display:none !important;}
   <div id="levelsLatest" class="levels-latest" aria-label="Letzte Analysewerte je Druckniveau"></div>
   <p class="legendnotes" id="levelsNotes">Durchgezogene Linien: analysierter zonaler Wind · gestrichelt: GEOS-FP-Prognosen, falls vorhanden. Die Nulllinie bedeutet im Absolutmodus Windumkehr; in der Anomalieansicht markiert sie das tägliche Klimamittel. Jeder Druckfläche liegt ihre eigene 1991–2020-Referenz zugrunde. Eine Windumkehr allein ist kein bestätigtes Major SSW.</p>
 </section>
+<!-- Erläuterung bleibt dauerhaft sichtbar; bewusst VOR den ausgeblendeten Modulen. -->
+<section class="card method">
+<div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
+<div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
+</section>
 <section class="card" id="heatmapCard">
   <div class="levels-heading">
     <div>
@@ -155,10 +162,7 @@ main > #heatmapCard, main > #sswEventsCard {display:none !important;}
   <p class="legendnotes ssw-method">Definition: erstes Unterschreiten von 0 m/s bei 60° N und 10 hPa zwischen November und März; für ein neues Ereignis sind seit dem vorherigen mindestens 20 zusammenhängende Westwindtage erforderlich. Als windbasiertes Major SSW wird es erst nach zehn aufeinanderfolgenden Westwindtagen bis einschließlich 30. April eingestuft. Sonst: Kandidat bzw. bei lückenlos dokumentiertem Ausbleiben der Rückkehr „finales Warming“. Prognosen zählen nie als Nachweis. Die Temperaturgradienten-Prüfung nach dem strengeren WMO-Kriterium erfolgt hier nicht.</p>
   <p class="source">Methodik: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium · Charlton-Polvani-Kriterien</a>. Historische Ereignisdaten sind vom jeweiligen Datensatz abhängig und keine verbindliche WMO-Einstufung.</p>
 </section>
-<section class="card method">
-<div><h2>Warum 60° N und 10 hPa?</h2><p>Der zonal gemittelte zonale Wind bei 60° N in 10 hPa ist eine zentrale Diagnose der Stärke des stratosphärischen Polarwirbels. Eine Umkehr von West- auf Ostwind im nördlichen Winter ist ein wichtiges Kriterium zur Identifikation einer plötzlichen Stratosphärenerwärmung (SSW). Der reine Vorzeichenwechsel auf dieser Grafik wird bewusst nicht automatisch als bestätigtes Major-SSW-Ereignis klassifiziert.</p></div>
-<div><h2>Datengrundlage und Aktualisierung</h2><p>NASA Ozone Watch: MERRA-2-Reanalyse, für jüngste Termine GEOS-FP-Analysen und GEOS-FP-Prognosen. Die letzten Zahlen zeigen den jeweiligen NASA-Datenstand, keine Echtzeit-Stationsmessungen. Referenz: Winter 1990/91 bis 2019/20 (30 Winter, mit Januar–Juni 1991–2020), aus den täglichen Reihen neu berechnet.</p></div>
-</section>
+
 
 </main>
 <script>
