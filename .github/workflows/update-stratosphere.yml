@@ -9,6 +9,8 @@ on:
     paths:
       - ".github/workflows/update-stratosphere.yml"
       - "scripts/update_stratosphere.py"
+      - "scripts/build_ssw_catalog.py"
+      - "tests/test_ssw_catalog.py"
 
 permissions:
   contents: write
@@ -57,10 +59,12 @@ jobs:
           import json
           from pathlib import Path
           j=json.loads(Path("/tmp/stratosphere-public/data/stratosphere/ssw_catalog.json").read_text())
-          assert j["schema_version"]==1 and j["complete_seasons"]>=30
+          assert j["schema_version"]==1 and j["evaluated_seasons"]>=40
           assert j["event_count"]>=10
           assert all(s["days_available"]==s["days_expected"]
                      for s in j["seasons"] if s["status"]=="complete")
+          assert all(s["days_expected"]-s["days_available"]==1
+                     for s in j["seasons"] if s["status"]=="leap_gap")
           print("SSW-Katalog validiert:",j["event_count"],"Ereignisse")
           PY
 
