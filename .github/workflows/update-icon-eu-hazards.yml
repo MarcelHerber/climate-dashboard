@@ -4,7 +4,7 @@ on:
     - cron: "30 4,10,16,22 * * *"
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/icon-eu-europa-gefahrenmonitor]
     paths:
       - ".github/workflows/update-icon-eu-hazards.yml"
       - "scripts/update_icon_eu_hazards.py"
