@@ -250,6 +250,14 @@ fi
 
 # Generiere öffentliche Datenstände aus den tatsächlich veröffentlichten
 # Archiv-Metadaten. Keine GitHub-API im Browser für die Datenabdeckung nötig.
+python -m unittest discover -s tests -p 'test_data_status.py' -v
+python - <<'PY'
+from pathlib import Path
+page=Path("datenstatus.html").read_text(encoding="utf-8")
+assert '<script>' in page and '</script>' in page
+Path("/tmp/climate-data-status-check.js").write_text(page.split("<script>",1)[1].split("</script>",1)[0], encoding="utf-8")
+PY
+node --check /tmp/climate-data-status-check.js
 python scripts/build_data_status.py --output _site/data/status/status.json
 test -s _site/data/status/status.json || { echo "FEHLER: Datenstatus fehlt"; exit 1; }
 
