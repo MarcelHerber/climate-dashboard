@@ -1,0 +1,70 @@
+{
+  "ready": false,
+  "source": "ERA5 hourly reanalysis",
+  "grid": "0.5° pilot grid",
+  "sampling": "Daily maps: 12 UTC instantaneous analysis. Monthly events: complete 24 hourly observations per day.",
+  "days": [],
+  "monthly_events": [],
+  "parameters": {
+    "vo500": {
+      "label": "Relative Vorticity 500 hPa",
+      "unit": "10⁻⁵ s⁻¹"
+    },
+    "div300": {
+      "label": "Divergenz 300 hPa",
+      "unit": "10⁻⁵ s⁻¹"
+    },
+    "pv300": {
+      "label": "Potenzielle Vorticity 300 hPa",
+      "unit": "PVU"
+    },
+    "omega700": {
+      "label": "Vertikalbewegung 700 hPa",
+      "unit": "Pa/s"
+    },
+    "cape": {
+      "label": "CAPE",
+      "unit": "J/kg"
+    },
+    "cin": {
+      "label": "CIN",
+      "unit": "J/kg"
+    },
+    "ivt": {
+      "label": "Integrierter Wasserdampftransport",
+      "unit": "kg/(m·s)"
+    },
+    "jet250": {
+      "label": "250-hPa-Windgeschwindigkeit",
+      "unit": "m/s"
+    }
+  },
+  "thresholds": {
+    "cape1000": {
+      "label": "CAPE ≥ 1000 J/kg",
+      "value": 1000,
+      "operator": ">="
+    },
+    "ivt500": {
+      "label": "IVT ≥ 500 kg/(m·s)",
+      "value": 500,
+      "operator": ">="
+    },
+    "jet40": {
+      "label": "Wind 250 hPa ≥ 40 m/s",
+      "value": 40,
+      "operator": ">="
+    },
+    "lift700": {
+      "label": "Omega 700 hPa ≤ −0,2 Pa/s",
+      "value": -0.2,
+      "operator": "<="
+    },
+    "vo500_10": {
+      "label": "Vorticity 500 hPa ≥ 10 × 10⁻⁵ s⁻¹",
+      "value": 0.0001,
+      "operator": ">="
+    }
+  },
+  "note": "No daily or event maps appear as available until all required real ERA5 hourly samples have been verified."
+}
