@@ -212,7 +212,7 @@
     ctx.restore();
   }
 
-  function drawLegend(ctx, state, geometry, box, px) {
+  function drawLegend(ctx, state, box) {
     const x=box.x + box.w + 23;
     const startY=box.y+4;
     const selected=state.currentType==="all"?"Gesamtübersicht":state.TYPES[state.currentType].name;
@@ -238,7 +238,6 @@
     text(ctx,selected,x,top+50,"12px Arial",PALETTE.muted);
     text(ctx,"Nebel maximal Gelb.",x,top+82,"12px Arial",PALETTE.muted);
     text(ctx,"Raster: 0,5° · ICON-EU",x,top+104,"12px Arial",PALETTE.muted);
-    text(ctx,geometry ? "Hintergrund: © Natural Earth" : "",x,top+128,"11px Arial",PALETTE.muted);
   }
 
   async function makePNG() {
@@ -254,7 +253,7 @@
     const pad=28, top=142, bottom=92;
     const box={x:pad,y:top,w,h};
     const pageWidth=box.x+box.w+WIDTH_LEGEND+pad;
-    const pageHeight=Math.max(top+h+bottom,750);
+    const pageHeight=Math.max(top+h+bottom,880);
     const canvas=document.createElement("canvas");
     canvas.width=pageWidth*factor;canvas.height=pageHeight*factor;
     const ctx=canvas.getContext("2d",{alpha:false});
@@ -292,7 +291,7 @@
 
     drawRiskCanvas(ctx,mapEl,box);
     ctx.strokeStyle="#a8b9c7";ctx.lineWidth=1;ctx.strokeRect(box.x+.5,box.y+.5,w-1,h-1);
-    drawLegend(ctx,state,geography,box,pad);
+    drawLegend(ctx,state,box);
 
     const footY=pageHeight-61;
     ctx.strokeStyle="#d9e4eb";ctx.beginPath();ctx.moveTo(pad,footY-15);
