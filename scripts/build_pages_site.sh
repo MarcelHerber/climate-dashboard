@@ -52,6 +52,28 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+# Das Layout der Stratosphären-Seite muss trotz ausgeblendeter Heatmap
+# seine Erklärung sichtbar im veröffentlichten HTML behalten.
+python - <<'PY'
+from pathlib import Path
+page = Path("_site/stratosphaere.html").read_text(encoding="utf-8")
+expected = (
+    'id="levelsCard"',
+    'class="card method"',
+    'id="heatmapCard"',
+    'id="sswEventsCard"',
+)
+positions = [page.find(key) for key in expected]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    raise SystemExit("FEHLER: Stratosphären-Erklärung ist nicht VOR der versteckten Heatmap.")
+for text in ("Warum 60° N und 10 hPa?", "Datengrundlage und Aktualisierung"):
+    if text not in page:
+        raise SystemExit("FEHLER: Fehlender sichtbarer Erklärtext: "+text)
+if "main > section.card.method {display:grid !important;}" not in page:
+    raise SystemExit("FEHLER: Sichtbarkeitsregel der Stratosphären-Erklärung fehlt.")
+print("Stratosphäre: Erläuterung direkt nach den Winddiagrammen im Pages-Artefakt geprüft.")
+PY
+
 # Schneehöhen werden direkt mit GitHub Pages veröffentlicht. Damit hängt der
 # Stationsbereich nicht von separaten Raw-GitHub-Requests ab und ein grüner
 # Pages-Deploy garantiert, dass Index, Profile und aktuelle Saison zusammenpassen.
