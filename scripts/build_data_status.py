@@ -107,6 +107,8 @@ def sst_region_status(manifest, regions):
         if not valid_date(iso) or not isinstance(day, dict):
             continue
         region_data = day.get("regions") or {}
+        if not isinstance(region_data, dict):
+            continue
         if all(isinstance(region_data.get(k), dict)
                and all(isinstance(region_data[k].get(view), str)
                        and region_data[k][view] for view in ("absolute", "anomaly"))
@@ -127,6 +129,7 @@ def add_external(items, remote):
     if mos:
         steps = mos.get("timesteps") or []
         count = mos.get("station_count", 0)
+        count = count if isinstance(count, int) else 0
         good = mos.get("product") == "DWD MOSMIX-L" and count >= 100 and len(steps) >= 24
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen",
             mos.get("issue_time"), mos.get("generated_at"),
@@ -140,6 +143,8 @@ def add_external(items, remote):
     icon = remote.get("icon")
     if icon:
         periods = icon.get("periods") or []
+        if not isinstance(periods, list):
+            periods = []
         ranges = [(p.get("start_h"), p.get("end_h")) for p in periods if isinstance(p, dict)]
         expected = [(0,24),(24,48),(48,72),(72,96),(96,120)]
         good = icon.get("schema") == 1 and ranges == expected and bool(icon.get("grid"))
