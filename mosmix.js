@@ -17,6 +17,11 @@
   let statesGeo = null;
   let selectedStationKey = null;
   let meteogramCharts = [];
+  let currentDetail = null;
+  let rainPeriod = "1";
+  let gustPeriod = "1";
+  const RAIN_PERIODS = {"1":"RR1c","3":"RR3c","6":"RR6c","12":"RRhc","24":"RRdc"};
+  const GUST_PERIODS = {"1":"FX1","3":"FX3","12":"FXh"};
   const detailCache = new Map();
 
   function esc(value) {
@@ -91,6 +96,16 @@
       ".mosmix-meteogram-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:12px}",
       ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
       ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
+      ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
+      ".mosmix-meteogram-actions .mosmix-button{font-size:12px;padding:7px 11px}",
+      ".mosmix-button:disabled,.mosmix-period-button:disabled{opacity:.42;cursor:not-allowed}",
+      ".mosmix-period-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:7px}",
+      ".mosmix-period-head h4{margin:0!important}",
+      ".mosmix-period-group{display:flex;flex-wrap:wrap;gap:3px;align-items:center}",
+      ".mosmix-period-button{border:1px solid #cbd5df;border-radius:5px;background:#fff;color:#334155;font:700 11px/1.2 inherit;padding:5px 7px;cursor:pointer}",
+      ".mosmix-period-button.active{background:#10213d;color:#fff;border-color:#10213d}",
+      ".mosmix-period-hint{font-size:10px;color:#64748b;margin:0 0 4px}",
+      ".mosmix-export-status{font-size:11px;color:#475569;margin-right:auto}",
       ".mosmix-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}",
       ".mosmix-chart-card{min-width:0;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
       ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
@@ -130,13 +145,14 @@
       '<div class="mosmix-station-search"><input id="mosmixStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Frankfurt, Saarbrücken …" autocomplete="off"><datalist id="mosmixStationList"></datalist><button id="mosmixStationButton" class="mosmix-button" type="button">Diagramm anzeigen</button></div>',
       '</div>',
       '<div id="mosmixMeteogramStatus" class="mosmix-meteogram-status">Noch keine Station ausgewählt.</div>',
+      '<div class="mosmix-meteogram-actions"><span class="mosmix-export-status" id="mosmixExportStatus" role="status">Export für ausgewählte Station</span><button class="mosmix-button" id="mosmixDiagramPng" type="button" disabled>⬇ Alle Diagramme PNG</button><button class="mosmix-button" id="mosmixDiagramPdf" type="button" disabled>⬇ Alle Diagramme PDF</button></div>',
       '<div class="mosmix-chart-grid">',
       '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div></div>',
-      '<div class="mosmix-chart-card"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div></div>',
-      '<div class="mosmix-chart-card"><h4>Wind &amp; Böen</h4><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div></div>',
       '</div>',
-      '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. Die Dreiecke TX (18 UTC) und Rauten TN (06 UTC) sind eigenständige 12-h-Extremprognosen. Wind in km/h, Niederschlag in mm und Luftdruck in hPa. Nicht alle Parameter müssen für jeden Termin vorliegen.</p>',
+      '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. TX/TN sind eigenständige 12-h-Extremprognosen. Niederschlag: originale DWD-Summen, Böen: originale DWD-Maxima (jeweils rückblickender Zeitraum bis zum Gültigkeitstermin). Wind in km/h, Niederschlag in mm. Ausgegraute Zeiträume sind im geladenen Lauf nicht verfügbar.</p>',
       '</div></div></div>'
     ].join("");
   }
@@ -412,10 +428,54 @@
     };
   }
 
+  function hasMeteogramValues(detail, param) {
+    const values = detail && detail.parameters && detail.parameters[param];
+    return Array.isArray(values) && values.some(Number.isFinite);
+  }
+
+  function syncMeteogramPeriods(detail) {
+    if (!hasMeteogramValues(detail, RAIN_PERIODS[rainPeriod])) {
+      rainPeriod = Object.keys(RAIN_PERIODS).find(function(h){ return hasMeteogramValues(detail, RAIN_PERIODS[h]); }) || "1";
+    }
+    if (!hasMeteogramValues(detail, GUST_PERIODS[gustPeriod])) {
+      gustPeriod = Object.keys(GUST_PERIODS).find(function(h){ return hasMeteogramValues(detail, GUST_PERIODS[h]); }) || "1";
+    }
+    document.querySelectorAll("[data-mosmix-period]").forEach(function(button) {
+      const isRain = button.dataset.mosmixPeriod === "rain";
+      const selected = isRain ? rainPeriod : gustPeriod;
+      const field = (isRain ? RAIN_PERIODS : GUST_PERIODS)[button.dataset.hours];
+      button.disabled = !hasMeteogramValues(detail, field);
+      button.classList.toggle("active",button.dataset.hours===selected);
+      button.setAttribute("aria-pressed",String(button.dataset.hours===selected));
+      button.title = button.disabled ? "Für diese Station bzw. diesen MOSMIX-Lauf nicht verfügbar" : "";
+    });
+    const rainInfo = document.getElementById("mosmixRainPeriodInfo");
+    if (rainInfo) rainInfo.textContent = "DWD-Niederschlagssumme, letzte "+rainPeriod+" h · "+RAIN_PERIODS[rainPeriod];
+    const gustInfo = document.getElementById("mosmixGustPeriodInfo");
+    if (gustInfo) gustInfo.textContent = "Maximale DWD-Windböe, letzte "+gustPeriod+" h · "+GUST_PERIODS[gustPeriod];
+  }
+
+  function selectMeteogramPeriod(kind, hours) {
+    if (!currentDetail) return;
+    const fields = kind === "rain" ? RAIN_PERIODS : kind === "gust" ? GUST_PERIODS : null;
+    if (!fields || !fields[hours] || !hasMeteogramValues(currentDetail, fields[hours])) return;
+    if (kind === "rain") rainPeriod = hours;
+    else gustPeriod = hours;
+    syncMeteogramPeriods(currentDetail);
+    const chart = meteogramCharts[kind === "rain" ? 1 : 2];
+    if (!chart) return;
+    const ds = chart.data.datasets[kind === "rain" ? 0 : 1];
+    ds.data = currentDetail.parameters[fields[hours]];
+    ds.label = kind === "rain" ? hours+"-h-Niederschlagssumme" : hours+"-h-Maximalböe";
+    chart.update("none");
+  }
+
   function createMeteogram(detail) {
     if (!window.Chart) throw new Error("Chart.js ist nicht verfügbar.");
     destroyMeteogramCharts();
 
+    currentDetail = detail;
+    syncMeteogramPeriods(detail);
     const p = detail.parameters || {};
     const labels = meteogramLabels();
     const commonLine = {pointRadius:0,pointHoverRadius:3,borderWidth:2,tension:.18,spanGaps:true};
@@ -465,7 +525,7 @@
       options:tempOptions
     }));
 
-    const rainOptions = baseChartOptions("mm / h");
+    const rainOptions = baseChartOptions("mm");
     rainOptions.scales.y.beginAtZero = true;
     rainOptions.scales.yCloud = {
       position:"right",min:0,max:100,
@@ -474,7 +534,7 @@
     };
     meteogramCharts.push(new Chart(document.getElementById("mosmixRainChart"), {
       data:{labels:labels,datasets:[
-        {type:"bar",label:"1-h-Niederschlag",data:p.RR1c || [],yAxisID:"y",backgroundColor:"rgba(23,105,194,.58)",borderWidth:0,barPercentage:.9,categoryPercentage:1},
+        {type:"bar",label:rainPeriod+"-h-Niederschlagssumme",data:p[RAIN_PERIODS[rainPeriod]] || [],yAxisID:"y",backgroundColor:"rgba(23,105,194,.58)",borderWidth:0,barPercentage:.9,categoryPercentage:1},
         Object.assign({type:"line",label:"Bewölkung",data:p.N || [],yAxisID:"yCloud",borderColor:"#64748b",backgroundColor:"rgba(100,116,139,.06)"},commonLine)
       ]},
       options:rainOptions
@@ -494,7 +554,7 @@
       type:"line",
       data:{labels:labels,datasets:[
         Object.assign({label:"Wind",data:p.FF || [],borderColor:"#15806c",backgroundColor:"rgba(21,128,108,.06)"},commonLine),
-        Object.assign({label:"Böen",data:p.FX1 || [],borderColor:"#d97706",backgroundColor:"rgba(217,119,6,.06)",borderDash:[5,3]},commonLine)
+        Object.assign({label:gustPeriod+"-h-Maximalböe",data:p[GUST_PERIODS[gustPeriod]] || [],borderColor:"#d97706",backgroundColor:"rgba(217,119,6,.06)",borderDash:[5,3]},commonLine)
       ]},
       options:windOptions
     }));
@@ -506,6 +566,119 @@
       ]},
       options:baseChartOptions("hPa")
     }));
+    setMeteogramExportReady(true);
+  }
+
+  function setMeteogramExportReady(ready) {
+    ["mosmixDiagramPng","mosmixDiagramPdf"].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !ready;
+    });
+  }
+
+  function meteogramExportMeta() {
+    const station = data && data.stations.find(function(s){return s.key === selectedStationKey;});
+    return {
+      station:station ? station.name : "MOSMIX",
+      issue:fmtTime(data && data.issue_time),
+      filename:"mosmix_"+(station ? station.name : "station").replace(/[^a-zA-Z0-9äöüÄÖÜß._-]+/g,"_")+
+        "_"+String(data && data.issue_time || "lauf").replace(/[^a-zA-Z0-9]+/g,"").slice(0,18)
+    };
+  }
+
+  function meteogramExportSections() {
+    if (!currentDetail || meteogramCharts.length !== 4) throw new Error("Bitte zuerst eine Station mit vier Diagrammen laden.");
+    const specs = [
+      ["mosmixTempChart","Temperatur und Taupunkt"],
+      ["mosmixRainChart","Niederschlag und Bewölkung · "+rainPeriod+" h"],
+      ["mosmixWindChart","Wind und maximale Böen · "+gustPeriod+" h"],
+      ["mosmixPressureChart","Luftdruck"]
+    ];
+    return specs.map(function(spec) {
+      const source = document.getElementById(spec[0]);
+      if (!source || !source.width || !source.height) throw new Error("Diagramm noch nicht fertig gezeichnet.");
+      const width = 1100, pad = 24, innerWidth = width - 2*pad;
+      const plotHeight = Math.round(innerWidth * source.height/source.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = plotHeight + 74;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.font = "700 24px Arial";
+      ctx.fillStyle = "#172033";
+      ctx.fillText(spec[1],pad,33);
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.beginPath();ctx.moveTo(pad,51);ctx.lineTo(width-pad,51);ctx.stroke();
+      ctx.drawImage(source,pad,65,innerWidth,plotHeight);
+      return canvas;
+    });
+  }
+
+  function exportCombinedPng() {
+    const sections = meteogramExportSections();
+    const meta = meteogramExportMeta();
+    const width = 1100, gap = 15, pad = 25, header = 118, footer = 55;
+    const height = header + footer + pad + sections.reduce(function(n,c){return n+c.height+gap;},0);
+    const out = document.createElement("canvas");
+    out.width = width;out.height = height;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#fff";ctx.fillRect(0,0,width,height);
+    ctx.fillStyle = "#0f172a";ctx.font = "bold 31px Arial";
+    ctx.fillText("DWD MOSMIX-L · Meteogramme",pad,47);
+    ctx.fillStyle = "#475569";ctx.font = "19px Arial";
+    ctx.fillText(meta.station+" · Lauf "+meta.issue,pad,83);
+    let y = header;
+    sections.forEach(function(section){ ctx.drawImage(section,0,y);y+=section.height+gap; });
+    ctx.fillStyle = "#64748b";ctx.font = "16px Arial";
+    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · originale Zeitraumsummen und Windböen",pad,height-24);
+    const link = document.createElement("a");
+    link.download = meta.filename+".png";
+    link.href = out.toDataURL("image/png");
+    document.body.appendChild(link);link.click();link.remove();
+  }
+
+  function exportCombinedPdf() {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("PDF-Bibliothek ist nicht geladen.");
+    const sections = meteogramExportSections();
+    const meta = meteogramExportMeta();
+    const pdf = new window.jspdf.jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const pageWidth = 210, margin = 12, width = pageWidth - 2*margin;
+    let y = 0, pageNumber = 0;
+    function startPage() {
+      if (pageNumber) pdf.addPage();
+      pageNumber++;
+      pdf.setFont("helvetica","bold");pdf.setFontSize(14);
+      pdf.text("DWD MOSMIX-L · Meteogramme",margin,17);
+      pdf.setFont("helvetica","normal");pdf.setFontSize(9);
+      pdf.text((meta.station+" · Lauf "+meta.issue).slice(0,92),margin,24);
+      pdf.setDrawColor(210,218,225);pdf.line(margin,28,pageWidth-margin,28);
+      pdf.setFontSize(8);
+      pdf.text("Quelle: DWD MOSMIX-L · Originalwerte, Zeitsummen und Böen",margin,287);
+      y = 34;
+    }
+    startPage();
+    sections.forEach(function(section) {
+      const h = section.height / section.width * width;
+      if (y+h>279) startPage();
+      const scaledHeight = Math.min(h,240);
+      const scaledWidth = width * (scaledHeight/h);
+      pdf.addImage(section.toDataURL("image/png"),"PNG",margin,y,scaledWidth,scaledHeight);
+      y += scaledHeight + 6;
+    });
+    pdf.save(meta.filename+".pdf");
+  }
+
+  function downloadMeteogram(format) {
+    const status = document.getElementById("mosmixExportStatus");
+    try {
+      if (format === "pdf") exportCombinedPdf();
+      else exportCombinedPng();
+      if (status) status.textContent = (format === "pdf" ? "PDF" : "PNG")+"-Export vorbereitet.";
+    } catch(err) {
+      console.error("MOSMIX-Export:",err);
+      if (status) status.textContent = "Download fehlgeschlagen: "+err.message;
+    }
   }
 
   async function loadStationDetail(station) {
@@ -524,6 +697,8 @@
   async function selectStation(station) {
     if (!station) return;
     selectedStationKey = station.key;
+    currentDetail = null;
+    setMeteogramExportReady(false);
     const input = document.getElementById("mosmixStationSearch");
     if (input) input.value = stationDisplay(station);
 
@@ -532,6 +707,7 @@
 
     try {
       const detail = await loadStationDetail(station);
+      if (selectedStationKey !== station.key) return;
       createMeteogram(detail);
       if (status) {
         status.innerHTML =
@@ -986,6 +1162,9 @@
       populateStationSearch();
       updateIssueDisplay();
       setMapMode(mapMode);
+      currentDetail = null;
+      destroyMeteogramCharts();
+      setMeteogramExportReady(false);
       const target=data.stations.find(s=>s.key===previousKey);
       if(target)selectStation(target);
       else document.getElementById("mosmixMeteogramStatus").textContent="Aktuellen Lauf geladen. Bitte Station auswählen.";
@@ -1023,6 +1202,13 @@
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
       document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
+      document.querySelectorAll("[data-mosmix-period]").forEach(function(button) {
+        button.addEventListener("click",function(){
+          selectMeteogramPeriod(button.dataset.mosmixPeriod,button.dataset.hours);
+        });
+      });
+      document.getElementById("mosmixDiagramPng").addEventListener("click",function(){downloadMeteogram("png");});
+      document.getElementById("mosmixDiagramPdf").addEventListener("click",function(){downloadMeteogram("pdf");});
       document.getElementById("mosmixStationSearch").addEventListener("keydown", function(event){
         if (event.key === "Enter") {
           event.preventDefault();
