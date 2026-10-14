@@ -49,28 +49,33 @@ def west_run(wind, start, end, n):
 def classify(year, wind, today):
     first, last = date(year, 11, 1), date(year + 1, 4, 30)
     required = list(days(first - DAY, last))
-    count = sum(day in wind for day in required)
-    complete = today >= last and count == len(required)
+    missing = [day for day in required if day not in wind]
+    count = len(required) - len(missing)
+    leap_gap = bool(missing) and all(d.month == 2 and d.day == 29 for d in missing)
+    usable = today >= last and (not missing or leap_gap)
     season = {"year": year, "label": f"{year}/{str(year+1)[-2:]}",
-              "status": "complete" if complete else
+              "status": "complete" if today >= last and not missing else
+                        "leap_gap" if today >= last and leap_gap else
                         "incomplete" if today >= last else "in_progress",
               "days_available": count, "days_expected": len(required),
-              "events": 0}
-    if not complete:
+              "missing_feb29": leap_gap, "events": 0}
+    # Kein Ersatzwert am 29. Februar. Kontinuierliche Windphasen
+    # werden beim fehlenden Kalendertag unterbrochen.
+    if not usable:
         return season, [], []
     found, final = [], []
     prior_event = None
     for day in days(first, date(year + 1, 3, 31)):
-        if wind[day] >= 0 or wind[day-DAY] < 0:
+        if day not in wind or day-DAY not in wind or wind[day] >= 0 or wind[day-DAY] < 0:
             continue
         if prior_event and not west_run(wind, prior_event+DAY, day-DAY, 20):
             continue
         prior_event = day
         recovery = west_run(wind, day+DAY, last, 10)
         run = 0
-        while day + timedelta(days=run) <= last and wind[day+timedelta(days=run)] < 0:
+        while day + timedelta(days=run) <= last and wind.get(day+timedelta(days=run), 0) < 0:
             run += 1
-        value = min(wind[k] for k in days(day, min(last,day+timedelta(days=29))))
+        value = min(wind[k] for k in days(day, min(last,day+timedelta(days=29))) if k in wind)
         record = {"date": day.isoformat(), "year": year,
                   "winter": season["label"], "easterly_days": run,
                   "minimum_30d_ms": round(value,2), "return_west_10d": recovery}
@@ -96,12 +101,15 @@ def build(source, today=None):
         events.extend(yes)
         final.extend(no)
     completed = sum(s["status"]=="complete" for s in seasons)
+    leap_years = sum(s["status"]=="leap_gap" for s in seasons)
     return {"schema_version":1,
             "generated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "source":"NASA Ozone Watch / MERRA-2: u(60N,10hPa) Tagesmittel",
             "method":"Charlton & Polvani 2007, windbasiert; November–März, 20 Westwindtage zwischen Ereignissen, 10 Westwindtage vor dem 30. April zur Abgrenzung der final warming",
             "analysis_through":latest.isoformat() if latest else None,
             "complete_seasons":completed,
+            "leap_gap_seasons":leap_years,
+            "evaluated_seasons":completed+leap_years,
             "incomplete_seasons":sum(s["status"]=="incomplete" for s in seasons),
             "event_count":len(events),
             "seasons":seasons,
