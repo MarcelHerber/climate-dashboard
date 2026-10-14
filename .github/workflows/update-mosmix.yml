@@ -31,11 +31,32 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: MOSMIX Parameter und 12-h-Zeitbezug testen
+        run: python -m unittest discover -s tests -p test_mosmix_tx_tn.py -v
+
       - name: MOSMIX-L laden und Deutschlanddatei bauen
         run: |
           rm -rf /tmp/mosmix-public
           mkdir -p /tmp/mosmix-public/data/mosmix
           python scripts/update_mosmix.py --output /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+
+      - name: Originale TX und TN auf dem Datenbranch prüfen
+        run: |
+          python - <<'PY'
+          import datetime, json, pathlib
+          p=pathlib.Path("/tmp/mosmix-public/data/mosmix/mosmix_ttt.json")
+          j=json.loads(p.read_text(encoding="utf-8"))
+          assert j.get("product")=="DWD MOSMIX-L"
+          assert j.get("extrema_reference",{}).get("TX",{}).get("valid_hour_utc")==18
+          assert j.get("extrema_reference",{}).get("TN",{}).get("valid_hour_utc")==6
+          stations=j.get("stations",[])
+          assert len(stations)>100, "Unplausibel wenige MOSMIX-Stationen"
+          tx=sum(1 for s in stations if s.get("tx12"))
+          tn=sum(1 for s in stations if s.get("tn12"))
+          assert tx>100 and tn>100, "TX/TN Originalwerte fehlen weitgehend"
+          print("DWD MOSMIX-L:",len(stations),"Stationen | TX:",tx,
+                "| TN:",tn,"| Lauf:",j.get("issue_time"))
+          PY
 
       - name: MOSMIX-Datenbranch veröffentlichen
         shell: bash
