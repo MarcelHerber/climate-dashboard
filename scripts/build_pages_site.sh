@@ -14,6 +14,9 @@ required_root_files=(
   enso.html
   qbo.html
   mjo.html
+  meereis.html
+  meereis.js
+  meereis.css
   climate_advanced.js
   climate_indices.js
   climate_indices.css
@@ -245,6 +248,17 @@ if [[ -s sea_ice/index.json ]]; then
   echo "NSIDC Arktis/Antarktis Daten im Pages-Artefakt enthalten."
 else
   echo "HINWEIS: NSIDC-Archiv wird durch den ersten Meereis-Workflow erzeugt."
+fi
+
+# NSIDC Sea Ice Index v4 – latest observations, 1991–2020 normals and SD.
+# Initial data build is a dedicated workflow. Once present the data must be
+# published to Pages together with the chart scripts.
+if [[ -s sea_ice/index.json ]]; then
+  mkdir -p _site/sea_ice
+  cp sea_ice/index.json _site/sea_ice/index.json
+  echo "NSIDC-Meereisausdehnung Nord/Süd mit Tagesklimatologie veröffentlicht."
+else
+  echo "HINWEIS: NSIDC-Meereisarchiv wird noch vom Erstimport erzeugt."
 fi
 
 touch _site/.nojekyll
