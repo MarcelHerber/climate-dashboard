@@ -26,7 +26,12 @@ USER_AGENT = "climate-dashboard-mosmix/2.0 (+GitHub Actions; DWD Open Data)"
 LON_MIN, LON_MAX = 5.45, 15.55
 LAT_MIN, LAT_MAX = 47.15, 55.15
 
-METEOGRAM_PARAMS = ("TTT", "TX", "TN", "Td", "RR1c", "FF", "FX1", "DD", "N", "PPPP")
+# Read original DWD interval forecasts; do not infer multi-hour totals or gusts
+# from hourly points. Both spellings of the 12-hour gust occur in catalogues.
+METEOGRAM_PARAMS = (
+    "TTT", "TX", "TN", "Td", "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
+    "FF", "FX1", "FX3", "FXh", "FFXh", "DD", "N", "PPPP",
+)
 
 
 def local_name(tag: str) -> str:
@@ -74,13 +79,13 @@ def convert_values(parameter: str, values: list[float | None]) -> list[float | N
 
         if parameter in {"TTT", "Td", "TX", "TN"}:
             converted.append(round(value - 273.15, 1))
-        elif parameter in {"FF", "FX1"}:
+        elif parameter in {"FF", "FX1", "FX3", "FXh", "FFXh"}:
             # MOSMIX wind is m/s; display files use km/h for the dashboard.
             converted.append(round(value * 3.6, 1))
         elif parameter == "PPPP":
             # Reduced pressure is supplied in Pa; use hPa in the meteogram.
             converted.append(round(value / 100.0, 1))
-        elif parameter == "RR1c":
+        elif parameter in {"RR1c", "RR3c", "RR6c", "RRhc", "RRdc"}:
             # kg/m² water equivalent == mm precipitation.
             converted.append(round(value, 2))
         elif parameter in {"N", "DD"}:
@@ -208,6 +213,12 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     values = convert_values(element_name, raw_values(node))
                     forecasts[element_name] = normalize_length(values, len(timesteps))
 
+                # Canonicalize the original 12 h gust field despite its
+                # FXh/FFXh naming difference across DWD reference catalogues.
+                if "FXh" not in forecasts and "FFXh" in forecasts:
+                    forecasts["FXh"] = forecasts["FFXh"]
+                forecasts.pop("FFXh", None)
+
                 ttt = forecasts.get("TTT") or [None] * len(timesteps)
                 tx = forecasts.get("TX") or []
                 tn = forecasts.get("TN") or []
@@ -283,8 +294,14 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
             "TN": {"label": "Temperaturminimum letzte 12 h, 06 UTC", "unit": "°C"},
             "Td": {"label": "2-m-Taupunkt", "unit": "°C"},
             "RR1c": {"label": "1-h-Niederschlag", "unit": "mm"},
+            "RR3c": {"label": "3-h-Niederschlag", "unit": "mm"},
+            "RR6c": {"label": "6-h-Niederschlag", "unit": "mm"},
+            "RRhc": {"label": "12-h-Niederschlag", "unit": "mm"},
+            "RRdc": {"label": "24-h-Niederschlag", "unit": "mm"},
             "FF": {"label": "Wind", "unit": "km/h"},
             "FX1": {"label": "1-h-Böe", "unit": "km/h"},
+            "FX3": {"label": "3-h-Böe", "unit": "km/h"},
+            "FXh": {"label": "12-h-Böe", "unit": "km/h"},
             "DD": {"label": "Windrichtung", "unit": "°"},
             "N": {"label": "Gesamtbedeckung", "unit": "%"},
             "PPPP": {"label": "Luftdruck", "unit": "hPa"},
