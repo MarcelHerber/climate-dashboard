@@ -1151,6 +1151,7 @@ button.action:hover{background:#1f2937}
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
 <link rel="stylesheet" href="era5_europe.css?v=2">\n<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
+<link rel="stylesheet" href="dashboard_cleanup.css?v=20261014-1">
 </head>
 <body>
 
@@ -1197,22 +1198,25 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="stations" onclick="switchTab('stationHeatwaves')">Stations-Hitzewellen</button>
           <button class="tab-button" data-nav-group="stations" onclick="switchTab('maps')">Stationskarten</button>
           <button class="tab-button" data-nav-group="stations" onclick="switchTab('records')">Stationsrekorde</button>
-<!-- DWD_DECADE_RECORDS_DESKTOP_NAV_V1 -->
-          <button class="tab-button" data-nav-group="stations" type="button" onclick="window.location.href='dekadenrekorde.html'">Dekadenrekorde</button>
+<!-- Dekadenrekorde stehen gesammelt unter Deutschland > Extreme. -->
         </div>
       </div>
 
       <div class="nav-dropdown" data-nav-group="europe">
         <button class="nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">Europa <span class="nav-chevron" aria-hidden="true"></span></button>
         <div class="nav-dropdown-menu" role="menu">
-          <div class="nav-menu-heading">Europa-Module</div>
+          <div class="nav-menu-heading">Überblick</div>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeHub')">Europa-Überblick</button>
+          <div class="nav-menu-divider"></div>
+          <div class="nav-menu-heading">Beobachtung &amp; Reanalyse</div>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeStations')">Europa-Stationen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Atmosphere')">ERA5 Atmosphäre</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
-          <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
           <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='stratosphaere.html'">Stratosphäre</button>
+          <div class="nav-menu-divider"></div>
+          <div class="nav-menu-heading">Vorhersage</div>
+          <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('state-monthly-ensemble')">Monatsausblick</button>
         </div>
       </div>
