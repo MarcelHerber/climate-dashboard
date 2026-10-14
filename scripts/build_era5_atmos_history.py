@@ -87,6 +87,8 @@ def render_triptych(
     key: str,
     label: str,
     destination: Path,
+    rank_total: int = len(EXPECTED_YEARS),
+    rank_end: int = HISTORY_END,
 ) -> None:
     """Keep absolute/anomaly/rank maps in a single three-column WEBP atlas."""
     base = destination.with_suffix("")
@@ -116,11 +118,11 @@ def render_triptych(
         {
             "field": rank,
             "title": f"{meta['label']} · Rang {label}",
-            "subtitle": f"{HISTORY_START}–{HISTORY_END} · {meta['rank_label']}",
-            "unit": "Rang 1–86",
+            "subtitle": f"{HISTORY_START}–{rank_end} · {meta['rank_label']}",
+            "unit": f"Rang 1–{rank_total}",
             "cmap": "Spectral",
             "vmin": 1,
-            "vmax": len(EXPECTED_YEARS),
+            "vmax": rank_total,
         },
     ]
     try:
