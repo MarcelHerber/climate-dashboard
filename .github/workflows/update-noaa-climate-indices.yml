@@ -33,6 +33,7 @@ jobs:
       - name: NOAA-Auswertung testen
         run: |
           python -m unittest discover -s tests -p test_climate_indices.py -v
+          python -m unittest discover -s tests -p test_climate_indices_extra.py -v
           node --check climate_indices.js
       - name: NOAA/CPC-Tages- und ENSO-Archive abrufen
         run: python scripts/update_climate_indices.py
@@ -93,6 +94,15 @@ jobs:
           assert len(p["teleconnections"]["ao"]["daily"]) > 25000
           assert len(p["enso"]["oni"]["seasons"]) > 880
           assert len(p["enso"]["roni"]["seasons"]) > 880
+          assert len(p["europe"]["scand"]["monthly"]) > 800
+          assert len(p["europe"]["ea"]["monthly"]) > 800
+          assert len(p["europe"]["eawr"]["monthly"]) > 800
+          assert len(p["europe"]["gbi"]["monthly"]) > 750
+          assert len(p["enso_extra"]["soi"]["monthly"]) > 780
+          assert len(p["enso_extra"]["mei"]["monthly"]) > 500
+          assert len(p["qbo"]["u30"]["monthly"]) > 500
+          assert len(p["qbo"]["u50"]["monthly"]) > 500
+          assert len(p["mjo"]["daily"]) > 17000
           print("NOAA/CPC-Daten geprüft, neues Pages-Artefakt wird gebaut.")
           PY
       - name: Schlankes Pages-Artefakt erzeugen
