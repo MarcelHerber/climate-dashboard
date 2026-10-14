@@ -110,8 +110,8 @@
   const ENSO_PHASE_COLORS={cold:"#296fb1",neutral:"#687786",warm:"#bb3a39"};
 
   function ensoPhaseColor(value) {
-    return value < -0.5 ? ENSO_PHASE_COLORS.cold :
-      value > 0.5 ? ENSO_PHASE_COLORS.warm : ENSO_PHASE_COLORS.neutral;
+    return value <= -0.5 ? ENSO_PHASE_COLORS.cold :
+      value >= 0.5 ? ENSO_PHASE_COLORS.warm : ENSO_PHASE_COLORS.neutral;
   }
 
   function ensoSegmentColor(context) {
