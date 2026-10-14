@@ -102,7 +102,7 @@ function seriesPoints(track,mode){
  const result=[];
  for(let i=0;i<raw.length;i++){
    const p=raw[i],prior=raw[i-1];
-   if(prior&&Date.parse(p.time)-Date.parse(prior.time)>18*3600000)
+   if(prior&&Date.parse(p.time)-Date.parse(prior.time)>12*3600000)
      result.push({x:null,y:null,break:true});
    result.push({x:p.cps.vt_lower,y:mode==="upper"?p.cps.vt_upper:p.cps.b,
      time:p.time,h:p.h,pressure:p.mslp_hpa});
