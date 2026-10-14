@@ -17,6 +17,7 @@ from typing import Any
 
 from dwd_common import atomic_write_json, download, read_json
 from station_calendar_frequency import build_calendar_frequency_payload
+from station_threshold_history import build_temperature_history
 from update_station_records import (
     HISTORICAL_PATTERN,
     HISTORICAL_URL,
@@ -32,7 +33,7 @@ from update_station_records import (
     parse_station_zip,
 )
 
-STATE_VERSION = 12
+STATE_VERSION = 13
 MIN_PROFILE_COUNT = 150
 MIN_CURRENT_STATIONS = 100
 CURRENT_DAY_FRACTION = 0.65
@@ -1138,6 +1139,7 @@ def process_historical_station(
     filename: str,
     metadata: MetadataIndex,
     current_year: int,
+    threshold_dir: Path,
 ) -> tuple[str, tuple[StationProfile, dict[str, Any]] | None, str | None]:
     station_id = station_id_from_filename(filename)
     try:
@@ -1162,18 +1164,20 @@ def process_historical_station(
             for day, (_tx, _tn, tm, _rr, _sun) in historical_climate_values.items()
             if tm is not None
         }
-        return (
+        profile_result = build_profile_payload(
             station_id,
-            build_profile_payload(
-                station_id,
-                observations,
-                metadata,
-                current_year,
-                tmean_by_day=tmean_by_day,
-                climate_values_by_day=historical_climate_values,
-            ),
-            None,
+            observations,
+            metadata,
+            current_year,
+            tmean_by_day=tmean_by_day,
+            climate_values_by_day=historical_climate_values,
         )
+        if profile_result is not None:
+            # Store historical daily temperatures separately: ordinary station
+            # profile requests must not download the full daily observation series.
+            payload = build_temperature_history(station_id, historical_climate_values)
+            atomic_write_json_compact(threshold_dir / f"{station_id}.json", payload)
+        return station_id, profile_result, None
     except NoUsableProductFileError as exc:
         return station_id, None, f"{filename}: {exc}"
     except Exception as exc:  # noqa: BLE001
@@ -1197,13 +1201,15 @@ def build_historical_profiles(
 
     target_dir = root / "station_climate_days_profiles"
     target_dir.mkdir(parents=True, exist_ok=True)
+    threshold_dir = root / "station_threshold_daily"
+    threshold_dir.mkdir(parents=True, exist_ok=True)
     profiles: list[StationProfile] = []
     errors: list[str] = []
 
     print(f"Stations-Kenntage: {len(selected)} historische Stationsarchive werden verarbeitet.")
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(process_historical_station, filename, metadata, current_year): filename
+            executor.submit(process_historical_station, filename, metadata, current_year, threshold_dir): filename
             for filename in selected
         }
         for index, future in enumerate(as_completed(futures), start=1):
@@ -1226,6 +1232,9 @@ def build_historical_profiles(
 
     valid_ids = {profile.station_id for profile in profiles}
     for old_file in target_dir.glob("*.json"):
+        if old_file.stem not in valid_ids:
+            old_file.unlink()
+    for old_file in threshold_dir.glob("*.json"):
         if old_file.stem not in valid_ids:
             old_file.unlink()
 
@@ -1258,6 +1267,9 @@ def state_is_stale(root: Path, current_year: int, force_full: bool) -> bool:
     if state.get("version") != STATE_VERSION or state.get("current_year") != current_year:
         return True
     if not index.get("ready") or len(index.get("stations", [])) < MIN_PROFILE_COUNT:
+        return True
+    threshold_dir = root / "station_threshold_daily"
+    if not threshold_dir.is_dir() or len(list(threshold_dir.glob("*.json"))) < MIN_PROFILE_COUNT:
         return True
     try:
         built_at = datetime.fromisoformat(str(state["built_at"]).replace("Z", "+00:00"))
