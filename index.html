@@ -585,6 +585,7 @@ button,select,input{font-family:inherit}
   justify-content:center;
   gap:4px;
 }
+@media(min-width:1181px) and (max-width:1500px){.primary-nav{gap:0}.nav-link,.nav-dropdown-toggle{padding-left:11px;padding-right:11px;font-size:14px}}
 .nav-link,
 .nav-dropdown-toggle{
   appearance:none;
@@ -1212,16 +1213,25 @@ button.action:hover{background:#1f2937}
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('europeStations')">Europa-Stationen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Europe')">ERA5-Land Europa</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('era5Atmosphere')">ERA5 Atmosphäre</button>
-          <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='zirkulation.html'">NAO &amp; AO Indizes</button>
-          <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='enso.html'">ENSO · El Niño / La Niña</button>
-          <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='qbo.html'">QBO · Tropische Stratosphäre</button>
-          <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='mjo.html'">MJO · RMM-Phasen</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('sst-europe')">Meere / SST</button>
           <button class="tab-button" data-nav-group="europe" type="button" onclick="window.location.href='stratosphaere.html'">Stratosphäre</button>
           <div class="nav-menu-divider"></div>
           <div class="nav-menu-heading">Vorhersage</div>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('t850-ensembles')">Ensembles</button>
           <button class="tab-button" data-nav-group="europe" onclick="switchTab('state-monthly-ensemble')">Monatsausblick</button>
+        </div>
+      </div>
+
+      <div class="nav-dropdown" data-nav-group="misc">
+        <button class="nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">Sonstiges <span class="nav-chevron" aria-hidden="true"></span></button>
+        <div class="nav-dropdown-menu" role="menu">
+          <div class="nav-menu-heading">Atmosphärische Indizes</div>
+          <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='zirkulation.html'">NAO, AO &amp; Zirkulationsmuster</button>
+          <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='qbo.html'">QBO · Tropische Stratosphäre</button>
+          <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='mjo.html'">MJO · RMM-Phasen</button>
+          <div class="nav-menu-divider"></div>
+          <div class="nav-menu-heading">Ozean &amp; Atmosphäre</div>
+          <button class="tab-button" data-nav-group="misc" type="button" onclick="window.location.href='enso.html'">ENSO · El Niño / La Niña</button>
         </div>
       </div>
 
@@ -16532,7 +16542,11 @@ function initializeMobileTabNavigation(){
     ["jahresextremwerte.html","Jahresextreme"],
     ["dekadenrekorde.html","Dekadenrekorde"],
     ["feiertagsextremwerte.html","Feiertags-Extreme"],
-    ["stratosphaere.html","Stratosphäre (60° N)"]
+    ["stratosphaere.html","Stratosphäre (60° N)"],
+    ["zirkulation.html","Sonstiges · NAO, AO & Zirkulationsmuster"],
+    ["enso.html","Sonstiges · ENSO / El Niño / La Niña"],
+    ["qbo.html","Sonstiges · QBO"],
+    ["mjo.html","Sonstiges · MJO"]
   ].forEach(([href,label])=>{
     const option=document.createElement("option");
     option.value=href;
