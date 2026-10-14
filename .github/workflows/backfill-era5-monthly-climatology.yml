@@ -1,0 +1,277 @@
+name: ERA5 Klima-Monatskarten sechs Gruppen (1940+)
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/backfill-era5-monthly-climatology.yml"]
+  workflow_run:
+    workflows: ["ERA5 Europa Atmosphäre aktualisieren"]
+    types: [completed]
+  schedule:
+    - cron: "23 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: era5-monthly-climatology
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: \${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      has_work: \${{ steps.next.outputs.has_work }}
+      month: \${{ steps.next.outputs.month }}
+      years: \${{ steps.next.outputs.years }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts
+            era5_europe/climatology
+            era5_europe/index.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Python installieren und Plan erstellen
+        id: next
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+            sleep "$((n*15))"
+          done
+          python -m py_compile scripts/era5_monthly_climatology.py
+          python scripts/era5_monthly_climatology.py plan \
+            --index era5_europe/climatology/index.json \
+            --main era5_europe/index.json \
+            --output "$GITHUB_OUTPUT" --batch-size 2
+
+  prepare:
+    needs: plan
+    if: needs.plan.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: \${{ github.token }}
+      GH_REPO: \${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - name: Historischen Referenzrelease vorbereiten
+        run: |
+          set -euo pipefail
+          source scripts/era5_gh_retry.sh
+          TAG=era5-climate-reference-1940-2025-v1
+          if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$TAG" --target main \
+              --title "ERA5 klimatologische Monatsreferenzen 1940–2025" \
+              --notes "Klimamittel 1991–2020, Gitter 0,25 Grad; acht Produkte aus sechs Gruppen."
+          fi
+
+  reference:
+    needs: [plan, prepare]
+    if: needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        key: [thickness, tcwv, q850, wind250, lcc, mcc, hcc, blh]
+    env:
+      GH_TOKEN: \${{ github.token }}
+      GH_REPO: \${{ github.repository }}
+      TARGET_MONTH: \${{ needs.plan.outputs.month }}
+      PRODUCT: \${{ matrix.key }}
+      CDSAPI_KEY: \${{ secrets.CDSAPI_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Pakete installieren und Referenz verifizieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+            sleep "$((n*15))"
+          done
+          source scripts/era5_gh_retry.sh
+          FILE="month_$TARGET_MONTH"_"$PRODUCT.npz"
+          ASSETS="$(gh_release_assets era5-climate-reference-1940-2025-v1)"
+          if ! grep -Fxq "$FILE" <<< "$ASSETS"; then
+            test -n "\${CDSAPI_KEY:-}"
+            printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+            chmod 600 "$HOME/.cdsapirc"
+            mkdir -p .era5-climate-reference
+            python scripts/era5_monthly_climatology.py reference \
+              --month "$((10#$TARGET_MONTH))" --key "$PRODUCT" \
+              --output ".era5-climate-reference/$FILE"
+            gh_retry gh release upload era5-climate-reference-1940-2025-v1 \
+              ".era5-climate-reference/$FILE" --clobber
+          fi
+          ASSETS="$(gh_release_assets era5-climate-reference-1940-2025-v1)"
+          grep -Fxq "$FILE" <<< "$ASSETS"
+
+  render:
+    needs: [plan, reference]
+    if: needs.reference.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        period: \${{ fromJSON(needs.plan.outputs.years) }}
+    env:
+      GH_TOKEN: \${{ github.token }}
+      GH_REPO: \${{ github.repository }}
+      PERIOD: \${{ matrix.period }}
+      CDSAPI_KEY: \${{ secrets.CDSAPI_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Monatskarten erzeugen und sicher veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+            sleep "$((n*15))"
+          done
+          source scripts/era5_gh_retry.sh
+          YEAR="\${PERIOD%%-*}"
+          MONTH="\${PERIOD#*-}"
+          TAG="era5-climate-$YEAR-v1"
+          OUT=".era5-climate-year/$PERIOD"
+          mkdir -p "$OUT"
+          COMPLETE=false
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            ASSETS="$(gh_release_assets "$TAG")"
+            COMPLETE=true
+            for K in thickness tcwv q850 wind250 lcc mcc hcc blh; do
+              if ! grep -Fxq "$PERIOD-$K.webp" <<< "$ASSETS"; then COMPLETE=false; fi
+            done
+            if ! grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"; then COMPLETE=false; fi
+          fi
+          if [[ "$COMPLETE" == true ]]; then
+            gh_retry gh release download "$TAG" \
+              --pattern "$PERIOD-manifest.json" --dir "$OUT"
+            mv "$OUT/$PERIOD-manifest.json" "$OUT/manifest.json"
+          else
+            test -n "\${CDSAPI_KEY:-}"
+            printf 'url: https://cds.climate.copernicus.eu/api\nkey: %s\n' "$CDSAPI_KEY" > "$HOME/.cdsapirc"
+            chmod 600 "$HOME/.cdsapirc"
+            mkdir -p .era5-climate-reference
+            gh_retry gh release download era5-climate-reference-1940-2025-v1 \
+              --pattern "month_\${MONTH}_*.npz" --dir .era5-climate-reference
+            test "$(find .era5-climate-reference -maxdepth 1 -name '*.npz' | wc -l)" -eq 8
+            python scripts/era5_monthly_climatology.py render \
+              --period "$PERIOD" --references .era5-climate-reference --output "$OUT"
+            test "$(find "$OUT" -maxdepth 1 -name '*.webp' | wc -l)" -eq 8
+            if ! gh_retry gh release view "$TAG" >/dev/null 2>&1; then
+              gh_retry gh release create "$TAG" --target main \
+                --title "ERA5 Klima-Monatskarten $YEAR" \
+                --notes "Verifizierte ERA5-Klimamonatskarten, 1991–2020 Referenz, acht Produkte."
+            fi
+            gh_retry gh release upload "$TAG" "$OUT"/*.webp --clobber
+            cp "$OUT/manifest.json" "$OUT/$PERIOD-manifest.json"
+            gh_retry gh release upload "$TAG" "$OUT/$PERIOD-manifest.json" --clobber
+          fi
+          ASSETS="$(gh_release_assets "$TAG")"
+          for K in thickness tcwv q850 wind250 lcc mcc hcc blh; do
+            grep -Fxq "$PERIOD-$K.webp" <<< "$ASSETS"
+          done
+          grep -Fxq "$PERIOD-manifest.json" <<< "$ASSETS"
+          test -s "$OUT/manifest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: era5-climate-verified-\${{ matrix.period }}
+          path: .era5-climate-year/\${{ matrix.period }}/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: render
+    if: needs.render.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            era5_europe/climatology
+            era5_europe/index.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Verified manifests zusammenführen
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in 1 2 3; do
+            if python -m pip install --retries 12 --timeout 90 --prefer-binary cdsapi numpy xarray netCDF4 matplotlib cartopy pillow; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+            sleep "$((n*15))"
+          done
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: era5-climate-verified-*
+          path: .era5-climate-verified
+          merge-multiple: false
+      - name: Nur geprüfte Monatskarten in Pages-Index einfügen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for n in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            python scripts/era5_monthly_climatology.py merge \
+              --artifacts .era5-climate-verified --root .
+            git add era5_europe/climatology
+            if git diff --cached --quiet; then break; fi
+            git commit -m "Publish verified ERA5 climate monthly maps"
+            if git push origin HEAD:main; then break; fi
+            if [[ "$n" == 3 ]]; then exit 1; fi
+          done
+      - name: Weitere Archivmonate ohne Wartezeit anstoßen
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          GH_REPO: \${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python scripts/era5_monthly_climatology.py plan \
+            --index era5_europe/climatology/index.json \
+            --main era5_europe/index.json \
+            --output /tmp/era5-climate-next.txt --batch-size 2
+          if grep -Fxq 'has_work=true' /tmp/era5-climate-next.txt; then
+            gh workflow run backfill-era5-monthly-climatology.yml --ref main
+          else
+            echo "All currently available climate months published."
+          fi
