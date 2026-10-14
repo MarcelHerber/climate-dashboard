@@ -64,7 +64,7 @@ class GebietsmittelLayoutTests(unittest.TestCase):
         self.assertIn("scrollIntoView",s)
 
     def test_files_published_by_pages(self):
-        self.assertIn('href="dashboard_cleanup.css?v=20261014-gebietsmittel2"',self.page)
+        self.assertIn('href="dashboard_cleanup.css?v=20261014-gebietsmittel3"',self.page)
         self.assertIn('src="monthly_layout.js?v=20261014-gebietsmittel2"',self.page)
         self.assertIn("  dashboard_cleanup.css\n",self.builder)
         self.assertIn("  monthly_layout.js\n",self.builder)
