@@ -1,0 +1,75 @@
+"""Official DWD MOSMIX TX/TN versus sampled TTT: 12 h at 18/06 UTC."""
+import importlib.util
+import json
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[1]
+SPEC=importlib.util.spec_from_file_location("update_mosmix",ROOT/"scripts/update_mosmix.py")
+mos=importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(mos)
+
+KML="""<?xml version="1.0" encoding="UTF-8"?>
+<kml:kml xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:dwd="https://example.test/dwd">
+  <kml:Document>
+    <dwd:IssueTime>2026-10-14T03:00:00Z</dwd:IssueTime>
+    <dwd:ForecastTimeSteps>
+      <dwd:TimeStep>2026-10-14T06:00:00Z</dwd:TimeStep>
+      <dwd:TimeStep>2026-10-14T09:00:00Z</dwd:TimeStep>
+      <dwd:TimeStep>2026-10-14T18:00:00Z</dwd:TimeStep>
+      <dwd:TimeStep>2026-10-15T06:00:00Z</dwd:TimeStep>
+    </dwd:ForecastTimeSteps>
+    <kml:Placemark>
+      <kml:name>TEST1</kml:name>
+      <kml:description>FRANKFURT TEST</kml:description>
+      <kml:Point><kml:coordinates>8.65,50.12,120</kml:coordinates></kml:Point>
+      <kml:ExtendedData>
+        <dwd:Forecast dwd:elementName="TTT">286.15 287.15 289.15 282.15</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="TX">299.15 305.15 295.15 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="TN">281.15 274.15 230.15 280.15</dwd:Forecast>
+      </kml:ExtendedData>
+    </kml:Placemark>
+  </kml:Document>
+</kml:kml>"""
+
+
+class MOSMIXExtremaTests(unittest.TestCase):
+    def test_unit_conversion(self):
+        self.assertEqual(mos.convert_values("TX",[293.15,None]),[20.0,None])
+        self.assertEqual(mos.convert_values("TN",[271.15]),[-2.0])
+
+    def test_daily_extrema_use_only_dwd_standard_synop_times(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"test.kmz"
+            with zipfile.ZipFile(path,"w") as kmz:
+                kmz.writestr("test.kml",KML)
+            details=Path(folder)/"stations"
+            data=mos.parse_kmz(path,"synthetic-test",details)
+            self.assertEqual(len(data["stations"]),1)
+            station=data["stations"][0]
+            # Despite higher raw 'TX' at 09 UTC, only 18 UTC is eligible.
+            self.assertEqual(station["tx12"],{"2":22.0})
+            # TN at 18 UTC is irrelevant; the selected nights end at 06 UTC.
+            self.assertEqual(station["tn12"],{"0":8.0,"3":7.0})
+            self.assertEqual(station["values"][2],16.0)
+            self.assertEqual(data["extrema_reference"]["TX"]["valid_hour_utc"],18)
+            self.assertEqual(data["extrema_reference"]["TN"]["valid_hour_utc"],6)
+            saved=json.loads((details/(station["key"]+".json")).read_text())
+            self.assertEqual(saved["parameters"]["TX"][2],22.0)
+            self.assertEqual(saved["parameters"]["TN"][0],8.0)
+
+    def test_sparse_original_extrema_not_hourly_maximum(self):
+        # The DWD 12-h maximum differs from the hourly 2-m temperatures.
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"test.kmz"
+            with zipfile.ZipFile(path,"w") as kmz:
+                kmz.writestr("test.kml",KML)
+            station=mos.parse_kmz(path,"synthetic-test",Path(folder)/"stations")["stations"][0]
+            self.assertNotEqual(max(v for v in station["values"] if v is not None),
+                                station["tx12"]["2"])
+
+
+if __name__=="__main__":
+    unittest.main()
