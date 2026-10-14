@@ -317,7 +317,7 @@
       const hour = new Intl.DateTimeFormat("de-DE", {
         timeZone:"Europe/Berlin", hour:"2-digit", hour12:false
       }).format(d);
-      return weekday + " " + date + " " + hour + "h";
+      return weekday + " " + date + " " + hour + " Uhr";
     });
   }
 
