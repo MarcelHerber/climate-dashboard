@@ -49,6 +49,23 @@ jobs:
         run: |
           python scripts/update_stratosphere.py --out /tmp/stratosphere-public/data/stratosphere
 
+      - name: Windbasierten SSW-Katalog aus NASA-Tagesanalysen erstellen
+        run: |
+          python -m unittest discover -s tests -p 'test_ssw_catalog.py' -v
+          python scripts/build_ssw_catalog.py \\
+            --source /tmp/stratosphere-public/data/stratosphere \\
+            --output /tmp/stratosphere-public/data/stratosphere/ssw_catalog.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path("/tmp/stratosphere-public/data/stratosphere/ssw_catalog.json").read_text())
+          assert j["schema_version"]==1 and j["complete_seasons"]>=30
+          assert j["event_count"]>=10
+          assert all(s["days_available"]==s["days_expected"]
+                     for s in j["seasons"] if s["status"]=="complete")
+          print("SSW-Katalog validiert:",j["event_count"],"Ereignisse")
+          PY
+
       - name: Datenbranch veröffentlichen (getrennt von Pages und ERA5)
         shell: bash
         run: |
