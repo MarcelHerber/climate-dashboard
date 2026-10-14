@@ -12,6 +12,9 @@ required_root_files=(
   stratosphaere.html
   zirkulation.html
   enso.html
+  qbo.html
+  mjo.html
+  climate_advanced.js
   climate_indices.js
   climate_indices.css
   stratosphere_temperature.js
