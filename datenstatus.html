@@ -6,7 +6,7 @@
 <main><h1>Datenstatus-Zentrale</h1><p class="intro">Aktualisierungsläufe der wichtigsten Datenprodukte. Ein erfolgreicher Workflow beweist nicht automatisch, dass der jüngste Messtag verfügbar ist. Daher werden Prozessstatus und Datenstand getrennt betrachtet.</p>
 <div class="summary"><div class="tile">Erfolgreiche Läufe<strong id="okCount">–</strong></div><div class="tile">Fehler / Abbruch<strong id="badCount">–</strong></div><div class="tile">Laufend<strong id="runningCount">–</strong></div><div class="tile">Unbekannt<strong id="unknownCount">–</strong></div></div>
 <section class="panel"><div class="tools"><button type="button" id="refresh">Erneut prüfen</button><span id="checked" role="status">Noch nicht geladen</span></div></section>
-<section class="panel"><h2>Automatische Datenaktualisierungen</h2><div class="scroll"><table><thead><tr><th>Datensatz</th><th>Letzter Workflow</th><th>Zeitpunkt</th><th>Aktion</th></tr></thead><tbody id="workflows"></tbody></table></div><p class="hint">Quellen: GitHub Actions API des öffentlichen Repositories. Status bezeichnet nur den jüngsten bekannten Lauf des jeweiligen Workflows; bei Fehlern bleiben zuvor veröffentlichte Daten möglicherweise verwendbar. Bei GitHub-API-Ratenbegrenzung erscheint „Nicht prüfbar“.</p></section>
+<section class="panel"><h2>Automatische Datenaktualisierungen</h2><div class="scroll"><table><thead><tr><th>Datensatz</th><th>Letzter Workflow</th><th>Zeitpunkt</th><th>Hinweis</th></tr></thead><tbody id="workflows"></tbody></table></div><p class="hint">Die Übersicht zeigt den letzten technischen Aktualisierungslauf. Ein erfolgreicher Lauf garantiert noch keine vollständigen Messdaten. Falls eine Statusabfrage vorübergehend nicht funktioniert, wird „Nicht prüfbar“ angezeigt.</p></section>
 <section class="panel"><h2>Veröffentlichte Datenstände</h2><div class="scroll"><table><thead><tr><th>Produkt</th><th>Letzte Beobachtung</th><th>Archiv erzeugt</th><th>Vollständigkeit</th></tr></thead><tbody id="datasets"><tr><td colspan="4">Prüfung läuft …</td></tr></tbody></table></div><p class="hint">Die Datenstandsprüfung beginnt mit dem NSIDC-Meereisarchiv. Weitere Produkte werden ergänzt, sobald für sie verlässliche, einheitliche Metadaten verfügbar sind. Fehlende Metadaten werden nicht als aktuell ausgegeben.</p></section>
 </main><footer>Alle Zeitstempel in UTC. Datenstatus-Zentrale · Keine Prognosen oder künstlich ergänzten Beobachtungen.</footer>
 <script>
@@ -35,7 +35,6 @@ const $=id=>document.getElementById(id);
 function when(s){return s?new Date(s).toLocaleString("de-DE",{timeZone:"UTC",dateStyle:"short",timeStyle:"short"})+" UTC":"–"}
 function pill(label,cls){let el=document.createElement("span");el.className="pill "+cls;el.textContent=label;return el}
 function cell(row,value){const td=row.insertCell();if(value instanceof Node)td.append(value);else td.textContent=value;return td}
-function link(url,label){const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";a.textContent=label;return a}
 async function get(url){const res=await fetch(url,{cache:"no-store"});if(!res.ok)throw Error("HTTP "+res.status);return res.json()}
 async function checkWorkflow(item){
  const [label,file]=item;
@@ -65,7 +64,7 @@ async function refresh(){
  for(const r of out){
   counts[r.status]++;const tr=body.insertRow();cell(tr,r.label);
   const s=tr.insertCell();s.append(pill(r.detail,{success:"success",error:"error",running:"warning",unknown:"unknown"}[r.status]));
-  cell(tr,when(r.time));cell(tr,link(r.url,"GitHub-Lauf ↗"));
+  cell(tr,when(r.time));cell(tr,r.status==="success"?"Letzter Lauf erfolgreich":r.status==="running"?"Aktualisierung läuft":r.status==="error"?"Letzter Lauf fehlgeschlagen":"Status derzeit nicht verfügbar");
  }
  $("okCount").textContent=counts.success;$("badCount").textContent=counts.error;
  $("runningCount").textContent=counts.running;$("unknownCount").textContent=counts.unknown;
