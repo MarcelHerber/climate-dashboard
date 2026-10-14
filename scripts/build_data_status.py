@@ -6,9 +6,11 @@ All dataset dates and coverage counts come from the committed archive metadata.
 """
 from __future__ import annotations
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 import argparse
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -60,7 +62,165 @@ def result(id, label, group, date_value, updated, coverage, note="", cadence="da
     }
 
 
-def build():
+def external_archives():
+    """Best-effort snapshot of separately published public data branches.
+
+    Pages stays deployable even if an external branch is absent or unavailable.
+    No API token and no GitHub access from the public browser are required.
+    """
+    base = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/"
+    sources = {
+        "mosmix": "mosmix-data/data/mosmix/mosmix_ttt.json",
+        "icon": "icon-hazards-data/data/icon-hazards/current.json",
+        "sst": "sst-archive/manifest.json",
+    }
+    result = {}
+    for name, suffix in sources.items():
+        try:
+            req = Request(base + suffix, headers={"User-Agent": "ClimateDashboard-Status/1"})
+            with urlopen(req, timeout=12) as response:
+                # Reject unexpectedly huge or empty payloads, without breaking deployment.
+                data = response.read(24 * 1024 * 1024 + 1)
+            if not data or len(data) > 24 * 1024 * 1024:
+                raise ValueError("Archive size not supported")
+            obj = json.loads(data)
+            if not isinstance(obj, dict):
+                raise ValueError("Archive metadata is not an object")
+            result[name] = obj
+            print(f"Externer Datenbestand {name}: geladen ({len(data)} Bytes)")
+        except (OSError, ValueError, HTTPError, URLError, TimeoutError) as exc:
+            print(f"Externer Datenbestand {name}: nicht prüfbar ({type(exc).__name__})")
+    return result
+
+
+def common_latest(*values):
+    valid = [v for v in values if isinstance(v, str) and valid_date(v)]
+    return min(valid) if len(valid) == len(values) else None
+
+
+def sst_region_status(manifest, regions):
+    dates = manifest.get("dates") or {}
+    if not isinstance(dates, dict):
+        return None, 0, 0
+    complete = []
+    for iso, day in dates.items():
+        if not valid_date(iso) or not isinstance(day, dict):
+            continue
+        region_data = day.get("regions") or {}
+        if all(isinstance(region_data.get(k), dict)
+               and all(isinstance(region_data[k].get(view), str)
+                       and region_data[k][view] for view in ("absolute", "anomaly"))
+               for k in regions):
+            complete.append(iso)
+    if not complete:
+        return None, 0, 0
+    latest = max(complete)
+    last = date.fromisoformat(latest)
+    complete_dates = set(complete)
+    recent = sum((last - timedelta(days=i)).isoformat() in complete_dates
+                 for i in range(21))
+    return latest, len(complete), recent
+
+
+def add_external(items, remote):
+    mos = remote.get("mosmix")
+    if mos:
+        steps = mos.get("timesteps") or []
+        count = mos.get("station_count", 0)
+        good = mos.get("product") == "DWD MOSMIX-L" and count >= 100 and len(steps) >= 24
+        items.append(result("mosmix", "MOSMIX-L", "Vorhersagen",
+            mos.get("issue_time"), mos.get("generated_at"),
+            f"{count} Prognosepunkte · {len(steps)} Zeitschritte",
+            "Letzter Modelllauf (keine Beobachtung) · DWD MOSMIX-L",
+            allowed_delay=2, incomplete=not good))
+    else:
+        items.append(result("mosmix", "MOSMIX-L", "Vorhersagen", None, None,
+            "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    icon = remote.get("icon")
+    if icon:
+        periods = icon.get("periods") or []
+        ranges = [(p.get("start_h"), p.get("end_h")) for p in periods if isinstance(p, dict)]
+        expected = [(0,24),(24,48),(48,72),(72,96),(96,120)]
+        good = icon.get("schema") == 1 and ranges == expected and bool(icon.get("grid"))
+        items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
+            icon.get("run_utc"), icon.get("generated_utc"),
+            f"{len(periods)}/5 Vorhersagefenster · 0 bis 120 Stunden",
+            "Modellbasierter Gefahrenmonitor, keine amtliche Warnung",
+            allowed_delay=2, incomplete=not good))
+    else:
+        items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
+            None, None, "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    manifest = remote.get("sst")
+    groups = [
+        ("sst_europe", "Meeresoberflächentemperatur Europa",
+         ("europe", "mediterranean", "north_atlantic", "nordic_seas")),
+        ("sst_oceans", "Meeresoberflächentemperatur Ozeane",
+         ("pacific", "nino34", "indian_ocean")),
+    ]
+    for key, label, regions in groups:
+        if manifest:
+            latest, count, recent = sst_region_status(manifest, regions)
+            items.append(result(key, label, "Ozean", latest,
+                manifest.get("generated_at"),
+                f"{count} vollständige Kartentage · {len(regions)} Regionen · letzte 21 Tage: {recent}/21",
+                "Beide Ansichten (absolut und Anomalie) je Region; historische Lücken separat",
+                allowed_delay=5, incomplete=bool(latest) and recent < 21))
+        else:
+            items.append(result(key, label, "Ozean", None, None,
+                "Manifest fehlt", "SST-Datenzweig vorübergehend nicht prüfbar"))
+
+
+def add_climate_indices(items):
+    p = read_json("climate_indices/index.json")
+    if not p or not p.get("ready"):
+        items.append(result("noaa_indices", "Atmosphärische Indizes", "Indizes",
+                            None, None, "Indexarchiv fehlt oder unvollständig",
+                            "NAO, AO, ENSO, QBO und MJO noch nicht überprüfbar"))
+        return
+    stamp = p.get("generated_at")
+    tele = p.get("teleconnections") or {}
+    for key, label in (("nao", "NAO · Nordatlantische Oszillation"),
+                       ("ao", "AO · Arktische Oszillation")):
+        v = tele.get(key) or {}
+        rows = v.get("daily") or []
+        items.append(result(key, label, "Indizes",
+            v.get("latest_date"), stamp, f"{len(rows)} Tageswerte",
+            "NOAA/CPC Tagesindex", allowed_delay=7,
+            incomplete=len(rows)<2000))
+    enso = p.get("enso") or {}
+    oni, roni = enso.get("oni") or {}, enso.get("roni") or {}
+    latest = common_latest(oni.get("latest_season"), roni.get("latest_season"))
+    items.append(result("enso", "ENSO · ONI / RONI", "Indizes", latest, stamp,
+        f"ONI: {len(oni.get('seasons') or [])} · RONI: {len(roni.get('seasons') or [])} gleitende 3-Monatszeiten",
+        "Monatsangabe ist das Zentrum der überlappenden 3-Monatsperiode",
+        cadence="monthly", allowed_delay=3,
+        incomplete=min(len(oni.get("seasons") or []),len(roni.get("seasons") or []))<300))
+    qbo = p.get("qbo") or {}
+    q30,q50=qbo.get("u30") or {},qbo.get("u50") or {}
+    items.append(result("qbo", "QBO · 30 / 50 hPa", "Indizes",
+        common_latest(q30.get("latest_month"),q50.get("latest_month")), stamp,
+        f"30 hPa: {len(q30.get('monthly') or [])} · 50 hPa: {len(q50.get('monthly') or [])} Monate",
+        "NOAA/CPC monatlicher Zonalwind", cadence="monthly",allowed_delay=3,
+        incomplete=min(len(q30.get("monthly") or []),len(q50.get("monthly") or []))<300))
+    europe = p.get("europe") or {}
+    keys=("scand","ea","eawr","gbi")
+    sources=[europe.get(key) or {} for key in keys]
+    items.append(result("circulation", "SCAND, EA, EA/WR und GBI", "Indizes",
+        common_latest(*(v.get("latest_month") for v in sources)), stamp,
+        "4 monatliche Zirkulationsindizes",
+        "Datenstand des ältesten der vier Indizes", cadence="monthly", allowed_delay=4,
+        incomplete=any(len(v.get("monthly") or [])<300 for v in sources)))
+    mjo=p.get("mjo") or {}
+    items.append(result("mjo","MJO · Wheeler–Hendon RMM","Indizes",
+        mjo.get("latest_date"),stamp,
+        f"{len(mjo.get('daily') or [])} Tageswerte",
+        "BOM Beobachtungsindex; Veröffentlichungslatenz möglich",allowed_delay=14,
+        incomplete=len(mjo.get("daily") or [])<1000))
+
+
+def build(remote=None):
     items = []
     dwd = read_json("update_status.json")
     if dwd:
@@ -131,6 +291,9 @@ def build():
                 "NSIDC Sea Ice Index v4 · Referenz 1991–2020",
                 allowed_delay=6, incomplete=not ready))
 
+    add_climate_indices(items)
+    add_external(items, remote or {})
+
     status_counts = {key: sum(x["status"] == key for x in items)
                      for key in ("current", "incomplete", "delayed", "unknown")}
     return {
@@ -146,7 +309,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="_site/data/status/status.json")
     args = parser.parse_args()
-    payload = build()
+    payload = build(external_archives())
     out = ROOT / args.output
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
