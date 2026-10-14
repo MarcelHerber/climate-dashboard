@@ -30,7 +30,10 @@ async function era5AtmosLoadPeriod(period){
     return;
   }
   const year=Number(period.slice(0,4));
-  if((era5AtmosIndex.history_years||[]).includes(year)){
+  const historicalYears=era5AtmosIndex.history_years||[];
+  const hasHistorical=historicalYears.includes(year)||
+    (era5AtmosExtraIndex?.available_periods||[]).includes(period);
+  if(hasHistorical){
     let manifest=era5AtmosHistoryCache.get(year);
     if(!manifest){
       const url=`era5_europe/history/${year}.json?ts=${Date.now()}`;
@@ -51,9 +54,11 @@ async function era5AtmosLoadPeriod(period){
 
 function era5AtmosAvailablePeriods(){
   const recent=era5AtmosIndex?.available_periods||[];
+  const extra=era5AtmosExtraIndex?.available_periods||[];
+  const currentExtra=era5AtmosExtraIndex?.current_periods||[];
   const historical=(era5AtmosIndex?.history_years||[])
     .flatMap(year=>Array.from({length:12},(_,month)=>`${year}-${String(month+1).padStart(2,"0")}`));
-  return [...new Set([...historical,...recent])].sort();
+  return [...new Set([...historical,...extra,...currentExtra,...recent])].sort();
 }
 
 function era5AtmosFillMonths(preferred){
@@ -67,7 +72,9 @@ function era5AtmosFillMonths(preferred){
     const option=document.createElement("option");
     option.value=period;
     const [y,month]=period.split("-");
-    option.textContent=`${month}.${y}`;
+    const monthNames=["Januar","Februar","März","April","Mai","Juni",
+      "Juli","August","September","Oktober","November","Dezember"];
+    option.textContent=monthNames[Number(month)-1]||period;
     periodSelect.appendChild(option);
   });
   if(available.includes(preferred))periodSelect.value=preferred;
@@ -92,35 +99,30 @@ function era5AtmosFillParameters(){
     });
     select.appendChild(group);
   };
-  appendGroup("Basisparameter · auch 2026",era5AtmosIndex?.products);
-  appendGroup("NEU · Historie 1940–2025",era5AtmosExtraIndex?.products,true);
+  appendGroup("Basisparameter",era5AtmosIndex?.products);
+  appendGroup("Neue Druckniveau- und Dynamikparameter",era5AtmosExtraIndex?.products,true);
   if([...select.options].some(o=>o.value===previous))select.value=previous;
   else if(era5AtmosIndex?.products?.t850)select.value="t850";
 }
 
 async function era5AtmosChangeParameter(){
-  const key=document.getElementById("era5AtmosParameter")?.value;
-  const period=document.getElementById("era5AtmosPeriod")?.value||"";
-  const historical=era5AtmosExtraIndex?.available_periods||[];
-  // Historical additions stop at 2025. If a user chooses one while
-  // viewing the latest 2026 map, jump to the same month in 2025.
-  if(era5AtmosExtraIndex?.products?.[key]&&!historical.includes(period)&&historical.length){
-    const yearSelect=document.getElementById("era5AtmosYear");
-    const month=period.slice(5)||"09";
-    const lastYear=String(era5AtmosExtraIndex.year_end||2025);
-    const preferred=`${lastYear}-${month}`;
-    const target=historical.includes(preferred)?preferred:historical[historical.length-1];
-    if(yearSelect)yearSelect.value=target.slice(0,4);
-    era5AtmosFillMonths(target);
-    await era5AtmosChangePeriod();
-    return;
-  }
   era5AtmosRender();
 }
 
 async function era5AtmosAttachExtra(period){
-  if(!era5AtmosExtraIndex?.available_periods?.includes(period))return;
+  if(![...(era5AtmosExtraIndex?.available_periods||[]),
+    ...(era5AtmosExtraIndex?.current_periods||[])].includes(period))return;
   const year=Number(period.slice(0,4));
+  if(year>2025){
+    const response=await fetch(`era5_europe/extra/current/${period}.json?ts=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)throw new Error(`ERA5-Zusatzparameter ${period}: HTTP ${response.status}`);
+    const item=await response.json();
+    if(!item.ready||item.period!==period)throw new Error(`ERA5-Zusatzparameter ${period} sind noch nicht veröffentlicht`);
+    era5AtmosPayload={...era5AtmosPayload,products:{
+      ...era5AtmosPayload?.products,...item.products
+    }};
+    return;
+  }
   let manifest=era5AtmosExtraHistoryCache.get(year);
   if(!manifest){
     const response=await fetch(`era5_europe/extra/history/${year}.json?ts=${Date.now()}`,{cache:"no-store"});
@@ -171,11 +173,11 @@ function era5AtmosRender(){
   const [key,item]=era5AtmosProductMeta();
   const view=era5AtmosView();
   if(!item){
-    const text="Dieser Zusatzparameter ist für historische Monate von 1940 bis 2025 verfügbar. Bitte ein Jahr bis 2025 auswählen.";
+    const text="Für diesen Parameter und Monat sind noch keine ERA5-Karten veröffentlicht.";
     if(image)image.hidden=true;
     if(placeholder){placeholder.hidden=false;placeholder.textContent=text;}
     if(title)title.textContent="Historischer ERA5-Zusatzparameter";
-    if(subtitle)subtitle.textContent="Monatsarchiv 1940–2025";
+    if(subtitle)subtitle.textContent="ERA5-Monatsarchiv";
     for(const id of ["era5AtmosCurrent","era5AtmosReference","era5AtmosAnomaly","era5AtmosRank1","era5AtmosTop3"]){
       const node=document.getElementById(id);
       if(node)node.textContent="–";
