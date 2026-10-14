@@ -48,3 +48,12 @@ h1{font-size:clamp(25px,3vw,38px);line-height:1.15;margin:7px 0 10px}h2{font-siz
 
 .basemap-status{padding:11px 16px;font-size:12px;font-weight:650;color:#843b24;background:#fff3e5;border-top:1px solid #f2d5ae}
 .basemap-status[hidden]{display:none}
+
+/* Current-map PNG export, including legend and geographic basemap. */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar .export-button{background:#176397;border-color:#176397;color:#fff}
+.toolbar .export-button:hover{background:#0d4e7a}
+.toolbar button:disabled{opacity:.65;cursor:progress}
+.export-status{margin-top:10px;font-size:12px;border-radius:8px;padding:9px 12px;background:#f0f8ee;color:#255c35}
+.export-status.error{background:#fff1ed;color:#924536}
+.export-status[hidden]{display:none}
