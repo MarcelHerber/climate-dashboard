@@ -75,7 +75,6 @@ def plot_map(lats, lons, values, day, dest):
     import matplotlib.path as mpath
     import cartopy.crs as ccrs
     from cartopy.util import add_cyclic_point
-    from matplotlib.colors import BoundaryNorm
 
     # Plot only the observed field, without interpolation over missing values.
     order = np.argsort(lons)
@@ -110,9 +109,6 @@ def plot_map(lats, lons, values, day, dest):
                       color="#475569", alpha=.3, linestyle="--")
     gl.xlocator = __import__("matplotlib.ticker", fromlist=["FixedLocator"]).FixedLocator(np.arange(-180,180,30))
     gl.ylocator = __import__("matplotlib.ticker", fromlist=["FixedLocator"]).FixedLocator([30,45,60,75])
-    for longitude, label in [(0,"0°"),(90,"90° E"),(180,"180°"),(-90,"90° W")]:
-        # Label near the 25N boundary, avoiding non-geographical decoration.
-        pass
     fig.text(.06,.946,"POLARWIRBEL  |  NORDHEMISPHÄRE", fontsize=11,
              weight="bold", color="#19588c")
     fig.text(.06,.907,"Geopotenzialhöhe in 10 hPa", fontsize=22,
