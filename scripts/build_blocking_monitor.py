@@ -166,7 +166,7 @@ def render_map(lats,lons,z500,day,blocking,output):
         try: artist.remove()
         except Exception: pass
         print("Natural Earth coastlines unavailable:",str(e),flush=True)
-    gl=ax.gridlines(draw_labels={"bottom":"x","left":"y"},linewidth=.55,
+    gl=ax.gridlines(draw_labels=True,linewidth=.55,
                     color="#64748b",alpha=.45,linestyle="--")
     gl.top_labels=False;gl.right_labels=False
     gl.xlocator=mticker.FixedLocator(np.arange(-90,91,30))
