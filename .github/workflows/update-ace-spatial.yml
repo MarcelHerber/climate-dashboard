@@ -9,6 +9,9 @@ on:
       - .github/workflows/update-ace-spatial.yml
 permissions:
   contents: write
+concurrency:
+  group: ace-spatial-archive
+  cancel-in-progress: true
 jobs:
   map-archive:
     runs-on: ubuntu-latest
