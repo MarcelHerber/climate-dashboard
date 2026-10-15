@@ -24,6 +24,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / "data" / "blocking"
+BORDER_FILE = ROOT / "data" / "blocking" / "borders_50m.json"
+RENDERER_VERSION = 2
 DATASET = "derived-era5-pressure-levels-daily-statistics"
 DOI = "10.24381/cds.50314f4c"
 GRAVITY = 9.80665
@@ -156,16 +158,17 @@ def render_map(lats,lons,z500,day,blocking,output):
         ax.fill([area["west"],area["east"],area["east"],area["west"]],
                 [45,45,75,75],transform=ccrs.PlateCarree(),
                 color="#f97316",alpha=.30,zorder=5)
-    try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            artist=ax.coastlines(resolution="110m",color="#334155",linewidth=.75)
-            fig.canvas.draw()
-    except Exception as e:
-        try: artist.remove()
-        except Exception: pass
-        print("Natural Earth coastlines unavailable:",str(e),flush=True)
+    # Bundled Natural Earth coastlines + international boundaries, never
+    # fetch external Cartopy shapefiles at runtime. Fail if borders are absent.
+    borders=json.loads(BORDER_FILE.read_text(encoding="utf-8"))
+    segments=borders.get("lines",[])
+    if borders.get("schema_version")!=1 or len(segments)<100:
+        raise ValueError("Offline Natural Earth border bundle missing or incomplete")
+    for segment in segments:
+        longitude,latitude=np.asarray(segment,dtype=float).T
+        ax.plot(longitude,latitude,transform=ccrs.PlateCarree(),
+                color="#233648",linewidth=.75,alpha=.9,zorder=8)
+    print(f"Blocking: rendered {len(segments)} offline coast/border segments",flush=True)
     gl=ax.gridlines(draw_labels=True,linewidth=.55,
                     color="#64748b",alpha=.45,linestyle="--")
     gl.top_labels=False;gl.right_labels=False
@@ -200,7 +203,8 @@ def build(output=DEST, today=None,client=None):
     if metadata.is_file() and png.is_file():
         try:
             prior=json.loads(metadata.read_text(encoding="utf-8"))
-            if date.fromisoformat(prior["analysis_date"]) >= today-timedelta(days=8):
+            if (date.fromisoformat(prior["analysis_date"]) >= today-timedelta(days=8)
+                    and prior.get("renderer_version")==RENDERER_VERSION):
                 print("Blocking ERA5 archive current:",prior["analysis_date"])
                 return prior
         except (ValueError,KeyError):
@@ -237,6 +241,9 @@ def build(output=DEST, today=None,client=None):
                     raise ValueError("PNG validation failed")
                 payload={
                     "schema_version":1,"ready":True,"forecast":False,
+                    "renderer_version":RENDERER_VERSION,
+                    "boundaries":"Natural Earth 1:50m offline country boundaries and coasts",
+                    "border_segments":len(json.loads(BORDER_FILE.read_text(encoding="utf-8"))["lines"]),
                     "analysis_date":target.isoformat(),"generated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "dates_used":[d.isoformat() for d in dates],"pressure_hpa":500,
                     "parameter":"geopotential_height","unit":"gpm","source":"Copernicus C3S/ECMWF ERA5",
