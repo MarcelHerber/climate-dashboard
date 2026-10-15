@@ -12,7 +12,7 @@ permissions:
 jobs:
   map-archive:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,8 +22,30 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install numpy scipy
+      - name: Quellcode prüfen
+        run: |
+          python -m py_compile scripts/build_ace_spatial.py
+          node --check ace_spatial.js
       - name: Berechne alle ACE-Karten aus IBTrACS
         run: python scripts/build_ace_spatial.py
+      - name: Archiv-Vollständigkeit und Gitterauflösung prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("ace/spatial")
+          manifest=json.loads((p/"index.json").read_text(encoding="utf-8"))
+          assert manifest["ready"] and manifest["resolution_deg"]==1
+          assert manifest["kernel_sigma_deg"]==2.5
+          assert len(manifest["longitudes"])==360
+          assert len(manifest["latitudes"])==120
+          assert manifest["years"][0]==1980 and len(manifest["years"])>=46
+          for year in (1980,1991,2020,manifest["years"][-1]):
+              item=json.loads((p/f"{year}.json").read_text(encoding="utf-8"))
+              assert item["ready"] and item["year"]==year
+              assert len(item["z"])==120 and all(len(row)==360 for row in item["z"])
+          print("1 degree ACE archive verified:",len(manifest["years"]),"years.")
+          PY
       - name: Commit Archiv
         shell: bash
         run: |
