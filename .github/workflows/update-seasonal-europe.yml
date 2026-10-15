@@ -58,6 +58,12 @@ jobs:
           d=json.loads((root/'index.json').read_text())
           assert d['model']=='ecmwf_seas5_ensemble_mean'
           assert 'Lambert Conformal' in d['projection']
+          assert d['sample_resolution_deg']==1.0
+          assert d['complete_projected_viewport'] is True
+          assert d['sampled_locations']>5000
+          assert d['sampled_locations']<8000
+          assert d['sample_domain'][0]<=-75
+          assert d['sample_domain'][1]>=95
           geometry=json.loads((root/'geography_50m.json').read_text())
           assert len(geometry['countries'])>=35
           assert len(d['periods'])>=4
