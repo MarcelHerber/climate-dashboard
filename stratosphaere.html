@@ -6,6 +6,7 @@
 <title>Stratosphäre · 60° N zonaler Wind – Climate Dashboard</title>
 <meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="polar_vortex_map.js?v=20261015-v1"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
@@ -64,6 +65,14 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .ssw-catalog-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
 .ssw-catalog-controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:700}
 @media(max-width:750px){.ssw-catalog-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ssw-catalog-chart{height:185px}}
+.polar-map-preview{display:flex;justify-content:center;align-items:center;min-height:200px;background:#f8fafc;border:1px solid #dce3eb;border-radius:10px;padding:11px;margin:14px 0}
+.polar-map-preview img{width:min(100%,870px);height:auto;display:block;object-fit:contain}
+.polar-map-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.polar-map-actions{display:flex;gap:8px;flex-wrap:wrap}
+.polar-map-source{font-size:12px;color:#536478}
+.polar-map-status{font-size:13px;color:#52657c;margin:10px 0}
+.polar-map-metadata{display:flex;flex-wrap:wrap;gap:10px 20px;font-weight:700;color:#28405b;font-size:13px}
+@media(max-width:750px){.polar-map-preview{padding:3px;min-height:120px}}
 /* Kompakte Ansicht: Heatmap und ältere SSW-Ereigniskarten ausblenden; Methodik sichtbar lassen. */
 main > #heatmapCard, main > #sswEventsCard {display:none !important;}
 main > section.card.method {display:grid !important;}
@@ -173,6 +182,24 @@ main > section.card.method {display:grid !important;}
     <tbody id="sswArchiveRows"><tr><td colspan="6">Bitte Datenarchiv laden.</td></tr></tbody>
   </table></div>
   <p class="legendnotes" style="margin-top:15px"><strong>Methodik:</strong> Erstmalige Windumkehr zu Ostwind im November–März; 20 aufeinanderfolgende Westwindtage zur Trennung zweier Ereignisse; mindestens zehn aufeinanderfolgende Westwindtage bis einschließlich 30. April zur Abgrenzung der finalen Erwärmung. Winter mit größeren Datenlücken gehen nicht in die Ereigniszählung ein. Fehlende 29. Februare werden niemals interpoliert und unterbrechen zusammenhängende Windphasen. Dies ist eine windbasierte Diagnose, keine offizielle Warnung und keine Vorhersage. Referenz: <a href="https://www.csl.noaa.gov/groups/csl8/sswcompendium/majorevents.html" target="_blank" rel="noopener">NOAA SSW Compendium</a>.</p>
+</section>
+<section class="card" id="polarVortexCard">
+  <div class="polar-map-head">
+    <div>
+      <h2>Polarwirbel-Karte · Nordhemisphäre / 10 hPa</h2>
+      <p>Geopotenzialhöhe als farbige Fläche mit Isohypsen. Feste Nordpolansicht von 25 bis 90° N – ohne Animation oder zusätzliche Prognosefelder.</p>
+    </div>
+    <div class="polar-map-actions">
+      <button class="btn" id="polarVortexReload" type="button">Neu laden</button>
+      <button class="btn primary" id="polarVortexDownload" type="button" disabled>PNG speichern</button>
+    </div>
+  </div>
+  <div class="polar-map-status" id="polarVortexStatus" role="status" aria-live="polite">Prüfe verfügbare ERA5-Analyse …</div>
+  <div class="polar-map-metadata"><span id="polarVortexDate">–</span><span id="polarVortexRange">10 hPa · Nordhemisphäre</span></div>
+  <div class="polar-map-preview">
+    <img id="polarVortexImage" alt="Nordpolare Karte der ERA5-Geopotenzialhöhe in 10 hPa mit Konturlinien" hidden>
+  </div>
+  <p class="polar-map-source">Quelle: Copernicus Climate Change Service / ECMWF, ERA5-Tagesmittel auf 10 hPa (<a href="https://doi.org/10.24381/cds.50314f4c" target="_blank" rel="noopener noreferrer">Datensatzbeschreibung</a>). Gemittelt aus 6-stündlichen Analysen, daher bewusst ohne einzelne UTC-Stunde. Die Reanalyse wird mit mehrtägiger Verzögerung bereitgestellt. Es erfolgt keine automatische Split-/Displacement-Klassifikation.</p>
 </section>
 <section class="card" id="heatmapCard">
   <div class="levels-heading">
