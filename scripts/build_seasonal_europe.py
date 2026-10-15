@@ -130,7 +130,7 @@ def download():
                         number=float(value)
                         if not math.isfinite(number) or abs(number)>100000:continue
                         data[field][(when,lat,lon)]=number
-            LOG.info("Echte SEAS5-Monatswerte: %d von %d Rasterpunkten", min(offset+len(batch),len(coords)),len(coords))
+            LOG.debug("Echte SEAS5-Monatswerte: %d von %d Rasterpunkten", min((index+1)*batch_size,len(coords)),len(coords))
             if (index+1)%12==0 or index+1==len(batches):
                 LOG.info("SEAS5: %d/%d echte Datenpunkte abgerufen",
                          min((index+1)*batch_size,len(coords)),len(coords))
