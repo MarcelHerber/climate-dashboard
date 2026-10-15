@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from datetime import date,timedelta
 from pathlib import Path
@@ -76,6 +77,17 @@ class BlockingMonitorTests(unittest.TestCase):
         d=blocking.diagnostics(self.lat,self.lon,np.stack([self.z]*5),days)
         self.assertFalse(d["history_complete"])
         self.assertEqual(d["persistent"],[])
+
+    def test_png_renderer_on_synthetic_test_field(self):
+        # Only a deployment smoke test: synthetic fields must never be published.
+        first=date(2026,10,1)
+        ds=blocking.diagnostics(self.lat,self.lon,np.stack([self.z]*5),
+                                [first+timedelta(days=i) for i in range(5)])
+        with tempfile.TemporaryDirectory() as temp:
+            png=Path(temp)/"test_only.png"
+            blocking.render_map(self.lat,self.lon,self.z,date(2026,10,5),ds,png)
+            self.assertGreater(png.stat().st_size,25000)
+            self.assertEqual(png.read_bytes()[:8],bytes.fromhex("89504e470d0a1a0a"))
 
     def test_invalid_partial_grid(self):
         bad=self.z.copy()
