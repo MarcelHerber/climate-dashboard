@@ -46,10 +46,14 @@ VARIANTS = {
         "palette": "RdBu", "description": "Schneefallabweichung", "digits": 0
     },
 }
-# Regular, native-2-degree sampling to keep the published image honest about resolution.
-LONS = np.arange(-26.0, 46.0001, 2.0)
-LATS = np.arange(34.0, 76.0001, 2.0)
+# The requested map is a fixed Lambert projection. Its top corners are much
+# farther west/east than the corner longitudes of EXTENT. Sample at 1-degree
+# intervals, but request only those points needed for the VISIBLE projected
+# rectangle plus a safe margin. No synthetic forecasts or extrapolation.
+LONS = np.arange(-80.0, 100.0001, 1.0)
+LATS = np.arange(22.0, 85.0001, 1.0)
 EXTENT = (-25.0, 45.0, 34.0, 76.0)
+COVERAGE_PAD_M = 175000
 MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli","August",
              "September","Oktober","November","Dezember"]
 FIELDS = [p["api"] for p in VARIANTS.values()]
@@ -88,7 +92,12 @@ def fetch_batch(batch, attempts=5):
 
 
 def download():
-    coords=[(float(lat),float(lon)) for lat in LATS for lon in LONS]
+    region = sampling_mask()
+    coords=[(float(lat),float(lon))
+            for row,lat in enumerate(LATS)
+            for col,lon in enumerate(LONS) if region[row,col]]
+    LOG.info("Sichtbarer Kartenausschnitt mit 1°-Raster: %d statt %d Punkten",
+             len(coords), len(LATS)*len(LONS))
     data={field: {} for field in FIELDS}
     units=None
     valid_months=None
@@ -147,6 +156,33 @@ def projected_extent(extent):
     return (float(x.min()),float(x.max()),float(y.min()),float(y.max()))
 
 
+def sampling_mask():
+    """Grid points covering the full projected viewport including buffer.
+
+    This is the crucial difference from a simple [-40,65] longitude clip:
+    upper projected corners extend near 70W/90E. Use only real retrieved
+    values and guarantee bilinear-neighbour coverage to the visible frame.
+    """
+    longitude,latitude=np.meshgrid(LONS,LATS)
+    xx,yy=PROJECT.transform(longitude,latitude)
+    xmin,xmax,ymin,ymax=projected_extent(EXTENT)
+    mx=(xmax-xmin)*.012
+    my=(ymax-ymin)*.012
+    mask=((xx>=xmin-mx-COVERAGE_PAD_M)&(xx<=xmax+mx+COVERAGE_PAD_M)&
+          (yy>=ymin-my-COVERAGE_PAD_M)&(yy<=ymax+my+COVERAGE_PAD_M))
+    back=Transformer.from_crs(PROJECT.target_crs,"EPSG:4326",always_xy=True)
+    # Check every part of the viewport, not only its four corners.
+    for x in np.linspace(xmin-mx,xmax+mx,81):
+        for y in np.linspace(ymin-my,ymax+my,71):
+            lon,lat=back.transform(x,y)
+            c=int(np.floor((lon-LONS[0])/(LONS[1]-LONS[0])))
+            r=int(np.floor((lat-LATS[0])/(LATS[1]-LATS[0])))
+            if not (0<=r<len(LATS)-1 and 0<=c<len(LONS)-1 and
+                    mask[r:r+2,c:c+2].all()):
+                raise RuntimeError("Unvollständiger Modell-Datenrand bei %.2f°/%.2f°" % (lon,lat))
+    return mask
+
+
 def draw_graticule(ax):
     for lon in range(-20,46,10):
         latitudes=np.linspace(32,79,180)
@@ -181,7 +217,9 @@ def draw_geography(ax,geopoly):
 def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
     variant=VARIANTS[kind]
     fig=plt.figure(figsize=(14,9),dpi=145,facecolor="#f7fafc")
-    ax=fig.add_axes([.045,.145,.91,.715])
+    # Space for the fixed map, a separate legend caption and two footer lines.
+    # The old layout let the legend label and source line overlap.
+    ax=fig.add_axes([.045,.235,.91,.625])
     # Fixed Lambert map viewport, identical on every monthly chart.
     xmin,xmax,ymin,ymax=projected_extent(EXTENT)
     margin_x=(xmax-xmin)*.012
@@ -197,8 +235,9 @@ def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
     norm=mcolors.BoundaryNorm(levels,cmap.N)
     # Never turn absent model data into a forecast.
     masked=np.ma.masked_invalid(grid)
-    if masked.count()<int(grid.size*.9):
-        raise RuntimeError("%s %s: weniger als 90%% Datenabdeckung" % (kind,when))
+    needed=sampling_mask()
+    if np.count_nonzero(np.isfinite(grid)&needed)<int(needed.sum()*.99):
+        raise RuntimeError("%s %s: notwendiger Kartenbereich nicht vollständig" % (kind,when))
     raster=ax.contourf(xx,yy,masked,levels=levels,norm=norm,
                        cmap=cmap,extend="both",antialiased=True,zorder=2)
     draw_graticule(ax)
@@ -216,18 +255,21 @@ def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
              weight="bold",color="#122c46")
     fig.text(.955,.91,f"ECMWF SEAS5  |  {period}",fontsize=12,
              ha="right",weight="bold",color="#304d68")
-    cax=fig.add_axes([.10,.08,.8,.028])
+    cax=fig.add_axes([.10,.135,.8,.027])
     ticks=[levels[i] for i in range(0,len(levels),2)]
     cb=fig.colorbar(raster,cax=cax,orientation="horizontal",ticks=ticks,extend="both")
     cb.ax.tick_params(labelsize=10,length=2)
     cb.outline.set_edgecolor("#8392a1")
-    cb.set_label(f"Abweichung ({variant['unit']})   |   Blau: {'kälter' if kind=='temperature' else 'mehr'}  ·  Rot: {'wärmer' if kind=='temperature' else 'weniger'}",
-                 fontsize=10,labelpad=8,color="#344e65")
-    fig.text(.045,.040,
-             f"Quelle: ECMWF SEAS5 Ensemble-Mittel über Open-Meteo  |  Modell-Ausgabe: {source_month}"
-             "  |  nicht amtliche Warnung",
+    fig.text(.50,.180,
+             f"Abweichung ({variant['unit']})  ·  Blau: {'kälter' if kind=='temperature' else 'mehr'}"
+             f"  ·  Rot: {'wärmer' if kind=='temperature' else 'weniger'}",
+             fontsize=10,color="#344e65",ha="center")
+    fig.text(.045,.068,
+             f"Quelle: ECMWF SEAS5 Ensemble-Mittel über Open-Meteo  |  Modell-Ausgabe: {source_month}",
              fontsize=9,color="#53687a")
-    fig.text(.955,.040,f"Abgerufen: {retrieved_utc[:16].replace('T',' ')} UTC",
+    fig.text(.045,.038,"Monatsabweichungen zur SEAS5-Modellklimatologie · keine amtliche Wetterwarnung",
+             fontsize=9,color="#53687a")
+    fig.text(.955,.038,f"Abgerufen: {retrieved_utc[:16].replace('T',' ')} UTC",
              fontsize=9,ha="right",color="#53687a")
     outpath.parent.mkdir(parents=True,exist_ok=True)
     fig.savefig(outpath,dpi=145,facecolor=fig.get_facecolor(),metadata={"Software":"Climate Dashboard Deutschland",
@@ -244,6 +286,7 @@ def main():
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     geometry=json.loads(args.geo.read_text(encoding="utf-8"))
     if not geometry.get("countries"):raise RuntimeError("Kartengeometrie fehlt")
+    coverage=sampling_mask()
     fields,dates,units=download()
     source_month=dates[0]
     # SEAS5 is issued once per month. Do not imply exact 00 UTC init time.
@@ -259,8 +302,10 @@ def main():
                     val=lookup.get((date,float(lat),float(lon)))
                     if val is not None:arr[y,x]=val
             nfinite=int(np.isfinite(arr).sum())
-            if nfinite<int(arr.size*.9):
-                LOG.warning("Überspringe %s/%s (nur %d/%d Punkte)",date,key,nfinite,arr.size)
+            nrequired=int(coverage.sum())
+            if np.count_nonzero(np.isfinite(arr)&coverage)<int(nrequired*.99):
+                LOG.warning("Überspringe %s/%s (nur %d/%d notwendige Punkte)",
+                            date,key,int(np.count_nonzero(np.isfinite(arr)&coverage)),nrequired)
                 continue
             relative=Path("maps")/source_month/date/(key+".png")
             render_map(args.out/relative,date,key,arr,geometry,source_month,retrieved)
@@ -277,7 +322,10 @@ def main():
         "base_model_month":source_month,"retrieved_utc":retrieved,
         "model":"ecmwf_seas5_ensemble_mean","source":API,
         "reference_note":"SEAS5 monthly model-climate anomalies supplied by Open-Meteo; NOT ERA5 1991–2020 anomalies.",
-        "fixed_extent":list(EXTENT),"sample_resolution_deg":2.0,
+        "fixed_extent":list(EXTENT),"sample_resolution_deg":1.0,
+        "sampled_locations":int(coverage.sum()),
+        "sample_domain":[float(LONS.min()),float(LONS.max()),float(LATS.min()),float(LATS.max())],
+        "complete_projected_viewport":True,
         "projection":"Lambert Conformal Conic (40N/70N, centre 10E/54N)",
         "coastlines":"Natural Earth 1:50m, clipped for Europe",
         "params":{k:{"title":v["title"],"unit":v["unit"]} for k,v in VARIANTS.items()},
