@@ -90,7 +90,7 @@
         throw new Error("Keine vollständigen Prognoseparameter");
       }
       data=manifest;version=manifest.retrieved_utc||manifest.base_model_month||"1";
-      $("seasonalRun").textContent="Modell-Ausgabe: "+monthName(manifest.base_model_month)+" · ECMWF SEAS5";
+      $("seasonalRun").textContent="Modell-Ausgabe: "+monthName(manifest.base_model_month)+" · ECMWF SEAS5 · Kartendaten: "+manifest.sample_resolution_deg+"°-Raster";
       const stamp=new Date(manifest.retrieved_utc);
       $("seasonalFetched").textContent="Berechnet: "+(Number.isNaN(stamp.getTime())?"–":stamp.toLocaleString("de-DE",{timeZone:"UTC",timeZoneName:"short",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}));
       updateMonths();
