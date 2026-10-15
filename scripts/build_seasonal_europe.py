@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import math
+import os
 from pathlib import Path
 import time
 import urllib.error
@@ -92,54 +93,135 @@ def fetch_batch(batch, attempts=5):
     raise AssertionError("unreachable")
 
 
-def download():
+def download(outdir):
+    """Fetch a bounded number of batches per run and persist exact API responses.
+
+    Open-Meteo rejects excessive API requests with HTTP 429. Previously each
+    failed run discarded thousands of downloaded grid cells and never published.
+    Caching batches on a separate data branch lets the next hourly run resume
+    without repeating requests. No partial maps are exposed as forecasts.
+    """
     region = sampling_mask()
-    coords=[(float(lat),float(lon))
-            for row,lat in enumerate(LATS)
-            for col,lon in enumerate(LONS) if region[row,col]]
-    LOG.info("Sichtbarer Kartenausschnitt mit 1°-Raster: %d statt %d Punkten",
-             len(coords), len(LATS)*len(LONS))
-    LOG.info("Schonender API-Abruf mit maximal drei parallelen Anfragen")
-    data={field: {} for field in FIELDS}
+    coords = [(float(lat),float(lon)) for row,lat in enumerate(LATS)
+              for col,lon in enumerate(LONS) if region[row,col]]
+    batch_size = 35
+    batches = [coords[i:i+batch_size] for i in range(0,len(coords),batch_size)]
+    max_new = max(1,min(50,int(os.environ.get("SEAS5_MAX_BATCHES_PER_RUN","32"))))
+    LOG.info("SEAS5 1°: %d Rasterpunkte, %d API-Pakete, bis zu %d neue Pakete pro Lauf",
+             len(coords),len(batches),max_new)
+    outdir.mkdir(parents=True,exist_ok=True)
+    progress_file=outdir/"progress.json"
+
+    def write_progress(model_month, finished, blocked=False):
+        payload = {
+            "schema":1,"stage":"partial",
+            "model_month":model_month,
+            "sample_resolution_deg":1.0,
+            "total_batches":len(batches),
+            "finished_batches":finished,
+            "total_points":len(coords),
+            "finished_points":sum(len(batches[i]) for i in range(len(batches))
+                                   if (outdir/"_staging"/model_month/(f"batch_{i:04d}.json")).is_file()),
+            "rate_limited":blocked,
+            "updated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z"),
+        }
+        progress_file.write_text(json.dumps(payload,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+        LOG.info("SEAS5-Cache: %s von %s Paketen, %s von %s echten Punkten%s",
+                 payload["finished_batches"],payload["total_batches"],
+                 payload["finished_points"],payload["total_points"],
+                 " – Anbieter begrenzt Anfragen" if blocked else "")
+
+    try:
+        first_rows=fetch_batch(batches[0],attempts=2)
+    except RuntimeError as exc:
+        # Keep any earlier cache; retry in the next scheduled run.
+        LOG.warning("SEAS5: API-Prüfanfrage nicht erreichbar: %s",exc)
+        if progress_file.exists():
+            return None,None,None
+        raise
+    source_month=first_rows[0]["monthly"]["time"][0][:7]
+    if not source_month or len(source_month)!=7:
+        raise RuntimeError("Ungültiger SEAS5-Modellmonat")
+    cache=outdir/"_staging"/source_month
+    cache.mkdir(parents=True,exist_ok=True)
+    # The stable coordinate layout in this release uniquely identifies each batch.
+    def cache_path(i):
+        return cache/f"batch_{i:04d}.json"
+    def cached(i):
+        file=cache_path(i)
+        if not file.is_file():
+            return False
+        try:
+            entry=json.loads(file.read_text(encoding="utf-8"))
+            return entry.get("coordinates")==[list(pair) for pair in batches[i]] and len(entry.get("rows",[]))==len(batches[i])
+        except (OSError,ValueError):
+            return False
+    def save(i,rows):
+        tmp=cache_path(i).with_suffix(".tmp")
+        tmp.write_text(json.dumps({"coordinates":batches[i],"rows":rows},
+                                  ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+        tmp.replace(cache_path(i))
+    if not cached(0):
+        save(0,first_rows)
+    new_this_run=1 if cached(0) and len(list(cache.glob("batch_*.json")))==1 else 0
+    # The first batch is a mandatory fresh model-cycle probe and does not count
+    # against the bounded work quota on subsequent runs.
+    finished=sum(cached(i) for i in range(len(batches)))
+    for i in range(1,len(batches)):
+        if cached(i):
+            continue
+        if new_this_run>=max_new:
+            break
+        try:
+            rows=fetch_batch(batches[i],attempts=2)
+        except RuntimeError as exc:
+            LOG.warning("SEAS5 unterbrochen bei Paket %d: %s",i,exc)
+            break
+        dates=rows[0].get("monthly",{}).get("time",[])
+        if not dates or dates[0][:7]!=source_month:
+            raise RuntimeError("Modell-Zyklus wechselte innerhalb des Datenabrufs")
+        save(i,rows)
+        new_this_run+=1
+        finished+=1
+        if finished%10==0:
+            LOG.info("Dauerhaft gespeicherte Pakete: %d/%d",finished,len(batches))
+    finished=sum(cached(i) for i in range(len(batches)))
+    if finished<len(batches):
+        write_progress(source_month,finished,blocked=(new_this_run<max_new))
+        return None,None,None
+
+    data={field:{} for field in FIELDS}
     units=None
     valid_months=None
-    batch_size=35
-    batches=[coords[offset:offset+batch_size]
-             for offset in range(0,len(coords),batch_size)]
-    # At most three concurrent public-API requests; outcomes are consumed in
-    # deterministic geographic order so the actual meteorological fields are unchanged.
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for index,rows in enumerate(pool.map(fetch_batch,batches)):
-            batch=batches[index]
-            for (lat,lon),item in zip(batch,rows):
-                monthly=item.get("monthly") or {}
-                times=[str(t)[:7] for t in monthly.get("time",[])]
-                if valid_months is None:
-                    valid_months=times
-                    units=item.get("monthly_units") or {}
-                    if len(valid_months)<4 or len(set(valid_months))!=len(valid_months):
-                        raise RuntimeError("Monatszeiten fehlen oder sind nicht eindeutig")
-                elif times!=valid_months:
-                    raise RuntimeError("Unterschiedliche Monatsachsen in saisonaler API")
-                for field in FIELDS:
-                    vals=monthly.get(field)
-                    if not isinstance(vals,list) or len(vals)!=len(times):
-                        raise RuntimeError("Keine vollständigen Monatsdaten für "+field)
-                    for when,value in zip(times,vals):
-                        if value is None:continue
-                        number=float(value)
-                        if not math.isfinite(number) or abs(number)>100000:continue
+    for i,batch in enumerate(batches):
+        rows=json.loads(cache_path(i).read_text(encoding="utf-8"))["rows"]
+        for (lat,lon),item in zip(batch,rows):
+            monthly=item.get("monthly") or {}
+            times=[str(t)[:7] for t in monthly.get("time",[])]
+            if valid_months is None:
+                valid_months=times
+                units=item.get("monthly_units") or {}
+                if len(valid_months)<4 or len(set(valid_months))!=len(valid_months):
+                    raise RuntimeError("Monatszeiten fehlen oder sind nicht eindeutig")
+            elif times!=valid_months:
+                raise RuntimeError("Unterschiedliche Monatsachsen in saisonaler API")
+            for field in FIELDS:
+                vals=monthly.get(field)
+                if not isinstance(vals,list) or len(vals)!=len(times):
+                    raise RuntimeError("Keine vollständigen Monatsdaten für "+field)
+                for when,value in zip(times,vals):
+                    if value is None:
+                        continue
+                    number=float(value)
+                    if math.isfinite(number) and abs(number)<100000:
                         data[field][(when,lat,lon)]=number
-            LOG.debug("Echte SEAS5-Monatswerte: %d von %d Rasterpunkten", min((index+1)*batch_size,len(coords)),len(coords))
-            if (index+1)%12==0 or index+1==len(batches):
-                LOG.info("SEAS5: %d/%d echte Datenpunkte abgerufen",
-                         min((index+1)*batch_size,len(coords)),len(coords))
-    if valid_months is None:
-        raise RuntimeError("Keine echten saisonalen Felder verfügbar")
     for key,variant in VARIANTS.items():
         unit=units.get(variant["api"])
         if unit!=variant["unit"]:
             raise RuntimeError("%s: unbekannte Einheit %s statt %s" % (key,unit,variant["unit"]))
+    if progress_file.exists():
+        progress_file.unlink()
+    LOG.info("Alle %d SEAS5-1°-Pakete vollständig aus dem Cache zusammengesetzt",len(batches))
     return data,valid_months,units
 
 
@@ -295,7 +377,10 @@ def main():
     geometry=json.loads(args.geo.read_text(encoding="utf-8"))
     if not geometry.get("countries"):raise RuntimeError("Kartengeometrie fehlt")
     coverage=sampling_mask()
-    fields,dates,units=download()
+    fields,dates,units=download(args.out)
+    if fields is None:
+        LOG.info("Teilabruf sicher gespeichert; Index und bisherige PNG-Karten bleiben unverändert.")
+        return
     source_month=dates[0]
     # SEAS5 is issued once per month. Do not imply exact 00 UTC init time.
     retrieved=datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")
