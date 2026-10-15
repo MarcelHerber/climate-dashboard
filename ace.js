@@ -1,7 +1,7 @@
 (()=>{"use strict";
 const $=id=>document.getElementById(id);
 const names={GLOBAL:"Weltweit",NA:"Nordatlantik",EP:"Nordost-/Zentralpazifik",WP:"Nordwestpazifik",NI:"Nordindischer Ozean",SI:"Südindischer Ozean",SP:"Südpazifik",atl:"Nordatlantik (NHC)",epac:"Nordostpazifik (NHC)"};
-let datasets={},annual=null,daily=null;
+let datasets={},annual=null,daily=null,allYearsChart=null;
 const opt={responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},plugins:{legend:{position:"bottom"}}};
 async function load(url){const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error(url+" HTTP "+r.status);const d=await r.json();if(!d.ready||!d.basins)throw Error(url+" unvollständig");return d;}
 function render(keepYear=true){
@@ -22,6 +22,7 @@ function render(keepYear=true){
   {type:"line",label:"Mittel 1991–2020",data:years.map(()=>mean),borderColor:"#293647",pointRadius:0,borderWidth:2}
  ]},options:opt});
  renderDaily();
+ renderAllYears();
 }
 function renderDaily(){
  const b=datasets[$("aceBasin").value],y=$("aceYear").value;
@@ -35,6 +36,84 @@ function renderDaily(){
   {label:y,data:b.years[y].daily_cumulative,borderColor:"#2772b6",pointRadius:0,borderWidth:2},
   {label:"Mittel 1991–2020",data:b.reference_daily,borderColor:"#4f5967",pointRadius:0,borderWidth:2}
  ]},options:{...opt,scales:{x:{title:{display:true,text:"Kalendertag (Schaltjahr-Achse)"}}}}});
+ renderAllYears();
+}
+function yearSelection(){
+ const basin=datasets[$("aceBasin").value];
+ if(!basin)return [];
+ const years=Object.keys(basin.years).sort((a,b)=>Number(a)-Number(b));
+ const mode=$("aceSpaghettiMode").value;
+ if(mode==="selected")return years.filter(y=>y===$("aceYear").value);
+ if(mode==="recent")return years.slice(-20);
+ return years;
+}
+function renderAllYears(){
+ const b=datasets[$("aceBasin").value];
+ if(!b||!$("aceAllYears"))return;
+ if(allYearsChart)allYearsChart.destroy();
+ const selected=$("aceYear").value;
+ const years=yearSelection();
+ const sets=years.map((year,i)=>{
+   const focus=year===selected;
+   const provisional=Boolean(b.years[year].provisional);
+   return {label:year+(provisional?" (vorläufig)":""),data:b.years[year].daily_cumulative,
+     borderColor:focus?"#cf4e2d":provisional?"#c18b35":"rgba(55,105,157,.27)",
+     borderWidth:focus?3.2:provisional?2.5:1,pointRadius:0,
+     order:focus?0:1,spanGaps:false};
+ });
+ if($("aceSpaghettiMean").checked)sets.push({label:"Mittel 1991–2020",
+   data:b.reference_daily,borderColor:"#181f31",borderWidth:2.7,
+   borderDash:[7,4],pointRadius:0,order:0});
+ allYearsChart=new Chart($("aceAllYears"),{type:"line",data:{
+  labels:Array.from({length:366},(_,i)=>i+1),datasets:sets},options:{
+  ...opt,plugins:{...opt.plugins,legend:{display:false},tooltip:{
+   mode:"nearest",intersect:false,callbacks:{title:items=>{
+    const index=items[0]?.dataIndex??0;
+    const d=new Date(Date.UTC(2000,0,index+1));
+    return d.toLocaleDateString("de-DE",{day:"2-digit",month:"long",timeZone:"UTC"});
+   }}}},
+  scales:{x:{title:{display:true,text:"Kalendertag"}},y:{title:{display:true,text:"Kumulierte ACE (10⁴ kn²)"}}}
+ }});
+}
+function allYearsCanvas(){
+ if(!allYearsChart)throw Error("Noch kein Mehrjahresdiagramm");
+ const src=allYearsChart.canvas,canvas=document.createElement("canvas");
+ canvas.width=1600;canvas.height=890;
+ const ctx=canvas.getContext("2d");
+ ctx.fillStyle="white";ctx.fillRect(0,0,1600,890);
+ ctx.fillStyle="#173451";ctx.font="bold 31px Arial";
+ ctx.fillText("ACE · Alle Jahre · "+$("aceBasin").selectedOptions[0].text,50,60);
+ ctx.font="18px Arial";ctx.fillStyle="#586579";
+ ctx.fillText("NOAA Best Track · kumulierte ACE · Mittel 1991–2020",50,97);
+ ctx.drawImage(src,40,125,1520,680);
+ ctx.font="16px Arial";ctx.fillText("Orange: gewähltes Jahr · Grau/Blau: übrige Jahre · Schwarz gestrichelt: Klimamittel",50,844);
+ return canvas;
+}
+function exportAllYears(kind){
+ try{
+  const basin=datasets[$("aceBasin").value],years=yearSelection();
+  if(kind==="csv"){
+   const header=["Kalendertag",...years.map(y=>y+(basin.years[y].provisional?" (vorläufig)":""))];
+   if($("aceSpaghettiMean").checked)header.push("Mittel 1991–2020");
+   const rows=[header];
+   for(let i=0;i<366;i++){
+    const row=[i+1,...years.map(y=>basin.years[y].daily_cumulative[i]??"")];
+    if($("aceSpaghettiMean").checked)row.push(basin.reference_daily[i]??"");
+    rows.push(row);
+   }
+   const csv="\uFEFF"+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\r\n");
+   download(new Blob([csv],{type:"text/csv;charset=utf-8"}),"alle_jahre.csv");
+  }else{
+   const canvas=allYearsCanvas();
+   if(kind==="png")canvas.toBlob(blob=>{if(blob)download(blob,"alle_jahre.png")},"image/png");
+   else if(kind==="pdf"){
+     if(!window.jspdf?.jsPDF)throw Error("PDF-Bibliothek nicht geladen");
+     const pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+     pdf.addImage(canvas.toDataURL("image/png"),"PNG",10,10,277,154);
+     pdf.save("ACE_"+$("aceBasin").value+"_alle_jahre.pdf");
+   }
+  }
+ }catch(err){$("aceStatus").textContent="Mehrjahresdownload fehlgeschlagen: "+err.message;}
 }
 function exportCanvas(){
  const width=1400,pad=48,top=130,gap=52;
@@ -97,6 +176,9 @@ async function start(){
  if(!select.options.length){$("aceStatus").textContent="ACE-Archive sind noch nicht importiert. GitHub-Actions-Datenlauf prüfen.";return;}
  select.value=datasets.GLOBAL?"GLOBAL":select.options[0].value;
  document.querySelectorAll("[data-ace-export]").forEach(btn=>btn.addEventListener("click",()=>exportData(btn.dataset.aceExport)));
+ document.querySelectorAll("[data-ace-multi-export]").forEach(btn=>btn.addEventListener("click",()=>exportAllYears(btn.dataset.aceMultiExport)));
+ $("aceSpaghettiMode").addEventListener("change",renderAllYears);
+ $("aceSpaghettiMean").addEventListener("change",renderAllYears);
  select.addEventListener("change",()=>render(false));
  $("aceYear").addEventListener("change",renderDaily);
  render(false);
