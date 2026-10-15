@@ -68,6 +68,9 @@ select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;backgro
 .polar-map-preview{display:flex;justify-content:center;align-items:center;min-height:200px;background:#f8fafc;border:1px solid #dce3eb;border-radius:10px;padding:11px;margin:14px 0}
 .polar-map-preview img{width:min(100%,870px);height:auto;display:block;object-fit:contain}
 .polar-map-preview img[hidden]{display:none!important}
+.polar-map-wait{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;color:#4a5e73;font-size:13px;padding:70px 20px;max-width:460px}
+.polar-map-wait strong{font-size:17px;color:#253e55}
+.polar-map-wait[hidden]{display:none!important}
 .polar-map-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
 .polar-map-actions{display:flex;gap:8px;flex-wrap:wrap}
 .polar-map-source{font-size:12px;color:#536478}
@@ -198,6 +201,7 @@ main > section.card.method {display:grid !important;}
   <div class="polar-map-status" id="polarVortexStatus" role="status" aria-live="polite">Prüfe verfügbare ERA5-Analyse …</div>
   <div class="polar-map-metadata"><span id="polarVortexDate">–</span><span id="polarVortexRange">10 hPa · Nordhemisphäre</span></div>
   <div class="polar-map-preview">
+    <div id="polarVortexPlaceholder" class="polar-map-wait" role="status"><strong>ERA5-Polarkarte noch nicht verfügbar</strong><span>Der erste überprüfte 10-hPa-Datensatz muss noch erfolgreich erstellt und veröffentlicht werden.</span></div>
     <img id="polarVortexImage" alt="Nordpolare Karte der ERA5-Geopotenzialhöhe in 10 hPa mit Konturlinien" hidden>
   </div>
   <p class="polar-map-source">Quelle: Copernicus Climate Change Service / ECMWF, ERA5-Tagesmittel auf 10 hPa (<a href="https://doi.org/10.24381/cds.50314f4c" target="_blank" rel="noopener noreferrer">Datensatzbeschreibung</a>). Gemittelt aus 6-stündlichen Analysen, daher bewusst ohne einzelne UTC-Stunde. Die Reanalyse wird mit mehrtägiger Verzögerung bereitgestellt. Es erfolgt keine automatische Split-/Displacement-Klassifikation.</p>
