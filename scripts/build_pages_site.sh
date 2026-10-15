@@ -11,6 +11,7 @@ required_root_files=(
   dashboard_cleanup.css
   monthly_layout.js
   stratosphaere.html
+  polar_vortex_map.js
   ssw_catalog.js
   zirkulation.html
   enso.html
@@ -258,6 +259,28 @@ if [[ -s sea_ice/index.json ]]; then
   echo "NSIDC Arktis/Antarktis Daten im Pages-Artefakt enthalten."
 else
   echo "HINWEIS: NSIDC-Archiv wird durch den ersten Meereis-Workflow erzeugt."
+fi
+
+# Polarwirbelkarte: nur vollständig vorhandene, verifizierte Analyse mitliefern.
+# Das neue Modul bleibt bis zum ersten CDS-Erfolg mit ehrlicher Statusmeldung sichtbar.
+node --check polar_vortex_map.js
+grep -q 'id="polarVortexCard"' _site/stratosphaere.html
+if [[ -s data/polar_vortex/current.json && -s data/polar_vortex/polar_vortex_10hpa_current.png ]]; then
+  mkdir -p _site/data/polar_vortex
+  python - <<'PY'
+import json
+from pathlib import Path
+folder=Path("data/polar_vortex")
+meta=json.loads((folder/"current.json").read_text(encoding="utf-8"))
+assert meta.get("schema_version")==1 and meta.get("ready") is True
+assert meta.get("pressure_hpa")==10 and meta.get("forecast") is False
+assert meta.get("image")=="polar_vortex_10hpa_current.png"
+assert (folder/"polar_vortex_10hpa_current.png").read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+PY
+  cp data/polar_vortex/current.json data/polar_vortex/polar_vortex_10hpa_current.png _site/data/polar_vortex/
+  echo "Verifizierte ERA5-Polarwirbelkarte im Pages-Artefakt enthalten."
+else
+  echo "HINWEIS: Erste ERA5-Polarwirbelkarte noch nicht verfügbar."
 fi
 
 # Generiere öffentliche Datenstände aus den tatsächlich veröffentlichten
