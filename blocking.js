@@ -23,9 +23,9 @@ async function refresh(){
   if(meta.schema_version!==1||meta.ready!==true||meta.forecast!==false||meta.pressure_hpa!==500||
      meta.image!=="blocking_z500_current.png"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(meta.analysis_date||"")||
      !Array.isArray(meta.instantaneous_sectors)||!Array.isArray(meta.persistent_sectors)||
-     meta.history_complete!==true || meta.days_analysed<5)throw Error("Blocking-Metadaten nicht vollständig");
+     meta.history_complete!==true || meta.days_analysed<5 || meta.renderer_version<2 || meta.border_segments<300)throw Error("Blocking-Metadaten nicht vollständig");
   if(Date.parse(meta.analysis_date+"T00:00:00Z")>Date.now())throw Error("Ungültiges Analysedatum");
-  const image=ROOT+meta.image+"?date="+meta.analysis_date;
+  const image=ROOT+meta.image+"?v="+encodeURIComponent(meta.generated_utc||meta.analysis_date);
   await new Promise((ok,fail)=>{pic.onload=ok;pic.onerror=()=>fail(Error("PNG-Karte ist noch nicht über Pages erreichbar"));pic.src=image;});
   published=meta;pic.hidden=false;$("blockMissing").hidden=true;button.disabled=false;
   const n=meta.instantaneous_sectors.length,p=meta.persistent_sectors.length;
@@ -52,7 +52,7 @@ async function refresh(){
 }
 function download(){
  if(!published)return;
- const a=document.createElement("a");a.href=ROOT+"blocking_z500_current.png?date="+published.analysis_date;
+ const a=document.createElement("a");a.href=ROOT+"blocking_z500_current.png?v="+encodeURIComponent(published.generated_utc||published.analysis_date);
  a.download="Blocking_ERA5_Z500_"+published.analysis_date+".png";
  document.body.append(a);a.click();a.remove();
 }
