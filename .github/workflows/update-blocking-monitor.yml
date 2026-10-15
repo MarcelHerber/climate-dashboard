@@ -1,0 +1,110 @@
+name: ERA5 Blocking-Monitor Nordatlantik Europa
+
+on:
+  schedule:
+    - cron: "25 11 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_blocking_monitor.py"
+      - "tests/test_blocking_monitor.py"
+      - ".github/workflows/update-blocking-monitor.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: era5-blocking-monitor
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            tests
+            data/blocking
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf matplotlib "cartopy>=0.24"
+
+      - name: Blocking-Methodik mit Testfeldern prüfen
+        run: python -m unittest discover -s tests -p test_blocking_monitor.py -v
+
+      - name: CDS-Konfiguration
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}" || { echo "CDSAPI_KEY nicht konfiguriert"; exit 1; }
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Fünftägige ERA5-Diagnose und Z500-Karte erzeugen
+        run: |
+          python scripts/build_blocking_monitor.py --output data/blocking
+          python - <<'PY'
+          import json
+          from datetime import date,timedelta
+          from pathlib import Path
+          root=Path("data/blocking")
+          meta=json.loads((root/"current.json").read_text(encoding="utf-8"))
+          png=root/"blocking_z500_current.png"
+          assert meta["ready"] and meta["forecast"] is False
+          assert meta["schema_version"]==1 and meta["pressure_hpa"]==500
+          assert meta["days_analysed"]>=5 and meta["history_complete"]
+          dates=[date.fromisoformat(x) for x in meta["dates_used"]]
+          assert all((b-a).days==1 for a,b in zip(dates,dates[1:]))
+          assert dates[-1]==date.fromisoformat(meta["analysis_date"])
+          assert dates[-1]<=date.today()-timedelta(days=5)
+          assert png.is_file() and png.stat().st_size>25000
+          assert png.read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+          print("ERA5 Blocking validiert:",meta["analysis_date"],"Dateigröße:",png.stat().st_size)
+          PY
+
+      - name: Verifizierte Blocking-Karte und Metadaten veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a data/blocking /tmp/blocking-publish
+          NEW_DATE=$(python -c 'import json;print(json.load(open("/tmp/blocking-publish/current.json"))["analysis_date"])')
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            OLD_DATE=$(python -c 'import json,pathlib;p=pathlib.Path("data/blocking/current.json");print(json.loads(p.read_text()).get("analysis_date","") if p.exists() else "")')
+            if [[ -n "$OLD_DATE" && "$OLD_DATE" > "$NEW_DATE" ]]; then
+              echo "Eine neuere Analyse wurde bereits veröffentlicht: $OLD_DATE"
+              exit 0
+            fi
+            mkdir -p data/blocking
+            cp /tmp/blocking-publish/current.json /tmp/blocking-publish/blocking_z500_current.png data/blocking/
+            git add data/blocking/current.json data/blocking/blocking_z500_current.png
+            if git diff --cached --quiet; then
+              echo "Keine neuen Blocking-Daten"
+              exit 0
+            fi
+            git commit -m "Publish verified ERA5 Atlantic-Europe blocking analysis"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "GitHub-Race, neuer Versuch $attempt"
+          done
+          exit 1
