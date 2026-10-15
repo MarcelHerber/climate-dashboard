@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -42,6 +43,16 @@ class PolarVortexMapTests(unittest.TestCase):
         self.assertEqual(len(lat),66)
         self.assertGreater(z.min(),25000)
         self.assertLess(z.max(),36000)
+
+    def test_png_renderer_with_synthetic_test_grid(self):
+        # Purely internal test data, NEVER published as a real ERA5 map.
+        with tempfile.TemporaryDirectory() as tmp:
+            lats,lons,z=vortex.validated_field(self.dataset(),date(2026,10,7))
+            png=Path(tmp)/"render_test.png"
+            vortex.plot_map(lats,lons,z,date(2026,10,7),png)
+            self.assertTrue(png.exists())
+            self.assertGreater(png.stat().st_size,25000)
+            self.assertEqual(png.read_bytes()[:8],bytes.fromhex("89504e470d0a1a0a"))
 
     def test_wrong_day_rejected(self):
         with self.assertRaisesRegex(ValueError,"instead"):
