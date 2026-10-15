@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "ready": true,
+  "forecast": false,
+  "analysis_date": "2026-10-07",
+  "generated_utc": "2026-10-15T12:57:12+00:00",
+  "dates_used": [
+    "2026-10-03",
+    "2026-10-04",
+    "2026-10-05",
+    "2026-10-06",
+    "2026-10-07"
+  ],
+  "pressure_hpa": 500,
+  "parameter": "geopotential_height",
+  "unit": "gpm",
+  "source": "Copernicus C3S/ECMWF ERA5",
+  "doi": "10.24381/cds.50314f4c",
+  "image": "blocking_z500_current.png",
+  "daily_statistic": "daily_mean",
+  "frequency": "6_hourly",
+  "resolution_degrees": 1,
+  "region": "Nordatlantik und Europa, 90°W–65°E",
+  "blocking_method": "Tibaldi-Molteni-type 1D 500-hPa gradients, phi=60N plus offsets -5/0/+5; GHGS>0, GHGN<-10 gpm/degree; >=10 degrees width; persistent >=5 consecutive days",
+  "instantaneous_sectors": [],
+  "persistent_sectors": [],
+  "history_complete": true,
+  "days_analysed": 5,
+  "min_gpm": 5119.4,
+  "max_gpm": 5964.9,
+  "note": "Diagnostic sectors in longitude only; not a 2D blocking footprint. No positive signal does not exclude all types of blocking."
+}
