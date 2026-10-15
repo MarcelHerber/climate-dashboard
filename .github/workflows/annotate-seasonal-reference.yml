@@ -1,0 +1,75 @@
+name: SEAS5-Referenzangaben in vorhandene PNGs eintragen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/annotate_seasonal_reference.py"
+      - ".github/workflows/annotate-seasonal-reference.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seasonal-europe-publish
+  cancel-in-progress: false
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Pillow installieren
+        run: pip install "pillow>=11,<13"
+      - name: Aktuellen veröffentlichten SEAS5-Datenstand abrufen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --single-branch --branch seasonal-europe-data             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"             /tmp/seasonal-reference-data
+      - name: Exakte Klimareferenz auf allen Saison-PNGs vermerken
+        run: |
+          python scripts/annotate_seasonal_reference.py --root /tmp/seasonal-reference-data/data/seasonal-europe
+      - name: Ergebnis und Bezugsbasis prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          root=Path('/tmp/seasonal-reference-data/data/seasonal-europe')
+          d=json.loads((root/'index.json').read_text())
+          assert d['anomaly_reference']['type']=='model_hindcast_climatology'
+          assert d['anomaly_reference']['api_reference_years'] is None
+          assert d['anomaly_reference']['reference_years_verified_for_api'] is False
+          assert d['render_revision']
+          count=0
+          for month in d['periods']:
+              for entry in month['fields'].values():
+                  path=root/entry['image']
+                  with Image.open(path) as image:
+                      image.verify()
+                  with Image.open(path) as image:
+                      assert 'ReferenceClimatology' in image.info
+                  count+=1
+          assert count>=12
+          print(f'{count} PNGs validiert, Referenz sauber dokumentiert')
+          PY
+      - name: Neuen Annotationsstand auf Datenbranch veröffentlichen
+        run: |
+          set -euo pipefail
+          cd /tmp/seasonal-reference-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/seasonal-europe/index.json data/seasonal-europe/maps
+          if git diff --cached --quiet; then
+            echo "Referenzangaben bereits vorhanden."
+            exit 0
+          fi
+          git commit -m "Mark SEAS5 hindcast climatology reference on published anomaly PNGs"
+          git push origin HEAD:refs/heads/seasonal-europe-data

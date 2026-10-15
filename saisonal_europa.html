@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Feste Europa-Karten der ECMWF SEAS5 saisonalen Monatsanomalien für Temperatur, Niederschlag und Schneefall.">
 <title>Saisonal Europa · ECMWF SEAS5 · Climate Dashboard</title>
-<link rel="stylesheet" href="saisonal_europa.css?v=1">
-<script src="saisonal_europa.js?v=2" defer></script>
+<link rel="stylesheet" href="saisonal_europa.css?v=2">
+<script src="saisonal_europa.js?v=3" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -17,6 +17,13 @@
   <div class="section-label">Ensemble-Monatsprognosen / ECMWF SEAS5</div>
   <h1>Saisonal Europa</h1>
   <p class="intro">Saisonale Modellabweichungen als <strong>feste Europakarten</strong> ohne Zoom oder Verschieben – für Temperatur, Niederschlag und Schneefall. Die Felder zeigen das monatliche ECMWF-SEAS5-Ensemble-Mittel im Vergleich zur Modellklimatologie, nicht die Abweichung zur beobachteten Referenz 1991–2020.</p>
+  <p class="reference-box"><strong>Bezugsbasis der Anomalien: SEAS5-Modellklimatologie (Hindcasts).</strong>
+    ECMWF verwendet für seine ursprünglichen SEAS5-Karten den Zeitraum <strong>1993–2016</strong>.
+    Die über Open-Meteo gelieferten Anomalien sind modellklimatologisch, die exakten Referenzjahre werden von Open-Meteo jedoch nicht gesondert angegeben.
+    <strong>Keine Abweichung zum beobachteten Mittel 1991–2020.</strong>
+    <a href="https://open-meteo.com/en/docs/seasonal-forecast-api" target="_blank" rel="noopener">Open-Meteo-Methode</a> ·
+    <a href="https://www.ecmwf.int/en/newsletter/154/meteorology/ecmwfs-new-long-range-forecasting-system-seas5" target="_blank" rel="noopener">ECMWF-Referenz</a>
+  </p>
 
   <section class="control-card" aria-label="Kartenauswahl">
     <div class="filters">
@@ -37,6 +44,7 @@
     </div>
     <div class="status" id="seasonalStatus" role="status">Verfügbare Saisonkarten werden geprüft …</div>
     <div class="metadata">
+      <span id="seasonalReference">Anomalie zur SEAS5-Modellklimatologie (Referenzjahre Open-Meteo nicht ausgewiesen)</span>
       <span id="seasonalRun">Modell: ECMWF SEAS5</span>
       <span id="seasonalFetched">Datenabruf: –</span>
       <span id="seasonalTarget">Zielmonat: –</span>
@@ -52,12 +60,13 @@
       <div class="loading" id="seasonalMapLoading">Kartendaten werden geladen …</div>
       <img id="seasonalMapImage" alt="Saisonale Modellanomalie für Europa" hidden>
     </div>
+    <p class="map-reference"><strong>Referenz:</strong> SEAS5-Modellklimatologie (Hindcasts). ECMWF-Originalkarten: 1993–2016; konkrete Referenzjahre der Open-Meteo-API nicht separat dokumentiert.</p>
     <p class="map-note">Einheitlicher Europaausschnitt (25° W–45° O / 34°–76° N) in Lambert-Projektion, mit detaillierten Natural-Earth-Küsten und Ländergrenzen (1:50 Mio.). Farbskala, Modelllauf und Quellenhinweis stehen direkt in der Karte. Die SEAS5-Felder werden im 1°-Abstand über den gesamten sichtbaren Lambert-Kartenausschnitt einschließlich Randbereich abgerufen. Das Raster ist trotzdem gröber als die Ländergrenzen. Kein dynamischer Kartenhintergrund.</p>
   </section>
   <section class="info-grid">
     <article class="info-card">
       <h2>Wie die Anomalien zu lesen sind</h2>
-      <p>Blau zeigt niedrigere Temperaturen beziehungsweise höhere Niederschlags- oder Schneefallmengen als in der Modellklimatologie; Rot zeigt höhere Temperaturen beziehungsweise geringere Niederschlags- oder Schneefallmengen. Die genaue Skala und die Einheit stehen auf jeder Karte.</p>
+      <p>Blau zeigt niedrigere Temperaturen beziehungsweise höhere Niederschlags- oder Schneefallmengen als in der SEAS5-Modellklimatologie; Rot zeigt höhere Temperaturen beziehungsweise geringere Niederschlags- oder Schneefallmengen. ECMWF-Originalprodukte: Referenz 1993–2016. Die Open-Meteo-API nennt hierfür keine bestätigten Bezugsjahre. Skala und Einheit stehen auf jeder Karte.</p>
     </article>
     <article class="info-card">
       <h2>Wichtig bei saisonalen Karten</h2>

@@ -272,12 +272,19 @@ def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
              f"Abweichung ({variant['unit']})  ·  Blau: {'kälter' if kind=='temperature' else 'mehr'}"
              f"  ·  Rot: {'wärmer' if kind=='temperature' else 'weniger'}",
              fontsize=10,color="#344e65",ha="center")
-    fig.text(.045,.068,
-             f"Quelle: ECMWF SEAS5 Ensemble-Mittel über Open-Meteo  |  Modell-Ausgabe: {source_month}",
+    # Important: ECMWF's own SEAS5 graphical anomalies use 1993-2016
+    # hindcasts, but Open-Meteo does not specify the exact reference years
+    # for its API anomaly fields. Do not attribute an unverified period
+    # to these PNG forecasts or call this an ERA5 1991-2020 anomaly.
+    fig.text(.045,.103,"BEZUG: SEAS5-Modellklimatologie (modellinterne Hindcasts)",
+             fontsize=10,weight="bold",color="#243f58")
+    fig.text(.045,.077,
+             "ECMWF-Originalprodukte: 1993-2016 | Open-Meteo-API: Bezugsjahre nicht gesondert angegeben",
+             fontsize=9,color="#445b70")
+    fig.text(.045,.049,
+             f"Quelle: ECMWF SEAS5 via Open-Meteo | Modell-Ausgabe: {source_month} | keine amtliche Warnung",
              fontsize=9,color="#53687a")
-    fig.text(.045,.038,"Monatsabweichungen zur SEAS5-Modellklimatologie · keine amtliche Wetterwarnung",
-             fontsize=9,color="#53687a")
-    fig.text(.955,.038,f"Abgerufen: {retrieved_utc[:16].replace('T',' ')} UTC",
+    fig.text(.955,.022,f"Abgerufen: {retrieved_utc[:16].replace('T',' ')} UTC",
              fontsize=9,ha="right",color="#53687a")
     outpath.parent.mkdir(parents=True,exist_ok=True)
     fig.savefig(outpath,dpi=145,facecolor=fig.get_facecolor(),metadata={"Software":"Climate Dashboard Deutschland",
@@ -328,8 +335,13 @@ def main():
         "schema":1,"product":"Saisonal Europa · ECMWF SEAS5",
         "provider":"ECMWF SEAS5 via Open-Meteo",
         "base_model_month":source_month,"retrieved_utc":retrieved,
+        "render_revision":retrieved,
+        "reference_annotation_revision":"2026-10-baseline-v1",
         "model":"ecmwf_seas5_ensemble_mean","source":API,
-        "reference_note":"SEAS5 monthly model-climate anomalies supplied by Open-Meteo; NOT ERA5 1991–2020 anomalies.",
+        "reference_note":"Open-Meteo monthly seasonal anomalies refer to SEAS5 hindcast model climatology. Open-Meteo does not explicitly specify the reference years in its API documentation. ECMWF original SEAS5 charts typically use 1993–2016. This is NOT observational ERA5 1991–2020.",
+        "anomaly_reference":{"type":"model_hindcast_climatology","source":"Open-Meteo Seasonal API",
+                              "api_reference_years":None,"ecmwf_original_product_reference":"1993–2016",
+                              "reference_years_verified_for_api":False},
         "fixed_extent":list(EXTENT),"sample_resolution_deg":1.0,
         "sampled_locations":int(coverage.sum()),
         "sample_domain":[float(LONS.min()),float(LONS.max()),float(LATS.min()),float(LATS.max())],

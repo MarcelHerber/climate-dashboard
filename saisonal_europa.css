@@ -33,3 +33,9 @@ button.primary:not(:disabled):hover{background:#0c4f7b}
 .info-card{padding:17px}.info-card h2{font-size:14px;margin:0 0 7px}.info-card p{margin:0;color:#52687b;font-size:12px}
 .source-note{font-size:11px;color:#667889;line-height:1.6;margin-top:18px}
 @media(max-width:780px){.info-grid{grid-template-columns:1fr}.filters label{width:100%}.filters select{width:100%}.actions{width:100%}.actions button{flex:1}.map-frame{min-height:250px}}
+
+/* Explicit climatological reference shown in the live page and beside the downloaded map. */
+.reference-box{padding:12px 15px;margin:0 0 18px;background:#ebf4f9;border-left:4px solid #3a81a9;border-radius:7px;color:#27465b;font-size:13px;line-height:1.65}
+.reference-box a{color:#14608b;font-weight:650}
+.map-reference{padding:12px 18px;margin:0;font-size:12px;font-weight:500;color:#204862;background:#edf5fa;border-top:1px solid var(--border)}
+#seasonalReference{font-weight:750;color:#254e6d}
