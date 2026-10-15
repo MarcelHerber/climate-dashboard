@@ -23,6 +23,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
+from pyproj import Transformer
+from matplotlib.collections import LineCollection
 
 LOG = logging.getLogger("seasonal-europe")
 API = "https://seasonal-api.open-meteo.com/v1/seasonal"
@@ -124,33 +126,72 @@ def download():
     return data,valid_months,units
 
 
-def draw_geography(ax, geopoly):
-    # Polygon fill gives reliable Natural Earth land/ocean distinction.
-    from matplotlib.path import Path as MPath
-    from matplotlib.patches import PathPatch
+# Lambert conformal conic: meteorologically familiar European regional projection.
+# Unlike the old longitude/latitude image, this preserves geographic scale
+# much better, especially around Iceland and northern Scandinavia.
+PROJECT = Transformer.from_crs(
+    "EPSG:4326",
+    "+proj=lcc +lat_1=40 +lat_2=70 +lat_0=54 +lon_0=10 +datum=WGS84 +units=m +no_defs",
+    always_xy=True,
+)
+
+
+def projected_extent(extent):
+    west,east,south,north=extent
+    edge=np.linspace(0,1,250)
+    lon=np.concatenate([west+(east-west)*edge,west+(east-west)*edge,
+                        np.full(250,west),np.full(250,east)])
+    lat=np.concatenate([np.full(250,south),np.full(250,north),
+                        south+(north-south)*edge,south+(north-south)*edge])
+    x,y=PROJECT.transform(lon,lat)
+    return (float(x.min()),float(x.max()),float(y.min()),float(y.max()))
+
+
+def draw_graticule(ax):
+    for lon in range(-20,46,10):
+        latitudes=np.linspace(32,79,180)
+        xx,yy=PROJECT.transform(np.full_like(latitudes,lon),latitudes)
+        ax.plot(xx,yy,color="#294660",alpha=.23,lw=.7,zorder=4)
+    for lat in range(35,81,10):
+        longitudes=np.linspace(-35,55,220)
+        xx,yy=PROJECT.transform(longitudes,np.full_like(longitudes,lat))
+        ax.plot(xx,yy,color="#294660",alpha=.23,lw=.7,zorder=4)
+
+
+def draw_geography(ax,geopoly):
+    # The 50m polygons are clipped in lon/lat before projection. This prevents
+    # trans-dateline lines and artificial long borders through the map.
+    segments=[]
     for country in geopoly["countries"]:
         for polygon in country["p"]:
-            vertices=[]
-            codes=[]
             for ring in polygon:
-                if len(ring)<4:continue
-                vertices.extend([tuple(point) for point in ring])
-                codes.extend([MPath.MOVETO]+[MPath.LINETO]*(len(ring)-2)+[MPath.CLOSEPOLY])
-            if vertices:
-                path=MPath(vertices,codes)
-                ax.add_patch(PathPatch(path,facecolor="#ecefed",edgecolor="#48566a",
-                                       linewidth=.45,alpha=1,zorder=5,fill=False))
+                if len(ring)<2:
+                    continue
+                longitude=np.fromiter((p[0] for p in ring),dtype=float)
+                latitude=np.fromiter((p[1] for p in ring),dtype=float)
+                xx,yy=PROJECT.transform(longitude,latitude)
+                if np.isfinite(xx).all() and np.isfinite(yy).all():
+                    segments.append(np.column_stack([xx,yy]))
+    if not segments:
+        raise RuntimeError("Europa: Keine Länder- oder Küstenumrisse transformiert")
+    ax.add_collection(LineCollection(segments,colors="#233e58",linewidths=.63,
+                                     alpha=.93,zorder=6,antialiaseds=True))
 
 
 def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
     variant=VARIANTS[kind]
     fig=plt.figure(figsize=(14,9),dpi=145,facecolor="#f7fafc")
     ax=fig.add_axes([.045,.145,.91,.715])
-    ax.set_xlim(EXTENT[:2])
-    ax.set_ylim(EXTENT[2:])
-    ax.set_aspect("auto")
+    # Fixed Lambert map viewport, identical on every monthly chart.
+    xmin,xmax,ymin,ymax=projected_extent(EXTENT)
+    margin_x=(xmax-xmin)*.012
+    margin_y=(ymax-ymin)*.012
+    ax.set_xlim(xmin-margin_x,xmax+margin_x)
+    ax.set_ylim(ymin-margin_y,ymax+margin_y)
+    ax.set_aspect("equal",adjustable="box")
     ax.set_facecolor("#e4f0f5")
     longitude,latitude=np.meshgrid(LONS,LATS)
+    xx,yy=PROJECT.transform(longitude,latitude)
     levels=variant["levels"]
     cmap=plt.get_cmap(variant["palette"],len(levels)-1)
     norm=mcolors.BoundaryNorm(levels,cmap.N)
@@ -158,14 +199,13 @@ def render_map(outpath,when,kind,grid,geo,source_month,retrieved_utc):
     masked=np.ma.masked_invalid(grid)
     if masked.count()<int(grid.size*.9):
         raise RuntimeError("%s %s: weniger als 90%% Datenabdeckung" % (kind,when))
-    raster=ax.contourf(longitude,latitude,masked,levels=levels,norm=norm,
+    raster=ax.contourf(xx,yy,masked,levels=levels,norm=norm,
                        cmap=cmap,extend="both",antialiased=True,zorder=2)
+    draw_graticule(ax)
     draw_geography(ax,geo)
-    ax.set_xticks(np.arange(-20,46,10));ax.set_yticks(np.arange(35,77,5))
-    ax.tick_params(axis="both",labelsize=9,length=0,pad=5,colors="#52647a")
-    ax.set_xticklabels([f"{abs(int(x))}°{'W' if x<0 else 'E'}" for x in ax.get_xticks()])
-    ax.set_yticklabels([f"{int(x)}°N" for x in ax.get_yticks()])
-    ax.grid(color="#536579",alpha=.20,lw=.65,zorder=4)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.tick_params(axis="both",length=0)
     for spine in ax.spines.values():
         spine.set_linewidth(.8);spine.set_color("#8899aa")
     year,month=map(int,when.split("-"))
@@ -238,6 +278,8 @@ def main():
         "model":"ecmwf_seas5_ensemble_mean","source":API,
         "reference_note":"SEAS5 monthly model-climate anomalies supplied by Open-Meteo; NOT ERA5 1991–2020 anomalies.",
         "fixed_extent":list(EXTENT),"sample_resolution_deg":2.0,
+        "projection":"Lambert Conformal Conic (40N/70N, centre 10E/54N)",
+        "coastlines":"Natural Earth 1:50m, clipped for Europe",
         "params":{k:{"title":v["title"],"unit":v["unit"]} for k,v in VARIANTS.items()},
         "periods":report
     }

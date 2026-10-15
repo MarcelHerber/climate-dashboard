@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - "scripts/build_seasonal_europe.py"
+      - "scripts/build_seasonal_europe_geography.py"
       - ".github/workflows/update-seasonal-europe.yml"
 permissions:
   contents: write
@@ -26,9 +27,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Kartendarstellung installieren
-        run: pip install "matplotlib>=3.9,<4" "numpy>=2.0,<3"
+        run: pip install "matplotlib>=3.9,<4" "numpy>=2.0,<3" "shapely>=2.0,<3" "pyproj>=3.5,<4"
       - name: Verarbeitungscode prüfen
-        run: python -m py_compile scripts/build_seasonal_europe.py
+        run: python -m py_compile scripts/build_seasonal_europe.py scripts/build_seasonal_europe_geography.py
       - name: Datenbranch vorbereiten
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,9 +43,12 @@ jobs:
             git -C /tmp init -q -b seasonal-europe-data seasonal-europe-public
             git -C /tmp/seasonal-europe-public remote add origin "$REMOTE"
           fi
+      - name: Detaillierte Natural-Earth-Küsten und Ländergrenzen vorbereiten
+        run: |
+          python scripts/build_seasonal_europe_geography.py --output /tmp/seasonal-europe-public/data/seasonal-europe/geography_50m.json
       - name: Monatliche ECMWF-SEAS5-Anomalien aus echten Feldern rendern
         run: |
-          python scripts/build_seasonal_europe.py --out /tmp/seasonal-europe-public/data/seasonal-europe --geo wettergefahren_basemap.json
+          python scripts/build_seasonal_europe.py --out /tmp/seasonal-europe-public/data/seasonal-europe --geo /tmp/seasonal-europe-public/data/seasonal-europe/geography_50m.json
       - name: Karten und Monatsmetadaten validieren
         run: |
           python - <<'PY'
@@ -53,6 +57,9 @@ jobs:
           root=Path('/tmp/seasonal-europe-public/data/seasonal-europe')
           d=json.loads((root/'index.json').read_text())
           assert d['model']=='ecmwf_seas5_ensemble_mean'
+          assert 'Lambert Conformal' in d['projection']
+          geometry=json.loads((root/'geography_50m.json').read_text())
+          assert len(geometry['countries'])>=35
           assert len(d['periods'])>=4
           for row in d['periods']:
               for key,item in row['fields'].items():
