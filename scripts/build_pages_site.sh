@@ -14,6 +14,9 @@ required_root_files=(
   polar_vortex_map.js
   ssw_catalog.js
   zirkulation.html
+  blocking.html
+  blocking.js
+  blocking.css
   enso.html
   qbo.html
   mjo.html
@@ -282,6 +285,30 @@ PY
   echo "Verifizierte ERA5-Polarwirbelkarte im Pages-Artefakt enthalten."
 else
   echo "HINWEIS: Erste ERA5-Polarwirbelkarte noch nicht verfügbar."
+fi
+
+# 500-hPa Blocking-Monitor: echte Grafik nur zusammen mit validen Metadaten.
+node --check blocking.js
+grep -q 'id="blockImage"' _site/blocking.html
+if [[ -s data/blocking/current.json && -s data/blocking/blocking_z500_current.png ]]; then
+  python - <<'PY'
+import json
+from pathlib import Path
+folder=Path("data/blocking")
+meta=json.loads((folder/"current.json").read_text(encoding="utf-8"))
+assert meta.get("schema_version")==1 and meta.get("ready") is True
+assert meta.get("forecast") is False and meta.get("pressure_hpa")==500
+assert meta.get("history_complete") is True and meta.get("days_analysed",0)>=5
+assert meta.get("image")=="blocking_z500_current.png"
+assert len(meta.get("dates_used",[]))>=5
+png=folder/"blocking_z500_current.png"
+assert png.read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+PY
+  mkdir -p _site/data/blocking
+  cp data/blocking/current.json data/blocking/blocking_z500_current.png _site/data/blocking/
+  echo "ERA5-Blocking-Karte samt 5-Tage-Diagnose veröffentlicht."
+else
+  echo "HINWEIS: Erste ERA5-Blocking-Karte noch ausstehend; keine Phantomkarte."
 fi
 
 # Generiere öffentliche Datenstände aus den tatsächlich veröffentlichten
