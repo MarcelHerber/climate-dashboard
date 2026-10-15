@@ -70,6 +70,7 @@ jobs:
           png=root/"blocking_z500_current.png"
           assert meta["ready"] and meta["forecast"] is False
           assert meta["schema_version"]==1 and meta["pressure_hpa"]==500
+          assert meta["renderer_version"]>=2 and meta["border_segments"]>=300
           assert meta["days_analysed"]>=5 and meta["history_complete"]
           dates=[date.fromisoformat(x) for x in meta["dates_used"]]
           assert all((b-a).days==1 for a,b in zip(dates,dates[1:]))
