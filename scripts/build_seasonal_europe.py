@@ -335,6 +335,8 @@ def main():
         "schema":1,"product":"Saisonal Europa · ECMWF SEAS5",
         "provider":"ECMWF SEAS5 via Open-Meteo",
         "base_model_month":source_month,"retrieved_utc":retrieved,
+        "render_revision":retrieved,
+        "reference_annotation_revision":"2026-10-baseline-v1",
         "model":"ecmwf_seas5_ensemble_mean","source":API,
         "reference_note":"Open-Meteo monthly seasonal anomalies refer to SEAS5 hindcast model climatology. Open-Meteo does not explicitly specify the reference years in its API documentation. ECMWF original SEAS5 charts typically use 1993–2016. This is NOT observational ERA5 1991–2020.",
         "anomaly_reference":{"type":"model_hindcast_climatology","source":"Open-Meteo Seasonal API",
