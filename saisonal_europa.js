@@ -92,7 +92,7 @@
       data=manifest;version=manifest.retrieved_utc||manifest.base_model_month||"1";
       $("seasonalRun").textContent="Modell-Ausgabe: "+monthName(manifest.base_model_month)+" · ECMWF SEAS5";
       const stamp=new Date(manifest.retrieved_utc);
-      $("seasonalFetched").textContent="Berechnet: "+(Number.isNaN(stamp.getTime())?"–":stamp.toLocaleString("de-DE",{timeZone:"UTC",timeZoneName:"short",dateStyle:"medium",timeStyle:"short"}));
+      $("seasonalFetched").textContent="Berechnet: "+(Number.isNaN(stamp.getTime())?"–":stamp.toLocaleString("de-DE",{timeZone:"UTC",timeZoneName:"short",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}));
       updateMonths();
       const age=(Date.now()-new Date(manifest.retrieved_utc).getTime())/86400000;
       status(age>45?"Achtung: Prognosekarten sind älter als 45 Tage – der letzte Datenabruf muss überprüft werden.":"Saisonale ECMWF-SEAS5-Karten bereit. Parameter und Zielmonat wählen.",age>45?"warn":"");
