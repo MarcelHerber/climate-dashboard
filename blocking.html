@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Blocking-Monitor · Nordatlantik &amp; Europa – Climate Dashboard</title>
+<meta name="description" content="ERA5 500-hPa-Geopotenzialhöhe und tägliche Tibaldi-Molteni-Blocking-Diagnostik über Europa und dem Nordatlantik.">
+<link rel="stylesheet" href="blocking.css?v=1">
+<script defer src="blocking.js?v=1"></script>
+</head>
+<body>
+<header><nav class="nav" aria-label="Hauptnavigation">
+<a class="brand" href="index.html">Climate Dashboard · Deutschland &amp; Europa</a>
+<div class="links">
+<a href="index.html">Startseite</a>
+<a href="zirkulation.html">NAO / AO / GBI</a>
+<a href="stratosphaere.html">Stratosphäre</a>
+<a href="datenstatus.html">Datenstatus</a>
+</div>
+</nav></header>
+<main>
+<div class="eyebrow">Großwetterlagen · Reanalyse</div>
+<h1>Blocking-Monitor für Nordatlantik &amp; Europa</h1>
+<p class="intro">Eine feste Karte der 500-hPa-Geopotenzialhöhe zeigt die großräumige Zirkulation. Längengradbereiche mit einer Umkehr des meridionalen Geopotenzialgradienten werden zusätzlich nach einem Tibaldi-Molteni-artigen Index geprüft. Es handelt sich um eine Diagnose vergangener Tage, nicht um eine Wettervorhersage.</p>
+
+<section class="card" aria-label="Aktuelle ERA5-Blocking-Karte">
+<div class="card-header">
+<div><h2>500 hPa · letzte überprüfte Tagesanalyse</h2><p class="small">Nordatlantik und Europa · 90°W bis 65°E · feste Karte, nicht zoombar</p></div>
+<div class="actions">
+<button type="button" id="blockReload" class="btn">Neu laden</button>
+<button type="button" id="blockDownload" class="btn primary" disabled>PNG herunterladen</button>
+</div>
+</div>
+<div class="status" id="blockStatus" aria-live="polite">Prüfe ERA5-Archiv …</div>
+<div class="metrics">
+<div class="metric">Analysedatum<strong id="blockDate">–</strong></div>
+<div class="metric">Überprüfter Zeitraum<strong id="blockSpan">–</strong></div>
+<div class="metric">Momentane Sektoren<strong id="blockInstant">–</strong></div>
+<div class="metric">Sektoren ≥5 Tage<strong id="blockPersistent">–</strong></div>
+</div>
+<div class="plot">
+<div class="unavailable" id="blockMissing"><strong>500-hPa-Blocking-Karte noch nicht verfügbar</strong><span>Hier erscheint erst nach einem erfolgreich überprüften ERA5-Abruf eine echte Karte. Keine Platzhalterdaten.</span></div>
+<img hidden id="blockImage" alt="Feste ERA5-Karte der 500-hPa-Geopotenzialhöhe über Nordatlantik und Europa mit hervorgehobenen Tibaldi-Molteni-Blocking-Sektoren">
+</div>
+<div class="legend" aria-label="Blocking-Sektoren">
+<span><b style="background:#fde68a"></b> Momentane Gradienten-Umkehr</span>
+<span><b style="background:#fb923c"></b> Auch an fünf aufeinanderfolgenden Tagen</span>
+</div>
+<p id="blockSummary" class="small">Die Auswertung steht nach der ersten Datenveröffentlichung bereit.</p>
+<p class="small">Gelbe und orangefarbene Markierungen beziehen sich auf <strong>Längengradsektoren</strong>, nicht auf zweidimensional abgegrenzte Hochdruckgebiete. Unauffällige Sektoren schließen andere Blocking-Definitionen nicht aus.</p>
+</section>
+
+<section class="card" aria-label="Ausgewertete Blocking-Sektoren">
+<h2>Nachgewiesene Sektoren</h2>
+<div class="columns">
+<div><h3>Am letzten Analysetag</h3><div id="blockInstantSectors" class="sectors"><span class="small">Noch keine Daten.</span></div></div>
+<div><h3>Über mindestens fünf Tage</h3><div id="blockPersistSectors" class="sectors"><span class="small">Noch keine Daten.</span></div></div>
+</div>
+</section>
+
+<section class="card method">
+<h2>Methodik und fachliche Einordnung</h2>
+<div class="columns">
+<div>
+<p>Die Auswertung nutzt echte ERA5-Tagesmittel des 500-hPa-Geopotenzials, umgerechnet in Geopotenzialmeter (gpm). Für jeden Längengrad werden die Höhen bei 40°N, 60°N und 80°N sowie mit ±5° Breitenverschiebung geprüft.</p>
+<p><strong>Momentanes Blocking-Signal:</strong> Südlicher Gradient GHGS &gt; 0 gpm/Grad und nördlicher Gradient GHGN &lt; −10 gpm/Grad. Angezeigt werden zusammenhängende Längengradsektoren ab 10° Breite.</p>
+</div>
+<div>
+<p><strong>Persistentes Signal:</strong> Derselbe Längengrad erfüllt die Kriterien an fünf aufeinanderfolgenden Tagen. Fehlende Analysedaten werden nicht interpoliert. Diese vereinfachte 1D-Diagnostik sollte nicht mit einer vollständigen 2D-Blocking-Ereigniserkennung verwechselt werden.</p>
+<p>Die Daten erscheinen durch die reguläre ERA5-Verzögerung nicht tagesaktuell. Das konkrete Analysedatum wird auf der Karte und daneben ausgewiesen. Die vorhandenen <a href="zirkulation.html">NAO-/AO- und GBI-Indizes</a> bleiben separat und werden nicht als Blocking-Ereignisse umgedeutet.</p>
+</div>
+</div>
+<p class="small">Quellen: <a href="https://cds.climate.copernicus.eu/datasets/derived-era5-pressure-levels-daily-statistics" target="_blank" rel="noopener">Copernicus C3S – ERA5 Tagesstatistiken</a> · <a href="https://docs.esmvaltool.org/en/v2.4.0/recipes/recipe_miles.html" target="_blank" rel="noopener">Tibaldi-Molteni Blocking-Metrik</a>. Die Karte ist eine eigene, automatisch aus ERA5 berechnete Darstellung.</p>
+</section>
+</main>
+<footer class="footer">Climate Dashboard Deutschland · ERA5-Blocking-Diagnostik · Analyse, keine Prognose</footer>
+</body>
+</html>
