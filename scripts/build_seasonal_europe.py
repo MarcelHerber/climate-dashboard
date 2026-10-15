@@ -142,6 +142,17 @@ def download(outdir):
     source_month=first_rows[0]["monthly"]["time"][0][:7]
     if not source_month or len(source_month)!=7:
         raise RuntimeError("Ungültiger SEAS5-Modellmonat")
+    existing_index=outdir/"index.json"
+    if existing_index.is_file() and not progress_file.exists():
+        try:
+            prev=json.loads(existing_index.read_text(encoding="utf-8"))
+            if (prev.get("base_model_month")==source_month and
+                prev.get("sample_resolution_deg")==1.0 and
+                prev.get("complete_projected_viewport") is True):
+                LOG.info("Aktueller SEAS5-Modellmonat %s bereits als 1°-Karten veröffentlicht.",source_month)
+                return None,None,None
+        except (OSError,ValueError):
+            pass
     cache=outdir/"_staging"/source_month
     cache.mkdir(parents=True,exist_ok=True)
     # The stable coordinate layout in this release uniquely identifies each batch.
