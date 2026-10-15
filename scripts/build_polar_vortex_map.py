@@ -104,7 +104,23 @@ def plot_map(lats, lons, values, day, dest):
     contour = ax.contour(lon_cyclic, lats, cyclic, levels=levels[::2],
                          colors="#17324a", linewidths=.63, alpha=.72, **kw)
     ax.clabel(contour, inline=True, fontsize=7, fmt="%d")
-    ax.coastlines(resolution="110m", linewidth=.8, color="#253447", alpha=.9)
+    # Cartopy may need to download Natural Earth assets on a clean runner.
+    # Failure to retrieve decorative coastline vectors must not suppress
+    # an otherwise validated, scientifically real ERA5 geopotential field.
+    import warnings
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", category=Warning)
+            # Draw before save so Natural Earth download errors are catchable.
+            coastline = ax.coastlines(resolution="110m", linewidth=.8,
+                                      color="#253447", alpha=.9)
+            fig.canvas.draw()
+    except Exception as exc:
+        try:
+            coastline.remove()
+        except Exception:
+            pass
+        print(f"INFO: Küstenlinien nicht verfügbar; ERA5-Feld bleibt gültig: {exc}", flush=True)
     gl = ax.gridlines(crs=ccrs.PlateCarree(), linewidth=.6,
                       color="#475569", alpha=.3, linestyle="--")
     gl.xlocator = __import__("matplotlib.ticker", fromlist=["FixedLocator"]).FixedLocator(np.arange(-180,180,30))
