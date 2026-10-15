@@ -1,0 +1,79 @@
+name: ECMWF SEAS5 Europa-Monatskarten
+on:
+  schedule:
+    - cron: "25 5 6,8,15,22 * *"
+  workflow_dispatch:
+  push:
+    branches: [main, feature/seasonal-europe-fixed-maps-20261015]
+    paths:
+      - "scripts/build_seasonal_europe.py"
+      - ".github/workflows/update-seasonal-europe.yml"
+permissions:
+  contents: write
+concurrency:
+  group: seasonal-europe-publish
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Website-Code abrufen
+        uses: actions/checkout@v5
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Kartendarstellung installieren
+        run: pip install "matplotlib>=3.9,<4" "numpy>=2.0,<3"
+      - name: Verarbeitungscode prüfen
+        run: python -m py_compile scripts/build_seasonal_europe.py
+      - name: Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/seasonal-europe-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --single-branch --branch seasonal-europe-data "$REMOTE" /tmp/seasonal-europe-public
+          else
+            git -C /tmp init -q -b seasonal-europe-data seasonal-europe-public
+            git -C /tmp/seasonal-europe-public remote add origin "$REMOTE"
+          fi
+      - name: Monatliche ECMWF-SEAS5-Anomalien aus echten Feldern rendern
+        run: |
+          python scripts/build_seasonal_europe.py --out /tmp/seasonal-europe-public/data/seasonal-europe --geo wettergefahren_basemap.json
+      - name: Karten und Monatsmetadaten validieren
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('/tmp/seasonal-europe-public/data/seasonal-europe')
+          d=json.loads((root/'index.json').read_text())
+          assert d['model']=='ecmwf_seas5_ensemble_mean'
+          assert len(d['periods'])>=4
+          for row in d['periods']:
+              for key,item in row['fields'].items():
+                  file=root/item['image']
+                  assert file.is_file() and file.stat().st_size>20000,(key,file)
+                  assert file.open('rb').read(8)==b'\x89PNG\r\n\x1a\n'
+          assert sum('temperature' in p['fields'] and 'precipitation' in p['fields'] for p in d['periods'])>=4
+          print('SEAS5 validiert:',d['base_model_month'],len(d['periods']),'Monate')
+          PY
+      - name: Karten auf separatem Datenbranch veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/seasonal-europe-public
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "SEAS5-Karten unverändert."
+            exit 0
+          fi
+          git commit -m "ECMWF SEAS5 Europa Monatshorizont aktualisiert"
+          git push origin HEAD:refs/heads/seasonal-europe-data
