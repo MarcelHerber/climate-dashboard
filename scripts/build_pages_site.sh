@@ -22,6 +22,7 @@ required_root_files=(
   meereis.css
   ace.html
   ace.js
+  ace_spatial.js
   climate_advanced.js
   climate_indices.js
   climate_indices.css
@@ -310,6 +311,14 @@ if [[ -s ace/global.json ]]; then
   echo "IBTrACS globale ACE-Daten übernommen."
 else
   echo "HINWEIS: IBTrACS-Daten werden durch den globalen ACE-Workflow erzeugt."
+fi
+
+if [[ -s ace/spatial/index.json ]]; then
+  mkdir -p _site/ace/spatial
+  cp ace/spatial/*.json _site/ace/spatial/
+  echo "Räumliche ACE-Anomaliekarten (Historienarchiv) veröffentlicht."
+else
+  echo "HINWEIS: ACE-Kartenarchiv wird beim ersten räumlichen Backfill erzeugt."
 fi
 
 touch _site/.nojekyll
