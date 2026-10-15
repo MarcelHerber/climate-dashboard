@@ -78,6 +78,18 @@ class BlockingMonitorTests(unittest.TestCase):
         self.assertFalse(d["history_complete"])
         self.assertEqual(d["persistent"],[])
 
+    def test_offline_country_boundaries_are_bundled(self):
+        import json
+        borders=json.loads(blocking.BORDER_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(borders["schema_version"],1)
+        self.assertGreater(len(borders["lines"]),300)
+        self.assertTrue(any(any(-5<x<16 and 47<y<56 for x,y in line)
+                            for line in borders["lines"]),
+                        "Central-European national borders should be present")
+        self.assertTrue(any(any(-55<x<-35 and y>58 for x,y in line)
+                            for line in borders["lines"]),
+                        "Greenland coast should be present")
+
     def test_png_renderer_on_synthetic_test_field(self):
         # Only a deployment smoke test: synthetic fields must never be published.
         first=date(2026,10,1)
