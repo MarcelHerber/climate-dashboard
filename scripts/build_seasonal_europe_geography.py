@@ -13,7 +13,9 @@ from urllib.request import Request, urlopen
 from shapely.geometry import box, shape, Polygon, MultiPolygon, GeometryCollection
 
 SOURCE = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson"
-BBOX = (-32.0, 28.0, 52.0, 83.0)
+# Cover the ACTUAL Lambert rectangle, not only its nominal geographic extent.
+# Upper map corners reach approximately 70W / 90E at ~60N.
+BBOX = (-78.0, 20.0, 99.0, 86.0)
 LOG = logging.getLogger("seasonal-geography")
 
 
@@ -92,7 +94,9 @@ def main():
     if args.output.exists():
         try:
             existing = json.loads(args.output.read_text(encoding="utf-8"))
-            if existing.get("source", "").startswith("Natural Earth ne_50m") and len(existing.get("countries", [])) >= 35:
+            if (existing.get("source", "").startswith("Natural Earth ne_50m") and
+                    tuple(existing.get("bbox", ())) == BBOX and
+                    len(existing.get("countries", [])) >= 35):
                 LOG.info("Bestehende 50m-Europageografie wiederverwendet: %s", args.output)
                 return
         except (ValueError, OSError):
