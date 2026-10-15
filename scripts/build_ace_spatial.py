@@ -59,7 +59,7 @@ def build():
     from scipy.ndimage import gaussian_filter
     OUT.mkdir(parents=True,exist_ok=True)
     obs=observations()
-     last_current=max((date(x[0],int(x[1][:2]),int(x[1][3:])) for x in obs
+    last_current=max((date(x[0],int(x[1][:2]),int(x[1][3:])) for x in obs
                       if x[0]==datetime.now(timezone.utc).year),default=None)
     # Assign six-hourly observations to 1° cell centres (edge-aware, no rounding ties).
     daily=defaultdict(list)
