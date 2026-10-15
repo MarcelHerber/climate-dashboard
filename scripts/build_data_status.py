@@ -330,6 +330,18 @@ def build(remote=None):
             None, None, "Noch keine verifizierte Karte veröffentlicht",
             "Karte folgt nach dem ersten erfolgreichen ERA5-Datenlauf"))
 
+    block = read_json("data/blocking/current.json")
+    if block and block.get("ready") is True and block.get("forecast") is False:
+        items.append(result("blocking", "Europa · Blocking-Monitor", "Atmosphäre",
+            block.get("analysis_date"), block.get("generated_utc"),
+            f"{block.get('days_analysed', 0)} ERA5-Tagesfelder · {len(block.get('persistent_sectors') or [])} persistente Längengradsektoren",
+            "Tibaldi-Molteni-artige Gradientendiagnose, keine Modellprognose",
+            allowed_delay=13, incomplete=not block.get("history_complete",False)))
+    else:
+        items.append(result("blocking", "Europa · Blocking-Monitor", "Atmosphäre",
+            None, None, "Noch keine verifizierte ERA5-Blocking-Karte",
+            "Initialer CDS-Datenlauf und Kartenveröffentlichung ausstehend"))
+
     add_climate_indices(items)
     add_external(items, remote or {})
     # Ensembles are fetched per chosen location/model in the browser, not as a
