@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gridded ACE anomalies, NOAA IBTrACS USA_WIND, historical archive.
 
-Grid: 4° longitude x 4° latitude, Gaussian point kernel sigma=4°.
+Grid: 1° longitude x 1° latitude; Gaussian point kernel sigma=2.5°.
 For a given year's last data date, its reference uses the same MM-DD cutoff
 in all 30 years (1991–2020). The reference is not a full-year climatology
 when the current year is incomplete. No spatial statistical significance
@@ -21,10 +21,11 @@ URL=("https://www.ncei.noaa.gov/data/international-best-track-archive-for-climat
      "stewardship-ibtracs/v04r01/access/csv/ibtracs.since1980.list.v04r01.csv")
 LATEST=URL.replace("ibtracs.since1980.list","ibtracs.last3years.list")
 YEARS=range(1980,datetime.now(timezone.utc).year+1)
-GRID_LONS=[-178+4*i for i in range(90)]
-GRID_LATS=[-58+4*i for i in range(30)]
+RES=1.0
+GRID_LONS=[-179.5+RES*i for i in range(360)]
+GRID_LATS=[-59.5+RES*i for i in range(120)]
 VALID={"NA","EP","WP","NI","SI","SP"}
-SIGMA=4.0
+SIGMA=2.5  # degrees, converted to grid-cell units for the Gaussian kernel
 OUT=Path("ace/spatial")
 
 def observations():
@@ -58,15 +59,14 @@ def build():
     from scipy.ndimage import gaussian_filter
     OUT.mkdir(parents=True,exist_ok=True)
     obs=observations()
-    latest=max((x[1] for x in obs if x[0]==datetime.now(timezone.utc).year),default=None)
-    last_current=max((date(x[0],int(x[1][:2]),int(x[1][3:])) for x in obs
+     last_current=max((date(x[0],int(x[1][:2]),int(x[1][3:])) for x in obs
                       if x[0]==datetime.now(timezone.utc).year),default=None)
-    # Bucket each observation into its nearest 4° grid cell.
+    # Assign six-hourly observations to 1° cell centres (edge-aware, no rounding ties).
     daily=defaultdict(list)
     for year,mmdd,lat,lon,ace in obs:
-        if not -60<=lat<62:continue
-        yi=int(round((lat-GRID_LATS[0])/4))
-        xi=int(round((lon-GRID_LONS[0])/4))%90
+        if not -60<=lat<60:continue
+        yi=int((lat-(GRID_LATS[0]-RES/2))/RES)
+        xi=int((lon-(GRID_LONS[0]-RES/2))/RES)%len(GRID_LONS)
         if 0<=yi<len(GRID_LATS):daily[year].append((mmdd,yi,xi,ace))
     cutoff=last_current.strftime("%m-%d") if last_current else None
     all_years=sorted(year for year in YEARS if year<=datetime.now(timezone.utc).year-1 or
@@ -77,18 +77,18 @@ def build():
         for mmdd,yi,xi,val in daily.get(year,[]):
             if mmdd<=end:counts[yi,xi]+=val
         # smooth across longitudes, but no wrap in latitude
-        counts=gaussian_filter(counts,sigma=(1.0,1.0),mode=("constant","wrap"))
+        counts=gaussian_filter(counts,sigma=(SIGMA/RES,SIGMA/RES),mode=("constant","wrap"))
         return counts
     complete={year:grid(year,"12-31") for year in all_years if year!=datetime.now(timezone.utc).year}
     # 30-year baseline for full calendar years is shared and cached.
     full_base=np.stack([complete[y] for y in range(1991,2021)])
     full_mean=full_base.mean(0);full_sd=full_base.std(0,ddof=1)
-    manifest={"ready":True,"years":[],"resolution_deg":4,"kernel_sigma_deg":4,
+    manifest={"ready":True,"years":[],"resolution_deg":RES,"kernel_sigma_deg":SIGMA,
               "latitudes":GRID_LATS,"longitudes":GRID_LONS,
               "reference_period":[1991,2020],"last_current_date":str(last_current) if last_current else None,
               "units":"ACE (10^4 kn^2) smoothed per grid cell",
               "source":"NOAA IBTrACS USA_WIND, six-hourly, NATURE TS/SS, >=34 kt",
-              "method":"Spatially smoothed ACE contribution, Gaussian sigma 4 degrees; no significance overlay",
+              "method":"ACE contribution on 1-degree cells; Gaussian sigma 2.5 degrees; no significance overlay",
               "generated_utc":datetime.now(timezone.utc).isoformat()}
     for year in all_years:
         partial=year==datetime.now(timezone.utc).year
@@ -98,9 +98,10 @@ def build():
             subset=np.stack([grid(y,end) for y in range(1991,2021)])
             mean=subset.mean(0); sd=subset.std(0,ddof=1)
         else:mean=full_mean;sd=full_sd
-        z=np.divide(field-mean,sd,out=np.full_like(field,np.nan),where=sd>0.005)
-        # Mask cells with tiny baseline: low variance is unstable for Z.
-        z=np.where(mean>=0.005,np.clip(z,-4,4),np.nan)
+        # Threshold scales with grid-cell area (previous 4° thresholds / 16).
+        # Avoid unstable z-scores in areas with virtually no climatological ACE.
+        z=np.divide(field-mean,sd,out=np.full_like(field,np.nan),where=sd>0.0003)
+        z=np.where(mean>=0.0003,np.clip(z,-4,4),np.nan)
         payload={"year":year,"ready":True,"provisional":partial,"through":str(last_current) if partial else str(year)+"-12-31",
                  "z":[[None if not math.isfinite(v) else round(float(v),2) for v in row] for row in z]}
         (OUT/f"{year}.json").write_text(json.dumps(payload,separators=(",",":"))+"\n")
