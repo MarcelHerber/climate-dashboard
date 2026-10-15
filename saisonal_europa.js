@@ -89,7 +89,12 @@
       if(!manifest.periods.some(row=>row.fields?.temperature&&row.fields?.precipitation)){
         throw new Error("Keine vollständigen Prognoseparameter");
       }
-      data=manifest;version=manifest.retrieved_utc||manifest.base_model_month||"1";
+      data=manifest;version=manifest.render_revision||manifest.retrieved_utc||manifest.base_model_month||"1";
+      const modelReference=manifest.anomaly_reference;
+      $("seasonalReference").textContent =
+        (modelReference?.reference_years_verified_for_api && modelReference?.api_reference_years)
+        ? "Bezugsbasis: SEAS5-Modellklimatologie ("+modelReference.api_reference_years+")"
+        : "Bezugsbasis: SEAS5-Modellklimatologie (Open-Meteo: Bezugsjahre nicht separat ausgewiesen)";
       $("seasonalRun").textContent="Modell-Ausgabe: "+monthName(manifest.base_model_month)+" · ECMWF SEAS5 · Kartendaten: "+manifest.sample_resolution_deg+"°-Raster";
       const stamp=new Date(manifest.retrieved_utc);
       $("seasonalFetched").textContent="Berechnet: "+(Number.isNaN(stamp.getTime())?"–":stamp.toLocaleString("de-DE",{timeZone:"UTC",timeZoneName:"short",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}));
