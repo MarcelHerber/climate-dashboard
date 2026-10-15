@@ -318,6 +318,18 @@ def build(remote=None):
                 "NSIDC Sea Ice Index v4 · Referenz 1991–2020",
                 allowed_delay=6, incomplete=not ready))
 
+    polar = read_json("data/polar_vortex/current.json")
+    if polar and polar.get("ready") is True and polar.get("forecast") is False:
+        items.append(result("polar_vortex", "Polarwirbel · 10-hPa-Karte", "Atmosphäre",
+            polar.get("analysis_date"), polar.get("generated_utc"),
+            "Eine statische Nordpolkarte · 25–90° N · ERA5-Tagesmittel",
+            "Reanalyse mit mehrtägigem Veröffentlichungsverzug, keine Prognose",
+            allowed_delay=13))
+    else:
+        items.append(result("polar_vortex", "Polarwirbel · 10-hPa-Karte", "Atmosphäre",
+            None, None, "Noch keine verifizierte Karte veröffentlicht",
+            "Karte folgt nach dem ersten erfolgreichen ERA5-Datenlauf"))
+
     add_climate_indices(items)
     add_external(items, remote or {})
     # Ensembles are fetched per chosen location/model in the browser, not as a
