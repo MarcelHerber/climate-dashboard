@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Feste Europa-Karten der ECMWF SEAS5 saisonalen Monatsanomalien für Temperatur, Niederschlag und Schneefall.">
+<title>Saisonal Europa · ECMWF SEAS5 · Climate Dashboard</title>
+<link rel="stylesheet" href="saisonal_europa.css?v=1">
+<script src="saisonal_europa.js?v=1" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="home">← Climate Dashboard Deutschland</a>
+  <span class="eyebrow">Saisonale Vorhersage · Europa</span>
+</header>
+<main>
+  <div class="section-label">Ensemble-Monatsprognosen / ECMWF SEAS5</div>
+  <h1>Saisonal Europa</h1>
+  <p class="intro">Saisonale Modellabweichungen als <strong>feste Europakarten</strong> ohne Zoom oder Verschieben – für Temperatur, Niederschlag und Schneefall. Die Felder zeigen das monatliche ECMWF-SEAS5-Ensemble-Mittel im Vergleich zur Modellklimatologie, nicht die Abweichung zur beobachteten Referenz 1991–2020.</p>
+
+  <section class="control-card" aria-label="Kartenauswahl">
+    <div class="filters">
+      <label>Parameter
+        <select id="seasonalParameter">
+          <option value="temperature">Temperatur · 2 m</option>
+          <option value="precipitation">Niederschlag</option>
+          <option value="snowfall">Schneefall</option>
+        </select>
+      </label>
+      <label>Zielmonat
+        <select id="seasonalMonth" disabled><option value="">Monatsdaten werden geladen …</option></select>
+      </label>
+      <div class="actions">
+        <button type="button" id="refreshSeasonal">Aktualisieren</button>
+        <button type="button" id="saveSeasonal" class="primary" disabled>PNG herunterladen ↓</button>
+      </div>
+    </div>
+    <div class="status" id="seasonalStatus" role="status">Verfügbare Saisonkarten werden geprüft …</div>
+    <div class="metadata">
+      <span id="seasonalRun">Modell: ECMWF SEAS5</span>
+      <span id="seasonalFetched">Datenabruf: –</span>
+      <span id="seasonalTarget">Zielmonat: –</span>
+    </div>
+  </section>
+
+  <section class="map-card" aria-label="Feste saisonale Europakarte">
+    <div class="map-head">
+      <h2 id="seasonalMapTitle">ECMWF SEAS5 · Europa</h2>
+      <span id="seasonalUnit">Monatliche Anomalie</span>
+    </div>
+    <div class="map-frame" id="seasonalMapFrame">
+      <div class="loading" id="seasonalMapLoading">Kartendaten werden geladen …</div>
+      <img id="seasonalMapImage" alt="Saisonale Modellanomalie für Europa" hidden>
+    </div>
+    <p class="map-note">Einheitlicher Europaausschnitt (25° W–45° O / 34°–76° N). Küsten, Ländergrenzen, Farbskala, Modelllauf und Quellenhinweis sind direkt in die Karte gerendert. Kein dynamischer Kartenhintergrund.</p>
+  </section>
+  <section class="info-grid">
+    <article class="info-card">
+      <h2>Wie die Anomalien zu lesen sind</h2>
+      <p>Blau zeigt niedrigere Temperaturen beziehungsweise höhere Niederschlags- oder Schneefallmengen als in der Modellklimatologie; Rot zeigt höhere Temperaturen beziehungsweise geringere Niederschlags- oder Schneefallmengen. Die genaue Skala und die Einheit stehen auf jeder Karte.</p>
+    </article>
+    <article class="info-card">
+      <h2>Wichtig bei saisonalen Karten</h2>
+      <p>Eine Monatsanomalie ist <strong>keine Tages- oder Ortsprognose</strong>. Ensemble-Mittel glätten extreme Ereignisse. Der Schneeindikator beschreibt Schneefallabweichungen, nicht die Schneehöhe oder eine Schneegarantie.</p>
+    </article>
+    <article class="info-card">
+      <h2>Daten und Aktualisierung</h2>
+      <p>Originalmodell <strong>ECMWF SEAS5</strong>, saisonales Ensemble-Mittel über die <a href="https://open-meteo.com/en/docs/seasonal-forecast-api" target="_blank" rel="noopener">Open-Meteo Seasonal API</a>. Ein GitHub-Workflow berechnet nach Modellaktualisierungen automatisch neue, immer gleich projizierte PNG-Karten. Fehlende Daten werden nicht erfunden.</p>
+    </article>
+  </section>
+  <p class="source-note">© European Centre for Medium-Range Weather Forecasts (ECMWF), Verarbeitung über Open-Meteo (CC BY 4.0), Kartenumrisse: Natural Earth (Public Domain). Experimentelle Saisonprognose, kein amtliches Warnprodukt. Für die Modellprognose gilt die jeweilige Modellklimatologie, nicht automatisch das beobachtete Mittel 1991–2020.</p>
+</main>
+</body>
+</html>

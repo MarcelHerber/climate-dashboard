@@ -37,6 +37,9 @@ required_root_files=(
   wettergefahren.css
   wettergefahren_export.js
   wettergefahren_basemap.json
+  saisonal_europa.html
+  saisonal_europa.js
+  saisonal_europa.css
   sst_europe.js
   sst_europe.css
   t850_ensembles.js
