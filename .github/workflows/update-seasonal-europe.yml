@@ -1,10 +1,11 @@
 name: ECMWF SEAS5 Europa-Monatskarten
 on:
   schedule:
+    - cron: "17 * * * *"
     - cron: "25 5 6,8,15,22 * *"
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/seasonal-staged-download-20261015]
     paths:
       - "scripts/build_seasonal_europe.py"
       - "scripts/build_seasonal_europe_geography.py"
@@ -56,6 +57,15 @@ jobs:
           from pathlib import Path
           root=Path('/tmp/seasonal-europe-public/data/seasonal-europe')
           d=json.loads((root/'index.json').read_text())
+          progress=root/'progress.json'
+          if progress.exists():
+              p=json.loads(progress.read_text())
+              assert p['schema']==1 and p['stage']=='partial'
+              assert p['sample_resolution_deg']==1.0
+              assert p['finished_batches']<p['total_batches']
+              assert p['finished_points']<=p['total_points']
+              print('SEAS5 Teildaten gespeichert:',p['finished_points'],'/',p['total_points'])
+              raise SystemExit(0)
           assert d['model']=='ecmwf_seas5_ensemble_mean'
           assert 'Lambert Conformal' in d['projection']
           assert d['sample_resolution_deg']==1.0
@@ -75,6 +85,11 @@ jobs:
           assert sum('temperature' in p['fields'] and 'precipitation' in p['fields'] for p in d['periods'])>=4
           print('SEAS5 validiert:',d['base_model_month'],len(d['periods']),'Monate')
           PY
+      - name: Unterbrochene Datenpakete erhalten, ohne alte Karten zu ersetzen
+        run: |
+          if [ -f /tmp/seasonal-europe-public/data/seasonal-europe/progress.json ]; then
+            echo "Der 1°-Abruf ist noch unvollständig; nur Pakete und Fortschritt werden veröffentlicht."
+          fi
       - name: Karten auf separatem Datenbranch veröffentlichen
         shell: bash
         run: |
