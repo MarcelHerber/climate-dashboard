@@ -1,0 +1,108 @@
+name: ERA5 Polarwirbel-Karte 10 hPa
+
+on:
+  schedule:
+    - cron: "20 10 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_polar_vortex_map.py"
+      - "tests/test_polar_vortex_map.py"
+      - ".github/workflows/update-polar-vortex-map.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: polar-vortex-map-era5
+  cancel-in-progress: false
+
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Dateien laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            tests
+            data/polar_vortex
+
+      - name: Python vorbereiten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Rechen- und Kartenpakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf matplotlib "cartopy>=0.24"
+
+      - name: Quellfeld und Datumsangaben testen
+        run: python -m unittest discover -s tests -p test_polar_vortex_map.py -v
+
+      - name: Copernicus API konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}" || { echo "CDSAPI_KEY fehlt"; exit 1; }
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+
+      - name: Letzte überprüfbare ERA5-Tageskarte erstellen
+        run: |
+          python scripts/build_polar_vortex_map.py --output data/polar_vortex
+          python - <<'PY'
+          import json
+          from datetime import date, timedelta
+          from pathlib import Path
+          folder=Path("data/polar_vortex")
+          p=json.loads((folder/"current.json").read_text())
+          png=folder/"polar_vortex_10hpa_current.png"
+          assert png.is_file() and png.stat().st_size>25000
+          assert png.read_bytes()[:8]==b"\x89PNG\r\n\x1a\n"
+          assert p["ready"] and p["forecast"] is False
+          assert p["pressure_hpa"]==10
+          assert p["statistic"]=="daily_mean"
+          assert date.fromisoformat(p["analysis_date"]) <= date.today()-timedelta(days=5)
+          print("Validierte ERA5-Karte:",p["analysis_date"],"PNG:",png.stat().st_size)
+          PY
+
+      - name: Kartenstand nur nach erfolgreicher Prüfung veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a data/polar_vortex /tmp/polar-vortex-publish
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          NEW_DATE=$(python -c 'import json;print(json.load(open("/tmp/polar-vortex-publish/current.json"))["analysis_date"])')
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            EXISTING_DATE=$(python -c 'import json,pathlib;p=pathlib.Path("data/polar_vortex/current.json");print(json.loads(p.read_text()).get("analysis_date","") if p.exists() else "")')
+            if [[ -n "$EXISTING_DATE" && "$EXISTING_DATE" > "$NEW_DATE" ]]; then
+              echo "Neuere Analyse ist bereits veröffentlicht: $EXISTING_DATE"
+              exit 0
+            fi
+            mkdir -p data/polar_vortex
+            cp /tmp/polar-vortex-publish/current.json /tmp/polar-vortex-publish/polar_vortex_10hpa_current.png data/polar_vortex/
+            git add data/polar_vortex/current.json data/polar_vortex/polar_vortex_10hpa_current.png
+            if git diff --cached --quiet; then
+              echo "Karte bereits unverändert veröffentlicht"
+              exit 0
+            fi
+            git commit -m "Publish verified ERA5 polar vortex 10 hPa daily map"
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          echo "Karte konnte nach Konflikten nicht veröffentlicht werden"
+          exit 1
