@@ -149,11 +149,13 @@ def render_map(lats,lons,z500,day,blocking,output):
     # Operational signal is a LONGITUDE sector, not an arbitrary local high.
     # Highlight across the same latitude analysis band in every sector.
     for area in blocking["instantaneous"]:
-        ax.axvspan(area["west"],area["east"],ymin=.37,ymax=.78,
-                   color="#fde68a",alpha=.35,zorder=4)
+        ax.fill([area["west"],area["east"],area["east"],area["west"]],
+                [45,45,75,75],transform=ccrs.PlateCarree(),
+                color="#fde68a",alpha=.35,zorder=4)
     for area in blocking["persistent"]:
-        ax.axvspan(area["west"],area["east"],ymin=.37,ymax=.78,
-                   color="#f97316",alpha=.25,zorder=5)
+        ax.fill([area["west"],area["east"],area["east"],area["west"]],
+                [45,45,75,75],transform=ccrs.PlateCarree(),
+                color="#f97316",alpha=.30,zorder=5)
     try:
         import warnings
         with warnings.catch_warnings():
