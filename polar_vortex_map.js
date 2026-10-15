@@ -7,6 +7,7 @@ let imageUrl="",latestData=null;
 async function reload(){
  const status=$("polarVortexStatus"),image=$("polarVortexImage"),button=$("polarVortexDownload");
  status.textContent="Lade verifizierte ERA5-Analyse …";
+ $("polarVortexPlaceholder").hidden=false;
  button.disabled=true;image.hidden=true;imageUrl="";
  try{
   const res=await fetch(BASE+"current.json?v="+Date.now(),{cache:"no-store"});
@@ -24,7 +25,7 @@ async function reload(){
    image.src=url;
   });
   const lag=Math.floor((Date.now()-Date.parse(data.analysis_date+"T00:00:00Z"))/86400000);
-  image.hidden=false;imageUrl=url;latestData=data;button.disabled=false;
+  image.hidden=false;$("polarVortexPlaceholder").hidden=true;imageUrl=url;latestData=data;button.disabled=false;
   $("polarVortexDate").textContent=dateDE(data.analysis_date)+" · Tagesmittel 00–24 UTC";
   $("polarVortexRange").textContent="10 hPa · "+data.region+" · "+data.min_gpm.toLocaleString("de-DE")+"–"+data.max_gpm.toLocaleString("de-DE")+" gpm";
   status.textContent="ERA5-Reanalyse vom "+dateDE(data.analysis_date)+
@@ -35,6 +36,7 @@ async function reload(){
   $("polarVortexDate").textContent="Noch keine verifizierte Karte";
   $("polarVortexRange").textContent="10 hPa · Nordhemisphäre";
   status.textContent=err.message+". Die übrige Stratosphärenseite bleibt unabhängig nutzbar.";
+  $("polarVortexPlaceholder").hidden=false;
  }
 }
 function savePNG(){
