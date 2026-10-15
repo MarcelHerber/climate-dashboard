@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import math
@@ -98,34 +99,41 @@ def download():
             for col,lon in enumerate(LONS) if region[row,col]]
     LOG.info("Sichtbarer Kartenausschnitt mit 1°-Raster: %d statt %d Punkten",
              len(coords), len(LATS)*len(LONS))
+    LOG.info("Schonender API-Abruf mit maximal drei parallelen Anfragen")
     data={field: {} for field in FIELDS}
     units=None
     valid_months=None
     batch_size=35
-    for offset in range(0,len(coords),batch_size):
-        batch=coords[offset:offset+batch_size]
-        rows=fetch_batch(batch)
-        for (lat,lon),item in zip(batch,rows):
-            monthly=item.get("monthly") or {}
-            times=[str(t)[:7] for t in monthly.get("time",[])]
-            if valid_months is None:
-                valid_months=times
-                units=item.get("monthly_units") or {}
-                if len(valid_months)<4 or len(set(valid_months))!=len(valid_months):
-                    raise RuntimeError("Monatszeiten fehlen oder sind nicht eindeutig")
-            elif times!=valid_months:
-                raise RuntimeError("Unterschiedliche Monatsachsen in saisonaler API")
-            for field in FIELDS:
-                vals=monthly.get(field)
-                if not isinstance(vals,list) or len(vals)!=len(times):
-                    raise RuntimeError("Keine vollständigen Monatsdaten für "+field)
-                for when,value in zip(times,vals):
-                    if value is None:continue
-                    number=float(value)
-                    if not math.isfinite(number) or abs(number)>100000:continue
-                    data[field][(when,lat,lon)]=number
-        LOG.info("Echte SEAS5-Monatswerte: %d von %d Rasterpunkten", min(offset+len(batch),len(coords)),len(coords))
-        time.sleep(.20)
+    batches=[coords[offset:offset+batch_size]
+             for offset in range(0,len(coords),batch_size)]
+    # At most three concurrent public-API requests; outcomes are consumed in
+    # deterministic geographic order so the actual meteorological fields are unchanged.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        for index,rows in enumerate(pool.map(fetch_batch,batches)):
+            batch=batches[index]
+            for (lat,lon),item in zip(batch,rows):
+                monthly=item.get("monthly") or {}
+                times=[str(t)[:7] for t in monthly.get("time",[])]
+                if valid_months is None:
+                    valid_months=times
+                    units=item.get("monthly_units") or {}
+                    if len(valid_months)<4 or len(set(valid_months))!=len(valid_months):
+                        raise RuntimeError("Monatszeiten fehlen oder sind nicht eindeutig")
+                elif times!=valid_months:
+                    raise RuntimeError("Unterschiedliche Monatsachsen in saisonaler API")
+                for field in FIELDS:
+                    vals=monthly.get(field)
+                    if not isinstance(vals,list) or len(vals)!=len(times):
+                        raise RuntimeError("Keine vollständigen Monatsdaten für "+field)
+                    for when,value in zip(times,vals):
+                        if value is None:continue
+                        number=float(value)
+                        if not math.isfinite(number) or abs(number)>100000:continue
+                        data[field][(when,lat,lon)]=number
+            LOG.info("Echte SEAS5-Monatswerte: %d von %d Rasterpunkten", min(offset+len(batch),len(coords)),len(coords))
+            if (index+1)%12==0 or index+1==len(batches):
+                LOG.info("SEAS5: %d/%d echte Datenpunkte abgerufen",
+                         min((index+1)*batch_size,len(coords)),len(coords))
     if valid_months is None:
         raise RuntimeError("Keine echten saisonalen Felder verfügbar")
     for key,variant in VARIANTS.items():
