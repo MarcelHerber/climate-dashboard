@@ -2927,6 +2927,272 @@
           }
         }
       }
+    },
+    "1995-12": {
+      "ready": true,
+      "year": 1995,
+      "month": 12,
+      "period": "1995-12",
+      "label": "Dezember 1995",
+      "reference_period": "1991–2020",
+      "products": {
+        "thickness": {
+          "label": "Schichtdicke 1000–500 hPa",
+          "short_label": "ΔZ1000–500",
+          "unit": "gpm",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-thickness.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-thickness.webp",
+            "tile_index": 1,
+            "unit": "gpm",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-thickness.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = größte Schichtdicke",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.0
+          },
+          "stats": {
+            "current_area_mean": 5423.123506463547,
+            "reference_area_mean": 5440.430369770059,
+            "anomaly_area_mean": -17.306863306513684
+          }
+        },
+        "tcwv": {
+          "label": "Gesamtsäulenwasserdampf",
+          "short_label": "TCWV",
+          "unit": "kg/m²",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-tcwv.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-tcwv.webp",
+            "tile_index": 1,
+            "unit": "kg/m²",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-tcwv.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = feuchtester Monat",
+            "rank1_area_percent": 2.1686988534784737,
+            "top3_area_percent": 9.257001097038678
+          },
+          "stats": {
+            "current_area_mean": 12.546007121847175,
+            "reference_area_mean": 12.107856740771012,
+            "anomaly_area_mean": 0.43815038107616333
+          }
+        },
+        "q850": {
+          "label": "Spezifische Feuchte 850 hPa",
+          "short_label": "q850",
+          "unit": "g/kg",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-q850.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-q850.webp",
+            "tile_index": 1,
+            "unit": "g/kg",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-q850.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste spezifische Feuchte",
+            "rank1_area_percent": 3.6123517095541615,
+            "top3_area_percent": 12.406006517087778
+          },
+          "stats": {
+            "current_area_mean": 3.3065513695183424,
+            "reference_area_mean": 3.1206873713004737,
+            "anomaly_area_mean": 0.1858639982178682
+          }
+        },
+        "wind250": {
+          "label": "Betrag des mittleren Windvektors 250 hPa",
+          "short_label": "Wind250",
+          "unit": "m/s",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-wind250.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-wind250.webp",
+            "tile_index": 1,
+            "unit": "m/s",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-wind250.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = stärkster mittlerer Windvektor",
+            "rank1_area_percent": 0.0,
+            "top3_area_percent": 0.13974500963421843
+          },
+          "stats": {
+            "current_area_mean": 21.749395297938023,
+            "reference_area_mean": 22.14878619605685,
+            "anomaly_area_mean": -0.39939089820437773
+          }
+        },
+        "lcc": {
+          "label": "Tiefe Wolkenbedeckung",
+          "short_label": "Tiefe Wolken",
+          "unit": "%",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-lcc.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-lcc.webp",
+            "tile_index": 1,
+            "unit": "Prozentpunkte",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-lcc.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = meiste tiefe Bewölkung",
+            "rank1_area_percent": 2.121866264026217,
+            "top3_area_percent": 5.8071989432959015
+          },
+          "stats": {
+            "current_area_mean": 39.4449962046378,
+            "reference_area_mean": 38.35794342149784,
+            "anomaly_area_mean": 1.087052783577937
+          }
+        },
+        "mcc": {
+          "label": "Mittlere Wolkenbedeckung",
+          "short_label": "Mittlere Wolken",
+          "unit": "%",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-mcc.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-mcc.webp",
+            "tile_index": 1,
+            "unit": "Prozentpunkte",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-mcc.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = meiste mittlere Bewölkung",
+            "rank1_area_percent": 1.2838700914579884,
+            "top3_area_percent": 4.408494747683058
+          },
+          "stats": {
+            "current_area_mean": 27.466048688876032,
+            "reference_area_mean": 27.601535422531953,
+            "anomaly_area_mean": -0.1354867337861413
+          }
+        },
+        "hcc": {
+          "label": "Hohe Wolkenbedeckung",
+          "short_label": "Hohe Wolken",
+          "unit": "%",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-hcc.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-hcc.webp",
+            "tile_index": 1,
+            "unit": "Prozentpunkte",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-hcc.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = meiste hohe Bewölkung",
+            "rank1_area_percent": 1.595645767535105,
+            "top3_area_percent": 5.446919582838131
+          },
+          "stats": {
+            "current_area_mean": 34.07744477094357,
+            "reference_area_mean": 34.63914399613954,
+            "anomaly_area_mean": -0.5616992251474948
+          }
+        },
+        "blh": {
+          "label": "Grenzschichthöhe",
+          "short_label": "BLH",
+          "unit": "m",
+          "level_hpa": null,
+          "absolute": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-blh.webp",
+            "tile_index": 0
+          },
+          "anomaly": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-blh.webp",
+            "tile_index": 1,
+            "unit": "m",
+            "reference_period": "1991–2020"
+          },
+          "rank": {
+            "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-climate-1995-v1/1995-12-blh.webp",
+            "tile_index": 2,
+            "history_start": 1940,
+            "history_end": 2025,
+            "comparison_years": 85,
+            "total_rank_positions": 86,
+            "direction": "1 = höchste Grenzschicht",
+            "rank1_area_percent": 0.24576116342237816,
+            "top3_area_percent": 1.383440216159085
+          },
+          "stats": {
+            "current_area_mean": 634.1353361450808,
+            "reference_area_mean": 659.7630102054732,
+            "anomaly_area_mean": -25.627674057098574
+          }
+        }
+      }
     }
   }
 }
