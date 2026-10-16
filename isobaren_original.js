@@ -2,7 +2,7 @@
 const ROOT="data/synoptic_charts/";
 const $=id=>document.getElementById(id);
 const slots=["panel0","panel1","panel2","panel3"];
-const INITIAL=["dwd","aemet","noaa_opc","eccc"];
+const INITIAL=["dwd","aemet","noaa_opc","chmi"];
 let catalog=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
