@@ -152,12 +152,9 @@ function paint(canvas,region,record,ratio=1.6,layout="standard",metric="z"){
  ctx.strokeStyle="#788a98";ctx.lineWidth=.6;ctx.strokeRect(lx,ly,len,19);
  ctx.fillStyle="#24394f";ctx.font=(broadcast?"17px":"12px")+" Arial";
  ctx.textAlign="left";ctx.fillText(spec.min,lx,ly+38);
- ctx.textAlign="center";ctx.fillText(spec.mid,lx+len*(0-spec.points[0])/(spec.points.at(-1)-spec.points[0]),ly+38);
- // Percentage normal is at 100%, not zero. Keep center label at the correct place.
- if(metric==="pct"){
-  ctx.clearRect(lx+len*(0-spec.points[0])/(spec.points.at(-1)-spec.points[0])-30,ly+21,62,22);
-  ctx.fillStyle="#24394f";ctx.fillText(spec.mid,lx+len*100/300,ly+38);
- }
+ ctx.textAlign="center";
+ const centerValue=metric==="pct"?100:0;
+ ctx.fillText(spec.mid,lx+len*(centerValue-spec.points[0])/(spec.points.at(-1)-spec.points[0]),ly+38);
  ctx.textAlign="right";ctx.fillText(spec.max,lx+len,ly+38);ctx.textAlign="left";
  if(broadcast){ctx.font="17px Arial";ctx.fillStyle="#667587";ctx.fillText(spec.unit,lx,ly+67);}
 }
