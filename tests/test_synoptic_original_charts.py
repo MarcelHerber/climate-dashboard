@@ -58,9 +58,23 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual(only[0]["valid_utc"],"2026-10-16T00:00+00:00")
         self.assertNotEqual(only[0]["issued_utc"],only[0]["valid_utc"])
 
+    def test_noaa_full_atlantic_date_and_same_office(self):
+        html='''<a href="atl00_sfcfcst_00.2026101602.gif">north atlantic 0h</a>
+<a href="atl00_sfcfcst_06.2026101608.gif">north atlantic 06h</a>
+<a href="atl00_sfcfcst_00.2026101603.gif">reissue</a>
+<a href="pac00_sfcfcst_00.2026101602.gif">Pacific ignored</a>'''
+        parsed=charts.extract_opc_full(html,NOW)
+        self.assertEqual(len(parsed),2)
+        self.assertEqual(parsed[0]["source_id"],"noaa_full")
+        self.assertEqual(parsed[0]["kind"],"0-h-Bodenkarte")
+        self.assertEqual(parsed[0]["issued_utc"],"2026-10-16T03:00+00:00")
+        self.assertTrue(all(p["publisher_id"]=="noaa" for p in parsed))
+        self.assertEqual({p["source_id"] for p in charts.extract_opc(html,NOW)},set())
+
     def test_noaa_opc_license_and_external_services(self):
         sources={s["id"]:s for s in charts.SOURCES}
         self.assertEqual(sources["noaa_opc"]["type"],"auto")
+        self.assertEqual(sources["noaa_full"]["type"],"auto")
         self.assertEqual(sources["eccc"]["type"],"external")
         self.assertEqual(sources["metoffice"]["type"],"external")
 
