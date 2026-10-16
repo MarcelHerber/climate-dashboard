@@ -1,4 +1,4 @@
-name: Original-Synoptikkarten DWD AEMET
+name: Original-Synoptikkarten DWD AEMET NOAA
 
 on:
   schedule:
@@ -39,7 +39,7 @@ jobs:
         run: python -m pip install --upgrade Pillow
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
-      - name: Fetch permitted DWD and AEMET original images
+      - name: Fetch permitted DWD AEMET NOAA original images
         run: python scripts/update_synoptic_original_charts.py
       - name: Validate only genuine source charts
         run: |
@@ -53,14 +53,16 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet")
-              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/"))
+              assert item["source_id"] in ("dwd","aemet","noaa_opc")
+              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
               assert image.is_file() and image.stat().st_size>=18000
               b=image.read_bytes()[:12]
               assert b[:4]==b"RIFF" and b[8:12]==b"WEBP"
           assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
+          assert next(x for x in index["sources"] if x["id"]=="noaa_opc")["type"]=="auto"
+          assert next(x for x in index["sources"] if x["id"]=="eccc")["type"]=="external"
           print("Original charts validated:",index["chart_count"],index["source_status"])
           PY
       - name: Publish verified chart snapshots
