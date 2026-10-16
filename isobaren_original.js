@@ -2,7 +2,7 @@
 const ROOT="data/synoptic_charts/";
 const $=id=>document.getElementById(id);
 const slots=["panel0","panel1","panel2","panel3"];
-const INITIAL=["dwd","aemet","noaa_opc","chmi"];
+const INITIAL=["dwd","aemet","noaa_opc","noaa_full"];
 let catalog=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -35,8 +35,9 @@ function fillPickers(){
  if(!times.length){sel.add(new Option("Noch keine verifizierten Termine",""));return;}
  const now=Date.now();
  for(const time of times.slice().reverse()){
-  const available=new Set(catalog.charts.filter(x=>x.valid_utc===time).map(x=>x.source_id));
-  sel.add(new Option(isoDE(time)+" · "+available.size+" Quellen",time));
+  const records=catalog.charts.filter(x=>x.valid_utc===time);
+  const agencies=new Set(records.map(x=>x.publisher_id||x.source_id));
+  sel.add(new Option(isoDE(time)+" · "+records.length+" Karten / "+agencies.size+" Dienste",time));
  }
  // Prefer the nearest available valid time, not the most distant forecast.
  const dwd=times.filter(t=>catalog.charts.some(r=>r.valid_utc===t&&r.source_id==="dwd"));
@@ -105,10 +106,11 @@ function refreshView(){
  $("exportPng").disabled=matched===0;
  const stale=(Date.now()-Date.parse(catalog.generated_utc))/3600000;
  const qualifier=stale>36?" · zuletzt vor "+Math.round(stale)+" Stunden aktualisiert":"";
+ const agencies=new Set(ids.flatMap(id=>cardsAt(id,validity).map(x=>x.publisher_id||x.source_id)));
  $("chartStatus").textContent=isoDE(validity)+" · "+matched+"/"+total+
-  " ausgewählte Quellen mit exakt passender UTC-Gültigkeit"+qualifier;
+  " Karten · "+agencies.size+" unabhängige Wetterdienste · identische UTC-Gültigkeit"+qualifier;
  $("syncHint").textContent=isFour?matched===4?
-  "Alle vier Karten besitzen exakt dieselbe Gültigkeitszeit. Die Originalprojektionen können sich unterscheiden.":
+  "Vier Originalkarten zur identischen UTC-Gültigkeit. Darunter zwei NOAA-OPC-Ausschnitte desselben Wetterdienstes, keine vier unabhängigen Analysen.":
   "Der Vierer-Vergleich ist vorbereitet: "+matched+" von vier Plätzen sind mit zeitgleichen Karten belegt. Andere Kacheln bleiben ehrlich leer.":
   matched?"Originalkarte des gewählten Wetterdienstes für den ausgewiesenen UTC-Termin.":"Für diesen Dienst liegt zum gewählten Termin keine automatisch einbettbare Karte vor.";
 }
@@ -142,7 +144,7 @@ async function pngExport(){
  }
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
- ctx.fillText("Quellen: DWD / AEMET / NOAA-NWS · eigene Zusammenstellung, keine gemeinsame amtliche Karte",32,H-34);
+ ctx.fillText("DWD / AEMET / NOAA-NWS (zwei NOAA-Ausschnitte) · keine gemeinsame amtliche Karte",32,H-34);
  const a=document.createElement("a");
  a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_4er":"")+".png";
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
@@ -156,7 +158,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
