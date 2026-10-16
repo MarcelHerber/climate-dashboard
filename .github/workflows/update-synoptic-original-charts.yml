@@ -53,7 +53,7 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","noaa_opc")
+              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full")
               assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
@@ -62,6 +62,7 @@ jobs:
               assert b[:4]==b"RIFF" and b[8:12]==b"WEBP"
           assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
           assert next(x for x in index["sources"] if x["id"]=="noaa_opc")["type"]=="auto"
+          assert next(x for x in index["sources"] if x["id"]=="noaa_full")["type"]=="auto"
           assert next(x for x in index["sources"] if x["id"]=="eccc")["type"]=="external"
           print("Original charts validated:",index["chart_count"],index["source_status"])
           PY
