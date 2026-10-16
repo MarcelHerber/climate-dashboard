@@ -36,6 +36,34 @@ class OriginalSynopticChartTests(unittest.TestCase):
         html='<a href="https://evil.example/ana_bwkman_dwdna_202610160000_WV12.png">A</a>'
         self.assertFalse(charts.extract_dwd(html,NOW))
 
+    def test_noaa_opc_exact_valid_time_from_dated_archive(self):
+        html='''<a href="atle_sfcanal_00.2026101602.gif">00 UTC</a>
+<a href="atle_sfcanal_06.2026101608.gif">06 UTC</a>
+<a href="atle_sfcanal_12.2026101614.gif">12 UTC</a>
+<a href="atle_sfcanal_00.2026101603.gif">reissued at 03 UTC</a>
+<a href="atlw_sfcanal_00.2026101602.gif">wrong region</a>
+<a href="https://evil.example/atle_sfcanal_00.2026101602.gif">wrong host</a>
+<a href="atle_sfcanal_18.2026101520.gif">previous day</a>'''
+        parsed=charts.extract_opc(html,NOW)
+        self.assertEqual(len(parsed),4)
+        by_valid={r["valid_utc"]:r for r in parsed}
+        self.assertEqual(by_valid["2026-10-16T00:00+00:00"]["issued_utc"],"2026-10-16T03:00+00:00")
+        self.assertEqual(by_valid["2026-10-16T06:00+00:00"]["kind"],"Analyse")
+        self.assertIn("2026-10-15T18:00+00:00",by_valid)
+        self.assertTrue(all(r["source_id"]=="noaa_opc" for r in parsed))
+
+    def test_noaa_opc_rejects_issue_hour_as_validity(self):
+        html='<a href="atle_sfcanal_00.2026101602.gif">latest</a>'
+        only=charts.extract_opc(html,NOW)
+        self.assertEqual(only[0]["valid_utc"],"2026-10-16T00:00+00:00")
+        self.assertNotEqual(only[0]["issued_utc"],only[0]["valid_utc"])
+
+    def test_noaa_opc_license_and_external_services(self):
+        sources={s["id"]:s for s in charts.SOURCES}
+        self.assertEqual(sources["noaa_opc"]["type"],"auto")
+        self.assertEqual(sources["eccc"]["type"],"external")
+        self.assertEqual(sources["metoffice"]["type"],"external")
+
     def test_met_office_not_auto_scraped(self):
         providers={x["id"]:x for x in charts.SOURCES}
         self.assertEqual(providers["metoffice"]["type"],"external")
