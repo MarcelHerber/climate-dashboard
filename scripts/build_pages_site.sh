@@ -17,6 +17,9 @@ required_root_files=(
   blocking.html
   blocking.js
   blocking.css
+  isobaren_original.html
+  isobaren_original.js
+  isobaren_original.css
   enso.html
   qbo.html
   mjo.html
@@ -309,6 +312,31 @@ PY
   echo "ERA5-Blocking-Karte samt 5-Tage-Diagnose veröffentlicht."
 else
   echo "HINWEIS: Erste ERA5-Blocking-Karte noch ausstehend; keine Phantomkarte."
+fi
+
+# Originale synoptische Wetterkarten (DWD/AEMET): nur geprüft veröffentlichen.
+node --check isobaren_original.js
+grep -q 'id="chartGrid"' _site/isobaren_original.html
+if [[ -s data/synoptic_charts/index.json ]]; then
+  python - <<'PY'
+import json
+from pathlib import Path
+root=Path("data/synoptic_charts")
+index=json.loads((root/"index.json").read_text(encoding="utf-8"))
+assert index.get("schema_version")==1 and index.get("ready") is True
+assert len(index.get("charts",[]))==index.get("chart_count")
+for chart in index["charts"]:
+    assert chart.get("source_id") in ("dwd","aemet")
+    assert chart["image"].startswith("images/")
+    image=root/chart["image"]
+    assert image.exists() and image.stat().st_size>18000
+    assert image.read_bytes()[:4]==b"RIFF"
+PY
+  mkdir -p _site/data/synoptic_charts
+  cp -a data/synoptic_charts/index.json data/synoptic_charts/images _site/data/synoptic_charts/
+  echo "DWD/AEMET Original-Synoptikkarten veröffentlicht."
+else
+  echo "HINWEIS: Keine Original-Synoptikkarten publiziert; Seite zeigt transparente Quellenlinks."
 fi
 
 # Generiere öffentliche Datenstände aus den tatsächlich veröffentlichten
