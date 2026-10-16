@@ -45,7 +45,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
 <a href="https://evil.example/atle_sfcanal_00.2026101602.gif">wrong host</a>
 <a href="atle_sfcanal_18.2026101520.gif">previous day</a>'''
         parsed=charts.extract_opc(html,NOW)
-        self.assertEqual(len(parsed),4)
+        self.assertEqual(len(parsed),3)  # Future 12 UTC analysis must not appear at 10 UTC
         by_valid={r["valid_utc"]:r for r in parsed}
         self.assertEqual(by_valid["2026-10-16T00:00+00:00"]["issued_utc"],"2026-10-16T03:00+00:00")
         self.assertEqual(by_valid["2026-10-16T06:00+00:00"]["kind"],"Analyse")
