@@ -2,7 +2,8 @@
 """Publish real, timestamped synoptic front charts from permitted public sources.
 
 DWD: official Open Data surface analysis PNGs.
-AEMET: explicit permission to reproduce with attribution on front-map page.
+AEMET: front maps with attribution.
+NOAA OPC: dated East Atlantic surface analyses, NWS public-domain charts.
 Do NOT scrape Met Office: their website explicitly forbids automated scraping
 and direct embedding of image files. Other services are links until verified.
 """
@@ -21,6 +22,8 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"synoptic_charts"
 DWD_INDEX="https://opendata.dwd.de/weather/charts/analysis/"
 AEMET_PAGE="https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes"
+OPC_ARCHIVE="https://ftp.opc.ncep.noaa.gov/ncdc/"
+OPC_RE=re.compile(r"^atle_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 DWD_RE=re.compile(r"_([0-9]{12})_WV12\.png$",re.I)
 AEMET_RE=re.compile(r"([0-9]{10})\+([0-9]{3})_ww_[a-z0-9]+\.gif$",re.I)
 SOURCES=[
@@ -28,6 +31,12 @@ SOURCES=[
   "type":"auto","license":"DWD Open Data · Quelle: Deutscher Wetterdienst"},
  {"id":"aemet","name":"AEMET","country":"Spanien","url":AEMET_PAGE,
   "type":"auto","license":"© AEMET · Verwendung unter Quellenangabe erlaubt"},
+ {"id":"noaa_opc","name":"NOAA OPC · Ostatlantik","country":"USA",
+  "url":"https://ocean.weather.gov/Atl_tab.php","type":"auto",
+  "license":"NOAA/NWS public domain · © keine Schutzrechtsbehauptung, NOAA-Quellenangabe"},
+ {"id":"eccc","name":"ECCC · Nordhemisphäre","country":"Kanada",
+  "url":"https://weather.gc.ca/analysis/index_e.html","type":"external",
+  "license":"Offizielle Nordhemisphären-Bodenanalyse; derzeit kein verlässlich datierter Bildlink"},
  {"id":"metoffice","name":"Met Office","country":"Großbritannien",
   "url":"https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
   "type":"external","license":"Nur Quellenseite verlinkt; Bilder nicht eingebettet"},
@@ -111,6 +120,40 @@ def extract_aemet(html,now):
     return sorted(records.values(),key=lambda x:x["valid_utc"])[:8]
 
 
+def extract_opc(html, now):
+    """Parse the official NOAA/NCEI date-stamped East-Atlantic archive.
+
+    The filename suffix .YYYYMMDDhh is ISSUE time. The hour in the
+    prefix is VALID hour. Never misinterpret issue HH as valid HH.
+    No OCR and no guessed valid dates from HTTP Last-Modified.
+    """
+    parser=Links();parser.feed(html)
+    records={}
+    for href in parser.refs:
+        url=urljoin(OPC_ARCHIVE,href)
+        parsed=urlparse(url)
+        name=unquote(parsed.path.rsplit("/",1)[-1])
+        if parsed.hostname not in ("ftp.opc.ncep.noaa.gov","ftp.ocean.weather.gov"):
+            continue
+        match=OPC_RE.fullmatch(name)
+        if not match:
+            continue
+        valid=timestamp(match.group(2)+match.group(1),"%Y%m%d%H")
+        issue=timestamp(match.group(2)+match.group(3),"%Y%m%d%H")
+        # File timestamps may encode a reissued chart, not a new valid time.
+        if not (now-timedelta(hours=60)<=valid<=now+timedelta(hours=1)):
+            continue
+        if issue<valid or issue>valid+timedelta(hours=9):
+            continue
+        key=valid.isoformat(timespec="minutes")
+        record={"source_id":"noaa_opc","kind":"Analyse",
+            "valid_utc":key,"issued_utc":issue.isoformat(timespec="minutes"),
+            "source_url":url,"source_page":"https://ocean.weather.gov/Atl_tab.php",
+            "credit":"NOAA/NWS · Ocean Prediction Center (Ostatlantik)"}
+        if key not in records or record["issued_utc"]>records[key]["issued_utc"]:
+            records[key]=record
+    return sorted(records.values(),key=lambda x:x["valid_utc"],reverse=True)[:8]
+
 def download(url,timeout=30):
     request=Request(url,headers={
         "User-Agent":"ClimateDashboardDeutschland/1.0 (synoptic-source-monitor)",
@@ -143,7 +186,8 @@ def main(output=OUT,now=None):
     now=now or datetime.now(timezone.utc)
     output=Path(output)
     charts=[];status={}
-    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet)]
+    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),
+             ("noaa_opc",OPC_ARCHIVE,extract_opc)]
     with __import__("tempfile").TemporaryDirectory(prefix="synoptic-charts-") as work:
         temp=Path(work)
         for key,url,parse in sources:
