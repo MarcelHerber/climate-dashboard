@@ -39,8 +39,19 @@ function fillPickers(){
   sel.add(new Option(isoDE(time)+" · "+available.size+" Quellen",time));
  }
  // Prefer the nearest available valid time, not the most distant forecast.
- const nearest=times.slice().sort((a,b)=>Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now))[0];
+ const dwd=times.filter(t=>catalog.charts.some(r=>r.valid_utc===t&&r.source_id==="dwd"));
+ const nearest=(dwd.length?dwd:times).slice().sort((a,b)=>Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now))[0];
  sel.value=nearest;
+}
+function closestForSources(ids){
+ const times=catalog?.time_slots||[];
+ if(!times.length)return;
+ let now=Date.now();
+ const best=times.slice().sort((a,b)=>{
+   const count=t=>ids.filter(id=>cardsAt(id,t).length>0).length;
+   return (count(b)-count(a))||(Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now));
+ })[0];
+ if(best)$("validTime").value=best;
 }
 function currentProviders(){
  return $("chartMode").value==="four"?slots.map(id=>$(id).value):[$("singleSource").value];
@@ -169,9 +180,9 @@ async function load(){
 }
 function init(){
  $("reload").addEventListener("click",load);
- $("chartMode").addEventListener("change",refreshView);
+ $("chartMode").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
  $("validTime").addEventListener("change",refreshView);
- $("singleSource").addEventListener("change",refreshView);
+ $("singleSource").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
  slots.forEach(id=>$(id).addEventListener("change",refreshView));
  $("exportPng").addEventListener("click",pngExport);
  load();
