@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-10-16T09:21:49+00:00",
+  "ready": true,
+  "method": "original_weather_service_surface_maps",
+  "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
+  "sources": [
+    {
+      "id": "dwd",
+      "name": "DWD",
+      "country": "Deutschland",
+      "url": "https://opendata.dwd.de/weather/charts/analysis/",
+      "type": "auto",
+      "license": "DWD Open Data · Quelle: Deutscher Wetterdienst"
+    },
+    {
+      "id": "aemet",
+      "name": "AEMET",
+      "country": "Spanien",
+      "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "type": "auto",
+      "license": "© AEMET · Verwendung unter Quellenangabe erlaubt"
+    },
+    {
+      "id": "metoffice",
+      "name": "Met Office",
+      "country": "Großbritannien",
+      "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "type": "external",
+      "license": "Nur Quellenseite verlinkt; Bilder nicht eingebettet"
+    },
+    {
+      "id": "chmi",
+      "name": "ČHMÚ",
+      "country": "Tschechien",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "type": "external",
+      "license": "Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"
+    },
+    {
+      "id": "metie",
+      "name": "Met Éireann",
+      "country": "Irland",
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "type": "external",
+      "license": "Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"
+    },
+    {
+      "id": "imo",
+      "name": "IMO",
+      "country": "Island",
+      "url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "type": "external",
+      "license": "Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"
+    }
+  ],
+  "source_status": {
+    "dwd": {
+      "state": "available",
+      "charts": 4
+    },
+    "aemet": {
+      "state": "available",
+      "charts": 6
+    }
+  },
+  "charts": [
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-15T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261015135059_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610151200_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261015_1200+0000.webp",
+      "size_bytes": 1483834
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-15T18:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261015191233_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610151800_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261015_1800+0000.webp",
+      "size_bytes": 1425780
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T00:00+00:00",
+      "issued_utc": "2026-10-16T00:00+00:00",
+      "forecast_hours": 0,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101600+000_ww_gpx0a000.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261016_0000+0000.webp",
+      "size_bytes": 296426
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T00:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016011709_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610160000_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261016_0000+0000.webp",
+      "size_bytes": 1419368
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016074532_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610160600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261016_0600+0000.webp",
+      "size_bytes": 1426396
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-16T12:00+00:00",
+      "issued_utc": "2026-10-15T12:00+00:00",
+      "forecast_hours": 24,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101512+024_ww_g1x0a2d1.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261016_1200+0000.webp",
+      "size_bytes": 311832
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-17T00:00+00:00",
+      "issued_utc": "2026-10-15T12:00+00:00",
+      "forecast_hours": 36,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101512+036_ww_g1x0a2c1.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261017_0000+0000.webp",
+      "size_bytes": 316104
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-17T12:00+00:00",
+      "issued_utc": "2026-10-15T12:00+00:00",
+      "forecast_hours": 48,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101512+048_ww_g1x0a2d2.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261017_1200+0000.webp",
+      "size_bytes": 305700
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-18T00:00+00:00",
+      "issued_utc": "2026-10-15T12:00+00:00",
+      "forecast_hours": 60,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101512+060_ww_g1x0a2c2.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261018_0000+0000.webp",
+      "size_bytes": 317192
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-18T12:00+00:00",
+      "issued_utc": "2026-10-15T12:00+00:00",
+      "forecast_hours": 72,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101512+072_ww_g1x0a2d3.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261018_1200+0000.webp",
+      "size_bytes": 323978
+    }
+  ],
+  "time_slots": [
+    "2026-10-15T12:00+00:00",
+    "2026-10-15T18:00+00:00",
+    "2026-10-16T00:00+00:00",
+    "2026-10-16T06:00+00:00",
+    "2026-10-16T12:00+00:00",
+    "2026-10-17T00:00+00:00",
+    "2026-10-17T12:00+00:00",
+    "2026-10-18T00:00+00:00",
+    "2026-10-18T12:00+00:00"
+  ],
+  "chart_count": 10,
+  "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
+}
