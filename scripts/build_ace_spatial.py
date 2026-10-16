@@ -84,6 +84,11 @@ def build():
     full_base=np.stack([complete[y] for y in range(1991,2021)])
     full_mean=full_base.mean(0);full_sd=full_base.std(0,ddof=1)
     manifest={"ready":True,"years":[],"resolution_deg":RES,"kernel_sigma_deg":SIGMA,
+              "available_metrics":["z","abs","pct"],
+              "absolute_units":"10^4 kn^2 per smoothed 1-degree grid cell",
+              "percent_definition":"100 * observed/reference_mean",
+              "percent_min_reference_ace":0.003,
+              "absolute_activity_threshold":0.0003,
               "latitudes":GRID_LATS,"longitudes":GRID_LONS,
               "reference_period":[1991,2020],"last_current_date":str(last_current) if last_current else None,
               "units":"ACE (10^4 kn^2) smoothed per grid cell",
@@ -102,8 +107,17 @@ def build():
         # Avoid unstable z-scores in areas with virtually no climatological ACE.
         z=np.divide(field-mean,sd,out=np.full_like(field,np.nan),where=sd>0.0003)
         z=np.where(mean>=0.0003,np.clip(z,-4,4),np.nan)
+        # ACE totals are distributed spatially by the documented Gaussian kernel.
+        # Absolute values are cell contributions, not basin-wide ACE totals.
+        absolute=np.where(np.maximum(field,mean)>=0.0003,field-mean,np.nan)
+        # A % comparison is undefined or misleading in cells with virtually zero
+        # climatological ACE. Mask those cells rather than divide by tiny values.
+        percent=np.divide(100.0*field,mean,out=np.full_like(field,np.nan),where=mean>=0.003)
+        def as_rows(arr,digits):
+            return [[None if not math.isfinite(v) else round(float(v),digits) for v in row]
+                    for row in arr]
         payload={"year":year,"ready":True,"provisional":partial,"through":str(last_current) if partial else str(year)+"-12-31",
-                 "z":[[None if not math.isfinite(v) else round(float(v),2) for v in row] for row in z]}
+                 "z":as_rows(z,2),"abs":as_rows(absolute,4),"pct":as_rows(percent,1)}
         (OUT/f"{year}.json").write_text(json.dumps(payload,separators=(",",":"))+"\n")
         manifest["years"].append(year)
         print("ACE map:",year,flush=True)
