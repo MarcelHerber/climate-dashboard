@@ -2,7 +2,7 @@
 const ROOT="data/synoptic_charts/";
 const $=id=>document.getElementById(id);
 const slots=["panel0","panel1","panel2","panel3"];
-const INITIAL=["dwd","aemet","chmi","metoffice"];
+const INITIAL=["dwd","aemet","noaa_opc","eccc"];
 let catalog=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -142,7 +142,7 @@ async function pngExport(){
  }
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
- ctx.fillText("Quellen: DWD Open Data / © AEMET · eigene Zusammenstellung, keine gemeinsame amtliche Karte",32,H-34);
+ ctx.fillText("Quellen: DWD / AEMET / NOAA-NWS · eigene Zusammenstellung, keine gemeinsame amtliche Karte",32,H-34);
  const a=document.createElement("a");
  a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_4er":"")+".png";
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
@@ -156,7 +156,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
@@ -171,7 +171,9 @@ async function load(){
    ["Met Office","https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure"],
    ["ČHMÚ","https://www.chmi.cz/predpoved-pocasi/synopticka-situace"],
    ["Met Éireann","https://www.met.ie/latest-reports/surface-analysis"],
-   ["IMO","https://en.vedur.is/weather/shipping/atlantic/"]]){
+   ["IMO","https://en.vedur.is/weather/shipping/atlantic/"],
+   ["NOAA OPC","https://ocean.weather.gov/Atl_tab.php"],
+   ["ECCC","https://weather.gc.ca/analysis/index_e.html"]]){
    const card=node("div","source"),a=node("a","",s[0]+" · Originalseite");
    a.href=s[1];a.target="_blank";a.rel="noopener noreferrer";card.append(a);
    $("sourceCatalog").append(card);
