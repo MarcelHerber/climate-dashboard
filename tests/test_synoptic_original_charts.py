@@ -67,7 +67,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual(len(parsed),2)
         self.assertEqual(parsed[0]["source_id"],"noaa_full")
         self.assertEqual(parsed[0]["kind"],"0-h-Bodenkarte")
-        self.assertEqual(parsed[0]["issued_utc"],"2026-10-16T03:00+00:00")
+        self.assertEqual(next(p for p in parsed if p["valid_utc"]=="2026-10-16T00:00+00:00")["issued_utc"],"2026-10-16T03:00+00:00")
         self.assertTrue(all(p["publisher_id"]=="noaa" for p in parsed))
         self.assertEqual({p["source_id"] for p in charts.extract_opc(html,NOW)},set())
 
