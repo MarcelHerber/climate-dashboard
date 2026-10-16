@@ -342,6 +342,20 @@ def build(remote=None):
             None, None, "Noch keine verifizierte ERA5-Blocking-Karte",
             "Initialer CDS-Datenlauf und Kartenveröffentlichung ausstehend"))
 
+    original = read_json("data/synoptic_charts/index.json")
+    if original and original.get("ready") is True and original.get("charts"):
+        charts=original["charts"]
+        latest=max(x.get("valid_utc","") for x in charts)
+        items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
+            latest, original.get("generated_utc"),
+            f"{len(charts)} zeitgestempelte Originalkarten · DWD/AEMET",
+            "Einzelkarten und UTC-Vergleich; andere Wetterdienste bisher nur verlinkt",
+            allowed_delay=3))
+    else:
+        items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
+            None, None, "Erster bestätigter Bildabruf steht aus",
+            "DWD Open Data und AEMET, Frontenkarten mit echten UTC-Zeiten"))
+
     add_climate_indices(items)
     add_external(items, remote or {})
     # Ensembles are fetched per chosen location/model in the browser, not as a
