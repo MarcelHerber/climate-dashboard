@@ -153,7 +153,7 @@ def main(output=OUT,now=None):
                 if not candidate:raise ValueError("No plausible dated chart URL found")
                 successes=0
                 for record in candidate:
-                    safe_date=record["valid_utc"].replace("-","").replace(":","").replace("+00:00","").replace("T","_")
+                    safe_date=datetime.fromisoformat(record["valid_utc"]).strftime("%Y%m%d_%H%M")
                     target_name=f"{key}_{safe_date}.webp"
                     try:
                         image_webp(download(record["source_url"]),temp/target_name)
