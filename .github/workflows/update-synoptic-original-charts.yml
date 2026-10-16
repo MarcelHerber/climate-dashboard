@@ -1,0 +1,88 @@
+name: Original-Synoptikkarten DWD AEMET
+
+on:
+  schedule:
+    - cron: "25 1,7,13,19 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_synoptic_original_charts.py"
+      - "tests/test_synoptic_original_charts.py"
+      - ".github/workflows/update-synoptic-original-charts.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: synoptic-original-charts
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            tests
+            data/synoptic_charts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install image processing
+        run: python -m pip install --upgrade Pillow
+      - name: Test dated chart parsers and copyright policy
+        run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
+      - name: Fetch permitted DWD and AEMET original images
+        run: python scripts/update_synoptic_original_charts.py
+      - name: Validate only genuine source charts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("data/synoptic_charts")
+          index=json.loads((root/"index.json").read_text(encoding="utf-8"))
+          assert index["schema_version"]==1 and index["ready"]
+          assert index["charts"]
+          assert index["chart_count"]==len(index["charts"])
+          assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
+          for item in index["charts"]:
+              assert item["source_id"] in ("dwd","aemet")
+              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/"))
+              assert item["image"].startswith("images/")
+              image=root/item["image"]
+              assert image.is_file() and image.stat().st_size>=18000
+              b=image.read_bytes()[:12]
+              assert b[:4]==b"RIFF" and b[8:12]==b"WEBP"
+          assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
+          print("Original charts validated:",index["chart_count"],index["source_status"])
+          PY
+      - name: Publish verified chart snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a data/synoptic_charts /tmp/synoptic-charts-publish
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            rm -rf data/synoptic_charts
+            mkdir -p data
+            cp -a /tmp/synoptic-charts-publish data/synoptic_charts
+            git add -A data/synoptic_charts
+            if git diff --cached --quiet; then
+              echo "No changes"
+              exit 0
+            fi
+            git commit -m "Publish timestamp-verified original synoptic surface charts"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "Push race retry $attempt"
+          done
+          exit 1
