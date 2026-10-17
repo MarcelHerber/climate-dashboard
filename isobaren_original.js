@@ -210,7 +210,7 @@ function init(){
   const forecast=$("chartKind").value==="forecast";
   if(forecast){
    $("singleSource").value="aemet";
-   const opts=["aemet","noaa_24","noaa_48","noaa_96"];
+   const opts=["aemet","chmi","noaa_48","noaa_96"];
    slots.forEach((id,i)=>{$(id).value=opts[i];});
   }else{
    if(!$("singleSource").value)$("singleSource").value="dwd";
