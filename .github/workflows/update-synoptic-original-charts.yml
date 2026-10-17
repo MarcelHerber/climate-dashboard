@@ -10,6 +10,8 @@ on:
       - "scripts/update_synoptic_original_charts.py"
       - "tests/test_synoptic_original_charts.py"
       - "scripts/probe_chmi_synoptic.py"
+      - "scripts/chmi_synoptic_adapter.py"
+      - "tests/test_chmi_synoptic_adapter.py"
       - "tests/test_chmi_synoptic_probe.py"
       - ".github/workflows/update-synoptic-original-charts.yml"
 
@@ -41,6 +43,13 @@ jobs:
         run: python -m pip install --upgrade Pillow
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
+      - name: Install narrow OCR support for printed ČHMÚ UTC dates
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr
+          python -m pip install pytesseract
+      - name: Verify ČHMÚ printed time and playback-time mismatch
+        run: python -m unittest discover -s tests -p test_chmi_synoptic_adapter.py -v
       - name: Test ČHMÚ provenance and timestamp safeguards
         run: python -m unittest discover -s tests -p test_chmi_synoptic_probe.py -v
       - name: Probe official ČHMÚ source metadata without guessing chart timestamps
@@ -59,8 +68,8 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full")
-              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/"))
+              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full","chmi")
+              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
               assert image.is_file() and image.stat().st_size>=18000
@@ -69,6 +78,8 @@ jobs:
           assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
           assert next(x for x in index["sources"] if x["id"]=="noaa_opc")["type"]=="auto"
           assert next(x for x in index["sources"] if x["id"]=="noaa_full")["type"]=="auto"
+          assert next(x for x in index["sources"] if x["id"]=="chmi")["type"]=="auto"
+          assert all(x.get("validity_method","").startswith("Printed DD.MM.YYYY HH UTC") for x in index["charts"] if x["source_id"]=="chmi")
           assert next(x for x in index["sources"] if x["id"]=="eccc")["type"]=="external"
           print("Original charts validated:",index["chart_count"],index["source_status"])
           PY
