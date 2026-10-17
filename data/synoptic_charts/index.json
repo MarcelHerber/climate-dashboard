@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-17T14:45:11+00:00",
+  "generated_utc": "2026-10-17T14:46:56+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -113,7 +113,7 @@
   "source_status": {
     "dwd": {
       "state": "available",
-      "charts": 4
+      "charts": 8
     },
     "aemet": {
       "state": "available",
@@ -150,6 +150,17 @@
   },
   "charts": [
     {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-15T18:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261015191233_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610151800_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261015_1800.webp",
+      "size_bytes": 1425780
+    },
+    {
       "source_id": "noaa_full",
       "kind": "0-h-Bodenkarte",
       "valid_utc": "2026-10-15T18:00+00:00",
@@ -184,6 +195,17 @@
       "publisher_id": "noaa",
       "image": "images/noaa_west_20261015_1800.webp",
       "size_bytes": 160902
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T00:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016011709_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610160000_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261016_0000.webp",
+      "size_bytes": 1419368
     },
     {
       "source_id": "noaa_full",
@@ -222,6 +244,17 @@
       "size_bytes": 162046
     },
     {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016074532_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610160600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261016_0600.webp",
+      "size_bytes": 1426396
+    },
+    {
       "source_id": "noaa_full",
       "kind": "0-h-Bodenkarte",
       "valid_utc": "2026-10-16T06:00+00:00",
@@ -256,6 +289,17 @@
       "publisher_id": "noaa",
       "image": "images/noaa_west_20261016_0600.webp",
       "size_bytes": 169272
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-16T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016142102_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610161200_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261016_1200.webp",
+      "size_bytes": 1441824
     },
     {
       "source_id": "noaa_full",
@@ -740,6 +784,6 @@
     "2026-10-19T12:00+00:00",
     "2026-10-20T12:00+00:00"
   ],
-  "chart_count": 46,
+  "chart_count": 50,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
