@@ -70,7 +70,7 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full","chmi")
+              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi")
               assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
@@ -80,6 +80,15 @@ jobs:
           assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
           assert next(x for x in index["sources"] if x["id"]=="noaa_opc")["type"]=="auto"
           assert next(x for x in index["sources"] if x["id"]=="noaa_full")["type"]=="auto"
+          assert len(index["sources"])==len({x["id"] for x in index["sources"]})
+          for product in ("noaa_west","noaa_24","noaa_48","noaa_96"):
+              assert next(x for x in index["sources"] if x["id"]==product)["type"]=="auto"
+          for item in index["charts"]:
+              if item["source_id"] in ("noaa_24","noaa_48","noaa_96"):
+                  from datetime import datetime,timedelta
+                  issue=datetime.fromisoformat(item["run_utc"])
+                  valid=datetime.fromisoformat(item["valid_utc"])
+                  assert valid==issue+timedelta(hours=item["forecast_hours"])
           assert next(x for x in index["sources"] if x["id"]=="chmi")["type"]=="auto"
           assert all(x.get("validity_method","").startswith("Printed DD.MM.YYYY HH UTC") for x in index["charts"] if x["source_id"]=="chmi")
           assert next(x for x in index["sources"] if x["id"]=="eccc")["type"]=="external"
