@@ -108,7 +108,7 @@ def extract_dwd(html, now):
         records.setdefault(key,{"source_id":"dwd","kind":"Analyse",
             "valid_utc":key,"issued_utc":None,"source_url":url,
             "source_page":DWD_INDEX,"credit":"© Deutscher Wetterdienst (DWD)"})
-    return sorted(records.values(),key=lambda x:x["valid_utc"],reverse=True)[:4]
+    return sorted(records.values(),key=lambda x:x["valid_utc"],reverse=True)[:12]
 
 
 def extract_aemet(html,now):
