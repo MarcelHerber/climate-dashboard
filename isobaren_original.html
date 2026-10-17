@@ -7,7 +7,7 @@
 <title>Isobaren & Fronten · Originalkarten der Wetterdienste</title>
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
 <link rel="stylesheet" href="isobaren_original.css?v=1">
-<script defer src="isobaren_original.js?v=7"></script>
+<script defer src="isobaren_original.js?v=8"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -15,11 +15,12 @@
 <main>
 <div class="eyebrow">Synoptik · Offizielle Originalkarten</div>
 <h1>Isobaren, Hochs, Tiefs &amp; Fronten</h1>
-<p class="intro">Echte Bodenwetterkarten der nationalen Wetterdienste – einschließlich der ursprünglich eingezeichneten Fronten. Für den Vergleich zählt ausschließlich der <strong>identische UTC-Gültigkeitstermin</strong>. Originalprojektion und jeweilige grafische Gestaltung bleiben erhalten.</p>
+<p class="intro">Echte Bodenwetterkarten der nationalen Wetterdienste – einschließlich der ursprünglich eingezeichneten Fronten. Für den Vergleich zählt ausschließlich der <strong>identische UTC-Gültigkeitstermin</strong>. Originalprojektion und jeweilige grafische Gestaltung bleiben erhalten. Zusätzlich verfügbar: regionale NOAA-Ostatlantik-/Westatlantikkarten und – sofern veröffentlicht – 24-, 48- und 96-Stunden-Bodenprognosen.</p>
 
 <section class="panel" aria-label="Kartenauswahl">
 <div class="row">
 <label class="control">Darstellung<select id="chartMode"><option value="single">Einzelkarte</option><option value="four">Vierer-Panel (gleicher Termin)</option></select></label>
+<label class="control">Kartentyp<select id="chartKind"><option value="all">Alle Karten</option><option value="analysis">Nur Analysen</option><option value="forecast">Nur Prognosen</option></select></label>
 <label class="control">Gültigkeitszeit in UTC<select id="validTime"><option value="">Daten werden geladen …</option></select></label>
 <label class="control" id="singleSourceWrap">Wetterdienst<select id="singleSource"><option value="dwd">DWD</option></select></label>
 <div class="row"><button class="button" id="reload" type="button">Aktualisieren</button><button class="button primary" id="exportPng" type="button" disabled>PNG herunterladen</button></div>
@@ -40,7 +41,7 @@
 
 <section class="panel">
 <h2>Wetterdienste und Datenverfügbarkeit</h2>
-<p class="help">DWD Open Data, AEMET, NOAA OPC und ČHMÚ werden automatisiert auf echte Originalbilder und nachvollziehbare UTC-Gültigkeit geprüft. ČHMÚ-Bilder erscheinen ausschließlich, wenn der Gültigkeitszeitpunkt aus der Kartenüberschrift sicher ermittelt wurde. Der offizielle ČHMÚ-Datenabruf funktioniert; die gültigen Zeiten werden unabhängig vom API-Zeitregler geprüft. Andere Dienste sind zunächst als direkte Quellenseiten erreichbar; fehlende Freigaben oder nicht maschinenlesbare Zeitangaben werden nicht umgangen.</p>
+<p class="help">DWD Open Data, AEMET, verschiedene NOAA-OPC-Analyse- und Prognosekarten sowie ČHMÚ werden automatisiert auf echte Originalbilder und nachvollziehbare UTC-Gültigkeit geprüft. ČHMÚ-Bilder erscheinen ausschließlich, wenn der Gültigkeitszeitpunkt aus der Kartenüberschrift sicher ermittelt wurde. Der offizielle ČHMÚ-Datenabruf funktioniert; die gültigen Zeiten werden unabhängig vom API-Zeitregler geprüft. Andere Dienste sind zunächst als direkte Quellenseiten erreichbar; fehlende Freigaben oder nicht maschinenlesbare Zeitangaben werden nicht umgangen.</p>
 <div id="sourceCatalog" class="source-grid"><div class="source">Lade Quellenübersicht …</div></div>
 </section>
 <section class="panel">
