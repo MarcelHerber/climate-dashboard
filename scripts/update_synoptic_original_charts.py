@@ -274,9 +274,12 @@ def main(output=OUT,now=None):
              ("noaa_96",OPC_ARCHIVE,extract_opc_96)]
     with __import__("tempfile").TemporaryDirectory(prefix="synoptic-charts-") as work:
         temp=Path(work)
+        html_cache={}
         for key,url,parse in sources:
             try:
-                html=download(url).decode("utf-8","replace")
+                if url not in html_cache:
+                    html_cache[url]=download(url).decode("utf-8","replace")
+                html=html_cache[url]
                 candidate=parse(html,now)
                 if not candidate:raise ValueError("No plausible dated chart URL found")
                 successes=0
