@@ -66,7 +66,7 @@ def probe(now=None,fetch=None):
                              "synoptic":bool(SYN_RE.search(uri.path)),
                              "dated":bool(DATE_RE.search(uri.path))})
             except ValueError:continue
-        result.update(
+        result.update({
             "state":"static_metadata_only",
             "html_bytes":len(html.encode("utf-8")),
             "links_seen":len(parser.refs),
@@ -80,7 +80,7 @@ def probe(now=None,fetch=None):
                                             if x["tag"]=="script"))[:15],
             "synoptic_page_links":list(dict.fromkeys(x["path"] for x in refs
                                                     if x["tag"]=="a" and x["synoptic"]))[:12],
-        )
+        })
         if not result["dated_synoptic_images"]:
             result["note"]="No independently dated synoptic image found in static HTML. Dynamic provider API not yet identified; link to original page only."
         else:
