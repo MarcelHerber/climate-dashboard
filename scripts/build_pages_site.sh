@@ -326,8 +326,11 @@ index=json.loads((root/"index.json").read_text(encoding="utf-8"))
 assert index.get("schema_version")==1 and index.get("ready") is True
 assert len(index.get("charts",[]))==index.get("chart_count")
 for chart in index["charts"]:
-    assert chart.get("source_id") in ("dwd","aemet","noaa_opc","noaa_full","chmi")
+    assert chart.get("source_id") in ("dwd","aemet","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi")
     assert chart["image"].startswith("images/")
+    if chart["source_id"] in ("noaa_24","noaa_48","noaa_96"):
+        from datetime import datetime,timedelta
+        assert datetime.fromisoformat(chart["valid_utc"]) == datetime.fromisoformat(chart["run_utc"]) + timedelta(hours=chart["forecast_hours"])
     if chart["source_id"]=="chmi":
         assert chart.get("validity_method","").startswith("Printed DD.MM.YYYY HH UTC")
         assert chart.get("license_url")=="https://creativecommons.org/licenses/by/4.0/"
