@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-17T14:46:56+00:00",
+  "generated_utc": "2026-10-17T16:32:45+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -141,11 +141,11 @@
     },
     "noaa_96": {
       "state": "available",
-      "charts": 4
+      "charts": 5
     },
     "chmi": {
       "state": "available",
-      "charts": 3
+      "charts": 2
     }
   },
   "charts": [
@@ -458,21 +458,6 @@
       "size_bytes": 168874
     },
     {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-17T06:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-10-17T10:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261017_0600.webp",
-      "size_bytes": 302856
-    },
-    {
       "source_id": "dwd",
       "kind": "Analyse",
       "valid_utc": "2026-10-17T06:00+00:00",
@@ -521,15 +506,15 @@
     },
     {
       "source_id": "aemet",
-      "kind": "Prognose",
+      "kind": "Analyse",
       "valid_utc": "2026-10-17T12:00+00:00",
-      "issued_utc": "2026-10-16T12:00+00:00",
-      "forecast_hours": 24,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101612+024_ww_g1x0a2d1.gif",
+      "issued_utc": "2026-10-17T12:00+00:00",
+      "forecast_hours": 0,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101712+000_ww_gpx0a200.gif",
       "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261017_1200.webp",
-      "size_bytes": 311014
+      "size_bytes": 290462
     },
     {
       "source_id": "dwd",
@@ -767,6 +752,20 @@
       "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +96 h)",
       "image": "images/noaa_96_20261020_1200.webp",
       "size_bytes": 225312
+    },
+    {
+      "source_id": "noaa_96",
+      "publisher_id": "noaa",
+      "kind": "Prognose",
+      "forecast_hours": 96,
+      "valid_utc": "2026-10-21T12:00+00:00",
+      "issued_utc": "2026-10-17T15:00+00:00",
+      "run_utc": "2026-10-17T12:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl96_sfcfcst_12.2026101715.gif",
+      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +96 h)",
+      "image": "images/noaa_96_20261021_1200.webp",
+      "size_bytes": 229024
     }
   ],
   "time_slots": [
@@ -782,7 +781,8 @@
     "2026-10-18T12:00+00:00",
     "2026-10-19T00:00+00:00",
     "2026-10-19T12:00+00:00",
-    "2026-10-20T12:00+00:00"
+    "2026-10-20T12:00+00:00",
+    "2026-10-21T12:00+00:00"
   ],
   "chart_count": 50,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
