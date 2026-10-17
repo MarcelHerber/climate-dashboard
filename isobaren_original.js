@@ -149,6 +149,9 @@ async function pngExport(){
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
  ctx.fillText("Originalkarten: DWD / AEMET / NOAA-NWS / ggf. ČHMÚ · Urheber in den Panels",32,H-34);
+ if(ids.some(id=>id==="chmi"&&cardsAt(id,validity).length)){
+  ctx.fillText("ČHMÚ · CC BY 4.0 · https://creativecommons.org/licenses/by/4.0/ · PNG→WebP, Panelanordnung",32,H-14);
+ }
  const a=document.createElement("a");
  a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_4er":"")+".png";
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
