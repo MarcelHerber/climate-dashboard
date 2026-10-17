@@ -8,7 +8,10 @@ const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
 const source=id=>catalog?.sources?.find(s=>s.id===id);
 const sourceList=()=>catalog?.sources||[];
-const cardsAt=(id,time)=>(catalog?.charts||[]).filter(x=>x.source_id===id&&x.valid_utc===time);
+const hasForecast=x=>x?.kind==="Prognose"||Number(x?.forecast_hours)>0;
+const showRecord=x=>$("chartKind")?.value==="forecast"?hasForecast(x):
+ $("chartKind")?.value==="analysis"?!hasForecast(x):true;
+const cardsAt=(id,time)=>(catalog?.charts||[]).filter(x=>x.source_id===id&&x.valid_utc===time&&showRecord(x));
 function fillSources(){
  const cat=$("sourceCatalog");cat.replaceChildren();
  for(const s of sourceList()){
@@ -30,22 +33,28 @@ function fillPickers(){
   for(const s of sourceList())select.add(new Option(s.name,s.id));
   select.value=(INITIAL[i]==="chmi" && !catalog.charts.some(x=>x.source_id==="chmi"))?"noaa_full":INITIAL[i];
  }
- const sel=$("validTime");sel.replaceChildren();
- const times=catalog.time_slots||[];
- if(!times.length){sel.add(new Option("Noch keine verifizierten Termine",""));return;}
+ rebuildTimes("dwd");
+}
+function rebuildTimes(prefer){
+ const picker=$("validTime"),previous=picker.value;picker.replaceChildren();
+ const times=(catalog?.time_slots||[]).filter(t=>
+  catalog.charts.some(x=>x.valid_utc===t&&showRecord(x)));
+ if(!times.length){picker.add(new Option("Keine Termine für diese Auswahl",""));return;}
  const now=Date.now();
  for(const time of times.slice().reverse()){
-  const records=catalog.charts.filter(x=>x.valid_utc===time);
+  const records=catalog.charts.filter(x=>x.valid_utc===time&&showRecord(x));
   const agencies=new Set(records.map(x=>x.publisher_id||x.source_id));
-  sel.add(new Option(isoDE(time)+" · "+records.length+" Karten / "+agencies.size+" Dienste",time));
+  picker.add(new Option(isoDE(time)+" · "+records.length+" Karten / "+agencies.size+" Dienste",time));
  }
- // Prefer the nearest available valid time, not the most distant forecast.
- const dwd=times.filter(t=>catalog.charts.some(r=>r.valid_utc===t&&r.source_id==="dwd"));
- const nearest=(dwd.length?dwd:times).slice().sort((a,b)=>Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now))[0];
- sel.value=nearest;
+ if(times.includes(previous)){picker.value=previous;return;}
+ const best=times.slice().sort((a,b)=>{
+  const fav=t=>prefer&&catalog.charts.some(x=>x.source_id===prefer&&x.valid_utc===t&&showRecord(x))?1:0;
+  return fav(b)-fav(a)||Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now);
+ })[0];
+ picker.value=best;
 }
 function closestForSources(ids){
- const times=catalog?.time_slots||[];
+ const times=(catalog?.time_slots||[]).filter(t=>catalog.charts.some(x=>x.valid_utc===t&&showRecord(x)));
  if(!times.length)return;
  let now=Date.now();
  const best=times.slice().sort((a,b)=>{
@@ -63,7 +72,7 @@ function card(provider,time){
  const article=node("article","chart");
  const heading=node("div","chart-header");
  heading.append(node("strong","",s?s.name:"Unbekannte Quelle"));
- heading.append(node("small","",record?record.kind+" · "+isoDE(record.valid_utc):"Für diesen Termin nicht vorhanden"));
+ heading.append(node("small","",record?(record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""))+" · "+isoDE(record.valid_utc):"Für diesen Termin nicht vorhanden"));
  article.append(heading);
  const content=node("div","chart-body");
  if(record){
@@ -165,7 +174,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|chmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
@@ -183,7 +192,7 @@ async function load(){
    ["IMO","https://en.vedur.is/weather/shipping/atlantic/"],
    ["NOAA OPC","https://ocean.weather.gov/Atl_tab.php"],
    ["ECCC","https://weather.gc.ca/analysis/index_e.html"],
-   ["ČHMÚ","https://www.chmi.cz/predpoved-pocasi/synopticka-situace"]]){
+   ["NOAA OPC Prognosen","https://ocean.weather.gov/Loops/NCDC_names.php"]]){
    const card=node("div","source"),a=node("a","",s[0]+" · Originalseite");
    a.href=s[1];a.target="_blank";a.rel="noopener noreferrer";card.append(a);
    $("sourceCatalog").append(card);
@@ -195,7 +204,20 @@ function init(){
  $("chartMode").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
  $("validTime").addEventListener("change",refreshView);
  $("singleSource").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
- slots.forEach(id=>$(id).addEventListener("change",refreshView));
+ slots.forEach(id=>$(id).addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();}));
+ $("chartKind").addEventListener("change",()=>{
+  if(!catalog)return;
+  const forecast=$("chartKind").value==="forecast";
+  if(forecast){
+   $("singleSource").value="aemet";
+   const opts=["aemet","noaa_24","noaa_48","noaa_96"];
+   slots.forEach((id,i)=>{$(id).value=opts[i];});
+  }else{
+   if(!$("singleSource").value)$("singleSource").value="dwd";
+   slots.forEach((id,i)=>{$(id).value=INITIAL[i];});
+  }
+  rebuildTimes(forecast?"aemet":"dwd");closestForSources(currentProviders());refreshView();
+ });
  $("exportPng").addEventListener("click",pngExport);
  load();
 }
