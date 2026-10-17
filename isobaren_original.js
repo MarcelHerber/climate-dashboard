@@ -2,7 +2,7 @@
 const ROOT="data/synoptic_charts/";
 const $=id=>document.getElementById(id);
 const slots=["panel0","panel1","panel2","panel3"];
-const INITIAL=["dwd","aemet","noaa_opc","noaa_full"];
+const INITIAL=["dwd","aemet","noaa_opc","chmi"];
 let catalog=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -28,7 +28,7 @@ function fillPickers(){
  for(let i=0;i<4;i++){
   const select=$(slots[i]);select.replaceChildren();
   for(const s of sourceList())select.add(new Option(s.name,s.id));
-  select.value=INITIAL[i];
+  select.value=(INITIAL[i]==="chmi" && !catalog.charts.some(x=>x.source_id==="chmi"))?"noaa_full":INITIAL[i];
  }
  const sel=$("validTime");sel.replaceChildren();
  const times=catalog.time_slots||[];
@@ -83,6 +83,10 @@ function card(provider,time){
  const footer=node("div","chart-footer");
  footer.append(node("span","",record?record.credit:"Keine Karte für "+isoDE(time)));
  if(s){
+  if(record?.license_url){
+   const license=node("a","","CC BY 4.0");
+   license.href=record.license_url;license.target="_blank";license.rel="noopener noreferrer";footer.append(license);
+  }
   const link=node("a","",record?"Originalquelle":"Beim Wetterdienst ansehen");
   link.href=record?.source_page||s.url;
   link.target="_blank";link.rel="noopener noreferrer";footer.append(link);
@@ -110,7 +114,7 @@ function refreshView(){
  $("chartStatus").textContent=isoDE(validity)+" · "+matched+"/"+total+
   " Karten · "+agencies.size+" unabhängige Wetterdienste · identische UTC-Gültigkeit"+qualifier;
  $("syncHint").textContent=isFour?matched===4?
-  "Vier Originalkarten zur identischen UTC-Gültigkeit. Darunter zwei NOAA-OPC-Ausschnitte desselben Wetterdienstes, keine vier unabhängigen Analysen.":
+  (agencies.size===4?"Vier unabhängige Wetterdienste bei exakt gleicher UTC-Gültigkeit.":"Vier Bilder aus "+agencies.size+" unabhängigen Wetterdiensten (einschließlich zweier NOAA-Produkte)."):
   "Der Vierer-Vergleich ist vorbereitet: "+matched+" von vier Plätzen sind mit zeitgleichen Karten belegt. Andere Kacheln bleiben ehrlich leer.":
   matched?"Originalkarte des gewählten Wetterdienstes für den ausgewiesenen UTC-Termin.":"Für diesen Dienst liegt zum gewählten Termin keine automatisch einbettbare Karte vor.";
 }
@@ -144,7 +148,7 @@ async function pngExport(){
  }
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
- ctx.fillText("DWD / AEMET / NOAA-NWS (zwei NOAA-Ausschnitte) · keine gemeinsame amtliche Karte",32,H-34);
+ ctx.fillText("Originalkarten: DWD / AEMET / NOAA-NWS / ggf. ČHMÚ · Urheber in den Panels",32,H-34);
  const a=document.createElement("a");
  a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_4er":"")+".png";
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
@@ -158,7 +162,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc|noaa_full)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|chmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
@@ -175,7 +179,8 @@ async function load(){
    ["Met Éireann","https://www.met.ie/latest-reports/surface-analysis"],
    ["IMO","https://en.vedur.is/weather/shipping/atlantic/"],
    ["NOAA OPC","https://ocean.weather.gov/Atl_tab.php"],
-   ["ECCC","https://weather.gc.ca/analysis/index_e.html"]]){
+   ["ECCC","https://weather.gc.ca/analysis/index_e.html"],
+   ["ČHMÚ","https://www.chmi.cz/predpoved-pocasi/synopticka-situace"]]){
    const card=node("div","source"),a=node("a","",s[0]+" · Originalseite");
    a.href=s[1];a.target="_blank";a.rel="noopener noreferrer";card.append(a);
    $("sourceCatalog").append(card);
