@@ -38,6 +38,9 @@ SOURCES=[
  {"id":"noaa_full","name":"NOAA OPC · Gesamtatlantik (gleicher Dienst)","country":"USA",
   "url":"https://ocean.weather.gov/Atl_tab.php","type":"auto",
   "license":"NOAA/NWS Public Domain; zweiter Kartenausschnitt desselben Wetterdienstes"},
+ {"id":"chmi","name":"ČHMÚ · Atlantik/Europa","country":"Tschechien",
+  "url":"https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+  "type":"auto","license":"© ČHMÚ · CC BY 4.0 · Bild aus Original-API, ins WebP-Format konvertiert"},
  {"id":"eccc","name":"ECCC · Nordhemisphäre","country":"Kanada",
   "url":"https://weather.gc.ca/analysis/index_e.html","type":"external",
   "license":"Offizielle Nordhemisphären-Bodenanalyse; derzeit kein verlässlich datierter Bildlink"},
@@ -164,15 +167,15 @@ def extract_opc_full(html, now):
         "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)","0-h-Bodenkarte")
 
 
-def download(url,timeout=30):
+def download(url,timeout=30,limit=9_000_000):
     request=Request(url,headers={
         "User-Agent":"ClimateDashboardDeutschland/1.0 (synoptic-source-monitor)",
         "Accept":"image/avif,image/webp,image/png,image/gif,image/*;q=0.8,text/html;q=0.7,*/*;q=0.5",
         "Accept-Language":"de-DE,de;q=0.9,en;q=0.7",
     })
     with urlopen(request,timeout=timeout) as r:
-        payload=r.read(9_000_001)
-        if len(payload)>9_000_000:raise ValueError("Source image exceeds 9 MB")
+        payload=r.read(limit+1)
+        if len(payload)>limit:raise ValueError("Source content exceeds maximum size")
         return payload
 
 
@@ -224,6 +227,31 @@ def main(output=OUT,now=None):
             except Exception as exc:
                 status[key]={"state":"unavailable","reason":str(exc)[:180]}
                 print(f"Source {key} unavailable: {exc}",flush=True)
+        # ČHMÚ's public provider transmits PNGs inside JSON. Its API dateTime
+        # is a playback time, NOT map validity. Parse only verified UTC heading.
+        try:
+            import chmi_synoptic_adapter as chmi
+            payload=json.loads(download(chmi.API,timeout=55,limit=35_000_000).decode("utf-8"))
+            candidate=chmi.parse_chmi_json(payload,now)
+            if not candidate:
+                raise ValueError("No ČHMÚ chart header yielded a verifiable UTC validity")
+            successes=0
+            for record,raw_png in candidate:
+                date_str=datetime.fromisoformat(record["valid_utc"]).strftime("%Y%m%d_%H%M")
+                name=f"chmi_{date_str}.webp"
+                try:
+                    image_webp(raw_png,temp/name)
+                    record["image"]="images/"+name
+                    record["size_bytes"]=(temp/name).stat().st_size
+                    charts.append(record)
+                    successes+=1
+                except Exception as exc:
+                    print(f"Skipping ČHMÚ PNG: {exc}",flush=True)
+            if not successes:raise ValueError("No verified ČHMÚ map image")
+            status["chmi"]={"state":"available","charts":successes}
+        except Exception as exc:
+            status["chmi"]={"state":"unavailable","reason":(type(exc).__name__+": "+str(exc))[:200]}
+            print("ČHMÚ source unavailable:",str(exc)[:200],flush=True)
         if not charts:
             raise RuntimeError("No authenticated original chart downloaded; do not publish empty/synthetic catalog")
         charts.sort(key=lambda p:(p["valid_utc"],p["source_id"]))
