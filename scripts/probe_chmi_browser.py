@@ -62,6 +62,23 @@ async def inspect():
                 try:
                     payload=await response.json()
                     entry["shape"]=safe_shape(payload)
+                    if "/init/synopticka-mapa" in uri:
+                        import base64,io
+                        from PIL import Image
+                        frames=payload.get("data",[]) if isinstance(payload,dict) else []
+                        thumbs=[]
+                        for frame in frames[:3]:
+                            val=frame.get("image","")
+                            if not isinstance(val,str) or not val.startswith("image/png;base64,"):
+                                continue
+                            raw=base64.b64decode(val.split(",",1)[1],validate=True)
+                            with Image.open(io.BytesIO(raw)) as im:
+                                im.thumbnail((840,620))
+                                buf=io.BytesIO()
+                                im.convert("RGB").save(buf,format="JPEG",quality=77,optimize=True)
+                                thumbs.append({"time":frame.get("dateTime"),"width":im.width,"height":im.height,
+                                    "jpeg_base64":base64.b64encode(buf.getvalue()).decode("ascii")})
+                        entry["verified_image_previews"]=thumbs
                 except Exception as exc:
                     entry["reason"]=(type(exc).__name__+": "+str(exc))[:130]
                 api_shapes.append(entry)
