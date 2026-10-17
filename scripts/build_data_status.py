@@ -349,7 +349,7 @@ def build(remote=None):
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
             latest, original.get("generated_utc"),
             f"{len(charts)} Originalkarten · {len(set(x.get('publisher_id') or x['source_id'] for x in charts))} unabhängige Wetterdienste",
-            "DWD, AEMET und NOAA OPC (zwei NOAA-Kartenausschnitte); andere Dienste verlinkt",
+            "DWD, AEMET, NOAA OPC und ggf. ČHMÚ; UTC-Gültigkeit aus Originalquellen geprüft",
             allowed_delay=3))
     else:
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
