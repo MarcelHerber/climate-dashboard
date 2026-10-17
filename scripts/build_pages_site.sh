@@ -314,7 +314,7 @@ else
   echo "HINWEIS: Erste ERA5-Blocking-Karte noch ausstehend; keine Phantomkarte."
 fi
 
-# Originale synoptische Wetterkarten (DWD/AEMET): nur geprüft veröffentlichen.
+# Originale synoptische Wetterkarten DWD/AEMET/NOAA/ČHMÚ: nur geprüft veröffentlichen.
 node --check isobaren_original.js
 grep -q 'id="chartGrid"' _site/isobaren_original.html
 if [[ -s data/synoptic_charts/index.json ]]; then
@@ -326,15 +326,18 @@ index=json.loads((root/"index.json").read_text(encoding="utf-8"))
 assert index.get("schema_version")==1 and index.get("ready") is True
 assert len(index.get("charts",[]))==index.get("chart_count")
 for chart in index["charts"]:
-    assert chart.get("source_id") in ("dwd","aemet")
+    assert chart.get("source_id") in ("dwd","aemet","noaa_opc","noaa_full","chmi")
     assert chart["image"].startswith("images/")
+    if chart["source_id"]=="chmi":
+        assert chart.get("validity_method","").startswith("Printed DD.MM.YYYY HH UTC")
+        assert chart.get("license_url")=="https://creativecommons.org/licenses/by/4.0/"
     image=root/chart["image"]
     assert image.exists() and image.stat().st_size>18000
     assert image.read_bytes()[:4]==b"RIFF"
 PY
   mkdir -p _site/data/synoptic_charts
   cp -a data/synoptic_charts/index.json data/synoptic_charts/images _site/data/synoptic_charts/
-  echo "DWD/AEMET Original-Synoptikkarten veröffentlicht."
+  echo "Original-Synoptikkarten der Wetterdienste mit UTC-Gültigkeiten veröffentlicht."
 else
   echo "HINWEIS: Keine Original-Synoptikkarten publiziert; Seite zeigt transparente Quellenlinks."
 fi
