@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-17T06:24:02+00:00",
+  "generated_utc": "2026-10-17T06:26:12+00:00",
   "provider": "ČHMÚ",
   "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
   "verified_validity_charts": 0,
@@ -9,6 +9,48 @@
   "state": "browser_inspected",
   "title": "Synoptická situace",
   "select_count": 0,
+  "playable_images_api": [
+    {
+      "path": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
+      "status": 200,
+      "shape": {
+        "data": {
+          "length": 3,
+          "sample": [
+            {
+              "dateTime": "2026-10-17T10:00:00Z",
+              "image": "image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNgAAAMiCAIAAAAzeunaAAAACXBIWXMAABcSAAAXEgFnn9JSAAAgAElEQVR4Aey9B5wdVfnHPXPvndvL3u0t2d30RhqBUEKRIkVArICgCIKCggr+RRARRECRYsNCVREVEVEQpEkLNRDSezbZku319n5n3u+Zc3e",
+              "isForecastStart": false
+            },
+            {
+              "dateTime": "2026-10-18T10:00:00Z",
+              "image": "image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNgAAAMiCAIAAAAzeunaAAAACXBIWXMAABcSAAAXEgFnn9JSAAAgAElEQVR4AeydB5xc1XX/35vypu7s7mwvWq16Q4AR2FQbMBgbXAiOC7aDDThucRKnx3Ga7TjNnyR2iu0k2LgE3Ctg3ME0g0EghFCXVtt36u7",
+              "isForecastStart": true
+            },
+            {
+              "dateTime": "2026-10-19T10:00:00Z",
+              "image": "image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNgAAAMiCAIAAAAzeunaAAAACXBIWXMAABcSAAAXEgFnn9JSAAAgAElEQVR4Aey9B4CkRbX33TlP98z09OSdsJHNCXaXvCA5iRIUQUVAFAMmFPV6xYDpes0B9YIIinoRQckKLCxhgWUXNuedndnJsXs6535/p6q",
+              "isForecastStart": false
+            }
+          ]
+        },
+        "labelTop": {
+          "intervalValue": 24,
+          "intervalUnit": "h",
+          "format": "longDate"
+        },
+        "step": {
+          "intervalValue": 24,
+          "intervalUnit": "h",
+          "format": "longDate"
+        },
+        "autoPlay": false,
+        "defaultStep": 1,
+        "playInterval": 1000,
+        "type": "image"
+      }
+    }
+  ],
   "images": [
     {
       "src": "https://www.chmi.cz/documents/42501/44291/chmu_logo.svg/71568472-0017-4b0c-2eb7-18d12f4a0fb3",
@@ -425,6 +467,16 @@
       "kind": "stylesheet"
     },
     {
+      "path": "https://www.chmi.cz/o/frontend-js-loader-modules-extender/loader.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/css/clay.css",
+      "status": 200,
+      "kind": "stylesheet"
+    },
+    {
       "path": "https://www.chmi.cz/o/chmu-theme/js/ga.js",
       "status": 200,
       "kind": "script"
@@ -440,7 +492,7 @@
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/css/clay.css",
+      "path": "https://www.chmi.cz/combo",
       "status": 200,
       "kind": "stylesheet"
     },
@@ -460,22 +512,12 @@
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-loader-modules-extender/loader.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
       "path": "https://www.chmi.cz/o/frontend-js-aui-web/alloy_ui.css",
       "status": 200,
       "kind": "stylesheet"
     },
     {
       "path": "https://map-component.chmi.cz/1.0.0/index.css",
-      "status": 200,
-      "kind": "stylesheet"
-    },
-    {
-      "path": "https://www.chmi.cz/combo",
       "status": 200,
       "kind": "stylesheet"
     },
@@ -490,12 +532,37 @@
       "kind": "image"
     },
     {
+      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/glightbox.min.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/choices.min.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
       "path": "https://www.chmi.cz/o/chmu-theme/images/icon/307.svg",
       "status": 200,
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/documents/42501/344946/306_Meteorologicky_radar.svg/9d2d6729-f6e4-2e57-12bf-fda63d1dceae",
+      "path": "https://www.chmi.cz/o/chmu-theme/js/main.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/panzoom.min.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/344946/60_Oblacno.svg/d588a5a6-84fd-264f-5c7e-61cb140f4e37",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/344946/305_Model_Aladin.svg/13904526-c4ff-1cea-19ba-e0971bd04b5f",
       "status": 200,
       "kind": "image"
     },
@@ -510,7 +577,12 @@
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/documents/42501/344946/305_Model_Aladin.svg/13904526-c4ff-1cea-19ba-e0971bd04b5f",
+      "path": "https://www.chmi.cz/documents/42501/344946/324_Aktualni_stav_namerenych_velicin.svg/8382f33a-8f71-b570-1661-722e2e5652ce",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/344946/306_Meteorologicky_radar.svg/9d2d6729-f6e4-2e57-12bf-fda63d1dceae",
       "status": 200,
       "kind": "image"
     },
@@ -520,52 +592,12 @@
       "kind": "font"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/choices.min.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/js/main.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/344946/324_Aktualni_stav_namerenych_velicin.svg/8382f33a-8f71-b570-1661-722e2e5652ce",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/344946/60_Oblacno.svg/d588a5a6-84fd-264f-5c7e-61cb140f4e37",
-      "status": 200,
-      "kind": "image"
-    },
-    {
       "path": "https://www.chmi.cz/o/chmu-theme/assets/fonts/campton-book.otf",
       "status": 200,
       "kind": "font"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/panzoom.min.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
       "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/jquery-3.7.1.min.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/js/vendor/glightbox.min.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://map-component.chmi.cz/1.0.0/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/portal-search-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
@@ -575,9 +607,14 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/408.svg",
+      "path": "https://www.chmi.cz/o/portal-search-web/__liferay__/index.js",
       "status": 200,
-      "kind": "image"
+      "kind": "script"
+    },
+    {
+      "path": "https://map-component.chmi.cz/1.0.0/index.js",
+      "status": 200,
+      "kind": "script"
     },
     {
       "path": "https://www.chmi.cz/o/chmu-theme/images/icon/407.svg",
@@ -585,7 +622,7 @@
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/504.svg",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/408.svg",
       "status": 200,
       "kind": "image"
     },
@@ -600,12 +637,17 @@
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/classnames.js",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/506.svg",
       "status": 200,
-      "kind": "script"
+      "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/506.svg",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/312.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/504.svg",
       "status": 200,
       "kind": "image"
     },
@@ -615,47 +657,7 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/312.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-components-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$alert.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$drop-down.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react-dnd-html5-backend.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$autocomplete.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$button.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$form.js",
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
@@ -665,22 +667,12 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$loading-indicator.js",
+      "path": "https://www.chmi.cz/o/frontend-js-components-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$core.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$multi-select.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$icon.js",
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react-dnd-html5-backend.js",
       "status": 200,
       "kind": "script"
     },
@@ -690,7 +682,57 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$modal.js",
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/classnames.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$form.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$icon.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$button.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$core.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$drop-down.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$autocomplete.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$multi-select.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$loading-indicator.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$alert.js",
       "status": 200,
       "kind": "script"
     },
@@ -700,72 +742,7 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/clipboard.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$link.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/cookies-banner-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/formik.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-collapse-support-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-alert-support-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/layout-taglib/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-tooltip-support-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-dropdown-support-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-tabs-support-web/__liferay__/index.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/dom-align.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
       "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$empty-state.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$data-provider.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/prop-types.js",
       "status": 200,
       "kind": "script"
     },
@@ -775,27 +752,57 @@
       "kind": "script"
     },
     {
+      "path": "https://www.chmi.cz/o/layout-taglib/__liferay__/index.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-tabs-support-web/__liferay__/index.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-alert-support-web/__liferay__/index.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/formik.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$modal.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$data-provider.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
       "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/moment.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react-dom.js",
+      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/clipboard.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/index.js",
+      "path": "https://www.chmi.cz/o/frontend-js-tooltip-support-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-state-web/__liferay__/index.js",
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$link.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/react-transition-group.js",
+      "path": "https://www.chmi.cz/o/frontend-js-collapse-support-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
@@ -805,37 +812,12 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$shared.js",
+      "path": "https://www.chmi.cz/o/frontend-js-dropdown-support-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$localized-input.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/uuid.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$label.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$provider.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$layout.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$badge.js",
+      "path": "https://www.chmi.cz/o/cookies-banner-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
@@ -845,17 +827,32 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/fuzzy.js",
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/react-dom.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$sticker.js",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/325.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-react-web/__liferay__/exports/prop-types.js",
       "status": 200,
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$card.js",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/409.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$provider.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-state-web/__liferay__/index.js",
       "status": 200,
       "kind": "script"
     },
@@ -865,42 +862,7 @@
       "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$pagination.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-node-shims/__liferay__/exports/process.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$addon$hint$show-hint.css.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$lib$codemirror.css.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$addon$fold$foldgutter.css.js",
-      "status": 200,
-      "kind": "script"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/318.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/315.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/326.svg",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/arrow-left.svg",
       "status": 200,
       "kind": "image"
     },
@@ -910,24 +872,34 @@
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/325.svg",
+      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/dom-align.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$badge.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$sticker.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/90.svg",
       "status": 200,
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-web/css/notification.css",
+      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/react-transition-group.js",
       "status": 200,
-      "kind": "stylesheet"
+      "kind": "script"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/314.svg",
+      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/uuid.js",
       "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/409.svg",
-      "status": 200,
-      "kind": "image"
+      "kind": "script"
     },
     {
       "path": "https://www.chmi.cz/o/chmu-theme/images/icon/324.svg",
@@ -935,12 +907,197 @@
       "kind": "image"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/input/InputLocalized.css",
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/320.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/315.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/319.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/331.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$localized-input.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/323.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/arrow-right.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/327.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/332.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/menu-opened.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/314.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-node-shims/__liferay__/exports/process.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/twitter_x.svg/2305759a-2b31-f7cc-6571-56a968c87b8f",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$label.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/322.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/LinkedIn.svg/8d864a41-8ceb-eba8-b4d8-5b1ac37a656e",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/Youtube.svg/f28d0a51-3776-28e4-ab16-72735e7e8232",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$shared.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/326.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/328.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$pagination.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/Instagram.svg/73e03525-c1d0-0f60-0794-d7bbd842ec5a",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/318.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/329.svg",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$card.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-taglib-clay/__liferay__/exports/@clayui$layout.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/d/chmi.cz/synop-bez-dat",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-dependencies-web/__liferay__/exports/fuzzy.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$addon$hint$show-hint.css.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/combo/",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$lib$codemirror.css.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/app_store.svg/fe80ec05-3f66-f6c2-b633-d82889ee5670",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/FB.svg/8ae7738c-8912-4892-5c71-551c6fd4d7a4",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/CC-BY-4.0.png/be7e059d-bde2-f39f-2a82-92718df8923e",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/documents/42501/44291/google_play.svg/fa2eebfc-d58b-adbc-177f-cdcdab6e0ff2",
+      "status": 200,
+      "kind": "image"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-web/liferay/modal/Modal.css",
       "status": 200,
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-components-web/management_toolbar/ManagementToolbar.css",
+      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/exports/codemirror$addon$fold$foldgutter.css.js",
+      "status": 200,
+      "kind": "script"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-web/css/notification.css",
+      "status": 200,
+      "kind": "stylesheet"
+    },
+    {
+      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/common/FieldFeedback.css",
       "status": 200,
       "kind": "stylesheet"
     },
@@ -950,12 +1107,7 @@
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/css/codemirror$lib$codemirror.css",
-      "status": 200,
-      "kind": "stylesheet"
-    },
-    {
-      "path": "https://www.chmi.cz/o/frontend-js-web/liferay/modal/Modal.css",
+      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/common/FieldBase.css",
       "status": 200,
       "kind": "stylesheet"
     },
@@ -975,19 +1127,19 @@
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/common/FieldFeedback.css",
+      "path": "https://www.chmi.cz/o/frontend-js-codemirror-web/__liferay__/css/codemirror$lib$codemirror.css",
       "status": 200,
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/common/FieldBase.css",
+      "path": "https://www.chmi.cz/o/frontend-js-components-web/management_toolbar/ManagementToolbar.css",
       "status": 200,
       "kind": "stylesheet"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/331.svg",
+      "path": "https://www.chmi.cz/o/frontend-js-components-web/forms/input/InputLocalized.css",
       "status": 200,
-      "kind": "image"
+      "kind": "stylesheet"
     },
     {
       "path": "https://www.chmi.cz/o/chmu-theme/images/clay/icons.svg",
@@ -995,114 +1147,9 @@
       "kind": "other"
     },
     {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/319.svg",
+      "path": "https://data-provider.chmi.cz/api/cap/data/all/cap-all-cr",
       "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/322.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/329.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/arrow-right.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/332.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/323.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/328.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/90.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/320.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/arrow-left.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/menu-opened.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/o/chmu-theme/images/icon/327.svg",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/CC-BY-4.0.png/be7e059d-bde2-f39f-2a82-92718df8923e",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/app_store.svg/fe80ec05-3f66-f6c2-b633-d82889ee5670",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/Youtube.svg/f28d0a51-3776-28e4-ab16-72735e7e8232",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/twitter_x.svg/2305759a-2b31-f7cc-6571-56a968c87b8f",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/Instagram.svg/73e03525-c1d0-0f60-0794-d7bbd842ec5a",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/FB.svg/8ae7738c-8912-4892-5c71-551c6fd4d7a4",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/LinkedIn.svg/8d864a41-8ceb-eba8-b4d8-5b1ac37a656e",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/42501/44291/google_play.svg/fa2eebfc-d58b-adbc-177f-cdcdab6e0ff2",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/documents/d/chmi.cz/synop-bez-dat",
-      "status": 200,
-      "kind": "image"
-    },
-    {
-      "path": "https://www.chmi.cz/combo/",
-      "status": 200,
-      "kind": "script"
+      "kind": "fetch"
     },
     {
       "path": "https://data-provider.chmi.cz/api/data/txtf/synopt.cr/",
@@ -1111,11 +1158,6 @@
     },
     {
       "path": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "status": 200,
-      "kind": "fetch"
-    },
-    {
-      "path": "https://data-provider.chmi.cz/api/cap/data/all/cap-all-cr",
       "status": 200,
       "kind": "fetch"
     }
