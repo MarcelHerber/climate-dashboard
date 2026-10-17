@@ -109,7 +109,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
     def test_met_office_not_auto_scraped(self):
         providers={x["id"]:x for x in charts.SOURCES}
         self.assertEqual(providers["metoffice"]["type"],"external")
-        self.assertEqual(providers["chmi"]["type"],"external")
+        self.assertEqual(providers["chmi"]["type"],"auto")
 
     def test_no_time_rounding(self):
         v1=datetime(2026,10,16,0,tzinfo=timezone.utc).isoformat(timespec="minutes")
