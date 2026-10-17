@@ -71,10 +71,38 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertTrue(all(p["publisher_id"]=="noaa" for p in parsed))
         self.assertEqual({p["source_id"] for p in charts.extract_opc(html,NOW)},set())
 
+    def test_noaa_forecast_leads_use_run_plus_hours_not_issue_clock(self):
+        html='''<a href="watl24_sfcfcst_12.2026101617.gif">24h</a>
+<a href="atl48_sfcfcst_00.2026101705.gif">48h</a>
+<a href="atl96_sfcfcst_12.2026101618.gif">96h</a>
+<a href="atl48_sfcfcst_00.2026101722.gif">bad issue delay</a>
+<a href="https://evil.example/atl48_sfcfcst_00.2026101705.gif">unsafe</a>'''
+        a=charts.extract_opc_24(html,NOW)
+        b=charts.extract_opc_48(html,NOW)
+        c=charts.extract_opc_96(html,NOW)
+        self.assertEqual(a[0]["valid_utc"],"2026-10-17T12:00+00:00")
+        self.assertEqual(a[0]["forecast_hours"],24)
+        self.assertEqual(b[0]["valid_utc"],"2026-10-19T00:00+00:00")
+        self.assertEqual(b[0]["issued_utc"],"2026-10-17T05:00+00:00")
+        self.assertEqual(b[0]["run_utc"],"2026-10-17T00:00+00:00")
+        self.assertEqual(c[0]["valid_utc"],"2026-10-20T12:00+00:00")
+        self.assertEqual(c[0]["forecast_hours"],96)
+        self.assertEqual(len(b),1)
+
+    def test_noaa_west_analysis_is_not_an_independent_agency(self):
+        html='<a href="atlw_sfcanal_06.2026101608.gif">west</a>'
+        rec=charts.extract_opc_west(html,NOW)
+        self.assertEqual(len(rec),1)
+        self.assertEqual(rec[0]["valid_utc"],"2026-10-16T06:00+00:00")
+        self.assertEqual(rec[0]["publisher_id"],"noaa")
+
     def test_noaa_opc_license_and_external_services(self):
         sources={s["id"]:s for s in charts.SOURCES}
         self.assertEqual(sources["noaa_opc"]["type"],"auto")
         self.assertEqual(sources["noaa_full"]["type"],"auto")
+        for id in ("noaa_west","noaa_24","noaa_48","noaa_96"):
+            self.assertEqual(sources[id]["type"],"auto")
+        self.assertEqual(len(sources),len({s["id"] for s in charts.SOURCES}))
         self.assertEqual(sources["eccc"]["type"],"external")
         self.assertEqual(sources["metoffice"]["type"],"external")
 
