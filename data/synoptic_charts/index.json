@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-17T06:40:07+00:00",
+  "generated_utc": "2026-10-17T11:41:50+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -112,30 +112,6 @@
     {
       "source_id": "noaa_full",
       "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-15T06:00+00:00",
-      "issued_utc": "2026-10-15T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_06.2026101508.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_full_20261015_0600.webp",
-      "size_bytes": 254850
-    },
-    {
-      "source_id": "noaa_opc",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-15T06:00+00:00",
-      "issued_utc": "2026-10-15T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_06.2026101508.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_opc_20261015_0600.webp",
-      "size_bytes": 148420
-    },
-    {
-      "source_id": "noaa_full",
-      "kind": "0-h-Bodenkarte",
       "valid_utc": "2026-10-15T12:00+00:00",
       "issued_utc": "2026-10-15T14:00+00:00",
       "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_12.2026101514.gif",
@@ -204,17 +180,6 @@
       "publisher_id": "noaa",
       "image": "images/noaa_opc_20261016_0000.webp",
       "size_bytes": 147216
-    },
-    {
-      "source_id": "dwd",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-16T06:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261016074532_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610160600_WV12.png",
-      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
-      "credit": "© Deutscher Wetterdienst (DWD)",
-      "image": "images/dwd_20261016_0600.webp",
-      "size_bytes": 1426396
     },
     {
       "source_id": "noaa_full",
@@ -323,21 +288,6 @@
       "size_bytes": 299672
     },
     {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-17T00:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-10-17T10:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261017_0000.webp",
-      "size_bytes": 292818
-    },
-    {
       "source_id": "dwd",
       "kind": "Analyse",
       "valid_utc": "2026-10-17T00:00+00:00",
@@ -371,6 +321,56 @@
       "publisher_id": "noaa",
       "image": "images/noaa_opc_20261017_0000.webp",
       "size_bytes": 158724
+    },
+    {
+      "source_id": "chmi",
+      "publisher_id": "chmi",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-17T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
+      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider_timeline_utc": "2026-10-17T10:00+00:00",
+      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
+      "image": "images/chmi_20261017_0600.webp",
+      "size_bytes": 302856
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-17T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261017075241_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610170600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261017_0600.webp",
+      "size_bytes": 1442266
+    },
+    {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-17T06:00+00:00",
+      "issued_utc": "2026-10-17T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_06.2026101708.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261017_0600.webp",
+      "size_bytes": 265600
+    },
+    {
+      "source_id": "noaa_opc",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-17T06:00+00:00",
+      "issued_utc": "2026-10-17T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_06.2026101708.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_opc_20261017_0600.webp",
+      "size_bytes": 156596
     },
     {
       "source_id": "aemet",
@@ -421,7 +421,7 @@
       "provider_timeline_utc": "2026-10-18T10:00+00:00",
       "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
       "image": "images/chmi_20261018_1200.webp",
-      "size_bytes": 277648
+      "size_bytes": 280780
     },
     {
       "source_id": "aemet",
@@ -460,11 +460,10 @@
       "provider_timeline_utc": "2026-10-19T10:00+00:00",
       "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
       "image": "images/chmi_20261019_1200.webp",
-      "size_bytes": 269976
+      "size_bytes": 272030
     }
   ],
   "time_slots": [
-    "2026-10-15T06:00+00:00",
     "2026-10-15T12:00+00:00",
     "2026-10-15T18:00+00:00",
     "2026-10-16T00:00+00:00",
@@ -472,6 +471,7 @@
     "2026-10-16T12:00+00:00",
     "2026-10-16T18:00+00:00",
     "2026-10-17T00:00+00:00",
+    "2026-10-17T06:00+00:00",
     "2026-10-17T12:00+00:00",
     "2026-10-18T00:00+00:00",
     "2026-10-18T12:00+00:00",
