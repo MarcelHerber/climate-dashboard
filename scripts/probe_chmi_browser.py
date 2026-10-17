@@ -25,22 +25,52 @@ def safe_url(url):
     except Exception:
         return None
 
+def safe_shape(value,depth=0):
+    """Only public API metadata structure, not raw signed URLs or credentials."""
+    if depth>=7:return "<nested>"
+    if isinstance(value,dict):
+        return {str(k)[:70]:safe_shape(v,depth+1) for k,v in list(value.items())[:55]
+                if not any(x in str(k).lower() for x in
+                           ("password","token","jwt","secret","authorization","credential","session","cookie"))}
+    if isinstance(value,list):
+        return {"length":len(value),"sample":[safe_shape(v,depth+1) for v in value[:5]]}
+    if isinstance(value,str):
+        if value.startswith(("http://","https://")):
+            return safe_url(value) or "<external resource>"
+        return value[:200]
+    if isinstance(value,(int,float,bool)) or value is None:return value
+    return str(type(value).__name__)
+
 
 async def inspect():
     from playwright.async_api import async_playwright
     records=[]
     errors=[]
+    api_shapes=[]
+    tasks=[]
     async with async_playwright() as p:
         browser=await p.chromium.launch(headless=True,
               args=["--no-sandbox","--disable-dev-shm-usage"])
         page=await browser.new_page(locale="cs-CZ",viewport={"width":1440,"height":1050})
-        page.on("response",lambda r:records.append({
-            "path":safe_url(r.url),"status":r.status,
-            "kind":r.request.resource_type}) if safe_url(r.url) else None)
+        async def on_response(response):
+            uri=safe_url(response.url)
+            if uri:
+                records.append({"path":uri,"status":response.status,
+                                "kind":response.request.resource_type})
+            if uri and "/api/playableImages/" in uri:
+                entry={"path":uri,"status":response.status}
+                try:
+                    payload=await response.json()
+                    entry["shape"]=safe_shape(payload)
+                except Exception as exc:
+                    entry["reason"]=(type(exc).__name__+": "+str(exc))[:130]
+                api_shapes.append(entry)
+        page.on("response",lambda r:tasks.append(asyncio.create_task(on_response(r))))
         page.on("pageerror",lambda error:errors.append(str(error)[:180]))
         try:
             await page.goto(PAGE,wait_until="domcontentloaded",timeout=55000)
             await page.wait_for_timeout(12000)
+            if tasks:await asyncio.gather(*tasks,return_exceptions=True)
             # Some chart variants only load after the normal app is settled.
             images=await page.locator("img").evaluate_all("""nodes =>
               nodes.map(n => ({
@@ -56,6 +86,7 @@ async def inspect():
                 "state":"browser_inspected",
                 "title":title[:120],
                 "select_count":selects,
+                "playable_images_api":api_shapes[:8],
                 "images":[{**im,"src":safe_url(im["src"])}
                           for im in images if safe_url(im["src"])][:80],
                 "synoptic_links":[{"path":safe_url(li["href"]),"label":li["text"]}
