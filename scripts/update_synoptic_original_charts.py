@@ -25,6 +25,10 @@ AEMET_PAGE="https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes"
 OPC_ARCHIVE="https://ftp.opc.ncep.noaa.gov/ncdc/"
 OPC_RE=re.compile(r"^atle_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 OPC_FULL_RE=re.compile(r"^atl00_sfcfcst_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+OPC_WEST_RE=re.compile(r"^atlw_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+OPC_24_RE=re.compile(r"^watl24_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+OPC_48_RE=re.compile(r"^atl48_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+OPC_96_RE=re.compile(r"^atl96_sfcfcst_(12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 DWD_RE=re.compile(r"_([0-9]{12})_WV12\.png$",re.I)
 AEMET_RE=re.compile(r"([0-9]{10})\+([0-9]{3})_ww_[a-z0-9]+\.gif$",re.I)
 SOURCES=[
@@ -38,6 +42,18 @@ SOURCES=[
  {"id":"noaa_full","name":"NOAA OPC · Gesamtatlantik (gleicher Dienst)","country":"USA",
   "url":"https://ocean.weather.gov/Atl_tab.php","type":"auto",
   "license":"NOAA/NWS Public Domain; zweiter Kartenausschnitt desselben Wetterdienstes"},
+ {"id":"noaa_west","name":"NOAA OPC · Westatlantik","country":"USA",
+  "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
+  "license":"NOAA/NWS Public Domain · weitere Region desselben Wetterdienstes"},
+ {"id":"noaa_24","name":"NOAA OPC · Westatlantik +24 h","country":"USA",
+  "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
+  "license":"NOAA/NWS Public Domain · 24-h-Prognose"},
+ {"id":"noaa_48","name":"NOAA OPC · Nordatlantik +48 h","country":"USA",
+  "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
+  "license":"NOAA/NWS Public Domain · 48-h-Prognose"},
+ {"id":"noaa_96","name":"NOAA OPC · Nordatlantik +96 h","country":"USA",
+  "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
+  "license":"NOAA/NWS Public Domain · 96-h-Prognose"},
  {"id":"chmi","name":"ČHMÚ · Atlantik/Europa","country":"Tschechien",
   "url":"https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
   "type":"auto","license":"© ČHMÚ · CC BY 4.0 · Bild aus Original-API, ins WebP-Format konvertiert"},
@@ -47,9 +63,6 @@ SOURCES=[
  {"id":"metoffice","name":"Met Office","country":"Großbritannien",
   "url":"https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
   "type":"external","license":"Nur Quellenseite verlinkt; Bilder nicht eingebettet"},
- {"id":"chmi","name":"ČHMÚ","country":"Tschechien",
-  "url":"https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-  "type":"external","license":"Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"},
  {"id":"metie","name":"Met Éireann","country":"Irland",
   "url":"https://www.met.ie/latest-reports/surface-analysis",
   "type":"external","license":"Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"},
@@ -167,6 +180,59 @@ def extract_opc_full(html, now):
         "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)","0-h-Bodenkarte")
 
 
+def extract_opc_west(html,now):
+    """Northwest Atlantic original surface analysis, same NOAA/NWS publisher."""
+    return _extract_opc_type(html,now,OPC_WEST_RE,"noaa_west",
+        "NOAA/NWS · Ocean Prediction Center (Westatlantik)","Analyse")
+
+
+def _extract_opc_forecast(html,now,pattern,source_id,lead,region):
+    """Provider's filename prefix gives run UTC hour, suffix date gives
+    INITIALIZATION DATE + issued hour. A 48-hour chart valid time is
+    run calendar date/hour +48h; never use the suffix date as valid day.
+    """
+    parser=Links();parser.feed(html)
+    data={}
+    for href in parser.refs:
+        url=urljoin(OPC_ARCHIVE,href)
+        parsed=urlparse(url)
+        if parsed.hostname not in ("ftp.opc.ncep.noaa.gov","ftp.ocean.weather.gov"):
+            continue
+        name=unquote(parsed.path.rsplit("/",1)[-1])
+        match=pattern.fullmatch(name)
+        if not match:continue
+        run=timestamp(match.group(2)+match.group(1),"%Y%m%d%H")
+        issued=timestamp(match.group(2)+match.group(3),"%Y%m%d%H")
+        if not (run<=issued<=run+timedelta(hours=10)):
+            continue
+        valid=run+timedelta(hours=lead)
+        if not (now-timedelta(hours=24)<=valid<=now+timedelta(hours=125)):
+            continue
+        key=valid.isoformat(timespec="minutes")
+        entry={"source_id":source_id,"publisher_id":"noaa",
+            "kind":"Prognose","forecast_hours":lead,
+            "valid_utc":key,"issued_utc":issued.isoformat(timespec="minutes"),
+            "run_utc":run.isoformat(timespec="minutes"),
+            "source_url":url,
+            "source_page":"https://ocean.weather.gov/Loops/NCDC_names.php",
+            "credit":"NOAA/NWS · Ocean Prediction Center ("+region+")"}
+        if key not in data or entry["issued_utc"]>data[key]["issued_utc"]:
+            data[key]=entry
+    return sorted(data.values(),key=lambda x:x["valid_utc"])[:6]
+
+
+def extract_opc_24(html,now):
+    return _extract_opc_forecast(html,now,OPC_24_RE,"noaa_24",24,"Westatlantik +24 h")
+
+
+def extract_opc_48(html,now):
+    return _extract_opc_forecast(html,now,OPC_48_RE,"noaa_48",48,"Nordatlantik +48 h")
+
+
+def extract_opc_96(html,now):
+    return _extract_opc_forecast(html,now,OPC_96_RE,"noaa_96",96,"Nordatlantik +96 h")
+
+
 def download(url,timeout=30,limit=9_000_000):
     request=Request(url,headers={
         "User-Agent":"ClimateDashboardDeutschland/1.0 (synoptic-source-monitor)",
@@ -201,7 +267,11 @@ def main(output=OUT,now=None):
     charts=[];status={}
     sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),
              ("noaa_opc",OPC_ARCHIVE,extract_opc),
-             ("noaa_full",OPC_ARCHIVE,extract_opc_full)]
+             ("noaa_full",OPC_ARCHIVE,extract_opc_full),
+             ("noaa_west",OPC_ARCHIVE,extract_opc_west),
+             ("noaa_24",OPC_ARCHIVE,extract_opc_24),
+             ("noaa_48",OPC_ARCHIVE,extract_opc_48),
+             ("noaa_96",OPC_ARCHIVE,extract_opc_96)]
     with __import__("tempfile").TemporaryDirectory(prefix="synoptic-charts-") as work:
         temp=Path(work)
         for key,url,parse in sources:
