@@ -60,3 +60,6 @@ footer{text-align:center;padding:18px;font-size:12px;color:var(--muted)}
 .charts.four.compact-three>.chart:last-child{grid-column:1/-1}
 .charts.four.compact-three>.chart:last-child .chart-body img{max-height:670px;max-width:100%;width:auto}
 @media(max-width:590px){.charts.four.compact-three>.chart:last-child{grid-column:auto}.independent-toggle{width:100%}}
+
+/* Meteorologisch eindeutiger Kartentyp, auch bei identischen UTC-Terminen. */
+.chart-category{background:#e8eef4;color:#2e526e;border-radius:6px;font-size:11px;font-weight:750;padding:3px 8px;white-space:normal}
