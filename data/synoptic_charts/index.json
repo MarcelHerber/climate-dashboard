@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T12:33:08+00:00",
+  "generated_utc": "2026-10-19T12:34:39+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -299,6 +299,10 @@
       "state": "available",
       "charts": 1,
       "valid_utc": "2026-10-20T12:00+00:00"
+    },
+    "imo": {
+      "state": "unavailable",
+      "reason": "ValueError: IMO caption lacks the printed 'Gildistími' validity label"
     }
   },
   "charts": [
