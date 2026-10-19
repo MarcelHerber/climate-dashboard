@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T07:43:39+00:00",
+  "generated_utc": "2026-10-19T07:58:55+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -119,15 +119,15 @@
     },
     {
       "id": "metno",
-      "name": "MET Norway · Skandinavien",
+      "name": "MET Norway · kein verifizierter Direktlink",
       "country": "Norwegen",
-      "url": "https://www.met.no/publikasjoner",
+      "url": "https://www.met.no/en/weather-and-climate",
       "type": "external",
       "license": "Synoptische Analysen in offiziellen Berichten; kein verifizierter automatischer Live-Bildfeed"
     },
     {
       "id": "imgw",
-      "name": "IMGW · Polen",
+      "name": "IMGW · kein verifizierter Direktlink",
       "country": "Polen",
       "url": "https://meteo.imgw.pl/",
       "type": "external",
@@ -169,7 +169,7 @@
       "id": "noaa_wpc",
       "name": "NOAA WPC · Nordamerika Analyse/Prognosen",
       "country": "USA",
-      "url": "https://www.weather.gov/zme/sfc_analysis",
+      "url": "https://www.weather.gov/forecastmaps",
       "type": "external",
       "license": "Amtliche Bodenanalysen sowie 12-, 24-, 36- und 48-h-Prognosen; externer Link"
     },
@@ -193,7 +193,7 @@
   "source_status": {
     "dwd": {
       "state": "available",
-      "charts": 8
+      "charts": 7
     },
     "aemet": {
       "state": "available",
@@ -217,7 +217,7 @@
     },
     "noaa_48": {
       "state": "available",
-      "charts": 6
+      "charts": 5
     },
     "noaa_96": {
       "state": "available",
@@ -234,17 +234,6 @@
     }
   },
   "charts": [
-    {
-      "source_id": "dwd",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-17T06:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261017075241_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610170600_WV12.png",
-      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
-      "credit": "© Deutscher Wetterdienst (DWD)",
-      "image": "images/dwd_20261017_0600.webp",
-      "size_bytes": 1442266
-    },
     {
       "source_id": "noaa_full",
       "kind": "0-h-Bodenkarte",
@@ -479,20 +468,6 @@
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261018_1200.webp",
       "size_bytes": 1479960
-    },
-    {
-      "source_id": "noaa_48",
-      "publisher_id": "noaa",
-      "kind": "Prognose",
-      "forecast_hours": 48,
-      "valid_utc": "2026-10-18T12:00+00:00",
-      "issued_utc": "2026-10-16T17:00+00:00",
-      "run_utc": "2026-10-16T12:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl48_sfcfcst_12.2026101617.gif",
-      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
-      "image": "images/noaa_48_20261018_1200.webp",
-      "size_bytes": 241382
     },
     {
       "source_id": "noaa_96",
@@ -912,6 +887,6 @@
     "2026-10-21T12:00+00:00",
     "2026-10-22T12:00+00:00"
   ],
-  "chart_count": 53,
+  "chart_count": 51,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
