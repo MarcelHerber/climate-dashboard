@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-10-19T15:06:43+00:00",
+  "method": "official_HTML_viewer_diagnostics_not_original_chart_timestamp_verification",
+  "no_auto_ingestion": true,
+  "sources": [
+    {
+      "id": "hnms",
+      "country": "Griechenland",
+      "url": "https://www.emy.gr/en/marine",
+      "state": "not_reachable",
+      "checked_utc": "2026-10-19T15:06:43+00:00",
+      "ready_for_automatic_charts": false,
+      "error": "URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>"
+    },
+    {
+      "id": "imgw_synoptic_forecast",
+      "country": "Polen",
+      "url": "https://modele.imgw.pl/cmm/?page_id=19032",
+      "state": "html_inspected",
+      "checked_utc": "2026-10-19T15:06:43+00:00",
+      "ready_for_automatic_charts": false,
+      "same_host_image_candidates": [],
+      "explicit_utc_attributes": [],
+      "mentions_isobars": true,
+      "ready_for_image_reuse": false
+    },
+    {
+      "id": "meteofrance",
+      "country": "Frankreich",
+      "url": "https://meteofrance.com/isofronts",
+      "state": "html_inspected",
+      "checked_utc": "2026-10-19T15:06:43+00:00",
+      "ready_for_automatic_charts": false,
+      "same_host_image_candidates": [
+        "https://meteofrance.com/sites/default/files/logo/LOGO_MF.png",
+        "https://meteofrance.com/sites/default/files/bulletin/assets/episode-mediterraneen-meteo-france.jpg",
+        "https://meteofrance.com/sites/default/files/styles/80_56/public/images/articles/gettyimages-pluie-498063665_4.gif?itok=oJAIkUoP",
+        "https://meteofrance.com/sites/default/files/styles/80_56/public/images/articles/Photo-Une-Adrien%20Cailloux%20-%20S%C3%A9cheresse%20sous%20haute%20tension%20%281%29.jpeg?itok=w5F5kDSu",
+        "https://meteofrance.com/sites/default/files/styles/80_56/public/images/articles/automne%20illustration_0.JPG?itok=mSWqAN5E",
+        "https://meteofrance.com/modules/custom/mf_zone_bulletin/img/bulletin.png",
+        "https://meteofrance.com/sites/default/files/styles/345_180/public/images/articles/pluie2.gif?itok=y0Nc1R0J",
+        "https://meteofrance.com/sites/default/files/styles/345_180/public/images/articles/Illustration%20-%20orages.jpg?itok=r-QA66Xd",
+        "https://meteofrance.com/sites/default/files/styles/345_180/public/images/articles/GettyImages-909171638.jpg?itok=RLuK9Uoh",
+        "https://meteofrance.com/sites/default/files/styles/345_180/public/images/articles/GettyImages-525029304.jpg?itok=Vpl8l03i",
+        "https://meteofrance.com/sites/default/files/styles/80_56/public/images/articles/GettyImages-490672710.jpg?itok=aDGjSewj",
+        "https://meteofrance.com/sites/default/files/styles/80_56/public/images/articles/Vent-feuilles-GettyImages-winyuu.jpg?itok=12PV9OVi"
+      ],
+      "explicit_utc_attributes": [],
+      "mentions_isobars": true,
+      "ready_for_image_reuse": false
+    },
+    {
+      "id": "meteoswiss",
+      "country": "Schweiz",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "state": "html_inspected",
+      "checked_utc": "2026-10-19T15:06:43+00:00",
+      "ready_for_automatic_charts": false,
+      "same_host_image_candidates": [],
+      "explicit_utc_attributes": [],
+      "mentions_isobars": true,
+      "ready_for_image_reuse": false
+    },
+    {
+      "id": "smhi",
+      "country": "Schweden",
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "state": "html_inspected",
+      "checked_utc": "2026-10-19T15:06:43+00:00",
+      "ready_for_automatic_charts": false,
+      "same_host_image_candidates": [
+        "https://www.smhi.se/images/18.1e06e3b418b6c84bee31aa/1698936449879/SMHILogo.png",
+        "https://www.smhi.se/images/200.6da8c3bd198c10f02253659/1757847036598/6231140-host.webp",
+        "https://www.smhi.se/images/200.78f4b4b41a0f1235dbed8f/1791357274885/mp41212682-children-in-the-park-with-autumn-leaves-selective-focus.webp",
+        "https://www.smhi.se/images/200.3fff79411a03d0afb4e4cfa/1788858508763/8451296-roar-in-the-river.webp"
+      ],
+      "explicit_utc_attributes": [],
+      "mentions_isobars": false,
+      "ready_for_image_reuse": false
+    }
+  ]
+}
