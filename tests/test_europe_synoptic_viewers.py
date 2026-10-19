@@ -19,10 +19,10 @@ class OfficialViewerTests(unittest.TestCase):
         self.assertIsNone(mod.known_image("http://www.emy.gr/image.png","https://www.emy.gr/en/marine","www.emy.gr"))
         self.assertIsNone(mod.known_image("https://www.emy.gr.bad.com/a.png","https://www.emy.gr/en/marine","www.emy.gr"))
         self.assertFalse(mod.DATE_VALID.fullmatch("2026-19-99T14:00Z"))
-    def test_five_distinct_official_sources_are_audited_fail_closed(self):
+    def test_six_distinct_official_sources_are_audited_fail_closed(self):
         def f(url,host):return '<div data-valid-utc="2026-10-19T00:00Z">surface pressure</div>'
         r=mod.collect(fetch=f,now=datetime(2026,10,19,15,tzinfo=timezone.utc))
-        self.assertEqual(len(r["sources"]),5)
+        self.assertEqual(len(r["sources"]),6)
         self.assertEqual(len({x["id"] for x in r["sources"]}),5)
         self.assertTrue(all(x["state"]=="html_inspected" for x in r["sources"]))
         self.assertTrue(all(not x["ready_for_automatic_charts"] for x in r["sources"]))
@@ -32,6 +32,6 @@ class OfficialViewerTests(unittest.TestCase):
             return '<html></html>'
         r=mod.collect(fetch=f)
         self.assertEqual(r["sources"][0]["state"],"not_reachable")
-        self.assertEqual(sum(x["state"]=="html_inspected" for x in r["sources"]),4)
+        self.assertEqual(sum(x["state"]=="html_inspected" for x in r["sources"]),5)
 
 if __name__=="__main__":unittest.main()
