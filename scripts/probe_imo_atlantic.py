@@ -118,7 +118,8 @@ def probe(now:datetime|None=None,fetch=download_text)->dict:
             html=fetch(page)
             assets=document_assets(html,page)
             report.update({"state":"inspected","image_count":len(assets["images"]),
-                           "script_count":len(assets["scripts"])})
+                           "script_count":len(assets["scripts"]),
+                           "inline_image_or_endpoint_hints":inspect_script(html)})
             for img in assets["images"]:
                 candidates.append({"source_page":page,**img})
             # Avoid unbounded crawling; only same-origin JavaScript. This is
