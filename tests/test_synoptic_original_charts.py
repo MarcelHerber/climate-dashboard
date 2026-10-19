@@ -114,6 +114,39 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual(len(charts.SOURCES),len(providers))
         self.assertTrue(providers["dhmz"]["url"].startswith("https://meteo.hr/"))
 
+
+    def test_knmi_parses_official_dated_gif_links_not_legend(self):
+        now=datetime(2026,10,19,10,tzinfo=timezone.utc)
+        html='''<ul>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL1906_large.gif">Analyse maandag 19-10-2026 06 UTC</a>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL1912_large.gif">Prognose voor maandag 19-10-2026 12 UTC</a>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL2000_large.gif">Prognose voor dinsdag 20-10-2026 00 UTC</a>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL2012_large.gif">Prognose voor dinsdag 20-10-2026 12 UTC</a>
+<a href="https://evil.example/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL1906_large.gif">Analyse maandag 19-10-2026 06 UTC</a>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL1906_large.gif">Analyse maandag 19-10-2026 06 UTC</a>
+<a href="https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/legend_large.gif">Uitleg symbolen</a>
+</ul>'''
+        records=charts.extract_knmi(html,now)
+        self.assertEqual(len(records),4)
+        self.assertEqual([x["valid_utc"] for x in records],[
+            "2026-10-19T06:00+00:00",
+            "2026-10-19T12:00+00:00",
+            "2026-10-20T00:00+00:00",
+            "2026-10-20T12:00+00:00"])
+        self.assertEqual(records[0]["kind"],"Analyse")
+        self.assertTrue(all(r["source_url"].startswith("https://cdn.knmi.nl/") for r in records))
+        self.assertTrue(all(r["publisher_id"]=="knmi" for r in records))
+        self.assertEqual({r["kind"] for r in records},{"Analyse","Prognose"})
+
+    def test_no_unlicensed_dmi_shmu_or_metie_image_ingestion(self):
+        providers={s["id"]:s for s in charts.SOURCES}
+        for provider in ("dmi","metie","metoffice"):
+            self.assertEqual(providers[provider]["type"],"external")
+        self.assertNotIn("shmu",[provider_id for provider_id,_,_ in [
+            ("dwd",charts.DWD_INDEX,charts.extract_dwd),
+            ("aemet",charts.AEMET_PAGE,charts.extract_aemet),
+            ("knmi",charts.KNMI_PAGE,charts.extract_knmi)]])
+
     def test_met_office_not_auto_scraped(self):
         providers={x["id"]:x for x in charts.SOURCES}
         self.assertEqual(providers["metoffice"]["type"],"external")
