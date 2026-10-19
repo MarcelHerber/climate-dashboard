@@ -6,6 +6,7 @@ const INITIAL=["dwd","aemet","noaa_opc","chmi"];
 let catalog=null;
 let europeSourceAudit=null;
 let imoDiagnostic=null;
+let europeanViewerProbe=null;
 let automaticChoice=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -50,6 +51,11 @@ function sourceDirectory(){
    note:"IMO Atlantik · ECMWF-basierte Isobarenprognosen ohne Fronten. Letzter technischer Abruf: "+
     since+" · "+total+" Prognose-Dateinamen gefunden · "+state+
     ". Keine geschätzten Laufzeiten im Vierer-Panel."});
+ }
+ for(const probe of europeanViewerProbe?.sources||[]){
+  const existing=merged.get(probe.id);
+  if(existing&&probe.ready_for_automatic_charts===false)
+   merged.set(probe.id,{...existing,viewer_probe:probe});
  }
  for(const id of AUTO_FALLBACK){
   const s=merged.get(id);
@@ -105,6 +111,13 @@ function fillSources(){
    article.append(policyBadge);
   }
   article.append(node("p","",(s.note||s.license||"")+statusDetail));
+  if(s.viewer_probe){
+   const status=s.viewer_probe.state==="html_inspected"?
+    "Offizielle Quellenseite technisch erreichbar; Kartenbild/UTC noch nicht freigegeben":
+    "Quellenseite beim letzten Prüflauf nicht erfolgreich analysiert";
+   const tick=s.viewer_probe.checked_utc?" · geprüft "+isoDE(s.viewer_probe.checked_utc):"";
+   article.append(node("span","source-inspection",status+tick));
+  }
   const a=node("a","",category==="archive"?"Archiv / Bericht öffnen":category==="unverified"?"Quelle prüfen":"Karten öffnen");
   a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";article.append(a);
   if(s.source_policy?.terms_url){
@@ -403,12 +416,20 @@ async function load(){
      Array.isArray(report.pages)?report:null;
    }else imoDiagnostic=null;
   }catch(_e){imoDiagnostic=null;}
+  try{
+   const response=await fetch(ROOT+"europe_viewer_probe.json?v="+Date.now(),{cache:"no-store"});
+   if(response.ok){
+    const result=await response.json();
+    europeanViewerProbe=result.schema_version===1&&result.no_auto_ingestion===true&&
+      Array.isArray(result.sources)?result:null;
+   }else europeanViewerProbe=null;
+  }catch(_e){europeanViewerProbe=null;}
   renderDataHealth();
   fillSources();
   fillPickers();
   refreshView();
  }catch(err){
-  catalog=null;europeSourceAudit=null;imoDiagnostic=null;
+  catalog=null;europeSourceAudit=null;imoDiagnostic=null;europeanViewerProbe=null;
   $("chartStatus").textContent="Kartenindexfehler: "+err.message;
   renderDataHealth();
   $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
