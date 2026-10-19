@@ -110,7 +110,10 @@ class OriginalSynopticChartTests(unittest.TestCase):
         providers={s["id"]:s for s in charts.SOURCES}
         self.assertEqual(providers["dhmz"]["type"],"auto")
         self.assertEqual(providers["dmi"]["type"],"external")
+        self.assertEqual(providers["shmu"]["type"],"external")
+        self.assertEqual(providers["meteoswiss"]["type"],"external")
         self.assertEqual(providers["metie"]["type"],"external")
+        self.assertEqual(providers["metie_forecast"]["type"],"external")
         self.assertEqual(len(charts.SOURCES),len(providers))
         self.assertTrue(providers["dhmz"]["url"].startswith("https://meteo.hr/"))
 
