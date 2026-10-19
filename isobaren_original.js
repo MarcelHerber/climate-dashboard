@@ -326,41 +326,51 @@ function refreshView(){
 }
 async function pngExport(){
  const validity=$("validTime").value;
- const ids=currentProviders(),four=ids.length===4;
- const W=four?1640:1180,H=four?1320:1010;
+ // Export precisely the images shown on screen, never empty/export-only panels.
+ const ids=visibleSelection().shown.filter(id=>cardsAt(id,validity).length>0);
+ if(!ids.length)return;
+ const four=$("chartMode").value==="four";
+ const cols=four&&ids.length>1?2:1,rows=Math.ceil(ids.length/cols);
+ const W=cols===2?1640:1180,H=rows===2?1320:1010;
  const canvas=document.createElement("canvas");canvas.width=W;canvas.height=H;
  const ctx=canvas.getContext("2d");if(!ctx)return;
  ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);
- ctx.fillStyle="#172e46";ctx.font="bold 32px Arial";ctx.fillText("Isobaren & Fronten · Originalkarten",35,55);
- ctx.fillStyle="#455f79";ctx.font="19px Arial";ctx.fillText("Gültig: "+isoDE(validity)+" · identische UTC-Gültigkeit",35,87);
- const pad=24,top=118,cellW=(W-pad*3)/(four?2:1),cellH=(H-top-72-pad*(four?2:1))/(four?2:1);
+ ctx.fillStyle="#172e46";ctx.font="bold 32px Arial";
+ ctx.fillText("Isobaren & Fronten · Originalkarten",35,55);
+ ctx.fillStyle="#455f79";ctx.font="19px Arial";
+ ctx.fillText("Gültig: "+isoDE(validity)+" · alle Karten exakt UTC-synchron",35,87);
+ const pad=24,top=118,footer=92;
+ const baseW=(W-pad*(cols+1))/cols,cellH=(H-top-footer-pad*(rows-1))/rows;
  let loaded=0;
  for(let i=0;i<ids.length;i++){
-  const x=pad+(i%(four?2:1))*(cellW+pad),y=top+Math.floor(i/(four?2:1))*(cellH+pad);
+  const spread=cols===2&&ids.length===3&&i===2;
+  const cellW=spread?W-pad*2:baseW;
+  const x=spread?pad:pad+(i%cols)*(baseW+pad);
+  const y=top+Math.floor(i/cols)*(cellH+pad);
   ctx.fillStyle="#f6f8fa";ctx.fillRect(x,y,cellW,cellH);
   ctx.strokeStyle="#cfdae4";ctx.strokeRect(x,y,cellW,cellH);
   const provider=source(ids[i]),record=cardsAt(ids[i],validity)[0];
-  ctx.fillStyle="#18364f";ctx.font="bold 21px Arial";ctx.fillText(provider?.name||ids[i],x+15,y+28);
-  ctx.fillStyle="#556c7e";ctx.font="14px Arial";ctx.fillText(record?record.kind+" · "+record.credit:"Kein zeitgleiches Bild / Originalseite öffnen",x+15,y+51);
-  if(!record)continue;
+  ctx.fillStyle="#18364f";ctx.font="bold 20px Arial";ctx.fillText(provider?.name||ids[i],x+15,y+27);
+  ctx.fillStyle="#556c7e";ctx.font="14px Arial";
+  ctx.fillText(recordType(record)+" · "+record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""),x+15,y+49);
   try{
-   const img=new Image();
-   img.src=ROOT+record.image;
+   const img=new Image();img.src=ROOT+record.image;
    await img.decode();
-   const maxW=cellW-24,maxH=cellH-82,scale=Math.min(maxW/img.naturalWidth,maxH/img.naturalHeight);
+   const maxW=cellW-26,maxH=cellH-86,scale=Math.min(maxW/img.naturalWidth,maxH/img.naturalHeight);
    const ww=img.naturalWidth*scale,hh=img.naturalHeight*scale;
    ctx.drawImage(img,x+(cellW-ww)/2,y+60+(maxH-hh)/2,ww,hh);loaded++;
-  }catch(e){ctx.fillText("Originalbild nicht erreichbar",x+20,y+86);}
+  }catch(e){ctx.fillText("Originalbild nicht erreichbar",x+20,y+89);}
  }
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
- const providers=[...new Set(ids.filter(id=>cardsAt(id,validity).length).map(id=>source(id)?.name||id))].join(" · ");
- ctx.fillText(("Quellen: "+providers).slice(0,160),32,H-34);
- if(ids.some(id=>id==="chmi"&&cardsAt(id,validity).length)){
-  ctx.fillText("ČHMÚ · CC BY 4.0 · https://creativecommons.org/licenses/by/4.0/ · PNG→WebP, Panelanordnung",32,H-14);
+ const providers=[...new Set(ids.map(id=>source(id)?.name||id))].join(" · ");
+ ctx.fillText(("Quellen: "+providers).slice(0,145),32,H-49);
+ ctx.fillText("Originalbilder mit Quellenangaben und Bildgültigkeit; Reprojektion und künstliche Fronten wurden nicht vorgenommen.",32,H-30);
+ if(ids.some(id=>id==="chmi")){
+  ctx.fillText("ČHMÚ · CC BY 4.0 · https://creativecommons.org/licenses/by/4.0/ · PNG→WebP / Anordnung",32,H-11);
  }
  const a=document.createElement("a");
- a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_4er":"")+".png";
+ a.download="Synoptik_Originalkarten_"+validity.slice(0,16).replace(/[-:]/g,"")+(four?"_vergleich":"")+".png";
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
 }
 async function load(){
