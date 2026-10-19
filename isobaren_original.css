@@ -63,3 +63,8 @@ footer{text-align:center;padding:18px;font-size:12px;color:var(--muted)}
 
 /* Meteorologisch eindeutiger Kartentyp, auch bei identischen UTC-Terminen. */
 .chart-category{background:#e8eef4;color:#2e526e;border-radius:6px;font-size:11px;font-weight:750;padding:3px 8px;white-space:normal}
+
+/* Originalkarten direkt beim RHMZ; keine ungeprüfte Bildübernahme. */
+.official-deep-links{display:flex;flex-direction:column;gap:6px;margin:11px 0 8px}
+.official-deep-links a{display:block;padding:7px 9px;border:1px solid #c8dbe9;border-radius:7px;background:#f0f6fc;color:#155a8b;font-weight:650;text-decoration:none;line-height:1.4}
+.official-deep-links a:hover{background:#e1effb;text-decoration:underline}
