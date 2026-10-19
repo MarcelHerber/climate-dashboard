@@ -92,6 +92,10 @@ function card(provider,time){
  const footer=node("div","chart-footer");
  footer.append(node("span","",record?record.credit:"Keine Karte für "+isoDE(time)));
  if(s){
+  if(record?.terms_url){
+   const terms=node("a","","DHMZ-Nutzungsbedingungen");
+   terms.href=record.terms_url;terms.target="_blank";terms.rel="noopener noreferrer";footer.append(terms);
+  }
   if(record?.license_url){
    const license=node("a","","CC BY 4.0");
    license.href=record.license_url;license.target="_blank";license.rel="noopener noreferrer";footer.append(license);
@@ -174,7 +178,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
@@ -192,7 +196,10 @@ async function load(){
    ["IMO","https://en.vedur.is/weather/shipping/atlantic/"],
    ["NOAA OPC","https://ocean.weather.gov/Atl_tab.php"],
    ["ECCC","https://weather.gc.ca/analysis/index_e.html"],
-   ["NOAA OPC Prognosen","https://ocean.weather.gov/Loops/NCDC_names.php"]]){
+   ["NOAA OPC Prognosen","https://ocean.weather.gov/Loops/NCDC_names.php"],
+   ["DMI – Frontkort","https://www.dmi.dk/vejret/frontkort"],
+   ["DHMZ – Europa","https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model"],
+   ["Met Éireann – Bodenanalyse","https://www.met.ie/latest-reports/surface-analysis"]]){
    const card=node("div","source"),a=node("a","",s[0]+" · Originalseite");
    a.href=s[1];a.target="_blank";a.rel="noopener noreferrer";card.append(a);
    $("sourceCatalog").append(card);
