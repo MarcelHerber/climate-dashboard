@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T12:37:15+00:00",
+  "generated_utc": "2026-10-19T12:39:35+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -250,7 +250,7 @@
       "name": "IMO",
       "country": "Island",
       "url": "https://en.vedur.is/weather/shipping/atlantic/",
-      "type": "external",
+      "type": "auto",
       "license": "ECMWF-basierte Isobarenprognosen (ohne Fronten); IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe, jedoch fehlt ein sicher auslesbarer Bild-UTC-Termin"
     }
   ],
@@ -273,7 +273,7 @@
     },
     "noaa_full": {
       "state": "available",
-      "charts": 7
+      "charts": 8
     },
     "noaa_west": {
       "state": "available",
@@ -301,8 +301,9 @@
       "valid_utc": "2026-10-20T12:00+00:00"
     },
     "imo": {
-      "state": "unavailable",
-      "reason": "ValueError: IMO caption lacks the printed 'Gildistími' validity label"
+      "state": "available",
+      "charts": 4,
+      "product": "ECMWF-based isobar forecast WITHOUT analyzed fronts"
     }
   },
   "charts": [
@@ -363,6 +364,18 @@
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261017_1800.webp",
       "size_bytes": 1437372
+    },
+    {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-17T18:00+00:00",
+      "issued_utc": "2026-10-17T20:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_18.2026101720.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261017_1800.webp",
+      "size_bytes": 265144
     },
     {
       "source_id": "noaa_opc",
@@ -724,6 +737,23 @@
       "size_bytes": 323080
     },
     {
+      "source_id": "imo",
+      "publisher_id": "imo",
+      "kind": "Prognose",
+      "forecast_hours": 12,
+      "run_utc": "2026-10-19T00:00+00:00",
+      "issued_utc": null,
+      "valid_utc": "2026-10-19T12:00+00:00",
+      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_0000_12.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-19 UTC",
+      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
+      "map_type": "isobars_model_forecast_no_fronts",
+      "image": "images/imo_20261019_1200.webp",
+      "size_bytes": 161398
+    },
+    {
       "source_id": "knmi",
       "publisher_id": "knmi",
       "kind": "Analyse",
@@ -764,6 +794,23 @@
       "size_bytes": 238972
     },
     {
+      "source_id": "imo",
+      "publisher_id": "imo",
+      "kind": "Prognose",
+      "forecast_hours": 15,
+      "run_utc": "2026-10-19T00:00+00:00",
+      "issued_utc": null,
+      "valid_utc": "2026-10-19T15:00+00:00",
+      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_0000_15.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-19 UTC",
+      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
+      "map_type": "isobars_model_forecast_no_fronts",
+      "image": "images/imo_20261019_1500.webp",
+      "size_bytes": 159260
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-20T00:00+00:00",
@@ -774,6 +821,23 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261020_0000.webp",
       "size_bytes": 305648
+    },
+    {
+      "source_id": "imo",
+      "publisher_id": "imo",
+      "kind": "Prognose",
+      "forecast_hours": 24,
+      "run_utc": "2026-10-19T00:00+00:00",
+      "issued_utc": null,
+      "valid_utc": "2026-10-20T00:00+00:00",
+      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_0000_24.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-19 UTC",
+      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
+      "map_type": "isobars_model_forecast_no_fronts",
+      "image": "images/imo_20261020_0000.webp",
+      "size_bytes": 162136
     },
     {
       "source_id": "knmi",
@@ -800,6 +864,23 @@
       "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
       "image": "images/noaa_48_20261020_0000.webp",
       "size_bytes": 240680
+    },
+    {
+      "source_id": "imo",
+      "publisher_id": "imo",
+      "kind": "Prognose",
+      "forecast_hours": 27,
+      "run_utc": "2026-10-19T00:00+00:00",
+      "issued_utc": null,
+      "valid_utc": "2026-10-20T03:00+00:00",
+      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_0000_27.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-19 UTC",
+      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
+      "map_type": "isobars_model_forecast_no_fronts",
+      "image": "images/imo_20261020_0300.webp",
+      "size_bytes": 159986
     },
     {
       "source_id": "aemet",
@@ -989,12 +1070,14 @@
     "2026-10-19T00:00+00:00",
     "2026-10-19T06:00+00:00",
     "2026-10-19T12:00+00:00",
+    "2026-10-19T15:00+00:00",
     "2026-10-20T00:00+00:00",
+    "2026-10-20T03:00+00:00",
     "2026-10-20T12:00+00:00",
     "2026-10-21T00:00+00:00",
     "2026-10-21T12:00+00:00",
     "2026-10-22T12:00+00:00"
   ],
-  "chart_count": 54,
+  "chart_count": 59,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
