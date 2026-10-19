@@ -20,6 +20,7 @@ required_root_files=(
   isobaren_original.html
   weltweite_isobaren.html
   isobaren_original.js
+  synoptic_panel_logic.js
   isobaren_original.css
   enso.html
   qbo.html
@@ -91,6 +92,10 @@ done
 # Publikationen müssen den neuen SSW-Katalog laden können.
 python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
+node --check synoptic_panel_logic.js
+node --check isobaren_original.js
+node --test tests/test_synoptic_panel_selection.cjs
+test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
 grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
 
