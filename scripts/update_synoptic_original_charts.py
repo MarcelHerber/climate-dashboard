@@ -122,7 +122,7 @@ SOURCES=[
   "type":"external","license":"Amtliche Pazifik-Bodenanalysen und Prognosen; externer Link"},
  {"id":"imo","name":"IMO","country":"Island",
   "url":"https://en.vedur.is/weather/shipping/atlantic/",
-  "type":"external","license":"ECMWF-basierte Isobarenprognosen (ohne Fronten); IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe, jedoch fehlt ein sicher auslesbarer Bild-UTC-Termin"}
+  "type":"external","license":"ECMWF-basierte Nordatlantik-Isobarenprognosen ohne analysierte Fronten; IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe. Automatische Einbindung ausschließlich bei OCR-validierter Bildgültigkeit und Modelllaufzeit."}
 ]
 
 class Links(HTMLParser):
