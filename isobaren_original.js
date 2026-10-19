@@ -61,7 +61,7 @@ function sourceDirectory(){
  if(merged.has("rhmz")&&rhmzProbe?.records){
   const previous=merged.get("rhmz");
   merged.set("rhmz",{...previous,rhmz_probe:rhmzProbe,
-    note:"Amtliche Europa-Bodenanalysen mit Fronten und 5-hPa-Isobaren. Originalbild-Links für 00 und 12 UTC (ohne Bildkopie); nur mit ausgedrucktem Voll-Datum bestätigte Karten gelten als geprüft."});
+    note:"Amtliche synoptische Bodenanalysen mit Isobaren, Fronten und Stationsdaten. Europa 00/12 UTC sowie Balkan 06/09/12/15 UTC. Bilddateien werden nicht kopiert; alte Karten werden am aufgedruckten Datum erkannt."});
  }
  for(const id of AUTO_FALLBACK){
   const s=merged.get(id);
@@ -129,7 +129,11 @@ function fillSources(){
   if(s.id==="rhmz"){
    const links=[
     {product:"europe00",label:"Europa-Analyse · 00 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa00_JPG.jpg"},
-    {product:"europe12",label:"Europa-Analyse · 12 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa12_JPG.jpg"}
+    {product:"europe12",label:"Europa-Analyse · 12 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa12_JPG.jpg"},
+    {product:"balkan06",label:"Balkan-Analyse · 06 UTC",url:"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan06_JPG.jpg"},
+    {product:"balkan09",label:"Balkan-Analyse · 09 UTC",url:"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan09_JPG.jpg"},
+    {product:"balkan12",label:"Balkan-Analyse · 12 UTC",url:"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan12_JPG.jpg"},
+    {product:"balkan15",label:"Balkan-Analyse · 15 UTC",url:"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan15_JPG.jpg"}
    ];
    const group=node("div","official-deep-links");
    for(const item of links){
@@ -453,7 +457,7 @@ async function load(){
    if(res.ok){
     const audit=await res.json();
     rhmzProbe=audit.schema_version===1&&audit.only_external_links===true&&
-     Array.isArray(audit.records)&&audit.records.length===2?audit:null;
+     Array.isArray(audit.records)&&audit.records.length===6?audit:null;
    }else rhmzProbe=null;
   }catch(_e){rhmzProbe=null;}
   renderDataHealth();
