@@ -139,7 +139,8 @@ function fillSources(){
    for(const item of links){
     const probe=s.rhmz_probe?.records?.find(r=>r.product===item.product&&r.image_url===item.url);
     const match=probe?.state==="printed_utc_verified"&&probe.valid_utc;
-    const label=item.label+(match?" · "+isoDE(probe.valid_utc):" · Bilddatum noch nicht bestätigt");
+    const stale=probe?.state==="unverified"&&/stale|future-dated|outdated/i.test(probe.reason||"");
+    const label=item.label+(match?" · "+isoDE(probe.valid_utc):stale?" · Bild ist veraltet":" · Bilddatum noch nicht bestätigt");
     const link=node("a","",label+" ↗");
     link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";
     group.append(link);
