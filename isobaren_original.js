@@ -58,79 +58,89 @@ function fillSources(){
   container.append(article);
  }
 }
-function fillPickers(){
- const single=$("singleSource");
- single.replaceChildren();
- for(const s of sourceList()){const option=new Option(s.name+" · "+s.country,s.id);single.add(option);}
- single.value="dwd";
- for(let i=0;i<4;i++){
-  const select=$(slots[i]);select.replaceChildren();
-  for(const s of sourceList())select.add(new Option(s.name,s.id));
-  select.value=(INITIAL[i]==="chmi" && !catalog.charts.some(x=>x.source_id==="chmi"))?"noaa_full":INITIAL[i];
- }
- rebuildTimes("dwd");
+const PANEL_PREF=["dwd","aemet","knmi","chmi","dhmz","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96"];
+function optionValue(select,id){return [...select.options].some(o=>o.value===id);}
+function panelAutomatic(){return $("fourPolicy").value==="auto";}
+function availableTimes(){
+ return (catalog?.time_slots||[]).filter(t=>(catalog?.charts||[]).some(r=>r.valid_utc===t&&showRecord(r)));
 }
-function rebuildTimes(prefer){
- const picker=$("validTime"),previous=picker.value;picker.replaceChildren();
- const times=(catalog?.time_slots||[]).filter(t=>
-  catalog.charts.some(x=>x.valid_utc===t&&showRecord(x)));
- if(!times.length){picker.add(new Option("Keine Termine für diese Auswahl",""));return;}
- const now=Date.now();
+function rebuildTimes(prefer,preserve=true){
+ const picker=$("validTime"),previous=picker.value;
+ const times=availableTimes();
+ picker.replaceChildren();
+ if(!times.length){picker.add(new Option("Keine geprüften Termine",""));return;}
  for(const time of times.slice().reverse()){
-  const records=catalog.charts.filter(x=>x.valid_utc===time&&showRecord(x));
-  const agencies=new Set(records.map(x=>x.publisher_id||x.source_id));
-  picker.add(new Option(isoDE(time)+" · "+records.length+" Karten / "+agencies.size+" Dienste",time));
+  const records=catalog.charts.filter(r=>r.valid_utc===time&&showRecord(r));
+  const count=new Set(records.map(r=>r.publisher_id||r.source_id)).size;
+  picker.add(new Option(isoDE(time)+" · "+records.length+" Bilder / "+count+" Dienste",time));
  }
- if(times.includes(previous)){picker.value=previous;return;}
- const best=times.slice().sort((a,b)=>{
-  const fav=t=>prefer&&catalog.charts.some(x=>x.source_id===prefer&&x.valid_utc===t&&showRecord(x))?1:0;
+ if(preserve&&times.includes(previous)){picker.value=previous;return;}
+ const now=Date.now(),recent=times.slice().sort((a,b)=>{
+  const fav=t=>prefer&&catalog.charts.some(r=>r.source_id===prefer&&r.valid_utc===t&&showRecord(r))?1:0;
   return fav(b)-fav(a)||Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now);
- })[0];
- picker.value=best;
+ });
+ picker.value=recent[0];
 }
-function closestForSources(ids){
- const times=(catalog?.time_slots||[]).filter(t=>catalog.charts.some(x=>x.valid_utc===t&&showRecord(x)));
+function nearestTimeFor(ids){
+ const times=availableTimes(),now=Date.now();
  if(!times.length)return;
- let now=Date.now();
- const best=times.slice().sort((a,b)=>{
-   const count=t=>ids.filter(id=>cardsAt(id,t).length>0).length;
-   return (count(b)-count(a))||(Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now));
+ const chosen=times.slice().sort((a,b)=>{
+  const hits=t=>ids.filter(id=>cardsAt(id,t).length>0).length;
+  return hits(b)-hits(a)||Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now);
  })[0];
- if(best)$("validTime").value=best;
+ if(chosen)$("validTime").value=chosen;
 }
-function selectBestForecastPanel(){
- // Pick four actual maps with exactly the same valid UTC time. Prefer
- // independent publishers, then dates close to now; NEVER time-shift panels.
- if(!catalog)return;
- const now=Date.now();
- const fav=["aemet","chmi","dhmz","noaa_48","noaa_96","noaa_24","noaa_opc","noaa_full"];
- let best=null;
- for(const time of catalog.time_slots||[]){
-  const records=catalog.charts.filter(x=>x.valid_utc===time&&hasForecast(x));
-  const found=new Map();
-  for(const id of fav){
-   const x=records.find(x=>x.source_id===id);
-   if(x&&!found.has(id))found.set(id,x);
-  }
-  const pool=[...found.values()];
-  const chosen=[];
-  const known=new Set();
-  for(const rec of pool){
-   const pub=rec.publisher_id||rec.source_id;
-   if(!known.has(pub)){chosen.push(rec);known.add(pub);}
-  }
-  for(const rec of pool){
-   if(chosen.length>=4)break;
-   if(!chosen.includes(rec))chosen.push(rec);
-  }
-  chosen.splice(4);
-  const agencies=new Set(chosen.map(x=>x.publisher_id||x.source_id)).size;
-  const rank=chosen.length*1000+agencies*100-Math.abs(Date.parse(time)-now)/86400000;
-  if(!best||rank>best.rank)best={rank,time,ids:chosen.map(x=>x.source_id)};
+function fillPickers(){
+ const single=$("singleSource"),oldSingle=single.value,
+  previous=slots.map(id=>$(id).value);
+ const sources=sourceList();
+ single.replaceChildren();
+ for(const s of sources)single.add(new Option(s.name+" · "+s.country,s.id));
+ single.value=optionValue(single,oldSingle)?oldSingle:"dwd";
+ for(let i=0;i<slots.length;i++){
+  const select=$(slots[i]);
+  select.replaceChildren();
+  for(const s of sources)select.add(new Option(s.name+" · "+s.country,s.id));
+  const backup=PANEL_PREF[i];
+  select.value=optionValue(select,previous[i])?previous[i]:backup;
  }
- if(!best)return;
- for(let i=0;i<4;i++)$(slots[i]).value=best.ids[i]||["aemet","chmi","noaa_48","noaa_96"][i];
- $("validTime").value=best.time;
+ rebuildTimes(single.value);
+ if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
+}
+function panelChoiceAt(time){
+ const logic=globalThis.SynopticPanelLogic;
+ if(!logic)throw new Error("Auswahlmodul für Vierer-Panel fehlt");
+ return logic.chooseAt(catalog?.charts||[],time,$("chartKind").value);
+}
+function setSelectedPanels(choice){
+ const actual=choice?.ids||[];
+ const fillers=PANEL_PREF.filter(id=>source(id)?.type==="auto"&&!actual.includes(id));
+ const chosen=actual.concat(fillers).slice(0,4);
+ slots.forEach((id,i)=>{if(chosen[i]&&optionValue($(id),chosen[i]))$(id).value=chosen[i];});
+ $("autoChoiceHint").textContent=choice?.count?
+  choice.count+"/4 Karten für "+isoDE(choice.time)+" · "+choice.publishers+" unabhängige Dienste. Fehlende Plätze bleiben leer.":
+  "Für die gewünschte Auswahl sind keine zeitgleichen Karten verfügbar.";
+}
+function autoAtCurrentTime(){
+ if(!catalog)return;
+ setSelectedPanels(panelChoiceAt($("validTime").value));
+}
+function autoBestPanels(){
+ if(!catalog)return;
+ const logic=globalThis.SynopticPanelLogic;
+ if(!logic)throw new Error("Auswahlmodul für Vierer-Panel fehlt");
+ const choice=logic.best(catalog.charts,availableTimes(),$("chartKind").value,Date.now());
+ if(choice)$("validTime").value=choice.time;
+ setSelectedPanels(choice);
+}
+function updatePanelControls(){
+ const isFour=$("chartMode").value==="four";
+ $("fourOptions").hidden=!isFour;
+ $("fourSelectors").hidden=!isFour;
+ $("singleSourceWrap").hidden=isFour;
+ slots.forEach(id=>$(id).disabled=isFour&&panelAutomatic());
+ $("optimizePanels").disabled=!catalog;
+ if(!panelAutomatic()&&isFour)$("autoChoiceHint").textContent="Manuell: Die Kartenquelle und den UTC-Termin selbst wählen. Zeitangaben werden nicht verschoben.";
 }
 function currentProviders(){
  return $("chartMode").value==="four"?slots.map(id=>$(id).value):[$("singleSource").value];
