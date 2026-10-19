@@ -97,6 +97,7 @@ node --check isobaren_original.js
 node --test tests/test_synoptic_panel_selection.cjs
 python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
+python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
 test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
 grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
@@ -367,6 +368,16 @@ assert d.get("schema_version")==1 and d.get("no_live_check") is True
 assert all(not r.get("reproduction_ready") for r in d.get("providers",[]))
 PY
     cp data/synoptic_charts/europe_source_audit.json _site/data/synoptic_charts/
+  fi
+  if [[ -s data/synoptic_charts/europe_viewer_probe.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+obj=json.loads(Path("data/synoptic_charts/europe_viewer_probe.json").read_text(encoding="utf-8"))
+assert obj["schema_version"]==1 and obj["no_auto_ingestion"] is True
+assert all(x["ready_for_automatic_charts"] is False for x in obj["sources"])
+PY
+    cp data/synoptic_charts/europe_viewer_probe.json _site/data/synoptic_charts/
   fi
   if [[ -s data/synoptic_charts/imo_probe.json ]]; then
     python - <<'PY'
