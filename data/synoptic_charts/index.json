@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T07:33:28+00:00",
+  "generated_utc": "2026-10-19T07:38:46+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -116,6 +116,30 @@
       "url": "https://www.met.ie/latest-reports/surface-analysis",
       "type": "external",
       "license": "Met Éireann untersagt automatisiertes Kopieren der Website; Originalanalyse nur als Link"
+    },
+    {
+      "id": "knmi",
+      "name": "KNMI · Niederlande",
+      "country": "Niederlande",
+      "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "type": "external",
+      "license": "Offizielle synoptische Analysen und ECMWF-Prognosen; zurzeit nur externe Verlinkung"
+    },
+    {
+      "id": "knmi_archiv",
+      "name": "KNMI · Wetterkartenarchiv seit 2003",
+      "country": "Niederlande",
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "type": "external",
+      "license": "Historisches Archiv amtlicher Karten; nur externe Verlinkung"
+    },
+    {
+      "id": "kmi",
+      "name": "KMI · Belgien",
+      "country": "Belgien",
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "type": "external",
+      "license": "Amtliche europäische Frontenprognosen; zurzeit nur externe Verlinkung"
     },
     {
       "id": "smhi",
