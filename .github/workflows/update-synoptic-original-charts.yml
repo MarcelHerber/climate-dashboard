@@ -9,6 +9,8 @@ on:
     paths:
       - "scripts/update_synoptic_original_charts.py"
       - "tests/test_synoptic_original_charts.py"
+      - "scripts/audit_europe_synoptic_sources.py"
+      - "tests/test_europe_synoptic_source_audit.py"
       - "tests/test_synoptic_panel_selection.cjs"
       - "synoptic_panel_logic.js"
       - "scripts/probe_chmi_synoptic.py"
@@ -68,6 +70,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_chmi_synoptic_probe.py -v
       - name: Probe official ČHMÚ source metadata without guessing chart timestamps
         run: python scripts/probe_chmi_synoptic.py
+      - name: Test European source reuse and timestamp policies
+        run: python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
+      - name: Publish European source permission audit (not a live availability claim)
+        run: python scripts/audit_europe_synoptic_sources.py
       - name: Fetch permitted DWD AEMET KNMI NOAA original images
         run: python scripts/update_synoptic_original_charts.py
       - name: Validate only genuine source charts
@@ -77,6 +83,9 @@ jobs:
           from pathlib import Path
           root=Path("data/synoptic_charts")
           index=json.loads((root/"index.json").read_text(encoding="utf-8"))
+          audit=json.loads((root/"europe_source_audit.json").read_text(encoding="utf-8"))
+          assert audit["schema_version"]==1 and audit["no_live_check"]
+          assert all(not p["reproduction_ready"] for p in audit["providers"])
           assert index["schema_version"]==1 and index["ready"]
           assert index["charts"]
           assert index["chart_count"]==len(index["charts"])
