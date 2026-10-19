@@ -1,4 +1,4 @@
-name: Original-Synoptikkarten DWD AEMET NOAA
+name: Original-Synoptikkarten DWD AEMET KNMI NOAA
 
 on:
   schedule:
@@ -60,7 +60,7 @@ jobs:
         run: python -m unittest discover -s tests -p test_chmi_synoptic_probe.py -v
       - name: Probe official ČHMÚ source metadata without guessing chart timestamps
         run: python scripts/probe_chmi_synoptic.py
-      - name: Fetch permitted DWD AEMET NOAA original images
+      - name: Fetch permitted DWD AEMET KNMI NOAA original images
         run: python scripts/update_synoptic_original_charts.py
       - name: Validate only genuine source charts
         run: |
@@ -74,13 +74,14 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
-              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa","https://prognoza.hr/web_fronte_sutra12.jpg"))
+              assert item["source_id"] in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
+              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa","https://prognoza.hr/web_fronte_sutra12.jpg","https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
               assert image.is_file() and image.stat().st_size>=18000
               b=image.read_bytes()[:12]
               assert b[:4]==b"RIFF" and b[8:12]==b"WEBP"
+          assert next(x for x in index["sources"] if x["id"]=="knmi")["type"]=="auto"
           assert next(x for x in index["sources"] if x["id"]=="metoffice")["type"]=="external"
           assert next(x for x in index["sources"] if x["id"]=="noaa_opc")["type"]=="auto"
           assert next(x for x in index["sources"] if x["id"]=="noaa_full")["type"]=="auto"
