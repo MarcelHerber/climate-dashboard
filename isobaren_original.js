@@ -7,6 +7,7 @@ let catalog=null;
 let europeSourceAudit=null;
 let imoDiagnostic=null;
 let europeanViewerProbe=null;
+let rhmzProbe=null;
 let automaticChoice=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -56,6 +57,11 @@ function sourceDirectory(){
   const existing=merged.get(probe.id);
   if(existing&&probe.ready_for_automatic_charts===false)
    merged.set(probe.id,{...existing,viewer_probe:probe});
+ }
+ if(merged.has("rhmz")&&rhmzProbe?.records){
+  const previous=merged.get("rhmz");
+  merged.set("rhmz",{...previous,rhmz_probe:rhmzProbe,
+    note:"Amtliche Europa-Bodenanalysen mit Fronten und 5-hPa-Isobaren. Originalbild-Links für 00 und 12 UTC (ohne Bildkopie); nur mit ausgedrucktem Voll-Datum bestätigte Karten gelten als geprüft."});
  }
  for(const id of AUTO_FALLBACK){
   const s=merged.get(id);
@@ -120,6 +126,24 @@ function fillSources(){
   }
   const a=node("a","",category==="archive"?"Archiv / Bericht öffnen":category==="unverified"?"Quelle prüfen":"Karten öffnen");
   a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";article.append(a);
+  if(s.id==="rhmz"){
+   const links=[
+    {product:"europe00",label:"Europa-Analyse · 00 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa00_JPG.jpg"},
+    {product:"europe12",label:"Europa-Analyse · 12 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa12_JPG.jpg"}
+   ];
+   const group=node("div","official-deep-links");
+   for(const item of links){
+    const probe=s.rhmz_probe?.records?.find(r=>r.product===item.product&&r.image_url===item.url);
+    const match=probe?.state==="printed_utc_verified"&&probe.valid_utc;
+    const label=item.label+(match?" · "+isoDE(probe.valid_utc):" · Bilddatum noch nicht bestätigt");
+    const link=node("a","",label+" ↗");
+    link.href=item.url;link.target="_blank";link.rel="noopener noreferrer";
+    group.append(link);
+   }
+   article.append(group);
+   if(s.rhmz_probe?.generated_utc)article.append(node("span","source-inspection",
+     "RHMZ-Kartenprüfung vom "+isoDE(s.rhmz_probe.generated_utc)+"; amtliche Bilder werden nicht auf dieser Website gespeichert."));
+  }
   if(s.source_policy?.terms_url){
    const terms=node("a","source-policy-link","Nutzungsbedingungen ↗");
    terms.href=s.source_policy.terms_url;terms.target="_blank";terms.rel="noopener noreferrer";
@@ -424,12 +448,20 @@ async function load(){
       Array.isArray(result.sources)?result:null;
    }else europeanViewerProbe=null;
   }catch(_e){europeanViewerProbe=null;}
+  try{
+   const res=await fetch(ROOT+"rhmz_probe.json?v="+Date.now(),{cache:"no-store"});
+   if(res.ok){
+    const audit=await res.json();
+    rhmzProbe=audit.schema_version===1&&audit.only_external_links===true&&
+     Array.isArray(audit.records)&&audit.records.length===2?audit:null;
+   }else rhmzProbe=null;
+  }catch(_e){rhmzProbe=null;}
   renderDataHealth();
   fillSources();
   fillPickers();
   refreshView();
  }catch(err){
-  catalog=null;europeSourceAudit=null;imoDiagnostic=null;europeanViewerProbe=null;
+  catalog=null;europeSourceAudit=null;imoDiagnostic=null;europeanViewerProbe=null;rhmzProbe=null;
   $("chartStatus").textContent="Kartenindexfehler: "+err.message;
   renderDataHealth();
   $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
