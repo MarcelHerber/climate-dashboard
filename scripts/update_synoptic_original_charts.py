@@ -63,9 +63,15 @@ SOURCES=[
  {"id":"metoffice","name":"Met Office","country":"Großbritannien",
   "url":"https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
   "type":"external","license":"Nur Quellenseite verlinkt; Bilder nicht eingebettet"},
+ {"id":"dmi","name":"DMI · Frontkort","country":"Dänemark",
+  "url":"https://www.dmi.dk/vejret/frontkort","type":"external",
+  "license":"Originale Analyse und Prognose direkt bei DMI; Bildnutzungsrechte für fertige Frontkort noch nicht eindeutig"},
+ {"id":"dhmz","name":"DHMZ · Europa","country":"Kroatien",
+  "url":"https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+  "type":"auto","license":"Izvor: DHMZ · Wiederverwendung mit Quellenangabe; eingebunden nur bei überprüftem gültigen Druckdatum"},
  {"id":"metie","name":"Met Éireann","country":"Irland",
   "url":"https://www.met.ie/latest-reports/surface-analysis",
-  "type":"external","license":"Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"},
+  "type":"external","license":"Met Éireann untersagt automatisiertes Kopieren der Website; Originalanalyse nur als Link"},
  {"id":"imo","name":"IMO","country":"Island",
   "url":"https://en.vedur.is/weather/shipping/atlantic/",
   "type":"external","license":"Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"}
@@ -325,6 +331,22 @@ def main(output=OUT,now=None):
         except Exception as exc:
             status["chmi"]={"state":"unavailable","reason":(type(exc).__name__+": "+str(exc))[:200]}
             print("ČHMÚ source unavailable:",str(exc)[:200],flush=True)
+        # DHMZ official synoptic front map: provider URL can serve OLD images.
+        # Never infer tomorrow from today's clock; verify printed Croatian date.
+        try:
+            import dhmz_synoptic_adapter as dhmz
+            raw=download(dhmz.IMAGE_URL,timeout=28)
+            record=dhmz.verified_chart(raw,now)
+            date_str=datetime.fromisoformat(record["valid_utc"]).strftime("%Y%m%d_%H%M")
+            filename=f"dhmz_{date_str}.webp"
+            image_webp(raw,temp/filename)
+            record["image"]="images/"+filename
+            record["size_bytes"]=(temp/filename).stat().st_size
+            charts.append(record)
+            status["dhmz"]={"state":"available","charts":1,"valid_utc":record["valid_utc"]}
+        except Exception as exc:
+            status["dhmz"]={"state":"unavailable","reason":(type(exc).__name__+": "+str(exc))[:180]}
+            print("DHMZ source unavailable:",str(exc)[:180],flush=True)
         if not charts:
             raise RuntimeError("No authenticated original chart downloaded; do not publish empty/synthetic catalog")
         charts.sort(key=lambda p:(p["valid_utc"],p["source_id"]))
