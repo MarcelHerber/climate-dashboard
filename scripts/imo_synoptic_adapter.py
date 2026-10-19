@@ -4,7 +4,7 @@
 Only publish a forecast if ALL independent evidence agrees:
   1. Original image URL contains YYMMDD_HHMM + lead hour.
   2. Provider webpage supplied that exact URL.
-  3. The original PNG contains a printed Gildistími valid time, read by OCR.
+  3. The original PNG contains printed validity and UTC run/lead, read by OCR.
   4. That printed time equals run + lead in UTC.
 Images contain model-based isobars, NOT drawn analysed fronts.
 """
@@ -41,6 +41,53 @@ def parse_printed_validity(caption:str)->datetime:
         year,month,day,hour,minute=map(int,m.groups())
         return datetime(year,month,day,hour,minute,tzinfo=timezone.utc)
     raise ValueError("IMO valid date/hours are not legible after printed Gildistími")
+
+ICELANDIC_MONTHS={
+    "JAN":1,"FEB":2,"MAR":3,"APR":4,"MAI":5,"JUN":6,
+    "JUL":7,"AGU":8,"SEP":9,"OKT":10,"NOV":11,"DES":12
+}
+SHORT_VALID_RE=re.compile(
+    r"(?<!\d)([0-3]?\d)\s*\.\s*(JAN|FEB|MAR|APR|MAI|JUN|JUL|AGU|SEP|OKT|NOV|DES)"
+    r"\s*\.?\s*(?:KL\.?\s*)?([012]?\d)\s*[:.]\s*([0-5]\d)",re.I
+)
+LEAD_RE=re.compile(r"\bUTC\s*\(\s*\+\s*(\d{1,3})\s*\)",re.I)
+
+def parse_printed_forecast_validity(caption:str,expected_run:datetime,expected_lead:int)->datetime:
+    """Compare two independent on-map clocks with provider filename.
+
+    IMO prints (a) a short Icelandic valid-day caption e.g. '19. okt. kl.
+    12:00', and (b) model initialization with year, UTC and (+12 h). The
+    valid-day caption has no year, so derive it only from the PRINTED model
+    initialization + PRINTED lead, not the wall clock or fetched filename.
+    """
+    normalized=normalize_caption(caption)
+    if VALIDITY_LABEL.search(normalized):
+        return parse_printed_validity(caption)
+    run_match=None
+    for m in DATE_EU.finditer(normalized):
+        near=normalized[m.end():m.end()+38]
+        lead_label=LEAD_RE.search(near)
+        if lead_label:
+            run_match=(m,lead_label)
+            break
+    if not run_match:
+        raise ValueError("IMO lacks a legible printed UTC model run and (+lead) footer")
+    m,lead_label=run_match
+    d,mo,y,hr,minute=map(int,m.groups())
+    printed_run=datetime(y,mo,d,hr,minute,tzinfo=timezone.utc)
+    printed_lead=int(lead_label.group(1))
+    if printed_run!=expected_run or printed_lead!=expected_lead:
+        raise ValueError("IMO image's printed UTC model run/lead disagrees with its filename")
+    printed_valid=printed_run+timedelta(hours=printed_lead)
+    top=SHORT_VALID_RE.search(normalized)
+    if not top:
+        raise ValueError("IMO image lacks printed Icelandic valid day, month and hour")
+    day,month_name,hour,mins=top.groups()
+    expected_tuple=(printed_valid.day,printed_valid.month,printed_valid.hour,printed_valid.minute)
+    found=(int(day),ICELANDIC_MONTHS[month_name.upper()],int(hour),int(mins))
+    if found!=expected_tuple:
+        raise ValueError("IMO short map validity caption disagrees with model run+lead")
+    return printed_valid
 
 def read_printed_banner(raw:bytes)->str:
     from PIL import Image,ImageOps,ImageEnhance
@@ -87,7 +134,7 @@ def verified_chart(image:bytes,candidate:dict,now:datetime,caption_reader=read_p
     from PIL import Image
     with Image.open(io.BytesIO(image)) as img:
         img.verify()
-    printed=parse_printed_validity(caption_reader(image))
+    printed=parse_printed_forecast_validity(caption_reader(image),run,lead)
     if printed!=calculated:
         raise ValueError(f"IMO printed map validity {printed.isoformat()} differs from filename {calculated.isoformat()}")
     return {
@@ -97,6 +144,6 @@ def verified_chart(image:bytes,candidate:dict,now:datetime,caption_reader=read_p
         "source_url":url,"source_page":PAGE,
         "credit":"Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf "+now.strftime("%Y-%m-%d")+" UTC",
         "terms_url":TERMS,
-        "validity_method":"Printed IMO Gildistími matched model run YYMMDD_HHMM + forecast lead; OCR verified",
+        "validity_method":"Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
         "map_type":"isobars_model_forecast_no_fronts",
     }
