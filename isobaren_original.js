@@ -38,14 +38,17 @@ function sourceDirectory(){
  }
  if(imoDiagnostic&&merged.has("imo")){
   const provider=merged.get("imo");
-  const total=imoDiagnostic.image_candidates?.length||0;
+  const total=imoDiagnostic.forecast_filename_candidates?.length||0;
+  const published=(catalog?.charts||[]).filter(x=>x.source_id==="imo").length;
   const since=imoDiagnostic.checked_utc?isoDE(imoDiagnostic.checked_utc):"–";
-  const state=imoDiagnostic.state==="source_unreachable"?
+  const state=published?
+    published+" Modellprognose(n) mit bestätigtem UTC-Gültigkeitstermin eingebunden":
+    imoDiagnostic.state==="source_unreachable"?
     "Quellenseiten beim letzten Abruf nicht erreichbar":
-    "Bilddatei und UTC-Gültigkeit noch nicht unabhängig bestätigt";
+    "Bilder werden erst nach OCR-Prüfung beider aufgedruckter Zeitangaben übernommen";
   merged.set("imo",{...provider,
    note:"IMO Atlantik · ECMWF-basierte Isobarenprognosen ohne Fronten. Letzter technischer Abruf: "+
-    since+" · "+total+" Bilddatei-Kandidaten · "+state+
+    since+" · "+total+" Prognose-Dateinamen gefunden · "+state+
     ". Keine geschätzten Laufzeiten im Vierer-Panel."});
  }
  for(const id of AUTO_FALLBACK){
