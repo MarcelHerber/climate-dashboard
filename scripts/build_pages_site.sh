@@ -369,6 +369,17 @@ assert all(not r.get("reproduction_ready") for r in d.get("providers",[]))
 PY
     cp data/synoptic_charts/europe_source_audit.json _site/data/synoptic_charts/
   fi
+  if [[ -s data/synoptic_charts/rhmz_probe.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+obj=json.loads(Path("data/synoptic_charts/rhmz_probe.json").read_text(encoding="utf-8"))
+assert obj["schema_version"]==1 and obj["only_external_links"] is True
+assert len(obj["records"])==2
+assert all(x["image_reuse_permitted"] is False for x in obj["records"])
+PY
+    cp data/synoptic_charts/rhmz_probe.json _site/data/synoptic_charts/
+  fi
   if [[ -s data/synoptic_charts/europe_viewer_probe.json ]]; then
     python - <<'PY'
 import json
