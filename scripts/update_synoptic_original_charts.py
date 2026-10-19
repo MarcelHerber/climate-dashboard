@@ -22,6 +22,7 @@ ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"synoptic_charts"
 DWD_INDEX="https://opendata.dwd.de/weather/charts/analysis/"
 AEMET_PAGE="https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes"
+KNMI_PAGE="https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/"
 OPC_ARCHIVE="https://ftp.opc.ncep.noaa.gov/ncdc/"
 OPC_RE=re.compile(r"^atle_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 OPC_FULL_RE=re.compile(r"^atl00_sfcfcst_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
@@ -278,6 +279,51 @@ def extract_opc_96(html,now):
     return _extract_opc_forecast(html,now,OPC_96_RE,"noaa_96",96,"Nordatlantik +96 h")
 
 
+
+class KNMILinks(HTMLParser):
+    """Read validity only from the provider's explicitly dated anchor label."""
+    def __init__(self):
+        super().__init__()
+        self.href=None
+        self.parts=[]
+        self.links=[]
+    def handle_starttag(self,tag,attrs):
+        if tag=="a":
+            self.href=dict(attrs).get("href")
+            self.parts=[]
+    def handle_data(self,data):
+        if self.href is not None:
+            self.parts.append(data)
+    def handle_endtag(self,tag):
+        if tag=="a" and self.href is not None:
+            self.links.append((self.href," ".join(self.parts).strip()))
+            self.href=None
+            self.parts=[]
+
+def extract_knmi(html,now):
+    p=KNMILinks()
+    p.feed(html)
+    records={}
+    for href,label in p.links:
+        match=re.search(r"(Analyse|Prognose\\s+voor)\\s+.*?([0-9]{2})-([0-9]{2})-([0-9]{4})\\s+([0-9]{2})\\s*UTC",label,re.I)
+        if not match:continue
+        url=urljoin(KNMI_PAGE,href)
+        parsed=urlparse(url)
+        if parsed.hostname!="cdn.knmi.nl" or not re.fullmatch(
+            r"/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/[AP]L[0-9]{4}_large\\.gif",
+            parsed.path,re.I):continue
+        valid=timestamp("".join((match.group(4),match.group(3),match.group(2),match.group(5))),"%Y%m%d%H")
+        if not(now-timedelta(hours=72)<=valid<=now+timedelta(hours=96)):continue
+        kind="Analyse" if match.group(1).lower()=="analyse" else "Prognose"
+        filename=parsed.path.rsplit("/",1)[-1]
+        if (filename.startswith("AL"))!=(kind=="Analyse"):continue
+        if filename[2:6]!=valid.strftime("%d%H"):continue
+        key=valid.isoformat(timespec="minutes")
+        records[key]={"source_id":"knmi","publisher_id":"knmi","kind":kind,
+                      "valid_utc":key,"issued_utc":None,"source_url":url,
+                      "source_page":KNMI_PAGE,"credit":"Quelle: KNMI · CC0, soweit keine Ausnahme"}
+    return sorted(records.values(),key=lambda x:x["valid_utc"])[:8]
+
 def download(url,timeout=30,limit=9_000_000):
     request=Request(url,headers={
         "User-Agent":"ClimateDashboardDeutschland/1.0 (synoptic-source-monitor)",
@@ -310,7 +356,7 @@ def main(output=OUT,now=None):
     now=now or datetime.now(timezone.utc)
     output=Path(output)
     charts=[];status={}
-    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),
+    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),\n             ("knmi",KNMI_PAGE,extract_knmi),
              ("noaa_opc",OPC_ARCHIVE,extract_opc),
              ("noaa_full",OPC_ARCHIVE,extract_opc_full),
              ("noaa_west",OPC_ARCHIVE,extract_opc_west),
