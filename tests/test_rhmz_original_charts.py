@@ -26,6 +26,19 @@ class RHMZOriginalAnalysisTests(unittest.TestCase):
         for caption in ("Analiza za 12:00 UTC","EVROPA 12 UTC","19-10-2026 12 UTC"):
             with self.assertRaises(ValueError):
                 rhmz.printed_utc(caption)
+    def test_balkan_chart_printed_utc_and_stale_rejection(self):
+        checks={
+          "balkan06":"EVROPA PRIZEMNI PODACI 19-10-2026 06 UTC",
+          "balkan09":"PRIZEMNI PODACI 19-10-2026 09 UTC",
+        }
+        for key,caption in checks.items():
+            result=rhmz.verified_time(key,rhmz.PRODUCTS[key],caption,NOW)
+            self.assertEqual(result.year,2026)
+        for key,hr in (("balkan12","12"),("balkan15","15")):
+            with self.assertRaises(ValueError):
+                rhmz.verified_time(key,rhmz.PRODUCTS[key],
+                    "PRIZEMNI PODACI 29-10-2025 "+hr+" UTC",NOW)
+
     def test_mismatched_hour_rejected(self):
         with self.assertRaises(ValueError):
             rhmz.verified_time("europe12",rhmz.PRODUCTS["europe12"],
@@ -49,6 +62,8 @@ class RHMZOriginalAnalysisTests(unittest.TestCase):
         self.assertTrue(all(r["image_reuse_permitted"] is False for r in got["records"]))
         self.assertEqual(got["records"][0]["state"],"unverified")
         self.assertEqual(got["records"][1]["state"],"printed_utc_verified")
+        self.assertEqual(len(got["records"]),6)
+        self.assertEqual(got["records"][2]["state"],"unverified")
     def test_unavailable_image_does_not_claim_verified_utc(self):
         def bad(_):raise OSError("offline")
         out=rhmz.check(now=NOW,fetch_image=bad)
