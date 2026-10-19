@@ -112,7 +112,8 @@ function fillSources(){
    const tagLabel=p.rights==="permission_required"?"Bildübernahme nur mit Erlaubnis":
     p.rights==="original_unmodified_only"?"Archiv · Original unverändert":
     p.rights==="reuse_with_attribution"?"Nutzung mit Quellenangabe":
-    p.rights==="map_not_covered_by_ogd"?"OGD gilt nicht pauschal für Karten":"Originalbild nicht freigegeben";
+    p.rights==="map_not_covered_by_ogd"?"OGD gilt nicht pauschal für Karten":
+    p.rights==="chart_specific_clearance_required"?"Bildfreigabe noch offen":"Originalbild nicht freigegeben";
    const policyBadge=node("span","source-rights",tagLabel);
    article.append(policyBadge);
   }
