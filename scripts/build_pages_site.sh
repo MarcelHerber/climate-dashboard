@@ -345,7 +345,7 @@ for chart in index["charts"]:
         assert chart.get("source_url")=="https://prognoza.hr/web_fronte_sutra12.jpg"
     if chart["source_id"]=="imo":
         assert chart.get("map_type")=="isobars_model_forecast_no_fronts"
-        assert chart.get("validity_method","").startswith("Printed IMO Gildistími")
+        assert chart.get("validity_method","").startswith("Printed IMO valid-day caption")
         assert chart.get("source_url","").startswith(("https://en.vedur.is/photos/sjo_atlant_spa/","https://www.vedur.is/photos/sjo_atlant_spa/"))
         from datetime import datetime,timedelta
         assert datetime.fromisoformat(chart["valid_utc"])==datetime.fromisoformat(chart["run_utc"])+timedelta(hours=chart["forecast_hours"])
