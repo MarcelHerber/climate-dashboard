@@ -23,7 +23,7 @@ class OfficialViewerTests(unittest.TestCase):
         def f(url,host):return '<div data-valid-utc="2026-10-19T00:00Z">surface pressure</div>'
         r=mod.collect(fetch=f,now=datetime(2026,10,19,15,tzinfo=timezone.utc))
         self.assertEqual(len(r["sources"]),6)
-        self.assertEqual(len({x["id"] for x in r["sources"]}),5)
+        self.assertEqual(len({x["id"] for x in r["sources"]}),6)
         self.assertTrue(all(x["state"]=="html_inspected" for x in r["sources"]))
         self.assertTrue(all(not x["ready_for_automatic_charts"] for x in r["sources"]))
     def test_failed_source_does_not_stop_other_checks(self):
