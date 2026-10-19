@@ -441,6 +441,39 @@ def main(output=OUT,now=None):
         except Exception as exc:
             status["dhmz"]={"state":"unavailable","reason":(type(exc).__name__+": "+str(exc))[:180]}
             print("DHMZ source unavailable:",str(exc)[:180],flush=True)
+        # IMO Atlantic ECMWF isobar forecasts have YYMMDD run + lead in
+        # original filenames. Do not publish them unless printed Gildistími
+        # independently matches that calculation: no estimated forecast times.
+        try:
+            import imo_synoptic_adapter as imo
+            probe_path=output/"imo_probe.json"
+            probe=json.loads(probe_path.read_text(encoding="utf-8")) if probe_path.exists() else {}
+            candidate=probe.get("forecast_filename_candidates",[])
+            if not isinstance(candidate,list) or len(candidate)>48:
+                raise ValueError("IMO probe candidate metadata invalid")
+            successes=0;issues=[]
+            for item in sorted(candidate,key=lambda c:abs((datetime.fromisoformat(c["calculated_valid_utc"])-now).total_seconds()))[:10]:
+                try:
+                    raw=download(item["url"],timeout=28)
+                    record=imo.verified_chart(raw,item,now)
+                    date_str=datetime.fromisoformat(record["valid_utc"]).strftime("%Y%m%d_%H%M")
+                    filename=f"imo_{date_str}.webp"
+                    image_webp(raw,temp/filename)
+                    record["image"]="images/"+filename
+                    record["size_bytes"]=(temp/filename).stat().st_size
+                    charts.append(record)
+                    successes+=1
+                except Exception as exc:
+                    issues.append((type(exc).__name__+": "+str(exc))[:160])
+                    print(f"Rejected IMO image without verified printed validity: {str(exc)[:150]}",flush=True)
+            if successes:
+                status["imo"]={"state":"available","charts":successes,
+                    "product":"ECMWF-based isobar forecast WITHOUT analyzed fronts"}
+            elif candidate:
+                status["imo"]={"state":"unavailable","reason":issues[0] if issues else "No OCR-verified original IMO map"}
+        except Exception as exc:
+            status["imo"]={"state":"unavailable","reason":(type(exc).__name__+": "+str(exc))[:180]}
+            print("IMO source verification failed:",str(exc)[:180],flush=True)
         if not charts:
             raise RuntimeError("No authenticated original chart downloaded; do not publish empty/synthetic catalog")
         charts.sort(key=lambda p:(p["valid_utc"],p["source_id"]))
@@ -448,7 +481,8 @@ def main(output=OUT,now=None):
             "schema_version":1,"generated_utc":now.isoformat(timespec="seconds"),
             "ready":True,"method":"original_weather_service_surface_maps",
             "same_validity_rule":"Exact matching valid_utc; no rounding, no time-shift or fallback",
-            "sources":SOURCES,"source_status":status,"charts":charts,
+            "sources":[{**s,"type":"auto"} if s["id"]=="imo" and status.get("imo",{}).get("state")=="available" else s for s in SOURCES],
+            "source_status":status,"charts":charts,
             "time_slots":sorted({x["valid_utc"] for x in charts}),
             "chart_count":len(charts),
             "note":"Original maps with isobars and fronts, not a common model or cartographic projection."
