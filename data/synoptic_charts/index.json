@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T12:34:39+00:00",
+  "generated_utc": "2026-10-19T12:37:15+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -273,7 +273,7 @@
     },
     "noaa_full": {
       "state": "available",
-      "charts": 8
+      "charts": 7
     },
     "noaa_west": {
       "state": "available",
@@ -363,18 +363,6 @@
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261017_1800.webp",
       "size_bytes": 1437372
-    },
-    {
-      "source_id": "noaa_full",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-17T18:00+00:00",
-      "issued_utc": "2026-10-17T20:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_18.2026101720.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_full_20261017_1800.webp",
-      "size_bytes": 265144
     },
     {
       "source_id": "noaa_opc",
@@ -1007,6 +995,6 @@
     "2026-10-21T12:00+00:00",
     "2026-10-22T12:00+00:00"
   ],
-  "chart_count": 55,
+  "chart_count": 54,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
