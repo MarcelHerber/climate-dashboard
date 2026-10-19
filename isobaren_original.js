@@ -35,6 +35,20 @@ function sourceDirectory(){
   return region(a.country)-region(b.country)||collator.compare(a.country||"",b.country||"")||collator.compare(a.name||"",b.name||"");
  });
 }
+function renderDataHealth(){
+ const el=$("dataHealth");
+ if(!catalog){el.className="health-summary error";el.textContent="Kartenindex nicht erreichbar: Die Quellenlinks sind weiterhin nutzbar, aber keine Aktualität des Kartenbestands kann bestätigt werden.";return;}
+ const stamp=Date.parse(catalog.generated_utc),hours=(Date.now()-stamp)/3600000;
+ const invalid=!Number.isFinite(stamp)||hours< -1;
+ const stale=invalid||hours>30;
+ const aging=hours>12;
+ const bad=Object.entries(catalog.source_status||{}).filter(([,st])=>st.state!=="available");
+ const good=Object.values(catalog.source_status||{}).filter(st=>st.state==="available").length;
+ el.className="health-summary"+(stale?" error":aging||bad.length?" warn":"");
+ const state=invalid?"Ungültiges Ausgabedatum":stale?"Veralteter Datenlauf":aging?"Datenlauf verspätet":"Datenlauf aktuell";
+ const problems=bad.length?" · ohne gültige Karte: "+bad.map(([id,st])=>id+" ("+(st.reason||"keine geprüfte Quelle").slice(0,65)+")").join(", "):"";
+ el.textContent=state+" · letzter Index: "+isoDE(catalog.generated_utc)+" · "+catalog.chart_count+" geprüfte Bilder · "+good+" von "+Object.keys(catalog.source_status||{}).length+" automatisch geprüften Produkten verfügbar"+problems+".";
+}
 function fillSources(){
  const container=$("sourceCatalog"),q=($("sourceSearch")?.value||"").trim().toLocaleLowerCase("de"),
   filter=$("sourceFilter")?.value||"all";
@@ -52,7 +66,10 @@ function fillSources(){
    title=node("strong","",s.name+" · "+s.country),
    article=node("article","source"),
    tag=node("span","source-tag "+category,category==="auto"?(n?n+" Karten eingebunden":"Automatischer Abruf · keine Karte"):category==="viewer"?"Kartenansicht":category==="archive"?"Archiv / historisch":"Nicht als Live-Karte bestätigt");
-  article.append(title,tag,node("p","",s.note||s.license||""));
+  const state=catalog?.source_status?.[s.id];
+  const statusDetail=category==="auto"&&state?.state==="unavailable"?
+   " Aktueller Abruf fehlgeschlagen: "+(state.reason||"keine gültige Originalkarte").slice(0,160):"";
+  article.append(title,tag,node("p","",(s.note||s.license||"")+statusDetail));
   const a=node("a","",category==="archive"?"Archiv / Bericht öffnen":category==="unverified"?"Quelle prüfen":"Karten öffnen");
   a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";article.append(a);
   container.append(article);
@@ -159,7 +176,14 @@ function card(provider,time){
   img.src=ROOT+record.image;
   img.alt=s.name+" Originalkarte · "+record.kind+" · gültig "+isoDE(record.valid_utc);
   img.loading="lazy";
-  img.onerror=()=>{content.replaceChildren(node("div","empty","Originalbild derzeit nicht erreichbar."));};
+  img.onerror=()=>{
+   const unavailable=node("div","empty");
+   unavailable.append(node("strong","","Originalbild nicht erreichbar"));
+   unavailable.append(node("span","","Die Kartendatei aus dem veröffentlichten Index konnte nicht geladen werden. Kein Ersatzbild und keine abweichende UTC-Zeit."));
+   const link=node("a","source-panel-link","Originalquelle prüfen ↗");
+   link.href=record.source_page||s.url;link.target="_blank";link.rel="noopener noreferrer";
+   unavailable.append(link);content.replaceChildren(unavailable);
+  };
   content.append(img);
  }else{
   const empty=node("div","empty");
@@ -194,28 +218,32 @@ function card(provider,time){
 }
 function refreshView(){
  const isFour=$("chartMode").value==="four";
- $("singleSourceWrap").hidden=isFour;$("fourSelectors").hidden=!isFour;
- const grid=$("chartGrid");grid.classList.toggle("four",isFour);grid.replaceChildren();
+ updatePanelControls();
+ const grid=$("chartGrid");
+ grid.classList.toggle("four",isFour);
+ grid.replaceChildren();
  const validity=$("validTime").value;
  if(!catalog||!validity){
-  grid.append(node("div","empty","Keine geprüften Wetterkarten veröffentlicht."));
-  $("exportPng").disabled=true;return;
+  grid.append(node("div","empty",!catalog?"Kartenindex nicht erreichbar. Die Quellenübersicht unten bleibt nutzbar.":"Für den ausgewählten Kartentyp wurden keine echten Originalbilder veröffentlicht."));
+  $("exportPng").disabled=true;
+  return;
  }
  const ids=currentProviders();
  let matched=0;
  for(const id of ids){if(cardsAt(id,validity).length)matched++;grid.append(card(id,validity));}
- const total=ids.length;
  $("exportPng").disabled=matched===0;
- const stale=(Date.now()-Date.parse(catalog.generated_utc))/3600000;
- const qualifier=stale>36?" · zuletzt vor "+Math.round(stale)+" Stunden aktualisiert":"";
  const agencies=new Set(ids.flatMap(id=>cardsAt(id,validity).map(x=>x.publisher_id||x.source_id)));
  const externalCount=ids.filter(id=>source(id)?.type!=="auto").length;
- $("chartStatus").textContent=isoDE(validity)+" · "+matched+"/"+total+
-  " Karten · "+agencies.size+" unabhängige Wetterdienste · identische UTC-Gültigkeit"+(externalCount?" · "+externalCount+" externe Kartenquelle(n) ohne Zeitsynchronisierung":"")+qualifier;
- $("syncHint").textContent=externalCount===total?"Externe Originalkarten direkt beim jeweiligen Wetterdienst öffnen; keine Übernahme in den UTC-Vergleich.":isFour?matched===4?
-  (agencies.size===4?"Vier unabhängige Wetterdienste bei exakt gleicher UTC-Gültigkeit.":"Vier Bilder aus "+agencies.size+" unabhängigen Wetterdiensten (einschließlich zweier NOAA-Produkte)."):
-  "Der Vierer-Vergleich ist vorbereitet: "+matched+" von vier Plätzen sind mit zeitgleichen Karten belegt. Andere Kacheln bleiben ehrlich leer.":
-  matched?"Originalkarte des gewählten Wetterdienstes für den ausgewiesenen UTC-Termin.":"Für diesen Dienst liegt zum gewählten Termin keine automatisch einbettbare Karte vor.";
+ const outdated=Date.now()-Date.parse(catalog.generated_utc)>12*3600000;
+ const state=outdated?" · Achtung: Datenindex älter als 12 Stunden":"";
+ $("chartStatus").textContent=isoDE(validity)+" · "+matched+"/"+ids.length+
+  " Originalbilder · "+agencies.size+" unabhängige Dienste · UTC identisch"+
+  (externalCount?" · "+externalCount+" externe Verlinkung(en) ohne Zeitsynchronisierung":"")+state;
+ $("syncHint").textContent=externalCount===ids.length?
+  "Die gewählten Karten werden bei den Wetterdiensten geöffnet und nicht als synchronisierter Vierer-Vergleich dargestellt.":
+  isFour?
+   (matched===4?(agencies.size===4?"Vier unabhängige Wetterdienste mit identischer UTC-Gültigkeit.":"Vier Karten aus "+agencies.size+" unterschiedlichen Wetterdiensten; einzelne Ausschnitte stammen vom selben Herausgeber."):"Exakt zeitgleiche Karten: "+matched+"/4. Leere Felder werden nicht mit anderen Terminen aufgefüllt."):
+   (matched?"Originalkarte des gewählten Dienstes für den ausgewiesenen UTC-Termin.":"Keine verifizierte Originalkarte dieses Dienstes zum ausgewählten Termin.");
 }
 async function pngExport(){
  const validity=$("validTime").value;
@@ -247,7 +275,8 @@ async function pngExport(){
  }
  if(!loaded)return;
  ctx.font="14px Arial";ctx.fillStyle="#5a7083";
- ctx.fillText("Originalkarten: DWD / AEMET / NOAA-NWS / ggf. ČHMÚ · Urheber in den Panels",32,H-34);
+ const providers=[...new Set(ids.filter(id=>cardsAt(id,validity).length).map(id=>source(id)?.name||id))].join(" · ");
+ ctx.fillText(("Quellen: "+providers).slice(0,160),32,H-34);
  if(ids.some(id=>id==="chmi"&&cardsAt(id,validity).length)){
   ctx.fillText("ČHMÚ · CC BY 4.0 · https://creativecommons.org/licenses/by/4.0/ · PNG→WebP, Panelanordnung",32,H-14);
  }
