@@ -33,6 +33,26 @@ class IMOChartProbeTests(unittest.TestCase):
         self.assertFalse(a["images"][0]["strong_timestamp_match"])
         a=imo.document_assets('<img src="/static/imo/placeholder.png" data-valid-utc="2026-10-19 12:00 UTC">',BASE)
         self.assertFalse(a["images"][0]["strong_timestamp_match"])
+    def test_forecast_filename_encodes_run_plus_lead_not_valid_utc(self):
+        html='''<script>var frames=["/photos/sjo_atlant_spa/261019_0000_3.png",
+"/photos/sjo_atlant_spa/261019_0000_12.png",
+"/photos/sjo_atlant_spa/261019_0000_24.png",
+"/photos/sjo_atlant_spa/261019_0000_999.png"];</script>'''
+        got=imo.dated_forecast_candidates(html,BASE,FIXED)
+        self.assertEqual(len(got),3)
+        self.assertEqual(got[1]["run_utc"],"2026-10-19T00:00+00:00")
+        self.assertEqual(got[1]["forecast_hours"],12)
+        self.assertEqual(got[1]["calculated_valid_utc"],"2026-10-19T12:00+00:00")
+        self.assertTrue(got[1]["url"].endswith("/261019_0000_12.png"))
+        self.assertEqual(got[2]["calculated_valid_utc"],"2026-10-20T00:00+00:00")
+
+    def test_forecast_filename_rejects_wrong_current_run_and_lead(self):
+        html='''/photos/sjo_atlant_spa/251019_0000_12.png
+/photos/sjo_atlant_spa/261019_0030_12.png
+/photos/sjo_atlant_spa/261019_0000_145.png
+/photos/sjo_atlant_spa/261019_0000_0.png'''
+        self.assertFalse(imo.dated_forecast_candidates(html,BASE,FIXED))
+
     def test_probe_never_marks_chart_ingestion_ready_from_html(self):
         html='<img src="/static/imo/atlantic_2026101912.png" data-valid-utc="2026-10-19 12:00 UTC">'
         def fake(url):
