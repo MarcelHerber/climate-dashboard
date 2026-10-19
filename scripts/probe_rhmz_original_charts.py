@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check RHMZ Serbia's two ORIGINAL Europe surface-analysis JPEGs, without publishing images.
+"""Check six RHMZ ORIGINAL Europe/Balkan surface-analysis JPEGs, without publishing images.
 
 The 00/12 UTC in an IMAGE FILENAME identifies a product slot, NOT the day.
 A chart is verified only when the image header itself contains a complete
@@ -24,6 +24,10 @@ TERMS="https://www.hidmet.gov.rs/eng/osmotreni/analiza.php"
 PRODUCTS={
   "europe00":"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa00_JPG.jpg",
   "europe12":"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa12_JPG.jpg",
+  "balkan06":"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan06_JPG.jpg",
+  "balkan09":"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan09_JPG.jpg",
+  "balkan12":"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan12_JPG.jpg",
+  "balkan15":"https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan15_JPG.jpg",
 }
 # Printed example: EVROPA / PRIZEMNI PODACI 19-10-2026 12 UTC
 COMPLETE_TIME=re.compile(
@@ -49,7 +53,7 @@ def printed_utc(caption:str)->datetime:
 def verified_time(product:str,url:str,caption:str,now:datetime)->datetime:
     if not url_is_expected(product,url):raise ValueError("Unknown RHMZ map URL")
     dt=printed_utc(caption)
-    slot={"europe00":0,"europe12":12}[product]
+    slot={"europe00":0,"europe12":12,"balkan06":6,"balkan09":9,"balkan12":12,"balkan15":15}[product]
     if dt.hour!=slot or dt.minute!=0:
         raise ValueError("Printed hour differs from official RHMZ product slot")
     if not(now-timedelta(hours=48)<=dt<=now+timedelta(hours=2)):
@@ -86,8 +90,8 @@ def check(now:datetime|None=None,fetch_image=read_jpeg,header_reader=ocr_header)
     now=now or datetime.now(timezone.utc)
     records=[]
     for product,url in PRODUCTS.items():
-        entry={"product":product,"region":"Europa","image_url":url,"source_page":SOURCE_PAGE,
-               "slot_utc":"00:00" if product=="europe00" else "12:00",
+        entry={"product":product,"region":"Balkan" if product.startswith("balkan") else "Europa","image_url":url,"source_page":SOURCE_PAGE,
+               "slot_utc":product[-2:]+":00",
                "state":"unverified","image_reuse_permitted":False}
         try:
             image=fetch_image(url)
