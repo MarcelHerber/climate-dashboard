@@ -7,7 +7,8 @@ import audit_europe_synoptic_sources as audit
 class EuropeOriginalRightsTests(unittest.TestCase):
     def test_publisher_rights_without_timestamp_never_publish(self):
         self.assertFalse(audit.image_admissible(audit.SOURCES["imo"],False,False))
-        self.assertFalse(audit.image_admissible(audit.SOURCES["imo"],True,True))
+        self.assertTrue(audit.image_admissible(audit.SOURCES["imo"],True,True))
+        self.assertFalse(audit.image_admissible(audit.SOURCES["imo"],True,False))
     def test_model_open_data_not_same_as_copyright_on_original_chart(self):
         self.assertFalse(audit.image_admissible(audit.SOURCES["meteoswiss"],True,True))
     def test_restricted_publication_must_remain_external(self):
