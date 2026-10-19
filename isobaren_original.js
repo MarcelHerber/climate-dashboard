@@ -26,7 +26,7 @@ function sourceDirectory(){
    type:s.type,
    url:curated?.url||s.url,
    note:curated?.note||(s.type==="auto"?"Offizielle Originalkarten mit UTC-Gültigkeitszeit.":s.license||"Offizieller Kartenbereich."),
-   category:curated?.category|| (s.type==="auto"?"auto":"viewer")});
+   category:s.type==="auto"?"auto":(curated?.category||"viewer")});
  }
  for(const policy of europeSourceAudit?.providers||[]){
   const existing=merged.get(policy.id);
@@ -331,7 +331,7 @@ async function load(){
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots)||
      !data.source_status||!Number.isFinite(Date.parse(data.generated_utc)))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz|knmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz|knmi|imo)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(!Number.isFinite(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;
