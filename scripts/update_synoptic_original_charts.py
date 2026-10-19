@@ -89,8 +89,8 @@ SOURCES=[
   "url":"https://www.meteociel.fr/fronts/index.php",
   "type":"external","license":"Direkte Kartenansicht mit Frontenanalyse und Prognose; Drittanbieter, keine Bildübernahme ohne Rechteprüfung"},
  {"id":"hungaromet","name":"HungaroMet · Fronten (Direktbild nicht bestätigt)","country":"Ungarn",
-  "url":"https://kriter.met.hu/idojaras/aktualis_idojaras/napijelentes/main.php?ful=front",
-  "type":"external","license":"Angebot einer Europa-Frontenkarte dokumentiert; aktueller Viewer beim Abruf nicht bestätigt"},
+  "url":"https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+  "type":"external","license":"Frontenviewer erreichbar; HungaroMet verbietet Reproduktion ohne schriftliche Einwilligung"},
  {"id":"metie","name":"Met Éireann","country":"Irland",
   "url":"https://www.met.ie/latest-reports/surface-analysis",
   "type":"external","license":"Met Éireann untersagt automatisiertes Kopieren der Website; Originalanalyse nur als Link"},
@@ -112,8 +112,8 @@ SOURCES=[
   "url":"https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
   "type":"external","license":"Amtliche europäische Frontenprognosen; zurzeit nur externe Verlinkung"},
  {"id":"smhi","name":"SMHI · tägliche Wetteranalysen","country":"Schweden",
-  "url":"https://www.smhi.se/blogg/blogg/2026-09-02-arkiv-med-dagliga-vaderkartor",
-  "type":"external","license":"Offizielles Tageskartenarchiv in den SMHI-Monatsrückblicken; nur externe Verlinkung"},
+  "url":"https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+  "type":"external","license":"Zweimal tägliche Originalkarten im Monatsarchiv, nicht Live; reproduzierbar nur im Original und mit Quellen-/Abrufangabe"},
  {"id":"noaa_wpc","name":"NOAA WPC · Nordamerika Analyse/Prognosen","country":"USA",
   "url":"https://www.weather.gov/forecastmaps",
   "type":"external","license":"Amtliche Bodenanalysen sowie 12-, 24-, 36- und 48-h-Prognosen; externer Link"},
@@ -122,7 +122,7 @@ SOURCES=[
   "type":"external","license":"Amtliche Pazifik-Bodenanalysen und Prognosen; externer Link"},
  {"id":"imo","name":"IMO","country":"Island",
   "url":"https://en.vedur.is/weather/shipping/atlantic/",
-  "type":"external","license":"Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"}
+  "type":"external","license":"ECMWF-basierte Isobarenprognosen (ohne Fronten); IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe, jedoch fehlt ein sicher auslesbarer Bild-UTC-Termin"}
 ]
 
 class Links(HTMLParser):
