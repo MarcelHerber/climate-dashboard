@@ -17,7 +17,7 @@ BASE=Path(__file__).resolve().parents[1]
 OUTPUT=BASE/"data"/"synoptic_charts"/"europe_viewer_probe.json"
 VIEWERS={
  "hnms":("Griechenland","https://emy.gr/en/marine","emy.gr"),
- "imgw_synoptic_forecast":("Polen","https://modele.imgw.pl/cmm/?page_id=19032","modele.imgw.pl"),
+ "imgw_synoptic_forecast":("Polen","https://meteo.imgw.pl/cmm/?page_id=19032","meteo.imgw.pl"),
  "meteofrance":("Frankreich","https://meteofrance.com/isofronts","meteofrance.com"),
  "meteoswiss":("Schweiz","https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html","www.meteoschweiz.admin.ch"),
  "smhi":("Schweden","https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige","www.smhi.se"),
