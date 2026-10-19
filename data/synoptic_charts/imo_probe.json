@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "checked_utc": "2026-10-19T12:23:29+00:00",
+  "publisher": "Icelandic Meteorological Office (IMO)",
+  "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
+  "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
+  "pages": [
+    {
+      "page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "state": "inspected",
+      "image_count": 4,
+      "script_count": 9,
+      "script_hints": [
+        {
+          "url": "https://en.vedur.is/skin/basic/js/noflicker.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/skin/basic/js/jQuery-1.6.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/js/vi-base.js?v=538",
+          "image_or_endpoint_strings": [
+            "icon/wnone.gif",
+            "invalid.gif",
+            "icon/ydotsel.gif",
+            "icon/ydot.gif",
+            "+VI.r.forecasttime+"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/js/vi-res_en.js?v=538",
+          "image_or_endpoint_strings": [
+            "weather/forecasts/areas/",
+            "weather/forecasts/elements/",
+            "auto_forecast"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/jslib/history.js?v=538",
+          "image_or_endpoint_strings": []
+        }
+      ]
+    },
+    {
+      "page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "state": "inspected",
+      "image_count": 4,
+      "script_count": 9
+    }
+  ],
+  "image_candidates": [
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/app-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/facebook-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/twitter-logo-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/multilogo-en-v3.jpg",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://www.vedur.is/media/cssmedia/app-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://www.vedur.is/media/cssmedia/facebook-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://www.vedur.is/media/cssmedia/twitter-logo-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://www.vedur.is/media/cssmedia/multilogo-en-v3.jpg",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    }
+  ],
+  "matching_metadata_candidates": 0,
+  "ready_for_automated_chart_ingestion": false,
+  "state": "requires_image_and_utc_verification",
+  "reason": "Actual map image and its printed Gildistími/UTC time must be independently verified. Never use crawl time or slider position."
+}
