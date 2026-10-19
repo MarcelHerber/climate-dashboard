@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T07:38:46+00:00",
+  "generated_utc": "2026-10-19T07:43:39+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -116,6 +116,22 @@
       "url": "https://www.met.ie/latest-reports/surface-analysis",
       "type": "external",
       "license": "Met Éireann untersagt automatisiertes Kopieren der Website; Originalanalyse nur als Link"
+    },
+    {
+      "id": "metno",
+      "name": "MET Norway · Skandinavien",
+      "country": "Norwegen",
+      "url": "https://www.met.no/publikasjoner",
+      "type": "external",
+      "license": "Synoptische Analysen in offiziellen Berichten; kein verifizierter automatischer Live-Bildfeed"
+    },
+    {
+      "id": "imgw",
+      "name": "IMGW · Polen",
+      "country": "Polen",
+      "url": "https://meteo.imgw.pl/",
+      "type": "external",
+      "license": "Amtliche synoptische Europakarten; kein freigegebener automatischer Live-Bildabruf"
     },
     {
       "id": "knmi",
