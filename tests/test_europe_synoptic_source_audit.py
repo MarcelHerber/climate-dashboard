@@ -19,6 +19,19 @@ class EuropeOriginalRightsTests(unittest.TestCase):
         self.assertEqual(x["map"],"archive")
         self.assertEqual(x["rights"],"original_unmodified_only")
         self.assertFalse(audit.image_admissible(x,True,True))
+    def test_imgw_analysis_forecast_and_bulletin_have_separate_reuse_gates(self):
+        imgw=("imgw","imgw_synoptic_forecast","imgw_synoptic_archive")
+        for identifier in imgw:
+            with self.subTest(identifier=identifier):
+                provider=audit.SOURCES[identifier]
+                self.assertEqual(provider["rights"],"chart_specific_clearance_required")
+                self.assertEqual(provider["country"],"Polen")
+                self.assertEqual(provider["terms_url"],"https://danepubliczne.imgw.pl/regulations")
+                self.assertFalse(audit.image_admissible(provider,True,True))
+        self.assertIn("00_12",audit.SOURCES["imgw"]["timestamp"])
+        self.assertEqual(audit.SOURCES["imgw_synoptic_archive"]["map"],
+                         "historical_selected_analyses_in_monthly_pdf")
+
     def test_positive_gate_requires_explicit_provider_rights_and_utc(self):
         p={"rights":"open_chart_license","timestamp":"verified_in_filename"}
         self.assertTrue(audit.image_admissible(p,True,True))
