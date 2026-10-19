@@ -355,7 +355,8 @@ def main(output=OUT,now=None):
     now=now or datetime.now(timezone.utc)
     output=Path(output)
     charts=[];status={}
-    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),\n             ("knmi",KNMI_PAGE,extract_knmi),
+    sources=[("dwd",DWD_INDEX,extract_dwd),("aemet",AEMET_PAGE,extract_aemet),
+             ("knmi",KNMI_PAGE,extract_knmi),
              ("noaa_opc",OPC_ARCHIVE,extract_opc),
              ("noaa_full",OPC_ARCHIVE,extract_opc_full),
              ("noaa_west",OPC_ARCHIVE,extract_opc_west),
