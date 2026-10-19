@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T11:12:34+00:00",
+  "generated_utc": "2026-10-19T11:51:49+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -161,9 +161,9 @@
       "id": "hungaromet",
       "name": "HungaroMet · Fronten (Direktbild nicht bestätigt)",
       "country": "Ungarn",
-      "url": "https://kriter.met.hu/idojaras/aktualis_idojaras/napijelentes/main.php?ful=front",
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
       "type": "external",
-      "license": "Angebot einer Europa-Frontenkarte dokumentiert; aktueller Viewer beim Abruf nicht bestätigt"
+      "license": "Frontenviewer erreichbar; HungaroMet verbietet Reproduktion ohne schriftliche Einwilligung"
     },
     {
       "id": "metie",
@@ -225,9 +225,9 @@
       "id": "smhi",
       "name": "SMHI · tägliche Wetteranalysen",
       "country": "Schweden",
-      "url": "https://www.smhi.se/blogg/blogg/2026-09-02-arkiv-med-dagliga-vaderkartor",
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
       "type": "external",
-      "license": "Offizielles Tageskartenarchiv in den SMHI-Monatsrückblicken; nur externe Verlinkung"
+      "license": "Zweimal tägliche Originalkarten im Monatsarchiv, nicht Live; reproduzierbar nur im Original und mit Quellen-/Abrufangabe"
     },
     {
       "id": "noaa_wpc",
@@ -251,7 +251,7 @@
       "country": "Island",
       "url": "https://en.vedur.is/weather/shipping/atlantic/",
       "type": "external",
-      "license": "Quellenseite verlinkt, Bildrechte nicht pauschal geklärt"
+      "license": "ECMWF-basierte Isobarenprognosen (ohne Fronten); IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe, jedoch fehlt ein sicher auslesbarer Bild-UTC-Termin"
     }
   ],
   "source_status": {
@@ -960,13 +960,13 @@
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-21T12:00+00:00",
-      "issued_utc": "2026-10-18T12:00+00:00",
-      "forecast_hours": 72,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101812+072_ww_g1x0a2d3.gif",
+      "issued_utc": "2026-10-19T12:00+00:00",
+      "forecast_hours": 48,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026101912+048_ww_g1x0a2d2.gif",
       "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261021_1200.webp",
-      "size_bytes": 307566
+      "size_bytes": 309884
     },
     {
       "source_id": "chmi",
@@ -981,7 +981,7 @@
       "provider_timeline_utc": "2026-10-21T10:00+00:00",
       "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
       "image": "images/chmi_20261021_1200.webp",
-      "size_bytes": 254762
+      "size_bytes": 264728
     },
     {
       "source_id": "noaa_96",
