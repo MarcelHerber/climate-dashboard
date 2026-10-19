@@ -285,45 +285,71 @@ async function pngExport(){
  a.href=canvas.toDataURL("image/png");document.body.append(a);a.click();a.remove();
 }
 async function load(){
- $("chartStatus").textContent="Lade veröffentlichte Originalkarten …";
+ $("chartStatus").textContent="Prüfe die neuesten veröffentlichten Originalkarten …";
  try{
   const resp=await fetch(ROOT+"index.json?v="+Date.now(),{cache:"no-store"});
-  if(!resp.ok)throw new Error("Kartenindex noch nicht veröffentlicht (HTTP "+resp.status+")");
+  if(!resp.ok)throw new Error("Kartenindex nicht erreichbar (HTTP "+resp.status+")");
   const data=await resp.json();
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
-     !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
+     !Array.isArray(data.sources)||!Array.isArray(data.time_slots)||
+     !data.source_status||!Number.isFinite(Date.parse(data.generated_utc)))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
    if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz|knmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
-   if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
+   if(!Number.isFinite(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
-  catalog=data;fillSources();fillPickers();refreshView();
+  catalog=data;
+  renderDataHealth();
+  fillSources();
+  fillPickers();
+  refreshView();
  }catch(err){
-  catalog=null;$("chartStatus").textContent=err.message;
-  $("chartGrid").replaceChildren(node("div","empty","Der erste verifizierte Kartenabruf steht noch aus. Die übrigen Seiten bleiben nutzbar."));
+  catalog=null;
+  $("chartStatus").textContent="Kartenindexfehler: "+err.message;
+  renderDataHealth();
+  $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
   $("exportPng").disabled=true;
   fillSources();
+  updatePanelControls();
  }
 }
 function init(){
  $("reload").addEventListener("click",load);
  ["sourceSearch","sourceFilter"].forEach(id=>$(id)?.addEventListener(id==="sourceSearch"?"input":"change",fillSources));
- $("chartMode").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
- $("validTime").addEventListener("change",refreshView);
- $("singleSource").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
- slots.forEach(id=>$(id).addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();}));
+ $("chartMode").addEventListener("change",()=>{
+  if(catalog){
+   if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
+   else if($("chartMode").value==="single")nearestTimeFor([$("singleSource").value]);
+  }
+  refreshView();
+ });
+ $("fourPolicy").addEventListener("change",()=>{
+  if(catalog&&panelAutomatic())autoBestPanels();
+  refreshView();
+ });
+ $("optimizePanels").addEventListener("click",()=>{
+  $("fourPolicy").value="auto";
+  autoBestPanels();
+  refreshView();
+ });
+ $("validTime").addEventListener("change",()=>{
+  if(catalog&&$("chartMode").value==="four"&&panelAutomatic())autoAtCurrentTime();
+  refreshView();
+ });
+ $("singleSource").addEventListener("change",()=>{
+  if(catalog)nearestTimeFor([$("singleSource").value]);
+  refreshView();
+ });
+ slots.forEach(id=>$(id).addEventListener("change",()=>{
+  // In manual mode neither the other sources nor the UTC time are overwritten.
+  if($("chartMode").value==="four"&&panelAutomatic())$("fourPolicy").value="manual";
+  refreshView();
+ }));
  $("chartKind").addEventListener("change",()=>{
   if(!catalog)return;
-  const forecast=$("chartKind").value==="forecast";
-  if(forecast){
-   $("singleSource").value="aemet";
-   const opts=["aemet","chmi","noaa_48","noaa_96"];
-   slots.forEach((id,i)=>{$(id).value=opts[i];});
-  }else{
-   if(!$("singleSource").value)$("singleSource").value="dwd";
-   slots.forEach((id,i)=>{$(id).value=INITIAL[i];});
-  }
-  rebuildTimes(forecast?"aemet":"dwd");
-  if(forecast)selectBestForecastPanel();else closestForSources(currentProviders());
+  rebuildTimes($("singleSource").value,false);
+  if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
+  else if($("chartMode").value==="single")nearestTimeFor([$("singleSource").value]);
+  else nearestTimeFor(currentProviders());
   refreshView();
  });
  $("exportPng").addEventListener("click",pngExport);
