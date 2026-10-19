@@ -6,8 +6,9 @@
 <meta name="color-scheme" content="light">
 <title>Isobaren & Fronten · Originalkarten der Wetterdienste</title>
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
-<link rel="stylesheet" href="isobaren_original.css?v=3">
-<script defer src="isobaren_original.js?v=18"></script>
+<link rel="stylesheet" href="isobaren_original.css?v=4">
+<script defer src="synoptic_panel_logic.js?v=1"></script>
+<script defer src="isobaren_original.js?v=19"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -26,12 +27,20 @@
 <label class="control" id="singleSourceWrap">Wetterdienst / Kartenquelle<select id="singleSource"><option value="dwd">DWD</option></select></label>
 <div class="row"><button class="button" id="reload" type="button">Aktualisieren</button><button class="button primary" id="exportPng" type="button" disabled>PNG herunterladen</button></div>
 </div>
+<div class="row panel-options" id="fourOptions" hidden>
+ <label class="control" style="max-width:290px">Vierer-Panel-Auswahl
+  <select id="fourPolicy"><option value="auto">Automatisch beste UTC-Kombination</option><option value="manual">Wetterdienste manuell auswählen</option></select>
+ </label>
+ <button class="button" id="optimizePanels" type="button">Beste Kombination suchen</button>
+ <p class="help panel-option-note" id="autoChoiceHint">Automatisch: möglichst viele Karten und unabhängige Dienste für denselben UTC-Termin.</p>
+</div>
 <div class="row" id="fourSelectors" hidden>
 <label class="control">Panel oben links<select id="panel0"></select></label>
 <label class="control">Panel oben rechts<select id="panel1"></select></label>
 <label class="control">Panel unten links<select id="panel2"></select></label>
 <label class="control">Panel unten rechts<select id="panel3"></select></label>
 </div>
+<div class="health-summary" id="dataHealth" role="status" aria-live="polite">Prüfe Aktualität des Kartenindex …</div>
 <div class="status" id="chartStatus" role="status" aria-live="polite">Lade verfügbare Karten …</div>
 <div class="charts" id="chartGrid" aria-label="Karten der Wetterdienste">
 <div class="chart"><div class="chart-body"><div class="empty"><strong>Kartenindex wird geladen</strong>Keine fiktiven oder veralteten Karten als aktuelle Prognose.</div></div></div>
@@ -57,8 +66,8 @@
 </section>
 <section class="panel">
 <h2>Hinweise zum Kartenvergleich</h2>
-<p class="notice">Ein Vergleich für beispielsweise <strong>17.10.2026, 12 UTC</strong> zeigt nur Karten, deren ausdrücklich ausgewiesene Gültigkeit genau auf diesen Zeitpunkt fällt. Das Ausgabedatum darf abweichen, die gültige UTC-Zeit aber nicht. Fehlen geeignete Bilder eines Dienstes, erscheint eine leere, beschriftete Kachel mit einem Link zum jeweiligen Originalangebot. Das Vierer-Raster verspricht ausdrücklich keine vier verfügbaren Bilder, solange nicht vier Quellen denselben Termin publizieren.</p>
-<p class="notice"><strong>Vier unabhängige Dienste:</strong> Das Standardpanel bevorzugt DWD, AEMET, NOAA OPC und ČHMÚ, sobald geprüfte tschechische Karten vorhanden sind. Andernfalls dient der NOAA-Gesamtatlantik als vierter Kartenausschnitt – ausdrücklich kein vierter unabhängiger Wetterdienst.</p>
+<p class="notice">Ein Vergleich für beispielsweise <strong>17.10.2026, 12 UTC</strong> zeigt nur Karten, deren ausdrücklich ausgewiesene Gültigkeit genau auf diesen Zeitpunkt fällt. Das Ausgabedatum darf abweichen, die gültige UTC-Zeit aber nicht. Fehlen geeignete Bilder eines Dienstes, erscheint eine leere, beschriftete Kachel mit einem Link zum jeweiligen Originalangebot. Die automatische Auswahl bevorzugt möglichst viele echte Bilder von unabhängigen Wetterdiensten. Fehlen gleichzeitige Karten, bleiben nicht belegbare Panelplätze als solche gekennzeichnet.</p>
+<p class="notice"><strong>Vier unabhängige Dienste:</strong> Die automatische Auswahl bevorzugt unterschiedliche Herausgeber, bevor weitere Ausschnitte desselben Dienstes ergänzt werden. NOAA-Regionalkarten zählen bei der Dienstzahl gemeinsam als NOAA.</p>
 <p class="notice"><strong>Nutzungsrechte:</strong> AEMET gestattet die Wiedergabe mit Quellenangabe. Für Met Office ist das direkte Verlinken oder Einbetten von Bilddateien laut Website-Nutzungsbedingungen untersagt; deshalb nur Link zur Originalseite. DWD: öffentliche DWD-Open-Data-Karten mit Quellenangabe. NOAA/NWS: amtliche Originalkarten sind grundsätzlich Public Domain und werden mit Quellenangabe dargestellt. ČHMÚ: wiederverwendete Originalkarten unter CC BY 4.0 mit Quellenhinweis, Lizenzlink und Hinweis auf WebP-Konvertierung. ECCC (Kanada): Nordhemisphärenkarte derzeit nur als externer Link, da kein zuverlässig auslesbarer Gültigkeitszeitstempel vorliegt. Die Originalgrafiken werden nicht als amtliche gemeinsame Analyse ausgegeben.</p>
 </section>
 </main>
