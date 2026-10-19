@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T09:29:49+00:00",
+  "generated_utc": "2026-10-19T09:31:29+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -172,6 +172,14 @@
       "url": "https://www.met.ie/latest-reports/surface-analysis",
       "type": "external",
       "license": "Met Éireann untersagt automatisiertes Kopieren der Website; Originalanalyse nur als Link"
+    },
+    {
+      "id": "metie_forecast",
+      "name": "Met Éireann · Atlantik-Druckprognosen",
+      "country": "Irland",
+      "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "type": "external",
+      "license": "Offizielle Druck-/Niederschlagskarten; Bildkopie nicht zugelassen, nur Quellenseite verlinken"
     },
     {
       "id": "metno",
