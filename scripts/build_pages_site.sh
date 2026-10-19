@@ -332,7 +332,7 @@ index=json.loads((root/"index.json").read_text(encoding="utf-8"))
 assert index.get("schema_version")==1 and index.get("ready") is True
 assert len(index.get("charts",[]))==index.get("chart_count")
 for chart in index["charts"]:
-    assert chart.get("source_id") in ("dwd","aemet","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
+    assert chart.get("source_id") in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
     assert chart["image"].startswith("images/")
     if chart["source_id"] in ("noaa_24","noaa_48","noaa_96"):
         from datetime import datetime,timedelta
@@ -349,6 +349,9 @@ for chart in index["charts"]:
 PY
   mkdir -p _site/data/synoptic_charts
   cp -a data/synoptic_charts/index.json data/synoptic_charts/images _site/data/synoptic_charts/
+  if [[ -s data/synoptic_charts/europe_source_audit.json ]]; then
+    cp data/synoptic_charts/europe_source_audit.json _site/data/synoptic_charts/
+  fi
   echo "Original-Synoptikkarten der Wetterdienste mit UTC-Gültigkeiten veröffentlicht."
 else
   echo "HINWEIS: Keine Original-Synoptikkarten publiziert; Seite zeigt transparente Quellenlinks."
