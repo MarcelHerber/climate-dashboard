@@ -11,6 +11,8 @@ on:
       - "tests/test_synoptic_original_charts.py"
       - "scripts/audit_europe_synoptic_sources.py"
       - "tests/test_europe_synoptic_source_audit.py"
+      - "scripts/probe_imo_atlantic.py"
+      - "tests/test_imo_atlantic_probe.py"
       - "tests/test_synoptic_panel_selection.cjs"
       - "synoptic_panel_logic.js"
       - "scripts/probe_chmi_synoptic.py"
@@ -54,7 +56,7 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_imo_atlantic.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -74,6 +76,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
       - name: Publish European source permission audit (not a live availability claim)
         run: python scripts/audit_europe_synoptic_sources.py
+      - name: Test IMO source provenance, dates, and no invented chart times
+        run: python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
+      - name: Probe IMO actual North Atlantic image metadata (no image copy)
+        run: python scripts/probe_imo_atlantic.py
       - name: Fetch permitted DWD AEMET KNMI NOAA original images
         run: python scripts/update_synoptic_original_charts.py
       - name: Validate only genuine source charts
@@ -83,6 +89,10 @@ jobs:
           from pathlib import Path
           root=Path("data/synoptic_charts")
           index=json.loads((root/"index.json").read_text(encoding="utf-8"))
+          imo=json.loads((root/"imo_probe.json").read_text(encoding="utf-8"))
+          assert imo["schema_version"]==1
+          assert imo["ready_for_automated_chart_ingestion"] is False
+          assert imo["provider_terms"].startswith("https://en.vedur.is/")
           audit=json.loads((root/"europe_source_audit.json").read_text(encoding="utf-8"))
           assert audit["schema_version"]==1 and audit["no_live_check"]
           assert all(not p["reproduction_ready"] for p in audit["providers"])
