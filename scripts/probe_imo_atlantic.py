@@ -30,7 +30,7 @@ VALIDITY_KEYS=("data-valid-utc","data-validity","data-valid-time","data-gildisti
 ATTR_IMAGE_KEYS=("src","data-src","data-image","data-url","data-original","data-img","href")
 ALLOWED_HOSTS={"en.vedur.is","www.vedur.is","vedur.is","brunnur.vedur.is"}
 MAX_HTML_BYTES=650_000
-MAX_JS_FILES=5
+MAX_JS_FILES=15
 MAX_JS_BYTES=250_000
 
 def allowed_url(raw:str,base:str)->str|None:
@@ -119,7 +119,8 @@ def probe(now:datetime|None=None,fetch=download_text)->dict:
             assets=document_assets(html,page)
             report.update({"state":"inspected","image_count":len(assets["images"]),
                            "script_count":len(assets["scripts"]),
-                           "inline_image_or_endpoint_hints":inspect_script(html)})
+                           "inline_image_or_endpoint_hints":inspect_script(html),
+                           "provider_script_urls":assets["scripts"]})
             for img in assets["images"]:
                 candidates.append({"source_page":page,**img})
             # Avoid unbounded crawling; only same-origin JavaScript. This is
