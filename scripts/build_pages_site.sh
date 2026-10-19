@@ -18,6 +18,7 @@ required_root_files=(
   blocking.js
   blocking.css
   isobaren_original.html
+  weltweite_isobaren.html
   isobaren_original.js
   isobaren_original.css
   enso.html
