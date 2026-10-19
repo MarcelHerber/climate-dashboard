@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-19T19:49:41+00:00",
+  "checked_utc": "2026-10-19T19:53:42+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
@@ -57,14 +57,27 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "imgw",
+      "country": "Polen",
+      "url": "https://meteo.imgw.pl/",
+      "map": "official_europe_analysis_fronts",
+      "rights": "chart_specific_clearance_required",
+      "timestamp": "viewer_selects_00_12_without_image_date",
+      "details": "Offizielle Europakarten mit Isobaren/Fronten, Wahl 00 und 12 UTC. Eine bestimmte Karte darf erst bei bestätigter vollständiger Gültigkeit UND bildspezifisch geklärten Rechten ins Panel.",
+      "terms_url": "https://danepubliczne.imgw.pl/regulations",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "imgw_synoptic_archive",
       "country": "Polen",
-      "url": "https://dane.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/Biuletyn_PSHM_2026_02_%28luty%29.pdf",
-      "map": "historical_analysis_pdf",
-      "rights": "not_verified",
-      "timestamp": "archive_validity_known",
-      "details": "Offizielles historisches Monatsbulletin: Karte mit Fronten, Isobaren und expliziter UTC-Zeit; kein aktueller Feed.",
-      "terms_url": "https://imgw.pl/",
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "map": "historical_selected_analyses_in_monthly_pdf",
+      "rights": "chart_specific_clearance_required",
+      "timestamp": "individual_printed_validity_within_pdf",
+      "details": "Amtliche Monats-PDFs 2009 bis August 2026 geprüft. Einzelne Karten haben ausdrücklich gedruckte UTC-Gültigkeit, aber die Bildübernahme erfordert eine gesonderte Rechteprüfung.",
+      "terms_url": "https://danepubliczne.imgw.pl/regulations",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -72,12 +85,12 @@
     {
       "id": "imgw_synoptic_forecast",
       "country": "Polen",
-      "url": "https://modele.imgw.pl/cmm/?page_id=19032",
-      "map": "synoptic_forecast",
-      "rights": "not_verified",
-      "timestamp": "not_machine_verified",
-      "details": "Amtliche mehrtägige synoptische Prognosebilder, aber keine verifizierte UTC-Originalbildadresse bzw. Freigabe.",
-      "terms_url": "https://imgw.pl/",
+      "url": "https://meteo.imgw.pl/cmm/?page_id=19032",
+      "map": "synoptic_day_night_forecast",
+      "rights": "chart_specific_clearance_required",
+      "timestamp": "day_night_without_machine_utc",
+      "details": "Bis zu sieben Prognosetage mit Tages-/Nachtkarten. Kein geprüftes exaktes Originalbild-UTC-Mapping oder öffentliches Nutzungsrecht für die Bildübernahme.",
+      "terms_url": "https://danepubliczne.imgw.pl/regulations",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T19:50:19+00:00",
+  "generated_utc": "2026-10-19T19:54:39+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -207,19 +207,19 @@
     },
     {
       "id": "imgw_synoptic_forecast",
-      "name": "IMGW-PIB · Synoptische Prognosen",
+      "name": "IMGW-PIB · Synoptische Tages- und Nachtprognosen",
       "country": "Polen",
-      "url": "https://modele.imgw.pl/cmm/?page_id=19032",
+      "url": "https://meteo.imgw.pl/cmm/?page_id=19032",
       "type": "external",
-      "license": "Amtliche synoptische Karten; Bildübernahme und UTC-Gültigkeit ungeprüft, nur externe Kartenansicht"
+      "license": "Originale bis zu 7 Tage gültige Synoptikkarten; weder bildspezifische Wiederverwendungsrechte noch UTC-Einzelbildformat geklärt, nur Link"
     },
     {
       "id": "imgw_synoptic_archive",
-      "name": "IMGW-PIB · Synoptische Analysen",
+      "name": "IMGW-PIB · PSHM-Synoptik-Bulletinarchiv",
       "country": "Polen",
-      "url": "https://dane.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/Biuletyn_PSHM_2026_02_%28luty%29.pdf",
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
       "type": "external",
-      "license": "Historisches amtliches Monatsbulletin mit datierter Fronten-/Isobarenkarte, nicht live; keine automatische Bildkopie"
+      "license": "Originale amtliche PDF-Monatsbulletins seit 2009; enthalten ausgewählte datierte Synoptikkarten, keine kontinuierliche Tageskartenserie"
     },
     {
       "id": "meteolt_synoptic_archive",
@@ -239,11 +239,11 @@
     },
     {
       "id": "imgw",
-      "name": "IMGW · kein verifizierter Direktlink",
+      "name": "IMGW-PIB · aktuelle Europaanalysen 00/12 UTC",
       "country": "Polen",
       "url": "https://meteo.imgw.pl/",
       "type": "external",
-      "license": "Amtliche synoptische Europakarten; kein freigegebener automatischer Live-Bildabruf"
+      "license": "Originale Bodenanalysen 00/12 UTC im Wetterportal; bildspezifische Wiederverwendungsrechte und automatisierte Gültigkeitszuordnung offen"
     },
     {
       "id": "knmi",

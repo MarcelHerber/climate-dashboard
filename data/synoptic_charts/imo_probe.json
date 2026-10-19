@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-19T19:49:42+00:00",
+  "checked_utc": "2026-10-19T19:53:43+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -122,10 +122,6 @@
           "image_or_endpoint_strings": []
         },
         {
-          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
-          "image_or_endpoint_strings": []
-        },
-        {
           "url": "https://www.vedur.is/js/vi-base.js?v=538",
           "image_or_endpoint_strings": [
             "icon/wnone.gif",
@@ -148,6 +144,12 @@
         {
           "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
           "image_or_endpoint_strings": []
+        }
+      ],
+      "script_errors": [
+        {
+          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
+          "error": "TimeoutError: The read operation timed out"
         }
       ]
     }
