@@ -149,9 +149,28 @@ function fillSources(){
    if(s.rhmz_probe?.generated_utc)article.append(node("span","source-inspection",
      "RHMZ-Kartenprüfung vom "+isoDE(s.rhmz_probe.generated_utc)+"; amtliche Bilder werden nicht auf dieser Website gespeichert."));
   }
-  if(s.source_policy?.terms_url){
+  if(s.id==="imgw"){
+   article.append(node("span","source-inspection",
+    "Amtliche Auswahl: Europa-Bodenanalyse · 00 UTC / 12 UTC. Vollständige Datumsangabe auf der Karte prüfen."));
+  }
+  if(s.id==="imgw_synoptic_forecast"){
+   article.append(node("span","source-inspection",
+    "Amtliche Tages-/Nachtkarten bis Tag 7; Prognosezeit nicht als feste UTC-Stunde annehmen."));
+  }
+  if(s.id==="imgw_synoptic_archive"){
+   const archive=node("div","official-deep-links");
+   const latest=node("a","","Letzter nachgewiesener Monatsbericht · August 2026 ↗");
+   latest.href="https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/Biuletyn_PSHM_2026_08_%28sierpien%29.pdf";
+   latest.target="_blank";latest.rel="noopener noreferrer";
+   archive.append(latest);
+   article.append(archive);
+  }
+  const imgwTerms=["imgw","imgw_synoptic_forecast","imgw_synoptic_archive"].includes(s.id)?
+   "https://danepubliczne.imgw.pl/regulations":null;
+  const termsUrl=s.source_policy?.terms_url||imgwTerms;
+  if(termsUrl){
    const terms=node("a","source-policy-link","Nutzungsbedingungen ↗");
-   terms.href=s.source_policy.terms_url;terms.target="_blank";terms.rel="noopener noreferrer";
+   terms.href=termsUrl;terms.target="_blank";terms.rel="noopener noreferrer";
    article.append(terms);
   }
   container.append(article);
