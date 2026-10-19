@@ -112,7 +112,7 @@ jobs:
           rhmz=json.loads((root/"rhmz_probe.json").read_text(encoding="utf-8"))
           assert rhmz["schema_version"]==1 and rhmz["only_external_links"] is True
           assert rhmz["no_images_persisted"] is True
-          assert len(rhmz["records"])==2
+          assert len(rhmz["records"])==6
           assert all(item["image_reuse_permitted"] is False for item in rhmz["records"])
           viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
           assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
