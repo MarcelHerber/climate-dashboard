@@ -6,8 +6,8 @@
 <meta name="color-scheme" content="light">
 <title>Isobaren & Fronten · Originalkarten der Wetterdienste</title>
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
-<link rel="stylesheet" href="isobaren_original.css?v=2">
-<script defer src="isobaren_original.js?v=16"></script>
+<link rel="stylesheet" href="isobaren_original.css?v=3">
+<script defer src="isobaren_original.js?v=17"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -23,7 +23,7 @@
 <label class="control">Darstellung<select id="chartMode"><option value="single">Einzelkarte</option><option value="four">Vierer-Panel (gleicher Termin)</option></select></label>
 <label class="control">Kartentyp<select id="chartKind"><option value="all">Alle Karten</option><option value="analysis">Nur Analysen</option><option value="forecast">Nur Prognosen</option></select></label>
 <label class="control">Gültigkeitszeit in UTC<select id="validTime"><option value="">Daten werden geladen …</option></select></label>
-<label class="control" id="singleSourceWrap">Wetterdienst<select id="singleSource"><option value="dwd">DWD</option></select></label>
+<label class="control" id="singleSourceWrap">Wetterdienst / Kartenquelle<select id="singleSource"><option value="dwd">DWD</option></select></label>
 <div class="row"><button class="button" id="reload" type="button">Aktualisieren</button><button class="button primary" id="exportPng" type="button" disabled>PNG herunterladen</button></div>
 </div>
 <div class="row" id="fourSelectors" hidden>
@@ -42,7 +42,7 @@
 
 <section class="panel" id="wetterdienste">
 <h2>Wetterdienste &amp; Originalkarten</h2>
-<p class="help">Alle Kartenquellen an einem Ort: automatisch verfügbare Originalkarten, direkte Kartenansichten und separat gekennzeichnete Archive oder ungeprüfte Verweise. Nur tatsächlich geprüfte Bilder mit identischem UTC-Gültigkeitstermin werden im Kartenvergleich dargestellt.</p>
+<p class="help">Alle Kartenquellen an einem Ort: automatisch verfügbare Originalkarten, direkte Kartenansichten und separat gekennzeichnete Archive oder ungeprüfte Verweise. Nur tatsächlich geprüfte Bilder mit identischem UTC-Gültigkeitstermin werden im Kartenvergleich dargestellt. Bei anderen Quellen erscheint im oberen Kartenbereich ein Direktlink zur Originalkarte statt eines nicht freigegebenen Bildes.</p>
 <div class="source-toolbar">
  <label class="source-control">Wetterdienst oder Land suchen<input id="sourceSearch" type="search" placeholder="z. B. KNMI, Frankreich, Fronten" autocomplete="off"></label>
  <label class="source-control">Quellen anzeigen<select id="sourceFilter">
