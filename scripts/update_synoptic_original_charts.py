@@ -95,8 +95,7 @@ SOURCES=[
   "url":"https://meteo.imgw.pl/",
   "type":"external","license":"Amtliche synoptische Europakarten; kein freigegebener automatischer Live-Bildabruf"},
  {"id":"knmi","name":"KNMI · Niederlande","country":"Niederlande",
-  "url":"https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
-  "type":"external","license":"Offizielle synoptische Analysen und ECMWF-Prognosen; zurzeit nur externe Verlinkung"},
+  "url":KNMI_PAGE,"type":"auto","license":"KNMI CC0 sofern kein bildbezogener Rechtevorbehalt; Quelle: KNMI"},
  {"id":"knmi_archiv","name":"KNMI · Wetterkartenarchiv seit 2003","country":"Niederlande",
   "url":"https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
   "type":"external","license":"Historisches Archiv amtlicher Karten; nur externe Verlinkung"},
@@ -305,12 +304,12 @@ def extract_knmi(html,now):
     p.feed(html)
     records={}
     for href,label in p.links:
-        match=re.search(r"(Analyse|Prognose\\s+voor)\\s+.*?([0-9]{2})-([0-9]{2})-([0-9]{4})\\s+([0-9]{2})\\s*UTC",label,re.I)
+        match=re.search(r"(Analyse|Prognose\s+voor)\s+.*?([0-9]{2})-([0-9]{2})-([0-9]{4})\s+([0-9]{2})\s*UTC",label,re.I)
         if not match:continue
         url=urljoin(KNMI_PAGE,href)
         parsed=urlparse(url)
         if parsed.hostname!="cdn.knmi.nl" or not re.fullmatch(
-            r"/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/[AP]L[0-9]{4}_large\\.gif",
+            r"/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/[AP]L[0-9]{4}_large\.gif",
             parsed.path,re.I):continue
         valid=timestamp("".join((match.group(4),match.group(3),match.group(2),match.group(5))),"%Y%m%d%H")
         if not(now-timedelta(hours=72)<=valid<=now+timedelta(hours=96)):continue
