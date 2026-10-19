@@ -32,7 +32,7 @@ ALLOWED_HOSTS={"en.vedur.is","www.vedur.is","vedur.is","brunnur.vedur.is"}
 MAX_HTML_BYTES=650_000
 MAX_JS_FILES=15
 MAX_JS_BYTES=250_000
-IMO_FORECAST_PATH_RE=re.compile(r"(/photos/sjo_atlant_spa/([0-9]{6})_([0-9]{4})_([0-9]{1,3})\\.png)",re.I)
+IMO_FORECAST_PATH_RE=re.compile(r"(/photos/sjo_atlant_spa/([0-9]{6})_([0-9]{4})_([0-9]{1,3})\.png)",re.I)
 def dated_forecast_candidates(html:str,base:str,now:datetime)->list[dict]:
     """The provider filename encodes YYMMDD_HHMM + lead hours, not valid time."""
     result={}
@@ -68,7 +68,7 @@ def download_imo_image(url:str)->bytes:
                              "Accept":"image/png"})
     with urlopen(req,timeout=20) as response:
         content=response.read(9_000_001)
-    if len(content)>9_000_000 or len(content)<20_000 or not content.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+    if len(content)>9_000_000 or len(content)<20_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("Invalid IMO chart PNG payload")
     return content
 
@@ -90,7 +90,7 @@ def image_caption_ocr(content:bytes)->str:
             strip=ImageEnhance.Contrast(strip).enhance(2)
             parts.append(pytesseract.image_to_string(strip.resize((strip.width*2,strip.height*2)),
                                                      lang="eng",config="--psm 6"))
-        return "\\n".join(parts)[:1600]
+        return "\n".join(parts)[:1600]
 
 
 def allowed_url(raw:str,base:str)->str|None:
