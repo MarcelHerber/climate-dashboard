@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("node:assert/strict");
 const {test}=require("node:test");
-const {chooseAt,best}=require("../synoptic_panel_logic.js");
+const {chooseAt,best,classify,visible}=require("../synoptic_panel_logic.js");
 const t1="2026-10-19T12:00+00:00",t2="2026-10-20T12:00+00:00";
 const rec=(id,publisher,time,kind="Analyse")=>({source_id:id,publisher_id:publisher,valid_utc:time,kind});
 test("one exact UTC time and four independent agencies",()=>{
@@ -37,4 +37,43 @@ test("closer UTC wins when coverage is equal",()=>{
 test("empty inputs and external/non-chart providers remain empty",()=>{
  assert.deepEqual(chooseAt([],t1,"all").ids,[]);
  assert.equal(best([],[],"all",Date.now()),null);
+});
+
+test("front analysis / front forecast / isobar-only categories are exclusive",()=>{
+ const analysis=rec("dwd","dwd",t1);
+ const forecast=rec("aemet","aemet",t1,"Prognose");
+ const model={...rec("imo","imo",t1,"Prognose"),map_type:"isobars_model_forecast_no_fronts"};
+ assert.equal(classify(analysis),"analysis_fronts");
+ assert.equal(classify(forecast),"forecast_fronts");
+ assert.equal(classify(model),"isobars_only");
+ assert.equal(classify({...rec("unverified","x",t1,"Prognose")}),"other");
+ for(const kind of ["analysis_fronts","forecast_fronts","isobars_only"]){
+  assert.equal([analysis,forecast,model].filter(r=>visible(r,kind)).length,1);
+ }
+});
+test("only independent providers never pads slots with NOAA duplicates",()=>{
+ const charts=[rec("dwd","dwd",t1),rec("noaa_full","noaa",t1),
+   rec("noaa_opc","noaa",t1),rec("noaa_west","noaa",t1)];
+ const picked=chooseAt(charts,t1,"all",{uniquePublishers:true});
+ assert.deepEqual(picked.ids,["dwd","noaa_opc"]);
+ assert.equal(picked.count,2);
+ assert.equal(picked.publishers,2);
+ assert.equal(chooseAt(charts,t1,"all",{uniquePublishers:false}).count,4);
+});
+test("forecast fronts and pure pressure forecast cannot be silently mixed",()=>{
+ const charts=[rec("aemet","aemet",t1,"Prognose"),
+  {...rec("imo","imo",t1,"Prognose"),map_type:"isobars_model_forecast_no_fronts"},
+  rec("dwd","dwd",t1)];
+ assert.deepEqual(chooseAt(charts,t1,"forecast_fronts").ids,["aemet"]);
+ assert.deepEqual(chooseAt(charts,t1,"isobars_only").ids,["imo"]);
+ assert.deepEqual(chooseAt(charts,t1,"analysis_fronts").ids,["dwd"]);
+});
+test("closest fully populated strict four-map time beats NOAA duplicates",()=>{
+ const data=[rec("noaa_opc","noaa",t1),rec("noaa_full","noaa",t1),
+  rec("noaa_west","noaa",t1),rec("noaa_48","noaa",t1),
+  rec("dwd","dwd",t2),rec("knmi","knmi",t2),rec("aemet","aemet",t2)];
+ const picked=best(data,[t1,t2],"all",Date.parse(t1),{uniquePublishers:true});
+ assert.equal(picked.time,t2);
+ assert.equal(picked.publishers,3);
+ assert.deepEqual(picked.ids,["dwd","aemet","knmi"]);
 });
