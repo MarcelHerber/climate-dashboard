@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-19T14:49:18+00:00",
+  "checked_utc": "2026-10-19T15:00:52+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
@@ -31,6 +31,19 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "hnms",
+      "country": "Griechenland",
+      "url": "https://www.emy.gr/en/marine",
+      "map": "surface_pressure_europe",
+      "rights": "not_verified",
+      "timestamp": "not_machine_verified",
+      "details": "HNMS führt Europa-Bodendruckkarten im Marinebereich. Kein geprüfter datierter Originalbildabruf; Wiederverwendung offen.",
+      "terms_url": "https://www.emy.gr/en/marine",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "hungaromet",
       "country": "Ungarn",
       "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
@@ -39,6 +52,32 @@
       "timestamp": "iframe_not_verified",
       "details": "Fronteniframe vorhanden; Bilder dürfen nicht ohne schriftliche Erlaubnis weiterverbreitet werden.",
       "terms_url": "https://www.met.hu/methu/szerzoi_jogok/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "imgw_synoptic_archive",
+      "country": "Polen",
+      "url": "https://dane.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/Biuletyn_PSHM_2026_02_%28luty%29.pdf",
+      "map": "historical_analysis_pdf",
+      "rights": "not_verified",
+      "timestamp": "archive_validity_known",
+      "details": "Offizielles historisches Monatsbulletin: Karte mit Fronten, Isobaren und expliziter UTC-Zeit; kein aktueller Feed.",
+      "terms_url": "https://imgw.pl/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "imgw_synoptic_forecast",
+      "country": "Polen",
+      "url": "https://modele.imgw.pl/cmm/?page_id=19032",
+      "map": "synoptic_forecast",
+      "rights": "not_verified",
+      "timestamp": "not_machine_verified",
+      "details": "Amtliche mehrtägige synoptische Prognosebilder, aber keine verifizierte UTC-Originalbildadresse bzw. Freigabe.",
+      "terms_url": "https://imgw.pl/",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -91,6 +130,32 @@
       "timestamp": "not_machine_verified",
       "details": "Isofronts-Kartenviewer; prüfbare datierte Originalbild-API und Freigabe fehlen.",
       "terms_url": "https://meteofrance.com/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "meteofrance_navicap",
+      "country": "Frankreich",
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "map": "commercial_marine_pressure_fronts",
+      "rights": "permission_required",
+      "timestamp": "not_machine_verified",
+      "details": "Amtliche Marine-/Offshore-Druck-/Frontenkarte als professionelles Produkt. Keine offene Bildschnittstelle oder Freigabe.",
+      "terms_url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "meteolt_synoptic_archive",
+      "country": "Litauen",
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "map": "historical_analysis_pdf",
+      "rights": "not_verified",
+      "timestamp": "archive_validity_known",
+      "details": "Amtlicher Sturm-/Wetterbericht mit teilweise aus DWD-Archiv übernommenen synoptischen Bildern. Kein eigener Live-Feed.",
+      "terms_url": "https://www.meteo.lt/",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T14:49:52+00:00",
+  "generated_utc": "2026-10-19T15:01:08+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -190,6 +190,46 @@
       "license": "Synoptische Analysen in offiziellen Berichten; kein verifizierter automatischer Live-Bildfeed"
     },
     {
+      "id": "hnms",
+      "name": "HNMS · Europa-Bodendruckkarte",
+      "country": "Griechenland",
+      "url": "https://www.emy.gr/en/marine",
+      "type": "external",
+      "license": "Amtlicher Kartenbereich, Bildrechte und einzelner UTC-Termin nicht verifiziert; nur Quellenseite"
+    },
+    {
+      "id": "imgw_synoptic_forecast",
+      "name": "IMGW-PIB · Synoptische Prognosen",
+      "country": "Polen",
+      "url": "https://modele.imgw.pl/cmm/?page_id=19032",
+      "type": "external",
+      "license": "Amtliche synoptische Karten; Bildübernahme und UTC-Gültigkeit ungeprüft, nur externe Kartenansicht"
+    },
+    {
+      "id": "imgw_synoptic_archive",
+      "name": "IMGW-PIB · Synoptische Analysen",
+      "country": "Polen",
+      "url": "https://dane.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/Biuletyn_PSHM_2026_02_%28luty%29.pdf",
+      "type": "external",
+      "license": "Historisches amtliches Monatsbulletin mit datierter Fronten-/Isobarenkarte, nicht live; keine automatische Bildkopie"
+    },
+    {
+      "id": "meteolt_synoptic_archive",
+      "name": "Meteo LT · Synoptische Ereignisberichte",
+      "country": "Litauen",
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "type": "external",
+      "license": "Offizieller historischer Bericht; synoptische Karten teilweise DWD-Archivquellen, kein unabhängiges Live-Angebot"
+    },
+    {
+      "id": "meteofrance_navicap",
+      "name": "Météo-France · Navicap",
+      "country": "Frankreich",
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "type": "external",
+      "license": "Professioneller Marinekarten-Dienst mit Druck-/Frontenkarten, keine freigegebenen Kartenbilder zum Kopieren"
+    },
+    {
       "id": "imgw",
       "name": "IMGW · kein verifizierter Direktlink",
       "country": "Polen",
@@ -307,42 +347,6 @@
     }
   },
   "charts": [
-    {
-      "source_id": "noaa_full",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-17T12:00+00:00",
-      "issued_utc": "2026-10-17T14:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_12.2026101714.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_full_20261017_1200.webp",
-      "size_bytes": 263346
-    },
-    {
-      "source_id": "noaa_opc",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-17T12:00+00:00",
-      "issued_utc": "2026-10-17T14:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_12.2026101714.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_opc_20261017_1200.webp",
-      "size_bytes": 152042
-    },
-    {
-      "source_id": "noaa_west",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-17T12:00+00:00",
-      "issued_utc": "2026-10-17T14:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_12.2026101714.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_west_20261017_1200.webp",
-      "size_bytes": 166328
-    },
     {
       "source_id": "dwd",
       "kind": "Analyse",
@@ -794,6 +798,42 @@
       "size_bytes": 238972
     },
     {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-19T12:00+00:00",
+      "issued_utc": "2026-10-19T14:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_12.2026101914.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261019_1200.webp",
+      "size_bytes": 261264
+    },
+    {
+      "source_id": "noaa_opc",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-19T12:00+00:00",
+      "issued_utc": "2026-10-19T14:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_12.2026101914.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_opc_20261019_1200.webp",
+      "size_bytes": 153672
+    },
+    {
+      "source_id": "noaa_west",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-19T12:00+00:00",
+      "issued_utc": "2026-10-19T14:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_12.2026101914.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_west_20261019_1200.webp",
+      "size_bytes": 163100
+    },
+    {
       "source_id": "imo",
       "publisher_id": "imo",
       "kind": "Prognose",
@@ -1061,7 +1101,6 @@
     }
   ],
   "time_slots": [
-    "2026-10-17T12:00+00:00",
     "2026-10-17T18:00+00:00",
     "2026-10-18T00:00+00:00",
     "2026-10-18T06:00+00:00",
