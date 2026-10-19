@@ -96,6 +96,7 @@ node --check synoptic_panel_logic.js
 node --check isobaren_original.js
 node --test tests/test_synoptic_panel_selection.cjs
 python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
+python -m unittest discover -s tests -p test_imo_synoptic_adapter.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
 test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
@@ -334,7 +335,7 @@ index=json.loads((root/"index.json").read_text(encoding="utf-8"))
 assert index.get("schema_version")==1 and index.get("ready") is True
 assert len(index.get("charts",[]))==index.get("chart_count")
 for chart in index["charts"]:
-    assert chart.get("source_id") in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
+    assert chart.get("source_id") in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz","imo")
     assert chart["image"].startswith("images/")
     if chart["source_id"] in ("noaa_24","noaa_48","noaa_96"):
         from datetime import datetime,timedelta
@@ -342,6 +343,12 @@ for chart in index["charts"]:
     if chart["source_id"]=="dhmz":
         assert chart.get("validity_method","").startswith("Printed Croatian")
         assert chart.get("source_url")=="https://prognoza.hr/web_fronte_sutra12.jpg"
+    if chart["source_id"]=="imo":
+        assert chart.get("map_type")=="isobars_model_forecast_no_fronts"
+        assert chart.get("validity_method","").startswith("Printed IMO Gildistími")
+        assert chart.get("source_url","").startswith(("https://en.vedur.is/photos/sjo_atlant_spa/","https://www.vedur.is/photos/sjo_atlant_spa/"))
+        from datetime import datetime,timedelta
+        assert datetime.fromisoformat(chart["valid_utc"])==datetime.fromisoformat(chart["run_utc"])+timedelta(hours=chart["forecast_hours"])
     if chart["source_id"]=="chmi":
         assert chart.get("validity_method","").startswith("Printed DD.MM.YYYY HH UTC")
         assert chart.get("license_url")=="https://creativecommons.org/licenses/by/4.0/"
