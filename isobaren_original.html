@@ -6,9 +6,9 @@
 <meta name="color-scheme" content="light">
 <title>Isobaren & Fronten · Originalkarten der Wetterdienste</title>
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
-<link rel="stylesheet" href="isobaren_original.css?v=4">
-<script defer src="synoptic_panel_logic.js?v=2"></script>
-<script defer src="isobaren_original.js?v=23"></script>
+<link rel="stylesheet" href="isobaren_original.css?v=5">
+<script defer src="synoptic_panel_logic.js?v=3"></script>
+<script defer src="isobaren_original.js?v=24"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -22,7 +22,7 @@
 <section class="panel" aria-label="Kartenauswahl">
 <div class="row">
 <label class="control">Darstellung<select id="chartMode"><option value="single">Einzelkarte</option><option value="four">Vierer-Panel (gleicher Termin)</option></select></label>
-<label class="control">Kartentyp<select id="chartKind"><option value="all">Alle Karten</option><option value="analysis">Nur Analysen</option><option value="forecast">Nur Prognosen</option></select></label>
+<label class="control">Karteninhalt<select id="chartKind"><option value="all">Alle Originalkarten</option><option value="analysis_fronts">Bodenanalysen mit Fronten</option><option value="forecast_fronts">Frontenprognosen</option><option value="isobars_only">Modell-Isobaren ohne Fronten</option></select></label>
 <label class="control">Gültigkeitszeit in UTC<select id="validTime"><option value="">Daten werden geladen …</option></select></label>
 <label class="control" id="singleSourceWrap">Wetterdienst / Kartenquelle<select id="singleSource"><option value="dwd">DWD</option></select></label>
 <div class="row"><button class="button" id="reload" type="button">Aktualisieren</button><button class="button primary" id="exportPng" type="button" disabled>PNG herunterladen</button></div>
@@ -31,8 +31,9 @@
  <label class="control" style="max-width:290px">Vierer-Panel-Auswahl
   <select id="fourPolicy"><option value="auto">Automatisch beste UTC-Kombination</option><option value="manual">Wetterdienste manuell auswählen</option></select>
  </label>
+ <label class="independent-toggle"><input type="checkbox" id="uniquePublishers" checked> Nur unterschiedliche Wetterdienste</label>
  <button class="button" id="optimizePanels" type="button">Beste Kombination suchen</button>
- <p class="help panel-option-note" id="autoChoiceHint">Automatisch: möglichst viele Karten und unabhängige Dienste für denselben UTC-Termin.</p>
+ <p class="help panel-option-note" id="autoChoiceHint">Automatisch: bis zu vier zeitgleiche Bilder; mehrere Karten desselben Herausgebers auf Wunsch ausgeschlossen.</p>
 </div>
 <div class="row" id="fourSelectors" hidden>
 <label class="control">Panel oben links<select id="panel0"></select></label>
@@ -46,7 +47,7 @@
 <div class="chart"><div class="chart-body"><div class="empty"><strong>Kartenindex wird geladen</strong>Keine fiktiven oder veralteten Karten als aktuelle Prognose.</div></div></div>
 </div>
 <p class="help" id="syncHint">Kartenauswahl wird aus den wirklich veröffentlichten Gültigkeitsterminen erstellt.</p>
-<p class="fine">Analysen und Prognosen sind unterschiedlich: Das Kartenetikett zeigt deshalb beides separat. Alle Uhrzeiten in UTC, keine stillschweigende Anpassung an Modelllaufzeiten. Es gibt keinen grafischen Zuschnitt oder künstliche Frontenerkennung.</p>
+<p class="fine">Die Filter beruhen auf dem nachgewiesenen Kartenprodukt: Analysen mit Fronten, Frontenprognosen und reine Modell-Isobaren (IMO ohne Fronten) bleiben unterscheidbar. Analysen und Prognosen sind unterschiedlich: Das Kartenetikett zeigt deshalb beides separat. Alle Uhrzeiten in UTC, keine stillschweigende Anpassung an Modelllaufzeiten. Es gibt keinen grafischen Zuschnitt oder künstliche Frontenerkennung.</p>
 </section>
 
 <section class="panel" id="wetterdienste">
@@ -66,8 +67,8 @@
 </section>
 <section class="panel">
 <h2>Hinweise zum Kartenvergleich</h2>
-<p class="notice">Ein Vergleich für beispielsweise <strong>17.10.2026, 12 UTC</strong> zeigt nur Karten, deren ausdrücklich ausgewiesene Gültigkeit genau auf diesen Zeitpunkt fällt. Das Ausgabedatum darf abweichen, die gültige UTC-Zeit aber nicht. Fehlen geeignete Bilder eines Dienstes, erscheint eine leere, beschriftete Kachel mit einem Link zum jeweiligen Originalangebot. Die automatische Auswahl bevorzugt möglichst viele echte Bilder von unabhängigen Wetterdiensten. Fehlen gleichzeitige Karten, bleiben nicht belegbare Panelplätze als solche gekennzeichnet.</p>
-<p class="notice"><strong>Vier unabhängige Dienste:</strong> Die automatische Auswahl bevorzugt unterschiedliche Herausgeber, bevor weitere Ausschnitte desselben Dienstes ergänzt werden. NOAA-Regionalkarten zählen bei der Dienstzahl gemeinsam als NOAA.</p>
+<p class="notice">Ein Vergleich für beispielsweise <strong>17.10.2026, 12 UTC</strong> zeigt nur Karten, deren ausdrücklich ausgewiesene Gültigkeit genau auf diesen Zeitpunkt fällt. Das Ausgabedatum darf abweichen, die gültige UTC-Zeit aber nicht. Fehlen geeignete Bilder eines Dienstes, erscheint eine leere, beschriftete Kachel mit einem Link zum jeweiligen Originalangebot. Die automatische Auswahl bevorzugt möglichst viele echte Bilder von unabhängigen Wetterdiensten. Sind nur ein, zwei oder drei Karten zum selben UTC-Termin vorhanden, werden nur diese Karten gezeigt – ohne leere Kacheln.</p>
+<p class="notice"><strong>Vier unabhängige Dienste:</strong> Die automatische Auswahl bevorzugt unterschiedliche Herausgeber, bevor weitere Ausschnitte desselben Dienstes ergänzt werden. NOAA-Regionalkarten zählen bei der Dienstzahl gemeinsam als NOAA. Der Schalter „Nur unterschiedliche Wetterdienste“ verhindert auch im manuellen Vergleich doppelte Herausgeber; die gewählte manuelle Kombination wird dabei nicht verändert.</p>
 <p class="notice"><strong>Nutzungsrechte:</strong> Die Islandkarten des Icelandic Meteorological Office (IMO) zeigen ECMWF-basierte Isobaren-/Windprognosen <strong>ohne eingezeichnete Fronten</strong>. Sie werden ausschließlich bei unabhängiger Kontrolle der aufgedruckten UTC-Gültigkeitszeit übernommen; Quelle und Abrufdatum werden in der Bildbeschriftung angegeben.  AEMET gestattet die Wiedergabe mit Quellenangabe. Für Met Office ist das direkte Verlinken oder Einbetten von Bilddateien laut Website-Nutzungsbedingungen untersagt; deshalb nur Link zur Originalseite. DWD: öffentliche DWD-Open-Data-Karten mit Quellenangabe. NOAA/NWS: amtliche Originalkarten sind grundsätzlich Public Domain und werden mit Quellenangabe dargestellt. ČHMÚ: wiederverwendete Originalkarten unter CC BY 4.0 mit Quellenhinweis, Lizenzlink und Hinweis auf WebP-Konvertierung. ECCC (Kanada): Nordhemisphärenkarte derzeit nur als externer Link, da kein zuverlässig auslesbarer Gültigkeitszeitstempel vorliegt. Die Originalgrafiken werden nicht als amtliche gemeinsame Analyse ausgegeben.</p>
 </section>
 </main>
