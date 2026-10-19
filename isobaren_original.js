@@ -63,6 +63,40 @@ function closestForSources(ids){
  })[0];
  if(best)$("validTime").value=best;
 }
+function selectBestForecastPanel(){
+ // Pick four actual maps with exactly the same valid UTC time. Prefer
+ // independent publishers, then dates close to now; NEVER time-shift panels.
+ if(!catalog)return;
+ const now=Date.now();
+ const fav=["aemet","chmi","dhmz","noaa_48","noaa_96","noaa_24","noaa_opc","noaa_full"];
+ let best=null;
+ for(const time of catalog.time_slots||[]){
+  const records=catalog.charts.filter(x=>x.valid_utc===time&&hasForecast(x));
+  const found=new Map();
+  for(const id of fav){
+   const x=records.find(x=>x.source_id===id);
+   if(x&&!found.has(id))found.set(id,x);
+  }
+  const pool=[...found.values()];
+  const chosen=[];
+  const known=new Set();
+  for(const rec of pool){
+   const pub=rec.publisher_id||rec.source_id;
+   if(!known.has(pub)){chosen.push(rec);known.add(pub);}
+  }
+  for(const rec of pool){
+   if(chosen.length>=4)break;
+   if(!chosen.includes(rec))chosen.push(rec);
+  }
+  chosen.splice(4);
+  const agencies=new Set(chosen.map(x=>x.publisher_id||x.source_id)).size;
+  const rank=chosen.length*1000+agencies*100-Math.abs(Date.parse(time)-now)/86400000;
+  if(!best||rank>best.rank)best={rank,time,ids:chosen.map(x=>x.source_id)};
+ }
+ if(!best)return;
+ for(let i=0;i<4;i++)$(slots[i]).value=best.ids[i]||["aemet","chmi","noaa_48","noaa_96"][i];
+ $("validTime").value=best.time;
+}
 function currentProviders(){
  return $("chartMode").value==="four"?slots.map(id=>$(id).value):[$("singleSource").value];
 }
@@ -217,13 +251,15 @@ function init(){
   const forecast=$("chartKind").value==="forecast";
   if(forecast){
    $("singleSource").value="aemet";
-   const opts=["aemet","chmi","noaa_48",catalog.charts.some(x=>x.source_id==="dhmz")?"dhmz":"noaa_96"];
+   const opts=["aemet","chmi","noaa_48","noaa_96"];
    slots.forEach((id,i)=>{$(id).value=opts[i];});
   }else{
    if(!$("singleSource").value)$("singleSource").value="dwd";
    slots.forEach((id,i)=>{$(id).value=INITIAL[i];});
   }
-  rebuildTimes(forecast?"aemet":"dwd");closestForSources(currentProviders());refreshView();
+  rebuildTimes(forecast?"aemet":"dwd");
+  if(forecast)selectBestForecastPanel();else closestForSources(currentProviders());
+  refreshView();
  });
  $("exportPng").addEventListener("click",pngExport);
  load();
