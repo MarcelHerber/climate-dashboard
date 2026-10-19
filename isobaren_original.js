@@ -309,16 +309,16 @@ function refreshView(){
  const external=ids.filter(id=>source(id)?.type!=="auto").length;
  const older=Date.now()-Date.parse(catalog.generated_utc)>12*3600000;
  const hidden=selection.unavailable+selection.duplicate;
- $("chartStatus").textContent=isoDE(validity)+" · "+matched+" Originalbilder"+
-  (isFour?" in "+ids.length+" sichtbaren Kacheln":"")+
-  " · "+publishers.size+" unabhängige Dienste"+
+ $("chartStatus").textContent=isoDE(validity)+" · "+matched+(matched===1?" Originalbild":" Originalbilder")+
+  (isFour?" in "+ids.length+(ids.length===1?" sichtbarer Kachel":" sichtbaren Kacheln"):"")+
+  " · "+publishers.size+(publishers.size===1?" unabhängiger Dienst":" unabhängige Dienste")+
   (external?" · "+external+" externe Verweise":"")+
   (hidden?" · "+hidden+" nicht passende/doppelte Kacheln ausgeblendet":"")+
   (older?" · Achtung: Index älter als 12 Stunden":"");
  $("syncHint").textContent=isFour?
   (matched?
    "Alle angezeigten Originalbilder haben exakt denselben UTC-Gültigkeitstermin. "+
-   (ids.length<4?"Der Vergleich zeigt nur "+ids.length+" belegte Kacheln, keine leeren Platzhalter. ":"")+
+   (ids.length<4?"Der Vergleich zeigt nur "+ids.length+(ids.length===1?" belegte Kachel":" belegte Kacheln")+", keine leeren Platzhalter. ":"")+
    ($("uniquePublishers").checked?"Jeder Wetterdienst zählt höchstens einmal.":"Mehrere Produkte desselben Wetterdienstes sind erlaubt.")+
    (external?" Externe Kartenlinks sind nicht Teil des zeitgleichen Bildvergleichs.":""):
    "Für diesen Kartentyp und Zeitpunkt sind keine eingebundenen Originalbilder verfügbar. Externe Links sind keine synchronisierten Karten."):
