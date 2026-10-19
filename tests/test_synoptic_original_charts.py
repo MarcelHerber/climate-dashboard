@@ -106,6 +106,14 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual(sources["eccc"]["type"],"external")
         self.assertEqual(sources["metoffice"]["type"],"external")
 
+    def test_new_european_front_services_and_license_controls(self):
+        providers={s["id"]:s for s in charts.SOURCES}
+        self.assertEqual(providers["dhmz"]["type"],"auto")
+        self.assertEqual(providers["dmi"]["type"],"external")
+        self.assertEqual(providers["metie"]["type"],"external")
+        self.assertEqual(len(charts.SOURCES),len(providers))
+        self.assertTrue(providers["dhmz"]["url"].startswith("https://meteo.hr/"))
+
     def test_met_office_not_auto_scraped(self):
         providers={x["id"]:x for x in charts.SOURCES}
         self.assertEqual(providers["metoffice"]["type"],"external")
