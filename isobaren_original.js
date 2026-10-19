@@ -5,6 +5,7 @@ const slots=["panel0","panel1","panel2","panel3"];
 const INITIAL=["dwd","aemet","noaa_opc","chmi"];
 let catalog=null;
 let europeSourceAudit=null;
+let imoDiagnostic=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
 const source=id=>sourceDirectory().find(s=>s.id===id);
@@ -34,6 +35,18 @@ function sourceDirectory(){
    merged.set(policy.id,{...existing,source_policy:policy,
      note:reason||existing.note});
   }
+ }
+ if(imoDiagnostic&&merged.has("imo")){
+  const provider=merged.get("imo");
+  const total=imoDiagnostic.image_candidates?.length||0;
+  const since=imoDiagnostic.checked_utc?isoDE(imoDiagnostic.checked_utc):"–";
+  const state=imoDiagnostic.state==="source_unreachable"?
+    "Quellenseiten beim letzten Abruf nicht erreichbar":
+    "Bilddatei und UTC-Gültigkeit noch nicht unabhängig bestätigt";
+  merged.set("imo",{...provider,
+   note:"IMO Atlantik · ECMWF-basierte Isobarenprognosen ohne Fronten. Letzter technischer Abruf: "+
+    since+" · "+total+" Bilddatei-Kandidaten · "+state+
+    ". Keine geschätzten Laufzeiten im Vierer-Panel."});
  }
  for(const id of AUTO_FALLBACK){
   const s=merged.get(id);
@@ -329,12 +342,21 @@ async function load(){
     europeSourceAudit=candidate.schema_version===1&&candidate.no_live_check&&Array.isArray(candidate.providers)?candidate:null;
    }else europeSourceAudit=null;
   }catch(_e){europeSourceAudit=null;}
+  try{
+   const response=await fetch(ROOT+"imo_probe.json?v="+Date.now(),{cache:"no-store"});
+   if(response.ok){
+    const report=await response.json();
+    imoDiagnostic=report.schema_version===1&&
+     report.ready_for_automated_chart_ingestion===false&&
+     Array.isArray(report.pages)?report:null;
+   }else imoDiagnostic=null;
+  }catch(_e){imoDiagnostic=null;}
   renderDataHealth();
   fillSources();
   fillPickers();
   refreshView();
  }catch(err){
-  catalog=null;europeSourceAudit=null;
+  catalog=null;europeSourceAudit=null;imoDiagnostic=null;
   $("chartStatus").textContent="Kartenindexfehler: "+err.message;
   renderDataHealth();
   $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
