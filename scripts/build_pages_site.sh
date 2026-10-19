@@ -95,6 +95,7 @@ node --check ssw_catalog.js
 node --check synoptic_panel_logic.js
 node --check isobaren_original.js
 node --test tests/test_synoptic_panel_selection.cjs
+python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
 test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
@@ -360,6 +361,16 @@ assert d.get("schema_version")==1 and d.get("no_live_check") is True
 assert all(not r.get("reproduction_ready") for r in d.get("providers",[]))
 PY
     cp data/synoptic_charts/europe_source_audit.json _site/data/synoptic_charts/
+  fi
+  if [[ -s data/synoptic_charts/imo_probe.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+d=json.loads(Path("data/synoptic_charts/imo_probe.json").read_text(encoding="utf-8"))
+assert d["schema_version"]==1 and d["ready_for_automated_chart_ingestion"] is False
+PY
+    cp data/synoptic_charts/imo_probe.json _site/data/synoptic_charts/
+
   fi
   echo "Original-Synoptikkarten der Wetterdienste mit UTC-Gültigkeiten veröffentlicht."
 else
