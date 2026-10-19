@@ -12,6 +12,8 @@ on:
       - "scripts/audit_europe_synoptic_sources.py"
       - "tests/test_europe_synoptic_source_audit.py"
       - "scripts/probe_imo_atlantic.py"
+      - "scripts/imo_synoptic_adapter.py"
+      - "tests/test_imo_synoptic_adapter.py"
       - "tests/test_imo_atlantic_probe.py"
       - "tests/test_synoptic_panel_selection.cjs"
       - "synoptic_panel_logic.js"
@@ -56,7 +58,7 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_imo_atlantic.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -78,6 +80,8 @@ jobs:
         run: python scripts/audit_europe_synoptic_sources.py
       - name: Test IMO source provenance, dates, and no invented chart times
         run: python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
+      - name: Test Icelandic original isobar chart OCR validity and publisher provenance
+        run: python -m unittest discover -s tests -p test_imo_synoptic_adapter.py -v
       - name: Probe IMO actual North Atlantic image metadata (no image copy)
         run: python scripts/probe_imo_atlantic.py
       - name: Fetch permitted DWD AEMET KNMI NOAA original images
@@ -101,8 +105,8 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz")
-              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa","https://prognoza.hr/web_fronte_sutra12.jpg","https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/"))
+              assert item["source_id"] in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz","imo")
+              assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa","https://prognoza.hr/web_fronte_sutra12.jpg","https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/","https://en.vedur.is/photos/sjo_atlant_spa/","https://www.vedur.is/photos/sjo_atlant_spa/"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
               assert image.is_file() and image.stat().st_size>=18000
