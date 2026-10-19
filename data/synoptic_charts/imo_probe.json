@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-19T12:25:56+00:00",
+  "checked_utc": "2026-10-19T12:27:36+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -23,6 +23,17 @@
         "/photos/sjo_atlant_spa/261019_0000_30.png",
         "/photos/sjo_atlant_spa/261019_0000_33.png",
         "/photos/sjo_atlant_spa/261019_0000_36.png"
+      ],
+      "provider_script_urls": [
+        "https://en.vedur.is/skin/basic/js/noflicker.js",
+        "https://en.vedur.is/skin/basic/js/jQuery-1.6.js",
+        "https://en.vedur.is/js/vi-base.js?v=538",
+        "https://en.vedur.is/js/vi-res_en.js?v=538",
+        "https://en.vedur.is/jslib/history.js?v=538",
+        "https://en.vedur.is/jslib/jquery-ui.js?v=538",
+        "https://en.vedur.is/web2/js/app.min.js?v=538",
+        "https://en.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
+        "https://en.vedur.is/skin/basic/js/init.js?v17"
       ],
       "script_hints": [
         {
@@ -54,6 +65,26 @@
         {
           "url": "https://en.vedur.is/jslib/history.js?v=538",
           "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/jslib/jquery-ui.js?v=538",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/web2/js/app.min.js?v=538",
+          "image_or_endpoint_strings": [
+            "i/island-waters.png"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/skin/basic/js/init.js?v17",
+          "image_or_endpoint_strings": []
+        }
+      ],
+      "script_errors": [
+        {
+          "url": "https://en.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
+          "error": "TimeoutError: The read operation timed out"
         }
       ]
     },
@@ -75,6 +106,51 @@
         "/photos/sjo_atlant_spa/261019_0000_30.png",
         "/photos/sjo_atlant_spa/261019_0000_33.png",
         "/photos/sjo_atlant_spa/261019_0000_36.png"
+      ],
+      "provider_script_urls": [
+        "https://www.vedur.is/skin/basic/js/noflicker.js",
+        "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
+        "https://www.vedur.is/js/vi-base.js?v=538",
+        "https://www.vedur.is/js/vi-res_is.js?v=538",
+        "https://www.vedur.is/jslib/history.js?v=538",
+        "https://www.vedur.is/jslib/jquery-ui.js?v=538",
+        "https://www.vedur.is/web2/js/app.min.js?v=538",
+        "https://www.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
+        "https://www.vedur.is/skin/basic/js/init.js?v17"
+      ],
+      "script_hints": [
+        {
+          "url": "https://www.vedur.is/skin/basic/js/noflicker.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://www.vedur.is/js/vi-base.js?v=538",
+          "image_or_endpoint_strings": [
+            "icon/wnone.gif",
+            "invalid.gif",
+            "icon/ydotsel.gif",
+            "icon/ydot.gif",
+            "+VI.r.forecasttime+"
+          ]
+        },
+        {
+          "url": "https://www.vedur.is/js/vi-res_is.js?v=538",
+          "image_or_endpoint_strings": [
+            "auto_forecast"
+          ]
+        },
+        {
+          "url": "https://www.vedur.is/jslib/history.js?v=538",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
+          "image_or_endpoint_strings": []
+        }
       ]
     }
   ],
