@@ -212,7 +212,7 @@ async function load(){
   if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts)||
      !Array.isArray(data.sources)||!Array.isArray(data.time_slots))throw new Error("Quellenindex ungültig");
   for(const rec of data.charts){
-   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
+   if(!/^(?:dwd|aemet|noaa_opc|noaa_full|noaa_west|noaa_24|noaa_48|noaa_96|chmi|dhmz|knmi)$/.test(rec.source_id)||!/^images\/[a-z0-9_]+\.webp$/.test(rec.image))throw new Error("Ungültige Bildreferenz");
    if(Number.isNaN(Date.parse(rec.valid_utc)))throw new Error("Ungültiger Gültigkeitstermin");
   }
   catalog=data;fillSources();fillPickers();refreshView();
