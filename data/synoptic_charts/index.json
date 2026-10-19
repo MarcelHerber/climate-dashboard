@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T08:09:50+00:00",
+  "generated_utc": "2026-10-19T08:14:13+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -108,6 +108,30 @@
       "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
       "type": "auto",
       "license": "Izvor: DHMZ · Wiederverwendung mit Quellenangabe; eingebunden nur bei überprüftem gültigen Druckdatum"
+    },
+    {
+      "id": "fmi",
+      "name": "FMI · Europa-Wetterlagenanalyse",
+      "country": "Finnland",
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "type": "external",
+      "license": "Amtliche meteorologisch interpretierte Europakarte; Kartenbild und UTC-Zeit nicht automatisch validiert"
+    },
+    {
+      "id": "meteoam",
+      "name": "Meteo AM · Suolo",
+      "country": "Italien",
+      "url": "https://www.meteoam.it/it/suolo",
+      "type": "external",
+      "license": "Offizielle Suolo-Kartenseite; JavaScript-Karte und Aktualität noch nicht automatisch validiert"
+    },
+    {
+      "id": "mgm",
+      "name": "MGM · Sinoptik Haritalar",
+      "country": "Türkei",
+      "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "type": "external",
+      "license": "Amtlicher Synoptikkarten-Bereich; aktuelles Kartenbild bei Prüfung nicht nachgewiesen"
     },
     {
       "id": "meteociel",
