@@ -14,6 +14,10 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/"data"/"synoptic_charts"/"europe_source_audit.json"
 SOURCES={
+ "rhmz":{"country":"Serbien","url":"https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+  "map":"synoptic_analysis_europe_and_balkans","rights":"permission_required","timestamp":"hours_without_full_date",
+  "details":"RHMZ bietet synoptische Europaanalysen 00/12 UTC und weitere Balkananalysezeiten. Datum/Originalbildlizenz nicht gesichert; ohne Einwilligung keine Kopie.",
+  "terms_url":"https://hidmet.gov.rs/eng/osmotreni/analiza.php"},
  "hnms":{"country":"Griechenland","url":"https://www.emy.gr/en/marine",
   "map":"surface_pressure_europe","rights":"not_verified","timestamp":"not_machine_verified",
   "details":"HNMS führt Europa-Bodendruckkarten im Marinebereich. Kein geprüfter datierter Originalbildabruf; Wiederverwendung offen.",
