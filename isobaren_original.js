@@ -12,15 +12,50 @@ const hasForecast=x=>x?.kind==="Prognose"||Number(x?.forecast_hours)>0;
 const showRecord=x=>$("chartKind")?.value==="forecast"?hasForecast(x):
  $("chartKind")?.value==="analysis"?!hasForecast(x):true;
 const cardsAt=(id,time)=>(catalog?.charts||[]).filter(x=>x.source_id===id&&x.valid_utc===time&&showRecord(x));
+const CURATED_SOURCES=[{"id":"dwd","name":"DWD · Bodenanalyse","country":"Deutschland","url":"https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png","note":"Direkter Link zum aktuellen Bild; automatischer Abruf erfolgt separat über DWD Open Data."},{"id":"aemet","name":"AEMET · Frontenkarten","country":"Spanien","url":"https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes","note":"Amtliche Boden- und Frontenkarten."},{"id":"chmi","name":"ČHMÚ · Synoptische Situation","country":"Tschechien","url":"https://www.chmi.cz/predpoved-pocasi/synopticka-situace","note":"Amtliche synoptische Analyse und Prognose."},{"id":"dhmz","name":"DHMZ · Frontenprognose","country":"Kroatien","url":"https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model","note":"Amtliche Europa-Frontenprognose; Bildabruf nur mit geprüftem Druckdatum."},{"id":"knmi","name":"KNMI · Aktuelle Wetterkarten","country":"Niederlande","url":"https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/","note":"Bodenanalysen und Prognosen; automatischer Abruf im Projekt eingerichtet."},{"id":"knmi_archiv","name":"KNMI · Wetterkartenarchiv","country":"Niederlande","url":"https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten","category":"archive","note":"Historisches Wetterkartenarchiv ab 2003."},{"id":"kmi","name":"KMI · Frontenkarten","country":"Belgien","url":"https://www.meteo.be/de/wetter/vorhersage/frontenkarten","category":"viewer","note":"Amtliche europäische Frontenprognosen."},{"id":"dmi","name":"DMI · Frontkort","country":"Dänemark","url":"https://www.dmi.dk/vejret/frontkort","category":"viewer","note":"Bodenanalysen und Prognosekarten mit Fronten."},{"id":"metie","name":"Met Éireann · Bodenanalyse","country":"Irland","url":"https://www.met.ie/latest-reports/surface-analysis","category":"viewer","note":"Aktuelle Bodenanalyse für den Nordatlantik mit Fronten und Isobaren."},{"id":"metoffice","name":"Met Office · Surface Pressure","country":"Großbritannien","url":"https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure","category":"viewer","note":"Offizieller Bodendruck- und Frontenkartenviewer; extern öffnen."},{"id":"meteofrance","name":"Météo-France · Isofronts","country":"Frankreich","url":"https://meteofrance.com/isofronts","category":"viewer","note":"Isofronts-Kartenansicht des französischen Wetterdienstes."},{"id":"meteociel","name":"Météociel · Frontenanalyse","country":"Frankreich","url":"https://www.meteociel.fr/fronts/index.php","category":"viewer","note":"Externe Kartenansicht eines Drittanbieters, mit Animation."},{"id":"hungaromet","name":"HungaroMet · Frontenkarte","country":"Ungarn","url":"https://www.met.hu/en/idojaras/aktualis_idojaras/front/","category":"viewer","note":"Frontenkarten-Rubrik; aktuelles Kartenbild nicht automatisch geprüft."},{"id":"shmu","name":"SHMÚ · Bodenwetterkarte","country":"Slowakei","url":"https://www.shmu.sk/en/?page=980","category":"viewer","note":"Amtliche Bodenanalyse auf der synoptischen Kartenseite."},{"id":"ilmateenistus","name":"Ilmateenistus · Wetterkarte","country":"Estland","url":"https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en","category":"unverified","note":"Wetterkartenansicht; Isobaren und UTC-Gültigkeit noch nicht gesichert."},{"id":"fmi","name":"FMI · Europäische Wetterlage","country":"Finnland","url":"https://en.ilmatieteenlaitos.fi/weather-in-europe","category":"unverified","note":"Wetterlagen-Seite; konkretes Isobarenbild nicht bestätigt."},{"id":"meteoam","name":"Aeronautica Militare · Suolo","country":"Italien","url":"https://www.meteoam.it/it/suolo","category":"viewer","note":"Amtlicher Bodenwetterkartenbereich; aktuelle Kartenzeit nicht unabhängig bestätigt."},{"id":"mgm","name":"MGM · Synoptikkarten","country":"Türkei","url":"https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx","category":"unverified","note":"Synoptikkarten-Bereich, noch kein verifiziertes aktuelles Kartenbild."},{"id":"smhi","name":"SMHI · Tageskartenarchiv","country":"Schweden","url":"https://www.smhi.se/blogg/blogg/2026-09-02-arkiv-med-dagliga-vaderkartor","category":"archive","note":"Erläuterung zum Tageskartenarchiv, kein direkter Live-Viewer."},{"id":"imo","name":"IMO · Atlantikkarten","country":"Island","url":"https://en.vedur.is/weather/shipping/atlantic/","category":"unverified","note":"Seewetterkarten-Angebot; konkrete Bodenanalyse nicht geprüft."},{"id":"metno","name":"MET Norway · Wetter und Klima","country":"Norwegen","url":"https://www.met.no/en/weather-and-climate","category":"unverified","note":"Allgemeine Wetterseite; kein bestätigter Isobaren-Direktlink."},{"id":"imgw","name":"IMGW · Wetterportal","country":"Polen","url":"https://meteo.imgw.pl/","category":"unverified","note":"Wetterportal; aktueller Karten-Direktlink nicht bestätigt."},{"id":"geosphere","name":"GeoSphere Austria · Wetterkarte","country":"Österreich","url":"https://www.zamg.ac.at/cms/de/wetter/wetterkarte","category":"unverified","note":"Ältere ZAMG-Adresse; Ziel und aktueller Karteninhalt nicht gesichert."},{"id":"ipma","name":"IPMA · Numerische Karten","country":"Portugal","url":"https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp","category":"unverified","note":"Numerische Wetterkarten; Fronten-/Isobareninhalt nicht sicher bestätigt."},{"id":"ipma_history","name":"IPMA · Historische Bodenanalyse","country":"Portugal","url":"https://observar.ipma.pt/superficie-frontal-fria/","category":"archive","note":"Historische Karte aus einer Fallstudie, nicht die aktuelle Wetterlage."},{"id":"nimh_history","name":"NIMH · Synoptik-Hintergrund","country":"Bulgarien","url":"https://storm.cfd.meteo.bg/weather/1en/index.php?koiFail=zaNas&lng=0","category":"unverified","note":"Beschreibung der synoptischen Analyse, kein Live-Kartenbild."},{"id":"anm_history","name":"ANM · Historische Analyse","country":"Rumänien","url":"https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf","category":"archive","note":"Fallbericht mit Bodenkarte vom 29.11.2025; keine aktuelle Analyse."},{"id":"noaa_wpc","name":"NOAA WPC · Bodenwetterkarten","country":"USA","url":"https://www.weather.gov/forecastmaps","category":"viewer","note":"Nordamerika-Analyse und Prognosen."},{"id":"noaa_pacific","name":"NOAA OPC · Pazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","category":"viewer","note":"Pazifische Bodenanalysen und Prognosen."},{"id":"eccc","name":"ECCC · Nordhemisphäre","country":"Kanada","url":"https://weather.gc.ca/analysis/index_e.html","category":"unverified","note":"Nordhemisphären-Kartenbereich; Zeitstempel für Bildabruf offen."}];
+const collator=new Intl.Collator("de",{sensitivity:"base"});
+const AUTO_FALLBACK=new Set(["dwd","aemet","chmi","dhmz","knmi"]);
+function sourceDirectory(){
+ const merged=new Map();
+ for(const s of CURATED_SOURCES)merged.set(s.id,{...s});
+ for(const s of catalog?.sources||[]){
+  const curated=merged.get(s.id);
+  merged.set(s.id,{...s,...curated,
+   type:s.type,
+   url:curated?.url||s.url,
+   note:curated?.note||(s.type==="auto"?"Offizielle Originalkarten mit UTC-Gültigkeitszeit.":s.license||"Offizieller Kartenbereich."),
+   category:curated?.category|| (s.type==="auto"?"auto":"viewer")});
+ }
+ for(const id of AUTO_FALLBACK){
+  const s=merged.get(id);
+  if(s&&!s.category)s.category= (catalog?.sources||[]).some(x=>x.id===id&&x.type==="auto")?"auto":"unverified";
+ }
+ return [...merged.values()].sort((a,b)=>{
+  const region=c=>["USA","Kanada"].includes(c)?1:0;
+  return region(a.country)-region(b.country)||collator.compare(a.country||"",b.country||"")||collator.compare(a.name||"",b.name||"");
+ });
+}
 function fillSources(){
- const cat=$("sourceCatalog");cat.replaceChildren();
- for(const s of sourceList()){
-  const box=node("article","source"),title=node("strong","",s.name+" · "+s.country);
-  box.append(title,node("p","",s.type==="auto"?"Automatischer Originalkarten-Abruf":"Quellenseite – Bild nicht automatisch einbindbar"));
-  const count=(catalog.charts||[]).filter(x=>x.source_id===s.id).length;
-  box.append(node("p","",s.type==="auto"?count+" geprüfte Karten · "+(catalog.source_status?.[s.id]?.state==="available"?"verfügbar":"Quelle derzeit nicht verfügbar"):s.license));
-  const a=node("a","",s.type==="auto"?"Originalangebot öffnen":"Karten beim Wetterdienst öffnen");
-  a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";box.append(a);cat.append(box);
+ const container=$("sourceCatalog"),q=($("sourceSearch")?.value||"").trim().toLocaleLowerCase("de"),
+  filter=$("sourceFilter")?.value||"all";
+ const list=sourceDirectory().filter(s=>{
+  const category=s.category||(s.type==="auto"?"auto":"viewer");
+  const matches=filter==="all"|| (filter==="other"&&["archive","unverified"].includes(category))||category===filter;
+  return matches&&(!q||[s.name,s.country,s.note].join(" ").toLocaleLowerCase("de").includes(q));
+ });
+ container.replaceChildren();
+ $("sourceSummary").textContent=list.length+" von "+sourceDirectory().length+" Quellen angezeigt · Europa alphabetisch, weitere Regionen am Ende.";
+ if(!list.length){container.append(node("p","help","Keine Quellen zur Auswahl gefunden."));return;}
+ for(const s of list){
+  const category=s.category||(s.type==="auto"?"auto":"viewer"),
+   n=(catalog?.charts||[]).filter(x=>x.source_id===s.id).length,
+   title=node("strong","",s.name+" · "+s.country),
+   article=node("article","source"),
+   tag=node("span","source-tag "+category,category==="auto"?(n?n+" Karten eingebunden":"Automatischer Abruf · keine Karte"):category==="viewer"?"Kartenansicht":category==="archive"?"Archiv / historisch":"Nicht als Live-Karte bestätigt");
+  article.append(title,tag,node("p","",s.note||s.license||""));
+  const a=node("a","",category==="archive"?"Archiv / Bericht öffnen":category==="unverified"?"Quelle prüfen":"Karten öffnen");
+  a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";article.append(a);
+  container.append(article);
  }
 }
 function fillPickers(){
@@ -220,28 +255,12 @@ async function load(){
   catalog=null;$("chartStatus").textContent=err.message;
   $("chartGrid").replaceChildren(node("div","empty","Der erste verifizierte Kartenabruf steht noch aus. Die übrigen Seiten bleiben nutzbar."));
   $("exportPng").disabled=true;
-  $("sourceCatalog").replaceChildren();
-  for(const s of [
-   ["DWD", "https://opendata.dwd.de/weather/charts/analysis/"],
-   ["AEMET","https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes"],
-   ["Met Office","https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure"],
-   ["ČHMÚ","https://www.chmi.cz/predpoved-pocasi/synopticka-situace"],
-   ["Met Éireann","https://www.met.ie/latest-reports/surface-analysis"],
-   ["IMO","https://en.vedur.is/weather/shipping/atlantic/"],
-   ["NOAA OPC","https://ocean.weather.gov/Atl_tab.php"],
-   ["ECCC","https://weather.gc.ca/analysis/index_e.html"],
-   ["NOAA OPC Prognosen","https://ocean.weather.gov/Loops/NCDC_names.php"],
-   ["DMI – Frontkort","https://www.dmi.dk/vejret/frontkort"],
-   ["DHMZ – Europa","https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model"],
-   ["Met Éireann – Bodenanalyse","https://www.met.ie/latest-reports/surface-analysis"]]){
-   const card=node("div","source"),a=node("a","",s[0]+" · Originalseite");
-   a.href=s[1];a.target="_blank";a.rel="noopener noreferrer";card.append(a);
-   $("sourceCatalog").append(card);
-  }
+  fillSources();
  }
 }
 function init(){
  $("reload").addEventListener("click",load);
+ ["sourceSearch","sourceFilter"].forEach(id=>$(id)?.addEventListener(id==="sourceSearch"?"input":"change",fillSources));
  $("chartMode").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
  $("validTime").addEventListener("change",refreshView);
  $("singleSource").addEventListener("change",()=>{if(catalog)closestForSources(currentProviders());refreshView();});
