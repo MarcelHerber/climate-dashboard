@@ -7,7 +7,7 @@
 <title>Isobaren & Fronten · Originalkarten der Wetterdienste</title>
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
 <link rel="stylesheet" href="isobaren_original.css?v=1">
-<script defer src="isobaren_original.js?v=9"></script>
+<script defer src="isobaren_original.js?v=10"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -41,8 +41,17 @@
 
 <section class="panel">
 <h2>Wetterdienste und Datenverfügbarkeit</h2>
-<p class="help">DWD Open Data, AEMET, verschiedene NOAA-OPC-Analyse- und Prognosekarten sowie ČHMÚ werden automatisiert auf echte Originalbilder und nachvollziehbare UTC-Gültigkeit geprüft. ČHMÚ-Bilder erscheinen ausschließlich, wenn der Gültigkeitszeitpunkt aus der Kartenüberschrift sicher ermittelt wurde. Der offizielle ČHMÚ-Datenabruf funktioniert; die gültigen Zeiten werden unabhängig vom API-Zeitregler geprüft. Andere Dienste sind zunächst als direkte Quellenseiten erreichbar; fehlende Freigaben oder nicht maschinenlesbare Zeitangaben werden nicht umgangen.</p>
+<p class="help">DWD Open Data, AEMET, NOAA OPC und ČHMÚ werden automatisch auf echte Originalbilder und UTC-Gültigkeit geprüft. DHMZ kommt hinzu, sofern seine original aufgedruckte Kartenzeit verlässlich erkannt wurde; die Originalseiten von DMI und Met Éireann sind direkt verlinkt. ČHMÚ-Bilder erscheinen ausschließlich, wenn der Gültigkeitszeitpunkt aus der Kartenüberschrift sicher ermittelt wurde. Der offizielle ČHMÚ-Datenabruf funktioniert; die gültigen Zeiten werden unabhängig vom API-Zeitregler geprüft. Andere Dienste sind zunächst als direkte Quellenseiten erreichbar; fehlende Freigaben oder nicht maschinenlesbare Zeitangaben werden nicht umgangen.</p>
 <div id="sourceCatalog" class="source-grid"><div class="source">Lade Quellenübersicht …</div></div>
+</section>
+<section class="panel">
+<h2>Weitere offizielle europäische Frontenkarten</h2>
+<p class="help">Die neuen Quellen sind in der Wetterdienste-Liste und in der Quellenauswahl enthalten. Ein Originalbild wird nur angezeigt, wenn Gültigkeitszeit und Weiterverwendung überprüft sind.</p>
+<div class="source-grid">
+ <div class="source"><strong>DMI · Dänemark</strong><p>Frontkort: Bodenanalyse und Prognose mit Isobaren, Hoch-/Tiefzentren und Fronten. Bildweiterverwendung derzeit nicht eindeutig geklärt – daher direkte offizielle Seite.</p><a href="https://www.dmi.dk/vejret/frontkort" target="_blank" rel="noopener noreferrer">DMI-Frontenkarten öffnen</a></div>
+ <div class="source"><strong>DHMZ · Kroatien</strong><p>Fachlich bearbeitete Europa-Prognose für 12 UTC des Folgetages. Automatischer Abruf nur, wenn die Kartenaufschrift den UTC-Termin bestätigt und das Bild aktuell ist.</p><a href="https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&amp;section=prognoze_model" target="_blank" rel="noopener noreferrer">DHMZ-Isobarenkarte öffnen</a></div>
+ <div class="source"><strong>Met Éireann · Irland</strong><p>Nordatlantische Bodenanalyse mit Fronten. Wegen der Website-Nutzungsbedingungen ausschließlich als externer Link, nicht als automatisch kopiertes Bild.</p><a href="https://www.met.ie/latest-reports/surface-analysis" target="_blank" rel="noopener noreferrer">Irische Bodenanalyse öffnen</a></div>
+</div>
 </section>
 <section class="panel">
 <h2>Was bedeutet „synchron“?</h2>
