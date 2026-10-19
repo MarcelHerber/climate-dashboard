@@ -1,7 +1,7 @@
 /* Pure, independently testable UTC-exact synoptic four-panel selection. */
 (function(root){
  "use strict";
- const ORDER=["dwd","aemet","knmi","chmi","dhmz","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96"];
+ const ORDER=["dwd","aemet","knmi","chmi","dhmz","imo","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96"];
  const scoreSource=id=>{const i=ORDER.indexOf(id);return i<0?ORDER.length:i;};
  const forecast=r=>r.kind==="Prognose"||Number(r.forecast_hours)>0;
  const visible=(r,kind)=>kind==="forecast"?forecast(r):kind==="analysis"?!forecast(r):true;
