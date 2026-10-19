@@ -36,6 +36,25 @@ class IMOOriginalMapTests(unittest.TestCase):
         self.assertEqual(record["valid_utc"],"2026-10-19T12:00+00:00")
         self.assertEqual(record["kind"],"Prognose")
         self.assertEqual(record["source_id"],"imo")
+    def test_real_imo_caption_short_valid_and_ecmwf_utc_run_plus_lead(self):
+        actual_ocr=("cok ee fo ee Ww\\n"
+            "Man. 19. okt. kl. 12:00 Vedurstofa Islands\\n"
+            "100 m hae og loftprystingur (hPa) ECMWF/ECM 0.125: 19.10.2026 00.00 UTC (+12)")
+        record=imo.verified_chart(img(),candidate(),NOW,caption_reader=lambda _:actual_ocr)
+        self.assertEqual(record["valid_utc"],"2026-10-19T12:00+00:00")
+        self.assertEqual(record["map_type"],"isobars_model_forecast_no_fronts")
+    def test_imo_short_validity_wrong_hour_fails_even_with_right_run(self):
+        bad="Man. 19. okt. kl. 18:00\\n 19.10.2026 00.00 UTC (+12)"
+        with self.assertRaises(ValueError):
+            imo.verified_chart(img(),candidate(),NOW,caption_reader=lambda _:bad)
+    def test_imo_run_footnote_wrong_lead_fails_even_with_right_valid_date(self):
+        bad="Man. 19. okt. kl. 12:00\\n 19.10.2026 00.00 UTC (+18)"
+        with self.assertRaises(ValueError):
+            imo.verified_chart(img(),candidate(),NOW,caption_reader=lambda _:bad)
+    def test_missing_printed_run_not_inferred_from_date(self):
+        with self.assertRaises(ValueError):
+            imo.verified_chart(img(),candidate(),NOW,caption_reader=lambda _:"Man. 19. okt. kl. 12:00")
+
     def test_disagreeing_printed_time_never_publishes(self):
         with self.assertRaises(ValueError):
             imo.verified_chart(img(),candidate(),NOW,
