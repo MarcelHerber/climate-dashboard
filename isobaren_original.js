@@ -141,7 +141,7 @@ function card(provider,time){
  const article=node("article","chart");
  const heading=node("div","chart-header");
  heading.append(node("strong","",s?s.name:"Unbekannte Quelle"));
- heading.append(node("small","",record?(record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""))+" · "+isoDE(record.valid_utc):"Für diesen Termin nicht vorhanden"));
+ heading.append(node("small","",record?(record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""))+" · "+isoDE(record.valid_utc):(s?.type!=="auto"?"Externe Kartenansicht · Zeit nicht synchronisiert":"Für diesen Termin nicht vorhanden")));
  article.append(heading);
  const content=node("div","chart-body");
  if(record){
@@ -165,7 +165,7 @@ function card(provider,time){
  }
  article.append(content);
  const footer=node("div","chart-footer");
- footer.append(node("span","",record?record.credit:"Keine Karte für "+isoDE(time)));
+ footer.append(node("span","",record?record.credit:(s?.type!=="auto"?"Originalquelle · keine Bildübernahme":"Keine Karte für "+isoDE(time))));
  if(s){
   if(record?.terms_url){
    const terms=node("a","","DHMZ-Nutzungsbedingungen");
