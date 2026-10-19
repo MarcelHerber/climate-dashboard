@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-19T09:27:29+00:00",
+  "generated_utc": "2026-10-19T09:29:49+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -100,6 +100,22 @@
       "url": "https://www.dmi.dk/vejret/frontkort",
       "type": "external",
       "license": "Originale Analyse und Prognose direkt bei DMI; Bildnutzungsrechte für fertige Frontkort noch nicht eindeutig"
+    },
+    {
+      "id": "shmu",
+      "name": "SHMÚ · Bodendruckkarte",
+      "country": "Slowakei",
+      "url": "https://www.shmu.sk/en/?page=980",
+      "type": "external",
+      "license": "Amtliche Originalkarte; SHMÚ erlaubt Kopien nicht pauschal für öffentliche Einbindung, daher nur Link"
+    },
+    {
+      "id": "meteoswiss",
+      "name": "MeteoSchweiz · Allgemeine Lage",
+      "country": "Schweiz",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "type": "external",
+      "license": "Fronten-/Lagekarten-Angebot; kein verifizierter freigegebener datierter Originalbildabruf"
     },
     {
       "id": "dhmz",
