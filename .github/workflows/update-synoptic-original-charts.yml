@@ -11,6 +11,8 @@ on:
       - "tests/test_synoptic_original_charts.py"
       - "scripts/audit_europe_synoptic_sources.py"
       - "tests/test_europe_synoptic_source_audit.py"
+      - "scripts/probe_europe_synoptic_viewers.py"
+      - "tests/test_europe_synoptic_viewers.py"
       - "scripts/probe_imo_atlantic.py"
       - "scripts/imo_synoptic_adapter.py"
       - "tests/test_imo_synoptic_adapter.py"
@@ -58,7 +60,7 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -84,6 +86,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_imo_synoptic_adapter.py -v
       - name: Probe IMO actual North Atlantic image metadata (no image copy)
         run: python scripts/probe_imo_atlantic.py
+      - name: Test newer official European chart viewers
+        run: python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
+      - name: Probe Greek Polish French Swiss and Swedish official viewers
+        run: python scripts/probe_europe_synoptic_viewers.py
       - name: Fetch permitted DWD AEMET KNMI NOAA original images
         run: python scripts/update_synoptic_original_charts.py
       - name: Validate only genuine source charts
@@ -97,6 +103,10 @@ jobs:
           assert imo["schema_version"]==1
           assert imo["ready_for_automated_chart_ingestion"] is False
           assert imo["provider_terms"].startswith("https://en.vedur.is/")
+          viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
+          assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
+          assert len(viewers["sources"])==5
+          assert all(s["ready_for_automatic_charts"] is False for s in viewers["sources"])
           audit=json.loads((root/"europe_source_audit.json").read_text(encoding="utf-8"))
           assert audit["schema_version"]==1 and audit["no_live_check"]
           assert all(not p["reproduction_ready"] for p in audit["providers"])
