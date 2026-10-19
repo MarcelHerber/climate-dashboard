@@ -51,3 +51,12 @@ footer{text-align:center;padding:18px;font-size:12px;color:var(--muted)}
 /* Nutzungsrechte unmittelbar am Kartenlink, nicht in zusätzlichen Unterabschnitten */
 .source-rights{display:block;margin-top:7px;color:#705015;background:#fff2d8;border-radius:6px;font-size:11px;padding:3px 7px;line-height:1.4}
 .source-policy-link{margin-top:6px;font-size:12px;color:#526a81}
+
+/* Kompakter, UTC-genauer Originalkartenvergleich ohne künstliche Leerfelder. */
+.independent-toggle{display:inline-flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--edge);border-radius:8px;background:#fff;font-size:13px;color:#29445d;font-weight:700;cursor:pointer;flex:0 1 auto;min-height:44px}
+.independent-toggle input{width:17px;height:17px;accent-color:#1763a5;cursor:pointer}
+.panel-options{align-items:center}
+.charts.four.compact-one{grid-template-columns:minmax(0,1fr);max-width:850px}
+.charts.four.compact-three>.chart:last-child{grid-column:1/-1}
+.charts.four.compact-three>.chart:last-child .chart-body img{max-height:670px;max-width:100%;width:auto}
+@media(max-width:590px){.charts.four.compact-three>.chart:last-child{grid-column:auto}.independent-toggle{width:100%}}
