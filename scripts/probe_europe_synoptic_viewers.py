@@ -16,7 +16,7 @@ from urllib.request import Request,urlopen
 BASE=Path(__file__).resolve().parents[1]
 OUTPUT=BASE/"data"/"synoptic_charts"/"europe_viewer_probe.json"
 VIEWERS={
- "hnms":("Griechenland","https://www.emy.gr/en/marine","www.emy.gr"),
+ "hnms":("Griechenland","https://emy.gr/en/marine","emy.gr"),
  "imgw_synoptic_forecast":("Polen","https://modele.imgw.pl/cmm/?page_id=19032","modele.imgw.pl"),
  "meteofrance":("Frankreich","https://meteofrance.com/isofronts","meteofrance.com"),
  "meteoswiss":("Schweiz","https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html","www.meteoschweiz.admin.ch"),
