@@ -36,3 +36,12 @@ footer{text-align:center;padding:18px;font-size:12px;color:var(--muted)}
 
 .source-panel-link{display:block;width:max-content;max-width:100%;margin:15px auto 0;padding:10px 14px;background:#1763a5;color:#fff;border-radius:7px;text-decoration:none;font-weight:700;font-size:13px}
 .source-panel-link:hover{background:#124e82}
+
+/* Synoptische Quellen-Aktualität und eindeutiger Panelmodus */
+.health-summary{border:1px solid #c9dce9;border-radius:9px;padding:11px 14px;margin:16px 0 3px;background:#f0f6fa;color:#31516b;font-size:13px;line-height:1.5}
+.health-summary.warn{background:#fff4df;border-color:#f1cd8c;color:#78521d}
+.health-summary.error{background:#fff0ef;border-color:#efbab5;color:#963e35}
+.panel-options{border:1px solid var(--edge);background:#f7fafc;border-radius:9px;padding:12px;margin-top:13px}
+.panel-option-note{flex:2 1 260px;margin:5px 0 6px}
+#optimizePanels{white-space:normal}
+#fourSelectors .control select:disabled{background:#edf3f7;color:#627c90;cursor:default;opacity:.86}
