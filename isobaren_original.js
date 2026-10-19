@@ -6,13 +6,13 @@ const INITIAL=["dwd","aemet","noaa_opc","chmi"];
 let catalog=null;
 let europeSourceAudit=null;
 let imoDiagnostic=null;
+let automaticChoice=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
 const source=id=>sourceDirectory().find(s=>s.id===id);
 const sourceList=()=>sourceDirectory();
-const hasForecast=x=>x?.kind==="Prognose"||Number(x?.forecast_hours)>0;
-const showRecord=x=>$("chartKind")?.value==="forecast"?hasForecast(x):
- $("chartKind")?.value==="analysis"?!hasForecast(x):true;
+const showRecord=x=>globalThis.SynopticPanelLogic?.visible(x,$("chartKind").value)===true;
+const recordType=x=>globalThis.SynopticPanelLogic?.label?.[globalThis.SynopticPanelLogic.classify(x)]||"Originalkarte";
 const cardsAt=(id,time)=>(catalog?.charts||[]).filter(x=>x.source_id===id&&x.valid_utc===time&&showRecord(x));
 const CURATED_SOURCES=[{"id":"dwd","name":"DWD · Bodenanalyse","country":"Deutschland","url":"https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png","note":"Direkter Link zum aktuellen Bild; automatischer Abruf erfolgt separat über DWD Open Data."},{"id":"aemet","name":"AEMET · Frontenkarten","country":"Spanien","url":"https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes","note":"Amtliche Boden- und Frontenkarten."},{"id":"chmi","name":"ČHMÚ · Synoptische Situation","country":"Tschechien","url":"https://www.chmi.cz/predpoved-pocasi/synopticka-situace","note":"Amtliche synoptische Analyse und Prognose."},{"id":"dhmz","name":"DHMZ · Frontenprognose","country":"Kroatien","url":"https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model","note":"Amtliche Europa-Frontenprognose; Bildabruf nur mit geprüftem Druckdatum."},{"id":"knmi","name":"KNMI · Analysen und Prognosen","country":"Niederlande","url":"https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten","note":"Automatischer Original-GIF-Abruf mit datierten UTC-Terminen; Veröffentlichung nur nach erfolgreichem Datenlauf.","category":"auto"},{"id":"knmi_archiv","name":"KNMI · Wetterkartenarchiv","country":"Niederlande","url":"https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten","category":"archive","note":"Historisches Wetterkartenarchiv ab 2003."},{"id":"kmi","name":"KMI · Frontenkarten","country":"Belgien","url":"https://www.meteo.be/de/wetter/vorhersage/frontenkarten","category":"viewer","note":"Offizielle Frontenprognosen, jedoch noch keine gesicherte automatisch abrufbare Einzelbildzeit."},{"id":"dmi","name":"DMI · Analyse und Prognose","country":"Dänemark","url":"https://www.dmi.dk/vejret/frontkort","category":"viewer","note":"Amtliche Analyse- und Prognosekarten; DMI erlaubt ohne schriftliche Freigabe keine Übernahme von Kartenbildern auf andere Websites.","type":"external"},{"id":"metie","name":"Met Éireann · Bodenanalyse","country":"Irland","url":"https://www.met.ie/latest-reports/surface-analysis","category":"viewer","note":"Bodendruck- und Frontenanalyse für den Nordatlantik. Nur Originalseite verlinkt; keine automatische Bildübernahme."},{"id":"metoffice","name":"Met Office · Surface Pressure","country":"Großbritannien","url":"https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure","category":"viewer","note":"Offizieller Bodendruck- und Frontenkartenviewer; extern öffnen."},{"id":"meteofrance","name":"Météo-France · Isofronts","country":"Frankreich","url":"https://meteofrance.com/isofronts","category":"viewer","note":"Isofronts-Kartenansicht des französischen Wetterdienstes."},{"id":"meteociel","name":"Météociel · Frontenanalyse","country":"Frankreich","url":"https://www.meteociel.fr/fronts/index.php","category":"viewer","note":"Externe Kartenansicht eines Drittanbieters, mit Animation."},{"id":"hungaromet","name":"HungaroMet · Frontenkarte","country":"Ungarn","url":"https://www.met.hu/en/idojaras/aktualis_idojaras/front/","category":"viewer","note":"Offizieller Frontenviewer; Datierung des Einzelbilds und Verwendung für automatische Kopien nicht abgesichert."},{"id":"shmu","name":"SHMÚ · Bodenwetterkarte","country":"Slowakei","url":"https://www.shmu.sk/en/?page=980","category":"viewer","note":"Amtliche datierte Bodenanalyse. SHMÚ gestattet Kopien nicht pauschal außerhalb privater Nutzung – daher nur externe Originalansicht.","type":"external"},{"id":"ilmateenistus","name":"Ilmateenistus · Wetterkarte","country":"Estland","url":"https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en","category":"unverified","note":"Wetterkartenansicht; Isobaren und UTC-Gültigkeit noch nicht gesichert."},{"id":"fmi","name":"FMI · Europäische Wetterlage","country":"Finnland","url":"https://en.ilmatieteenlaitos.fi/weather-in-europe","category":"unverified","note":"Wetterlagen-Seite; konkretes Isobarenbild nicht bestätigt."},{"id":"meteoam","name":"Aeronautica Militare · Suolo","country":"Italien","url":"https://www.meteoam.it/it/suolo","category":"viewer","note":"Amtlicher Bodenwetterkartenbereich; aktuelle Kartenzeit nicht unabhängig bestätigt."},{"id":"mgm","name":"MGM · Synoptikkarten","country":"Türkei","url":"https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx","category":"unverified","note":"Synoptikkarten-Bereich, noch kein verifiziertes aktuelles Kartenbild."},{"id":"smhi","name":"SMHI · Tageskartenarchiv","country":"Schweden","url":"https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige","category":"archive","note":"Erläuterung zum Tageskartenarchiv, kein direkter Live-Viewer."},{"id":"imo","name":"IMO · Atlantik-Isobaren (ECMWF)","country":"Island","url":"https://en.vedur.is/weather/shipping/atlantic/","category":"unverified","note":"Nordatlantische ECMWF-Isobaren- und Windprognosen ohne eingezeichnete Fronten. Ein automatisches Panelbild erscheint ausschließlich, wenn Originaldatei und beide aufgedruckten Zeitangaben unabhängig übereinstimmen."},{"id":"metno","name":"MET Norway · Wetter und Klima","country":"Norwegen","url":"https://www.met.no/en/weather-and-climate","category":"unverified","note":"Allgemeine Wetterseite; kein bestätigter Isobaren-Direktlink."},{"id":"imgw","name":"IMGW · Wetterportal","country":"Polen","url":"https://meteo.imgw.pl/","category":"unverified","note":"Wetterportal; aktueller Karten-Direktlink nicht bestätigt."},{"id":"geosphere","name":"GeoSphere Austria · Wetterkarte","country":"Österreich","url":"https://www.zamg.ac.at/cms/de/wetter/wetterkarte","category":"unverified","note":"Ältere ZAMG-Adresse; Ziel und aktueller Karteninhalt nicht gesichert."},{"id":"ipma","name":"IPMA · Numerische Karten","country":"Portugal","url":"https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp","category":"unverified","note":"Numerische Wetterkarten; Fronten-/Isobareninhalt nicht sicher bestätigt."},{"id":"ipma_history","name":"IPMA · Historische Bodenanalyse","country":"Portugal","url":"https://observar.ipma.pt/superficie-frontal-fria/","category":"archive","note":"Historische Karte aus einer Fallstudie, nicht die aktuelle Wetterlage."},{"id":"nimh_history","name":"NIMH · Synoptik-Hintergrund","country":"Bulgarien","url":"https://storm.cfd.meteo.bg/weather/1en/index.php?koiFail=zaNas&lng=0","category":"unverified","note":"Beschreibung der synoptischen Analyse, kein Live-Kartenbild."},{"id":"anm_history","name":"ANM · Historische Analyse","country":"Rumänien","url":"https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf","category":"archive","note":"Fallbericht mit Bodenkarte vom 29.11.2025; keine aktuelle Analyse."},{"id":"noaa_wpc","name":"NOAA WPC · Bodenwetterkarten","country":"USA","url":"https://www.weather.gov/forecastmaps","category":"viewer","note":"Nordamerika-Analyse und Prognosen."},{"id":"noaa_pacific","name":"NOAA OPC · Pazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","category":"viewer","note":"Pazifische Bodenanalysen und Prognosen."},{"id":"eccc","name":"ECCC · Nordhemisphäre","country":"Kanada","url":"https://weather.gc.ca/analysis/index_e.html","category":"unverified","note":"Nordhemisphären-Kartenbereich; Zeitstempel für Bildabruf offen."},{"id":"meteoswiss","name":"MeteoSchweiz · Allgemeine Lage","country":"Schweiz","url":"https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html","type":"external","category":"viewer","note":"Fronten- und Großwetterlagenkarte in der Allgemeinen Lage; UTC-Termin und Übernahmerechte noch nicht verifiziert."},{"id":"metie_forecast","name":"Met Éireann · Atlantik-Druckprognosen","country":"Irland","url":"https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure","type":"external","category":"viewer","note":"Offizieller Atlantik-Kartenviewer mit Druck- und Niederschlagsprognosen; nur direkt verlinkt, ohne Bildkopie."}];
 const collator=new Intl.Collator("de",{sensitivity:"base"});
@@ -164,19 +164,20 @@ function fillPickers(){
  rebuildTimes(single.value);
  if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
 }
+function panelSettings(){return {uniquePublishers:$("uniquePublishers").checked};}
 function panelChoiceAt(time){
  const logic=globalThis.SynopticPanelLogic;
- if(!logic)throw new Error("Auswahlmodul für Vierer-Panel fehlt");
- return logic.chooseAt(catalog?.charts||[],time,$("chartKind").value);
+ if(!logic)throw new Error("Das Kartenvergleich-Modul konnte nicht geladen werden");
+ return logic.chooseAt(catalog?.charts||[],time,$("chartKind").value,panelSettings());
 }
 function setSelectedPanels(choice){
- const actual=choice?.ids||[];
- const fillers=PANEL_PREF.filter(id=>source(id)?.type==="auto"&&!actual.includes(id));
- const chosen=actual.concat(fillers).slice(0,4);
- slots.forEach((id,i)=>{if(chosen[i]&&optionValue($(id),chosen[i]))$(id).value=chosen[i];});
+ automaticChoice=choice||null;
+ const matched=choice?.ids||[];
+ matched.forEach((id,i)=>{if(slots[i]&&optionValue($(slots[i]),id))$(slots[i]).value=id;});
  $("autoChoiceHint").textContent=choice?.count?
-  choice.count+"/4 Karten für "+isoDE(choice.time)+" · "+choice.publishers+" unabhängige Dienste. Fehlende Plätze bleiben leer.":
-  "Für die gewünschte Auswahl sind keine zeitgleichen Karten verfügbar.";
+  choice.count+" zeitgleiche Originalbilder für "+isoDE(choice.time)+" · "+
+  choice.publishers+" unabhängige Dienste. Nur verfügbare Bilder werden dargestellt.":
+  "Für den gewählten Filter ist keine zeitgleiche Originalkarte vorhanden.";
 }
 function autoAtCurrentTime(){
  if(!catalog)return;
@@ -185,22 +186,42 @@ function autoAtCurrentTime(){
 function autoBestPanels(){
  if(!catalog)return;
  const logic=globalThis.SynopticPanelLogic;
- if(!logic)throw new Error("Auswahlmodul für Vierer-Panel fehlt");
- const choice=logic.best(catalog.charts,availableTimes(),$("chartKind").value,Date.now());
+ if(!logic)throw new Error("Das Kartenvergleich-Modul konnte nicht geladen werden");
+ const choice=logic.best(catalog.charts,availableTimes(),$("chartKind").value,Date.now(),panelSettings());
  if(choice)$("validTime").value=choice.time;
  setSelectedPanels(choice);
 }
 function updatePanelControls(){
  const isFour=$("chartMode").value==="four";
  $("fourOptions").hidden=!isFour;
- $("fourSelectors").hidden=!isFour;
+ $("fourSelectors").hidden=!isFour||panelAutomatic();
  $("singleSourceWrap").hidden=isFour;
  slots.forEach(id=>$(id).disabled=isFour&&panelAutomatic());
  $("optimizePanels").disabled=!catalog;
- if(!panelAutomatic()&&isFour)$("autoChoiceHint").textContent="Manuell: Die Kartenquelle und den UTC-Termin selbst wählen. Zeitangaben werden nicht verschoben.";
+ if(!panelAutomatic()&&isFour)
+  $("autoChoiceHint").textContent="Manueller Vergleich: Karten und UTC-Termin bleiben ausgewählt. Nicht verfügbare Bilder und doppelte Dienste (falls aktiviert) werden ausgeblendet.";
 }
 function currentProviders(){
- return $("chartMode").value==="four"?slots.map(id=>$(id).value):[$("singleSource").value];
+ return $("chartMode").value==="four"?
+   (panelAutomatic()?automaticChoice?.ids||[]:slots.map(id=>$(id).value)):
+   [$("singleSource").value];
+}
+function visibleSelection(){
+ const selected=currentProviders(),seen=new Set();
+ const shown=[];let unavailable=0,duplicate=0;
+ const time=$("validTime").value;
+ const four=$("chartMode").value==="four";
+ for(const id of selected){
+  const match=cardsAt(id,time)[0];
+  const pub=match?.publisher_id||match?.source_id||id;
+  if(four&&$("uniquePublishers").checked&&seen.has(pub)){duplicate++;continue;}
+  // External original links remain usable; unavailable auto-image tiles do not.
+  const external=source(id)?.type!=="auto";
+  if(!match&&four&&!external){unavailable++;continue;}
+  shown.push(id);
+  if(match||external)seen.add(pub);
+ }
+ return {selected,shown,unavailable,duplicate};
 }
 function card(provider,time){
  const s=source(provider);
@@ -208,7 +229,8 @@ function card(provider,time){
  const article=node("article","chart");
  const heading=node("div","chart-header");
  heading.append(node("strong","",s?s.name:"Unbekannte Quelle"));
- heading.append(node("small","",record?(record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""))+" · "+isoDE(record.valid_utc):(s?.type!=="auto"?"Externe Kartenansicht · Zeit nicht synchronisiert":"Für diesen Termin nicht vorhanden")));
+ heading.append(node("small","",record?(record.kind+(record.forecast_hours?" +"+record.forecast_hours+" h":""))+" · "+isoDE(record.valid_utc):(s?.type!=="auto"?"Externe Kartenansicht · nicht synchronisiert":"Für diesen Termin nicht vorhanden")));
+ if(record)heading.append(node("span","chart-category",recordType(record)));
  article.append(heading);
  const content=node("div","chart-body");
  if(record){
@@ -242,7 +264,7 @@ function card(provider,time){
  footer.append(node("span","",record?record.credit:(s?.type!=="auto"?"Originalquelle · keine Bildübernahme":"Keine Karte für "+isoDE(time))));
  if(s){
   if(record?.terms_url){
-   const terms=node("a","","DHMZ-Nutzungsbedingungen");
+   const terms=node("a","","Nutzungsbedingungen");
    terms.href=record.terms_url;terms.target="_blank";terms.rel="noopener noreferrer";footer.append(terms);
   }
   if(record?.license_url){
@@ -264,26 +286,43 @@ function refreshView(){
  grid.replaceChildren();
  const validity=$("validTime").value;
  if(!catalog||!validity){
-  grid.append(node("div","empty",!catalog?"Kartenindex nicht erreichbar. Die Quellenübersicht unten bleibt nutzbar.":"Für den ausgewählten Kartentyp wurden keine echten Originalbilder veröffentlicht."));
+  grid.classList.toggle("compact-one",false);
+  grid.classList.toggle("compact-three",false);
+  grid.append(node("div","empty",!catalog?"Kartenindex nicht erreichbar – unten bleiben die Originalquellen verfügbar.":"Für diesen Karteninhalt liegen keine überprüften UTC-Termine vor."));
   $("exportPng").disabled=true;
   return;
  }
- const ids=currentProviders();
- let matched=0;
- for(const id of ids){if(cardsAt(id,validity).length)matched++;grid.append(card(id,validity));}
+ const selection=visibleSelection();
+ const ids=selection.shown;
+ const matched=ids.filter(id=>cardsAt(id,validity).length>0).length;
+ grid.classList.toggle("compact-one",isFour&&ids.length===1);
+ grid.classList.toggle("compact-three",isFour&&ids.length===3);
+ for(const id of ids)grid.append(card(id,validity));
+ if(!ids.length){
+  const msg=node("div","empty");
+  msg.append(node("strong","","Keine zeitgleichen Originalkarten für die Auswahl"));
+  msg.append(node("span","","Den UTC-Termin, den Karteninhalt oder die unabhängigen Wetterdienste ändern. Keine Ersatzkarten aus anderen Laufzeiten."));
+  grid.append(msg);
+ }
  $("exportPng").disabled=matched===0;
- const agencies=new Set(ids.flatMap(id=>cardsAt(id,validity).map(x=>x.publisher_id||x.source_id)));
- const externalCount=ids.filter(id=>source(id)?.type!=="auto").length;
- const outdated=Date.now()-Date.parse(catalog.generated_utc)>12*3600000;
- const state=outdated?" · Achtung: Datenindex älter als 12 Stunden":"";
- $("chartStatus").textContent=isoDE(validity)+" · "+matched+"/"+ids.length+
-  " Originalbilder · "+agencies.size+" unabhängige Dienste · UTC identisch"+
-  (externalCount?" · "+externalCount+" externe Verlinkung(en) ohne Zeitsynchronisierung":"")+state;
- $("syncHint").textContent=externalCount===ids.length?
-  "Die gewählten Karten werden bei den Wetterdiensten geöffnet und nicht als synchronisierter Vierer-Vergleich dargestellt.":
-  isFour?
-   (matched===4?(agencies.size===4?"Vier unabhängige Wetterdienste mit identischer UTC-Gültigkeit.":"Vier Karten aus "+agencies.size+" unterschiedlichen Wetterdiensten; einzelne Ausschnitte stammen vom selben Herausgeber."):"Exakt zeitgleiche Karten: "+matched+"/4. Leere Felder werden nicht mit anderen Terminen aufgefüllt."):
-   (matched?"Originalkarte des gewählten Dienstes für den ausgewiesenen UTC-Termin.":"Keine verifizierte Originalkarte dieses Dienstes zum ausgewählten Termin.");
+ const publishers=new Set(ids.flatMap(id=>cardsAt(id,validity).map(x=>x.publisher_id||x.source_id)));
+ const external=ids.filter(id=>source(id)?.type!=="auto").length;
+ const older=Date.now()-Date.parse(catalog.generated_utc)>12*3600000;
+ const hidden=selection.unavailable+selection.duplicate;
+ $("chartStatus").textContent=isoDE(validity)+" · "+matched+" Originalbilder"+
+  (isFour?" in "+ids.length+" sichtbaren Kacheln":"")+
+  " · "+publishers.size+" unabhängige Dienste"+
+  (external?" · "+external+" externe Verweise":"")+
+  (hidden?" · "+hidden+" nicht passende/doppelte Kacheln ausgeblendet":"")+
+  (older?" · Achtung: Index älter als 12 Stunden":"");
+ $("syncHint").textContent=isFour?
+  (matched?
+   "Alle angezeigten Originalbilder haben exakt denselben UTC-Gültigkeitstermin. "+
+   (ids.length<4?"Der Vergleich zeigt nur "+ids.length+" belegte Kacheln, keine leeren Platzhalter. ":"")+
+   ($("uniquePublishers").checked?"Jeder Wetterdienst zählt höchstens einmal.":"Mehrere Produkte desselben Wetterdienstes sind erlaubt.")+
+   (external?" Externe Kartenlinks sind nicht Teil des zeitgleichen Bildvergleichs.":""):
+   "Für diesen Kartentyp und Zeitpunkt sind keine eingebundenen Originalbilder verfügbar. Externe Links sind keine synchronisierten Karten."):
+  (matched?"Originalkarte des gewählten Wetterdienstes für den ausgewiesenen UTC-Termin.":"Für diese Quelle zum gewählten Zeitpunkt kein freigegebenes Originalbild vorhanden.");
 }
 async function pngExport(){
  const validity=$("validTime").value;
@@ -376,6 +415,10 @@ function init(){
    if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
    else if($("chartMode").value==="single")nearestTimeFor([$("singleSource").value]);
   }
+  refreshView();
+ });
+ $("uniquePublishers").addEventListener("change",()=>{
+  if(catalog&&$("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
   refreshView();
  });
  $("fourPolicy").addEventListener("change",()=>{
