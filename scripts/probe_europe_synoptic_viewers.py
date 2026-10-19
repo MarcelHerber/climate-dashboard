@@ -20,7 +20,8 @@ VIEWERS={
  "imgw_synoptic_forecast":("Polen","https://modele.imgw.pl/cmm/?page_id=19032","modele.imgw.pl"),
  "meteofrance":("Frankreich","https://meteofrance.com/isofronts","meteofrance.com"),
  "meteoswiss":("Schweiz","https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html","www.meteoschweiz.admin.ch"),
- "smhi":("Schweden","https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige","www.smhi.se")
+ "smhi":("Schweden","https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige","www.smhi.se"),
+ "rhmz":("Serbien","https://hidmet.gov.rs/eng/osmotreni/analiza.php","hidmet.gov.rs")
 }
 IMAGES=re.compile(r"\.(?:png|jpe?g|gif|webp)(?:$|[?#])",re.I)
 DATE_VALID=re.compile(r"^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:Z|\+00:00)$")
