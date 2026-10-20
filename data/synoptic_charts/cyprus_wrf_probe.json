@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-10-20T04:16:45+00:00",
+  "publisher": "Cyprus Department of Meteorology",
+  "product": "WRF v4.1.3 8-km Eastern Mediterranean sea-level pressure, 10-m wind, 2-m temperature; no fronts",
+  "about": "https://www.dom.org.cy/about.html",
+  "usage": "Raw numerical model guidance, not the official weather forecast. No chart-image republication permission established.",
+  "model_run_paths_checked": [
+    "00Z",
+    "12Z"
+  ],
+  "reports": [
+    {
+      "run_hour_utc": "00",
+      "page": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "state": "html_inspected",
+      "frame_count": 41,
+      "sample_maps": [
+        {
+          "frame": 0,
+          "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-000.gif",
+          "state": "timestamp_unverified",
+          "image_size_px": [
+            720,
+            720
+          ],
+          "printed_header_excerpt": "Date: 2026-10-19 03:00 Local Time [2026-10-19 00:00 UTC] 2m Temperature (Deg. C) Sea Level Pressure (hPa) Wind (kts) oN en iL CN RB ROY SESH | 113 5 7 9 1113 15 17 19 21 23 25 27 29 31 33 35 36 |",
+          "reason": "Missing printed INIT or VALID complete UTC date"
+        },
+        {
+          "frame": 6,
+          "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-006.gif",
+          "state": "timestamp_unverified",
+          "image_size_px": [
+            720,
+            720
+          ],
+          "printed_header_excerpt": "Date: 2026-10-19 21:00 Local Time [2026-10-19 18:00 UTC] 2m Temperature (Deg. C) Sea Level Pressure (hPa) Wind (kts) = |_| as RAIA TALIS TS YS | 113 5 7 9 1113 15 17 19 21 23 25 27 29 31 33 35 36 |",
+          "reason": "Missing printed INIT or VALID complete UTC date"
+        }
+      ],
+      "ready_for_image_reuse": false
+    },
+    {
+      "run_hour_utc": "12",
+      "page": "https://www.dom.org.cy/WRF4/12Z/01/SLP_W10m_T2m/index.html",
+      "state": "html_inspected",
+      "frame_count": 41,
+      "sample_maps": [
+        {
+          "frame": 0,
+          "url": "https://www.dom.org.cy/WRF4/12Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-000.gif",
+          "state": "timestamp_unverified",
+          "image_size_px": [
+            720,
+            720
+          ],
+          "printed_header_excerpt": "Date: 2026-10-19 15:00 Local Time [2026-10-19 12:00 UTC] 2m Temperature (Deg. C) Sea Level Pressure (hPa) Wind (kts) 7 I SSNVVEZATSNS ae of <2 as iat aL NSS5) | 113 5 7 9 1113 15 17 19 21 23 25 27 29 31 33 35 36 |",
+          "reason": "Missing printed INIT or VALID complete UTC date"
+        },
+        {
+          "frame": 6,
+          "url": "https://www.dom.org.cy/WRF4/12Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-006.gif",
+          "state": "timestamp_unverified",
+          "image_size_px": [
+            720,
+            720
+          ],
+          "printed_header_excerpt": "Date: 2026-10-20 09:00 Local Time [2026-10-20 06:00 UTC] 2m Temperature (Deg. C) Sea Level Pressure (hPa) Wind (kts) nai aa De RAE IO SESS N71 | 1613 5 7 9 1113 15 17 19 21 23 25 27 29 31 33 35 36 |",
+          "reason": "Missing printed INIT or VALID complete UTC date"
+        }
+      ],
+      "ready_for_image_reuse": false
+    }
+  ],
+  "no_images_persisted": true,
+  "ready_for_automatic_image_reuse": false,
+  "reason": "Printed exact WRF initialization and validity UTC plus chart-specific republication rights needed. GIF sequence numbers are not UTC timestamps."
+}
