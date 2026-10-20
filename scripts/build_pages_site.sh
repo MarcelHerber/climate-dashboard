@@ -380,6 +380,17 @@ assert all(x["image_reuse_permitted"] is False for x in obj["records"])
 PY
     cp data/synoptic_charts/rhmz_probe.json _site/data/synoptic_charts/
   fi
+  if [[ -s data/synoptic_charts/cyprus_wrf_probe.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+probe=json.loads(Path("data/synoptic_charts/cyprus_wrf_probe.json").read_text(encoding="utf-8"))
+assert probe["schema_version"]==1 and probe["no_images_persisted"] is True
+assert probe["ready_for_automatic_image_reuse"] is False
+assert [r["run_hour_utc"] for r in probe["reports"]]==["00","12"]
+PY
+    cp data/synoptic_charts/cyprus_wrf_probe.json _site/data/synoptic_charts/
+  fi
   if [[ -s data/synoptic_charts/europe_viewer_probe.json ]]; then
     python - <<'PY'
 import json
