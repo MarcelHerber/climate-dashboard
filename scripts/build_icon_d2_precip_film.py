@@ -3,8 +3,9 @@
 
 Separate publication from cloud fields: no precipitation product can break clouds.
 RAIN = RAIN_GSP + RAIN_CON; SNOW = SNOW_GSP + SNOW_CON.
-The four components accumulate from model start. Compute t - (t-1);
-+0 has no preceding full hour and is deliberately omitted.
+The four components accumulate from model start. Compute t - (t-1).
+At +0h cumulative precipitation is exactly zero by definition; no DWD +0
+GRIB is required. The first full-hour forecast is +1h.
 """
 from __future__ import annotations
 import argparse
@@ -118,7 +119,7 @@ def build(root: Path, workers: int):
     if [f["hour"] for f in current["frames"]] != list(HOURS):
         raise RuntimeError("Wolkenlauf muss echte stündliche Daten enthalten")
     run = datetime.strptime(current["cycle"], "%Y%m%d%H").replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) - run > timedelta(hours=24):
+    if datetime.now(timezone.utc) - run > timedelta(hours=48):
         raise RuntimeError("Wolkenlauf für Niederschlagsberechnung zu alt")
     output = root / "precip.json"
     if output.exists():
@@ -133,15 +134,23 @@ def build(root: Path, workers: int):
         except (ValueError, OSError):
             pass
 
-    ref_raw = retrieve(url_for(run, "RAIN_GSP", 0))
+    # +0h accumulated precipitation is zero. DWD can encode initialization
+    # fields differently (or omit them); never require a +0h GRIB.
+    ref_raw = retrieve(url_for(run, "RAIN_GSP", 1))
     lat, lon, values, grid = decode_precip(ref_raw)
     mapping = build_mapping(lat, lon)
     reference = (lat, lon)
-    # A single mapped source field is held per (parameter, hour). All hourly
-    # rain/snow values are derived from original accumulation differences.
-    samples = {(0, "RAIN_GSP"): get_sample(run, "RAIN_GSP", 0, mapping, reference)[2]}
-    jobs = [(hour, kind) for hour in HOURS for kind in COMPONENTS
-            if (hour, kind) != (0, "RAIN_GSP")]
+    idx, valid = mapping
+    initial = np.zeros(idx.size, dtype=np.float32)
+    initial[~valid] = np.nan
+    samples = {(0, kind): initial for kind in COMPONENTS}
+    first = values[idx].astype(np.float32, copy=True)
+    first[~valid] = np.nan
+    if np.count_nonzero(np.isfinite(first) & (first >= -0.01)) < valid.sum() * 0.98:
+        raise ValueError("Unplausibles Referenzfeld RAIN_GSP +1h")
+    samples[(1, "RAIN_GSP")] = first
+    jobs = [(hour, kind) for hour in HOURS[1:] for kind in COMPONENTS
+            if (hour, kind) != (1, "RAIN_GSP")]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(get_sample, run, kind, hour, mapping, reference): (hour, kind)
