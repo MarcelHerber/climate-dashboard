@@ -54,7 +54,7 @@ def frames_from_html(html:str,page:str,run:str)->list[dict]:
 
 # Support clear YYYY-MM-DD HH:MM UTC and DD.MM.YYYY HH:MM UTC image labels.
 DATE_RE=re.compile(r"(?<!\d)(20\d{2}[-./][01]?\d[-./][0-3]?\d|[0-3]?\d[-./][01]?\d[-./]20\d{2})"
-                   r"\s*[T _-]?\s*([01]?\d|2[0-3])[:. ]([0-5]\d)(?::[0-5]\d)?\s*(UTC|Z)\b",re.I)
+                   r"[T _]+([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?\s*(UTC|Z)\b",re.I)
 INIT_RE=re.compile(r"\b(?:init(?:ial(?:ization|isation)?)?|model\s*run|start)\b\s*(?:time\s*)?[:=\s]{0,12}",re.I)
 VALID_RE=re.compile(r"\b(?:valid(?:ity)?|forecast\s*valid|verification|vt)\b\s*(?:time\s*)?[:=\s]{0,12}",re.I)
 
