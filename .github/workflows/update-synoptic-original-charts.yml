@@ -152,7 +152,7 @@ jobs:
           assert index["chart_count"]==len(index["charts"])
           assert index["time_slots"]==sorted(set(x["valid_utc"] for x in index["charts"]))
           for item in index["charts"]:
-              assert item["source_id"] in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz","imo")
+              assert item["source_id"] in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96","chmi","dhmz","imo")
               assert item["source_url"].startswith(("https://opendata.dwd.de/","https://www.aemet.es/","https://ftp.opc.ncep.noaa.gov/ncdc/","https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa","https://prognoza.hr/web_fronte_sutra12.jpg","https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/","https://en.vedur.is/photos/sjo_atlant_spa/","https://www.vedur.is/photos/sjo_atlant_spa/"))
               assert item["image"].startswith("images/")
               image=root/item["image"]
