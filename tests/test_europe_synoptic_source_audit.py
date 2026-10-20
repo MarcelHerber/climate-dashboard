@@ -38,6 +38,13 @@ class EuropeOriginalRightsTests(unittest.TestCase):
         self.assertEqual(p["timestamp"],"pending_exact_init_and_valid_utc_image_ocr")
         self.assertFalse(audit.image_admissible(p,True,True))
 
+    def test_russia_and_kazakhstan_images_stay_external_until_licensed(self):
+        for id in ("russia_hmc_analysis","russia_hmc_forecast","kazakhstan_synoptic"):
+            with self.subTest(id=id):
+                self.assertFalse(audit.image_admissible(audit.SOURCES[id],True,True))
+        self.assertEqual(audit.SOURCES["russia_hmc_analysis"]["timestamp"],
+                         "four_utc_slots_no_image_verified")
+
     def test_new_national_services_are_not_inadvertently_republished(self):
         names=("italiameteo_isobars","italiameteo_opendata",
                "cyprus_dom_wrf","arso_synoptic_archive","lvgmc_front_archive")
