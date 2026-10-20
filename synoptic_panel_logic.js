@@ -1,11 +1,11 @@
 /* UTC-exact provider/chart selection for synoptic original maps. */
 (function(root){
  "use strict";
- const ORDER=["dwd","aemet","knmi","chmi","dhmz","imo","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96"];
+ const ORDER=["dwd","aemet","knmi","chmi","dhmz","imo","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pacfull","noaa_pac24","noaa_pac48","noaa_pac96"];
  // These are established products with fronts drawn on the published original maps.
  // Never infer fronts from arbitrary provider IDs or from a model pressure map.
  const FRONT_PRODUCTS=new Set(["dwd","aemet","knmi","chmi","dhmz",
-    "noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96"]);
+    "noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pacfull","noaa_pac24","noaa_pac48","noaa_pac96"]);
  const label={
    analysis_fronts:"Bodenanalyse · mit Fronten",
    forecast_fronts:"Frontenprognose",
