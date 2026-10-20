@@ -1,0 +1,76 @@
+name: GEM GDPS Originalbewölkung prüfen (manuell)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: icon-cloud-mixer-data
+  cancel-in-progress: false
+
+jobs:
+  verify-gem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECCC-Datenwerkzeuge installieren
+        run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3"
+      - name: GEM-GRIB2-Schnittstelle prüfen
+        run: python -m py_compile scripts/build_gem_cloud_mixer.py
+      - name: Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch icon-cloud-mixer-data "$url" /tmp/gem-data
+          else
+            mkdir -p /tmp/gem-data
+            git -C /tmp/gem-data init -q -b icon-cloud-mixer-data
+            git -C /tmp/gem-data remote add origin "$url"
+          fi
+      - name: Originale GEM-Gesamtbewölkung entdecken und prüfen
+        run: python scripts/build_gem_cloud_mixer.py --out /tmp/gem-data/data/cloud-mixer/gem
+      - name: Veröffentlichte Modelldaten validieren
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          folder=Path("/tmp/gem-data/data/cloud-mixer/gem")
+          data=json.loads((folder/"current.json").read_text())
+          assert data["schema"]==1 and data["source_id"]=="gem"
+          assert data["layers"]=={"clct":"Native GEM total cloud cover only"}
+          assert len(data["frames"])==13
+          for row in data["frames"]:
+              assert set(row["layers"])=={"clct"}
+              path=folder/row["layers"]["clct"]
+              assert path.is_file()
+              with Image.open(path) as image:
+                  image.verify()
+              with Image.open(path) as image:
+                  assert image.mode=="L" and image.size==(461,361)
+          print("Verified genuine GEM GDPS total cloud cover")
+          PY
+      - name: Verifizierte GEM-Gesamtbewölkung veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/gem-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cloud-mixer/gem/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GEM GDPS: native Gesamtbewölkung aus verifiziertem GRIB2"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git pull --rebase origin icon-cloud-mixer-data
+          fi
+          git push origin HEAD:refs/heads/icon-cloud-mixer-data
