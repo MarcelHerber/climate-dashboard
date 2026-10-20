@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-20T04:24:32+00:00",
+  "generated_utc": "2026-10-20T06:14:16+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -381,7 +381,7 @@
     },
     "noaa_48": {
       "state": "available",
-      "charts": 5
+      "charts": 6
     },
     "noaa_96": {
       "state": "available",
@@ -398,7 +398,7 @@
     },
     "imo": {
       "state": "available",
-      "charts": 1,
+      "charts": 2,
       "product": "ECMWF-based isobar forecast WITHOUT analyzed fronts"
     }
   },
@@ -944,6 +944,23 @@
       "size_bytes": 225312
     },
     {
+      "source_id": "imo",
+      "publisher_id": "imo",
+      "kind": "Prognose",
+      "forecast_hours": 33,
+      "run_utc": "2026-10-19T12:00+00:00",
+      "issued_utc": null,
+      "valid_utc": "2026-10-20T21:00+00:00",
+      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_1200_33.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-20 UTC",
+      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
+      "map_type": "isobars_model_forecast_no_fronts",
+      "image": "images/imo_20261020_2100.webp",
+      "size_bytes": 156436
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-21T00:00+00:00",
@@ -1061,6 +1078,20 @@
       "size_bytes": 318642
     },
     {
+      "source_id": "noaa_48",
+      "publisher_id": "noaa",
+      "kind": "Prognose",
+      "forecast_hours": 48,
+      "valid_utc": "2026-10-22T00:00+00:00",
+      "issued_utc": "2026-10-20T06:00+00:00",
+      "run_utc": "2026-10-20T00:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl48_sfcfcst_00.2026102006.gif",
+      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
+      "image": "images/noaa_48_20261022_0000.webp",
+      "size_bytes": 241064
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-22T12:00+00:00",
@@ -1127,12 +1158,13 @@
     "2026-10-20T00:00+00:00",
     "2026-10-20T03:00+00:00",
     "2026-10-20T12:00+00:00",
+    "2026-10-20T21:00+00:00",
     "2026-10-21T00:00+00:00",
     "2026-10-21T12:00+00:00",
     "2026-10-22T00:00+00:00",
     "2026-10-22T12:00+00:00",
     "2026-10-23T12:00+00:00"
   ],
-  "chart_count": 57,
+  "chart_count": 59,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
