@@ -17,6 +17,8 @@ import logging
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
+from http.client import HTTPException, RemoteDisconnected, IncompleteRead
+import socket
 import tempfile
 import time
 import numpy as np
@@ -38,22 +40,34 @@ def url_for(run, kind, hour):
     return f"{ROOT}/{run.hour:02d}/{kind.lower()}/{basename}"
 
 
-def retrieve(url, retries=3):
-    # Snow convection can be an entirely zero field, compressed to <1 KB.
-    # Validate bz2/GRIB payload rather than incorrectly enforcing >9 KB.
-    for attempt in range(retries):
+def retrieve(url, retries=6):
+    """Fetch DWD GRIB defensively: remote server may close long-lived connections."""
+    for attempt in range(1, retries+1):
         try:
-            with urlopen(Request(url, headers={"User-Agent": "ClimateDashboard-ICON-D2-Precip/1.0"}), timeout=75) as response:
-                raw = response.read()
-            if len(raw) < 80 or not raw.startswith(b"BZh"):
-                raise ValueError("Keine gültige BZip2-GRIB-Datei")
+            request=Request(url, headers={
+                "User-Agent": "ClimateDashboard-ICON-D2-Precip/1.1",
+                "Accept-Encoding": "identity",
+                "Connection": "close",
+            })
+            with urlopen(request, timeout=60) as response:
+                raw=response.read()
+            if len(raw)<80 or not raw.startswith(b"BZh"):
+                raise ValueError(f"Keine vollständige BZip2-GRIB-Datei ({len(raw)} Bytes)")
             return raw
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            if attempt == retries - 1 or isinstance(exc, HTTPError) and exc.code == 404:
-                raise RuntimeError(f"ICON-D2-Niederschlagsdatei fehlt/ist fehlerhaft: {url}: {exc}") from exc
-            time.sleep(2 ** attempt * 3)
+        except HTTPError as exc:
+            if exc.code in (400, 403, 404):
+                raise RuntimeError(f"DWD-Datei dauerhaft nicht erreichbar ({exc.code}): {url}") from exc
+            reason=f"HTTP {exc.code}"
+        except (URLError, RemoteDisconnected, IncompleteRead, HTTPException,
+                ConnectionError, TimeoutError, socket.timeout, OSError, ValueError) as exc:
+            reason=f"{type(exc).__name__}: {exc}"
+        if attempt==retries:
+            raise RuntimeError(f"DWD-GRIB nach {retries} Versuchen nicht abrufbar: {url}; zuletzt: {reason}")
+        pause=min(8*2**(attempt-1),75)
+        LOG.warning("DWD Download %s Versuch %d/%d fehlgeschlagen (%s); erneut in %ds",
+                    url.rsplit("/",1)[-1],attempt,retries,reason,pause)
+        time.sleep(pause)
     raise AssertionError("unreachable")
-
 
 def decode_precip(raw):
     with tempfile.TemporaryFile() as file:
@@ -214,7 +228,7 @@ def build(root: Path, workers: int):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--max-workers", type=int, default=4)
+    parser.add_argument("--max-workers", type=int, default=2)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     build(args.out, args.max_workers)
