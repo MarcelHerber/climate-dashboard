@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "40 2,8,14,20 * * *"
   push:
-    branches: [main, feature/private-cloud-lab-icon-d2-germany-20261020]
+    branches: [main]
     paths:
       - "scripts/build_icon_d2_cloud_film.py"
       - ".github/workflows/update-icon-d2-cloud-film.yml"
