@@ -34,8 +34,8 @@ OPC_96_RE=re.compile(r"^atl96_sfcfcst_(12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 # Never mistake suffix publication HH for the preceding VALID map UTC.
 PAC_E_RE=re.compile(r"^pace_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 PAC_W_RE=re.compile(r"^pacw_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
-PAC_HEMI_RE=re.compile(r"^pacsfc(00|06|12|18)Z\.([0-9]{8})([0-9]{2})\.gif$",re.I)
-PAC_24_RE=re.compile(r"^epac24_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_FULL_RE=re.compile(r"^pac00_sfcfcst_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_24_RE=re.compile(r"^(?:epac24|pac24)_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 PAC_48_RE=re.compile(r"^pac48_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 PAC_96_RE=re.compile(r"^pac96_sfcfcst_(12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 DWD_RE=re.compile(r"_([0-9]{12})_WV12\.png$",re.I)
@@ -89,8 +89,8 @@ SOURCES=[
   "license":"NOAA/NWS Public Domain · 48-h-Prognose"},
  {"id":"noaa_pace","name":"NOAA OPC · Nordostpazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordostpazifische Analysen mit datierter UTC-Gültigkeit"},
  {"id":"noaa_pacw","name":"NOAA OPC · Nordwestpazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordwestpazifische Analysen mit datierter UTC-Gültigkeit"},
- {"id":"noaa_pachemi","name":"NOAA OPC · Nordpazifik Hemisphäre","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordpazifische hemisphärische Bodenanalysen"},
- {"id":"noaa_pac24","name":"NOAA OPC · Nordostpazifik +24 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 24-Stunden-Bodenprognose"},
+ {"id":"noaa_pacfull","name":"NOAA OPC · Nordpazifik Gesamtkarte (0 h)","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordpazifische aktuelle 0-h-Bodenkarte (keine Hemisphären-Analyse)"},
+ {"id":"noaa_pac24","name":"NOAA OPC · Nordpazifik +24 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 24-Stunden-Bodenprognose"},
  {"id":"noaa_pac48","name":"NOAA OPC · Nordpazifik +48 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 48-Stunden-Bodenprognose"},
  {"id":"noaa_pac96","name":"NOAA OPC · Nordpazifik +96 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 96-Stunden-Bodenprognose"},
  {"id":"noaa_96","name":"NOAA OPC · Nordatlantik +96 h","country":"USA",
@@ -328,9 +328,9 @@ def extract_opc_pacw(html,now):
         "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)","Analyse")
 
 def extract_opc_pachemi(html,now):
-    """Northern hemispheric Pacific MSLP; not a duplicate independent provider."""
-    return _extract_opc_type(html,now,PAC_HEMI_RE,"noaa_pachemi",
-        "NOAA/NWS · Ocean Prediction Center (Nordpazifik Hemisphäre)","Analyse")
+    """Full Pacific 0-hour surface map, not a hemispheric analysis."""
+    return _extract_opc_type(html,now,PAC_FULL_RE,"noaa_pacfull",
+        "NOAA/NWS · Ocean Prediction Center (Nordpazifik 0 h)","0-h-Bodenkarte")
 
 def _extract_opc_forecast(html,now,pattern,source_id,lead,region):
     """Provider's filename prefix gives run UTC hour, suffix date gives
@@ -401,7 +401,7 @@ class KNMILinks(HTMLParser):
             self.parts=[]
 
 def extract_opc_pac24(html,now):
-    return _extract_opc_forecast(html,now,PAC_24_RE,"noaa_pac24",24,"Nordostpazifik +24 h")
+    return _extract_opc_forecast(html,now,PAC_24_RE,"noaa_pac24",24,"Nordpazifik +24 h")
 
 def extract_opc_pac48(html,now):
     return _extract_opc_forecast(html,now,PAC_48_RE,"noaa_pac48",48,"Nordpazifik +48 h")
@@ -475,7 +475,7 @@ def main(output=OUT,now=None):
              ("noaa_96",OPC_ARCHIVE,extract_opc_96),
              ("noaa_pace",OPC_ARCHIVE,extract_opc_pace),
              ("noaa_pacw",OPC_ARCHIVE,extract_opc_pacw),
-             ("noaa_pachemi",OPC_ARCHIVE,extract_opc_pachemi),
+             ("noaa_pacfull",OPC_ARCHIVE,extract_opc_pachemi),
              ("noaa_pac24",OPC_ARCHIVE,extract_opc_pac24),
              ("noaa_pac48",OPC_ARCHIVE,extract_opc_pac48),
              ("noaa_pac96",OPC_ARCHIVE,extract_opc_pac96)]
