@@ -2,6 +2,7 @@ import { LAB_JS } from "./cloud-lab-client.js";
 import { LAB_CSS } from "./cloud-lab-style.js";
 
 const DATA_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-cloud-film-data/data/icon-cloud-film/";
+const ICON_D2_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-d2-cloud-film-data/data/icon-d2-cloud-film/";
 const GEO_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/seasonal-europe-data/data/seasonal-europe/geography_50m.json";
 
 export function cloudLabLoginPage(){
@@ -22,6 +23,10 @@ export function cloudLabPage(){
  LAB_CSS+'</style></head><body><header><div><div class="sub">Climate Dashboard · privates Studio</div><strong>ICON-EU Wolkenfilm-Labor</strong> <span class="badge">Geschützt</span></div>'+
  '<nav><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
  '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Experimentelle TV-Wetterfilm-Darstellung auf Basis echter ICON-EU-Wolkenprognosen. Drei Höhenschichten lassen sich unabhängig in Deckkraft, Kontrast, Farbtönung und Bedeckungsschwelle anpassen. Es werden ausschließlich echte DWD-Wolkenfelder verwendet.</p>'+
+ '<div class="model-switch" role="group" aria-label="Vorhersagemodell und Region">'+
+ '<button id="modelEU" type="button" aria-pressed="true">Europa · ICON-EU</button>'+
+ '<button id="modelD2" type="button" aria-pressed="false">Deutschland · ICON-D2 (~2 km)</button>'+
+ '<span id="modelHint" class="secondary">Europa · ICON-EU · Datenraster 0,25°</span></div>'+
  '<div class="layout"><section class="card">'+
  '<div class="toolbar"><div><strong>Feste Europakarte</strong> <span class="pill" id="runLabel">ICON-EU lädt …</span></div>'+
  '<div><button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
@@ -48,7 +53,7 @@ export function cloudLabPage(){
  '<select id="theme"><option value="tv">Fernsehkarte / hellere Landflächen</option><option value="sat">Satellitenlook / dunkler Hintergrund</option></select>'+
  '<div class="divider"></div><h2>Wolkenschichten</h2><div class="layerGrid" id="layerGrid"></div>'+
  '<p class="secondary">Grenzwert: Bedeckung unterhalb des eingestellten Prozents erscheint transparenter. Jeder Regler beeinflusst nur die Darstellung – nicht die DWD-Modelldaten.</p>'+
- '</aside></div><p class="footer">Datenquelle: Deutscher Wetterdienst, ICON-EU Open Data (CLCL, CLCM, CLCH, CLCT; regelmäßiges Lat/Lon-Raster). Die Darstellung ist ein experimenteller, nicht amtlicher Wolkenfilm. Keine Vorhersage von Wolkengattung, vertikaler Mächtigkeit oder Wolkenuntergrenzen. Zugang ausschließlich nach serverseitiger Anmeldung; der ursprüngliche DWD-Datensatz ist öffentlich.</p>'+
+ '</aside></div><p class="footer">Datenquelle: Deutscher Wetterdienst, ICON-EU / ICON-D2 Open Data (CLCL, CLCM, CLCH, CLCT). ICON-D2: natives gedrehtes Gitter (~2,1 km), auf eine geografische Deutschlandkarte umgerechnet (0,025°). Die Darstellung ist ein experimenteller, nicht amtlicher Wolkenfilm. Keine Vorhersage von Wolkengattung, vertikaler Mächtigkeit oder Wolkenuntergrenzen. Zugang ausschließlich nach serverseitiger Anmeldung; der ursprüngliche DWD-Datensatz ist öffentlich.</p>'+
  '</main><script>'+LAB_JS+'</script></body></html>';
 }
 
@@ -56,6 +61,10 @@ export async function cloudLabData(request,url,securityHeaders){
  const suffix=url.pathname.slice("/wolkenlabor/data/".length);
  let source,mime;
  if(suffix==="current.json"){source=DATA_SOURCE+"current.json";mime="application/json; charset=utf-8";}
+ else if(suffix==="d2/current.json"){source=ICON_D2_SOURCE+"current.json";mime="application/json; charset=utf-8";}
+ else if(/^d2\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
+   source=ICON_D2_SOURCE+suffix.slice(3);mime="image/png";
+ }
  else if(suffix==="geo.json"){source=GEO_SOURCE;mime="application/json; charset=utf-8";}
  else if(/^frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
    source=DATA_SOURCE+suffix;mime="image/png";

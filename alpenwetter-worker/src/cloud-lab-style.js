@@ -43,4 +43,10 @@ select{min-height:36px}
 .footer{font-size:11px;color:#9cb5ca;max-width:1200px;line-height:1.6;padding-top:14px}
 @media(max-width:1040px){.layout{grid-template-columns:1fr}.layerGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.layer{margin:0}}
 @media(max-width:620px){.layerGrid{display:block}.layer{margin-top:10px}main{padding:14px 10px}.card{padding:10px}header{padding:12px}.controls button{padding:8px 10px}h1{font-size:24px}}
+
+.model-switch{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;background:#162d42;border:1px solid #3a5470;border-radius:10px;padding:11px}
+.model-switch button{font-weight:750;min-height:43px}
+.model-switch button[aria-pressed="true"]{background:#d5ebfa;color:#133853;border-color:#c9e7f8}
+.model-switch .secondary{margin-left:auto}
+@media(max-width:720px){.model-switch button{flex:1 1 auto}.model-switch .secondary{width:100%;margin-left:0}}
 `;

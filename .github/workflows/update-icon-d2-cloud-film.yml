@@ -1,0 +1,80 @@
+name: ICON-D2 Wolkenfilm Deutschland (privates Labor)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "40 2,8,14,20 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_icon_d2_cloud_film.py"
+      - ".github/workflows/update-icon-d2-cloud-film.yml"
+permissions:
+  contents: write
+concurrency:
+  group: icon-d2-cloud-film-publish
+  cancel-in-progress: false
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ICON-D2 GRIB und Kartengitter-Werkzeuge
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3"
+      - name: Python prüfen
+        run: python -m py_compile scripts/build_icon_d2_cloud_film.py
+      - name: Deutschland-Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo_url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/icon-d2-cloud-film-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch icon-d2-cloud-film-data "$repo_url" /tmp/icon-d2-cloud-film-data
+          else
+            mkdir -p /tmp/icon-d2-cloud-film-data
+            git -C /tmp/icon-d2-cloud-film-data init -q -b icon-d2-cloud-film-data
+            git -C /tmp/icon-d2-cloud-film-data remote add origin "$repo_url"
+          fi
+      - name: Geografisch korrektes ICON-D2-Deutschlandraster berechnen
+        run: python scripts/build_icon_d2_cloud_film.py --out /tmp/icon-d2-cloud-film-data/data/icon-d2-cloud-film --max-workers 4
+      - name: Prüfen dass ausschließlich echte ICON-D2-Wolkenfelder veröffentlicht werden
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          import json
+          from pathlib import Path
+          root=Path("/tmp/icon-d2-cloud-film-data/data/icon-d2-cloud-film")
+          m=json.loads((root/"current.json").read_text(encoding="utf-8"))
+          assert m["schema"]==1 and m["model"]=="DWD ICON-D2"
+          assert m["grid"]["source_projection"] in ("rotated_ll","regular_ll")
+          assert m["grid"]["step"]==0.025
+          assert len(m["frames"])==13
+          assert set(m["layers"])=={"clch","clcm","clcl","clct"}
+          assert m["frames"][0]["hour"]==0 and m["frames"][-1]["hour"]==36
+          for frame in m["frames"]:
+              for filename in frame["layers"].values():
+                  path=root/filename
+                  assert path.exists() and path.stat().st_size>1000
+                  with Image.open(path) as image:
+                      image.verify()
+                  with Image.open(path) as image:
+                      assert image.mode=="L" and image.size==(m["grid"]["width"],m["grid"]["height"])
+          print("OK, real ICON-D2 Germany cloud fields:",len(m["frames"])*4)
+          PY
+      - name: Deutschland-Wolkenfilm auf separatem Datenbranch veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/icon-d2-cloud-film-data
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "ICON-D2 Deutschland: echter 4-Schichten-Wolkenfilm"
+          git push origin HEAD:refs/heads/icon-d2-cloud-film-data
