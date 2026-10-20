@@ -146,7 +146,7 @@ def main():
     if old.is_file():
         try:
             saved=json.loads(old.read_text(encoding="utf-8"))
-            if saved.get("model")=="DWD ICON-D2" and saved.get("cycle")==f"{run:%Y%m%d%H}" and len(saved.get("frames",[]))==len(HOURS):
+            if saved.get("model")=="DWD ICON-D2" and saved.get("cycle")==f"{run:%Y%m%d%H}" and [frame.get("hour") for frame in saved.get("frames",[])]==list(HOURS):
                 LOG.info("ICON-D2-Wolkenfilm %s bereits vollständig veröffentlicht.",run)
                 return
         except (OSError,ValueError):
