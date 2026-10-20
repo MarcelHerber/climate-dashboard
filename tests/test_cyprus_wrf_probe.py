@@ -36,6 +36,13 @@ class CyprusWRFTests(unittest.TestCase):
         r=c.parse_printed_times(caption,"00",NOW)
         self.assertEqual(r["run_utc"],"2026-10-20T00:00+00:00")
         self.assertEqual(r["valid_utc"],"2026-10-20T06:00+00:00")
+    def test_partial_timestamp_cannot_invent_date_or_minutes(self):
+        self.assertIsNone(c.parse_full_utc("2026-10-20 12 UTC"))
+        self.assertIsNone(c.parse_full_utc("WRF run 12Z; frame 006"))
+        with self.assertRaises(ValueError):
+            c.parse_printed_times("INIT: 2026-10-20 12 UTC\\nVALID: 2026-10-20 18:00 UTC",
+                                  "12",NOW)
+
     def test_stale_run_and_mismatched_hour_rejected(self):
         for caption,run in [
             ("INIT: 2026-10-01 00:00 UTC\nVALID: 2026-10-01 03:00 UTC","00"),
