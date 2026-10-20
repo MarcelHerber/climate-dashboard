@@ -1,4 +1,4 @@
-export const LAB_CSS = String.raw\`
+export const LAB_CSS = String.raw`
 :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#eaf2fa}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:#0b1624;color:#e9f2fb}
@@ -43,4 +43,4 @@ select{min-height:36px}
 .footer{font-size:11px;color:#9cb5ca;max-width:1200px;line-height:1.6;padding-top:14px}
 @media(max-width:1040px){.layout{grid-template-columns:1fr}.layerGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.layer{margin:0}}
 @media(max-width:620px){.layerGrid{display:block}.layer{margin-top:10px}main{padding:14px 10px}.card{padding:10px}header{padding:12px}.controls button{padding:8px 10px}h1{font-size:24px}}
-\`;
+`;
