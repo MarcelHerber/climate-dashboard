@@ -14,14 +14,17 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 from pathlib import Path
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 import tempfile
+import time
 import numpy as np
 from PIL import Image
 import eccodes
 
 from build_icon_d2_cloud_film import (
     ROOT, PREFIX, HOURS, WIDTH, HEIGHT, STEP, WEST, EAST, SOUTH, NORTH,
-    retrieve, build_mapping,
+    build_mapping,
 )
 
 LOG = logging.getLogger("icon-d2-precip")
@@ -32,6 +35,23 @@ MAX_MM_H = 30.0
 def url_for(run, kind, hour):
     basename = f"{PREFIX}_{run:%Y%m%d%H}_{hour:03d}_2d_{kind.lower()}.grib2.bz2"
     return f"{ROOT}/{run.hour:02d}/{kind.lower()}/{basename}"
+
+
+def retrieve(url, retries=3):
+    # Snow convection can be an entirely zero field, compressed to <1 KB.
+    # Validate bz2/GRIB payload rather than incorrectly enforcing >9 KB.
+    for attempt in range(retries):
+        try:
+            with urlopen(Request(url, headers={"User-Agent": "ClimateDashboard-ICON-D2-Precip/1.0"}), timeout=75) as response:
+                raw = response.read()
+            if len(raw) < 80 or not raw.startswith(b"BZh"):
+                raise ValueError("Keine gültige BZip2-GRIB-Datei")
+            return raw
+        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+            if attempt == retries - 1 or isinstance(exc, HTTPError) and exc.code == 404:
+                raise RuntimeError(f"ICON-D2-Niederschlagsdatei fehlt/ist fehlerhaft: {url}: {exc}") from exc
+            time.sleep(2 ** attempt * 3)
+    raise AssertionError("unreachable")
 
 
 def decode_precip(raw):
