@@ -62,7 +62,7 @@ assert.match(content,/ecmwf-ifs-0p1/);
 assert.match(content,/ECMWF IFS · 0,1°/);
 assert.match(content,/ECMWF IFS · 0,25°/);
 assert.match(LAB_JS,/effectiveSource/);
-assert.match(LAB_JS,/sourceTextureFor\("ecmwf-ifs","clct"/);
+assert.match(LAB_JS,/sourceTextureFor\("ecmwf-ifs",kind,when\)/);
 assert.match(content,/gem/);
 assert.match(LAB_JS,/matchingFrame/);
 assert.match(LAB_JS,/diff===0|f\.valid_utc===when/);
