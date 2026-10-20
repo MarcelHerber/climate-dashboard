@@ -24,7 +24,11 @@ VIEWERS={
  "rhmz":("Serbien","https://hidmet.gov.rs/eng/osmotreni/analiza.php","hidmet.gov.rs"),
  "italiameteo_isobars":("Italien","https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles","meteohub.agenziaitaliameteo.it"),
  "cyprus_dom_wrf":("Zypern","https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html","www.dom.org.cy"),
- "meteoam":("Italien","https://www.meteoam.it/it/meteo-citta/front","www.meteoam.it")
+ "meteoam":("Italien","https://www.meteoam.it/it/meteo-citta/front","www.meteoam.it"),
+ "russia_hmc_analysis":("Russland","https://meteoinfo.ru/mapsynop","meteoinfo.ru"),
+ "kazakhstan_synoptic":("Kasachstan","https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody","www.kazhydromet.kz"),
+ "bosnia_fhmz_gfs":("Bosnien und Herzegowina","https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php","www.fhmzbih.gov.ba"),
+ "luxembourg_meteolux":("Luxemburg","https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/","www.meteolux.lu")
 }
 IMAGES=re.compile(r"\.(?:png|jpe?g|gif|webp)(?:$|[?#])",re.I)
 DATE_VALID=re.compile(r"^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:Z|\+00:00)$")
