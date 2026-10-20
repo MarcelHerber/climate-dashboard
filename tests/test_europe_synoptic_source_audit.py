@@ -32,6 +32,18 @@ class EuropeOriginalRightsTests(unittest.TestCase):
         self.assertEqual(audit.SOURCES["imgw_synoptic_archive"]["map"],
                          "historical_selected_analyses_in_monthly_pdf")
 
+    def test_new_national_services_are_not_inadvertently_republished(self):
+        names=("italiameteo_isobars","italiameteo_opendata",
+               "cyprus_dom_wrf","arso_synoptic_archive","lvgmc_front_archive")
+        for name in names:
+            with self.subTest(name=name):
+                self.assertFalse(audit.image_admissible(audit.SOURCES[name],True,True))
+        self.assertEqual(audit.SOURCES["italiameteo_opendata"]["rights"],"open_model_data_ccby")
+        self.assertEqual(audit.SOURCES["cyprus_dom_wrf"]["map"],
+                         "wrf_pressure_wind_temperature_no_fronts")
+        self.assertNotEqual(audit.SOURCES["arso_synoptic_archive"]["map"],
+                            "synoptic_live_chart")
+
     def test_positive_gate_requires_explicit_provider_rights_and_utc(self):
         p={"rights":"open_chart_license","timestamp":"verified_in_filename"}
         self.assertTrue(audit.image_admissible(p,True,True))
