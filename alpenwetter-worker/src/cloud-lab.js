@@ -29,9 +29,9 @@ export function cloudLabPage(){
  '<span id="modelHint" class="secondary">Europa · ICON-EU · Datenraster 0,25°</span></div>'+
  '<div class="layout"><section class="card">'+
  '<div class="toolbar"><div><strong id="cloudMapTitle">Europakarte · ICON-EU</strong> <span class="pill" id="runLabel">ICON-EU lädt …</span></div>'+
- '<div><button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
+ '<div><button id="previewBroadcast" type="button" aria-pressed="true">16:9 Sendemodus</button> <button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
  '<div class="stage"><canvas id="filmCanvas" width="1120" height="700" role="img" aria-label="ICON-EU-Wolkenfilm mit Ländergrenzen auf Europa"></canvas>'+
- '<div class="overlay" id="cloudOverlay">Echte DWD-Modellfelder werden geladen …</div></div>'+
+ '<canvas id="broadcastPreview" width="1920" height="1080" role="img" aria-label="16:9 Full-HD-Wetterfilmvorschau" style="aspect-ratio:16/9"></canvas><div class="overlay" id="cloudOverlay">Echte DWD-Modellfelder werden geladen …</div></div>'+
  '<div class="timing"><strong id="forecastTime">–</strong><span>Echte stündliche ICON-D2-Modellfelder; fließende Übergänge nur bei der Wiedergabe</span></div>'+
  '<div class="controls"><button id="playCloud" class="main" disabled>▶ Abspielen</button>'+
  '<input id="frameSlider" type="range" min="0" max="12" step="1" value="0" aria-label="Prognosezeit auswählen">'+
