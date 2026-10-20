@@ -30,6 +30,14 @@ OPC_WEST_RE=re.compile(r"^atlw_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$
 OPC_24_RE=re.compile(r"^watl24_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 OPC_48_RE=re.compile(r"^atl48_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 OPC_96_RE=re.compile(r"^atl96_sfcfcst_(12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+# Pacific maps use the SAME NOAA archive as the existing Atlantic products.
+# Never mistake suffix publication HH for the preceding VALID map UTC.
+PAC_E_RE=re.compile(r"^pace_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_W_RE=re.compile(r"^pacw_sfcanal_(00|06|12|18)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_HEMI_RE=re.compile(r"^pacsfc(00|06|12|18)Z\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_24_RE=re.compile(r"^epac24_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_48_RE=re.compile(r"^pac48_sfcfcst_(00|12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
+PAC_96_RE=re.compile(r"^pac96_sfcfcst_(12)\.([0-9]{8})([0-9]{2})\.gif$",re.I)
 DWD_RE=re.compile(r"_([0-9]{12})_WV12\.png$",re.I)
 AEMET_RE=re.compile(r"([0-9]{10})\+([0-9]{3})_ww_[a-z0-9]+\.gif$",re.I)
 SOURCES=[
@@ -79,6 +87,12 @@ SOURCES=[
  {"id":"noaa_48","name":"NOAA OPC · Nordatlantik +48 h","country":"USA",
   "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
   "license":"NOAA/NWS Public Domain · 48-h-Prognose"},
+ {"id":"noaa_pace","name":"NOAA OPC · Nordostpazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordostpazifische Analysen mit datierter UTC-Gültigkeit"},
+ {"id":"noaa_pacw","name":"NOAA OPC · Nordwestpazifik","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordwestpazifische Analysen mit datierter UTC-Gültigkeit"},
+ {"id":"noaa_pachemi","name":"NOAA OPC · Nordpazifik Hemisphäre","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, nordpazifische hemisphärische Bodenanalysen"},
+ {"id":"noaa_pac24","name":"NOAA OPC · Nordostpazifik +24 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 24-Stunden-Bodenprognose"},
+ {"id":"noaa_pac48","name":"NOAA OPC · Nordpazifik +48 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 48-Stunden-Bodenprognose"},
+ {"id":"noaa_pac96","name":"NOAA OPC · Nordpazifik +96 h","country":"USA","url":"https://ocean.weather.gov/Pac_tab.php","type":"auto","license":"NOAA/NWS · Ocean Prediction Center, 96-Stunden-Bodenprognose"},
  {"id":"noaa_96","name":"NOAA OPC · Nordatlantik +96 h","country":"USA",
   "url":"https://ocean.weather.gov/Loops/NCDC_names.php","type":"auto",
   "license":"NOAA/NWS Public Domain · 96-h-Prognose"},
@@ -303,6 +317,21 @@ def extract_opc_west(html,now):
         "NOAA/NWS · Ocean Prediction Center (Westatlantik)","Analyse")
 
 
+def extract_opc_pace(html,now):
+    """NorthEAST Pacific surface analysis: valid date from DD and HH prefix."""
+    return _extract_opc_type(html,now,PAC_E_RE,"noaa_pace",
+        "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)","Analyse")
+
+def extract_opc_pacw(html,now):
+    """NorthWEST Pacific; same NOAA office, distinct region, not independent."""
+    return _extract_opc_type(html,now,PAC_W_RE,"noaa_pacw",
+        "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)","Analyse")
+
+def extract_opc_pachemi(html,now):
+    """Northern hemispheric Pacific MSLP; not a duplicate independent provider."""
+    return _extract_opc_type(html,now,PAC_HEMI_RE,"noaa_pachemi",
+        "NOAA/NWS · Ocean Prediction Center (Nordpazifik Hemisphäre)","Analyse")
+
 def _extract_opc_forecast(html,now,pattern,source_id,lead,region):
     """Provider's filename prefix gives run UTC hour, suffix date gives
     INITIALIZATION DATE + issued hour. A 48-hour chart valid time is
@@ -371,6 +400,15 @@ class KNMILinks(HTMLParser):
             self.href=None
             self.parts=[]
 
+def extract_opc_pac24(html,now):
+    return _extract_opc_forecast(html,now,PAC_24_RE,"noaa_pac24",24,"Nordostpazifik +24 h")
+
+def extract_opc_pac48(html,now):
+    return _extract_opc_forecast(html,now,PAC_48_RE,"noaa_pac48",48,"Nordpazifik +48 h")
+
+def extract_opc_pac96(html,now):
+    return _extract_opc_forecast(html,now,PAC_96_RE,"noaa_pac96",96,"Nordpazifik +96 h")
+
 def extract_knmi(html,now):
     p=KNMILinks()
     p.feed(html)
@@ -434,7 +472,13 @@ def main(output=OUT,now=None):
              ("noaa_west",OPC_ARCHIVE,extract_opc_west),
              ("noaa_24",OPC_ARCHIVE,extract_opc_24),
              ("noaa_48",OPC_ARCHIVE,extract_opc_48),
-             ("noaa_96",OPC_ARCHIVE,extract_opc_96)]
+             ("noaa_96",OPC_ARCHIVE,extract_opc_96),
+             ("noaa_pace",OPC_ARCHIVE,extract_opc_pace),
+             ("noaa_pacw",OPC_ARCHIVE,extract_opc_pacw),
+             ("noaa_pachemi",OPC_ARCHIVE,extract_opc_pachemi),
+             ("noaa_pac24",OPC_ARCHIVE,extract_opc_pac24),
+             ("noaa_pac48",OPC_ARCHIVE,extract_opc_pac48),
+             ("noaa_pac96",OPC_ARCHIVE,extract_opc_pac96)]
     with __import__("tempfile").TemporaryDirectory(prefix="synoptic-charts-") as work:
         temp=Path(work)
         html_cache={}
