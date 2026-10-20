@@ -28,7 +28,7 @@ export function cloudLabPage(){
  '<button id="modelD2" type="button" aria-pressed="false">Deutschland · ICON-D2 (~2 km)</button>'+
  '<span id="modelHint" class="secondary">Europa · ICON-EU · Datenraster 0,25°</span></div>'+
  '<div class="layout"><section class="card">'+
- '<div class="toolbar"><div><strong>Feste Europakarte</strong> <span class="pill" id="runLabel">ICON-EU lädt …</span></div>'+
+ '<div class="toolbar"><div><strong id="cloudMapTitle">Europakarte · ICON-EU</strong> <span class="pill" id="runLabel">ICON-EU lädt …</span></div>'+
  '<div><button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
  '<div class="stage"><canvas id="filmCanvas" width="1120" height="700" role="img" aria-label="ICON-EU-Wolkenfilm mit Ländergrenzen auf Europa"></canvas>'+
  '<div class="overlay" id="cloudOverlay">Echte DWD-Modellfelder werden geladen …</div></div>'+
