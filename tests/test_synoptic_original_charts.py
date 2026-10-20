@@ -115,7 +115,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
 <a href="pac48_sfcfcst_12.2026101616.gif">48h</a>
 <a href="pac96_sfcfcst_12.2026101618.gif">96h</a>
 <a href="pac48_sfcfcst_12.2026101623.gif">invalid issue</a>
-<a href="epac24_sfcfcst_00.2026101503.gif">expired</a>
+<a href="epac24_sfcfcst_00.2026101403.gif">expired</a>
 <a href="watl24_sfcfcst_12.2026101616.gif">Atlantic excluded</a>'''
         a=charts.extract_opc_pac24(html,NOW)
         b=charts.extract_opc_pac48(html,NOW)
