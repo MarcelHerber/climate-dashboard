@@ -14,6 +14,8 @@ on:
       - "tests/test_europe_country_coverage.py"
       - "scripts/probe_europe_synoptic_viewers.py"
       - "tests/test_europe_synoptic_viewers.py"
+      - "scripts/probe_russia_kazakhstan_synoptic.py"
+      - "tests/test_russia_kazakhstan_synoptic.py"
       - "scripts/probe_cyprus_wrf.py"
       - "tests/test_cyprus_wrf_probe.py"
       - "scripts/probe_rhmz_original_charts.py"
@@ -65,13 +67,13 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_russia_kazakhstan_synoptic.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y tesseract-ocr
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-rus
           python -m pip install pytesseract
       - name: Verify Croatian DHMZ original chart validity and stale-date rejection
         run: python -m unittest discover -s tests -p test_dhmz_synoptic_adapter.py -v
@@ -83,6 +85,10 @@ jobs:
         run: python scripts/probe_chmi_synoptic.py
       - name: Verify all 47 European countries and 4 additional neighbors have safe source entries
         run: python -m unittest discover -s tests -p test_europe_country_coverage.py -v
+      - name: Test Russian original chart footer and dynamic Kazakhstan viewer safeguards
+        run: python -m unittest discover -s tests -p test_russia_kazakhstan_synoptic.py -v
+      - name: Audit Russian chart printed UTC and Kazakhstan map sources without copying
+        run: python scripts/probe_russia_kazakhstan_synoptic.py
       - name: Test European source reuse and timestamp policies
         run: python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
       - name: Publish European source permission audit (not a live availability claim)
@@ -128,6 +134,12 @@ jobs:
           assert cyprus["ready_for_automatic_image_reuse"] is False
           assert [x["run_hour_utc"] for x in cyprus["reports"]]==["00","12"]
           assert all(x["ready_for_image_reuse"] is False for x in cyprus["reports"])
+          ru_kz=json.loads((root/"russia_kazakhstan_probe.json").read_text(encoding="utf-8"))
+          assert ru_kz["schema_version"]==1 and ru_kz["no_images_persisted"] is True
+          assert ru_kz["ready_for_automatic_image_reuse"] is False
+          assert [v["slot_utc"] for v in ru_kz["russia"]["records"]]==["00","06","12","18"]
+          assert all(v["image_reuse_permitted"] is False for v in ru_kz["russia"]["records"])
+          assert ru_kz["kazakhstan"]["chart_image_utc_verified"] is False
           viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
           assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
           assert len(viewers["sources"])==13
