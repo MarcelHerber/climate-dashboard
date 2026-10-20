@@ -73,7 +73,18 @@ async function load(){
    const opt=document.createElement("option");opt.value=time;opt.textContent=time.replace("T"," ").replace("+00:00"," UTC");select.append(opt);
   }
   select.disabled=!times.length;
-  if(times.length)select.value=times[0];
+  if(times.length){
+   const now=Date.now();
+   // Prefer the UTC term with most *actual* simultaneously published charts.
+   // Do not default to a lone +96-h forecast merely because it is newest.
+   const candidates=times.filter(t=>Date.parse(t)<=now+6*3600000);
+   const options=candidates.length?candidates:times;
+   options.sort((a,b)=>{
+    const n=archive.filter(x=>x.valid_utc===b).length-archive.filter(x=>x.valid_utc===a).length;
+    return n||Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now);
+   });
+   select.value=options[0];
+  }
   if(!times.length)status.textContent="Noch keine NOAA-Pazifikkarten im veröffentlichten Datenindex. Nach erfolgreichem GitHub-Quellenlauf werden sie hier automatisch sichtbar.";
   else draw();
  }catch(err){status.textContent="Originalkartenindex nicht erreichbar: "+err.message+". Externe Originalquellen bleiben unten verlinkt.";select.disabled=true;}
