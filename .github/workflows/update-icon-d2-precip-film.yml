@@ -51,6 +51,7 @@ jobs:
           print("PASS: Fehlwerte, Trockenheit und Intensität sicher kodiert")
           PY
       - name: Vorhandenen Deutschland-Datenbranch holen
+        id: checkout_data
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -59,8 +60,16 @@ jobs:
           url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
           git clone --quiet --single-branch --depth 1 --branch icon-d2-cloud-film-data "$url" /tmp/icon-d2-precip
       - name: Reale stündliche ICON-D2 Regen- und Schneefelder rechnen
-        run: python scripts/build_icon_d2_precip_film.py --out /tmp/icon-d2-precip/data/icon-d2-cloud-film --max-workers 4
+        id: generate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/build_icon_d2_precip_film.py --out /tmp/icon-d2-precip/data/icon-d2-cloud-film --max-workers 4 2>&1 | tee /tmp/precip-build.log
       - name: Modellzeitpunkt und 72 Datenbilder validieren
+        id: validate
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -88,6 +97,9 @@ jobs:
           print("72 echte stündliche Niederschlagsbilder verifiziert:",rain["cycle"])
           PY
       - name: Nur vollständige Niederschlagsdaten veröffentlichen
+        id: publish
+        if: steps.generate.outcome == 'success' && steps.validate.outcome == 'success'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -99,3 +111,56 @@ jobs:
           git commit -m "ICON-D2: stündlicher Regen und Schnee für Wolkenlabor"
           git pull --rebase origin icon-d2-cloud-film-data
           git push origin HEAD:refs/heads/icon-d2-cloud-film-data
+
+      - name: Niederschlagslauf mit Diagnose auf Datenbranch protokollieren
+        if: always() && steps.checkout_data.outcome == 'success'
+        env:
+          GENERATE_OUTCOME: ${{ steps.generate.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          from datetime import datetime,timezone
+          root=Path("/tmp/icon-d2-precip/data/icon-d2-cloud-film")
+          root.mkdir(parents=True,exist_ok=True)
+          log=Path("/tmp/precip-build.log")
+          last_lines=log.read_text(errors="replace").splitlines()[-12:] if log.exists() else []
+          cycle=""
+          if (root/"current.json").exists():
+              cycle=json.loads((root/"current.json").read_text()).get("cycle","")
+          output={
+              "run_id":os.environ.get("GITHUB_RUN_ID"),
+              "run_url":"https://github.com/"+os.environ["GITHUB_REPOSITORY"]+"/actions/runs/"+os.environ["GITHUB_RUN_ID"],
+              "checked_utc":datetime.now(timezone.utc).isoformat(),
+              "cloud_cycle":cycle,
+              "generate":os.environ.get("GENERATE_OUTCOME","unknown"),
+              "validate":os.environ.get("VALIDATE_OUTCOME","unknown"),
+              "publish":os.environ.get("PUBLISH_OUTCOME","unknown"),
+              "build_log_tail":last_lines,
+          }
+          (root/"precip-status.json").write_text(json.dumps(output,ensure_ascii=False,indent=2)+"\n")
+          print("Diagnosestatus:", output["cloud_cycle"],output["generate"],output["validate"],output["publish"])
+          PY
+          cd /tmp/icon-d2-precip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/icon-d2-cloud-film/precip-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m "ICON-D2 Regen/Schnee: Laufdiagnose ohne Datenänderung"
+            git pull --rebase origin icon-d2-cloud-film-data
+            git push origin HEAD:refs/heads/icon-d2-cloud-film-data
+          fi
+      - name: Prüfergebnis als GitHub-Actions-Status übernehmen
+        if: always()
+        env:
+          GENERATE_OUTCOME: ${{ steps.generate.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+        run: |
+          test "$GENERATE_OUTCOME" = success
+          test "$VALIDATE_OUTCOME" = success
+          test "$PUBLISH_OUTCOME" = success
