@@ -37,7 +37,7 @@ HEIGHT=round((NORTH-SOUTH)/STEP)+1
 HEADERS={"User-Agent":"ClimateDashboardPrivatesWolkenlabor-ICON-D2/1.0"}
 
 def url_for(run,kind,hour):
-    basename=f"{PREFIX}_{run:%Y%m%d%H}_{hour:03d}_{kind}.grib2.bz2"
+    basename=f"{PREFIX}_{run:%Y%m%d%H}_{hour:03d}_2d_{kind.lower()}.grib2.bz2"
     return f"{ROOT}/{run.hour:02d}/{kind.lower()}/{basename}"
 
 def retrieve(url,retries=3):
