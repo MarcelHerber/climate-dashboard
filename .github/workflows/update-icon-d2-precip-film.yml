@@ -50,6 +50,8 @@ jobs:
           assert 1 <= output[2] < output[3] == 254
           print("PASS: Fehlwerte, Trockenheit und Intensität sicher kodiert")
           PY
+      - name: DWD-Verbindungsabbrüche und Retry-Logik testen
+        run: python -m unittest discover -s tests -p 'test_icon_d2_precip_retries.py' -v
       - name: Vorhandenen Deutschland-Datenbranch holen
         id: checkout_data
         env:
@@ -65,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python scripts/build_icon_d2_precip_film.py --out /tmp/icon-d2-precip/data/icon-d2-cloud-film --max-workers 4 2>&1 | tee /tmp/precip-build.log
+          python scripts/build_icon_d2_precip_film.py --out /tmp/icon-d2-precip/data/icon-d2-cloud-film --max-workers 2 2>&1 | tee /tmp/precip-build.log
       - name: Modellzeitpunkt und 72 Datenbilder validieren
         id: validate
         if: steps.generate.outcome == 'success'
