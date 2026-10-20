@@ -32,6 +32,12 @@ class EuropeOriginalRightsTests(unittest.TestCase):
         self.assertEqual(audit.SOURCES["imgw_synoptic_archive"]["map"],
                          "historical_selected_analyses_in_monthly_pdf")
 
+    def test_cyprus_ccby_for_point_values_does_not_license_wrf_image_gifs(self):
+        p=audit.SOURCES["cyprus_dom_wrf"]
+        self.assertEqual(p["rights"],"chart_specific_clearance_required")
+        self.assertEqual(p["timestamp"],"pending_exact_init_and_valid_utc_image_ocr")
+        self.assertFalse(audit.image_admissible(p,True,True))
+
     def test_new_national_services_are_not_inadvertently_republished(self):
         names=("italiameteo_isobars","italiameteo_opendata",
                "cyprus_dom_wrf","arso_synoptic_archive","lvgmc_front_archive")
