@@ -101,8 +101,18 @@ def field(raw,coordinates):
                 raise RuntimeError("Invalid ICON-D2-RUC grid")
             if unit not in ("%","percent"):
                 raise RuntimeError(f"Unexpected cloud unit {unit}")
-            if not (np.nanmin(v)>=0 and np.nanmax(v)<=100.01):
-                raise RuntimeError("Invalid cloud-cover percentage")
+            # The DWD unstructured grid contains missing-value sentinels.
+            # Test only meteorologically valid cells; NEVER clip missing
+            # sentinels into 100%-cloud pixels.
+            valid=np.isfinite(v)&(v>=0)&(v<=100.01)
+            coverage=float(np.mean(valid))
+            LOG.info("RUC %s: field cells %d, valid %.2f%%, min=%s, max=%s",
+                     eccodes.codes_get(grib,"shortName"),v.size,coverage*100,
+                     float(np.nanmin(v)),float(np.nanmax(v)))
+            if coverage<.95:
+                raise RuntimeError(f"RUC cloud field has only {coverage:.1%} valid 0..100% values; units={unit}. No synthetic correction.")
+            v=v.copy()
+            v[~valid]=np.nan
             return lat,lon,v
         finally:eccodes.codes_release(grib)
 
