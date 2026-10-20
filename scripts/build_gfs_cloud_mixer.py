@@ -74,6 +74,11 @@ def decode(raw):
                 number=int(eccodes.codes_get(handle,"parameterNumber"))
                 if category!=6 or number not in NUMBER_KIND:continue
                 kind=NUMBER_KIND[number]
+                # NOMADS includes instantaneous and time-mean cloud products
+                # under the same parameter number. Only instantaneous clouds
+                # are directly comparable to ICON's valid-time cloud fields.
+                if str(eccodes.codes_get(handle,"stepType"))!="instant":
+                    continue
                 lat=np.asarray(eccodes.codes_get_array(handle,"latitudes"),dtype=np.float32)
                 lon=np.asarray(eccodes.codes_get_array(handle,"longitudes"),dtype=np.float32)
                 values=np.asarray(eccodes.codes_get_values(handle),dtype=np.float32)
