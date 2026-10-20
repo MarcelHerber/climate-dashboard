@@ -1,0 +1,115 @@
+name: Wolkenfilm-Modellmischer Daten (RUC / GFS / ECMWF)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 4,10,16,22 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_icon_d2_ruc_cloud_mixer.py"
+      - "scripts/build_gfs_cloud_mixer.py"
+      - "scripts/build_ecmwf_cloud_mixer.py"
+      - ".github/workflows/update-cloud-mixer-models.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: icon-cloud-mixer-data
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        source: [icon-d2-ruc, gfs, ecmwf-aifs, ecmwf-ifs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: GRIB2- und ECMWF-Werkzeuge installieren
+        run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3" "ecmwf-opendata>=0.3,<1"
+      - name: Erzeuger Syntax prüfen
+        run: |
+          python -m py_compile scripts/build_icon_d2_ruc_cloud_mixer.py
+          python -m py_compile scripts/build_gfs_cloud_mixer.py
+          python -m py_compile scripts/build_ecmwf_cloud_mixer.py
+      - name: Separaten Modellmischer-Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch icon-cloud-mixer-data "$url" /tmp/icon-cloud-mixer-data
+          else
+            mkdir -p /tmp/icon-cloud-mixer-data
+            git -C /tmp/icon-cloud-mixer-data init -q -b icon-cloud-mixer-data
+            git -C /tmp/icon-cloud-mixer-data remote add origin "$url"
+          fi
+      - name: Echte Modell-Wolkenfelder für Deutschland erzeugen
+        env:
+          SOURCE: ${{ matrix.source }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="/tmp/icon-cloud-mixer-data/data/cloud-mixer/$SOURCE"
+          case "$SOURCE" in
+            icon-d2-ruc)
+              python scripts/build_icon_d2_ruc_cloud_mixer.py --out "$target" --max-workers 2 ;;
+            gfs)
+              python scripts/build_gfs_cloud_mixer.py --out "$target" ;;
+            ecmwf-aifs|ecmwf-ifs)
+              python scripts/build_ecmwf_cloud_mixer.py --source-id "$SOURCE" --out "$target" ;;
+            *) echo "Unbekanntes Modell" >&2; exit 1 ;;
+          esac
+      - name: Manifest- und PNG-Prüfung
+        env:
+          SOURCE: ${{ matrix.source }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from PIL import Image
+          root=Path("/tmp/icon-cloud-mixer-data/data/cloud-mixer")/os.environ["SOURCE"]
+          data=json.loads((root/"current.json").read_text())
+          assert data["schema"]==1 and data["source_id"]==os.environ["SOURCE"]
+          assert data["frames"] and data["layers"]
+          assert data["initialized_utc"] and data["cycle"]
+          assert data["grid"]["west"]==5.0 and data["grid"]["east"]==16.5
+          assert data["grid"]["width"]==461 and data["grid"]["height"]==361
+          assert all(len(f["valid_utc"])>=20 for f in data["frames"])
+          assert len({f["valid_utc"] for f in data["frames"]})==len(data["frames"])
+          for frame in data["frames"]:
+              for kind,path in frame["layers"].items():
+                  assert kind in data["layers"]
+                  target=root/path
+                  assert target.is_file() and target.stat().st_size>300
+                  with Image.open(target) as image:
+                      image.verify()
+                  with Image.open(target) as image:
+                      assert image.mode=="L" and image.size==(461,361)
+          print("PASS: Originalfelder verifiziert:",data["source_id"],len(data["frames"]),data["cycle"])
+          PY
+      - name: Nur vollständig geprüfte Modellfelder publizieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/icon-cloud-mixer-data
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Wolkenmodellmischer: originale ${{ matrix.source }}-Wolkenfelder"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git pull --rebase origin icon-cloud-mixer-data
+          fi
+          git push origin HEAD:refs/heads/icon-cloud-mixer-data
