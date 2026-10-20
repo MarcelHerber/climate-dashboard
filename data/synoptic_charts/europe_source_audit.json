@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-20T07:17:21+00:00",
+  "checked_utc": "2026-10-20T07:20:20+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
@@ -26,6 +26,19 @@
       "timestamp": "not_machine_verified",
       "details": "Offizielle Wetter- und Stationsdaten; keine eigenständige synoptische Europakarte nachgewiesen. Für regionale Isobaren AEMET/Météo-France nutzen.",
       "terms_url": "https://www.meteo.ad/en",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "anm_history",
+      "country": "Rumänien",
+      "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
+      "map": "historical_synoptic_case_study",
+      "rights": "not_verified",
+      "timestamp": "historical_event_not_current",
+      "details": "Fallbericht mit Bodenkarte vom 29.11.2025; keine aktuelle Analyse.",
+      "terms_url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -161,6 +174,19 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "geosphere",
+      "country": "Österreich",
+      "url": "https://geosphere.at/de/ueber-uns/faq",
+      "map": "official_weather_provider_no_synoptic_gif_verified",
+      "rights": "not_verified",
+      "timestamp": "not_machine_verified",
+      "details": "GeoSphere Austria erklärt ausdrücklich, dass die frühere ZAMG-Frontenwetterkarte derzeit überarbeitet wird und erst später in die Website zurückkehren soll. Kein aktueller freigegebener Direktbild-Abruf.",
+      "terms_url": "https://geosphere.at/de/ueber-uns/faq",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "hnms",
       "country": "Griechenland",
       "url": "https://www.emy.gr/en/marine",
@@ -182,6 +208,19 @@
       "timestamp": "iframe_not_verified",
       "details": "Fronteniframe vorhanden; Bilder dürfen nicht ohne schriftliche Erlaubnis weiterverbreitet werden.",
       "terms_url": "https://www.met.hu/methu/szerzoi_jogok/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "ilmateenistus",
+      "country": "Estland",
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "map": "official_weather_provider_no_synoptic_gif_verified",
+      "rights": "not_verified",
+      "timestamp": "not_machine_verified",
+      "details": "Wetterkartenansicht; Isobaren und UTC-Gültigkeit noch nicht gesichert.",
+      "terms_url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -234,6 +273,32 @@
       "timestamp": "printed_run_and_validity_ocr",
       "details": "ECMWF-Isobarenprognose ohne Fronten. Nur Bilder mit übereinstimmenden aufgedruckten Validitätsterminen und gedruckter UTC-Modelllaufzeit plus Prognosestunde sind zur automatischen Darstellung zugelassen.",
       "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "ipma",
+      "country": "Portugal",
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "map": "official_weather_provider_no_synoptic_gif_verified",
+      "rights": "not_verified",
+      "timestamp": "not_machine_verified",
+      "details": "Numerische Wetterkarten; Fronten-/Isobareninhalt nicht sicher bestätigt.",
+      "terms_url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "ipma_history",
+      "country": "Portugal",
+      "url": "https://observar.ipma.pt/superficie-frontal-fria/",
+      "map": "historical_synoptic_case_study",
+      "rights": "not_verified",
+      "timestamp": "historical_event_not_current",
+      "details": "Historische Karte aus einer Fallstudie, nicht die aktuelle Wetterlage.",
+      "terms_url": "https://observar.ipma.pt/superficie-frontal-fria/",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
