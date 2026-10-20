@@ -96,7 +96,7 @@ jobs:
         run: python scripts/probe_cyprus_wrf.py
       - name: Test newer official European chart viewers
         run: python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
-      - name: Probe Europe official charts Greece Poland France Switzerland Sweden Serbia Italy Cyprus
+      - name: Probe European sources including Russia Kazakhstan Bosnia Luxembourg and existing services
         run: python scripts/probe_europe_synoptic_viewers.py
       - name: Test original Serbian RHMZ printed UTC and stale-date safeguards
         run: python -m unittest discover -s tests -p test_rhmz_original_charts.py -v
@@ -127,7 +127,7 @@ jobs:
           assert all(x["ready_for_image_reuse"] is False for x in cyprus["reports"])
           viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
           assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
-          assert len(viewers["sources"])==9
+          assert len(viewers["sources"])==13
           assert all(s["ready_for_automatic_charts"] is False for s in viewers["sources"])
           audit=json.loads((root/"europe_source_audit.json").read_text(encoding="utf-8"))
           assert audit["schema_version"]==1 and audit["no_live_check"]
