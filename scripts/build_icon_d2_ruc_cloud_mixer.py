@@ -7,6 +7,7 @@ Grid is geographic Germany at 0.025 deg, distinct from native model resolution.
 from __future__ import annotations
 
 import argparse
+import bz2
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from http.client import HTTPException, RemoteDisconnected
@@ -21,6 +22,7 @@ from urllib.request import Request, urlopen
 import eccodes
 import numpy as np
 from PIL import Image
+from netCDF4 import Dataset
 from build_icon_d2_cloud_film import (build_mapping, sample, WIDTH, HEIGHT,
                                        WEST, EAST, NORTH, SOUTH, STEP)
 
@@ -28,6 +30,7 @@ LOG=logging.getLogger("mixer-ruc")
 LAYERS={"CLCL":"clcl","CLCM":"clcm","CLCH":"clch","CLCT":"clct"}
 HOURS=tuple(range(25))
 ROOT="https://opendata.dwd.de/weather/nwp/v1/m/icon-d2-ruc/p"
+GRID_URL="https://opendata.dwd.de/weather/lib/cdo/icon_grid_0047_R19B07_L.nc.bz2"
 
 
 def url_for(run, parameter, hour):
@@ -56,14 +59,42 @@ def request(url, retries=5):
     raise AssertionError("unreachable")
 
 
-def field(raw):
+def external_coordinates():
+    """DWD ICON-D2 native grid #47; GRIB2 has no lat/lon coordinates of its own."""
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory() as directory:
+        path=Path(directory)/"dwd_grid_0047.nc"
+        with urlopen(Request(GRID_URL,headers={"User-Agent":"Climate-Dashboard-RUC-Grid/1.0"}),
+                     timeout=180) as stream, path.open("wb") as destination:
+            decoder=bz2.BZ2Decompressor()
+            while True:
+                block=stream.read(1024*1024)
+                if not block:break
+                destination.write(decoder.decompress(block))
+        with Dataset(path,"r") as nc:
+            if "clat" not in nc.variables or "clon" not in nc.variables:
+                raise RuntimeError("DWD ICON grid missing clat/clon")
+            lat=np.asarray(nc.variables["clat"][:],dtype=np.float32).ravel()
+            lon=np.asarray(nc.variables["clon"][:],dtype=np.float32).ravel()
+        if lat.size!=542040 or lon.size!=lat.size:
+            raise RuntimeError(f"Unexpected DWD ICON-D2-RUC grid cell count: {lat.size}")
+        # ICON grid coordinates are in radians, unlike the display grid.
+        return np.rad2deg(lat),np.rad2deg(lon)
+
+
+def field(raw,coordinates):
     with tempfile.TemporaryFile() as handle:
         handle.write(raw);handle.seek(0)
         grib=eccodes.codes_grib_new_from_file(handle)
         if grib is None:raise RuntimeError("RUC GRIB missing")
         try:
-            lat=np.asarray(eccodes.codes_get_array(grib,"latitudes"),dtype=np.float32)
-            lon=np.asarray(eccodes.codes_get_array(grib,"longitudes"),dtype=np.float32)
+            grid=str(eccodes.codes_get(grib,"gridType"))
+            if grid!="unstructured_grid":
+                raise RuntimeError("Unexpected DWD RUC grid: "+grid)
+            grid_no=int(eccodes.codes_get(grib,"numberOfGridUsed"))
+            if grid_no!=47:
+                raise RuntimeError("RUC grid mismatch; expected grid 47, got "+str(grid_no))
+            lat,lon=coordinates
             v=np.asarray(eccodes.codes_get_values(grib),dtype=np.float32)
             unit=str(eccodes.codes_get(grib,"units"))
             if not (len(lat)==len(lon)==len(v)) or len(v)<100000:
@@ -91,7 +122,7 @@ def find_run():
 
 def produce(args):
     run,kind,hour,root,mapping,reference=args
-    lat,lon,values=field(request(url_for(run,kind,hour)))
+    lat,lon,values=field(request(url_for(run,kind,hour)),reference)
     for index in (0,1001,20001):
         if index < len(lat):
             if abs(float(lat[index])-float(reference[0][index]))>0.0001 or abs(float(lon[index])-float(reference[1][index]))>0.0001:
@@ -116,7 +147,8 @@ def build(out,workers):
                     LOG.info("RUC run already complete: %s",run);return
         except (OSError,ValueError,KeyError):
             pass
-    first=field(request(url_for(run,"CLCL",0)))
+    geometry=external_coordinates()
+    first=field(request(url_for(run,"CLCL",0)),geometry)
     mapping=build_mapping(first[0],first[1])
     tasks=[(run,kind,hour,out,mapping,first[:2]) for hour in HOURS for kind in LAYERS]
     results={}
