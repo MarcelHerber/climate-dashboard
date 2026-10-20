@@ -55,6 +55,43 @@ def frames_from_html(html:str,page:str,run:str)->list[dict]:
 # Support clear YYYY-MM-DD HH:MM UTC and DD.MM.YYYY HH:MM UTC image labels.
 DATE_RE=re.compile(r"(?<!\d)(20\d{2}[-./][01]?\d[-./][0-3]?\d|[0-3]?\d[-./][01]?\d[-./]20\d{2})"
                    r"[T _]+([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?\s*(UTC|Z)\b",re.I)
+# On real DOM WRF GIFs, the visible banner is e.g.
+# Date: 2026-10-19 03:00 Local Time [2026-10-19 00:00 UTC]
+# The UTC date and its independent Cyprus local-time rendering MUST agree.
+LOCAL_TIME_RE=re.compile(
+    r"\bDate\s*:\s*(20\d{2}-[01]\d-[0-3]\d)\s+([012]\d):([0-5]\d)\s+"
+    r"Local\s+Time\s*\[\s*(20\d{2}-[01]\d-[0-3]\d)\s+([012]\d):([0-5]\d)\s+UTC\s*\]",
+    re.I
+)
+def parse_printed_local_utc(caption:str,now:datetime)->datetime:
+    """Check a complete UTC stamp against its separately printed local clock."""
+    from zoneinfo import ZoneInfo
+    found=LOCAL_TIME_RE.search(caption or "")
+    if not found:
+        raise ValueError("Cyprus GIF does not show a full Local Time / UTC date pair")
+    date_l,hour_l,minute_l,date_u,hour_u,minute_u=found.groups()
+    local=datetime.strptime(date_l+" "+hour_l+":"+minute_l,"%Y-%m-%d %H:%M")
+    valid=datetime.strptime(date_u+" "+hour_u+":"+minute_u,"%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+    tz=ZoneInfo("Asia/Nicosia")
+    if not any(local.replace(tzinfo=tz,fold=fold).astimezone(timezone.utc)==valid for fold in (0,1)):
+        raise ValueError("Image-printed Cyprus local time does not agree with its UTC date")
+    if not now-timedelta(hours=72)<=valid<=now+timedelta(hours=120):
+        raise ValueError("Image-printed Cyprus UTC validity is stale or unexpectedly distant")
+    return valid
+
+def verify_frame_pair(samples:list[dict],run:str)->dict:
+    """Only the actually OCR-observed frames 000 and 006 establish a cadence."""
+    observed={x["frame"]:x for x in samples if x.get("valid_utc") and x.get("frame") in (0,6)}
+    if 0 not in observed or 6 not in observed:return {}
+    base=datetime.fromisoformat(observed[0]["valid_utc"])
+    later=datetime.fromisoformat(observed[6]["valid_utc"])
+    if base.hour!=int(run) or base.minute!=0 or later-base!=timedelta(hours=18):
+        return {"sampled_cadence":"inconsistent_printed_times"}
+    return {"sampled_cadence":"two_printed_frames_confirm_three_hour_intervals",
+            "printed_run_anchor_utc":base.isoformat(timespec="minutes"),
+            "verified_sample_leads":[{"frame":0,"forecast_hours":0},
+                                     {"frame":6,"forecast_hours":18}]}
+
 INIT_RE=re.compile(r"\b(?:init(?:ial(?:ization|isation)?)?|model\s*run|start)\b\s*(?:time\s*)?[:=\s]{0,12}",re.I)
 VALID_RE=re.compile(r"\b(?:valid(?:ity)?|forecast\s*valid|verification|vt)\b\s*(?:time\s*)?[:=\s]{0,12}",re.I)
 
@@ -155,13 +192,22 @@ def check(now:datetime|None=None,html_fetch=read_html,image_fetch=read_gif,
                     item["image_size_px"]=dimensions
                     item["printed_header_excerpt"]=re.sub(r"\s+"," ",caption).strip()[:390]
                     try:
-                        item.update(parse_printed_times(caption,run,now))
-                        item["state"]="printed_init_and_valid_utc_verified"
-                    except ValueError as ex:
-                        item["reason"]=str(ex)
+                        # Preferred: exact actual DOM "Date: LOCAL [UTC]" label.
+                        valid=parse_printed_local_utc(caption,now)
+                        item["valid_utc"]=valid.isoformat(timespec="minutes")
+                        item["state"]="printed_valid_utc_verified"
+                    except ValueError as local_error:
+                        # Allow independently labeled INIT and VALID only if both
+                        # dates are explicitly printed in UTC on a map revision.
+                        try:
+                            item.update(parse_printed_times(caption,run,now))
+                            item["state"]="printed_init_and_valid_utc_verified"
+                        except ValueError:
+                            item["reason"]=str(local_error)
                 except Exception as ex:
                     item["reason"]=(type(ex).__name__+": "+str(ex))[:150]
                 info["sample_maps"].append(item)
+            info.update(verify_frame_pair(info["sample_maps"],run))
         except Exception as ex:
             info["reason"]=(type(ex).__name__+": "+str(ex))[:160]
         reports.append(info)
@@ -176,7 +222,7 @@ def check(now:datetime|None=None,html_fetch=read_html,image_fetch=read_gif,
        "reports":reports,
        "no_images_persisted":True,
        "ready_for_automatic_image_reuse":False,
-       "reason":"Printed exact WRF initialization and validity UTC plus chart-specific republication rights needed. GIF sequence numbers are not UTC timestamps.",
+       "reason":"Sampled GIFs have an image-printed UTC date checked against Cyprus local time; frame cadence requires two agreeing printed samples. Full 41-frame UTC mapping and chart-specific republication rights remain unverified. No images copied.",
     }
 
 def main(output:Path=OUTPUT):
