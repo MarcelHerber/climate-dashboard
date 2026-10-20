@@ -150,6 +150,13 @@ function fillSources(){
    if(s.rhmz_probe?.generated_utc)article.append(node("span","source-inspection",
      "RHMZ-Kartenprüfung vom "+isoDE(s.rhmz_probe.generated_utc)+"; amtliche Bilder werden nicht auf dieser Website gespeichert."));
   }
+  if(s.id==="cyprus_dom_wrf"){
+   const group=node("div","official-deep-links");
+   const link=node("a","","12-UTC-Modelllauf · Östliches Mittelmeer ↗");
+   link.href="https://www.dom.org.cy/WRF4/12Z/01/index.html";
+   link.target="_blank";link.rel="noopener noreferrer";
+   group.append(link);article.append(group);
+  }
   if(s.id==="imgw"){
    article.append(node("span","source-inspection",
     "Amtliche Auswahl: Europa-Bodenanalyse · 00 UTC / 12 UTC. Vollständige Datumsangabe auf der Karte prüfen."));
