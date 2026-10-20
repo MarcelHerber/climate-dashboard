@@ -89,6 +89,45 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual(c[0]["forecast_hours"],96)
         self.assertEqual(len(b),1)
 
+    def test_noaa_pacific_independent_regions_but_one_noaa_publisher(self):
+        html='''<a href="pace_sfcanal_00.2026101602.gif">Northeast Pacific</a>
+<a href="pace_sfcanal_00.2026101604.gif">Northeast Pacific revised</a>
+<a href="pacw_sfcanal_00.2026101602.gif">Northwest Pacific</a>
+<a href="pacsfc00Z.2026101602.gif">North Pacific hemispheric</a>
+<a href="pacw_sfcanal_12.2026101614.gif">future at 10 UTC</a>
+<a href="https://evil.invalid/ncdc/pacw_sfcanal_00.2026101602.gif">host spoof</a>
+<a href="pace_sfcanal_00.2026100602.gif">stale</a>'''
+        east=charts.extract_opc_pace(html,NOW)
+        west=charts.extract_opc_pacw(html,NOW)
+        hemi=charts.extract_opc_pachemi(html,NOW)
+        self.assertEqual(len(east),1)
+        self.assertEqual(len(west),1)
+        self.assertEqual(len(hemi),1)
+        self.assertEqual(east[0]["valid_utc"],"2026-10-16T00:00+00:00")
+        self.assertEqual(east[0]["issued_utc"],"2026-10-16T04:00+00:00")
+        self.assertEqual({x["publisher_id"] for x in east+west+hemi},{"noaa"})
+        self.assertTrue(all("Pac_tab.php" in x["source_page"] for x in east+west+hemi))
+        self.assertEqual({x["source_id"] for x in east+west+hemi},
+                         {"noaa_pace","noaa_pacw","noaa_pachemi"})
+
+    def test_pacific_forecast_lead_utc_not_publication_utc(self):
+        html='''<a href="epac24_sfcfcst_00.2026101603.gif">24h</a>
+<a href="pac48_sfcfcst_12.2026101616.gif">48h</a>
+<a href="pac96_sfcfcst_12.2026101618.gif">96h</a>
+<a href="pac48_sfcfcst_12.2026101623.gif">invalid issue</a>
+<a href="epac24_sfcfcst_00.2026101503.gif">expired</a>
+<a href="watl24_sfcfcst_12.2026101616.gif">Atlantic excluded</a>'''
+        a=charts.extract_opc_pac24(html,NOW)
+        b=charts.extract_opc_pac48(html,NOW)
+        c=charts.extract_opc_pac96(html,NOW)
+        self.assertEqual([x["forecast_hours"] for x in a+b+c],[24,48,96])
+        self.assertEqual([x["valid_utc"] for x in a+b+c],
+                         ["2026-10-17T00:00+00:00",
+                          "2026-10-18T12:00+00:00",
+                          "2026-10-20T12:00+00:00"])
+        self.assertTrue(all(x["publisher_id"]=="noaa" for x in a+b+c))
+        self.assertEqual(len(b),1)
+
     def test_noaa_west_analysis_is_not_an_independent_agency(self):
         html='<a href="atlw_sfcanal_06.2026101608.gif">west</a>'
         rec=charts.extract_opc_west(html,NOW)
@@ -100,7 +139,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
         sources={s["id"]:s for s in charts.SOURCES}
         self.assertEqual(sources["noaa_opc"]["type"],"auto")
         self.assertEqual(sources["noaa_full"]["type"],"auto")
-        for id in ("noaa_west","noaa_24","noaa_48","noaa_96"):
+        for id in ("noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96"):
             self.assertEqual(sources[id]["type"],"auto")
         self.assertEqual(len(sources),len({s["id"] for s in charts.SOURCES}))
         self.assertEqual(sources["eccc"]["type"],"external")
