@@ -1,3 +1,5 @@
+import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
+
 const SESSION_COOKIE = "alpenwetter_session";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 
@@ -25,10 +27,25 @@ export default {
     const authenticated = await hasValidSession(request, env.ALPENWETTER_PASSWORD);
 
     if (!authenticated) {
+      if (url.pathname.startsWith("/wolkenlabor/data/")) {
+        return jsonResponse({ error: "Nur nach Anmeldung für den Laborbereich erreichbar" }, 401);
+      }
+      if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/") {
+        return htmlResponse(cloudLabLoginPage());
+      }
       if (url.pathname.startsWith("/api/")) {
         return jsonResponse({ error: "Nicht angemeldet" }, 401);
       }
       return loginPage(false);
+    }
+
+    // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/") {
+      return htmlResponse(cloudLabPage());
+    }
+
+    if (url.pathname.startsWith("/wolkenlabor/data/")) {
+      return cloudLabData(request,url,securityHeaders);
     }
 
     if (url.pathname === "/api/regions") {
@@ -78,7 +95,9 @@ async function handleLogin(request, env) {
   }
 
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
-  return redirect("/", cookie);
+  // Allow only the known laboratory path; never redirect to external hosts.
+  const target = String(form.get("next") || "") === "/wolkenlabor" ? "/wolkenlabor" : "/";
+  return redirect(target, cookie);
 }
 
 async function passwordsMatch(a, b) {

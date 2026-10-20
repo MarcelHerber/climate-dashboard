@@ -1,0 +1,82 @@
+name: ICON-EU Wolkenfilm-Daten (internes Labor)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "35 1,7,13,19 * * *"
+  push:
+    branches: [main, feature/private-icon-cloud-film-lab-20261020]
+    paths:
+      - "scripts/build_icon_eu_cloud_film.py"
+      - ".github/workflows/update-icon-eu-cloud-film.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: icon-eu-cloud-film-data
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Wolkenfilm-Werkzeuge installieren
+        run: pip install "numpy>=2,<3" "pillow>=11,<13" "eccodes>=2,<3"
+      - name: Erzeuger prüfen
+        run: python -m py_compile scripts/build_icon_eu_cloud_film.py
+      - name: Separaten Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-film-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch icon-cloud-film-data "$url" /tmp/icon-cloud-film-data
+          else
+            mkdir -p /tmp/icon-cloud-film-data
+            git -C /tmp/icon-cloud-film-data init -q -b icon-cloud-film-data
+            git -C /tmp/icon-cloud-film-data remote add origin "$url"
+          fi
+      - name: Echte ICON-EU Wolkenfelder als Frames verarbeiten
+        run: |
+          python scripts/build_icon_eu_cloud_film.py --out /tmp/icon-cloud-film-data/data/icon-cloud-film --max-workers 5
+      - name: Vollständigkeit und echte Wolkenfelder prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          root=Path("/tmp/icon-cloud-film-data/data/icon-cloud-film")
+          j=json.loads((root/"current.json").read_text())
+          assert j["schema"]==1 and j["model"]=="DWD ICON-EU"
+          assert len(j["frames"])==13
+          assert j["grid"]["step"]==.25
+          assert set(j["layers"])=={"clcl","clcm","clch","clct"}
+          for frame in j["frames"]:
+              assert set(frame["layers"])==set(j["layers"])
+              for filename in frame["layers"].values():
+                  with Image.open(root/filename) as img:
+                      img.verify()
+                  with Image.open(root/filename) as img:
+                      assert img.mode=="L" and img.size==(j["grid"]["width"],j["grid"]["height"])
+          print("Vollständiger 4-Schichten ICON-EU-Wolkenfilm:",j["cycle"])
+          PY
+      - name: DWD-Wolkenfilm atomar auf dem Datenbranch veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/icon-cloud-film-data
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "ICON-EU Wolkenfilm-Daten, vier originale Wolkenschichten"
+          git push origin HEAD:refs/heads/icon-cloud-film-data
