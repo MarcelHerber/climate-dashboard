@@ -22,7 +22,7 @@ SOURCES={
  "cma":("China","https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html","disp.nmc.cn"),
  "bom":("Australien","https://www.bom.gov.au/australia/charts/","www.bom.gov.au"),
  "metservice":("Neuseeland","https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth","services.metservice.com"),
- "marinha":("Brasilien","https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas","www.marinha.mil.br"),
+ "marinha":("Brasilien","https://pam.marinha.mil.br/sig.html","pam.marinha.mil.br"),
  "cptec":("Brasilien","https://www.cptec.inpe.br/cartas-e-boletins","www.cptec.inpe.br"),
  "hko":("Hongkong","https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm","www.hko.gov.hk"),
  "imd":("Indien","https://rsmcnewdelhi.imd.gov.in/surface_chart00.php","rsmcnewdelhi.imd.gov.in"),
