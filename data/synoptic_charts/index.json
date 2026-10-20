@@ -1,10 +1,186 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-20T06:14:16+00:00",
+  "generated_utc": "2026-10-20T07:14:59+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
   "sources": [
+    {
+      "id": "albania_igeo",
+      "name": "IGEO · meteorologische Vorhersagen",
+      "country": "Albanien",
+      "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "type": "external",
+      "license": "Amtliches Institut mit Modell-/Wetterberichten. Keine überprüfte eigenständige aktuelle Isobaren-/Frontenbildserie."
+    },
+    {
+      "id": "andorra_meteo",
+      "name": "Meteo Andorra · staatlicher Wetterdienst",
+      "country": "Andorra",
+      "url": "https://www.meteo.ad/en",
+      "type": "external",
+      "license": "Offizielle Wetter- und Stationsdaten; keine eigenständige synoptische Europakarte nachgewiesen. Für regionale Isobaren AEMET/Météo-France nutzen."
+    },
+    {
+      "id": "belarus_belhydromet",
+      "name": "Belhydromet · Synoptik",
+      "country": "Belarus",
+      "url": "https://pogoda.by/weather/synoptic/",
+      "type": "external",
+      "license": "Offizieller Synoptikbereich; aktuelle Grafik-URL, vollständige UTC-Gültigkeit und Rechte noch ungeprüft."
+    },
+    {
+      "id": "bosnia_fhmz_gfs",
+      "name": "FHMZ · GFS-Modellprognosen",
+      "country": "Bosnien und Herzegowina",
+      "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "type": "external",
+      "license": "Offizielle GFS-Modellprognosen in 3-Stunden-Schritten. Isobarenparameter, Modelllaufdatum und Originalbildrechte noch einzeln zu verifizieren; kein unabhängiges Analyseprodukt."
+    },
+    {
+      "id": "liechtenstein_swiss",
+      "name": "Landesverwaltung / MeteoSchweiz",
+      "country": "Liechtenstein",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "type": "external",
+      "license": "Regionale Abdeckung durch MeteoSchweiz, bereits unter Schweiz vorhanden. Kein eigener liechtensteinischer Originalkartenherausgeber nachgewiesen."
+    },
+    {
+      "id": "luxembourg_meteolux",
+      "name": "MeteoLux · TEMSI-Fronten-/Druckkarten",
+      "country": "Luxemburg",
+      "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "type": "external",
+      "license": "West-Europa-/Benelux-TEMSI-Karten mit Fronten und Druckzentren alle 3 Stunden; Registrierung nötig. Autoren Météo-France bzw. Skeyes, nicht unabhängiger Luxemburger Kartenherausgeber."
+    },
+    {
+      "id": "malta_metoffice",
+      "name": "Malta Airport · Meteorological Office",
+      "country": "Malta",
+      "url": "https://www.maltairport.com/weather/",
+      "type": "external",
+      "license": "Staatlich beauftragter Luftfahrt-Wetterdienst. Historische handgezeichnete Karten dokumentiert, kein offener aktueller Isobarenbildfeed belegt."
+    },
+    {
+      "id": "moldova_shs",
+      "name": "SHS · Staatlicher Hydrometeorologischer Dienst",
+      "country": "Moldau",
+      "url": "https://www.meteo.md/",
+      "type": "external",
+      "license": "Offizieller Wetterdienst; operationelle Synoptik ist dokumentiert, aber keine überprüfte öffentliche Karte mit vollständigem UTC-Datum."
+    },
+    {
+      "id": "monaco_france",
+      "name": "Météo-France · regionale Abdeckung Monaco",
+      "country": "Monaco",
+      "url": "https://meteofrance.com/",
+      "type": "external",
+      "license": "Regional zuständiges französisches Wetterangebot. Kein unabhängiger amtlicher Monaco-Isobarenkartenherausgeber gefunden; Météo-France bereits erfasst."
+    },
+    {
+      "id": "montenegro_zhms",
+      "name": "ZHMS · WRF- und Wetterprognosen",
+      "country": "Montenegro",
+      "url": "https://www.meteo.co.me/",
+      "type": "external",
+      "license": "Nationaler hydrometeorologischer Dienst mit WRF-Modellkarten; konkretes MSLP-/Isobarenprodukt und Bildgültigkeit noch nicht nachgewiesen."
+    },
+    {
+      "id": "northmacedonia_uhmr",
+      "name": "UHMR · nationaler Wetterdienst",
+      "country": "Nordmazedonien",
+      "url": "https://uhmr.gov.mk/",
+      "type": "external",
+      "license": "Amtlicher hydrometeorologischer Dienst; keine nachgewiesene Original-Bodenanalyse mit öffentlicher UTC-Bildschnittstelle."
+    },
+    {
+      "id": "russia_hmc_analysis",
+      "name": "Hydrometcenter · Bodenanalysen 00/06/12/18 UTC",
+      "country": "Russland",
+      "url": "https://meteoinfo.ru/mapsynop",
+      "type": "external",
+      "license": "Echte amtliche Bodenanalysen zu vier UTC-Terminen täglich. Einzelbildadresse, vollständiges Kartendatum, Rechte und Zugriff noch separat prüfen."
+    },
+    {
+      "id": "russia_hmc_forecast",
+      "name": "Hydrometcenter · Bodenprognosekarten",
+      "country": "Russland",
+      "url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "type": "external",
+      "license": "Originale synoptische Bodenprognosen +24, +36, +60 h auf Basis 00 UTC. Bildverfügbarkeit und Copyright ungeprüft."
+    },
+    {
+      "id": "sanmarino_italy",
+      "name": "Italienische Wetterkarten · San Marino regional",
+      "country": "San Marino",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "type": "external",
+      "license": "Regionale Abdeckung durch italienische Frontenkarten; kein eigener staatlicher Europa-Synoptik-Bilddienst belegt."
+    },
+    {
+      "id": "ukraine_uhmc",
+      "name": "Ukrainischer Hydrometeorologischer Dienst",
+      "country": "Ukraine",
+      "url": "https://www.meteo.gov.ua/en/",
+      "type": "external",
+      "license": "Amtliche Wetter- und Prognoseprodukte; kein überprüfter aktueller Originalbildfeed für europäische Isobaren/Fronten."
+    },
+    {
+      "id": "vatican_italy",
+      "name": "Italienische Wetterkarten · Vatikan regional",
+      "country": "Vatikanstadt",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "type": "external",
+      "license": "Rom-/Vatikanregion durch italienische Frontenkarten abgedeckt. Keine eigenständige amtliche Vatikan-Synoptikkarte bekannt."
+    },
+    {
+      "id": "kosovo_ihmk",
+      "name": "IHMK · Hydrometeorologisches Institut",
+      "country": "Kosovo",
+      "url": "https://ihmk-rks.net/",
+      "type": "external",
+      "license": "Offizieller meteorologischer Dienst mit Stations- und Wetterdaten; keine nachgewiesene Europa-Isobarenkarte."
+    },
+    {
+      "id": "armenia_hmc",
+      "name": "Hydrometeorology and Monitoring Center",
+      "country": "Armenien",
+      "url": "https://meteomonitoring.am/en/web",
+      "type": "external",
+      "license": "Staatlicher Hydrometeorologiedienst; operationelle Wetter- und Modellprodukte, aktueller Original-Isobarenfeed nicht verifiziert."
+    },
+    {
+      "id": "armenia_archive",
+      "name": "HMC · historische Bodenanalysen (Jahresbericht)",
+      "country": "Armenien",
+      "url": "https://meteomonitoring.am/file/globalFiles/annual-2024.pdf",
+      "type": "external",
+      "license": "Historischer amtlicher Jahresbericht mit synoptischen Wetterkarten. Einzelne Karten nicht als aktuelle Live-Quelle ausgeben."
+    },
+    {
+      "id": "azerbaijan_nhms",
+      "name": "Nationaler Hydrometeorologischer Dienst",
+      "country": "Aserbaidschan",
+      "url": "https://meteo.az/",
+      "type": "external",
+      "license": "Amtlicher Dienst und meteorologische Karten; kein unabhängig datiertes Isobaren-/Frontenbild identifiziert."
+    },
+    {
+      "id": "georgia_nea",
+      "name": "NEA · Hydrometeorologie",
+      "country": "Georgien",
+      "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "type": "external",
+      "license": "Nationale Wetter- und SYNOP-Produkte beschrieben; eigene aktuelle öffentliche Fronten-/Bodenanalysebilder ungeprüft."
+    },
+    {
+      "id": "kazakhstan_synoptic",
+      "name": "Kazhydromet · synoptische Originalkarten",
+      "country": "Kasachstan",
+      "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "type": "external",
+      "license": "Amtlicher Synoptikkartenviewer mit Datums-, UTC-Zeit- und Quelldateiauswahl. Vollständige Bild-UTC, API und Kartenrechte noch maschinell zu verifizieren."
+    },
     {
       "id": "dwd",
       "name": "DWD",
@@ -346,7 +522,7 @@
       "name": "IMO",
       "country": "Island",
       "url": "https://en.vedur.is/weather/shipping/atlantic/",
-      "type": "auto",
+      "type": "external",
       "license": "ECMWF-basierte Nordatlantik-Isobarenprognosen ohne analysierte Fronten; IMO gestattet Wiedergabe unter Quellen- und Abrufdatumsangabe. Automatische Einbindung ausschließlich bei OCR-validierter Bildgültigkeit und Modelllaufzeit."
     }
   ],
@@ -397,9 +573,8 @@
       "valid_utc": "2026-10-20T12:00+00:00"
     },
     "imo": {
-      "state": "available",
-      "charts": 2,
-      "product": "ECMWF-based isobar forecast WITHOUT analyzed fronts"
+      "state": "unavailable",
+      "reason": "ValueError: IMO lacks a legible printed UTC model run and (+lead) footer"
     }
   },
   "charts": [
@@ -799,18 +974,6 @@
       "size_bytes": 1428606
     },
     {
-      "source_id": "knmi",
-      "publisher_id": "knmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-20T00:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL2000_large.gif",
-      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
-      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
-      "image": "images/knmi_20261020_0000.webp",
-      "size_bytes": 169882
-    },
-    {
       "source_id": "noaa_48",
       "publisher_id": "noaa",
       "kind": "Prognose",
@@ -861,21 +1024,16 @@
       "size_bytes": 159310
     },
     {
-      "source_id": "imo",
-      "publisher_id": "imo",
-      "kind": "Prognose",
-      "forecast_hours": 15,
-      "run_utc": "2026-10-19T12:00+00:00",
+      "source_id": "knmi",
+      "publisher_id": "knmi",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
       "issued_utc": null,
-      "valid_utc": "2026-10-20T03:00+00:00",
-      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_1200_15.png",
-      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
-      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-20 UTC",
-      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
-      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
-      "map_type": "isobars_model_forecast_no_fronts",
-      "image": "images/imo_20261020_0300.webp",
-      "size_bytes": 159080
+      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL2006_large.gif",
+      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
+      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
+      "image": "images/knmi_20261020_0600.webp",
+      "size_bytes": 156940
     },
     {
       "source_id": "aemet",
@@ -942,23 +1100,6 @@
       "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +96 h)",
       "image": "images/noaa_96_20261020_1200.webp",
       "size_bytes": 225312
-    },
-    {
-      "source_id": "imo",
-      "publisher_id": "imo",
-      "kind": "Prognose",
-      "forecast_hours": 33,
-      "run_utc": "2026-10-19T12:00+00:00",
-      "issued_utc": null,
-      "valid_utc": "2026-10-20T21:00+00:00",
-      "source_url": "https://en.vedur.is/photos/sjo_atlant_spa/261019_1200_33.png",
-      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
-      "credit": "Quelle: Veðurstofa Íslands / Icelandic Meteorological Office · ECMWF-basierte Atlantik-Isobarenprognose ohne Fronten · Abruf 2026-10-20 UTC",
-      "terms_url": "https://en.vedur.is/about-imo/the-web/conditions/",
-      "validity_method": "Printed IMO valid-day caption AND printed UTC model initialization + lead matched image filename; OCR verified",
-      "map_type": "isobars_model_forecast_no_fronts",
-      "image": "images/imo_20261020_2100.webp",
-      "size_bytes": 156436
     },
     {
       "source_id": "aemet",
@@ -1156,15 +1297,14 @@
     "2026-10-19T12:00+00:00",
     "2026-10-19T18:00+00:00",
     "2026-10-20T00:00+00:00",
-    "2026-10-20T03:00+00:00",
+    "2026-10-20T06:00+00:00",
     "2026-10-20T12:00+00:00",
-    "2026-10-20T21:00+00:00",
     "2026-10-21T00:00+00:00",
     "2026-10-21T12:00+00:00",
     "2026-10-22T00:00+00:00",
     "2026-10-22T12:00+00:00",
     "2026-10-23T12:00+00:00"
   ],
-  "chart_count": 59,
+  "chart_count": 57,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
