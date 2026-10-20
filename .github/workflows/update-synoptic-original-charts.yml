@@ -90,7 +90,7 @@ jobs:
         run: python scripts/probe_imo_atlantic.py
       - name: Test newer official European chart viewers
         run: python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
-      - name: Probe Greek Polish French Swiss Swedish and Serbian official viewers
+      - name: Probe Europe official charts Greece Poland France Switzerland Sweden Serbia Italy Cyprus
         run: python scripts/probe_europe_synoptic_viewers.py
       - name: Test original Serbian RHMZ printed UTC and stale-date safeguards
         run: python -m unittest discover -s tests -p test_rhmz_original_charts.py -v
@@ -116,7 +116,7 @@ jobs:
           assert all(item["image_reuse_permitted"] is False for item in rhmz["records"])
           viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
           assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
-          assert len(viewers["sources"])==6
+          assert len(viewers["sources"])==9
           assert all(s["ready_for_automatic_charts"] is False for s in viewers["sources"])
           audit=json.loads((root/"europe_source_audit.json").read_text(encoding="utf-8"))
           assert audit["schema_version"]==1 and audit["no_live_check"]
