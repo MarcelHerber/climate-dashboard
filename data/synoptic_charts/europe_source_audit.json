@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-20T08:04:35+00:00",
+  "checked_utc": "2026-10-20T08:39:38+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
@@ -102,6 +102,30 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "bom_archive",
+      "country": "Australien",
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "map": "historical_mslp_analysis",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtliche manuelle MSLP-Analysen ab Dezember 1999 (Region Australien/Südhemisphäre), mit UTC-Datumsbereich; Archiv, kein eigenständiger Live-Feed.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "bom_current",
+      "country": "Australien",
+      "url": "https://www.bom.gov.au/australia/charts/",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtliche handanalysierte Bodendruck-/Frontenkarten für Australien, Asien und die Südhemisphäre. Bilder erst bei bestätigtem UTC-Stempel und Rechten in Vergleich übernehmen.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "bosnia_fhmz_gfs",
       "country": "Bosnien und Herzegowina",
       "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
@@ -109,6 +133,42 @@
       "rights": "permission_required",
       "timestamp": "not_machine_verified",
       "details": "Offizielle GFS-Modellprognosen in 3-Stunden-Schritten. Isobarenparameter, Modelllaufdatum und Originalbildrechte noch einzeln zu verifizieren; kein unabhängiges Analyseprodukt.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "brazil_navy",
+      "country": "Brasilien",
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtliche synoptische Bodenanalysen über dem Südatlantik mit Fronten und Isobaren. Einzelbild-UTC und Wiederverwendung ungeklärt.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "cma_nmc",
+      "country": "China",
+      "url": "https://www.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Offizieller Wetterkartenviewer für Eurasien/Ostasien; Quelle kann dynamische Bilder laden. UTC-Einzelbild, Aktualität und Bildrechte separat nachweisen.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "cptec_analysis",
+      "country": "Brasilien",
+      "url": "https://www.cptec.inpe.br/",
+      "map": "possible_source_no_direct_image",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Offizielle Forschungs- und Modellprodukte. Konkrete aktuelle Boden-/Frontenkarte und öffentlicher Bildfeed noch nicht bestätigt.",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -210,6 +270,18 @@
       "rights": "not_verified",
       "timestamp": "not_machine_verified",
       "details": "Wetterkartenansicht; Isobaren und UTC-Gültigkeit noch nicht gesichert.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "imd_charts",
+      "country": "Indien",
+      "url": "https://mausam.imd.gov.in/",
+      "map": "possible_source_no_direct_image",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtlicher Wetterdienst; synoptische Karten und maritime Druckprognosen als mögliche Quelle, noch kein verifizierter Originalbild-/UTC-Feed.",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -317,6 +389,18 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "jma_asas",
+      "country": "Japan",
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtlicher JMA-Wetterkartenviewer mit synoptischen Analysen/Fronten im NW-Pazifik. Originalbild-UTC, Lizenz und direkte Bildadresse für automatische Übernahme noch zu verifizieren.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "kazakhstan_synoptic",
       "country": "Kasachstan",
       "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
@@ -324,6 +408,30 @@
       "rights": "permission_required",
       "timestamp": "viewer_time_not_image_verified",
       "details": "Kazhydromet Synoptikkartenviewer mit Datum, UTC und Quellendateianzeige. Bisher statisch sichtbare Bilder sind Logos, keine synoptischen Produkte. Ein technischer Prüfer untersucht dynamische Skriptverweise. Exaktes Quellbild-UTC und Nutzungsrechte nicht bestätigt.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "kma_analysis",
+      "country": "Südkorea",
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtliche Analysekarte mit Datums-/Stundenauswahl; Produktzeitpunkt muss bildgenau geprüft werden. Copyright KMA; kein automatischer Bildexport.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "kma_forecast",
+      "country": "Südkorea",
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Eigene Prognosekarten; der Dienst nennt 06/18 UTC für bestimmte 72-h-Globalmodellprognosen. Nicht als Analyse oder unabhängiger Modellherausgeber doppelt zählen.",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
@@ -514,6 +622,30 @@
       "timestamp": "not_machine_verified",
       "details": "Originalkarten verlinken; kein automatisiertes Kopieren der Met-Office-Grafiken.",
       "terms_url": "https://www.metoffice.gov.uk/about-us/legal",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "metservice_api",
+      "country": "Neuseeland",
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "map": "possible_source_no_direct_image",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Vier manuelle MSL-Bodenanalysen täglich, dokumentierte Ausgabezeit und eigener API-Endpunkt; Zugang und Nutzungsrechte müssen geklärt werden.",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "metservice_surface",
+      "country": "Neuseeland",
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/southwest-pacific",
+      "map": "original_synoptic_chart_viewer",
+      "rights": "not_verified",
+      "timestamp": "image_utc_not_independently_verified",
+      "details": "Amtliche Isobaren- und Frontenansichten für den Südwestpazifik; lokale Anzeigezeit nicht ohne unabhängige Umrechnung mit UTC gleichsetzen. API/Weiterverwendung gesondert.",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."

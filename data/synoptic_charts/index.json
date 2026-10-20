@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-20T08:05:34+00:00",
+  "generated_utc": "2026-10-20T08:40:27+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -220,6 +220,94 @@
       "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
       "type": "external",
       "license": "Fallbericht mit Bodenkarte vom 29.11.2025; keine aktuelle Analyse."
+    },
+    {
+      "id": "jma_asas",
+      "name": "JMA · Asien-Pazifik Bodenanalyse",
+      "country": "Japan",
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "type": "external",
+      "license": "Amtlicher JMA-Wetterkartenviewer mit synoptischen Analysen/Fronten im NW-Pazifik. Originalbild-UTC, Lizenz und direkte Bildadresse für automatische Übernahme noch zu verifizieren."
+    },
+    {
+      "id": "kma_analysis",
+      "name": "KMA · ostasiatische Bodenanalysen",
+      "country": "Südkorea",
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "type": "external",
+      "license": "Amtliche Analysekarte mit Datums-/Stundenauswahl; Produktzeitpunkt muss bildgenau geprüft werden. Copyright KMA; kein automatischer Bildexport."
+    },
+    {
+      "id": "kma_forecast",
+      "name": "KMA · synoptische Prognosekarten",
+      "country": "Südkorea",
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "type": "external",
+      "license": "Eigene Prognosekarten; der Dienst nennt 06/18 UTC für bestimmte 72-h-Globalmodellprognosen. Nicht als Analyse oder unabhängiger Modellherausgeber doppelt zählen."
+    },
+    {
+      "id": "cma_nmc",
+      "name": "NMC Beijing · eurasische Synoptikkarten",
+      "country": "China",
+      "url": "https://www.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "type": "external",
+      "license": "Offizieller Wetterkartenviewer für Eurasien/Ostasien; Quelle kann dynamische Bilder laden. UTC-Einzelbild, Aktualität und Bildrechte separat nachweisen."
+    },
+    {
+      "id": "bom_current",
+      "name": "BoM · manuelle MSLP-Bodenanalyse",
+      "country": "Australien",
+      "url": "https://www.bom.gov.au/australia/charts/",
+      "type": "external",
+      "license": "Amtliche handanalysierte Bodendruck-/Frontenkarten für Australien, Asien und die Südhemisphäre. Bilder erst bei bestätigtem UTC-Stempel und Rechten in Vergleich übernehmen."
+    },
+    {
+      "id": "bom_archive",
+      "name": "BoM · MSLP-Analyse-Archiv",
+      "country": "Australien",
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "type": "external",
+      "license": "Amtliche manuelle MSLP-Analysen ab Dezember 1999 (Region Australien/Südhemisphäre), mit UTC-Datumsbereich; Archiv, kein eigenständiger Live-Feed."
+    },
+    {
+      "id": "metservice_surface",
+      "name": "MetService · Südwestpazifik Isobaren",
+      "country": "Neuseeland",
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/southwest-pacific",
+      "type": "external",
+      "license": "Amtliche Isobaren- und Frontenansichten für den Südwestpazifik; lokale Anzeigezeit nicht ohne unabhängige Umrechnung mit UTC gleichsetzen. API/Weiterverwendung gesondert."
+    },
+    {
+      "id": "metservice_api",
+      "name": "MetService · MSL-Analysen (API-Dokumentation)",
+      "country": "Neuseeland",
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "type": "external",
+      "license": "Vier manuelle MSL-Bodenanalysen täglich, dokumentierte Ausgabezeit und eigener API-Endpunkt; Zugang und Nutzungsrechte müssen geklärt werden."
+    },
+    {
+      "id": "brazil_navy",
+      "name": "Marinha do Brasil · cartas sinóticas",
+      "country": "Brasilien",
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "type": "external",
+      "license": "Amtliche synoptische Bodenanalysen über dem Südatlantik mit Fronten und Isobaren. Einzelbild-UTC und Wiederverwendung ungeklärt."
+    },
+    {
+      "id": "cptec_analysis",
+      "name": "CPTEC/INPE · südamerikanische Synoptik",
+      "country": "Brasilien",
+      "url": "https://www.cptec.inpe.br/",
+      "type": "external",
+      "license": "Offizielle Forschungs- und Modellprodukte. Konkrete aktuelle Boden-/Frontenkarte und öffentlicher Bildfeed noch nicht bestätigt."
+    },
+    {
+      "id": "imd_charts",
+      "name": "IMD · Surface Weather Charts",
+      "country": "Indien",
+      "url": "https://mausam.imd.gov.in/",
+      "type": "external",
+      "license": "Amtlicher Wetterdienst; synoptische Karten und maritime Druckprognosen als mögliche Quelle, noch kein verifizierter Originalbild-/UTC-Feed."
     },
     {
       "id": "dwd",
@@ -680,9 +768,8 @@
       "charts": 3
     },
     "dhmz": {
-      "state": "available",
-      "charts": 1,
-      "valid_utc": "2026-10-20T12:00+00:00"
+      "state": "unavailable",
+      "reason": "ValueError: DHMZ map lacks an unambiguous Croatian printed UTC date"
     },
     "imo": {
       "state": "unavailable",
@@ -690,78 +777,6 @@
     }
   },
   "charts": [
-    {
-      "source_id": "noaa_full",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_full_20261018_0600.webp",
-      "size_bytes": 264220
-    },
-    {
-      "source_id": "noaa_opc",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_opc_20261018_0600.webp",
-      "size_bytes": 158528
-    },
-    {
-      "source_id": "noaa_pace",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pace_sfcanal_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pace_20261018_0600.webp",
-      "size_bytes": 144186
-    },
-    {
-      "source_id": "noaa_pacfull",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac00_sfcfcst_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik 0 h)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pacfull_20261018_0600.webp",
-      "size_bytes": 251280
-    },
-    {
-      "source_id": "noaa_pacw",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pacw_sfcanal_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pacw_20261018_0600.webp",
-      "size_bytes": 147848
-    },
-    {
-      "source_id": "noaa_west",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-18T06:00+00:00",
-      "issued_utc": "2026-10-18T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_06.2026101808.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_west_20261018_0600.webp",
-      "size_bytes": 162286
-    },
     {
       "source_id": "dwd",
       "kind": "Analyse",
@@ -1506,6 +1521,78 @@
       "size_bytes": 156940
     },
     {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261020_0600.webp",
+      "size_bytes": 260988
+    },
+    {
+      "source_id": "noaa_opc",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_opc_20261020_0600.webp",
+      "size_bytes": 156246
+    },
+    {
+      "source_id": "noaa_pace",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pace_sfcanal_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pace_20261020_0600.webp",
+      "size_bytes": 153780
+    },
+    {
+      "source_id": "noaa_pacfull",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac00_sfcfcst_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik 0 h)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pacfull_20261020_0600.webp",
+      "size_bytes": 248706
+    },
+    {
+      "source_id": "noaa_pacw",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pacw_sfcanal_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pacw_20261020_0600.webp",
+      "size_bytes": 136444
+    },
+    {
+      "source_id": "noaa_west",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": "2026-10-20T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_06.2026102008.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_west_20261020_0600.webp",
+      "size_bytes": 159020
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-20T12:00+00:00",
@@ -1516,20 +1603,6 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261020_1200.webp",
       "size_bytes": 309486
-    },
-    {
-      "source_id": "dhmz",
-      "publisher_id": "dhmz",
-      "kind": "Prognose",
-      "valid_utc": "2026-10-20T12:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://prognoza.hr/web_fronte_sutra12.jpg",
-      "source_page": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
-      "credit": "Izvor: DHMZ · Kroatischer Wetterdienst · Original-Frontenprognose, für WebP konvertiert",
-      "terms_url": "https://meteo.hr/o_nama.php?param=uvjeti&section=naslovnica",
-      "validity_method": "Printed Croatian date/time on original DHMZ map; OCR of caption only",
-      "image": "images/dhmz_20261020_1200.webp",
-      "size_bytes": 139690
     },
     {
       "source_id": "knmi",
@@ -1704,7 +1777,7 @@
       "provider_timeline_utc": "2026-10-21T10:00+00:00",
       "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
       "image": "images/chmi_20261021_1200.webp",
-      "size_bytes": 264728
+      "size_bytes": 264434
     },
     {
       "source_id": "knmi",
@@ -1899,7 +1972,6 @@
     }
   ],
   "time_slots": [
-    "2026-10-18T06:00+00:00",
     "2026-10-18T12:00+00:00",
     "2026-10-18T18:00+00:00",
     "2026-10-19T00:00+00:00",
@@ -1915,6 +1987,6 @@
     "2026-10-22T12:00+00:00",
     "2026-10-23T12:00+00:00"
   ],
-  "chart_count": 96,
+  "chart_count": 95,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
