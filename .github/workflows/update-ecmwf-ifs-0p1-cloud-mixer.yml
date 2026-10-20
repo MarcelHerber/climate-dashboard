@@ -1,0 +1,104 @@
+name: ECMWF IFS 0.1° Wolkenfilm (privates Modelllabor)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 4,10,16,22 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_ecmwf_ifs_0p1_cloud_mixer.py"
+      - ".github/workflows/update-ecmwf-ifs-0p1-cloud-mixer.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: icon-cloud-mixer-data
+  cancel-in-progress: false
+
+jobs:
+  ecmwf-ifs-0p1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF GRIB-Werkzeuge
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Python und ECMWF 0p1 Client prüfen
+        run: |
+          python -m py_compile scripts/build_ecmwf_ifs_0p1_cloud_mixer.py
+          python - <<'PY'
+          import ecmwf.opendata
+          from ecmwf.opendata import Client
+          c=Client(source="ecmwf",model="ifs",resol="0p1")
+          print("ECMWF 0p1 client configured:",c.model,c.resol)
+          PY
+      - name: Separaten Wolkenmodell-Datenbranch holen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch icon-cloud-mixer-data "$url" /tmp/ecmwf-ifs-0p1
+          else
+            mkdir -p /tmp/ecmwf-ifs-0p1
+            git -C /tmp/ecmwf-ifs-0p1 init -q -b icon-cloud-mixer-data
+            git -C /tmp/ecmwf-ifs-0p1 remote add origin "$url"
+          fi
+      - name: Echte ECMWF IFS 0,1° Wolkenschichten abrufen
+        run: |
+          python scripts/build_ecmwf_ifs_0p1_cloud_mixer.py --out /tmp/ecmwf-ifs-0p1/data/cloud-mixer/ecmwf-ifs-0p1
+      - name: Vier Originalfelder und 0,1° Auflösung validieren
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from PIL import Image
+          root=Path("/tmp/ecmwf-ifs-0p1/data/cloud-mixer/ecmwf-ifs-0p1")
+          manifest=json.loads((root/"current.json").read_text(encoding="utf-8"))
+          assert manifest["schema"]==1
+          assert manifest["source_id"]=="ecmwf-ifs-0p1"
+          assert manifest["step_hours"]==3
+          assert "0.1 degree" in manifest["source_resolution"]
+          assert manifest["grid"]["width"]==461
+          assert manifest["grid"]["height"]==361
+          assert 12 <= len(manifest["frames"]) <= 13
+          assert manifest["layers"].keys()=={"clcl","clcm","clch","clct"}
+          seen=set()
+          for frame in manifest["frames"]:
+            assert 0 <= frame["hour"] <= 36 and frame["hour"] % 3 == 0
+            assert frame["valid_utc"] not in seen
+            seen.add(frame["valid_utc"])
+            assert set(frame["layers"])=={"clcl","clcm","clch","clct"}
+            for source in frame["layers"].values():
+              path=root/source
+              assert path.is_file() and path.stat().st_size>300,source
+              with Image.open(path) as image: image.verify()
+              with Image.open(path) as image:
+                assert image.mode=="L" and image.size==(461,361),source
+          print("PASS ECMWF IFS 0,1°:",len(manifest["frames"]),"Vorhersagezeiten; alle vier Wolkenfelder")
+          PY
+      - name: 0,1°-Modellquelle atomar veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/ecmwf-ifs-0p1
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cloud-mixer/ecmwf-ifs-0p1/
+          if git diff --cached --quiet; then
+            echo "Keine Änderung: bereits vollständig publiziert"
+            exit 0
+          fi
+          git commit -m "Wolkenlabor ECMWF IFS: 0,1° vier echte Wolkenschichten"
+          if git ls-remote --exit-code origin refs/heads/icon-cloud-mixer-data >/dev/null 2>&1; then
+            git pull --rebase origin icon-cloud-mixer-data
+          fi
+          git push origin HEAD:refs/heads/icon-cloud-mixer-data
