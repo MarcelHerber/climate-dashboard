@@ -53,7 +53,8 @@ jobs:
           assert m["schema"]==1 and m["model"]=="DWD ICON-D2"
           assert m["grid"]["source_projection"] in ("rotated_ll","regular_ll")
           assert m["grid"]["step"]==0.025
-          assert len(m["frames"])==13
+          assert len(m["frames"])==37
+          assert [f["hour"] for f in m["frames"]]==list(range(37))
           assert set(m["layers"])=={"clch","clcm","clcl","clct"}
           assert m["frames"][0]["hour"]==0 and m["frames"][-1]["hour"]==36
           for frame in m["frames"]:
