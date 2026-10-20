@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "generated_utc": "2026-10-20T07:31:55+00:00",
+  "russia": {
+    "source_page": "https://meteoinfo.ru/mapsynop",
+    "copyright": "© Hydrometcenter Russia; reuse not verified",
+    "image_reuse_permitted": false,
+    "records": [
+      {
+        "slot_utc": "00",
+        "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz00h.png",
+        "state": "current_within_40h",
+        "image_reuse_permitted": false,
+        "dimensions": [
+          1556,
+          1024
+        ],
+        "footer_excerpt": "ff’ ON\" BK 60 500 an “< А : 2 hee 2 70 | BON 4 NP / > SOME shy. 55235 1066 A Fal 23714909 f <. 6449, Jo od A K-09) ae, 197 54 3-28 ha F ху \"1:40 Г zi Гидрометцентр России . +5 447 309/944 187, D6 0 АНАЛИЗ ПРИЗЕМНЫЙ №4241 / я 706.800 чо 2 р от 20.10.2026 00ч ВС",
+        "printed_valid_utc": "2026-10-20T00:00+00:00"
+      },
+      {
+        "slot_utc": "06",
+        "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz06h.png",
+        "state": "unverified",
+        "image_reuse_permitted": false,
+        "dimensions": [
+          1556,
+          1024
+        ],
+        "footer_excerpt": "196 9. У BS 175488 ford VA i hee Y я Re 820 fo 49 / ~~ ON), OE oy one Ss > 210 660 Ая о f и” 1153, 20 Гидрометцентр России 180 238 bo 62 224 1634 ХХХ 20| АНАЛИЗ ПРИЗЕМНЫЙ besos 08 ve AGM pea, oT 20.10.2026 064 BCB ю O02 471420 13042 LM А 9 38 8212 182 yd Meteo",
+        "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
+      },
+      {
+        "slot_utc": "12",
+        "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz12h.png",
+        "state": "unverified",
+        "image_reuse_permitted": false,
+        "dimensions": [
+          1556,
+          1024
+        ],
+        "footer_excerpt": "м ae д -Ачи > oo = к 5 Jou = 279 Qe) 5 и 5 = фе: W500 1028 A ys № 25 и .% бо BO >-08\\ 4). 58 a, 2. о. 185 44-37 — ря bs tf 48 A 2 Гидрометцентр России . 35 176 198260 5 АНАЛИЗ ПРИЗЕМНЫЙИ |226 24-600“ ees Oa \\ 408 от 19.10.2026 124 ВСВ 01 | oe: re Н og Ain, 005",
+        "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
+      },
+      {
+        "slot_utc": "18",
+        "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz18h.png",
+        "state": "unverified",
+        "image_reuse_permitted": false,
+        "dimensions": [
+          1556,
+          1024
+        ],
+        "footer_excerpt": "265 O09, 60 оу 21 ИХ : os Ze К>! 7045 А 158 xm la? Abn ore 119224 4416 Rb 4 246 404 и SS 200 т 29.020 9-23 59 J 159 git 6 XXX 5 rm £19; о Ч, д 5409 мА, иг Ч ‚10 01З/ = д Гидрометцентр России — № 2 213 75 bea ot? 94 16 ХХХ АНАЛИЗ ПРИЗЕМНЫЙ }7503з в и 65 ker On ",
+        "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
+      }
+    ]
+  },
+  "kazakhstan": {
+    "state": "viewer_html_inspected",
+    "page": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+    "chart_image_utc_verified": false,
+    "image_reuse_permitted": false,
+    "same_host_image_reference_count": 9,
+    "same_host_script_reference_count": 3,
+    "script_urls": [
+      "https://www.kazhydromet.kz/js/synoptic-maps.js?ver=1",
+      "https://www.kazhydromet.kz/libs/fancybox/jquery.fancybox.min.js",
+      "https://www.kazhydromet.kz/js/scripts.min.js"
+    ],
+    "javascript_clues": [
+      "nds\":\"sec\",\"timeZone\":\"UTC\",\"previous\":\"Previous\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\"",
+      "us\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published",
+      "ing synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"",
+      "ilable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"dateAria\":\"Select a map date\",\"termAria\":\"Select a UTC t",
+      "elect a map date\",\"termAria\":\"Select a UTC time\",\"timelineAria\":\"Synoptic map time\",\"playAria\":\"Start automatic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript ",
+      "tic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript is required to control the maps.\"}"
+    ],
+    "embedded_full_utc_candidates": [],
+    "script_inspection_hints": [
+      " var copyNode = root.querySelector('[data-synoptic-copy]'); var copy = {}; try { copy = JSON.parse(copyNode ? c",
+      "ot.querySelector('[data-map-title]'), mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector(",
+      " mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector('[data-map-stage]'), imageLo",
+      "e = 'button'; button.className = 'synoptic-term'; button.textContent = map.time; button.setAttribute",
+      " + (copy.timeZone || 'СГВ'); elements.mapFilename.textContent = map.filename; elements.previousButton.disabled = state.mapI",
+      " elements.image.alt = (copy.imageAlt || 'Synoptic map') + ': ' + date.date + ', ' + map.time + ' ' + (copy.timeZone || 'СГВ'); ",
+      " elements.catalogStatus.classList.toggle('synoptic-status--error', Boolean(isError)); elements.catalogMessage.textContent = mess",
+      " spinner = elements.catalogStatus.querySelector('.synoptic-spinner'); if (spinner) { spinner.hidden = true; ",
+      " showCatalogueError(copy.unavailable || 'Synoptic maps are temporarily unavailable.', true); }); } function initialise",
+      "ype.forEach.call(document.querySelectorAll('[data-synoptic-viewer]'), initialiseViewer); } if (document.readyState === 'loading') { "
+    ]
+  },
+  "no_images_persisted": true,
+  "ready_for_automatic_image_reuse": false,
+  "method": "Russian chart footer OCR + Kazhydromet dynamic viewer source diagnostics; not an image reuse license"
+}

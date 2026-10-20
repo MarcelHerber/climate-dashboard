@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-20T07:24:03+00:00",
+  "checked_utc": "2026-10-20T07:32:14+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -136,18 +136,18 @@
           ]
         },
         {
-          "url": "https://www.vedur.is/js/vi-res_is.js?v=538",
-          "image_or_endpoint_strings": [
-            "auto_forecast"
-          ]
-        },
-        {
           "url": "https://www.vedur.is/jslib/history.js?v=538",
           "image_or_endpoint_strings": []
         },
         {
           "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
           "image_or_endpoint_strings": []
+        }
+      ],
+      "script_errors": [
+        {
+          "url": "https://www.vedur.is/js/vi-res_is.js?v=538",
+          "error": "TimeoutError: The read operation timed out"
         }
       ]
     }
@@ -469,10 +469,10 @@
     }
   ],
   "sample_forecast_image": {
-    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_6.png",
-    "expected_valid_utc": "2026-10-20T06:00+00:00",
-    "forecast_hours": 6,
-    "printed_caption_ocr": "s( pony fv! ay £| * MM Pri. 20. okt. kl. 06:00 aX Vedurstofa islands\n\n‘ A ay! i) onl “NN a f BD / Sat NN : (A if ie\nMag el f \\ SF of RE CC / fe Oe\nF AG Pe ait) /- é Pe zt) Ai A x ins A d i\n\n: ed y rie >a ay !\nPX y pa\n: = ; : Pa ¥ , OS\npo NN my) 0 as i\na A Fz 2 - nt per i a\nwT © A ~, 5 de NES 1agn\nVindur {nis} | LOD m heed og lottprystingur (hPa} EUMMAFELM U.tes, cU.1U.cude UUW UIe\n"
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_9.png",
+    "expected_valid_utc": "2026-10-20T09:00+00:00",
+    "forecast_hours": 9,
+    "printed_caption_ocr": "OSS OW > ASH 0 sow. . :\nee ; hs 4! 4 iy ny » Pri. 20. okt. kl. 09:00 av Vedurstofa islands\nay i 7° Z CY \" 4 y \\ is - W - . ‘1 G- ee\nBl): ey y ay ee Soe : meh fe\na) ¥ or | — gs poyh = | he, OR ee _ 4 f .\n\n\" , as aa — ee | z !\na 4 = ~ . 2 3 5D » Nae Y\n\nre 3 Ad > 4 5 / , : ¢\nam 8 3 X A eT\nVindur {nis} | LOD m haee og lottprystingur (hPa} ECRIVEIELM Urea. 60 tu ede UU US\n"
   },
   "sample_error": null,
   "matching_metadata_candidates": 0,
