@@ -77,3 +77,15 @@ test("closest fully populated strict four-map time beats NOAA duplicates",()=>{
  assert.equal(picked.publishers,3);
  assert.deepEqual(picked.ids,["dwd","aemet","knmi"]);
 });
+
+test("new Pacific original NOAA products share one publisher and preserve map type",()=>{
+ const pac=["noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96"];
+ const input=pac.map((id,i)=>rec(id,"noaa",t1,i>=3?"Prognose":"Analyse"));
+ assert.deepEqual([...new Set(input.map(x=>classify(x)))].sort(),["analysis_fronts","forecast_fronts"]);
+ const strict=chooseAt(input,t1,"all",{uniquePublishers:true});
+ assert.equal(strict.count,1);
+ assert.equal(strict.publishers,1);
+ assert.equal(chooseAt(input,t1,"analysis_fronts").count,3);
+ assert.equal(chooseAt(input,t1,"forecast_fronts").count,3);
+ assert.equal(chooseAt(input,t1,"all",{uniquePublishers:false}).count,4);
+});
