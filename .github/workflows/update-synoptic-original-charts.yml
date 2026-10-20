@@ -9,6 +9,8 @@ on:
     paths:
       - "scripts/update_synoptic_original_charts.py"
       - "tests/test_synoptic_original_charts.py"
+      - "scripts/watch_world_synoptic_sources.py"
+      - "tests/test_world_synoptic_source_watch.py"
       - "scripts/audit_europe_synoptic_sources.py"
       - "tests/test_europe_synoptic_source_audit.py"
       - "tests/test_europe_country_coverage.py"
@@ -67,7 +69,11 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_russia_kazakhstan_synoptic.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/watch_world_synoptic_sources.py scripts/probe_russia_kazakhstan_synoptic.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+      - name: Test ongoing worldwide source discovery and strict third-party image restrictions
+        run: python -m unittest discover -s tests -p test_world_synoptic_source_watch.py -v
+      - name: Watch worldwide official synoptic analysis providers for new chart reference links
+        run: python scripts/watch_world_synoptic_sources.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -134,6 +140,10 @@ jobs:
           assert cyprus["ready_for_automatic_image_reuse"] is False
           assert [x["run_hour_utc"] for x in cyprus["reports"]]==["00","12"]
           assert all(x["ready_for_image_reuse"] is False for x in cyprus["reports"])
+          world=json.loads((root/"worldwide_source_watch.json").read_text(encoding="utf-8"))
+          assert world["schema_version"]==1 and world["source_count"]==9
+          assert world["no_image_copied"] is True and world["no_automatic_chart_publication"] is True
+          assert all(x["sync_ready"] is False for x in world["sources"])
           ru_kz=json.loads((root/"russia_kazakhstan_probe.json").read_text(encoding="utf-8"))
           assert ru_kz["schema_version"]==1 and ru_kz["no_images_persisted"] is True
           assert ru_kz["ready_for_automatic_image_reuse"] is False
