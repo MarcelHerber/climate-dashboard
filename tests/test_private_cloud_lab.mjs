@@ -36,7 +36,7 @@ assert.match(content,/4er-Panel/);
 assert.match(content,/id="modelD2"/);
 assert.match(content,/Deutschland · ICON-D2/);
 assert.match(content,/ICON-D2_Deutschland/);
-assert.match(content,/d2\/current.json/);
+assert.match(content,/const prefix=model/);
 
 assert.doesNotMatch(content,/Polarlicht/);
 const notFound=await request("/wolkenlabor/data/bad-thing",{headers:{Cookie:cookie}});
