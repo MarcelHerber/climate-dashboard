@@ -392,6 +392,17 @@ assert [r["run_hour_utc"] for r in probe["reports"]]==["00","12"]
 PY
     cp data/synoptic_charts/cyprus_wrf_probe.json _site/data/synoptic_charts/
   fi
+  if [[ -s data/synoptic_charts/russia_kazakhstan_probe.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+obj=json.loads(Path("data/synoptic_charts/russia_kazakhstan_probe.json").read_text(encoding="utf-8"))
+assert obj["schema_version"]==1 and obj["no_images_persisted"] is True
+assert obj["ready_for_automatic_image_reuse"] is False
+assert [x["slot_utc"] for x in obj["russia"]["records"]]==["00","06","12","18"]
+PY
+    cp data/synoptic_charts/russia_kazakhstan_probe.json _site/data/synoptic_charts/
+  fi
   if [[ -s data/synoptic_charts/europe_viewer_probe.json ]]; then
     python - <<'PY'
 import json
