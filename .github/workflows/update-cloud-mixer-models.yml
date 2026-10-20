@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: GRIB2- und ECMWF-Werkzeuge installieren
-        run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3" "ecmwf-opendata>=0.3,<1"
+        run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3" "ecmwf-opendata>=0.3,<1" "netCDF4>=1.7,<2"
       - name: Erzeuger Syntax prüfen
         run: |
           python -m py_compile scripts/build_icon_d2_ruc_cloud_mixer.py
