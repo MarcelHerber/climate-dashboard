@@ -8,7 +8,7 @@
 <meta name="description" content="Originale Bodenwetterkarten mit Isobaren, Hoch/Tief und Fronten von nationalen Wetterdiensten. UTC-synchroner Kartenvergleich.">
 <link rel="stylesheet" href="isobaren_original.css?v=6">
 <script defer src="synoptic_panel_logic.js?v=3"></script>
-<script defer src="isobaren_original.js?v=35"></script>
+<script defer src="isobaren_original.js?v=36"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -52,9 +52,10 @@
 
 <section class="panel" id="wetterdienste">
 <h2>Wetterdienste &amp; Originalkarten</h2>
-<p class="help">Alle Kartenquellen an einem Ort: automatisch verfügbare Originalkarten, direkte Kartenansichten und separat gekennzeichnete Archive oder ungeprüfte Verweise. Nur tatsächlich geprüfte Bilder mit identischem UTC-Gültigkeitstermin werden im Kartenvergleich dargestellt. Bei anderen Quellen erscheint im oberen Kartenbereich ein Direktlink statt eines nicht freigegebenen Bildes. Nutzungsrechte und maschinenlesbare Gültigkeitszeiten werden separat geprüft; die Quellenprüfung ist kein Live-Verfügbarkeitstest.</p>
+<p class="help">Die Quellenübersicht umfasst alle 47 berücksichtigten europäischen Länder einschließlich Kosovo sowie vier angrenzende Länder (Armenien, Aserbaidschan, Georgien und Kasachstan). Eigene synoptische Originalkarten werden ausdrücklich von regionaler Abdeckung, Archiven und amtlichen Wetterportalen unterschieden. Automatisch verfügbare Originalkarten, direkte Kartenansichten und ungeprüfte Verweise sind separat gekennzeichnet. Nur tatsächlich geprüfte Bilder mit identischem UTC-Gültigkeitstermin werden im Kartenvergleich dargestellt. Bei anderen Quellen erscheint im oberen Kartenbereich ein Direktlink statt eines nicht freigegebenen Bildes. Nutzungsrechte und maschinenlesbare Gültigkeitszeiten werden separat geprüft; die Quellenprüfung ist kein Live-Verfügbarkeitstest.</p>
 <div class="source-toolbar">
  <label class="source-control">Wetterdienst oder Land suchen<input id="sourceSearch" type="search" placeholder="z. B. KNMI, Frankreich, Fronten" autocomplete="off"></label>
+ <label class="source-control">Land auswählen<select id="sourceCountry"><option value="all">Alle Länder</option></select></label>
  <label class="source-control">Quellen anzeigen<select id="sourceFilter">
  <option value="all">Alle Kartenquellen</option>
  <option value="auto">Automatisch eingebunden</option>
