@@ -1,0 +1,32 @@
+name: Cloud-Lab Privatbereich prüfen
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feature/private-icon-cloud-film-lab-20261020]
+    paths:
+      - "alpenwetter-worker/src/**"
+      - "tests/test_private_cloud_lab.mjs"
+      - ".github/workflows/test-private-cloud-lab.yml"
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Cloudflare Worker Module syntax prüfen
+        run: |
+          node --check alpenwetter-worker/src/index.js
+          node --check alpenwetter-worker/src/cloud-lab.js
+          node --check alpenwetter-worker/src/cloud-lab-client.js
+          node --check alpenwetter-worker/src/cloud-lab-style.js
+      - name: Serverlogin und Datenzugriff testen
+        run: node tests/test_private_cloud_lab.mjs
+      - name: Wrangler-Paket ohne Veröffentlichung bauen
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/cloud-lab-bundle --config alpenwetter-worker/wrangler.toml
