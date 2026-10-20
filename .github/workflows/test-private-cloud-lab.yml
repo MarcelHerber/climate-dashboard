@@ -2,7 +2,7 @@ name: Cloud-Lab Privatbereich prüfen
 on:
   workflow_dispatch:
   push:
-    branches: [main, feature/private-cloud-lab-icon-d2-germany-20261020]
+    branches: [main]
     paths:
       - "alpenwetter-worker/src/**"
       - "tests/test_private_cloud_lab.mjs"
