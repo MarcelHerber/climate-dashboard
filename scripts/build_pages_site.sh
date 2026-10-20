@@ -392,6 +392,16 @@ assert [r["run_hour_utc"] for r in probe["reports"]]==["00","12"]
 PY
     cp data/synoptic_charts/cyprus_wrf_probe.json _site/data/synoptic_charts/
   fi
+  if [[ -s data/synoptic_charts/worldwide_source_watch.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+data=json.loads(Path("data/synoptic_charts/worldwide_source_watch.json").read_text(encoding="utf-8"))
+assert data["schema_version"]==1 and data["source_count"]==9
+assert data["no_image_copied"] is True and data["no_automatic_chart_publication"] is True
+PY
+    cp data/synoptic_charts/worldwide_source_watch.json _site/data/synoptic_charts/
+  fi
   if [[ -s data/synoptic_charts/russia_kazakhstan_probe.json ]]; then
     python - <<'PY'
 import json
