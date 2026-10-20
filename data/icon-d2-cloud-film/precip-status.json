@@ -1,0 +1,22 @@
+{
+  "run_id": "39407719158",
+  "run_url": "https://github.com/MarcelHerber/climate-dashboard/actions/runs/39407719158",
+  "checked_utc": "2026-10-20T10:25:27.638721+00:00",
+  "cloud_cycle": "2026102003",
+  "generate": "failure",
+  "validate": "skipped",
+  "publish": "skipped",
+  "build_log_tail": [
+    "Traceback (most recent call last):",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 213, in <module>",
+    "    main()",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 209, in main",
+    "    build(args.out, args.max_workers)",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 140, in build",
+    "    lat, lon, values, grid = decode_precip(ref_raw)",
+    "                             ^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/build_icon_d2_precip_film.py\", line 77, in decode_precip",
+    "    raise ValueError(f\"Unerwartete Niederschlagseinheit: {unit}\")",
+    "ValueError: Unerwartete Niederschlagseinheit: kg m**-2 s**-1"
+  ]
+}
