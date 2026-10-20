@@ -20,7 +20,7 @@ from ecmwf.opendata import Client
 from build_icon_d2_cloud_film import WEST,EAST,SOUTH,NORTH,STEP,WIDTH,HEIGHT
 
 LOG=logging.getLogger("ecmwf-cloud-mixer")
-MODELS={"ecmwf-aifs":{"model":"aifs-single","kinds":{"lcc":"clcl","mcc":"clcm","hcc":"clch","tcc":"clct"},"hours":tuple(range(0,37,6))},
+MODELS={"ecmwf-aifs":{"model":"aifs-single","kinds":{"lcc":"clcl","mcc":"clcm","hcc":"clch","tcc":"clct"},"hours":tuple(range(6,37,6))},
         "ecmwf-ifs":{"model":"ifs","kinds":{"tcc":"clct"},"hours":tuple(range(0,37,3))}}
 
 
