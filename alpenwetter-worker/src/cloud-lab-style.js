@@ -18,6 +18,8 @@ h1{font-size:30px;line-height:1.1;margin:2px 0 7px}h2{font-size:16px;margin:0 0 
 .card{background:#122236;border:1px solid #2c445e;border-radius:12px;padding:15px;box-shadow:0 8px 30px #060d163c}
 .stage{background:#08172a;border:1px solid #38536e;border-radius:9px;overflow:hidden;position:relative}
 .stage canvas{width:100%;display:block;aspect-ratio:16/10}
+.stage canvas[hidden]{display:none!important}
+.stage #broadcastPreview{aspect-ratio:16/9;width:100%;height:auto}
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0b213bd9;color:#c3e3fa;text-align:center;font-weight:650;padding:25px;z-index:2}
 .overlay[hidden]{display:none}
 .toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin:0 0 12px}
