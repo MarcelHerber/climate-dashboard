@@ -43,6 +43,43 @@ class CyprusWRFTests(unittest.TestCase):
             c.parse_printed_times("INIT: 2026-10-20 12 UTC\\nVALID: 2026-10-20 18:00 UTC",
                                   "12",NOW)
 
+    def test_actual_dom_gif_image_banner_from_both_model_runs(self):
+        samples=(
+          ("Date: 2026-10-19 03:00 Local Time [2026-10-19 00:00 UTC]","2026-10-19T00:00+00:00"),
+          ("Date: 2026-10-19 21:00 Local Time [2026-10-19 18:00 UTC]","2026-10-19T18:00+00:00"),
+          ("Date: 2026-10-19 15:00 Local Time [2026-10-19 12:00 UTC]","2026-10-19T12:00+00:00"),
+          ("Date: 2026-10-20 09:00 Local Time [2026-10-20 06:00 UTC]","2026-10-20T06:00+00:00"),
+        )
+        for caption,expected in samples:
+            with self.subTest(caption=caption):
+                self.assertEqual(c.parse_printed_local_utc(caption,NOW).isoformat(timespec="minutes"),expected)
+    def test_false_local_date_cannot_pass_as_true_utc(self):
+        with self.assertRaises(ValueError):
+            c.parse_printed_local_utc("Date: 2026-10-19 05:00 Local Time [2026-10-19 00:00 UTC]",NOW)
+        with self.assertRaises(ValueError):
+            c.parse_printed_local_utc("Date: 2026-07-19 03:00 Local Time [2026-07-19 00:00 UTC]",NOW)
+    def test_verify_sampled_cadence_without_guessing_other_frames(self):
+        sample0=[
+            {"frame":0,"valid_utc":"2026-10-19T00:00+00:00"},
+            {"frame":6,"valid_utc":"2026-10-19T18:00+00:00"}
+        ]
+        ok=c.verify_frame_pair(sample0,"00")
+        self.assertEqual(ok["printed_run_anchor_utc"],"2026-10-19T00:00+00:00")
+        self.assertEqual(ok["verified_sample_leads"][1]["forecast_hours"],18)
+        self.assertFalse(c.verify_frame_pair([sample0[0]],"00"))
+        self.assertEqual(c.verify_frame_pair(sample0,"12")["sampled_cadence"],
+                         "inconsistent_printed_times")
+        stale=[sample0[0],{"frame":6,"valid_utc":"2026-10-19T15:00+00:00"}]
+        self.assertEqual(c.verify_frame_pair(stale,"00")["sampled_cadence"],
+                         "inconsistent_printed_times")
+    def test_same_utc_sample_has_no_republication_license(self):
+        result=c.check(now=NOW,html_fetch=lambda url:source_html("00" if "/00Z/" in url else "12"),
+             image_fetch=lambda url:gif(),image_reader=lambda raw:
+              ("Date: 2026-10-19 03:00 Local Time [2026-10-19 00:00 UTC]",[700,420]))
+        self.assertEqual(result["reports"][0]["sample_maps"][0]["state"],"printed_valid_utc_verified")
+        self.assertTrue(result["no_images_persisted"])
+        self.assertFalse(result["ready_for_automatic_image_reuse"])
+
     def test_stale_run_and_mismatched_hour_rejected(self):
         for caption,run in [
             ("INIT: 2026-10-01 00:00 UTC\nVALID: 2026-10-01 03:00 UTC","00"),
