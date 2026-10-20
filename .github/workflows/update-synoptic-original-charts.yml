@@ -11,6 +11,7 @@ on:
       - "tests/test_synoptic_original_charts.py"
       - "scripts/audit_europe_synoptic_sources.py"
       - "tests/test_europe_synoptic_source_audit.py"
+      - "tests/test_europe_country_coverage.py"
       - "scripts/probe_europe_synoptic_viewers.py"
       - "tests/test_europe_synoptic_viewers.py"
       - "scripts/probe_cyprus_wrf.py"
@@ -80,6 +81,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_chmi_synoptic_probe.py -v
       - name: Probe official ČHMÚ source metadata without guessing chart timestamps
         run: python scripts/probe_chmi_synoptic.py
+      - name: Verify all 47 European countries and 4 additional neighbors have safe source entries
+        run: python -m unittest discover -s tests -p test_europe_country_coverage.py -v
       - name: Test European source reuse and timestamp policies
         run: python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
       - name: Publish European source permission audit (not a live availability claim)
