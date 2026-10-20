@@ -57,4 +57,11 @@ select{min-height:36px}
 .precipChoices label{display:flex;align-items:center;gap:7px;padding:9px 11px;border:1px solid #415b72;background:#172c40;border-radius:7px;font-weight:650}
 .precipChoices input{accent-color:#6ac3ff;min-width:17px;min-height:17px}
 .rainDot{color:#4ab4f7}.snowDot{color:#b0f1ff}
+
+.mixerCheck{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;margin:8px 0}
+.mixerCheck input{accent-color:#69b9f3}
+.mixerGrid{display:grid;grid-template-columns:1fr;gap:9px;margin:12px 0}
+.mixerGrid label{font-size:12px;font-weight:650;display:grid;gap:3px}
+.mixerGrid select,#winterSource{width:100%;padding:8px 7px;border-radius:7px;background:#132c42;color:#ebf4fa;border:1px solid #44657a;font-size:12px}
+#mixerStatus{padding:8px;background:#1b3247;border-radius:7px;border:1px solid #47617a}
 `;
