@@ -49,4 +49,10 @@ select{min-height:36px}
 .model-switch button[aria-pressed="true"]{background:#d5ebfa;color:#133853;border-color:#c9e7f8}
 .model-switch .secondary{margin-left:auto}
 @media(max-width:720px){.model-switch button{flex:1 1 auto}.model-switch .secondary{width:100%;margin-left:0}}
+
+.greySwatch{width:22px;height:22px;min-width:22px;border:1px solid #dbe7f0;border-radius:5px;box-shadow:0 0 0 1px #0005}
+.precipChoices{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px}
+.precipChoices label{display:flex;align-items:center;gap:7px;padding:9px 11px;border:1px solid #415b72;background:#172c40;border-radius:7px;font-weight:650}
+.precipChoices input{accent-color:#6ac3ff;min-width:17px;min-height:17px}
+.rainDot{color:#4ab4f7}.snowDot{color:#b0f1ff}
 `;
