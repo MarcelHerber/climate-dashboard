@@ -3,6 +3,7 @@ import { LAB_CSS } from "./cloud-lab-style.js";
 
 const DATA_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-cloud-film-data/data/icon-cloud-film/";
 const ICON_D2_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-d2-cloud-film-data/data/icon-d2-cloud-film/";
+const MIXER_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-cloud-mixer-data/data/cloud-mixer/";
 const GEO_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/seasonal-europe-data/data/seasonal-europe/geography_50m.json";
 
 export function cloudLabLoginPage(){
@@ -51,7 +52,16 @@ export function cloudLabPage(){
  '<p class="secondary">Die Wolkenebenen sind separate Modell-Bedeckungsgrade – sie werden nicht als Prozentzahlen addiert.</p>'+
  '<div class="divider"></div><label class="secondary" for="theme">Kartenstil</label>'+
  '<select id="theme"><option value="tv">Fernsehkarte / hellere Landflächen</option><option value="sat">Satellitenlook / dunkler Hintergrund</option></select>'+
- '<div class="divider"></div><h2>Wolken · Graustufen</h2><div class="layerGrid" id="layerGrid"></div>'+
+ '<div class="divider"></div><h2>Modellmischer · Deutschland</h2>'+
+ '<label class="mixerCheck"><input type="checkbox" id="winterLow"> Winterregel für tiefe Wolken/Nebel (Nov–März)</label>'+
+ '<label class="secondary" for="winterSource">Wintermodell · tiefe Wolken</label><select id="winterSource"></select>'+
+ '<div class="mixerGrid">'+
+ '<label>Tiefe Wolken <select id="source-clcl"></select></label>'+
+ '<label>Mittelhohe Wolken <select id="source-clcm"></select></label>'+
+ '<label>Hohe Wolken <select id="source-clch"></select></label>'+
+ '<label>Gesamtbewölkung <select id="source-clct"></select></label></div>'+
+ '<p class="secondary" id="mixerStatus" role="status">Modellverfügbarkeit wird geprüft. Ohne bestätigte Felder bleibt ICON-D2 sichtbar.</p>'+
+ '<p class="secondary">Modelle werden anhand gültiger UTC-Zeit verglichen. Keine erfundenen Wolken, kein verdeckter Modellwechsel. Globalmodelle sind gröber und ihre Daten müssen zuerst vollständig veröffentlicht sein.</p>'+'<div class="divider"></div><h2>Wolken · Graustufen</h2><div class="layerGrid" id="layerGrid"></div>'+
  '<p class="secondary">Für jede Wolkenschicht: Graustufe (fast Schwarz bis Hellgrau), Deckkraft, Kontrast und Bedeckungsgrenzwert separat einstellen. Alle Änderungen betreffen ausschließlich die Visualisierung, nicht die ICON-Modelldaten.</p><div class="divider"></div><h2>Regen und Schnee · ICON-D2</h2><div class="precipChoices"><label><input id="showRain" type="checkbox" checked disabled> Regen <span class="rainDot">●</span></label><label><input id="showSnow" type="checkbox" checked disabled> Schnee <span class="snowDot">●</span></label></div><p class="secondary" id="precipStatus">Stündliche Niederschlagsdaten werden geprüft.</p><p class="secondary">Regen und Schnee: jeweils 1-Stunden-Menge in mm Wasseräquivalent. +0 h hat keine abgeschlossene Vorhersagestunde.</p>'+
  '</aside></div><p class="footer">Datenquelle: Deutscher Wetterdienst, ICON-EU / ICON-D2 Open Data (CLCL, CLCM, CLCH, CLCT; ICON-D2 zusätzlich RAIN_GSP, RAIN_CON, SNOW_GSP, SNOW_CON). ICON-D2: natives gedrehtes Gitter (~2,1 km), auf eine geografische Deutschlandkarte umgerechnet (0,025°). Die Darstellung ist ein experimenteller, nicht amtlicher Wolkenfilm. Keine Vorhersage von Wolkengattung, vertikaler Mächtigkeit oder Wolkenuntergrenzen. Zugang ausschließlich nach serverseitiger Anmeldung; der ursprüngliche DWD-Datensatz ist öffentlich.</p>'+
  '</main><script>'+LAB_JS+'</script></body></html>';
@@ -62,6 +72,12 @@ export async function cloudLabData(request,url,securityHeaders){
  let source,mime;
  if(suffix==="current.json"){source=DATA_SOURCE+"current.json";mime="application/json; charset=utf-8";}
  else if(suffix==="d2/current.json"){source=ICON_D2_SOURCE+"current.json";mime="application/json; charset=utf-8";}
+ else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs|gem|arome|harmonie)\/current\.json$/.test(suffix)) {
+   source=MIXER_SOURCE+suffix.slice(6);mime="application/json; charset=utf-8";
+ }
+ else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs|gem|arome|harmonie)\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
+   source=MIXER_SOURCE+suffix.slice(6);mime="image/png";
+ }
  else if(suffix==="d2/precip.json"){source=ICON_D2_SOURCE+"precip.json";mime="application/json; charset=utf-8";}
  else if(/^d2\/precip\/frames\/\d{10}\/(?:rain|snow)_\d{3}\.png$/.test(suffix)){
    source=ICON_D2_SOURCE+suffix.slice(3);mime="image/png";
