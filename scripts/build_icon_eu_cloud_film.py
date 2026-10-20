@@ -101,8 +101,12 @@ def to_grid(lat,lon,values,unit):
     percent=np.clip(total[present]/n[present],0,100)
     result[present]=np.round(percent*2.54).astype(np.uint8)
     coverage=np.count_nonzero(present)/(WIDTH*HEIGHT)
-    if coverage<.97:
-        raise RuntimeError(f"GRIB-Gebiet deckt nur {coverage:.1%} des Ausschnitts")
+    # ICON-EU's geographic footprint is not rectangular. Preserve genuine
+    # missing cells with the PNG sentinel 255 instead of inventing cloud cover.
+    if coverage<.80:
+        raise RuntimeError(f"GRIB deckt nur {coverage:.1%} des Ausschnitts")
+    if coverage<.99:
+        LOG.info("Echte ICON-EU-Modellmaske: %.1f%% Abdeckung (fehlende Pixel bleiben transparent)",coverage*100)
     return result.reshape(HEIGHT,WIDTH),coverage
 
 def process(args):
