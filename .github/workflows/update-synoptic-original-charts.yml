@@ -13,6 +13,8 @@ on:
       - "tests/test_europe_synoptic_source_audit.py"
       - "scripts/probe_europe_synoptic_viewers.py"
       - "tests/test_europe_synoptic_viewers.py"
+      - "scripts/probe_cyprus_wrf.py"
+      - "tests/test_cyprus_wrf_probe.py"
       - "scripts/probe_rhmz_original_charts.py"
       - "tests/test_rhmz_original_charts.py"
       - "scripts/probe_imo_atlantic.py"
@@ -62,7 +64,7 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/update_synoptic_original_charts.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -88,6 +90,10 @@ jobs:
         run: python -m unittest discover -s tests -p test_imo_synoptic_adapter.py -v
       - name: Probe IMO actual North Atlantic image metadata (no image copy)
         run: python scripts/probe_imo_atlantic.py
+      - name: Test Cyprus WRF original GIF, run time and exact UTC validation
+        run: python -m unittest discover -s tests -p test_cyprus_wrf_probe.py -v
+      - name: Inspect Cyprus 00Z and 12Z WRF original image dates (no image publication)
+        run: python scripts/probe_cyprus_wrf.py
       - name: Test newer official European chart viewers
         run: python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
       - name: Probe Europe official charts Greece Poland France Switzerland Sweden Serbia Italy Cyprus
@@ -114,6 +120,11 @@ jobs:
           assert rhmz["no_images_persisted"] is True
           assert len(rhmz["records"])==6
           assert all(item["image_reuse_permitted"] is False for item in rhmz["records"])
+          cyprus=json.loads((root/"cyprus_wrf_probe.json").read_text(encoding="utf-8"))
+          assert cyprus["schema_version"]==1 and cyprus["no_images_persisted"] is True
+          assert cyprus["ready_for_automatic_image_reuse"] is False
+          assert [x["run_hour_utc"] for x in cyprus["reports"]]==["00","12"]
+          assert all(x["ready_for_image_reuse"] is False for x in cyprus["reports"])
           viewers=json.loads((root/"europe_viewer_probe.json").read_text(encoding="utf-8"))
           assert viewers["schema_version"]==1 and viewers["no_auto_ingestion"] is True
           assert len(viewers["sources"])==9
