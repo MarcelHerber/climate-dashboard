@@ -73,10 +73,21 @@ def decode_precip(raw):
             if lat.size < 100000 or lat.size != lon.size or lat.size != val.size:
                 raise ValueError("ICON-D2-Niederschlagsgitter ungültig")
             normalized = unit.replace(" ", "").lower()
-            if not (normalized in ("mm", "kgm**-2", "kgm-2", "kgm^-2", "kg/m2", "kgm**-2s**0")):
-                raise ValueError(f"Unerwartete Niederschlagseinheit: {unit}")
+            # ecCodes can resolve the DWD ICON-D2 RAIN_GSP parameter to a
+            # RATE-like name/units (kg m**-2 s**-1) even when the GRIB time
+            # metadata explicitly says this is an accumulation over 0..t.
+            # DWD ICON-D2 documentation defines RAIN_GSP, RAIN_CON, SNOW_GSP
+            # and SNOW_CON as accumulations from the start of the model run.
+            # Do NOT multiply these numbers by seconds: that would be wrong.
+            allowed_amount = {"mm", "kgm**-2", "kgm-2", "kgm^-2", "kg/m2"}
+            known_eccodes_mislabel = {"kgm**-2s**-1", "kgm-2s-1", "kgm^-2s^-1"}
+            if normalized not in allowed_amount | known_eccodes_mislabel:
+                raise ValueError(f"Unbekannte Niederschlagseinheit: {unit}")
             if step_type != "accum" or start_step != 0:
-                raise ValueError(f"Niederschlag nicht seit Modellstart kumuliert: {step_type}, start={start_step}")
+                raise ValueError(
+                    f"Niederschlagsmenge nicht seit Modellstart kumuliert: "
+                    f"units={unit}, stepType={step_type}, startStep={start_step}"
+                )
             if grid not in ("rotated_ll", "regular_ll"):
                 raise ValueError(f"Unerwartete Projektion: {grid}")
             return lat, lon, val, grid
