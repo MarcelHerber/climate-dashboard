@@ -167,12 +167,19 @@ function fillSources(){
     link.href=model.page;link.target="_blank";link.rel="noopener noreferrer";
     group.append(link);
     if(report){
-     const verified=report.sample_maps?.filter(x=>x.state==="printed_init_and_valid_utc_verified")||[];
+     const verified=report.sample_maps?.filter(x=>
+       ["printed_valid_utc_verified","printed_init_and_valid_utc_verified"].includes(x.state))||[];
+     const verifiedCadence=report.sampled_cadence==="two_printed_frames_confirm_three_hour_intervals";
      const status=report.state==="unreachable"?"Quelle beim letzten Lauf nicht erreichbar":
        report.frame_count+" Original-GIFs gefunden · "+
-       (verified.length?verified.length+" Zeitstichprobe(n) nach Druckangabe bestätigt":
+       (verified.length?verified.length+" Bild-Uhrzeit(en) bestätigt"+
+         (verifiedCadence?" · 3-h-Schritte in Stichprobe bestätigt":""):
         "exakte UTC-Gültigkeit noch nicht nachgewiesen");
      group.append(node("span","source-inspection",status));
+     if(report.printed_run_anchor_utc&&verifiedCadence)
+      group.append(node("span","source-inspection",
+       "Datum des geprüften Modellstarts: "+isoDE(report.printed_run_anchor_utc)+
+       " (nur verifizierte Stichproben, nicht automatisch alle 41 Bilder)."));
     }
    }
    article.append(group);
