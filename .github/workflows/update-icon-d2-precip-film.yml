@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "scripts/build_icon_d2_precip_film.py"
+      - "tests/test_icon_d2_precip_retries.py"
       - ".github/workflows/update-icon-d2-precip-film.yml"
 
 permissions:
