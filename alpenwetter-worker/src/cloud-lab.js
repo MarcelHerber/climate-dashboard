@@ -21,7 +21,7 @@ export function cloudLabPage(){
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>ICON-EU Wolkenfilm-Labor · Privat</title><style>'+
  LAB_CSS+'</style></head><body><header><div><div class="sub">Climate Dashboard · privates Studio</div><strong>ICON-EU Wolkenfilm-Labor</strong> <span class="badge">Geschützt</span></div>'+
  '<nav><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
- '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Experimentelle TV-Wetterfilm-Darstellung auf Basis echter ICON-EU-Wolkenprognosen. Drei Höhenschichten lassen sich unabhängig in Deckkraft, Kontrast, Farbtönung und Bedeckungsschwelle anpassen. Keine Polarlichtprodukte und keine künstlichen Wolkenfelder.</p>'+
+ '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Experimentelle TV-Wetterfilm-Darstellung auf Basis echter ICON-EU-Wolkenprognosen. Drei Höhenschichten lassen sich unabhängig in Deckkraft, Kontrast, Farbtönung und Bedeckungsschwelle anpassen. Es werden ausschließlich echte DWD-Wolkenfelder verwendet.</p>'+
  '<div class="layout"><section class="card">'+
  '<div class="toolbar"><div><strong>Feste Europakarte</strong> <span class="pill" id="runLabel">ICON-EU lädt …</span></div>'+
  '<div><button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
