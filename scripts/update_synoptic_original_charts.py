@@ -292,7 +292,7 @@ def _extract_opc_type(html, now, regex, source_id, credit, label):
         key=valid.isoformat(timespec="minutes")
         record={"source_id":source_id,"kind":label,"valid_utc":key,
             "issued_utc":issue.isoformat(timespec="minutes"),
-            "source_url":url,"source_page":"https://ocean.weather.gov/Atl_tab.php",
+            "source_url":url,"source_page":"https://ocean.weather.gov/Pac_tab.php" if source_id.startswith("noaa_pac") else "https://ocean.weather.gov/Atl_tab.php",
             "credit":credit,"publisher_id":"noaa"}
         if key not in records or record["issued_utc"]>records[key]["issued_utc"]:
             records[key]=record
