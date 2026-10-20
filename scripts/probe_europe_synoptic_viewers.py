@@ -28,7 +28,13 @@ VIEWERS={
  "russia_hmc_analysis":("Russland","https://meteoinfo.ru/mapsynop","meteoinfo.ru"),
  "kazakhstan_synoptic":("Kasachstan","https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody","www.kazhydromet.kz"),
  "bosnia_fhmz_gfs":("Bosnien und Herzegowina","https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php","www.fhmzbih.gov.ba"),
- "luxembourg_meteolux":("Luxemburg","https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/","www.meteolux.lu")
+ "luxembourg_meteolux":("Luxemburg","https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/","www.meteolux.lu"),
+ "jma_asas":("Japan","https://www.jma.go.jp/bosai/weather_map/","www.jma.go.jp"),
+ "kma_analysis":("Südkorea","https://www.kma.go.kr/neng/image/chart/analysis-chart.do","www.kma.go.kr"),
+ "cma_nmc":("China","https://www.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html","www.nmc.cn"),
+ "bom_current":("Australien","https://www.bom.gov.au/australia/charts/","www.bom.gov.au"),
+ "metservice_surface":("Neuseeland","https://www.metservice.com/maps-radar/surface-pressure/southwest-pacific","www.metservice.com"),
+ "brazil_navy":("Brasilien","https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas","www.marinha.mil.br")
 }
 IMAGES=re.compile(r"\.(?:png|jpe?g|gif|webp)(?:$|[?#])",re.I)
 DATE_VALID=re.compile(r"^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:Z|\+00:00)$")
