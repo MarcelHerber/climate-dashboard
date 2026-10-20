@@ -91,16 +91,31 @@ function renderDataHealth(){
  const problems=bad.length?" · ohne gültige Karte: "+bad.map(([id,st])=>id+" ("+(st.reason||"keine geprüfte Quelle").slice(0,65)+")").join(", "):"";
  el.textContent=state+" · letzter Index: "+isoDE(catalog.generated_utc)+" · "+catalog.chart_count+" geprüfte Bilder · "+good+" von "+Object.keys(catalog.source_status||{}).length+" automatisch geprüften Produkten verfügbar"+problems+".";
 }
+function fillCountryPicker(){
+ const picker=$("sourceCountry");
+ if(!picker)return;
+ const previous=picker.value;
+ const names=[...new Set(sourceDirectory().map(s=>s.country).filter(Boolean))]
+   .filter(country=>!["Kanada","USA"].includes(country))
+   .sort((a,b)=>collator.compare(a,b));
+ picker.replaceChildren();
+ picker.add(new Option("Alle Länder", "all"));
+ for(const name of names)picker.add(new Option(name,name));
+ picker.value=names.includes(previous)?previous:"all";
+}
 function fillSources(){
  const container=$("sourceCatalog"),q=($("sourceSearch")?.value||"").trim().toLocaleLowerCase("de"),
-  filter=$("sourceFilter")?.value||"all";
+  filter=$("sourceFilter")?.value||"all",
+  country=$("sourceCountry")?.value||"all";
  const list=sourceDirectory().filter(s=>{
   const category=s.category||(s.type==="auto"?"auto":"viewer");
   const matches=filter==="all"|| (filter==="other"&&["archive","unverified"].includes(category))||category===filter;
-  return matches&&(!q||[s.name,s.country,s.note].join(" ").toLocaleLowerCase("de").includes(q));
+  return (country==="all"||s.country===country)&&matches&&(!q||[s.name,s.country,s.note].join(" ").toLocaleLowerCase("de").includes(q));
  });
  container.replaceChildren();
- $("sourceSummary").textContent=list.length+" von "+sourceDirectory().length+" Quellen angezeigt · Europa alphabetisch, weitere Regionen am Ende.";
+ $("sourceSummary").textContent=list.length+" von "+sourceDirectory().length+
+  " Quellen angezeigt · "+[...new Set(sourceDirectory().map(s=>s.country).filter(x=>x&&x!=="Kanada"&&x!=="USA"))].length+
+  " europäische und angrenzende Länder abgedeckt · Nur ausdrücklich geprüfte Originalbilder zählen im UTC-Vergleich.";
  if(!list.length){container.append(node("p","help","Keine Quellen zur Auswahl gefunden."));return;}
  for(const s of list){
   const category=s.category||(s.type==="auto"?"auto":"viewer"),
@@ -528,6 +543,7 @@ async function load(){
    }else cyprusProbe=null;
   }catch(_e){cyprusProbe=null;}
   renderDataHealth();
+  fillCountryPicker();
   fillSources();
   fillPickers();
   refreshView();
@@ -537,13 +553,14 @@ async function load(){
   renderDataHealth();
   $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
   $("exportPng").disabled=true;
+  fillCountryPicker();
   fillSources();
   updatePanelControls();
  }
 }
 function init(){
  $("reload").addEventListener("click",load);
- ["sourceSearch","sourceFilter"].forEach(id=>$(id)?.addEventListener(id==="sourceSearch"?"input":"change",fillSources));
+ ["sourceSearch","sourceFilter","sourceCountry"].forEach(id=>$(id)?.addEventListener(id==="sourceSearch"?"input":"change",fillSources));
  $("chartMode").addEventListener("change",()=>{
   if(catalog){
    if($("chartMode").value==="four"&&panelAutomatic())autoBestPanels();
