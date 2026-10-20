@@ -1,9 +1,35 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-19T22:58:11+00:00",
+  "checked_utc": "2026-10-20T03:59:20+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
+    {
+      "id": "arso_synoptic_archive",
+      "country": "Slowenien",
+      "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
+      "map": "historical_europe_fronts_event_report",
+      "rights": "not_verified",
+      "timestamp": "printed_2025_event_date",
+      "details": "ARSO-Bericht von 16.09.2025 mit Frontenanalyse im PDF; historisch, keine laufende Live-Kartenbereitstellung.",
+      "terms_url": "https://meteo.arso.gov.si/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "cyprus_dom_wrf",
+      "country": "Zypern",
+      "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "map": "wrf_pressure_wind_temperature_no_fronts",
+      "rights": "not_verified",
+      "timestamp": "00_12_model_runs_no_valid_image_utc",
+      "details": "DOM-Zypern, WRF-Modellkarte 8 km östliches Mittelmeer. Laufzeiten benannt, Einzelframe-Gültigkeit und Aktualität nicht geprüft.",
+      "terms_url": "https://www.dom.org.cy/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
     {
       "id": "dmi",
       "country": "Dänemark",
@@ -109,6 +135,32 @@
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
     },
     {
+      "id": "italiameteo_isobars",
+      "country": "Italien",
+      "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "map": "icon2i_pressure_isobars_no_fronts",
+      "rights": "chart_specific_clearance_required",
+      "timestamp": "model_run_and_slider_not_image_verified",
+      "details": "ItaliaMeteo-Originalkarten mit ICON-2I-Bodendruck/Isobaren, 00/12 UTC und +72h. Dataset CC BY, aber Kartenbildfreigabe und exaktes einzelnes Bildmapping fehlen.",
+      "terms_url": "https://meteohub.agenziaitaliameteo.it/ui/about/",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "italiameteo_opendata",
+      "country": "Italien",
+      "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "map": "open_model_pressure_data_not_a_chart",
+      "rights": "open_chart_license",
+      "timestamp": "dataset_has_run_metadata_not_chart",
+      "details": "Offene ICON-2I-Modellfelder unter CC BY; kein fertig gestaltetes Originalkartenbild. Daten könnten später separat für eigene Karten verwendet werden.",
+      "terms_url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
       "id": "kmi",
       "country": "Belgien",
       "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
@@ -117,6 +169,19 @@
       "timestamp": "not_machine_verified",
       "details": "Täglich aktualisierte Frontenkarten; Veröffentlichung/Kopien ohne schriftliche Genehmigung untersagt.",
       "terms_url": "https://fr.meteo.be/de/uber-das-kmi/rechtsinformation/disclaimer",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "lvgmc_front_archive",
+      "country": "Lettland",
+      "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
+      "map": "historical_europe_surface_front_analysis",
+      "rights": "not_verified",
+      "timestamp": "printed_2017_08_22_18_utc",
+      "details": "LVĢMC-Originalanalyse 22.08.2017 18 UTC mit Isobaren und Fronten, veröffentlicht in einem archivierten Ereignisbericht.",
+      "terms_url": "https://klimats.meteo.lv/",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
