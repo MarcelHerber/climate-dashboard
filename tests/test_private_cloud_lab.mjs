@@ -40,6 +40,8 @@ assert.match(content,/4er-Panel/);
 assert.match(content,/id="showRain"/);
 assert.match(content,/id="showSnow"/);
 assert.match(content,/Full-HD PNG/);
+assert.match(content,/id="previewBroadcast"/);
+assert.match(content,/id="broadcastPreview"/);
 assert.match(content,/Wolkengrau/);
 assert.match(content,/precip\.json/);
 assert.match(content,/id="modelD2"/);
