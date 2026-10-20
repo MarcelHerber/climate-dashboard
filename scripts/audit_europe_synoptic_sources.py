@@ -19,7 +19,7 @@ SOURCES={
   "details":"ItaliaMeteo-Originalkarten mit ICON-2I-Bodendruck/Isobaren, 00/12 UTC und +72h. Dataset CC BY, aber Kartenbildfreigabe und exaktes einzelnes Bildmapping fehlen.",
   "terms_url":"https://meteohub.agenziaitaliameteo.it/ui/about/"},
  "italiameteo_opendata":{"country":"Italien","url":"https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
-  "map":"open_model_pressure_data_not_a_chart","rights":"open_chart_license","timestamp":"dataset_has_run_metadata_not_chart",
+  "map":"open_model_pressure_data_not_a_chart","rights":"open_model_data_ccby","timestamp":"dataset_has_run_metadata_not_chart",
   "details":"Offene ICON-2I-Modellfelder unter CC BY; kein fertig gestaltetes Originalkartenbild. Daten könnten später separat für eigene Karten verwendet werden.",
   "terms_url":"https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i"},
  "cyprus_dom_wrf":{"country":"Zypern","url":"https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
