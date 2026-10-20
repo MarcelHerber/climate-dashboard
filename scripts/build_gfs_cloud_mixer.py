@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Real GFS 0.25-degree low/mid/high/total cloud grids for the private mixer.
+"""Real GFS 0.25-degree instantaneous low/mid/high cloud grids for mixer.
 
-NOMADS GRIB Filter returns one cropped GRIB2 with four cloud products.
+NOMADS GRIB Filter returns a cropped GRIB2 with three instantaneous cloud products.\nTCDC on NOMADS is often a time-mean field and is not misrepresented as instant.
 No synthetic cloud fields. Hourly ICON-D2 continues to fill times for which
 GFS has no matching valid UTC time.
 """
@@ -25,17 +25,16 @@ from build_icon_d2_cloud_film import WEST,EAST,SOUTH,NORTH,STEP,WIDTH,HEIGHT
 
 LOG=logging.getLogger("gfs-mixer")
 HOURS=tuple(range(0,37,3))
-NUMBER_KIND={1:"clct",3:"clcl",4:"clcm",5:"clch"}
+NUMBER_KIND={3:"clcl",4:"clcm",5:"clch"}
 ROOT="https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
 
 def url_for(run,hour):
     args={
        "file":f"gfs.t{run:%H}z.pgrb2.0p25.f{hour:03d}",
-       "var_LCDC":"on","var_MCDC":"on","var_HCDC":"on","var_TCDC":"on",
+       "var_LCDC":"on","var_MCDC":"on","var_HCDC":"on",
        "lev_low_cloud_layer":"on","lev_middle_cloud_layer":"on",
        "lev_high_cloud_layer":"on",
-       "lev_entire_atmosphere_(considered_as_a_single_layer)":"on",
        "subregion":"","leftlon":"4","rightlon":"18","toplat":"57","bottomlat":"46",
        "dir":f"/gfs.{run:%Y%m%d}/{run:%H}/atmos",
     }
@@ -157,7 +156,8 @@ def build(out):
        "source_resolution":"0.25 degree native; reprojected to 0.025 degree for display ONLY",
        "step_hours":3,"unit":"cloud_cover_percent",
        "encoding":"PNG L: 0-254 cloud 0-100%, 255 missing",
-       "layers":{"clcl":"LCDC","clcm":"MCDC","clch":"HCDC","clct":"TCDC"},
+       "layers":{"clcl":"LCDC instantaneous","clcm":"MCDC instantaneous","clch":"HCDC instantaneous"},
+       "note":"Instantaneous 3 cloud layers only. TCDC mean is deliberately excluded to avoid mislabelling a forecast-period average as an instantaneous field.",
        "frames":frames,"source":"NOAA NOMADS GRIB Filter GFS 0.25 degree",
     }
     for frame in frames:
