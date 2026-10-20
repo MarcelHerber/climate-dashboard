@@ -97,6 +97,7 @@ node --check isobaren_original.js
 node --test tests/test_synoptic_panel_selection.cjs
 python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
+python -m unittest discover -s tests -p test_europe_country_coverage.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
 test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
