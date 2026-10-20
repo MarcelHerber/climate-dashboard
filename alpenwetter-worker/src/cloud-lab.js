@@ -61,7 +61,7 @@ export function cloudLabPage(){
  '<label>Hohe Wolken <select id="source-clch"></select></label>'+
  '<label>Gesamtbewölkung <select id="source-clct"></select></label></div>'+
  '<p class="secondary" id="mixerStatus" role="status">Modellverfügbarkeit wird geprüft. Ohne bestätigte Felder bleibt ICON-D2 sichtbar.</p>'+
- '<p class="secondary">Modelle werden anhand gültiger UTC-Zeit verglichen. Keine erfundenen Wolken, kein verdeckter Modellwechsel. Globalmodelle sind gröber und ihre Daten müssen zuerst vollständig veröffentlicht sein.</p>'+'<div class="divider"></div><h2>Wolken · Graustufen</h2><div class="layerGrid" id="layerGrid"></div>'+
+ '<p class="secondary">Modelle werden anhand gültiger UTC-Zeiten verglichen. Das ECMWF IFS ist mit 0,1° und 0,25° auswählbar. Fehlende 0,1°-Felder erhalten einen deutlich gekennzeichneten Ersatz; optische Zeitübergänge sind keine zusätzlichen Modellvorhersagen.</p>'+'<div class="divider"></div><h2>Wolken · Graustufen</h2><div class="layerGrid" id="layerGrid"></div>'+
  '<p class="secondary">Für jede Wolkenschicht: Graustufe (fast Schwarz bis Hellgrau), Deckkraft, Kontrast und Bedeckungsgrenzwert separat einstellen. Alle Änderungen betreffen ausschließlich die Visualisierung, nicht die ICON-Modelldaten.</p><div class="divider"></div><h2>Regen und Schnee · ICON-D2</h2><div class="precipChoices"><label><input id="showRain" type="checkbox" checked disabled> Regen <span class="rainDot">●</span></label><label><input id="showSnow" type="checkbox" checked disabled> Schnee <span class="snowDot">●</span></label></div><p class="secondary" id="precipStatus">Stündliche Niederschlagsdaten werden geprüft.</p><p class="secondary">Regen und Schnee: jeweils 1-Stunden-Menge in mm Wasseräquivalent. +0 h hat keine abgeschlossene Vorhersagestunde.</p>'+
  '</aside></div><p class="footer">Datenquelle: Deutscher Wetterdienst, ICON-EU / ICON-D2 Open Data (CLCL, CLCM, CLCH, CLCT; ICON-D2 zusätzlich RAIN_GSP, RAIN_CON, SNOW_GSP, SNOW_CON). ICON-D2: natives gedrehtes Gitter (~2,1 km), auf eine geografische Deutschlandkarte umgerechnet (0,025°). Die Darstellung ist ein experimenteller, nicht amtlicher Wolkenfilm. Keine Vorhersage von Wolkengattung, vertikaler Mächtigkeit oder Wolkenuntergrenzen. Zugang ausschließlich nach serverseitiger Anmeldung; der ursprüngliche DWD-Datensatz ist öffentlich.</p>'+
  '</main><script>'+LAB_JS+'</script></body></html>';
@@ -72,10 +72,10 @@ export async function cloudLabData(request,url,securityHeaders){
  let source,mime;
  if(suffix==="current.json"){source=DATA_SOURCE+"current.json";mime="application/json; charset=utf-8";}
  else if(suffix==="d2/current.json"){source=ICON_D2_SOURCE+"current.json";mime="application/json; charset=utf-8";}
- else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs|gem|arome|harmonie)\/current\.json$/.test(suffix)) {
+ else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs-0p1|ecmwf-ifs|gem|arome|harmonie)\/current\.json$/.test(suffix)) {
    source=MIXER_SOURCE+suffix.slice(6);mime="application/json; charset=utf-8";
  }
- else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs|gem|arome|harmonie)\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
+ else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs-0p1|ecmwf-ifs|gem|arome|harmonie)\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
    source=MIXER_SOURCE+suffix.slice(6);mime="image/png";
  }
  else if(suffix==="d2/precip.json"){source=ICON_D2_SOURCE+"precip.json";mime="application/json; charset=utf-8";}
