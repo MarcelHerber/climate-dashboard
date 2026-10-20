@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-20T07:52:15+00:00",
+  "generated_utc": "2026-10-20T07:56:16+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -617,7 +617,7 @@
   "source_status": {
     "dwd": {
       "state": "available",
-      "charts": 8
+      "charts": 9
     },
     "aemet": {
       "state": "available",
@@ -645,7 +645,7 @@
     },
     "noaa_48": {
       "state": "available",
-      "charts": 6
+      "charts": 5
     },
     "noaa_96": {
       "state": "available",
@@ -1370,6 +1370,17 @@
       "size_bytes": 159310
     },
     {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-20T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261020075258_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610200600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261020_0600.webp",
+      "size_bytes": 1438570
+    },
+    {
       "source_id": "knmi",
       "publisher_id": "knmi",
       "kind": "Analyse",
@@ -1633,20 +1644,6 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261022_0000.webp",
       "size_bytes": 318642
-    },
-    {
-      "source_id": "noaa_48",
-      "publisher_id": "noaa",
-      "kind": "Prognose",
-      "forecast_hours": 48,
-      "valid_utc": "2026-10-22T00:00+00:00",
-      "issued_utc": "2026-10-20T06:00+00:00",
-      "run_utc": "2026-10-20T00:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl48_sfcfcst_00.2026102006.gif",
-      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
-      "image": "images/noaa_48_20261022_0000.webp",
-      "size_bytes": 241064
     },
     {
       "source_id": "noaa_pac48",

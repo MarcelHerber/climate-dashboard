@@ -1,16 +1,90 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-20T07:51:06+00:00",
+  "checked_utc": "2026-10-20T07:55:22+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
   "pages": [
     {
       "page": "https://en.vedur.is/weather/shipping/atlantic/",
-      "state": "unreachable",
-      "image_count": 0,
-      "script_count": 0,
-      "error": "TimeoutError: The read operation timed out"
+      "state": "inspected",
+      "image_count": 4,
+      "script_count": 9,
+      "inline_image_or_endpoint_hints": [
+        "/photos/sjo_atlant_spa/261020_0000_3.png",
+        "/photos/sjo_atlant_spa/261020_0000_6.png",
+        "/photos/sjo_atlant_spa/261020_0000_9.png",
+        "/photos/sjo_atlant_spa/261020_0000_12.png",
+        "/photos/sjo_atlant_spa/261020_0000_15.png",
+        "/photos/sjo_atlant_spa/261020_0000_18.png",
+        "/photos/sjo_atlant_spa/261020_0000_21.png",
+        "/photos/sjo_atlant_spa/261020_0000_24.png",
+        "/photos/sjo_atlant_spa/261020_0000_27.png",
+        "/photos/sjo_atlant_spa/261020_0000_30.png",
+        "/photos/sjo_atlant_spa/261020_0000_33.png",
+        "/photos/sjo_atlant_spa/261020_0000_36.png"
+      ],
+      "provider_script_urls": [
+        "https://en.vedur.is/skin/basic/js/noflicker.js",
+        "https://en.vedur.is/skin/basic/js/jQuery-1.6.js",
+        "https://en.vedur.is/js/vi-base.js?v=538",
+        "https://en.vedur.is/js/vi-res_en.js?v=538",
+        "https://en.vedur.is/jslib/history.js?v=538",
+        "https://en.vedur.is/jslib/jquery-ui.js?v=538",
+        "https://en.vedur.is/web2/js/app.min.js?v=538",
+        "https://en.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
+        "https://en.vedur.is/skin/basic/js/init.js?v17"
+      ],
+      "script_hints": [
+        {
+          "url": "https://en.vedur.is/skin/basic/js/noflicker.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/skin/basic/js/jQuery-1.6.js",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/js/vi-base.js?v=538",
+          "image_or_endpoint_strings": [
+            "icon/wnone.gif",
+            "invalid.gif",
+            "icon/ydotsel.gif",
+            "icon/ydot.gif",
+            "+VI.r.forecasttime+"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/js/vi-res_en.js?v=538",
+          "image_or_endpoint_strings": [
+            "weather/forecasts/areas/",
+            "weather/forecasts/elements/",
+            "auto_forecast"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/jslib/history.js?v=538",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/jslib/jquery-ui.js?v=538",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/web2/js/app.min.js?v=538",
+          "image_or_endpoint_strings": [
+            "i/island-waters.png"
+          ]
+        },
+        {
+          "url": "https://en.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
+          "image_or_endpoint_strings": []
+        },
+        {
+          "url": "https://en.vedur.is/skin/basic/js/init.js?v17",
+          "image_or_endpoint_strings": []
+        }
+      ]
     },
     {
       "page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
@@ -74,25 +148,43 @@
         {
           "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
           "image_or_endpoint_strings": []
-        },
-        {
-          "url": "https://www.vedur.is/web2/js/app.min.js?v=538",
-          "image_or_endpoint_strings": [
-            "i/island-waters.png"
-          ]
-        },
-        {
-          "url": "https://www.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
-          "image_or_endpoint_strings": []
-        },
-        {
-          "url": "https://www.vedur.is/skin/basic/js/init.js?v17",
-          "image_or_endpoint_strings": []
         }
       ]
     }
   ],
   "image_candidates": [
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/app-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/facebook-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/twitter-logo-v2.png",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
+    {
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "url": "https://en.vedur.is/media/cssmedia/multilogo-en-v3.jpg",
+      "valid_hint_utc": null,
+      "filename_utc": null,
+      "strong_timestamp_match": false,
+      "alt": ""
+    },
     {
       "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
       "url": "https://www.vedur.is/media/cssmedia/app-v2.png",
@@ -128,248 +220,248 @@
   ],
   "forecast_filename_candidates": [
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_3.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_3.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 3,
       "calculated_valid_utc": "2026-10-20T03:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_6.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_6.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 6,
       "calculated_valid_utc": "2026-10-20T06:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_9.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_9.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 9,
       "calculated_valid_utc": "2026-10-20T09:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_12.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_12.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 12,
       "calculated_valid_utc": "2026-10-20T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_15.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_15.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 15,
       "calculated_valid_utc": "2026-10-20T15:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_18.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_18.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 18,
       "calculated_valid_utc": "2026-10-20T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_21.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_21.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 21,
       "calculated_valid_utc": "2026-10-20T21:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_24.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_24.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 24,
       "calculated_valid_utc": "2026-10-21T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_27.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_27.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 27,
       "calculated_valid_utc": "2026-10-21T03:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_30.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_30.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 30,
       "calculated_valid_utc": "2026-10-21T06:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_33.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_33.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 33,
       "calculated_valid_utc": "2026-10-21T09:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_36.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_36.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 36,
       "calculated_valid_utc": "2026-10-21T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_39.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_39.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 39,
       "calculated_valid_utc": "2026-10-21T15:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_42.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_42.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 42,
       "calculated_valid_utc": "2026-10-21T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_45.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_45.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 45,
       "calculated_valid_utc": "2026-10-21T21:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_48.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_48.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 48,
       "calculated_valid_utc": "2026-10-22T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_51.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_51.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 51,
       "calculated_valid_utc": "2026-10-22T03:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_54.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_54.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 54,
       "calculated_valid_utc": "2026-10-22T06:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_57.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_57.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 57,
       "calculated_valid_utc": "2026-10-22T09:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_60.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_60.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 60,
       "calculated_valid_utc": "2026-10-22T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_66.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_66.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 66,
       "calculated_valid_utc": "2026-10-22T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_72.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_72.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 72,
       "calculated_valid_utc": "2026-10-23T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_78.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_78.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 78,
       "calculated_valid_utc": "2026-10-23T06:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_84.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_84.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 84,
       "calculated_valid_utc": "2026-10-23T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_90.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_90.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 90,
       "calculated_valid_utc": "2026-10-23T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_96.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_96.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 96,
       "calculated_valid_utc": "2026-10-24T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_102.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_102.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 102,
       "calculated_valid_utc": "2026-10-24T06:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_108.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_108.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 108,
       "calculated_valid_utc": "2026-10-24T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_114.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_114.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 114,
       "calculated_valid_utc": "2026-10-24T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_120.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_120.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 120,
       "calculated_valid_utc": "2026-10-25T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     },
     {
-      "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_126.png",
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_126.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "run_utc": "2026-10-20T00:00+00:00",
       "forecast_hours": 126,
       "calculated_valid_utc": "2026-10-25T06:00+00:00",
@@ -377,7 +469,7 @@
     }
   ],
   "sample_forecast_image": {
-    "url": "https://www.vedur.is/photos/sjo_atlant_spa/261020_0000_9.png",
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261020_0000_9.png",
     "expected_valid_utc": "2026-10-20T09:00+00:00",
     "forecast_hours": 9,
     "printed_caption_ocr": "OSS OW > ASH 0 sow. . :\nee ; hs 4! 4 iy ny » Pri. 20. okt. kl. 09:00 av Vedurstofa islands\nay i 7° Z CY \" 4 y \\ is - W - . ‘1 G- ee\nBl): ey y ay ee Soe : meh fe\na) ¥ or | — gs poyh = | he, OR ee _ 4 f .\n\n\" , as aa — ee | z !\na 4 = ~ . 2 3 5D » Nae Y\n\nre 3 Ad > 4 5 / , : ¢\nam 8 3 X A eT\nVindur {nis} | LOD m haee og lottprystingur (hPa} ECRIVEIELM Urea. 60 tu ede UU US\n"
