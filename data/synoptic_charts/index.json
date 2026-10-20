@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-20T04:00:03+00:00",
+  "generated_utc": "2026-10-20T04:04:08+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -361,11 +361,11 @@
     },
     "noaa_full": {
       "state": "available",
-      "charts": 7
+      "charts": 8
     },
     "noaa_west": {
       "state": "available",
-      "charts": 7
+      "charts": 8
     },
     "noaa_24": {
       "state": "unavailable",
@@ -429,6 +429,18 @@
       "publisher_id": "noaa",
       "image": "images/noaa_opc_20261018_0600.webp",
       "size_bytes": 158528
+    },
+    {
+      "source_id": "noaa_west",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-18T06:00+00:00",
+      "issued_utc": "2026-10-18T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_06.2026101808.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_west_20261018_0600.webp",
+      "size_bytes": 162286
     },
     {
       "source_id": "dwd",
@@ -581,6 +593,18 @@
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261019_0600.webp",
       "size_bytes": 1460252
+    },
+    {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-19T06:00+00:00",
+      "issued_utc": "2026-10-19T08:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_06.2026101908.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261019_0600.webp",
+      "size_bytes": 266056
     },
     {
       "source_id": "noaa_opc",
@@ -1101,6 +1125,6 @@
     "2026-10-22T12:00+00:00",
     "2026-10-23T12:00+00:00"
   ],
-  "chart_count": 55,
+  "chart_count": 57,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
