@@ -124,7 +124,10 @@ def build(root: Path, workers: int):
     if output.exists():
         try:
             old = json.loads(output.read_text(encoding="utf-8"))
-            if old.get("cycle") == current["cycle"] and len(old.get("frames", [])) == len(HOURS):
+            if (old.get("cycle") == current["cycle"] and len(old.get("frames", [])) == len(HOURS)
+                and all((root / item).is_file()
+                        for row in old["frames"][1:] for item in row.get("layers", {}).values())
+                and all(set(row.get("layers", {})) == {"rain", "snow"} for row in old["frames"][1:])):
                 LOG.info("Vollständiger Niederschlag für %s bereits vorhanden", current["cycle"])
                 return
         except (ValueError, OSError):
