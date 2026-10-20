@@ -9,6 +9,7 @@ let imoDiagnostic=null;
 let europeanViewerProbe=null;
 let rhmzProbe=null;
 let cyprusProbe=null;
+let russiaKazakhstanProbe=null;
 let automaticChoice=null;
 const isoDE=s=>{const d=new Date(s);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("de-DE",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC",hourCycle:"h23"}).format(d)+" UTC":"–";};
 const node=(tag,cls,txt)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;};
@@ -58,6 +59,16 @@ function sourceDirectory(){
   const existing=merged.get(probe.id);
   if(existing&&probe.ready_for_automatic_charts===false)
    merged.set(probe.id,{...existing,viewer_probe:probe});
+ }
+ if(russiaKazakhstanProbe?.russia?.records&&merged.has("russia_hmc_analysis")){
+  const existing=merged.get("russia_hmc_analysis");
+  merged.set("russia_hmc_analysis",{...existing,regional_probe:russiaKazakhstanProbe.russia,
+   probe_utc:russiaKazakhstanProbe.generated_utc});
+ }
+ if(russiaKazakhstanProbe?.kazakhstan&&merged.has("kazakhstan_synoptic")){
+  const existing=merged.get("kazakhstan_synoptic");
+  merged.set("kazakhstan_synoptic",{...existing,regional_probe:russiaKazakhstanProbe.kazakhstan,
+   probe_utc:russiaKazakhstanProbe.generated_utc});
  }
  if(merged.has("cyprus_dom_wrf")&&cyprusProbe?.reports){
   const old=merged.get("cyprus_dom_wrf");
@@ -147,6 +158,36 @@ function fillSources(){
   }
   const a=node("a","",category==="archive"?"Archiv / Bericht öffnen":category==="unverified"?"Quelle prüfen":"Karten öffnen");
   a.href=s.url;a.target="_blank";a.rel="noopener noreferrer";article.append(a);
+  if(s.id==="russia_hmc_analysis"){
+   const group=node("div","official-deep-links");
+   const products=[
+    ["00","https://meteoinfo.ru/hmc-input/mapsynop/Analiz00h.png"],
+    ["06","https://meteoinfo.ru/hmc-input/mapsynop/Analiz06h.png"],
+    ["12","https://meteoinfo.ru/hmc-input/mapsynop/Analiz12h.png"],
+    ["18","https://meteoinfo.ru/hmc-input/mapsynop/Analiz18h.png"]
+   ];
+   for(const [hour,url] of products){
+    const rec=s.regional_probe?.records?.find(x=>x.slot_utc===hour&&x.url===url);
+    const when=rec?.printed_valid_utc?isoDE(rec.printed_valid_utc):"Aufdruck nicht bestätigt";
+    const label=rec?.state==="stale"?" · veraltete Karte ("+when+")":
+      rec?.state==="current_within_40h"?" · Druckdatum "+when:
+      " · nicht als aktuell verifiziert";
+    const link=node("a","",hour+" UTC · amtliches Originalbild"+label+" ↗");
+    link.href=url;link.target="_blank";link.rel="noopener noreferrer";
+    group.append(link);
+   }
+   article.append(group);
+   if(s.probe_utc)article.append(node("span","source-inspection",
+     "Bildaufdruck-Prüfung: "+isoDE(s.probe_utc)+". Bildnutzungsrechte nicht geklärt; Originaldateien bleiben beim Herausgeber."));
+  }
+  if(s.id==="kazakhstan_synoptic"){
+   const p=s.regional_probe;
+   const st=p?.state==="viewer_html_inspected"?
+    "Offizielle Kartenansicht erreicht. "+(p.same_host_script_reference_count||0)+
+    " lokale Skriptdateien geprüft; Bild-UTC und Quellbildschnittstelle noch nicht bestätigt.":
+    "Interaktive Originalkartenansicht: Keine unabhängig datierte Bildschnittstelle bestätigt.";
+   article.append(node("span","source-inspection",st));
+  }
   if(s.id==="rhmz"){
    const links=[
     {product:"europe00",label:"Europa-Analyse · 00 UTC",url:"https://www.hidmet.gov.rs/data/analiza/EVROPA/evropa00_JPG.jpg"},
@@ -549,13 +590,22 @@ async function load(){
       candidate.reports.length===2?candidate:null;
    }else cyprusProbe=null;
   }catch(_e){cyprusProbe=null;}
+  try{
+   const response=await fetch(ROOT+"russia_kazakhstan_probe.json?v="+Date.now(),{cache:"no-store"});
+   if(response.ok){
+    const report=await response.json();
+    russiaKazakhstanProbe=report.schema_version===1&&report.no_images_persisted===true&&
+      report.ready_for_automatic_image_reuse===false&&
+      Array.isArray(report.russia?.records)&&report.russia.records.length===4?report:null;
+   }else russiaKazakhstanProbe=null;
+  }catch(_e){russiaKazakhstanProbe=null;}
   renderDataHealth();
   fillCountryPicker();
   fillSources();
   fillPickers();
   refreshView();
  }catch(err){
-  catalog=null;europeSourceAudit=null;imoDiagnostic=null;europeanViewerProbe=null;rhmzProbe=null;cyprusProbe=null;
+  catalog=null;europeSourceAudit=null;imoDiagnostic=null;europeanViewerProbe=null;rhmzProbe=null;cyprusProbe=null;russiaKazakhstanProbe=null;
   $("chartStatus").textContent="Kartenindexfehler: "+err.message;
   renderDataHealth();
   $("chartGrid").replaceChildren(node("div","empty","Keine erfundenen Ersatzkarten: Der Kartenindex ist aktuell nicht verfügbar. Die Links zu den Wetterdiensten sind weiterhin unten erreichbar."));
