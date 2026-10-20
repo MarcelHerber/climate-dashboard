@@ -33,6 +33,23 @@ jobs:
         run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3"
       - name: Python syntax prüfen
         run: python -m py_compile scripts/build_icon_d2_precip_film.py
+      - name: Niederschlagskodierung prüfen
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          import numpy as np
+          from build_icon_d2_precip_film import encode_hourly, WIDTH, HEIGHT
+          source=np.zeros(WIDTH*HEIGHT, dtype=np.float32)
+          source[0]=np.nan
+          source[1]=0.01
+          source[2]=0.2
+          source[3]=30.0
+          output=encode_hourly(source).ravel()
+          assert output[0]==255 and output[1]==0
+          assert 1 <= output[2] < output[3] == 254
+          print("PASS: Fehlwerte, Trockenheit und Intensität sicher kodiert")
+          PY
       - name: Vorhandenen Deutschland-Datenbranch holen
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
