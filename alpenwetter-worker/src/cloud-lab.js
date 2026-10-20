@@ -32,7 +32,7 @@ export function cloudLabPage(){
  '<div><button id="reloadCloud" type="button">↻ Neuer Datenstand</button></div></div>'+
  '<div class="stage"><canvas id="filmCanvas" width="1120" height="700" role="img" aria-label="ICON-EU-Wolkenfilm mit Ländergrenzen auf Europa"></canvas>'+
  '<div class="overlay" id="cloudOverlay">Echte DWD-Modellfelder werden geladen …</div></div>'+
- '<div class="timing"><strong id="forecastTime">–</strong><span>Interpolierte Visualisierung zwischen Modellzeitschritten</span></div>'+
+ '<div class="timing"><strong id="forecastTime">–</strong><span>Echte stündliche ICON-D2-Modellfelder; fließende Übergänge nur bei der Wiedergabe</span></div>'+
  '<div class="controls"><button id="playCloud" class="main" disabled>▶ Abspielen</button>'+
  '<input id="frameSlider" type="range" min="0" max="12" step="1" value="0" aria-label="Prognosezeit auswählen">'+
  '<label>Geschwindigkeit <select id="speedCloud"><option value="0.5">Langsam</option><option value="1" selected>Normal</option><option value="2">Schnell</option><option value="4">Sehr schnell</option></select></label></div>'+
