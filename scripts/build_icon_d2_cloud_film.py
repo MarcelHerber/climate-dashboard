@@ -28,9 +28,10 @@ LOG=logging.getLogger("icon-d2-germany-clouds")
 ROOT="https://opendata.dwd.de/weather/nwp/icon-d2/grib"
 PREFIX="icon-d2_germany_regular-lat-lon_single-level"
 PARAMS=("CLCL","CLCM","CLCH","CLCT")
-HOURS=tuple(range(0,37,3))
+HOURS=tuple(range(0,37))
 # Germany with a small geographic margin. 0.025° in ordinary coordinates;
 # original ICON-D2 mesh is about 2.1km on a ROTATED 0.02° grid.
+# Native cloud forecast output is hourly; no synthetic time steps.
 WEST,EAST,SOUTH,NORTH,STEP=5.0,16.5,47.0,56.0,.025
 WIDTH=round((EAST-WEST)/STEP)+1
 HEIGHT=round((NORTH-SOUTH)/STEP)+1
