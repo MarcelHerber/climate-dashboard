@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-20T04:03:30+00:00",
+  "checked_utc": "2026-10-20T04:06:37+00:00",
   "method": "static_provider_terms_and_timestamp_readiness",
   "no_live_check": true,
   "providers": [
@@ -286,6 +286,19 @@
       "timestamp": "not_machine_verified",
       "details": "Originalkarten verlinken; kein automatisiertes Kopieren der Met-Office-Grafiken.",
       "terms_url": "https://www.metoffice.gov.uk/about-us/legal",
+      "reproduction_ready": false,
+      "status": "Originalbild nicht automatisch freigegeben",
+      "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
+    },
+    {
+      "id": "nimh_history",
+      "country": "Bulgarien",
+      "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "map": "documented_europe_balkans_frontal_analysis",
+      "rights": "permission_required",
+      "timestamp": "no_public_machine_dated_chart",
+      "details": "NIMH dokumentiert eigenständige 3-stündliche synoptische Karten mit Frontensystemen. Keine verifizierte öffentliche aktuelle Originalbildadresse.",
+      "terms_url": "https://www.weather.bg/",
       "reproduction_ready": false,
       "status": "Originalbild nicht automatisch freigegeben",
       "audit_note": "Lizenz- und Zeitstempelprüfung anhand der dokumentierten Dienstbedingungen; KEIN Live-Verfügbarkeitstest."
