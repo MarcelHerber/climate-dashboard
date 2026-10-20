@@ -93,7 +93,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
         html='''<a href="pace_sfcanal_00.2026101602.gif">Northeast Pacific</a>
 <a href="pace_sfcanal_00.2026101604.gif">Northeast Pacific revised</a>
 <a href="pacw_sfcanal_00.2026101602.gif">Northwest Pacific</a>
-<a href="pacsfc00Z.2026101602.gif">North Pacific hemispheric</a>
+<a href="pac00_sfcfcst_00.2026101602.gif">North Pacific 0-hour</a>
 <a href="pacw_sfcanal_12.2026101614.gif">future at 10 UTC</a>
 <a href="https://evil.invalid/ncdc/pacw_sfcanal_00.2026101602.gif">host spoof</a>
 <a href="pace_sfcanal_00.2026100602.gif">stale</a>'''
@@ -108,10 +108,10 @@ class OriginalSynopticChartTests(unittest.TestCase):
         self.assertEqual({x["publisher_id"] for x in east+west+hemi},{"noaa"})
         self.assertTrue(all("Pac_tab.php" in x["source_page"] for x in east+west+hemi))
         self.assertEqual({x["source_id"] for x in east+west+hemi},
-                         {"noaa_pace","noaa_pacw","noaa_pachemi"})
+                         {"noaa_pace","noaa_pacw","noaa_pacfull"})
 
     def test_pacific_forecast_lead_utc_not_publication_utc(self):
-        html='''<a href="epac24_sfcfcst_00.2026101603.gif">24h</a>
+        html='''<a href="pac24_sfcfcst_00.2026101603.gif">24h</a>
 <a href="pac48_sfcfcst_12.2026101616.gif">48h</a>
 <a href="pac96_sfcfcst_12.2026101618.gif">96h</a>
 <a href="pac48_sfcfcst_12.2026101623.gif">invalid issue</a>
@@ -139,7 +139,7 @@ class OriginalSynopticChartTests(unittest.TestCase):
         sources={s["id"]:s for s in charts.SOURCES}
         self.assertEqual(sources["noaa_opc"]["type"],"auto")
         self.assertEqual(sources["noaa_full"]["type"],"auto")
-        for id in ("noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pachemi","noaa_pac24","noaa_pac48","noaa_pac96"):
+        for id in ("noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pacfull","noaa_pac24","noaa_pac48","noaa_pac96"):
             self.assertEqual(sources[id]["type"],"auto")
         self.assertEqual(len(sources),len({s["id"] for s in charts.SOURCES}))
         self.assertEqual(sources["eccc"]["type"],"external")
