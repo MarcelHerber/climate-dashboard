@@ -1,0 +1,212 @@
+/* Climate Dashboard Deutschland – optionaler Dark Mode (nur Bildschirm).
+   Wetter- und Anomaliekarten bleiben in ihren wissenschaftlichen Originalfarben. */
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#0c1422;
+  --card:#172438;
+  --text:#eaf1fa;
+  --muted:#a6b6c9;
+  --border:#35465b;
+  --shadow:0 2px 14px rgba(0,0,0,.23);
+  --navy:#eaf1fa;
+  --blue:#72b7ff;
+  --blue-soft:#213b58;
+}
+html[data-theme="dark"] body{background:var(--page);color:var(--text)}
+html[data-theme="dark"] .dashboard-header{
+  background:rgba(17,29,46,.98);
+  border-color:var(--border);
+  box-shadow:0 2px 9px rgba(0,0,0,.24);
+}
+html[data-theme="dark"] .dashboard-brand,
+html[data-theme="dark"] .dashboard-brand-title,
+html[data-theme="dark"] .nav-link,
+html[data-theme="dark"] .nav-dropdown-toggle,
+html[data-theme="dark"] .header-action,
+html[data-theme="dark"] .header-icon{color:var(--text)}
+html[data-theme="dark"] .nav-link:hover,
+html[data-theme="dark"] .nav-dropdown-toggle:hover,
+html[data-theme="dark"] .header-action:hover{background:#253852;color:#f2f7ff}
+html[data-theme="dark"] .nav-dropdown-menu,
+html[data-theme="dark"] .header-status-popover{
+  background:#19293f;border-color:var(--border);color:var(--text);
+}
+html[data-theme="dark"] .nav-dropdown-menu .tab-button{
+  background:transparent;color:var(--text)
+}
+html[data-theme="dark"] .nav-dropdown-menu .tab-button:hover,
+html[data-theme="dark"] .nav-dropdown-menu .tab-button.active{
+  background:#2a4665;color:#eaf5ff
+}
+html[data-theme="dark"] .nav-menu-heading,
+html[data-theme="dark"] .header-status-popover .data-status{color:var(--muted)}
+html[data-theme="dark"] .nav-menu-divider{background:var(--border)}
+html[data-theme="dark"] .dashboard-footer{border-color:var(--border);color:var(--muted)}
+html[data-theme="dark"] .dashboard-footer a{color:#a6d3ff}
+
+/* Dunkle Oberflächen; keine Bild- oder Kartendaten umkolorieren. */
+html[data-theme="dark"] :is(
+  .section-header,.overview-card,.overview-mini,.overview-quicklink,
+  .controls,.chart-container,.table-wrap,.summary-box,.stat-card,
+  .data-status,.status-badge,.record-loading,.anomaly-table-wrap,
+  .current-table-wrap,.current-overview-card,.current-ranking-table-wrap,
+  .profile-hero,.profile-event-card,.profile-extreme-card,
+  .profile-overview-card,.profile-method-card,
+  .hyras-map-card,.hyras-dynamic-wrap,.hyras-rank-card,
+  .hyras-point-analysis,.regional-ranking-extreme,.regional-ranking-table-wrap,
+  .regional-report-summary-card,.regional-report-list-card,
+  .regional-history-card,.regional-detail-chart-card,
+  .europe-hub-hero,.europe-hub-card,.europe-hub-statcard,
+  .era5-europe-status,.era5-europe-map-card,.era5-europe-kpi,
+  .era5-running-rank-card,.era5-point-analysis,.era5-point-chart-card,
+  .era5-ranking-card,.era5-ranking-list-card,
+  .hyras-tmean-region-panel,.hyras-tmean-anomaly-preview-head,
+  .hyras-daily-anomaly-head,.hyras-daily-anomaly-controls,
+  .era5-atmos-card,.state-monthly-card,.state-monthly-info,
+  .station-climate-record,.station-climate-quality,
+  .station-precip-monthly-wrap
+){background:var(--card);color:var(--text);border-color:var(--border)}
+html[data-theme="dark"] :is(
+  .dashboard-main h1,.dashboard-main h2,.dashboard-main h3,
+  .dashboard-main h4,.dashboard-main h5,.dashboard-main h6
+){color:var(--text)}
+html[data-theme="dark"] :is(
+  .dashboard-main p,.dashboard-main label,.dashboard-main .note,
+  .dashboard-main .control-hint,.dashboard-main small
+){color:var(--muted)}
+html[data-theme="dark"] :is(
+  .control-group label,.overview-page-header p,.overview-timestamp,
+  .daily-stat-detail,.profile-method-card,.overview-card p
+){color:var(--muted)}
+html[data-theme="dark"] :is(
+  .chart-export-button,.profile-nearby button,.overview-map-button,
+  .hyras-map-actions a,.hyras-rank-actions a,.hyras-custom-apply,
+  .europe-hub-action,.state-monthly-secondary,.state-monthly-export button,
+  .monthly-section-link,.era5-running-rank-tab,.current-refresh-button
+){background:#233650;color:var(--text);border-color:#526780}
+html[data-theme="dark"] :is(
+  .chart-export-button,.monthly-section-link,.state-monthly-secondary,
+  .overview-map-button
+):hover{background:#304b6a;color:#fff}
+html[data-theme="dark"] :is(
+  input,select,textarea,button.action
+){border-color:#526780}
+html[data-theme="dark"] :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,textarea
+){background:#101c2c;color:#edf4ff}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder{color:#91a3b7}
+html[data-theme="dark"] button.action{background:#355474;color:#f2f7ff}
+html[data-theme="dark"] button.action:hover{background:#42698f}
+html[data-theme="dark"] :is(button,select,input,textarea):focus-visible{
+  outline-color:#85c5ff;outline-offset:2px
+}
+
+/* Tabellen: helle Schrift statt dunkler Datensätze auf dunklem Untergrund. */
+html[data-theme="dark"] table{background:var(--card);color:var(--text)}
+html[data-theme="dark"] :is(table th,table td){
+  border-color:#3a4e66;color:inherit
+}
+html[data-theme="dark"] table th{background:#263a54;color:#eff6ff}
+html[data-theme="dark"] table tr:nth-child(even){background:#1b2b40}
+html[data-theme="dark"] table tr:hover{background-color:#263d58}
+html[data-theme="dark"] :is(.anomaly-table .year-cell,.station-precip-monthly-table .year-cell){
+  background:#263a54;color:#fff
+}
+html[data-theme="dark"] .stat-card{background:#1b2a3f}
+
+/* Gebietsmittel: zusätzliche Bedienelemente des neuen Layouts. */
+html[data-theme="dark"] #monthly .monthly-advanced{
+  background:#142236;border-color:var(--border)
+}
+html[data-theme="dark"] #monthly .monthly-advanced summary{
+  color:#d1e2f5
+}
+html[data-theme="dark"] #monthly .monthly-advanced summary small{color:var(--muted)}
+html[data-theme="dark"] #monthly .monthly-advanced summary:hover{
+  background:#233a53
+}
+html[data-theme="dark"] #monthly .monthly-advanced-content{
+  border-color:var(--border)
+}
+html[data-theme="dark"] #monthly .monthly-content-heading :is(h3,p){
+  color:var(--text)
+}
+html[data-theme="dark"] #monthly .monthly-expand-section{
+  background:var(--card);border-color:var(--border)
+}
+html[data-theme="dark"] #monthly .monthly-expand-section > summary{
+  color:var(--text)
+}
+html[data-theme="dark"] #monthly .monthly-expand-section > summary:hover{
+  background:#233852
+}
+html[data-theme="dark"] #monthly :is(.monthly-expand-title,.monthly-expand-copy){
+  color:var(--text)
+}
+html[data-theme="dark"] #monthly .monthly-expand-body{border-color:var(--border)}
+
+/* Weitere Statusflächen und Karten-Bedienfelder. */
+html[data-theme="dark"] :is(
+  .europe-station-panel,.europe-station-ranking,
+  .europe-station-status,.europe-station-legend,
+  .current-map-title-overlay,.map-legend,
+  .era5-europe-history-badge,.era5-europe-click-hint
+){background:rgba(23,36,56,.97);border-color:var(--border);color:var(--text)}
+html[data-theme="dark"] :is(
+  .europe-station-panel select,.europe-station-panel input,
+  .europe-station-ranking-toggle,.europe-station-rank-row
+){background:#21344c;color:var(--text);border-color:var(--border)}
+html[data-theme="dark"] :is(
+  .current-live-map .leaflet-control-attribution,
+  .europe-station-map .leaflet-control-attribution
+){background:#142236;color:#b9c9dc}
+html[data-theme="dark"] :is(.leaflet-control-attribution a,.map-legend a){
+  color:#9ecfff
+}
+html[data-theme="dark"] .regional-map-hover-tooltip{
+  background:#1b2d44!important;color:#f2f6fb!important
+}
+html[data-theme="dark"] .regional-map-value-label{
+  background:rgba(18,31,47,.93)!important;color:#f0f6ff!important
+}
+html[data-theme="dark"] :is(
+  .era5-atmos-status,.state-monthly-status,.hyras-tmean-region-note
+){background:#192d43;color:var(--text);border-color:var(--border)}
+
+/* Grafiken dürfen dunkel sein, aber die exportierten Originalfarben der
+   meteorologischen Rasterbilder, Legendenfarben und Fotos bleiben unberührt. */
+html[data-theme="dark"] .chart-container > canvas{background:transparent}
+html[data-theme="dark"] :is(
+  .hyras-map-frame img,.hyras-rank-image-wrap img,.era5-europe-image,
+  .era5-running-rank-image,.era5-atmos-image-wrap img,
+  .hyras-tmean-anomaly-preview img,.hyras-daily-anomaly-link img
+){filter:none}
+html[data-theme="dark"] .regional-map-exporting,
+html[data-theme="dark"] .regional-map-exporting :is(
+  .regional-map-panel,.regional-map-title,.regional-map-summary
+){background:#fff!important;color:#1f2937!important}
+
+/* Ein- / Ausschalter in der Kopfzeile. */
+.dashboard-theme-toggle{gap:6px;min-height:42px;white-space:nowrap}
+.dashboard-theme-toggle .header-icon{width:19px;height:19px}
+.dashboard-theme-toggle .header-icon svg{width:19px;height:19px}
+html[data-theme="dark"] .dashboard-theme-toggle{
+  background:#233b57;border-radius:8px
+}
+html[data-theme="dark"] .dashboard-theme-toggle:hover{background:#345472}
+@media(max-width:1260px){
+  .dashboard-theme-toggle .action-label{display:none}
+}
+@media(max-width:800px){
+  .dashboard-theme-toggle{min-width:42px;justify-content:center}
+}
+@media print{
+  html[data-theme="dark"]{
+    color-scheme:light;
+    --page:#fff;--card:#fff;--text:#0f172a;--muted:#536173;
+    --border:#dce3e8;--shadow:none
+  }
+  .dashboard-theme-toggle{display:none!important}
+}
