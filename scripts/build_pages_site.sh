@@ -40,6 +40,7 @@ required_root_files=(
   climate_indices.js
   climate_indices.css
   stratosphere_temperature.js
+  stratosphere_ensemble.js
   stratosphere_ssw_comparison.js
   tiefdruck_tracker.html
   tiefdruck_tracker.css
@@ -105,6 +106,7 @@ grep -q 'id="dashboardThemeToggle"' _site/index.html
 # Publikationen müssen den neuen SSW-Katalog laden können.
 python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
+node --check stratosphere_ensemble.js
 node --check synoptic_panel_logic.js
 node --check isobaren_original.js
 node --check synoptic_gallery.js
@@ -125,6 +127,8 @@ python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
 test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
 grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
+grep -q 'id="stratoEnsembleCard"' _site/stratosphaere.html
+grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
 # Das Layout der Stratosphären-Seite muss trotz ausgeblendeter Heatmap
 # seine Erklärung sichtbar im veröffentlichten HTML behalten.
