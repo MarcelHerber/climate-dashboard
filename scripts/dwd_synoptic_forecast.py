@@ -14,7 +14,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 INDEX = "https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/"
 PATTERN = re.compile(
-    r"^Z__C_EDZW_([0-9]{14})_nwv[0-9]{2},ico_hptfg_na_N_([0-9]{3})([0-9]{3})_[a-zA-Z0-9_]+\.png$",
+    r"^Z__C_EDZW_([0-9]{14})_nwv[0-9]{2},ico_hptfg_na_N_([0-9]{3})([0-9]{3})_[a-zA-Z0-9]+_([0-9]{12})_WV[0-9]+\.png$",
     re.I,
 )
 
@@ -32,7 +32,7 @@ class Links(HTMLParser):
 def extract(html: str, now: datetime):
     parser=Links()
     parser.feed(html)
-    latest={}
+    runs={}
     for href in parser.hrefs:
         url=urljoin(INDEX,href)
         parsed=urlparse(url)
@@ -48,11 +48,16 @@ def extract(html: str, now: datetime):
             continue
         issue=datetime.strptime(match.group(1),"%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
         start,end=int(match.group(2)),int(match.group(3))
+        model_run=datetime.strptime(match.group(4),"%Y%m%d%H%M").replace(tzinfo=timezone.utc)
         if not (0<=start<end<=168) or end-start>96:
             continue
+        # Issue timestamp is the file creation time, NOT its UTC forecast validity.
         if not now-timedelta(hours=72)<=issue<=now+timedelta(minutes=25):
             continue
-        # Multi-validity product; DWD generation stamp != verified model run.
+        if not now-timedelta(hours=48)<=model_run<=now or not timedelta(0)<=issue-model_run<=timedelta(hours=18):
+            continue
+        if model_run.minute!=0 or model_run.hour not in (0,6,12,18):
+            continue
         key=(start,end)
         rec={
             "source_id":"dwd_icon_hptfg_na",
@@ -61,6 +66,7 @@ def extract(html: str, now: datetime):
             "forecast_from_hours":start,
             "forecast_to_hours":end,
             "generated_utc":issue.isoformat(timespec="seconds"),
+            "run_utc":model_run.isoformat(timespec="seconds"),
             "source_url":url,
             "source_page":INDEX,
             "credit":"Quelle: Deutscher Wetterdienst (DWD) · ICON-Nordatlantik",
@@ -68,9 +74,18 @@ def extract(html: str, now: datetime):
             "has_single_valid_utc":False,
             "description":"Bodendruck, Wetter und Fronten: Original-Kartenblatt für mehrere Vorhersagezeiten",
         }
+        latest=runs.setdefault(rec["run_utc"],{})
         if key not in latest or rec["generated_utc"]>latest[key]["generated_utc"]:
             latest[key]=rec
-    return sorted(latest.values(),key=lambda x:(x["forecast_from_hours"],x["forecast_to_hours"]))
+    if not runs:
+        return []
+    # Use a single coherent ICON model cycle, preferring the newest
+    # available cycle with the complete seven-day range. Never mix 00/06Z.
+    usable=[(run,list(items.values())) for run,items in runs.items()]
+    full=[p for p in usable if max(s["forecast_to_hours"] for s in p[1])==168]
+    pool=full if full else usable
+    chosen=max(pool,key=lambda x:(x[0],max(s["forecast_to_hours"] for s in x[1])))
+    return sorted(chosen[1],key=lambda x:(x["forecast_from_hours"],x["forecast_to_hours"]))
 
 def publish(output:Path, now:datetime, fetch, image_webp):
     output=Path(output)
@@ -104,9 +119,10 @@ def publish(output:Path, now:datetime, fetch, image_webp):
         "generated_utc":now.isoformat(timespec="seconds"),
         "source_id":"dwd_icon_hptfg_na",
         "source_page":INDEX,
+        "run_utc":records[0]["run_utc"],
         "license":"DWD Open Data, Quelle: Deutscher Wetterdienst",
         "product":"ICON Nordatlantik · Bodendruck, Wetter und Fronten",
-        "time_semantics":"Each image is a multi-time forecast sheet with a lead-hour interval; no single valid_utc.",
+        "time_semantics":"Every image contains multiple lead times; the run_utc is read from the DWD filename. The forecast_from_hours/forecast_to_hours bounds DO NOT prove each 6-hour subslot is a separate chart. Display the whole original sheet.",
         "sheets":records,
         "sheet_count":len(records),
         "max_forecast_hours":max(x["forecast_to_hours"] for x in records),
