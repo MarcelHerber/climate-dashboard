@@ -9,6 +9,8 @@ required_root_files=(
   index.html
   datenstatus.html
   dashboard_cleanup.css
+  dashboard_theme.css
+  dashboard_theme.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
