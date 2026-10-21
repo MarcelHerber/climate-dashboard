@@ -94,6 +94,14 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+# Dark Mode muss mit HTML, Stylesheet und Skript gemeinsam ausgeliefert werden.
+node --check _site/dashboard_theme.js
+test -s _site/dashboard_theme.css
+test -s _site/dashboard_theme.js
+grep -q 'dashboard_theme.css' _site/index.html
+grep -q 'dashboard_theme.js' _site/index.html
+grep -q 'id="dashboardThemeToggle"' _site/index.html
+
 # Publikationen müssen den neuen SSW-Katalog laden können.
 python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
