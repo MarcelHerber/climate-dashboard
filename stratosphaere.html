@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
-<script defer src="stratosphere_ensemble.js?v=20261021-1"></script>
+<script defer src="stratosphere_ensemble.js?v=20261021-2"></script>
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Arial,Helvetica,sans-serif}
@@ -102,9 +102,36 @@ main > section.card.method {display:grid !important;}
 @media(max-width:750px){.ensemble-chart{height:420px}}
 @media(max-width:750px){main{padding:16px 11px 50px}.card{padding:14px}.kpis{grid-template-columns:1fr 1fr}.chart{height:400px}.method{grid-template-columns:1fr}.controls label{min-width:120px;flex:1}.nav{padding:13px}.navlinks{font-size:12px}}
 @media(max-width:420px){.kpis{grid-template-columns:1fr 1fr}.kpi{padding:10px}.chart{height:350px}}
+
+/* Der einfache Standardmodus zeigt wirklich nur die aktuelle Vorhersage. */
+.strato-view-switch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:19px}
+.strato-view-switch button{border-radius:9px;border:1px solid #c7d4e1;background:white;color:#30465d;padding:11px 16px;font-size:14px;font-weight:700}
+.strato-view-switch button[aria-pressed="true"]{background:#155b97;color:white;border-color:#155b97}
+.strato-view-switch .view-hint{margin-left:6px;font-size:12px;color:#596f85}
+body.strato-forecast-only main > :not(.intro):not(#stratoViewSwitch):not(#stratoEnsembleCard){display:none!important}
+body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
+#stratoEnsembleCard .ensemble-chart{height:min(60vh,600px);min-height:390px;margin:8px 0 2px}
+#stratoEnsembleCard .forecast-main-controls{display:flex;gap:12px 20px;flex-wrap:wrap;align-items:end;margin:16px 0 8px}
+#stratoEnsembleCard .forecast-main-controls label{font-size:13px;font-weight:700;color:#3c5368;display:flex;align-items:center;gap:7px}
+#stratoEnsembleCard .forecast-main-controls label.forecast-horizon{flex-direction:column;align-items:start;gap:4px}
+#stratoEnsembleCard .forecast-main-controls select{min-width:170px}
+#stratoEnsembleCard .ensemble-more{border:1px solid #dce6ef;border-radius:9px;padding:11px 13px;margin:12px 0;font-size:13px}
+#stratoEnsembleCard .ensemble-more summary{cursor:pointer;font-weight:700;color:#315a7c}
+#stratoEnsembleCard .forecast-legend{display:flex;flex-wrap:wrap;gap:8px 19px;font-size:12px;color:#43566b;margin:9px 0 3px}
+#stratoEnsembleCard .forecast-legend span{display:flex;align-items:center;gap:7px}
+#stratoEnsembleCard .forecast-legend i{display:inline-block;width:25px;border-top:3px solid #d62828}
+#stratoEnsembleCard .forecast-legend .individual{border-top:2px solid #596779}
+#stratoEnsembleCard .forecast-legend .median{border-top-color:#d62828}
+#stratoEnsembleCard .forecast-legend .control{border-top:2px dashed #ed9710}
+#stratoEnsembleCard .forecast-legend .spread{height:10px;background:#7395c2;border:none;border-radius:2px;opacity:.55}
+@media(max-width:750px){
+ #stratoEnsembleCard .ensemble-chart{height:430px;min-height:350px}
+ .strato-view-switch .view-hint{flex-basis:100%;margin:0}
+ #stratoEnsembleCard .forecast-main-controls{gap:10px}
+}
 </style>
 </head>
-<body>
+<body class="strato-forecast-only">
 <header><nav class="nav" aria-label="Navigation">
 <a class="brand" href="./index.html">Climate Dashboard Deutschland</a>
 <div class="navlinks"><a href="./index.html">Übersicht</a><a href="./index.html#t850-ensembles">Ensembles</a><strong>Stratosphäre</strong></div>
@@ -115,7 +142,59 @@ main > section.card.method {display:grid !important;}
 <p>Polarwirbel-Diagnostik vom Sommer bis zum folgenden Frühsommer · tägliche Analyse, GEOS-FP-Prognose und historische Winter.</p></div>
 <div><span class="pill" id="badge">Daten werden geladen …</span></div>
 </div>
-<section class="card">
+<div id="stratoViewSwitch" class="strato-view-switch" role="group" aria-label="Ansicht des zonalen Windes">
+ <button id="stratoForecastTab" type="button" aria-pressed="true">Aktuelle Prognose</button>
+ <button id="stratoHistoryTab" type="button" aria-pressed="false">Gesamter Verlauf</button>
+ <span class="view-hint">Wechsle zwischen dem aktuellen Ensemble und der ausführlichen Analyse.</span>
+</div>
+<section class="card" id="stratoEnsembleCard">
+ <div class="levels-heading"><div>
+ <h2>Aktuelle Ensembleprognose · 60° N / 10 hPa</h2>
+ <p>31 einzelne GEFS-Prognosen, Mittelwert und Unsicherheit auf einen Blick. Nur der aktuelle Modelllauf – ohne historischen Verlauf.</p>
+ </div><div class="levels-actions">
+ <button id="stratoEnsembleReload" class="btn" type="button">Ensemble prüfen</button>
+ <button id="stratoEnsemblePng" class="btn" type="button" disabled>PNG speichern</button>
+ <button id="stratoEnsembleCsv" class="btn" type="button" disabled>CSV speichern</button>
+ </div></div>
+ <div class="forecast-main-controls">
+  <label class="forecast-horizon" for="stratoEnsembleSpan">Prognosezeitraum
+   <select id="stratoEnsembleSpan">
+    <option value="all" selected>Gesamter Modelllauf</option>
+    <option value="7">7 Tage</option>
+    <option value="14">14 Tage</option>
+    <option value="21">21 Tage</option>
+    <option value="custom">Eigener Ausschnitt</option>
+   </select>
+  </label>
+  <label><input id="stratoMembers" type="checkbox" checked> Alle 31 Mitglieder</label>
+  <label><input id="stratoBand90" type="checkbox" checked> Streubereiche</label>
+ </div>
+ <div class="forecast-legend" aria-label="Legende">
+  <span><i class="individual"></i>31 Einzelmitglieder</span>
+  <span><i class="median"></i>Ensemble-Mittel</span>
+  <span><i class="control"></i>Kontrolllauf</span>
+  <span><i class="spread"></i>50-%- und 90-%-Bereiche</span>
+ </div>
+ <details class="ensemble-more">
+  <summary>Weitere Einstellungen</summary>
+  <div class="ensemble-actions">
+   <label>Quelle<select id="stratoEnsembleModel"><option value="gefs">NOAA GEFS · bis zu 35 Tage</option></select></label>
+   <label>Von<input type="date" id="stratoEnsembleFrom" aria-label="Ensemblediagramm Anfang"></label>
+   <label>Bis<input type="date" id="stratoEnsembleTo" aria-label="Ensemblediagramm Ende"></label>
+   <button id="stratoEnsembleReset" class="btn" type="button">Gesamter Modelllauf</button>
+  </div>
+  <div class="ensemble-checkboxes">
+   <label><input id="stratoBand50" type="checkbox" checked> Innerer 50-%-Bereich</label>
+   <label><input id="stratoClimo" type="checkbox"> Klimamittel 1991–2020</label>
+   <label><input id="stratoShowAnalysis" type="checkbox"> NASA-Analyse ergänzen</label>
+  </div>
+  <p class="legendnotes">Die gewählten Tage beschränken nur die Ansicht. Die Memberkurven stammen aus denselben echten NOAA-Modellwerten.</p>
+ </details>
+ <div class="info"><span id="stratoEnsembleStatus" role="status" aria-live="polite">Prüfe originale Ensemble-Prognosedaten …</span></div>
+ <div class="chart ensemble-chart"><canvas id="stratoEnsembleCanvas" role="img" aria-label="Zonales Windensemble 10 hPa 60 Grad Nord mit Einzelmitgliedern und Wahrscheinlichkeitsbändern"></canvas></div>
+ <p class="legendnotes">NOAA GEFS · zonal gemittelte U-Windkomponente auf 10 hPa bei 60° N in m/s. Positive Werte: Westwind, negative: Ostwind. <a href="https://www.ecmwf.int/en/forecasts/datasets/mean-zonal-wind-10-hpa-sub-seasonal-range-forecast" target="_blank" rel="noopener noreferrer">ECMWF-46-Tage-Ensemble (separate externe Quelle)</a>.</p>
+</section>
+<section class="card" id="stratoHistoryCard">
 <h2>Verlauf des zonal gemittelten zonalen Windes</h2>
 <div class="controls">
 <label for="level">Druckniveau<select id="level"><option value="10">10 hPa · ~30 km</option><option value="30">30 hPa · ~24 km</option><option value="50">50 hPa · ~21 km</option><option value="70">70 hPa · ~18 km</option><option value="100">100 hPa · ~16 km</option></select></label>
@@ -154,34 +233,6 @@ main > section.card.method {display:grid !important;}
 </div>
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
 <div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
-</section>
-<section class="card" id="stratoEnsembleCard">
- <div class="levels-heading"><div>
- <h2>Ensembleprognose · zonaler Wind 60° N / 10 hPa</h2>
- <p>Einzelne Modellmitglieder und Ensemble-Verteilung im Stil deiner Vorlage. Die bestehenden NASA-Analysen bleiben davon unabhängig. Nur nachgewiesene, echte Modelldaten – keine synthetischen Ensemblekurven.</p>
- </div><div class="levels-actions">
- <button id="stratoEnsembleReload" class="btn" type="button">Ensemble prüfen</button>
- <button id="stratoEnsemblePng" class="btn" type="button" disabled>PNG speichern</button>
- <button id="stratoEnsembleCsv" class="btn" type="button" disabled>CSV speichern</button>
- </div></div>
- <div class="ensemble-actions">
- <label>Modell
- <select id="stratoEnsembleModel">
- <option value="gefs">NOAA GEFS · bis zu 35 Tage</option>
- </select></label>
- <label>Von<input type="date" id="stratoEnsembleFrom" aria-label="Ensemblediagramm Anfang"></label>
- <label>Bis<input type="date" id="stratoEnsembleTo" aria-label="Ensemblediagramm Ende"></label>
- <button id="stratoEnsembleReset" class="btn" type="button">Gesamtbereich</button>
- </div>
- <div class="ensemble-checkboxes">
- <label><input id="stratoMembers" type="checkbox" checked> Einzelmitglieder</label>
- <label><input id="stratoBand50" type="checkbox" checked> Mittlere 50 % (P25–P75)</label>
- <label><input id="stratoBand90" type="checkbox" checked> Mittlere 90 % (P5–P95)</label>
- <label><input id="stratoClimo" type="checkbox" checked> Klima 1991–2020</label>
- </div>
- <div class="info"><span id="stratoEnsembleStatus" role="status" aria-live="polite">Prüfe originale Ensemble-Prognosedaten …</span></div>
- <div class="chart ensemble-chart"><canvas id="stratoEnsembleCanvas" role="img" aria-label="Zonales Windensemble 10 hPa 60 Grad Nord mit Einzelmitgliedern und Wahrscheinlichkeitsbändern"></canvas></div>
- <p class="legendnotes">Ensemble-Mittel: rote Linie, einzelne Mitglieder: grau, 50-/90-%-Prognosebereiche: blau. Null-Linie = West-/Ostwindwechsel. GEFS: echte 10-hPa-U-Wind-Komponente über alle Längengrade bei 60° N gemittelt, keine Windgeschwindigkeit. Eine Streuung in Prognosen ist nicht die historische Klimatologie. <a href="https://www.ecmwf.int/en/forecasts/datasets/mean-zonal-wind-10-hpa-sub-seasonal-range-forecast" target="_blank" rel="noopener noreferrer">ECMWF: offizielles 46-Tage-Ensemblechart</a> (externe Darstellung).</p>
 </section>
 <section class="card" id="levelsCard">
   <div class="levels-heading">
