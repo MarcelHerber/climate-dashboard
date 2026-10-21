@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
+<script defer src="stratosphere_ensemble.js?v=20261021-1"></script>
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Arial,Helvetica,sans-serif}
@@ -20,7 +21,7 @@ p{margin:4px 0 12px;color:var(--muted)}.eyebrow{font-weight:800;font-size:12px;t
 .pill{display:inline-block;border-radius:99px;background:#e8f2ff;color:#205988;padding:5px 11px;font-weight:700;font-size:12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:20px;box-shadow:0 4px 18px rgba(20,40,60,.045);margin-top:18px}
 .controls{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px}.controls label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);font-weight:700;min-width:165px}
-select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;background:#fff;color:var(--ink);min-height:43px}
+input[type="date"],select,.btn{padding:10px 13px;border-radius:8px;border:1px solid #b9c6d2;background:#fff;color:var(--ink);min-height:43px}
 .btn{font-weight:700;white-space:nowrap}.btn:hover{background:#f1f7fe}.btn.primary{background:#165c98;border-color:#165c98;color:#fff}.btn.primary:hover{background:#104b7f}
 .comparison{display:flex;gap:9px 17px;align-items:center;flex-wrap:wrap;margin-top:15px;color:#43556b;font-size:13px}
 .comparison label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}.comparison input{accent-color:#195a94}
@@ -90,6 +91,15 @@ main > section.card.method {display:grid !important;}
 .levels-value strong{display:block;font-size:15px;color:var(--ink)}
 .levels-value .levels-date{display:block;font-size:11px}
 @media(max-width:750px){.levels-latest{grid-template-columns:repeat(2,minmax(0,1fr))}.levels-chart{height:420px}}
+.range-fields{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0}.range-fields[hidden]{display:none!important}
+.range-fields label{display:flex;gap:4px;flex-direction:column;font-size:12px;font-weight:700;color:var(--muted)}
+.range-fields input{min-height:41px;border:1px solid #b9c6d2;border-radius:8px;background:#fff;color:var(--ink)}
+.ensemble-chart{height:530px}.ensemble-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
+.ensemble-actions label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.ensemble-actions select{max-width:250px}
+.ensemble-checkboxes{display:flex;gap:15px;flex-wrap:wrap;margin:9px 0;font-size:13px}
+.ensemble-checkboxes label{display:inline-flex;align-items:center;gap:5px}
+@media(max-width:750px){.ensemble-chart{height:420px}}
 @media(max-width:750px){main{padding:16px 11px 50px}.card{padding:14px}.kpis{grid-template-columns:1fr 1fr}.chart{height:400px}.method{grid-template-columns:1fr}.controls label{min-width:120px;flex:1}.nav{padding:13px}.navlinks{font-size:12px}}
 @media(max-width:420px){.kpis{grid-template-columns:1fr 1fr}.kpi{padding:10px}.chart{height:350px}}
 </style>
@@ -110,11 +120,16 @@ main > section.card.method {display:grid !important;}
 <div class="controls">
 <label for="level">Druckniveau<select id="level"><option value="10">10 hPa · ~30 km</option><option value="30">30 hPa · ~24 km</option><option value="50">50 hPa · ~21 km</option><option value="70">70 hPa · ~18 km</option><option value="100">100 hPa · ~16 km</option></select></label>
 <label for="season">Winter / Saison<select id="season"></select></label>
-<label for="view">Zeitraum<select id="view"><option value="winter">September – Mai</option><option value="full">Juli – Juni</option><option value="ssw">November – März</option></select></label>
+<label for="view">Zeitraum<select id="view"><option value="winter">September – Mai</option><option value="full">Juli – Juni</option><option value="ssw">November – März</option><option value="autumn">September – November</option><option value="custom">Eigener Zeitraum</option></select></label>
 <label for="mode">Darstellung<select id="mode"><option value="absolute">Absolutwerte (m/s)</option><option value="anomaly">Abweichung zu 1991–2020</option></select></label>
 <button class="btn primary" id="reload" type="button">Daten laden</button>
 <button class="btn" id="png" type="button">PNG speichern</button>
 <button class="btn" id="csv" type="button">CSV speichern</button>
+</div>
+<div class="range-fields" id="windCustomDates" hidden>
+ <label for="windFrom">Von<input id="windFrom" type="date" aria-label="Anfang der angezeigten Zeitachse"></label>
+ <label for="windTo">Bis<input id="windTo" type="date" aria-label="Ende der angezeigten Zeitachse"></label>
+ <span class="legendnotes" id="windRangeNote">Beide Daten innerhalb der gewählten Saison (Juli bis Juni) auswählen.</span>
 </div>
 <div class="comparison" aria-label="Historische Vergleichswinter">
 <strong>Zusätzlich vergleichen:</strong>
@@ -133,6 +148,34 @@ main > section.card.method {display:grid !important;}
 </div>
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
 <div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+</section>
+<section class="card" id="stratoEnsembleCard">
+ <div class="levels-heading"><div>
+ <h2>Ensembleprognose · zonaler Wind 60° N / 10 hPa</h2>
+ <p>Einzelne Modellmitglieder und Ensemble-Verteilung im Stil deiner Vorlage. Die bestehenden NASA-Analysen bleiben davon unabhängig. Nur nachgewiesene, echte Modelldaten – keine synthetischen Ensemblekurven.</p>
+ </div><div class="levels-actions">
+ <button id="stratoEnsembleReload" class="btn" type="button">Ensemble prüfen</button>
+ <button id="stratoEnsemblePng" class="btn" type="button" disabled>PNG speichern</button>
+ <button id="stratoEnsembleCsv" class="btn" type="button" disabled>CSV speichern</button>
+ </div></div>
+ <div class="ensemble-actions">
+ <label>Modell
+ <select id="stratoEnsembleModel">
+ <option value="gefs">NOAA GEFS · bis zu 35 Tage</option>
+ </select></label>
+ <label>Von<input type="date" id="stratoEnsembleFrom" aria-label="Ensemblediagramm Anfang"></label>
+ <label>Bis<input type="date" id="stratoEnsembleTo" aria-label="Ensemblediagramm Ende"></label>
+ <button id="stratoEnsembleReset" class="btn" type="button">Gesamtbereich</button>
+ </div>
+ <div class="ensemble-checkboxes">
+ <label><input id="stratoMembers" type="checkbox" checked> Einzelmitglieder</label>
+ <label><input id="stratoBand50" type="checkbox" checked> Mittlere 50 % (P25–P75)</label>
+ <label><input id="stratoBand90" type="checkbox" checked> Mittlere 90 % (P5–P95)</label>
+ <label><input id="stratoClimo" type="checkbox" checked> Klima 1991–2020</label>
+ </div>
+ <div class="info"><span id="stratoEnsembleStatus" role="status" aria-live="polite">Prüfe originale Ensemble-Prognosedaten …</span></div>
+ <div class="chart ensemble-chart"><canvas id="stratoEnsembleCanvas" role="img" aria-label="Zonales Windensemble 10 hPa 60 Grad Nord mit Einzelmitgliedern und Wahrscheinlichkeitsbändern"></canvas></div>
+ <p class="legendnotes">Ensemble-Mittel: rote Linie, einzelne Mitglieder: grau, 50-/90-%-Prognosebereiche: blau. Null-Linie = West-/Ostwindwechsel. GEFS: echte 10-hPa-U-Wind-Komponente über alle Längengrade bei 60° N gemittelt, keine Windgeschwindigkeit. Eine Streuung in Prognosen ist nicht die historische Klimatologie. <a href="https://www.ecmwf.int/en/forecasts/datasets/mean-zonal-wind-10-hpa-sub-seasonal-range-forecast" target="_blank" rel="noopener noreferrer">ECMWF: offizielles 46-Tage-Ensemblechart</a> (externe Darstellung).</p>
 </section>
 <section class="card" id="levelsCard">
   <div class="levels-heading">
@@ -390,10 +433,7 @@ function draw(level,year,selected,climo,comparison){
     const [y,rows]=comparison[i];
     ds.push(line("Vergleich "+seasonLabel(y),transform(arraysFor(rows,r=>r.lead===0)),palette[i%palette.length],1.8));
   }
-  const view=$("view").value;
-  let from=0,to=dates.length-1;
-  if(view==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
-  if(view==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
+  const {from,to}=visibleRange();
   const dsets=ds.map(d=>({...d,data:d.data.slice(from,to+1)}));
   const visible=dates.slice(from,to+1).map(d=>d.label);
   const values=dsets.flatMap(d=>d.data).filter(Number.isFinite);
@@ -424,10 +464,28 @@ function draw(level,year,selected,climo,comparison){
     :"Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März), kein bestätigtes Major SSW. Schattierung: 10.–90. und 30.–70. Perzentil der Referenz 1991–2020; dünne Linien: historische Extremwerte. Gestrichelt: Prognose.";
   last={level,year,selected,climo,comparison};
 }
+function resetSeasonRange(){
+  const year=Number($("season").value)||currentYear;
+  const min=year+"-07-01",max=(year+1)+"-06-30";
+  for(const id of ["windFrom","windTo"]){$(id).min=min;$(id).max=max;}
+  $("windFrom").value=year+"-09-01";$("windTo").value=year+"-11-30";
+  $("windCustomDates").hidden=$("view").value!=="custom";
+}
 function visibleRange(){
+  const view=$("view").value;
   let from=0,to=dates.length-1;
-  if($("view").value==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
-  if($("view").value==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
+  if(view==="winter"){from=keys.indexOf("09-01");to=keys.indexOf("05-31");}
+  else if(view==="ssw"){from=keys.indexOf("11-01");to=keys.indexOf("03-31");}
+  else if(view==="autumn"){from=keys.indexOf("09-01");to=keys.indexOf("11-30");}
+  else if(view==="custom"){
+    const year=Number($("season").value)||currentYear;
+    const min=year+"-07-01",max=(year+1)+"-06-30";
+    const start=$("windFrom").value,end=$("windTo").value;
+    if(start>=min&&start<=max&&end>=min&&end<=max){
+      const a=keys.indexOf(start.slice(5)),b=keys.indexOf(end.slice(5));
+      if(a>=0&&b>=0){from=Math.min(a,b);to=Math.max(a,b);}
+    }
+  }
   return {from,to};
 }
 function levelArrays(item){
@@ -861,7 +919,7 @@ function saveAs(blob,name){
 }
 function exportViewLabel(){
   return ($("mode").value==="anomaly"?"Abweichung zu 1991–2020":"Zonaler Wind · Absolutwerte")+
-    " · "+($("view").selectedOptions[0]?.textContent||"Saison");
+    " · "+($("view").value==="custom"?$("windFrom").value+" bis "+$("windTo").value:($("view").selectedOptions[0]?.textContent||"Saison"));
 }
 $("png").addEventListener("click",()=>{if(!chart||!last)return;
   // Export is always opaque white, independently of site or image-viewer theme.
@@ -965,7 +1023,7 @@ $("levelsCsv").addEventListener("click",()=>{
 });
 $("reload").addEventListener("click",render);
 $("level").addEventListener("change",render);
-$("season").addEventListener("change",render);
+$("season").addEventListener("change",()=>{resetSeasonRange();render();});
 $("heatmapCanvas").addEventListener("pointermove",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerdown",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerleave",()=>{$("heatmapTooltip").hidden=true;});
@@ -1018,18 +1076,21 @@ $("sswCsv").addEventListener("click",()=>{
   saveAs(new Blob([String.fromCharCode(65279)+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}),
     "Stratosphaere_SSW_CP07_"+seasonLabel(sswResult.year).replace("/","-")+".csv");
 });
-$("view").addEventListener("change",refreshCharts);
+$("view").addEventListener("change",()=>{$("windCustomDates").hidden=$("view").value!=="custom";refreshCharts();});
+for(const id of ["windFrom","windTo"]){
+ $(id).addEventListener("change",()=>{if($("view").value==="custom")refreshCharts();});
+}
 $("mode").addEventListener("change",refreshCharts);
 document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
 (async()=>{
-  chooseSeasonOptions();
+  chooseSeasonOptions();resetSeasonRange();
   try{
     const res=await fetch(BASE+"manifest.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
     if(res.ok){
       const m=await res.json();
       $("updated").textContent="Archiv aktualisiert: "+new Date(m.updated_utc).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short",timeZone:"UTC"})+" UTC";
       if(m.winter_start_year && m.winter_start_year>currentYear){
-        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);
+        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);resetSeasonRange();
       }
     }
   }catch(e){$("updated").textContent="Archiv-Metadaten aktuell nicht erreichbar";}
