@@ -39,7 +39,8 @@
       const scales=authored.scales||{};
       const original={
         title:plugins.title?.color,subtitle:plugins.subtitle?.color,
-        legend:plugins.legend?.labels?.color,axes:{}
+        legend:plugins.legend?.labels?.color,
+        datalabels:plugins.datalabels?.color,axes:{}
       };
       for(const [key,axis] of Object.entries(scales)){
         original.axes[key]={
@@ -60,6 +61,9 @@
     }
     if(options.plugins?.legend?.labels){
       options.plugins.legend.labels.color=target(first.legend,mode.text);
+    }
+    if(options.plugins?.datalabels && typeof options.plugins.datalabels.color!=="function"){
+      options.plugins.datalabels.color=target(first.datalabels,mode.text);
     }
     for(const [key,axis] of Object.entries(options.scales||{})){
       if(!axis)continue;
