@@ -49,12 +49,12 @@ jobs:
                   path=Path(f"/tmp/stratosphere-inline-{i}.js")
                   path.write_text(code,encoding="utf-8")
                   subprocess.run(["node","--check",str(path)],check=True)
-          assert "stratosphere_temperature.js" in page
           assert "stratosphere_ensemble.js" in page
           assert 'id="stratoEnsembleCard"' in page
           assert 'id="windCustomDates"' in page
-          assert "stratosphere_ssw_comparison.js" in page
-          print("Stratosphere front end: JavaScript syntax OK")
+          assert 'id="levelsCard"' in page
+          assert 'id="windChart"' in page
+          print("Stratosphere front end: ensemble, main chart and date-range JavaScript OK")
           PY
       - name: Install offline scientific dependencies
         run: python -m pip install --disable-pip-version-check numpy xarray pandas
