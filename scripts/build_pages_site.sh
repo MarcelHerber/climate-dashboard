@@ -22,6 +22,8 @@ required_root_files=(
   isobaren_original.js
   synoptic_panel_logic.js
   isobaren_original.css
+  synoptic_gallery.js
+  synoptic_gallery.css
   enso.html
   qbo.html
   mjo.html
@@ -94,7 +96,13 @@ python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
 node --check synoptic_panel_logic.js
 node --check isobaren_original.js
+node --check synoptic_gallery.js
 node --test tests/test_synoptic_panel_selection.cjs
+# Die Seiten dürfen niemals auf Assets verweisen, die im Pages-Build fehlen.
+test -s _site/synoptic_gallery.js
+test -s _site/synoptic_gallery.css
+grep -q 'data-synoptic-gallery' _site/isobaren_original.html
+grep -q 'data-synoptic-gallery' _site/weltweite_isobaren.html
 python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
 python -m unittest discover -s tests -p test_europe_country_coverage.py -v
@@ -336,8 +344,8 @@ index=json.loads((root/"index.json").read_text(encoding="utf-8"))
 assert index.get("schema_version")==1 and index.get("ready") is True
 assert len(index.get("charts",[]))==index.get("chart_count")
 for chart in index["charts"]:
-    assert chart.get("source_id") in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","chmi","dhmz","imo")
-    assert chart["image"].startswith("images/")
+    assert chart.get("source_id") in ("dwd","aemet","knmi","noaa_opc","noaa_full","noaa_west","noaa_24","noaa_48","noaa_96","noaa_pace","noaa_pacw","noaa_pacfull","noaa_pac24","noaa_pac48","noaa_pac96","chmi","dhmz","imo")
+    assert chart["image"].startswith("images/") and chart["image"].endswith(".webp")
     if chart["source_id"] in ("noaa_24","noaa_48","noaa_96"):
         from datetime import datetime,timedelta
         assert datetime.fromisoformat(chart["valid_utc"]) == datetime.fromisoformat(chart["run_utc"]) + timedelta(hours=chart["forecast_hours"])
