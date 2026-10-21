@@ -20,7 +20,7 @@ class DWDICONForecastSheetTests(unittest.TestCase):
         self.assertEqual(a[1]["source_page"],dwd.INDEX)
         self.assertTrue(a[1]["multiple_valid_times"])
         self.assertNotIn("valid_utc",a[1])
-        self.assertNotIn("run_utc",a[1])
+        self.assertEqual(a[1]["run_utc"],"2026-10-21T00:00:00+00:00")
         self.assertEqual(a[1]["publisher_id"],"dwd")
     def test_no_spoofed_hosts_stale_or_fictional_lead_times(self):
         html='''<a href="https://evil.example/weather/charts/forecasts/icon/global/na/Z__C_EDZW_20261021033500_nwv01,ico_hptfg_na_N_096168_9900_202610210000_WV12.png">spoof</a>
