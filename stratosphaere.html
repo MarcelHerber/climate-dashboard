@@ -1014,11 +1014,12 @@ async function render(){
     updateKpis(series,climo,year,level);
     const analyses=analysisRows(series),forecast=[...series.values()].filter(x=>x.lead>0);
     $("status").textContent="Saison "+seasonLabel(year)+" · "+analyses.length+" Analysetage · "+forecast.length+" Prognosetage"+(pairs.some(p=>!p)?" · einzelne Vergleichsjahre fehlen":"");
-    $("badge").textContent=analyses.length?"Daten bis "+analyses.at(-1).date:"Nur Klimatologie / Vorhersage";
+    if(!document.body.classList.contains("strato-forecast-only"))
+      $("badge").textContent=analyses.length?"Daten bis "+analyses.at(-1).date:"Nur Klimatologie / Vorhersage";
   }catch(err){
     setError("Daten derzeit nicht verfügbar. "+(err?.message||err)+". Der Daten-Workflow muss veröffentlicht und erfolgreich gelaufen sein.");
     $("status").textContent="Kein verifizierter Datenstand";
-    $("badge").textContent="Daten fehlen";
+    if(!document.body.classList.contains("strato-forecast-only"))$("badge").textContent="Daten fehlen";
     if(chart){chart.destroy();chart=null;}
   }finally{if(ticket===seq){loading=false;$("reload").disabled=false;}}
 }
@@ -1142,6 +1143,7 @@ function setStratoView(mode){
    "Aktuelle GEFS-Prognose";
   window.dispatchEvent(new Event("stratosphere:view-changed"));
  }else{
+  $("badge").textContent=last?"NASA-Analyse · "+seasonLabel(last.year):"Analyse / Archiv";
   if(last)refreshCharts();
   else if(!loading)void render();
  }
