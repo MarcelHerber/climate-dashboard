@@ -9,6 +9,7 @@ on:
       - "stratosphere_temperature.js"
       - "stratosphere_ensemble.js"
       - "tests/test_stratosphere_ensemble_members.cjs"
+      - "tests/test_stratosphere_forecast_focus.cjs"
       - "tests/test_gefs_stratosphere.py"
       - "stratosphere_ssw_comparison.js"
       - "stratosphaere.html"
@@ -39,6 +40,7 @@ jobs:
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
           node --test tests/test_stratosphere_ensemble_members.cjs
+          node --test tests/test_stratosphere_forecast_focus.cjs
           node --check stratosphere_ssw_comparison.js
           python - <<'PY'
           from pathlib import Path
