@@ -8,6 +8,7 @@ on:
       - "scripts/update_era5_stratosphere_stage2.py"
       - "stratosphere_temperature.js"
       - "stratosphere_ensemble.js"
+      - "tests/test_stratosphere_ensemble_members.cjs"
       - "tests/test_gefs_stratosphere.py"
       - "stratosphere_ssw_comparison.js"
       - "stratosphaere.html"
@@ -37,6 +38,7 @@ jobs:
         run: |
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
+          node --test tests/test_stratosphere_ensemble_members.cjs
           node --check stratosphere_ssw_comparison.js
           python - <<'PY'
           from pathlib import Path
