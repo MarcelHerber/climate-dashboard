@@ -9,6 +9,8 @@ on:
     paths:
       - "scripts/update_synoptic_original_charts.py"
       - "scripts/dwd_synoptic_forecast.py"
+      - "scripts/dwd_tkb_individual_charts.py"
+      - "tests/test_dwd_tkb_individual_charts.py"
       - "tests/test_dwd_synoptic_forecast.py"
       - "tests/test_synoptic_original_charts.py"
       - "scripts/watch_world_synoptic_sources.py"
@@ -71,13 +73,15 @@ jobs:
       - name: Verify UTC-exact four-panel selection logic
         run: node --test tests/test_synoptic_panel_selection.cjs
       - name: Syntax-check all synoptic scripts before workflow execution
-        run: python -m py_compile scripts/dwd_synoptic_forecast.py scripts/update_synoptic_original_charts.py scripts/watch_world_synoptic_sources.py scripts/probe_russia_kazakhstan_synoptic.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
+        run: python -m py_compile scripts/dwd_tkb_individual_charts.py scripts/dwd_synoptic_forecast.py scripts/update_synoptic_original_charts.py scripts/watch_world_synoptic_sources.py scripts/probe_russia_kazakhstan_synoptic.py scripts/probe_cyprus_wrf.py scripts/probe_rhmz_original_charts.py scripts/probe_europe_synoptic_viewers.py scripts/probe_imo_atlantic.py scripts/imo_synoptic_adapter.py scripts/probe_chmi_synoptic.py scripts/chmi_synoptic_adapter.py scripts/dhmz_synoptic_adapter.py
       - name: Test ongoing worldwide source discovery and strict third-party image restrictions
         run: python -m unittest discover -s tests -p test_world_synoptic_source_watch.py -v
       - name: Watch worldwide official synoptic analysis providers for new chart reference links
         run: python scripts/watch_world_synoptic_sources.py
       - name: Test dated chart parsers and copyright policy
         run: python -m unittest discover -s tests -p test_synoptic_original_charts.py -v
+      - name: Verify five correct original DWD TKB single forecasts
+        run: python -m unittest discover -s tests -p test_dwd_tkb_individual_charts.py -v
       - name: Verify DWD ICON multi-validity forecast sheet parser
         run: python -m unittest discover -s tests -p test_dwd_synoptic_forecast.py -v
       - name: Install narrow OCR support for printed ČHMÚ UTC dates
@@ -195,28 +199,27 @@ jobs:
           assert next(x for x in index["sources"] if x["id"]=="eccc")["type"]=="external"
           print("Original charts validated:",index["chart_count"],index["source_status"])
           PY
-      - name: Validate separate DWD ICON forecast sheets without inventing UTC validity
+      - name: Validate five DWD TKB single synoptic map slots (without invented UTC)
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           root=Path("data/synoptic_charts")
-          p=root/"dwd_forecasts.json"
-          if p.is_file():
-              x=json.loads(p.read_text(encoding="utf-8"))
-              assert x["schema_version"]==1 and x["sheet_count"]==len(x["sheets"])>0
-              assert x["max_forecast_hours"]<=168
-              for sheet in x["sheets"]:
-                  assert sheet["source_id"]=="dwd_icon_hptfg_na"
-                  assert sheet["multiple_valid_times"] is True
-                  assert not sheet["has_single_valid_utc"] and "valid_utc" not in sheet
-                  assert 0<=sheet["forecast_from_hours"]<sheet["forecast_to_hours"]<=168
-                  assert sheet["source_url"].startswith("https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/")
-                  image=root/sheet["image"]
-                  assert image.is_file() and image.read_bytes()[:4]==b"RIFF"
-              print("DWD forecast sheets verified:",x["sheet_count"],"max lead:",x["max_forecast_hours"])
-          else:
-              print("No downloaded DWD forecast sheets; separate panel will say unavailable")
+          p=root/"dwd_tkb.json"
+          assert p.is_file(),"DWD TKB import must write an explicit manifest even if images are blocked"
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["schema_version"]==1 and d["single_map_per_lead"] is True
+          assert d["products"]==[36,48,60,84,108]
+          assert d["map_count"]==len(d["maps"])
+          for item in d["maps"]:
+              lead=item["lead_hours"]
+              assert lead in d["products"]
+              assert item["source_url"]=="https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/ico_tkboden_na_%03d.png"%lead
+              assert "valid_utc" not in item
+              image=root/item["image"]
+              assert image.is_file() and image.stat().st_size>18000
+              assert image.read_bytes()[:4]==b"RIFF"
+          print("Verified DWD original TKB SINGLE maps:",d["map_count"])
           PY
       - name: Publish verified chart snapshots
         shell: bash
