@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="isobaren_original.css?v=6">
 <script defer src="synoptic_panel_logic.js?v=5"></script>
 <script defer src="isobaren_original.js?v=44"></script>
-<link rel="stylesheet" href="synoptic_gallery.css?v=1">
-<script defer src="synoptic_gallery.js?v=1"></script>
+<link rel="stylesheet" href="synoptic_gallery.css?v=2">
+<script defer src="synoptic_gallery.js?v=2"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -19,8 +19,20 @@
 <div class="eyebrow">Synoptik · Offizielle Originalkarten</div>
 <h1>Isobaren, Hochs, Tiefs &amp; Fronten</h1>
 <p class="intro"><a href="weltweite_isobaren.html">→ Neue internationale Sammlung: Weltweite Isobaren und Frontenkarten</a></p>
-<p class="intro">Echte Bodenwetterkarten der nationalen Wetterdienste – einschließlich der ursprünglich eingezeichneten Fronten. Für den Vergleich zählt ausschließlich der <strong>identische UTC-Gültigkeitstermin</strong>. Originalprojektion und jeweilige grafische Gestaltung bleiben erhalten. Zusätzlich verfügbar: regionale NOAA-Ostatlantik-/Westatlantikkarten und – sofern veröffentlicht – 24-, 48- und 96-Stunden-Bodenprognosen.</p>
+<p class="intro">Echte Bodenwetterkarten der nationalen Wetterdienste – einschließlich der ursprünglich eingezeichneten Fronten. In der Kartenwand oben werden alle verfügbaren Originalbilder unabhängig von einer gemeinsamen UTC-Zeit gezeigt. Im darunterliegenden Vierervergleich zählt ausschließlich der <strong>identische UTC-Gültigkeitstermin</strong>. Originalprojektion und jeweilige grafische Gestaltung bleiben erhalten. Zusätzlich verfügbar: regionale NOAA-Ostatlantik-/Westatlantikkarten und – sofern veröffentlicht – 24-, 48- und 96-Stunden-Bodenprognosen.</p>
 
+<section class="sg-panel" data-synoptic-gallery data-scope="europe" aria-label="Freigegebene synoptische Karten direkt ansehen">
+<h2>Isobaren-Kartenwand · alle freigegebenen Originalkarten</h2>
+<p class="sg-explain">Alle aktuell im Dashboard veröffentlichten und zur direkten Anzeige vorgesehenen Originalkarten stehen zusammen in diesem Panel. Jede Karte hat ihre eigene UTC-Gültigkeit; Analysen und Prognosen werden nicht zeitlich gleichgesetzt. Darunter bleibt der streng UTC-synchrone Vierervergleich verfügbar. Für weitere Dienste ohne bestätigtes Bildrecht und verifizierten Bildabruf gibt es nur einen Originallink.</p>
+<div class="sg-toolbar">
+<label>Kartenquelle<select class="sg-source"><option value="">Alle verfügbaren Kartenquellen</option></select></label>
+<label>Kartenart<select class="sg-type"><option value="">Analysen und Prognosen</option><option value="analysis">Nur Bodenanalysen</option><option value="forecast">Nur Prognosen</option></select></label>
+<label>Im Panel anzeigen<select class="sg-mode"><option value="latest">Alle Kartenprodukte direkt (neueste Bilder)</option><option value="publishers">Eine Karte je Wetterdienst</option><option value="all">Alle Bilder und UTC-Archivstände</option></select></label>
+<label>Spaltenzahl<select class="sg-columns"><option value="auto">Automatisch</option><option value="2">2 Spalten</option><option value="3">3 Spalten</option><option value="4">4 Spalten</option></select></label>
+<button type="button" class="sg-refresh">Karten aktualisieren</button><button type="button" class="sg-fullscreen">Panel im Vollbild</button>
+</div>
+<p class="sg-status" role="status">Lade freigegebene Originalbilder …</p><div class="sg-grid"></div>
+</section>
 <section class="panel" aria-label="Kartenauswahl">
 <div class="row">
 <label class="control">Darstellung<select id="chartMode"><option value="single">Einzelkarte</option><option value="four">Vierer-Panel (gleicher Termin)</option></select></label>
@@ -52,17 +64,7 @@
 <p class="fine">Die Filter beruhen auf dem nachgewiesenen Kartenprodukt: Analysen mit Fronten, Frontenprognosen und reine Modell-Isobaren (IMO ohne Fronten) bleiben unterscheidbar. Analysen und Prognosen sind unterschiedlich: Das Kartenetikett zeigt deshalb beides separat. Alle Uhrzeiten in UTC, keine stillschweigende Anpassung an Modelllaufzeiten. Es gibt keinen grafischen Zuschnitt oder künstliche Frontenerkennung.</p>
 </section>
 
-<section class="sg-panel" data-synoptic-gallery data-scope="europe" aria-label="Freigegebene synoptische Karten direkt ansehen">
-<h2>Alle verfügbaren Original-Isobarenkarten direkt ansehen</h2>
-<p class="sg-explain">Hier erscheinen alle bereits geprüften, lokal veröffentlichten und zur Wiedergabe freigegebenen Kartenbilder für Europa und den Nordatlantik – nicht nur die Karten eines gemeinsamen UTC-Termins. Jede Karte trägt ihre eigene Gültigkeits- und gegebenenfalls Ausgabezeit. Den streng UTC-synchronen Vierervergleich findest du oben. Weitere Wetterdienste ohne gesicherte Bildfreigabe bleiben unten verlinkt.</p>
-<div class="sg-toolbar">
-<label>Kartenquelle<select class="sg-source"><option value="">Alle verfügbaren Kartenquellen</option></select></label>
-<label>Kartenart<select class="sg-type"><option value="">Analysen und Prognosen</option><option value="analysis">Nur Bodenanalysen</option><option value="forecast">Nur Prognosen</option></select></label>
-<label>Umfang<select class="sg-mode"><option value="latest">Neueste Karte je Produkt</option><option value="all">Alle verfügbaren UTC-Bildstände</option></select></label>
-<button type="button" class="sg-refresh">Karten aktualisieren</button>
-</div>
-<p class="sg-status" role="status">Lade freigegebene Originalbilder …</p><div class="sg-grid"></div>
-</section>
+
 <section class="panel" id="wetterdienste">
 <h2>Wetterdienste &amp; Originalkarten</h2>
 <p class="help">Die Quellenübersicht umfasst alle 47 berücksichtigten europäischen Länder einschließlich Kosovo sowie vier angrenzende Länder (Armenien, Aserbaidschan, Georgien und Kasachstan). Eigene synoptische Originalkarten werden ausdrücklich von regionaler Abdeckung, Archiven und amtlichen Wetterportalen unterschieden. Automatisch verfügbare Originalkarten, direkte Kartenansichten und ungeprüfte Verweise sind separat gekennzeichnet. Im oberen Vierervergleich erscheinen nur nachgewiesene Bilder mit identischer UTC-Gültigkeit. In der neuen Galerie daneben werden alle freigegebenen, lokal archivierten Originalbilder unabhängig von der gemeinsamen Uhrzeit angezeigt. Für andere Dienste bleibt ein Link zur Originalseite. Nutzungsrechte und maschinenlesbare Gültigkeitszeiten werden separat geprüft; die Quellenprüfung ist kein Live-Verfügbarkeitstest.</p>
