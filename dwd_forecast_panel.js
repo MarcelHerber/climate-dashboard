@@ -30,10 +30,18 @@ for(const root of document.querySelectorAll("[data-dwd-forecast]")){
     img.addEventListener("error",()=>{img.remove();a.append(el("p","sg-image-fallback","Bild derzeit nicht abrufbar. Originalquelle öffnen."));});
     a.append(img);card.append(a);ready++;
    }else{
-    const no=el("p","sg-image-fallback",old?
-       "Die letzte veröffentlichte Karte ist älter als 24 Stunden und wird nicht als aktuelle Prognose ausgegeben.":
-       "DWD-Originalbild konnte noch nicht automatisch heruntergeladen werden.");
-    card.append(no);
+    // Try the original DWD image directly in the user's browser. Do not
+    // substitute a third-party mirror with unknown freshness or image rights.
+    const live=el("div","sg-image-link");
+    const img=el("img","sg-image");
+    img.loading="lazy";img.decoding="async";img.src=origin(lead);
+    img.alt="DWD Original TKB Isobarenkarte +"+lead+" Stunden (Gültigkeit im Bild überprüfen)";
+    const msg=el("p","sg-image-fallback",old?
+      "Lokal gespeicherte Prognose zu alt. Direkter DWD-Bildabruf wird geprüft.":
+      "Originalbild wird direkt vom DWD geladen. Datum und Gültigkeit im Kartenfuß überprüfen.");
+    img.addEventListener("load",()=>{msg.textContent="Direktes DWD-Originalbild (nicht lokal zwischengespeichert) – Gültigkeit im Bildfuß kontrollieren.";});
+    img.addEventListener("error",()=>{img.remove();msg.textContent="DWD blockiert den direkten Bildabruf oder liefert derzeit keine Grafik. Bitte den DWD-Originalbild-Link unten öffnen.";});
+    live.append(img,msg);card.append(live);
    }
    const info=el("div","sg-card-details");
    info.append(el("div","sg-time","Prognose +"+lead+" h"));
