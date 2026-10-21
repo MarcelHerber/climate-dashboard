@@ -386,28 +386,29 @@ for chart in index["charts"]:
 PY
   mkdir -p _site/data/synoptic_charts
   cp -a data/synoptic_charts/index.json data/synoptic_charts/images _site/data/synoptic_charts/
-  if [[ -s data/synoptic_charts/dwd_forecasts.json ]]; then
+  # Obsolete ico_hptfg multi-panel charts must not leak onto the website.
+  find _site/data/synoptic_charts/images -type f -name 'dwd_icon_na_*.webp' -delete
+  if [[ -s data/synoptic_charts/dwd_tkb.json ]]; then
     python - <<'PY'
 import json
 from pathlib import Path
 root=Path("data/synoptic_charts")
-data=json.loads((root/"dwd_forecasts.json").read_text(encoding="utf-8"))
-assert data["schema_version"]==1 and data["sheet_count"]==len(data["sheets"])>0
-assert data["max_forecast_hours"]<=168
-for s in data["sheets"]:
-    assert s["multiple_valid_times"] is True and not s["has_single_valid_utc"]
-    assert "valid_utc" not in s
-    assert s["source_id"]=="dwd_icon_hptfg_na"
-    assert 0<=s["forecast_from_hours"]<s["forecast_to_hours"]<=168
-    assert s["source_url"].startswith("https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/")
-    p=root/s["image"]
-    assert p.exists() and p.stat().st_size>18000
-    assert p.read_bytes()[:4]==b"RIFF"
+j=json.loads((root/"dwd_tkb.json").read_text(encoding="utf-8"))
+assert j["schema_version"]==1 and j["single_map_per_lead"] is True
+assert j["products"]==[36,48,60,84,108]
+assert j["map_count"]==len(j["maps"])
+for m in j["maps"]:
+    assert m["source_id"]=="dwd_tkb_original"
+    assert m["lead_hours"] in j["products"]
+    assert m["source_url"]=="https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/ico_tkboden_na_%03d.png"%m["lead_hours"]
+    img=root/m["image"]
+    assert img.exists() and img.stat().st_size>18000
+    assert img.read_bytes()[:4]==b"RIFF"
 PY
-    cp data/synoptic_charts/dwd_forecasts.json _site/data/synoptic_charts/
-    echo "DWD ICON-Prognoseblätter mit Vorhersageintervallen veröffentlicht."
+    cp data/synoptic_charts/dwd_tkb.json _site/data/synoptic_charts/
+    echo "DWD TKB echte Einzel-Isobarenkarten (+36/48/60/84/108 h) veroeffentlicht."
   else
-    echo "DWD ICON-Prognoseblätter noch nicht erfolgreich abgerufen; Prognosepanel zeigt einen Hinweis."
+    echo "Keine freigegebenen TKB-Einzelkarten abrufbar; Panel zeigt die Originalquellen."
   fi
   if [[ -s data/synoptic_charts/europe_source_audit.json ]]; then
     python - <<'PY'
