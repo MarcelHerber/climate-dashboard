@@ -16,9 +16,20 @@ function plus(date,offset){const value=dt(date);value.setUTCDate(value.getUTCDat
 function n(v){return typeof v==="number"&&Number.isFinite(v)&&v>=-160&&v<=170?v:null;}
 function note(message){$("stratoEnsembleStatus").textContent=message;}
 function defaultWindow(){
- const now=new Date(),year=now.getUTCFullYear(),month=now.getUTCMonth();
- const y=month>=6?year:year-1;
- return {from:y+"-09-01",to:month>=10?plus(day(now),28):y+"-11-30"};
+ if(forecast?.valid_dates?.length)return {
+  from:forecast.valid_dates[0],to:forecast.valid_dates.at(-1)
+ };
+ const now=day(new Date());
+ return {from:now,to:plus(now,35)};
+}
+function applyForecastHorizon(){
+ if(!forecast)return;
+ const selection=$("stratoEnsembleSpan").value;
+ if(selection==="custom")return;
+ const begin=forecast.valid_dates[0],end=forecast.valid_dates.at(-1);
+ const until=selection==="all"?end:plus(begin,Math.max(0,Number(selection)-1));
+ setRange(begin,until<end?until:end);
+ draw();
 }
 function setRange(from,to){
  const a=$("stratoEnsembleFrom"),b=$("stratoEnsembleTo");
@@ -100,14 +111,15 @@ async function reload(){
  if(!forecast)console.info("GEFS-Ensemble noch nicht freigegeben:",result[0].reason);
  if(forecast){
   lastForecastAt=forecast.cycle_utc;
-  note("NOAA GEFS · 31/31 echte Ensemblemitglieder sichtbar · Lauf "+forecast.cycle_utc+
-    " · "+forecast.valid_dates.length+" Tageszeitpunkte · bis "+forecast.valid_dates.at(-1));
+  note("31/31 echte Ensemblemitglieder · GEFS-Lauf "+forecast.cycle_utc+
+    " · Prognose bis "+forecast.valid_dates.at(-1));
  }else{
   note("Ensemble-Prognose derzeit nicht verfügbar: "+(result[0].reason?.message||"kein geprüfter GEFS-Lauf")+
     ". NASA-Analyse und 1991–2020-Klimamittel bleiben sichtbar.");
  }
  $("stratoEnsembleReload").disabled=false;
- draw();
+ if(forecast)applyForecastHorizon();
+ else draw();
 }
 function dailyRows(){
  const from=$("stratoEnsembleFrom").value,to=$("stratoEnsembleTo").value;
@@ -142,8 +154,11 @@ function draw(){
  lastRows=rows;
  const labels=rows.map(r=>r.date);
  const datasets=[];
- if(forecast&&$("stratoBand90").checked)datasets.push(...band(rows,"p05","p95","Ensemble 5–95 %","rgba(112,145,202,.17)"));
- if(forecast&&$("stratoBand50").checked)datasets.push(...band(rows,"p25","p75","Ensemble 25–75 %","rgba(51,86,158,.29)"));
+ if(forecast&&$("stratoBand90").checked){
+  datasets.push(...band(rows,"p05","p95","Ensemble 5–95 %","rgba(112,145,202,.17)"));
+  if($("stratoBand50").checked)
+   datasets.push(...band(rows,"p25","p75","Ensemble 25–75 %","rgba(51,86,158,.29)"));
+ }
  if(forecast&&$("stratoMembers").checked){
   datasets.push(line("31 GEFS-Mitglieder (einzeln)",rows.map(()=>null),"rgba(35,46,62,.75)",1.3,{order:7}));
   for(const [id,values] of Object.entries(forecast.members)){
@@ -155,7 +170,8 @@ function draw(){
   datasets.push(line("Ensemble-Mittel",rows.map(r=>r.stats?.mean??null),"#d62828",3.4,{order:0}));
   datasets.push(line("Kontrolllauf",rows.map(r=>r.control),"#ea9908",1.8,{borderDash:[6,4],order:2}));
  }
- datasets.push(line("NASA-Analyse (MERRA-2/GEOS-FP)",rows.map(r=>r.obs),"#16803f",3,{order:0}));
+ if($("stratoShowAnalysis").checked)
+  datasets.push(line("NASA-Analyse (MERRA-2/GEOS-FP)",rows.map(r=>r.obs),"#16803f",3,{order:0}));
  if($("stratoClimo").checked){
   datasets.push(line("Klimamittel 1991–2020",rows.map(r=>r.climo),"#b68d00",2,{order:3}));
  }
@@ -169,7 +185,7 @@ function draw(){
   options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
    interaction:{mode:"index",intersect:false},
    plugins:{
-    legend:{position:"bottom",labels:{boxWidth:16,font:{size:11},filter:item=>!item.text.startsWith("_")}},
+    legend:{display:false},
     tooltip:{mode:"index",intersect:false,filter:item=>!item.dataset.label.startsWith("_")&&Number.isFinite(item.parsed.y),
       callbacks:{title:points=>points[0]?.label||"",label:item=>item.dataset.label+": "+item.parsed.y.toFixed(1)+" m/s"}}
    },
@@ -191,15 +207,15 @@ function download(filename,content,type){
  const u=URL.createObjectURL(blob);a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(u),5000);
 }
-$("stratoEnsembleFrom").addEventListener("change",draw);
-$("stratoEnsembleTo").addEventListener("change",draw);
-for(const id of ["stratoMembers","stratoBand50","stratoBand90","stratoClimo"]){
+$("stratoEnsembleFrom").addEventListener("change",()=>{$("stratoEnsembleSpan").value="custom";draw();});
+$("stratoEnsembleTo").addEventListener("change",()=>{$("stratoEnsembleSpan").value="custom";draw();});
+$("stratoEnsembleSpan").addEventListener("change",applyForecastHorizon);
+for(const id of ["stratoMembers","stratoBand50","stratoBand90","stratoClimo","stratoShowAnalysis"]){
  $(id).addEventListener("change",draw);
 }
 $("stratoEnsembleReload").addEventListener("click",reload);
 $("stratoEnsembleReset").addEventListener("click",()=>{
- const current=defaultWindow();
- setRange(current.from,current.to);draw();
+ $("stratoEnsembleSpan").value="all";applyForecastHorizon();
 });
 $("stratoEnsembleCsv").addEventListener("click",()=>{
  if(!lastRows.length)return;
@@ -232,5 +248,8 @@ $("stratoEnsemblePng").addEventListener("click",()=>{
  document.body.appendChild(a);a.click();a.remove();
 });
 const range=defaultWindow();setRange(range.from,range.to);
+window.addEventListener("stratosphere:view-changed",()=>{
+ if(document.body.classList.contains("strato-forecast-only")&&forecast)draw();
+});
 void reload();
 })();
