@@ -7,6 +7,8 @@ on:
       - "scripts/update_era5_stratosphere.py"
       - "scripts/update_era5_stratosphere_stage2.py"
       - "stratosphere_temperature.js"
+      - "stratosphere_ensemble.js"
+      - "tests/test_gefs_stratosphere.py"
       - "stratosphere_ssw_comparison.js"
       - "stratosphaere.html"
       - ".github/workflows/update-era5-stratosphere.yml"
@@ -30,10 +32,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Validate Python syntax
-        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py
+        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py scripts/build_gefs_60n_10hpa_ensemble.py
       - name: Validate JavaScript syntax
         run: |
           node --check stratosphere_temperature.js
+          node --check stratosphere_ensemble.js
           node --check stratosphere_ssw_comparison.js
           python - <<'PY'
           from pathlib import Path
@@ -47,6 +50,9 @@ jobs:
                   path.write_text(code,encoding="utf-8")
                   subprocess.run(["node","--check",str(path)],check=True)
           assert "stratosphere_temperature.js" in page
+          assert "stratosphere_ensemble.js" in page
+          assert 'id="stratoEnsembleCard"' in page
+          assert 'id="windCustomDates"' in page
           assert "stratosphere_ssw_comparison.js" in page
           print("Stratosphere front end: JavaScript syntax OK")
           PY
