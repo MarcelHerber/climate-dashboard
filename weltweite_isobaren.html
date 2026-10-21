@@ -5,13 +5,15 @@
 .live-card img{display:block;width:100%;height:auto;aspect-ratio:1.3;object-fit:contain;background:#eaf0f5}
 .live-card-body{padding:10px 13px}.live-card-title{font-size:14px;font-weight:700}.live-card-meta{font-size:12px;color:#547286}.live-card a{color:#17668c;font-size:13px}
 .live-select{max-width:330px;margin:11px 0 14px}.live-empty{color:#57778a;font-size:14px}
-</style></head><body><header><a href="index.html">Climate Dashboard</a><a href="isobaren_original.html">Europa · Originalkarten</a><a href="weltweite_isobaren.html">Weltweite Isobaren</a></header><main><p class="muted">Synoptik · International</p><h1>Weltweite Isobaren &amp; Fronten</h1><p class="lead muted">Offizielle Wetterkarten und ergänzende Kartenanbieter – nach Weltregion und Land sortiert. Suche nach Wetterdienst, Land oder Kartentyp.</p><div class="notice"><strong>Quellenstatus:</strong> „Kartenansicht“ bedeutet, dass ein konkreter Kartenbereich bekannt ist, nicht dass die Gültigkeitszeit der zuletzt dargestellten Karte automatisch geprüft wurde. „Prüfung offen“ bezeichnet noch nicht hinreichend verifizierte Angebote. Diese Seite öffnet externe Originalquellen und kopiert keine Kartenbilder.</div><section class="live-panel" aria-labelledby="live-global-title">
-<h2 id="live-global-title">NOAA-Pazifik · automatisch veröffentlichte Originalkarten</h2>
-<p class="muted">Aus dem bestehenden UTC-geprüften Kartenindex. Gleiche Gültigkeit, aber unterschiedliche NOAA-Regionen; keine unabhängigen Wetterdienste. Es werden nur wirklich verfügbare Karten angezeigt.</p>
-<label class="live-select" for="liveUtc">Gültigkeitszeit (UTC)
-<select id="liveUtc" disabled><option>Veröffentlichte Karten werden geladen …</option></select></label>
-<p class="live-empty" id="liveStatus" role="status">Prüfe den veröffentlichten Kartenindex …</p>
-<div class="live-grid" id="liveGrid"></div>
+</style><link rel="stylesheet" href="synoptic_gallery.css?v=1"></head><body><header><a href="index.html">Climate Dashboard</a><a href="isobaren_original.html">Europa · Originalkarten</a><a href="weltweite_isobaren.html">Weltweite Isobaren</a></header><main><p class="muted">Synoptik · International</p><h1>Weltweite Isobaren &amp; Fronten</h1><p class="lead muted">Offizielle Wetterkarten und ergänzende Kartenanbieter – nach Weltregion und Land sortiert. Suche nach Wetterdienst, Land oder Kartentyp.</p><div class="notice"><strong>Quellenstatus:</strong> „Kartenansicht“ bedeutet, dass ein konkreter Kartenbereich bekannt ist, nicht dass die Gültigkeitszeit der zuletzt dargestellten Karte automatisch geprüft wurde. „Prüfung offen“ bezeichnet noch nicht hinreichend verifizierte Angebote. Diese Seite zeigt bereits im Climate Dashboard freigegeben veröffentlichte Originalbilder direkt an. Bei nicht geklärten Rechten bleiben ausschließlich Links zu den externen Originalseiten.</div><section class="sg-panel" data-synoptic-gallery data-scope="world" aria-label="Weltweit freigegebene Isobarenkarten">
+<h2>Weltweite Original-Isobarenkarten direkt ansehen</h2>
+<p class="sg-explain">Hier sind alle derzeit lokal veröffentlichten Originalkarten mit gesichertem Quellen- und Nutzungsstatus aus Europa, Atlantik und Pazifik unmittelbar sichtbar. Jede Karte nennt ihren eigenen UTC-Gültigkeitstermin und – falls vorhanden – Modelllauf und Ausgabezeit. Die Karten werden nicht künstlich auf dieselbe Zeit gebracht. Karten fremder Dienste ohne gesicherten Bildzugang und Freigabe bleiben weiter unten als externe Originalquellen verlinkt.</p>
+<div class="sg-toolbar">
+<label>Kartenquelle<select class="sg-source"><option value="">Alle verfügbaren Quellen</option></select></label>
+<label>Kartenart<select class="sg-type"><option value="">Analysen und Prognosen</option><option value="analysis">Nur Bodenanalysen</option><option value="forecast">Nur Prognosen</option></select></label>
+<label>Umfang<select class="sg-mode"><option value="latest">Neueste Karte je Produkt</option><option value="all">Alle vorhandenen UTC-Bildstände</option></select></label>
+<button type="button" class="sg-refresh">Karten aktualisieren</button>
+</div><p class="sg-status" role="status">Lade freigegebene Originalkarten …</p><div class="sg-grid"></div>
 </section>
 <div class="notice" id="worldWatchStatus" role="status">Weltweite Quellenprüfung: Die regelmäßigen Verfügbarkeits- und Bildverweisprüfungen laufen über GitHub Actions. Noch keine Ergebnisse geladen.</div>
 <div class="bar"><label>Suche<input id="search" type="search" placeholder="z. B. Japan, Bodenanalyse, NOAA"></label><label>Weltregion<select id="region"><option value="">Alle Regionen</option><option value="Europa">Europa</option><option value="Nordamerika / Atlantik">Nordamerika / Atlantik</option><option value="Südamerika">Südamerika</option><option value="Afrika / Indischer Ozean">Afrika / Indischer Ozean</option><option value="Asien">Asien</option><option value="Australien / Pazifik">Australien / Pazifik</option></select></label><label>Quellenstatus<select id="status"><option value="">Alle Quellen</option><option value="viewer">Kartenansichten</option><option value="image">Bild-Direktlinks</option><option value="archive">Archive / historische Karten</option><option value="candidate">Noch zu prüfen</option><option value="portal">Nur Portale</option></select></label></div><div id="summary" class="muted" aria-live="polite"></div><nav class="regions" id="jump"></nav><div id="catalog"></div><footer>Climate Dashboard · Quellenzeiten stets beim Originaldienst kontrollieren · Stand 20.10.2026</footer></main><script>
@@ -25,73 +27,7 @@ const available=REGIONS.filter(k=>filtered.some(x=>x.region===k));
 document.getElementById("jump").innerHTML=available.map((k,i)=>'<a href="#region-'+i+'">'+esc(k)+'</a>').join("");
 document.getElementById("catalog").innerHTML=available.length?available.map((k,i)=>'<section class="section" id="region-'+i+'"><header><h2>'+esc(k)+'</h2><span class="count">'+filtered.filter(x=>x.region===k).length+' Quellen</span></header><div class="cards">'+filtered.filter(x=>x.region===k).map(x=>'<article class="item"><strong>'+esc(x.name)+'</strong><span class="tag '+esc(x.status)+'">'+labels[x.status]+'</span><p>'+esc(x.note)+'</p><a target="_blank" rel="noopener noreferrer" href="'+esc(x.url)+'">'+(x.status==="archive"?"Archiv öffnen ↗":x.status==="candidate"?"Quelle prüfen ↗":"Originalquelle öffnen ↗")+'</a></article>').join("")+'</div></section>').join(""):'<p class="empty">Keine Quellen passen zu dieser Auswahl.</p>';}
 ["search","region","status"].forEach(id=>document.getElementById(id).addEventListener(id==="search"?"input":"change",render));render();</script>
-<script>
-(()=>{"use strict";
-const root="data/synoptic_charts/";
-const allow={
- noaa_pace:"Nordostpazifik · Analyse",
- noaa_pacw:"Nordwestpazifik · Analyse",
- noaa_pacfull:"Nordpazifik · 0-h-Bodenkarte",
- noaa_pac24:"Nordpazifik · +24 h",
- noaa_pac48:"Nordpazifik · +48 h",
- noaa_pac96:"Nordpazifik · +96 h"
-};
-const select=document.getElementById("liveUtc"),grid=document.getElementById("liveGrid"),status=document.getElementById("liveStatus");
-let archive=[];
-function draw(){
- grid.replaceChildren();
- const time=select.value;
- const items=archive.filter(x=>x.valid_utc===time);
- if(!items.length){status.textContent="Keine verifizierten NOAA-Pazifikkarten für diese UTC-Gültigkeit veröffentlicht.";return;}
- status.textContent=items.length+" Originalkarte(n) für "+time.replace("T"," ").replace("+00:00"," UTC")+
-   " · alle NOAA/NWS · nur bestätigte Archivbilder.";
- for(const rec of items){
-  const card=document.createElement("article");card.className="live-card";
-  const img=document.createElement("img");img.loading="lazy";img.alt=allow[rec.source_id];img.src=root+rec.image;
-  const body=document.createElement("div");body.className="live-card-body";
-  const title=document.createElement("div");title.className="live-card-title";title.textContent=allow[rec.source_id];
-  const meta=document.createElement("div");meta.className="live-card-meta";
-  meta.textContent="Gültig: "+rec.valid_utc+" · "+(rec.forecast_hours?("Prognose +"+rec.forecast_hours+" h"):"Analyse");
-  const link=document.createElement("a");link.href=rec.source_url;link.target="_blank";link.rel="noopener noreferrer";link.textContent="NOAA-Original ansehen ↗";
-  body.append(title,meta,link);card.append(img,body);grid.append(card);
- }
-}
-async function load(){
- try{
-  const response=await fetch(root+"index.json?v="+Date.now(),{cache:"no-store"});
-  if(!response.ok)throw new Error("HTTP "+response.status);
-  const data=await response.json();
-  if(data.schema_version!==1||!data.ready||!Array.isArray(data.charts))throw new Error("Ungültiger Kartenindex");
-  archive=data.charts.filter(x=>Object.prototype.hasOwnProperty.call(allow,x.source_id)
-    && x.publisher_id==="noaa"
-    && /^images\/noaa_pac[a-z0-9_]+\.webp$/.test(x.image)
-    && /^https:\/\/ftp\.(?:opc\.ncep\.noaa\.gov|ocean\.weather\.gov)\/ncdc\/[a-z0-9_.-]+\.gif$/i.test(x.source_url)
-    && Number.isFinite(Date.parse(x.valid_utc)));
-  const times=[...new Set(archive.map(x=>x.valid_utc))].sort((a,b)=>b.localeCompare(a));
-  select.replaceChildren();
-  for(const time of times){
-   const opt=document.createElement("option");opt.value=time;opt.textContent=time.replace("T"," ").replace("+00:00"," UTC");select.append(opt);
-  }
-  select.disabled=!times.length;
-  if(times.length){
-   const now=Date.now();
-   // Prefer the UTC term with most *actual* simultaneously published charts.
-   // Do not default to a lone +96-h forecast merely because it is newest.
-   const candidates=times.filter(t=>Date.parse(t)<=now+6*3600000);
-   const options=candidates.length?candidates:times;
-   options.sort((a,b)=>{
-    const n=archive.filter(x=>x.valid_utc===b).length-archive.filter(x=>x.valid_utc===a).length;
-    return n||Math.abs(Date.parse(a)-now)-Math.abs(Date.parse(b)-now);
-   });
-   select.value=options[0];
-  }
-  if(!times.length)status.textContent="Noch keine NOAA-Pazifikkarten im veröffentlichten Datenindex. Nach erfolgreichem GitHub-Quellenlauf werden sie hier automatisch sichtbar.";
-  else draw();
- }catch(err){status.textContent="Originalkartenindex nicht erreichbar: "+err.message+". Externe Originalquellen bleiben unten verlinkt.";select.disabled=true;}
-}
-select.addEventListener("change",draw);load();
-})();
-</script>
+
 
 <script>
 (async()=>{
@@ -113,4 +49,4 @@ select.addEventListener("change",draw);load();
  }catch(e){el.textContent="Kontinuierliche Quellenprüfung ist eingerichtet. Erster veröffentlichter Prüfbericht steht noch aus; die amtlichen Direktlinks sind weiterhin nutzbar.";}
 })();
 </script>
-</body></html>
+<script defer src="synoptic_gallery.js?v=1"></script></body></html>
