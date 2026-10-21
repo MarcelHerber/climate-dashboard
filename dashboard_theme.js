@@ -33,8 +33,10 @@
     const options=chart.options;
     if(!options)return;
     if(!textColors.has(chart)){
-      const plugins=options.plugins||{};
-      const scales=options.scales||{};
+      /* Only capture authored chart colors, not inherited dark Chart.defaults. */
+      const authored=chart.config?.options||{};
+      const plugins=authored.plugins||{};
+      const scales=authored.scales||{};
       const original={
         title:plugins.title?.color,subtitle:plugins.subtitle?.color,
         legend:plugins.legend?.labels?.color,axes:{}
@@ -49,7 +51,7 @@
     }
     const first=textColors.get(chart);
     const dark=isDark()&&!exportingLight;
-    const target=(saved,fallback)=>dark?fallback:(saved??undefined);
+    const target=(saved,fallback)=>dark?fallback:(saved??fallback);
     if(options.plugins?.title){
       options.plugins.title.color=target(first.title,mode.text);
     }
