@@ -139,7 +139,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 <main>
 <div class="intro">
 <div><div class="eyebrow">Stratosphären-Monitoring</div><h1>Zonaler Wind bei 60° Nord</h1>
-<p>Polarwirbel-Diagnostik vom Sommer bis zum folgenden Frühsommer · tägliche Analyse, GEOS-FP-Prognose und historische Winter.</p></div>
+<p>Aktuelle 60°N-/10-hPa-Ensembleprognose und auf Wunsch die vollständige Stratosphärenanalyse.</p></div>
 <div><span class="pill" id="badge">Daten werden geladen …</span></div>
 </div>
 <div id="stratoViewSwitch" class="strato-view-switch" role="group" aria-label="Ansicht des zonalen Windes">
@@ -1131,6 +1131,29 @@ $("levelsCsv").addEventListener("click",()=>{
   saveAs(new Blob([String.fromCharCode(0xFEFF)+rows.join("\r\n")],{type:"text/csv;charset=utf-8"}),levelExportName("csv"));
 });
 $("reload").addEventListener("click",render);
+function setStratoView(mode){
+ const focus=mode==="forecast";
+ document.body.classList.toggle("strato-forecast-only",focus);
+ $("stratoForecastTab").setAttribute("aria-pressed",String(focus));
+ $("stratoHistoryTab").setAttribute("aria-pressed",String(!focus));
+ if(focus){
+  $("badge").textContent=window.stratoGefsEnsemble?.cycle_utc?
+   "GEFS-Lauf "+window.stratoGefsEnsemble.cycle_utc.slice(0,16).replace("T"," ")+" UTC":
+   "Aktuelle GEFS-Prognose";
+  window.dispatchEvent(new Event("stratosphere:view-changed"));
+ }else{
+  if(last)refreshCharts();
+  else if(!loading)void render();
+ }
+}
+$("stratoForecastTab").addEventListener("click",()=>setStratoView("forecast"));
+$("stratoHistoryTab").addEventListener("click",()=>setStratoView("history"));
+window.addEventListener("stratosphere:gefs-loaded",()=>{
+ if(document.body.classList.contains("strato-forecast-only")){
+  const cycle=window.stratoGefsEnsemble?.cycle_utc;
+  $("badge").textContent=cycle?"GEFS-Lauf "+cycle.slice(0,16).replace("T"," ")+" UTC":"GEFS-Lauf nicht verfügbar";
+ }
+});
 $("level").addEventListener("change",render);
 $("season").addEventListener("change",()=>{resetSeasonRange();render();});
 $("heatmapCanvas").addEventListener("pointermove",heatmapHover);
