@@ -210,3 +210,27 @@ html[data-theme="dark"] .dashboard-theme-toggle:hover{background:#345472}
   }
   .dashboard-theme-toggle{display:none!important}
 }
+
+
+/* Fachmodule mit eigener Stylesheet-Datei. */
+html[data-theme="dark"] :is(
+  .sst-europe-card,.sst-europe-status,
+  .t850-location,.t850-model-card,.t850-comparison-card,
+  .era5-synoptic-panel,.sg-panel,.state-monthly-export-area
+){background:var(--card);color:var(--text);border-color:var(--border)}
+html[data-theme="dark"] :is(
+  .sst-europe-date-nav button,.sst-europe-export button,
+  .sst-europe-timeline button,
+  .t850-secondary-button,.t850-export button,
+  .sg-toolbar select
+){background:#233650;color:var(--text);border-color:#526780}
+html[data-theme="dark"] :is(
+  .t850-controls input[type="search"],.t850-axis-field input
+){background:#101c2c;color:var(--text);border-color:#526780}
+html[data-theme="dark"] :is(
+  .t850-model-meta,.t850-header p,.sst-europe-card p,
+  .era5-synoptic-method,.era5-synoptic-status
+){color:var(--muted)}
+html[data-theme="dark"] :is(.sg-image-link,.sst-europe-map-shell,.era5-atmos-image-wrap){
+  background:#1d2d43;border-color:var(--border)
+}
