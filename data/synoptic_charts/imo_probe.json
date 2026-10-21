@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-21T11:45:38+00:00",
+  "checked_utc": "2026-10-21T13:03:35+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -122,10 +122,6 @@
           "image_or_endpoint_strings": []
         },
         {
-          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
-          "image_or_endpoint_strings": []
-        },
-        {
           "url": "https://www.vedur.is/js/vi-base.js?v=538",
           "image_or_endpoint_strings": [
             "icon/wnone.gif",
@@ -148,6 +144,12 @@
         {
           "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
           "image_or_endpoint_strings": []
+        }
+      ],
+      "script_errors": [
+        {
+          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
+          "error": "TimeoutError: The read operation timed out"
         }
       ]
     }
@@ -465,6 +467,14 @@
       "run_utc": "2026-10-21T00:00+00:00",
       "forecast_hours": 126,
       "calculated_valid_utc": "2026-10-26T06:00+00:00",
+      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
+    },
+    {
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261021_0000_132.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "run_utc": "2026-10-21T00:00+00:00",
+      "forecast_hours": 132,
+      "calculated_valid_utc": "2026-10-26T12:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     }
   ],
