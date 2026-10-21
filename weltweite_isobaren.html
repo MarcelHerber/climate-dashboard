@@ -15,12 +15,21 @@
 <button type="button" class="sg-refresh">Karten aktualisieren</button><button type="button" class="sg-fullscreen">Panel im Vollbild</button>
 </div><p class="sg-status" role="status">Lade freigegebene Originalkarten …</p><div class="sg-grid"></div>
 </section>
-<section class="sg-panel" id="dwd-prognosen" data-dwd-forecast aria-label="DWD ICON Bodenprognosen bis sieben Tage">
-<h2>DWD ICON · Bodenprognosen bis +168 Stunden</h2>
-<p class="sg-explain">Originalkarten für den Nordatlantik: Bodendruck, Wetter und Fronten. Die DWD-Bilder sind teilweise mehrteilige Prognoseblätter für einen <strong>Stundenbereich</strong> (beispielsweise +96 bis +168 h), keine einzelne Karte für einen exakten UTC-Zeitpunkt. Der genaue Karteninhalt und seine Zeiten stehen im Originalbild. Deshalb bleiben diese Blätter vom streng UTC-synchronen Vierervergleich getrennt.</p>
-<div class="sg-toolbar"><label>Prognosebereich<select class="df-range"><option value="all">Alle verfügbaren Prognosebereiche</option></select></label>
+<section class="sg-panel" id="dwd-prognosen" data-dwd-forecast aria-label="DWD ICON Isobarenprognosen 12 UTC und 6-Stunden-Termine">
+<h2>DWD ICON · Isobarenprognose bis +168 Stunden</h2>
+<p class="sg-explain">Standardmäßig werden <strong>alle kommenden 12-UTC-Termine</strong> des aktuellen ICON-Laufs angezeigt (heute, morgen, übermorgen usw.). Optional sind 6-Stunden-Schritte mit 00, 06, 12 und 18 UTC wählbar. Wir zeigen jeweils das passende <strong>mehrteilige DWD-Originalblatt</strong>: Der ausgewählte Zeitpunkt liegt in dessen Stundenbereich, ist aber noch kein gesondert aus dem Blatt herausgelöstes, geprüften Einzelbild. Analyse und exakter UTC-Vierervergleich bleiben separat.</p>
+<div class="sg-toolbar">
+<label>Zeitliche Auswahl
+<select class="df-mode">
+<option value="daily" selected>12 UTC täglich (Standard)</option>
+<option value="six">Alle 6 Stunden (00 / 06 / 12 / 18 UTC)</option>
+<option value="sheets">DWD-Originalblätter nach Stundenbereichen</option>
+</select></label>
+<label>Gewünschte Gültigkeitszeit
+<select class="df-target"><option value="all">Alle kommenden 12-UTC-Termine</option></select></label>
 <button class="sg-refresh df-reload" type="button">DWD-Prognosen aktualisieren</button>
-<a href="https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/" rel="noopener noreferrer" target="_blank">DWD-Originalverzeichnis ↗</a></div>
+<a href="https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/" rel="noopener noreferrer" target="_blank">DWD-Originalverzeichnis ↗</a>
+</div>
 <p class="sg-status df-status" role="status">Lade DWD-Originalkarten …</p><div class="sg-grid df-grid"></div>
 </section>
 <div class="notice" id="worldWatchStatus" role="status">Weltweite Quellenprüfung: Die regelmäßigen Verfügbarkeits- und Bildverweisprüfungen laufen über GitHub Actions. Noch keine Ergebnisse geladen.</div>
@@ -57,4 +66,4 @@ document.getElementById("catalog").innerHTML=available.length?available.map((k,i
  }catch(e){el.textContent="Kontinuierliche Quellenprüfung ist eingerichtet. Erster veröffentlichter Prüfbericht steht noch aus; die amtlichen Direktlinks sind weiterhin nutzbar.";}
 })();
 </script>
-<script defer src="synoptic_gallery.js?v=2"></script><script defer src="dwd_forecast_panel.js?v=1"></script></body></html>
+<script defer src="synoptic_gallery.js?v=2"></script><script defer src="dwd_forecast_panel.js?v=2"></script></body></html>
