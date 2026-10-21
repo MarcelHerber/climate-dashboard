@@ -34,25 +34,9 @@ const values={
  stratoEnsembleFrom:{value:""},stratoEnsembleTo:{value:""},
  stratoEnsembleSpan:{value:"all"},
 };
-const state={
- forecast:{valid_dates:Array.from({length:36},(_,i)=>{
-   return new Date(Date.UTC(2026,9,20+i)).toISOString().slice(0,10);
- })},
- drawCalls:0,
-};
-const ctx={
- ...state,
- Date,
- $:name=>values[name],
- draw(){this.drawCalls++},
-};
-vm.createContext(ctx);
-vm.runInContext("let forecast=globalForecast;function draw(){drawCounter.calls++};"+
- selection+" globalThis.testing={defaultWindow,applyForecastHorizon,setRange};",{
-   ...ctx,globalForecast:ctx.forecast,drawCounter:{calls:0},
-   // Must be internally consistent with real browser Date constructor.
-},{timeout:1000});
-const sandbox={Date,globalForecast:ctx.forecast,drawCounter:{calls:0},
+const sampleDates=Array.from({length:36},(_,i)=>
+ new Date(Date.UTC(2026,9,20+i)).toISOString().slice(0,10));
+const sandbox={Date,globalForecast:{valid_dates:sampleDates},drawCounter:{calls:0},
  $:id=>values[id]};
 vm.createContext(sandbox);
 vm.runInContext('let forecast=globalForecast;function draw(){drawCounter.calls++};'+selection+
