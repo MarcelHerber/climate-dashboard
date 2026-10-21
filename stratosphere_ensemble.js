@@ -93,10 +93,14 @@ async function reload(){
   fetchNasa()
  ]);
  forecast=result[0].status==="fulfilled"?result[0].value:null;
+ // Share precisely the same validated 31 original GEFS members with the
+ // primary 60N/10hPa chart. Never use climatology as a member substitute.
+ window.stratoGefsEnsemble=forecast;
+ window.dispatchEvent(new CustomEvent("stratosphere:gefs-loaded"));
  if(!forecast)console.info("GEFS-Ensemble noch nicht freigegeben:",result[0].reason);
  if(forecast){
   lastForecastAt=forecast.cycle_utc;
-  note("NOAA GEFS · 31 echte Ensemblemitglieder · Lauf "+forecast.cycle_utc+
+  note("NOAA GEFS · 31/31 echte Ensemblemitglieder sichtbar · Lauf "+forecast.cycle_utc+
     " · "+forecast.valid_dates.length+" Tageszeitpunkte · bis "+forecast.valid_dates.at(-1));
  }else{
   note("Ensemble-Prognose derzeit nicht verfügbar: "+(result[0].reason?.message||"kein geprüfter GEFS-Lauf")+
@@ -141,13 +145,14 @@ function draw(){
  if(forecast&&$("stratoBand90").checked)datasets.push(...band(rows,"p05","p95","Ensemble 5–95 %","rgba(112,145,202,.17)"));
  if(forecast&&$("stratoBand50").checked)datasets.push(...band(rows,"p25","p75","Ensemble 25–75 %","rgba(51,86,158,.29)"));
  if(forecast&&$("stratoMembers").checked){
+  datasets.push(line("31 GEFS-Mitglieder (einzeln)",rows.map(()=>null),"rgba(35,46,62,.75)",1.3,{order:7}));
   for(const [id,values] of Object.entries(forecast.members)){
    datasets.push(line("_"+id,rows.map(r=>Number.isInteger(r.memberIndex)?values[r.memberIndex]:null),
-     "rgba(47,56,70,.26)",.8,{order:8}));
+     "rgba(35,46,62,.48)",1.05,{order:7}));
   }
  }
  if(forecast){
-  datasets.push(line("Ensemble-Mittel",rows.map(r=>r.stats?.mean??null),"#d62828",3,{order:1}));
+  datasets.push(line("Ensemble-Mittel",rows.map(r=>r.stats?.mean??null),"#d62828",3.4,{order:0}));
   datasets.push(line("Kontrolllauf",rows.map(r=>r.control),"#ea9908",1.8,{borderDash:[6,4],order:2}));
  }
  datasets.push(line("NASA-Analyse (MERRA-2/GEOS-FP)",rows.map(r=>r.obs),"#16803f",3,{order:0}));
