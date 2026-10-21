@@ -52,7 +52,9 @@
     }
     const first=textColors.get(chart);
     const dark=isDark()&&!exportingLight;
-    const target=(saved,fallback)=>dark?fallback:(saved??fallback);
+    const inheritedDark=new Set(["#dce8f7","rgba(161,185,213,.17)","rgba(161,185,213,.38)"]);
+    const target=(saved,fallback)=>dark?fallback:
+      (typeof saved==="string"&&inheritedDark.has(saved)?fallback:(saved??fallback));
     if(options.plugins?.title){
       options.plugins.title.color=target(first.title,mode.text);
     }
