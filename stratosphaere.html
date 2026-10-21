@@ -1232,7 +1232,9 @@ document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("ch
       }
     }
   }catch(e){$("updated").textContent="Archiv-Metadaten aktuell nicht erreichbar";}
-  await render();
+  // NASA history and additional pressure levels are loaded only when the
+  // visitor actually switches from the fast forecast view to the archive.
+  if(!document.body.classList.contains("strato-forecast-only"))await render();
 })();
 })();
 </script>
