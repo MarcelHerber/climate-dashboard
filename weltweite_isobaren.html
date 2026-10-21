@@ -15,22 +15,14 @@
 <button type="button" class="sg-refresh">Karten aktualisieren</button><button type="button" class="sg-fullscreen">Panel im Vollbild</button>
 </div><p class="sg-status" role="status">Lade freigegebene Originalkarten …</p><div class="sg-grid"></div>
 </section>
-<section class="sg-panel" id="dwd-prognosen" data-dwd-forecast aria-label="DWD ICON Isobarenprognosen 12 UTC und 6-Stunden-Termine">
-<h2>DWD ICON · Isobarenprognose bis +168 Stunden</h2>
-<p class="sg-explain">Standardmäßig werden <strong>alle kommenden 12-UTC-Termine</strong> des aktuellen ICON-Laufs angezeigt (heute, morgen, übermorgen usw.). Optional sind 6-Stunden-Schritte mit 00, 06, 12 und 18 UTC wählbar. Wir zeigen jeweils das passende <strong>mehrteilige DWD-Originalblatt</strong>: Der ausgewählte Zeitpunkt liegt in dessen Stundenbereich, ist aber noch kein gesondert aus dem Blatt herausgelöstes, geprüften Einzelbild. Analyse und exakter UTC-Vierervergleich bleiben separat.</p>
+<section class="sg-panel" id="dwd-prognosen" data-dwd-forecast aria-label="DWD Isobaren-Prognosen als Einzelkarten">
+<h2>DWD · Original-Bodenprognosen: einzelne Isobarenkarten</h2>
+<p class="sg-explain">Hier sind die <strong>fünf echten synoptischen TKB-Bodenprognosen des DWD</strong> mit Isobaren sowie Warm-, Kalt- und Okklusionsfronten zu +36, +48, +60, +84 und +108 Stunden. Jede Prognose ist <strong>eine einzelne Wetterkarte</strong> – keine ICON-Sechsertafel. Gültigkeit und Bezugszeit bitte dem Kartenfuß entnehmen; die Ausgabezeit wird nicht mit der Vorhersagezeit verwechselt. Die ursprüngliche Analyse bleibt im getrennten UTC-Vergleich.</p>
 <div class="sg-toolbar">
-<label>Zeitliche Auswahl
-<select class="df-mode">
-<option value="daily" selected>12 UTC täglich (Standard)</option>
-<option value="six">Alle 6 Stunden (00 / 06 / 12 / 18 UTC)</option>
-<option value="sheets">DWD-Originalblätter nach Stundenbereichen</option>
-</select></label>
-<label>Gewünschte Gültigkeitszeit
-<select class="df-target"><option value="all">Alle kommenden 12-UTC-Termine</option></select></label>
-<button class="sg-refresh df-reload" type="button">DWD-Prognosen aktualisieren</button>
-<a href="https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/" rel="noopener noreferrer" target="_blank">DWD-Originalverzeichnis ↗</a>
-</div>
-<p class="sg-status df-status" role="status">Lade DWD-Originalkarten …</p><div class="sg-grid df-grid"></div>
+<label>Prognosezeitraum<select class="df-lead"><option value="all">Alle fünf Einzelkarten</option><option value="36">+36 Stunden</option><option value="48">+48 Stunden</option><option value="60">+60 Stunden</option><option value="84">+84 Stunden</option><option value="108">+108 Stunden</option></select></label>
+<button class="sg-refresh df-reload" type="button">DWD-Einzelkarten aktualisieren</button>
+<a href="https://www.wetter3.de/fax_dt.html" rel="noopener noreferrer" target="_blank">Originalkartenübersicht ↗</a>
+</div><p class="sg-status df-status" role="status">Lade DWD-TKB-Einzelkarten …</p><div class="sg-grid df-grid"></div>
 </section>
 <div class="notice" id="worldWatchStatus" role="status">Weltweite Quellenprüfung: Die regelmäßigen Verfügbarkeits- und Bildverweisprüfungen laufen über GitHub Actions. Noch keine Ergebnisse geladen.</div>
 <div class="bar"><label>Suche<input id="search" type="search" placeholder="z. B. Japan, Bodenanalyse, NOAA"></label><label>Weltregion<select id="region"><option value="">Alle Regionen</option><option value="Europa">Europa</option><option value="Nordamerika / Atlantik">Nordamerika / Atlantik</option><option value="Südamerika">Südamerika</option><option value="Afrika / Indischer Ozean">Afrika / Indischer Ozean</option><option value="Asien">Asien</option><option value="Australien / Pazifik">Australien / Pazifik</option></select></label><label>Quellenstatus<select id="status"><option value="">Alle Quellen</option><option value="viewer">Kartenansichten</option><option value="image">Bild-Direktlinks</option><option value="archive">Archive / historische Karten</option><option value="candidate">Noch zu prüfen</option><option value="portal">Nur Portale</option></select></label></div><div id="summary" class="muted" aria-live="polite"></div><nav class="regions" id="jump"></nav><div id="catalog"></div><footer>Climate Dashboard · Quellenzeiten stets beim Originaldienst kontrollieren · Stand 20.10.2026</footer></main><script>
@@ -66,4 +58,4 @@ document.getElementById("catalog").innerHTML=available.length?available.map((k,i
  }catch(e){el.textContent="Kontinuierliche Quellenprüfung ist eingerichtet. Erster veröffentlichter Prüfbericht steht noch aus; die amtlichen Direktlinks sind weiterhin nutzbar.";}
 })();
 </script>
-<script defer src="synoptic_gallery.js?v=2"></script><script defer src="dwd_forecast_panel.js?v=3"></script></body></html>
+<script defer src="synoptic_gallery.js?v=2"></script><script defer src="dwd_forecast_panel.js?v=4"></script></body></html>
