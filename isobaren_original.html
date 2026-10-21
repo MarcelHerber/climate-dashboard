@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="isobaren_original.css?v=6">
 <script defer src="synoptic_panel_logic.js?v=5"></script>
 <script defer src="isobaren_original.js?v=44"></script>
+<link rel="stylesheet" href="synoptic_gallery.css?v=1">
+<script defer src="synoptic_gallery.js?v=1"></script>
 </head>
 <body>
 <header><div class="head"><a class="brand" href="index.html">Climate Dashboard · Deutschland & Europa</a>
@@ -50,9 +52,20 @@
 <p class="fine">Die Filter beruhen auf dem nachgewiesenen Kartenprodukt: Analysen mit Fronten, Frontenprognosen und reine Modell-Isobaren (IMO ohne Fronten) bleiben unterscheidbar. Analysen und Prognosen sind unterschiedlich: Das Kartenetikett zeigt deshalb beides separat. Alle Uhrzeiten in UTC, keine stillschweigende Anpassung an Modelllaufzeiten. Es gibt keinen grafischen Zuschnitt oder künstliche Frontenerkennung.</p>
 </section>
 
+<section class="sg-panel" data-synoptic-gallery data-scope="europe" aria-label="Freigegebene synoptische Karten direkt ansehen">
+<h2>Alle verfügbaren Original-Isobarenkarten direkt ansehen</h2>
+<p class="sg-explain">Hier erscheinen alle bereits geprüften, lokal veröffentlichten und zur Wiedergabe freigegebenen Kartenbilder für Europa und den Nordatlantik – nicht nur die Karten eines gemeinsamen UTC-Termins. Jede Karte trägt ihre eigene Gültigkeits- und gegebenenfalls Ausgabezeit. Den streng UTC-synchronen Vierervergleich findest du oben. Weitere Wetterdienste ohne gesicherte Bildfreigabe bleiben unten verlinkt.</p>
+<div class="sg-toolbar">
+<label>Kartenquelle<select class="sg-source"><option value="">Alle verfügbaren Kartenquellen</option></select></label>
+<label>Kartenart<select class="sg-type"><option value="">Analysen und Prognosen</option><option value="analysis">Nur Bodenanalysen</option><option value="forecast">Nur Prognosen</option></select></label>
+<label>Umfang<select class="sg-mode"><option value="latest">Neueste Karte je Produkt</option><option value="all">Alle verfügbaren UTC-Bildstände</option></select></label>
+<button type="button" class="sg-refresh">Karten aktualisieren</button>
+</div>
+<p class="sg-status" role="status">Lade freigegebene Originalbilder …</p><div class="sg-grid"></div>
+</section>
 <section class="panel" id="wetterdienste">
 <h2>Wetterdienste &amp; Originalkarten</h2>
-<p class="help">Die Quellenübersicht umfasst alle 47 berücksichtigten europäischen Länder einschließlich Kosovo sowie vier angrenzende Länder (Armenien, Aserbaidschan, Georgien und Kasachstan). Eigene synoptische Originalkarten werden ausdrücklich von regionaler Abdeckung, Archiven und amtlichen Wetterportalen unterschieden. Automatisch verfügbare Originalkarten, direkte Kartenansichten und ungeprüfte Verweise sind separat gekennzeichnet. Nur tatsächlich geprüfte Bilder mit identischem UTC-Gültigkeitstermin werden im Kartenvergleich dargestellt. Bei anderen Quellen erscheint im oberen Kartenbereich ein Direktlink statt eines nicht freigegebenen Bildes. Nutzungsrechte und maschinenlesbare Gültigkeitszeiten werden separat geprüft; die Quellenprüfung ist kein Live-Verfügbarkeitstest.</p>
+<p class="help">Die Quellenübersicht umfasst alle 47 berücksichtigten europäischen Länder einschließlich Kosovo sowie vier angrenzende Länder (Armenien, Aserbaidschan, Georgien und Kasachstan). Eigene synoptische Originalkarten werden ausdrücklich von regionaler Abdeckung, Archiven und amtlichen Wetterportalen unterschieden. Automatisch verfügbare Originalkarten, direkte Kartenansichten und ungeprüfte Verweise sind separat gekennzeichnet. Im oberen Vierervergleich erscheinen nur nachgewiesene Bilder mit identischer UTC-Gültigkeit. In der neuen Galerie daneben werden alle freigegebenen, lokal archivierten Originalbilder unabhängig von der gemeinsamen Uhrzeit angezeigt. Für andere Dienste bleibt ein Link zur Originalseite. Nutzungsrechte und maschinenlesbare Gültigkeitszeiten werden separat geprüft; die Quellenprüfung ist kein Live-Verfügbarkeitstest.</p>
 <div class="source-toolbar">
  <label class="source-control">Wetterdienst oder Land suchen<input id="sourceSearch" type="search" placeholder="z. B. KNMI, Frankreich, Fronten" autocomplete="off"></label>
  <label class="source-control">Land auswählen<select id="sourceCountry"><option value="all">Alle Länder</option></select></label>
