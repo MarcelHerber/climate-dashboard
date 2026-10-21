@@ -39,39 +39,15 @@ class GefsWindTests(unittest.TestCase):
         speed=np.concatenate([np.full(720,99,dtype=np.float32),
                               np.arange(720,dtype=np.float32)/10,
                               np.full(720,-40,dtype=np.float32)])
-        class FakeFile:
-            def write(self,*args):return None
-            def seek(self,*args):return None
-            def __enter__(self):return self
-            def __exit__(self,*args):return False
-        with patch.object(mod.tempfile,"TemporaryFile",return_value=FakeFile()), \
-             patch.object(mod.eccodes,"codes_grib_new_from_file",return_value=11), \
-             patch.object(mod.eccodes,"codes_get",side_effect=lambda _h,k:{
-                 "shortName":"u","level":10,"typeOfLevel":"isobaricInhPa","units":"m s**-1"}[k]), \
-             patch.object(mod.eccodes,"codes_get_array",side_effect=lambda _h,k:{
-                 "latitudes":lat,"longitudes":lon,"values":speed}[k]), \
-             patch.object(mod.eccodes,"codes_release"):
-            result=mod.zonal_wind(b"GRIB")
+        result=mod.zonal_mean_from_grid(lat,lon,speed)
         self.assertAlmostEqual(result,35.95,places=3)
 
     def test_missing_longitude_rejected(self):
         lon=np.arange(719,dtype=np.float32)/2
         lat=np.full(719,60,dtype=np.float32)
         values=np.full(719,20,dtype=np.float32)
-        class FakeFile:
-            def write(self,*args):return None
-            def seek(self,*args):return None
-            def __enter__(self):return self
-            def __exit__(self,*args):return False
-        with patch.object(mod.tempfile,"TemporaryFile",return_value=FakeFile()), \
-             patch.object(mod.eccodes,"codes_grib_new_from_file",return_value=11), \
-             patch.object(mod.eccodes,"codes_get",side_effect=lambda _h,k:{
-                 "shortName":"u","level":10,"typeOfLevel":"isobaricInhPa","units":"m s**-1"}[k]), \
-             patch.object(mod.eccodes,"codes_get_array",side_effect=lambda _h,k:{
-                 "latitudes":lat,"longitudes":lon,"values":values}[k]), \
-             patch.object(mod.eccodes,"codes_release"):
-            with self.assertRaisesRegex(ValueError,"incomplete"):
-                mod.zonal_wind(b"GRIB")
+        with self.assertRaisesRegex(ValueError,"incomplete"):
+            mod.zonal_mean_from_grid(lat,lon,values)
 
 
 if __name__=="__main__":
