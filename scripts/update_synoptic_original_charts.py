@@ -617,6 +617,17 @@ def main(output=OUT,now=None):
         tmp=output/"index.json.tmp"
         tmp.write_text(json.dumps(published,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
         tmp.replace(output/"index.json")
+        # These DWD sheets contain MULTIPLE lead times on one image and must
+        # never enter the strict valid_utc four-panel index above.
+        try:
+            import dwd_synoptic_forecast as dwd_forecast
+            manifest=dwd_forecast.publish(output,now,download,image_webp)
+            print("DWD ICON forecasts published:",manifest["sheet_count"],
+                  "sheets up to +",manifest["max_forecast_hours"],"h",flush=True)
+        except Exception as exc:
+            # Keep previous successful manifest if the source temporarily fails.
+            print("DWD ICON forecast sheets unavailable:",
+                  (type(exc).__name__+": "+str(exc))[:240],flush=True)
         print("Verified synoptic charts:",len(charts),status,flush=True)
     return published
 
