@@ -15,6 +15,16 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+<!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
+<script>
+(function(){
+  try{
+    const saved=localStorage.getItem("climateDashboardThemeV1");
+    const osDark=window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme=(saved==="light"||saved==="dark")?saved:(osDark?"dark":"light");
+  }catch(_error){document.documentElement.dataset.theme="light";}
+})();
+</script>
 <style>
 :root{
   color-scheme:light;
@@ -1156,6 +1166,7 @@ button.action:hover{background:#1f2937}
 <link rel="stylesheet" href="era5_synoptic.css?v=20261014-synoptic-v1">
 <link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
 <link rel="stylesheet" href="dashboard_cleanup.css?v=20261021-wide1">
+<link rel="stylesheet" href="dashboard_theme.css?v=20261021-1">
 </head>
 <body>
 
@@ -1252,6 +1263,11 @@ button.action:hover{background:#1f2937}
     </nav>
 
     <div class="header-actions">
+      <button class="header-action dashboard-theme-toggle" id="dashboardThemeToggle" type="button"
+              aria-label="Dark Mode einschalten" aria-pressed="false" title="Dark Mode einschalten">
+        <span class="header-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13a8.5 8.5 0 0 1-9.5-9.5A8.5 8.5 0 1 0 20.5 13Z"/></svg></span>
+        <span class="action-label">Dunkel</span>
+      </button>
       <button class="header-action" type="button" onclick="switchTab('overview');window.setTimeout(()=>document.getElementById('overviewSources')?.scrollIntoView({behavior:'smooth',block:'start'}),80)" title="Informationen und Datenquellen">
         <span class="header-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 10.5v6"></path><path d="M12 7.5h.01"></path></svg></span>
         <span class="action-label">Info</span>
@@ -17292,5 +17308,6 @@ hyrasSwitchParameter=async function(){
 <script src="era5_europe.js?v=20261014-era5-sync-fix"></script>
 <script src="era5_synoptic.js?v=20261014-synoptic-v1"></script>
 <script src="monthly_layout.js?v=20261014-gebietsmittel2"></script>
+<script src="dashboard_theme.js?v=20261021-1"></script>
 </body>
 </html>
