@@ -163,3 +163,49 @@
  #monthly .monthly-expand-section > summary::after{right:15px}
  #monthly .monthly-expand-body{padding:8px 9px}
 }
+
+/* ================= DESKTOP-WIDE V1: MEHR NUTZFLÄCHE =================
+   Die Inhaltsbreite wächst auf großen Monitoren; Tablet/Mobil bleiben unverändert. */
+@media (min-width:1101px){
+  .dashboard-header-inner,
+  .dashboard-main{
+    width:min(2048px,100%);
+  }
+  .dashboard-header-inner{
+    padding-inline:clamp(22px,2.1vw,42px);
+  }
+  .dashboard-main{
+    padding-inline:clamp(22px,2.1vw,42px);
+  }
+}
+
+/* Etwas größere, besser bedienbare Texte und Auswahlfelder. */
+.dashboard-main .section-header h2{
+  font-size:clamp(23px,1.5vw,29px);
+}
+.dashboard-main .section-header p{
+  font-size:clamp(13px,.85vw,15px);
+}
+.dashboard-main .controls .control-group label{
+  font-size:14px;
+}
+.dashboard-main .controls select{
+  min-height:42px;
+  font-size:15px;
+}
+#monthly .monthly-content-heading h3{font-size:22px}
+#monthly .monthly-content-heading p{font-size:14px}
+#monthly .monthly-section-link{font-size:14px}
+#monthly .chart-export-button{font-size:13px}
+
+/* Die langen Klima-Zeitreihen dürfen in der Breite und Höhe wachsen. */
+@media(min-width:1101px){
+  #monthly .monthly-primary-output .chart-container:not(.auto) > canvas{
+    height:clamp(475px,31vw,555px)!important;
+  }
+}
+@media(max-width:700px){
+  .dashboard-main .section-header h2{font-size:23px}
+  #monthly .monthly-content-heading h3{font-size:19px}
+  #monthly .monthly-section-link{font-size:13px}
+}
