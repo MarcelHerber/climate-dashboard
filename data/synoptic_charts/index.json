@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-21T09:46:47+00:00",
+  "generated_utc": "2026-10-21T11:46:46+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -705,7 +705,7 @@
   "source_status": {
     "dwd": {
       "state": "available",
-      "charts": 7
+      "charts": 8
     },
     "aemet": {
       "state": "available",
@@ -745,7 +745,7 @@
     },
     "noaa_pacw": {
       "state": "available",
-      "charts": 7
+      "charts": 8
     },
     "noaa_pacfull": {
       "state": "available",
@@ -765,11 +765,12 @@
     },
     "chmi": {
       "state": "available",
-      "charts": 3
+      "charts": 4
     },
     "dhmz": {
-      "state": "unavailable",
-      "reason": "ValueError: DHMZ map lacks an unambiguous Croatian printed UTC date"
+      "state": "available",
+      "charts": 1,
+      "valid_utc": "2026-10-22T12:00+00:00"
     },
     "imo": {
       "state": "available",
@@ -836,6 +837,18 @@
       "publisher_id": "noaa",
       "image": "images/noaa_pacfull_20261019_1200.webp",
       "size_bytes": 248520
+    },
+    {
+      "source_id": "noaa_pacw",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-19T12:00+00:00",
+      "issued_utc": "2026-10-19T15:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pacw_sfcanal_12.2026101915.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pacw_20261019_1200.webp",
+      "size_bytes": 137646
     },
     {
       "source_id": "noaa_west",
@@ -1347,21 +1360,6 @@
       "size_bytes": 297620
     },
     {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-21T00:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-10-21T10:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261021_0000.webp",
-      "size_bytes": 287564
-    },
-    {
       "source_id": "dwd",
       "kind": "Analyse",
       "valid_utc": "2026-10-21T00:00+00:00",
@@ -1485,6 +1483,32 @@
       "publisher_id": "noaa",
       "image": "images/noaa_west_20261021_0000.webp",
       "size_bytes": 159386
+    },
+    {
+      "source_id": "chmi",
+      "publisher_id": "chmi",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-21T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
+      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider_timeline_utc": "2026-10-21T10:00+00:00",
+      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
+      "image": "images/chmi_20261021_0600.webp",
+      "size_bytes": 291820
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-21T06:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261021104623_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610210600_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261021_0600.webp",
+      "size_bytes": 1413602
     },
     {
       "source_id": "knmi",
@@ -1860,6 +1884,20 @@
       "size_bytes": 264062
     },
     {
+      "source_id": "dhmz",
+      "publisher_id": "dhmz",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-22T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://prognoza.hr/web_fronte_sutra12.jpg",
+      "source_page": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "credit": "Izvor: DHMZ · Kroatischer Wetterdienst · Original-Frontenprognose, für WebP konvertiert",
+      "terms_url": "https://meteo.hr/o_nama.php?param=uvjeti&section=naslovnica",
+      "validity_method": "Printed Croatian date/time on original DHMZ map; OCR of caption only",
+      "image": "images/dhmz_20261022_1200.webp",
+      "size_bytes": 142236
+    },
+    {
       "source_id": "knmi",
       "publisher_id": "knmi",
       "kind": "Prognose",
@@ -1992,7 +2030,7 @@
       "provider_timeline_utc": "2026-10-23T10:00+00:00",
       "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
       "image": "images/chmi_20261023_1200.webp",
-      "size_bytes": 266840
+      "size_bytes": 270590
     },
     {
       "source_id": "noaa_96",
@@ -2021,6 +2059,21 @@
       "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik +96 h)",
       "image": "images/noaa_pac96_20261023_1200.webp",
       "size_bytes": 234132
+    },
+    {
+      "source_id": "chmi",
+      "publisher_id": "chmi",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-24T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
+      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "provider_timeline_utc": "2026-10-24T10:00+00:00",
+      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
+      "image": "images/chmi_20261024_1200.webp",
+      "size_bytes": 266842
     },
     {
       "source_id": "noaa_96",
@@ -2071,6 +2124,6 @@
     "2026-10-23T12:00+00:00",
     "2026-10-24T12:00+00:00"
   ],
-  "chart_count": 99,
+  "chart_count": 103,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
