@@ -1,0 +1,18 @@
+.sg-panel{margin:24px 0;background:#fff;border:1px solid #cddce8;border-radius:14px;padding:20px}
+.sg-panel h2{margin:0 0 8px;font-size:22px}.sg-explain{font-size:14px;line-height:1.5;color:#52687d;margin:0 0 14px}
+.sg-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:14px 0}
+.sg-toolbar label{font-size:13px;font-weight:650;display:flex;flex-direction:column;gap:5px;min-width:165px;flex:1}
+.sg-toolbar select{width:100%;min-height:38px;padding:7px 9px;background:#fff;color:#213a50;border:1px solid #bacbd8;border-radius:7px;font-size:14px}
+.sg-refresh{min-height:38px;padding:8px 12px;cursor:pointer;border:1px solid #afc4d2;background:#edf3f8;border-radius:8px;color:#183c59;font-weight:650}
+.sg-status{font-size:13px;color:#4d6578;margin:10px 0 14px;line-height:1.5}
+.sg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:13px}
+.sg-card{border:1px solid #d7e2eb;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:#fbfdff;min-width:0}
+.sg-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:12px 13px 8px}
+.sg-name{font-size:15px;color:#183851;line-height:1.3}.sg-kind{font-size:11px;white-space:nowrap;background:#e8f0f6;color:#32536a;border-radius:6px;padding:4px 6px}
+.sg-image-link{background:#eef3f7;display:flex;align-items:center;justify-content:center;min-height:135px;color:#1b6489;text-align:center;text-decoration:none}
+.sg-image{max-width:100%;width:100%;height:auto;max-height:340px;object-fit:contain;display:block}
+.sg-image-fallback{font-size:13px;padding:15px}.sg-card-details{padding:10px 13px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.sg-time{font-size:13px;font-weight:650;color:#2a4a61}.sg-small,.sg-credit{font-size:12px;color:#577185;line-height:1.45}
+.sg-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:8px;font-size:13px}
+.sg-links a{color:#14678f;font-weight:650}.sg-empty{padding:22px;color:#657b8c}
+@media(max-width:600px){.sg-panel{padding:14px}.sg-toolbar label{min-width:100%}.sg-card-head{align-items:center}}
