@@ -24,6 +24,7 @@ required_root_files=(
   isobaren_original.css
   synoptic_gallery.js
   synoptic_gallery.css
+  dwd_forecast_panel.js
   enso.html
   qbo.html
   mjo.html
@@ -97,12 +98,16 @@ node --check ssw_catalog.js
 node --check synoptic_panel_logic.js
 node --check isobaren_original.js
 node --check synoptic_gallery.js
+node --check dwd_forecast_panel.js
 node --test tests/test_synoptic_panel_selection.cjs
 # Die Seiten dürfen niemals auf Assets verweisen, die im Pages-Build fehlen.
 test -s _site/synoptic_gallery.js
 test -s _site/synoptic_gallery.css
+test -s _site/dwd_forecast_panel.js
 grep -q 'data-synoptic-gallery' _site/isobaren_original.html
 grep -q 'data-synoptic-gallery' _site/weltweite_isobaren.html
+grep -q 'data-dwd-forecast' _site/isobaren_original.html
+grep -q 'data-dwd-forecast' _site/weltweite_isobaren.html
 python -m unittest discover -s tests -p test_imo_atlantic_probe.py -v
 python -m unittest discover -s tests -p test_europe_synoptic_source_audit.py -v
 python -m unittest discover -s tests -p test_europe_country_coverage.py -v
@@ -367,6 +372,29 @@ for chart in index["charts"]:
 PY
   mkdir -p _site/data/synoptic_charts
   cp -a data/synoptic_charts/index.json data/synoptic_charts/images _site/data/synoptic_charts/
+  if [[ -s data/synoptic_charts/dwd_forecasts.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+root=Path("data/synoptic_charts")
+data=json.loads((root/"dwd_forecasts.json").read_text(encoding="utf-8"))
+assert data["schema_version"]==1 and data["sheet_count"]==len(data["sheets"])>0
+assert data["max_forecast_hours"]<=168
+for s in data["sheets"]:
+    assert s["multiple_valid_times"] is True and not s["has_single_valid_utc"]
+    assert "valid_utc" not in s
+    assert s["source_id"]=="dwd_icon_hptfg_na"
+    assert 0<=s["forecast_from_hours"]<s["forecast_to_hours"]<=168
+    assert s["source_url"].startswith("https://opendata.dwd.de/weather/charts/forecasts/icon/global/na/")
+    p=root/s["image"]
+    assert p.exists() and p.stat().st_size>18000
+    assert p.read_bytes()[:4]==b"RIFF"
+PY
+    cp data/synoptic_charts/dwd_forecasts.json _site/data/synoptic_charts/
+    echo "DWD ICON-Prognoseblätter mit Vorhersageintervallen veröffentlicht."
+  else
+    echo "DWD ICON-Prognoseblätter noch nicht erfolgreich abgerufen; Prognosepanel zeigt einen Hinweis."
+  fi
   if [[ -s data/synoptic_charts/europe_source_audit.json ]]; then
     python - <<'PY'
 import json
