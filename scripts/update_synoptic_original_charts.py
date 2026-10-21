@@ -617,17 +617,15 @@ def main(output=OUT,now=None):
         tmp=output/"index.json.tmp"
         tmp.write_text(json.dumps(published,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
         tmp.replace(output/"index.json")
-        # These DWD sheets contain MULTIPLE lead times on one image and must
-        # never enter the strict valid_utc four-panel index above.
+        # Correct manually interpreted DWD TKB SINGLE synoptic forecast charts.
+        # Never insert these into the UTC-exact comparison unless their printed
+        # validity is independently verified. Old mosaics are NOT regenerated.
         try:
-            import dwd_synoptic_forecast as dwd_forecast
-            manifest=dwd_forecast.publish(output,now,download,image_webp)
-            print("DWD ICON forecasts published:",manifest["sheet_count"],
-                  "sheets up to +",manifest["max_forecast_hours"],"h",flush=True)
+            import dwd_tkb_individual_charts as tkb
+            original=tkb.publish(output,now,download,image_webp)
+            print("DWD TKB real single-map products:",original["map_count"],flush=True)
         except Exception as exc:
-            # Keep previous successful manifest if the source temporarily fails.
-            print("DWD ICON forecast sheets unavailable:",
-                  (type(exc).__name__+": "+str(exc))[:240],flush=True)
+            print("DWD single map import failed:",(type(exc).__name__+": "+str(exc))[:200],flush=True)
         print("Verified synoptic charts:",len(charts),status,flush=True)
     return published
 
