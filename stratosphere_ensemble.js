@@ -8,7 +8,7 @@ const root=$("stratoEnsembleCard");if(!root)return;
 const WIND_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ensemble-data/data/stratosphere/ensemble/gefs_current.json";
 const NASA_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-data/data/stratosphere/";
 const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-let chart=null,forecast=null,climo=null,observed=new Map(),lastRows=[],lastForecastAt=null;
+let chart=null,forecast=null,climo=null,observed=new Map(),lastRows=[],lastForecastAt=null,nasaLoaded=false;
 
 function day(date){return date.toISOString().slice(0,10);}
 function dt(date){return new Date(date+"T00:00:00Z");}
@@ -92,16 +92,18 @@ async function fetchNasa(){
   const r=await fetch(NASA_SOURCE+"climatology_10hpa.json?d="+Math.floor(Date.now()/3600000));
   if(r.ok){const j=await r.json();climo=j.daily||null;}
  }catch(e){console.info("NASA Klimatologie vorübergehend nicht erreichbar",e);}
+ nasaLoaded=true;
 }
 async function reload(){
  note("Prüfe echte GEFS-Ensemblemitglieder und NASA-Analysen …");
  $("stratoEnsembleReload").disabled=true;
+ const needsNasa=$("stratoClimo").checked||$("stratoShowAnalysis").checked;
  const result=await Promise.allSettled([
   fetch(WIND_SOURCE+"?d="+Date.now(),{cache:"no-store"}).then(r=>{
    if(!r.ok)throw Error("NOAA-GEFS-Archiv noch nicht veröffentlicht (HTTP "+r.status+")");
    return r.json();
   }).then(validateForecast),
-  fetchNasa()
+  needsNasa?fetchNasa():Promise.resolve()
  ]);
  forecast=result[0].status==="fulfilled"?result[0].value:null;
  // Share precisely the same validated 31 original GEFS members with the
@@ -209,9 +211,22 @@ function download(filename,content,type){
 }
 $("stratoEnsembleFrom").addEventListener("change",()=>{$("stratoEnsembleSpan").value="custom";draw();});
 $("stratoEnsembleTo").addEventListener("change",()=>{$("stratoEnsembleSpan").value="custom";draw();});
-$("stratoEnsembleSpan").addEventListener("change",applyForecastHorizon);
-for(const id of ["stratoMembers","stratoBand50","stratoBand90","stratoClimo","stratoShowAnalysis"]){
+$("stratoEnsembleSpan").addEventListener("change",()=>{
+ if($("stratoEnsembleSpan").value==="custom"){
+  document.querySelector("#stratoEnsembleCard .ensemble-more").open=true;
+  return;
+ }
+ applyForecastHorizon();
+});
+for(const id of ["stratoMembers","stratoBand50","stratoBand90"]){
  $(id).addEventListener("change",draw);
+}
+for(const id of ["stratoClimo","stratoShowAnalysis"]){
+ $(id).addEventListener("change",()=>{
+  if(($("stratoClimo").checked||$("stratoShowAnalysis").checked)&&!nasaLoaded){
+   void fetchNasa().then(draw).catch(error=>{console.warn("NASA unavailable",error);draw();});
+  }else draw();
+ });
 }
 $("stratoEnsembleReload").addEventListener("click",reload);
 $("stratoEnsembleReset").addEventListener("click",()=>{
