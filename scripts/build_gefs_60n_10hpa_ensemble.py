@@ -76,6 +76,21 @@ def download(url, retries=5):
     raise AssertionError("unreachable")
 
 
+def zonal_mean_from_grid(latitude, longitude, velocity):
+    """Pure numerical testable 60°N zonal arithmetic mean of U (not speed)."""
+    if not (len(latitude)==len(longitude)==len(velocity)):
+        raise ValueError("Invalid GEFS GRIB geometry")
+    row=np.abs(latitude-LATITUDE)<.015
+    lon=np.mod(longitude[row],360)
+    values=velocity[row]
+    if len(values)!=720 or len(np.unique(np.round(lon*2)))!=720:
+        raise ValueError(f"GEFS 60N longitude circle incomplete: {len(values)}/720")
+    valid=np.isfinite(values)&(values>-150)&(values<170)
+    if valid.sum()!=720:
+        raise ValueError(f"Missing/invalid 60N UGRD values: {valid.sum()}/720")
+    return round(float(np.mean(values,dtype=np.float64)),3)
+
+
 def zonal_wind(raw):
     with tempfile.TemporaryFile() as source:
         source.write(raw);source.seek(0)
@@ -93,17 +108,7 @@ def zonal_wind(raw):
             latitude=np.asarray(eccodes.codes_get_array(handle,"latitudes"),dtype=np.float32)
             longitude=np.asarray(eccodes.codes_get_array(handle,"longitudes"),dtype=np.float32)
             velocity=np.asarray(eccodes.codes_get_values(handle),dtype=np.float32)
-            if not (len(latitude)==len(longitude)==len(velocity)):
-                raise ValueError("Invalid GEFS GRIB geometry")
-            row=np.abs(latitude-LATITUDE)<.015
-            lon=np.mod(longitude[row],360)
-            values=velocity[row]
-            if len(values)!=720 or len(np.unique(np.round(lon*2)))!=720:
-                raise ValueError(f"GEFS 60N longitude circle incomplete: {len(values)}/720")
-            valid=np.isfinite(values)&(values>-150)&(values<170)
-            if valid.sum()!=720:
-                raise ValueError(f"Missing/invalid 60N UGRD values: {valid.sum()}/720")
-            return round(float(np.mean(values,dtype=np.float64)),3)
+            return zonal_mean_from_grid(latitude,longitude,velocity)
         finally:
             eccodes.codes_release(handle)
 
