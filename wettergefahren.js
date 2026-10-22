@@ -15,12 +15,14 @@
   // Fixed map viewport and static, low-contrast Natural Earth outlines.
   // No external street-map tiles, labels, pan or zoom.
   const map = L.map("hazardMap", {
-    center:[51,13], zoom:4, minZoom:3, maxZoom:8, preferCanvas:true,
+    center:[51,13], zoom:4, minZoom:0, maxZoom:10, zoomSnap:0,
+    preferCanvas:true,
     zoomControl:false, attributionControl:false, dragging:false,
     scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false,
     boxZoom:false, keyboard:false, tap:false, worldCopyJump:false
   });
-  map.fitBounds([[28,-25],[73,56]],{padding:[6,6],animate:false});
+  // Initial view is temporary; the geographic coverage from ICON metadata
+  // defines the real fixed viewport as soon as data have loaded.
   map.createPane("hazardLand");
   map.getPane("hazardLand").style.zIndex="210";
   map.getPane("hazardLand").style.pointerEvents="none";
@@ -182,6 +184,51 @@
     }
   });
   overlay=new RiskCanvas().addTo(map);
+  let fittedBounds=null;
+  function gridCoverageBounds(doc) {
+    const g=doc.grid;
+    const fallback={south:g.lat_min, west:g.lon_min,
+      north:g.lat_min+g.rows*g.step, east:g.lon_min+g.cols*g.step};
+    const b=g.coverage_bounds || fallback;
+    // Reject invalid/injected or older coverage metadata and fall back to the
+    // complete known grid; never crop to currently coloured warnings.
+    const valid=["south","west","north","east"].every(k=>Number.isFinite(b[k])) &&
+      b.south>=fallback.south-1e-6 && b.north<=fallback.north+1e-6 &&
+      b.west>=fallback.west-1e-6 && b.east<=fallback.east+1e-6 &&
+      b.south<b.north && b.west<b.east;
+    const region=valid?b:fallback;
+    return L.latLngBounds([region.south,region.west],[region.north,region.east]);
+  }
+  function fitMapToCoverage() {
+    if(!data)return;
+    const bounds=gridCoverageBounds(data);
+    // Match the map DIV to the bounding rectangle in Leaflet's Web Mercator
+    // projection. Together with zoomSnap=0 this avoids wide side/top gutters.
+    const nw=map.project(bounds.getNorthWest(),0);
+    const se=map.project(bounds.getSouthEast(),0);
+    const projectedWidth=Math.abs(se.x-nw.x);
+    const projectedHeight=Math.abs(se.y-nw.y);
+    if(!Number.isFinite(projectedWidth/projectedHeight)||projectedWidth<=0||projectedHeight<=0)return;
+    const mapElement=$("hazardMap");
+    mapElement.style.aspectRatio=String(projectedWidth/projectedHeight);
+    fittedBounds=bounds;
+    map.invalidateSize({animate:false,pan:false});
+    map.fitBounds(bounds,{padding:[0,0],animate:false});
+  }
+  if(typeof ResizeObserver!=="undefined"){
+    const resizeObserver=new ResizeObserver(()=>{
+      if(!fittedBounds)return;
+      map.invalidateSize({animate:false,pan:false});
+      map.fitBounds(fittedBounds,{padding:[0,0],animate:false});
+    });
+    resizeObserver.observe($("hazardMap"));
+  }else{
+    window.addEventListener("resize",()=>{
+      if(!fittedBounds)return;
+      map.invalidateSize({animate:false,pan:false});
+      map.fitBounds(fittedBounds,{padding:[0,0],animate:false});
+    });
+  }
   function summary() {
     const layers=Object.keys(TYPES);
     const p=data.periods[currentPeriod];
@@ -257,6 +304,7 @@
     $("type").value=currentType;
     updatePeriodButtons();
     summary();
+    fitMapToCoverage();
     overlay.redraw();
   }
   async function selectDuration(duration) {
@@ -316,7 +364,7 @@
       row.append(label,val);wrapper.append(row);
     });
     const tip=document.createElement("p");tip.className="note";
-    tip.textContent="Rasterwerte: maximale Gefahrenstufe innerhalb des gewählten 24-h-Fensters. Keine amtliche Warnung.";
+    tip.textContent="Rasterwerte: maximale Gefahrenstufe innerhalb des gewählten "+currentDuration+"-h-Fensters. Keine amtliche Warnung.";
     wrapper.append(tip);
     L.popup({maxWidth:320}).setLatLng(event.latlng).setContent(wrapper).openOn(map);
   });
@@ -386,6 +434,7 @@
   // Read-only snapshot bridge for the dedicated PNG export module.
   window.iconEuHazardExportState = () => ({
     map, data, decoded, currentPeriod, currentDuration, currentType, TYPES, SEVERITY, NAMES,
+    coverageBounds: fittedBounds,
     basemapIndex, paintGlyph
   });
   load();
