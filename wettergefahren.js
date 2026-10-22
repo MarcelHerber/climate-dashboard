@@ -209,10 +209,14 @@
     const available=Object.entries(p.samples).filter(([key,count])=>count>0).map(([key])=>TYPES[key].name);
     $("availability").textContent="Berechnet: "+(available.join(", ")||"keine")+
       ". Fehlende Parameter bleiben transparent.";
-    const hourly=p.rain_intervals_available && p.rain_intervals_available["1"];
-    $("rainCoverage").textContent=hourly===0 ?
-      "Hinweis: In diesem Zeitfenster stehen keine exakt einstündigen Niederschlagsintervalle zur Verfügung; lokale Starkregenspitzen können fehlen." :
-      "Niederschlagsprüfung: "+hourly+" einstündige Intervalle sowie verfügbare 3-, 6- und 24-Stunden-Mengen.";
+    const counts=p.rain_intervals_available || {};
+    const available=[1,3,6,24]
+      .filter(d=>d<=currentDuration && Number(counts[String(d)])>0)
+      .map(d=>d+" h: "+counts[String(d)]+" Intervalle");
+    $("rainCoverage").textContent="Niederschlagsprüfung: "+(available.join(" · ")||
+      "keine vollständig verfügbaren Intervalle")+
+      (Number(counts["1"]||0)===0?
+      " · Hinweis: Keine 1-h-Werte, kleinräumige Starkregenspitzen können fehlen.":"");
   }
   function absoluteUTC(hour) {
     const date=new Date(new Date(data.run_utc).getTime()+hour*3600000);
