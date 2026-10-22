@@ -26,7 +26,7 @@ ROOT = "https://opendata.dwd.de/weather/nwp/icon-eu/grib"
 PREFIX = "icon-eu_europe_regular-lat-lon_single-level"
 PARAMETERS = ("VMAX_10M", "TOT_PREC", "SNOW_GSP", "SNOW_CON", "TMAX_2M", "TMIN_2M", "VIS")
 # 0.25° is the dashboard aggregation grid, not the native ICON-EU model mesh.
-LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.25, 184, 288
+LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.25, 184, 344
 DURATIONS = (6, 12, 24)
 WINDOWS = tuple((h, h + duration) for duration in DURATIONS
                 for h in range(0, 120, duration))
