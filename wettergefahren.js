@@ -50,7 +50,7 @@
   let data=null, decoded=null, currentPeriod=0, currentDuration=12,
     currentType="all", overlay;
   const cache=Object.create(null);
-  let loadGeneration=0;
+  let loadGeneration=0, selectionGeneration=0;
   function status(text, type) {
     const el=$("status");
     el.textContent=text;
@@ -210,10 +210,10 @@
     $("availability").textContent="Berechnet: "+(available.join(", ")||"keine")+
       ". Fehlende Parameter bleiben transparent.";
     const counts=p.rain_intervals_available || {};
-    const available=[1,3,6,24]
+    const availableIntervals=[1,3,6,24]
       .filter(d=>d<=currentDuration && Number(counts[String(d)])>0)
       .map(d=>d+" h: "+counts[String(d)]+" Intervalle");
-    $("rainCoverage").textContent="Niederschlagsprüfung: "+(available.join(" · ")||
+    $("rainCoverage").textContent="Niederschlagsprüfung: "+(availableIntervals.join(" · ")||
       "keine vollständig verfügbaren Intervalle")+
       (Number(counts["1"]||0)===0?
       " · Hinweis: Keine 1-h-Werte, kleinräumige Starkregenspitzen können fehlen.":"");
@@ -265,7 +265,7 @@
       status("6-/12-h-Daten stehen erst nach dem nächsten neuen Modelllauf zur Verfügung.","warn");
       return;
     }
-    const generation=loadGeneration;
+    const generation=loadGeneration, selection=++selectionGeneration;
     try {
       status("ICON-EU "+duration+"-Stunden-Karten werden geladen …");
       if(!cache[duration]){
@@ -279,11 +279,12 @@
           throw Error("Die Zeitfenster stammen nicht aus demselben Modelllauf");
         cache[duration]=incoming;
       }
-      if(generation!==loadGeneration)return;
+      if(generation!==loadGeneration||selection!==selectionGeneration)return;
       data=cache[duration];currentDuration=duration;currentPeriod=0;
       render();
       status(duration+"-h-Karten geladen · 0,25° Auswerteraster, keine amtliche Warnung.");
     }catch(error){
+      if(generation!==loadGeneration||selection!==selectionGeneration)return;
       status(duration+"-h-Karten sind noch nicht verfügbar ("+error.message+
         "). Bisherige Ansicht bleibt erhalten.","warn");
     }
@@ -336,6 +337,7 @@
   }
   async function load() {
     const generation=++loadGeneration;
+    ++selectionGeneration;
     status("Aktuelle ICON-EU-Gefahrenkarten werden abgerufen …");
     try {
       const response=await fetch(URL+"?t="+Date.now(),{cache:"no-store"});
