@@ -29,6 +29,10 @@ jobs:
       - name: Code und Schwellenwerte prüfen
         run: |
           python -m py_compile scripts/update_icon_eu_hazards.py
+          node --check wettergefahren.js
+          node --check wettergefahren_export.js
+          grep -q 'coverage_bounds' wettergefahren.js
+          grep -q 'aspect-ratio' wettergefahren.css
           python - <<'PY'
           import importlib.util
           spec=importlib.util.spec_from_file_location("icon_hazards","scripts/update_icon_eu_hazards.py")
