@@ -6,10 +6,10 @@
 <meta name="description" content="ICON-EU Europa-Gefahrenmonitor: modellbasierte Hinweise für Wind, Starkregen, Schnee, Hitze, Kälte und eingeschränkte Sicht für fünf 24-Stunden-Zeiträume.">
 <title>ICON-EU Europa-Gefahrenmonitor · Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="wettergefahren.css?v=3">
+<link rel="stylesheet" href="wettergefahren.css?v=5">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="wettergefahren.js?v=4"></script>
-<script defer src="wettergefahren_export.js?v=2"></script>
+<script defer src="wettergefahren.js?v=6"></script>
+<script defer src="wettergefahren_export.js?v=4"></script>
 </head>
 <body>
 <header>
@@ -17,20 +17,20 @@
   <small>Europa · ICON-EU Modellvorhersage</small>
 </header>
 <main>
-  <div class="eyebrow">Meteorologische Gefahren · 0–120 h</div>
+  <div class="eyebrow">Meteorologische Gefahren · 6/12/24-Stunden-Karten bis +120 h</div>
   <h1>ICON-EU Europa-Gefahrenmonitor</h1>
-  <p class="lead">Wo berechnet ICON-EU in den kommenden fünf Tagen auffällige Windböen, Stark- oder Dauerregen, Schneefall, Hitze, Kälte und schlechte Sicht? Die Übersicht zeigt die jeweils höchste modellierte Stufe je 24-Stunden-Fenster. <strong>Dies sind keine amtlichen Wetterwarnungen.</strong></p>
+  <p class="lead">Wo berechnet ICON-EU in den kommenden fünf Tagen auffällige Windböen, Stark- oder Dauerregen, Schneefall, Hitze, Kälte und schlechte Sicht? Die Übersicht zeigt die höchste modellierte Stufe je wählbarem 6-, 12- oder 24-Stunden-Fenster. <strong>Dies sind keine amtlichen Wetterwarnungen.</strong></p>
   <section class="panel" aria-label="Kartensteuerung">
     <div class="controls">
       <div>
-        <div class="control" style="margin-bottom:7px"><span>Vorhersagezeitraum (ab Modelllauf)</span></div>
-        <div class="periods" aria-label="24-Stunden-Abschnitte">
-          <button type="button" data-index="0" aria-pressed="true">0–24 h</button>
-          <button type="button" data-index="1" aria-pressed="false">24–48 h</button>
-          <button type="button" data-index="2" aria-pressed="false">48–72 h</button>
-          <button type="button" data-index="3" aria-pressed="false">72–96 h</button>
-          <button type="button" data-index="4" aria-pressed="false">96–120 h</button>
+        <div class="control" style="margin-bottom:7px"><span>Zeitraumlänge</span></div>
+        <div class="durations" id="durationButtons" aria-label="Länge der Vorhersageintervalle">
+          <button type="button" data-duration="6" aria-pressed="false">6 Stunden</button>
+          <button type="button" data-duration="12" aria-pressed="true">12 Stunden</button>
+          <button type="button" data-duration="24" aria-pressed="false">24 Stunden</button>
         </div>
+        <div class="control" style="margin:12px 0 7px"><span>Gültigkeitszeitraum (UTC)</span></div>
+        <div class="periods" id="periodButtons" aria-label="Vorhersagezeitabschnitte"></div>
       </div>
       <div class="filters">
         <label class="control" for="type">Gefahrenart
@@ -54,10 +54,10 @@
 
   <div class="map-layout">
     <section class="panel map-panel">
-      <div class="map-heading"><h2>Gesamtgefahrenkarte</h2><span class="range" id="periodLabel">+0 bis +24 Stunden</span></div>
+      <div class="map-heading"><h2>ICON-EU · Europa</h2><span class="range" id="periodLabel">Gültigkeit wird geladen …</span></div>
       <div id="hazardMap" role="application" aria-label="Interaktive Europa-Karte mit modellbasierten Gefahrenflächen"></div>
       <div id="basemapStatus" class="basemap-status" role="status" hidden></div>
-      <div class="tips">In die Karte klicken, um alle verfügbaren Gefahrenstufen am ausgewählten Rasterpunkt anzuzeigen. Die farbige Fläche zeigt die höchste Stufe; unterschiedliche Muster stehen für Gefahrenarten. Bei Überlagerungen werden höchstens zwei Muster gleichzeitig dargestellt, im Kartenklick jedoch alle verfügbaren Gefahren aufgelistet.</div>
+      <div class="tips">In die feste Europakarte klicken, um alle verfügbaren Gefahrenstufen am ausgewählten Rasterpunkt anzuzeigen. Die farbige Fläche zeigt die höchste Stufe; unterschiedliche Muster stehen für Gefahrenarten. Bei Überlagerungen werden höchstens zwei Muster gleichzeitig dargestellt, im Kartenklick jedoch alle verfügbaren Gefahren aufgelistet.</div>
     </section>
     <aside class="panel side-panel" aria-label="Legende und Hinweise">
       <h2>Legende</h2>
@@ -73,7 +73,7 @@
       <div class="legend-row"><span class="legend-pattern" style="color:#c85c10">═</span> Hitze · Querlinien</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#2454b7">║</span> Kälte · Längslinien</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#677782">┄</span> Nebel · gestrichelte Ränder (nur Gelb)</div>
-      <p class="note"><strong>Hinweis:</strong> Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Muster helfen bei der Unterscheidung, werden bei sehr kleinem Zoom zugunsten der Lesbarkeit reduziert. Fehlende Felder bleiben transparent, nicht grün.</p>
+      <p class="note"><strong>Hinweis:</strong> Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Muster helfen bei der Unterscheidung, werden bei sehr kleinem Zoom zugunsten der Lesbarkeit reduziert. Fehlende Felder bleiben transparent, nicht grün. Die Kartenbasis zeigt bewusst keine Straßen oder Orte.</p>
       <p class="note" id="availability">Datenverfügbarkeit wird geprüft …</p>
       <p class="note" id="rainCoverage"></p>
     </aside>
@@ -89,12 +89,12 @@
       <section><h3>Windböen (km/h)</h3><p>Gelb ≥ 65 · Orange ≥ 85 · Rot ≥ 105 · Violett ≥ 120</p></section>
       <section><h3>Starkregen 1 h (mm)</h3><p>Gelb ≥ 10 · Orange ≥ 15 · Rot ≥ 25 · Violett ≥ 40</p></section>
       <section><h3>Niederschlag 24 h (mm)</h3><p>Gelb ≥ 20 · Orange ≥ 30 · Rot ≥ 50 · Violett ≥ 80</p></section>
-      <section><h3>Schnee 24 h (mm Wasseräquivalent)</h3><p>Gelb ≥ 5 · Orange ≥ 10 · Rot ≥ 20 · Violett ≥ 40</p></section>
+      <section><h3>Schnee (mm Wasseräquivalent, je Zeitfenster)</h3><p>24 h: 5/10/20/40 · 12 h: 3,5/7/15/30 · 6 h: 2,5/5/10/20</p></section>
       <section><h3>Hitze / Kälte (°C)</h3><p>Hitze ab 30 / 35 / 38 / 40 °C; Kälte ab −5 / −10 / −15 / −20 °C</p></section>
       <section><h3>Sichtweite (m)</h3><p>Nur Gelb bei Sichtweite &lt; 500 m, auch bei dichterem Nebel keine höhere Stufe</p></section>
     </div>
-    <p class="note">Für Niederschlag werden zusätzlich 3-h-Grenzen 15/20/30/50 mm und 6-h-Grenzen 15/20/35/60 mm überprüft. Es gewinnt die höchste Stufe aus 1, 3, 6 und 24 h, soweit die jeweilige Zeitauflösung des Modells vorliegt.</p>
-    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und zur Anzeige räumlich auf 0,5° zusammengefasst. Dadurch können kleine betroffene Gebiete größer erscheinen. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen und wird deshalb ausschließlich als Gelbhinweis eingestuft.</p>
+    <p class="note">Für Niederschlag gelten zusätzlich 3-h-Grenzen 15/20/30/50 mm und 6-h-Grenzen 15/20/35/60 mm. Berücksichtigt werden nur verfügbare Akkumulationsintervalle, die vollständig innerhalb des gewählten 6-, 12- oder 24-h-Fensters liegen. 24-h-Mengen werden nicht als 6-h-Risiko ausgegeben.</p>
+    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und auf einem 0,25°-Auswerteraster zusammengefasst (nicht die native Modellauflösung). Innerhalb einer Rasterzelle gilt das höchste Modellrisiko, nicht ein flächengemittelter Wert. Kleine Gefahrengebiete können dadurch größer wirken. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen und wird deshalb ausschließlich als Gelbhinweis eingestuft.</p>
     <p class="note"><strong>Gewitter und Hagel:</strong> Für diese beiden Gefahren ist eine robuste Kombination von CAPE, Auslösebedingungen, Scherung und weiteren Parametern erforderlich. Bis dahin werden keine vermeintlichen Gewitterwarnungen auf der Gesamtkarte ausgegeben.</p>
     <p class="note">Datenquelle: <a href="https://opendata.dwd.de/weather/nwp/icon-eu/grib/" target="_blank" rel="noopener">Deutscher Wetterdienst · ICON-EU Open Data</a>. Die Einstufungen sind eigene, experimentelle Modellindikatoren und <strong>keine amtlichen Warnungen</strong>. Amtliche Warnungen bei den jeweiligen nationalen Wetterdiensten prüfen.</p>
   </section>
