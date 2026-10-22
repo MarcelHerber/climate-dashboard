@@ -147,8 +147,10 @@ def add_external(items, remote):
         if not isinstance(periods, list):
             periods = []
         ranges = [(p.get("start_h"), p.get("end_h")) for p in periods if isinstance(p, dict)]
-        expected = [(0,24),(24,48),(48,72),(72,96),(96,120)]
-        good = icon.get("schema") == 1 and ranges == expected and bool(icon.get("grid"))
+        duration = int(icon.get("duration_h", 24))
+        expected = [(h, h + 24) for h in range(0, 120, 24)]
+        good = (icon.get("schema") in (1, 2) and duration == 24
+                and ranges == expected and bool(icon.get("grid")))
         items.append(result("icon_hazards", "ICON-EU Wettergefahren", "Vorhersagen",
             icon.get("run_utc"), icon.get("generated_utc"),
             f"{len(periods)}/5 Vorhersagefenster · 0 bis 120 Stunden",
