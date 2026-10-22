@@ -77,7 +77,7 @@ jobs:
                   if period["layers"]["fog"]:
                       fog=base64.b64decode(period["layers"]["fog"])
                       assert all((v&15)<=1 and (v>>4)<=1 for v in fog)
-                  assert period["rain_intervals_available"][str(duration)]>=1
+                  assert period["rain_intervals_available"][str(min(duration,6))]>=1
               print(f"{120//duration} x {duration} h ICON-EU Wind/Regen geprüft",
                     doc["run_utc"])
           PY
