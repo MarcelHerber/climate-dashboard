@@ -230,7 +230,13 @@
     document.querySelectorAll(".periods button").forEach((el,i)=>{
       el.setAttribute("aria-pressed",String(i===currentPeriod));
     });
-    $("periodLabel").textContent="+"+p.start_h+" bis +"+p.end_h+" Stunden ab Modellstart";
+    const runMillis=new Date(data.run_utc).getTime();
+    const utcLabel=new Intl.DateTimeFormat("de-DE",{
+      timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"
+    });
+    const validStart=utcLabel.format(new Date(runMillis+p.start_h*3600000));
+    const validEnd=utcLabel.format(new Date(runMillis+p.end_h*3600000));
+    $("periodLabel").textContent=validStart+" – "+validEnd+" UTC · +"+p.start_h+" bis +"+p.end_h+" h";
     $("type").value=currentType;
     summary();
     overlay.redraw();
