@@ -25,18 +25,25 @@ import eccodes
 ROOT = "https://opendata.dwd.de/weather/nwp/icon-eu/grib"
 PREFIX = "icon-eu_europe_regular-lat-lon_single-level"
 PARAMETERS = ("VMAX_10M", "TOT_PREC", "SNOW_GSP", "SNOW_CON", "TMAX_2M", "TMIN_2M", "VIS")
-LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.5, 92, 144
-WINDOWS = tuple((h, h + 24) for h in (0, 24, 48, 72, 96))
+# 0.25° is the dashboard aggregation grid, not the native ICON-EU model mesh.
+LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.25, 184, 288
+DURATIONS = (6, 12, 24)
+WINDOWS = tuple((h, h + duration) for duration in DURATIONS
+                for h in range(0, 120, duration))
+
 RAIN_LIMITS = {1: (10, 15, 25, 40), 3: (15, 20, 30, 50),
                6: (15, 20, 35, 60), 24: (20, 30, 50, 80)}
 LIMITS = {
     "wind": (65, 85, 105, 120),   # 10-m max gust, km/h
     "rain": RAIN_LIMITS,
     "snow": (5, 10, 20, 40),      # 24-h snow-water equivalent, mm
+
     "heat": (30, 35, 38, 40),     # max 2-m temp, Celsius
     "cold": (-5, -10, -15, -20),  # min 2-m temp, Celsius
     "fog": (500,),  # visibility below 500 m: yellow only (level 1)
 }
+# Experimental shorter-period snow-water-equivalent guidance (mm).
+SNOW_LIMITS = {6: (2.5, 5, 10, 20), 12: (3.5, 7, 15, 30), 24: LIMITS["snow"]}
 HAZARDS = tuple(LIMITS)
 HTTP_HEADERS = {"User-Agent": "ClimateDashboardICONHazardMonitor/1.0 (public open-data processing)"}
 log = logging.getLogger("icon-hazards")
@@ -178,7 +185,7 @@ class Aggregator:
         elif key == "rain":
             arr = np.searchsorted(RAIN_LIMITS[duration], values, side="right")
         elif key == "snow":
-            arr = np.searchsorted(LIMITS["snow"], values, side="right")
+            arr = np.searchsorted(SNOW_LIMITS[duration], values, side="right")
         elif key == "heat":
             arr = np.searchsorted(LIMITS["heat"], values - 273.15, side="right")
         elif key == "cold":
@@ -199,14 +206,15 @@ class Aggregator:
 
 def hours_for(param):
     if param in ("SNOW_GSP", "SNOW_CON"):
-        return list(range(0, 121, 24))
+        # Six-hour endpoints permit genuine non-overlapping 6/12/24-h sums.
+        return list(range(0, 121, 6))
     if param in ("TMAX_2M", "TMIN_2M"):
         # ICON-EU extrema: hourly through +51 h, later six-hour products.
         return list(range(1, 52)) + list(range(54, 121, 6))
-    # Remaining full-range output: 1-hour products through +75 h,
-    # thereafter 3-hour products, if made available for that variable.
+    # Regular-grid ICON-EU main cycles: hourly through +78 h,
+    # 3-hourly thereafter (never infer one-hour rain peaks from 3-h data).
     # Missing files are explicitly skipped and coverage is reported.
-    return list(range(0, 76)) + list(range(78, 121, 3))
+    return list(range(0, 79)) + list(range(81, 121, 3))
 
 
 def download_parameter(cycle, name):
@@ -263,14 +271,17 @@ def add_wind(agg, raws):
         val, begin, end = decoded
         if end != h or begin < 0 or begin >= h:
             continue
+        coarse = agg.aggregate(val)
         for wi, (a, b) in enumerate(WINDOWS):
             if begin >= a and end <= b:
-                agg.add("wind", wi, agg.aggregate(val))
+                agg.add("wind", wi, coarse)
 
 
 def add_accum_rain(agg, totals):
     for wi, (start, stop) in enumerate(WINDOWS):
         for duration in RAIN_LIMITS:
+            if duration > stop - start:
+                continue
             for end in range(start + duration, stop + 1):
                 begin = end - duration
                 if begin not in totals or end not in totals:
@@ -280,7 +291,7 @@ def add_accum_rain(agg, totals):
                     continue
                 agg.add("rain", wi, agg.aggregate(diff), duration=duration)
         if start not in totals or stop not in totals:
-            raise RuntimeError("ICON-EU Regen +%d..+%d: 24h-Akkumulation fehlt" % (start, stop))
+            raise RuntimeError("ICON-EU Regen +%d..+%d: benötigte Akkumulation fehlt" % (start, stop))
 
 
 def add_snow(agg, snow_gsp, snow_con):
@@ -291,7 +302,7 @@ def add_snow(agg, snow_gsp, snow_con):
         b = difference(snow_con[stop], snow_con[start])
         if a is None or b is None:
             continue
-        agg.add("snow", wi, agg.aggregate(a + b))
+        agg.add("snow", wi, agg.aggregate(a + b), duration=stop - start)
 
 
 def add_extreme(agg, raws, key):
@@ -302,9 +313,20 @@ def add_extreme(agg, raws, key):
         values, begin, end = decoded
         if end != h or begin < 0 or begin >= h and key != "fog":
             continue
+        coarse = agg.aggregate(values, "min" if key in ("cold", "fog") else "max")
         for wi, (a, b) in enumerate(WINDOWS):
             if a < end <= b and (key == "fog" or begin >= a):
-                agg.add(key, wi, agg.aggregate(values, "min" if key in ("cold", "fog") else "max"))
+                agg.add(key, wi, coarse)
+
+
+def pack_levels(arr):
+    """Store two levels (0..4) in each byte to halve transfer and decode cost."""
+    if np.any(arr > 4):
+        raise ValueError("Gefahrenstufe ausserhalb 0..4")
+    packed = np.zeros((arr.size + 1) // 2, dtype=np.uint8)
+    packed[:] = arr[::2]
+    packed[:arr[1::2].size] |= arr[1::2] << 4
+    return base64.b64encode(packed.tobytes()).decode("ascii")
 
 
 def build(cycle, output):
@@ -321,40 +343,50 @@ def build(cycle, output):
     for wi, (start, stop) in enumerate(WINDOWS):
         if not agg.coverage["wind"][wi] or not agg.coverage["rain"][wi]:
             raise RuntimeError("Wind/Regen im Zeitfenster %s–%s h nicht verfügbar" % (start, stop))
-    manifest = {
-        "schema": 1,
-        "product": "DWD ICON-EU Europa-Gefahrenmonitor",
-        "run_utc": cycle.isoformat().replace("+00:00", "Z"),
-        "generated_utc": utcnow().isoformat().replace("+00:00", "Z"),
-        "not_official_warning": True,
-        "grid": {"lat_min": LAT_MIN, "lon_min": LON_MIN, "step": STEP,
-                 "rows": ROWS, "cols": COLS, "encoding": "uint8-base64"},
-        "thresholds": LIMITS,
-        "periods": [],
-        "notes": {
-            "wind": "Maximale 10-m-Böen über verfügbare Modell-Ausgabeintervalle",
-            "rain": "Aus kumuliertem TOT_PREC differenzierte 1/3/6/24-h-Mengen; nur exakt verfügbare Intervall-Endpunkte",
-            "snow": "SNOW_GSP + SNOW_CON, Schneewasseräquivalent über 24 h, keine Neuschneehöhe",
-            "heat": "ICON-EU TMAX_2M, Maximum der verfügbaren Ausgabeintervalle",
-            "cold": "ICON-EU TMIN_2M, Minimum der verfügbaren Ausgabeintervalle",
-            "fog": "ICON-EU Sichtweite, Gelb bei < 500 m (maximal Stufe 1), Minimum der verfügbaren Ausgabetermine",
-            "convective": "Gewitter-/Hagelwarnungen nicht aus CAPE allein ableitbar; noch nicht in der Übersicht",
-        },
-    }
-    for wi, (start, stop) in enumerate(WINDOWS):
-        manifest["periods"].append({
-            "start_h": start,
-            "end_h": stop,
-            "layers": {key: base64.b64encode(agg.data[key][wi].tobytes()).decode("ascii")
-                       if agg.coverage[key][wi] else None for key in HAZARDS},
-            "samples": {key: agg.coverage[key][wi] for key in HAZARDS},
-            "rain_intervals_available": {str(d): sum(
-                1 for h in range(start + d, stop + 1)
-                if h - d in rain and h in rain) for d in RAIN_LIMITS},
-        })
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    log.info("Gefahrenkarten geschrieben: %s (%.1f KiB)", output, output.stat().st_size / 1024)
+    generated = utcnow().isoformat().replace("+00:00", "Z")
+    for duration in DURATIONS:
+        manifest = {
+            "schema": 2,
+            "product": "DWD ICON-EU Europa-Gefahrenmonitor",
+            "run_utc": cycle.isoformat().replace("+00:00", "Z"),
+            "generated_utc": generated,
+            "duration_h": duration,
+            "not_official_warning": True,
+            "grid": {"lat_min": LAT_MIN, "lon_min": LON_MIN, "step": STEP,
+                     "rows": ROWS, "cols": COLS, "encoding": "uint4-base64"},
+            "thresholds": {**LIMITS, "snow_by_duration": SNOW_LIMITS},
+            "periods": [],
+            "notes": {
+                "wind": "Maximale 10-m-Böen über verfügbare Modell-Ausgabeintervalle",
+                "rain": "Aus TOT_PREC differenzierte exakt verfügbare 1/3/6/24-h-Mengen; Intervalle dürfen nicht länger als das dargestellte Fenster sein",
+                "snow": "SNOW_GSP + SNOW_CON, echtes Schneewasseräquivalent über gewählte Fensterlänge, keine Neuschneehöhe",
+                "heat": "ICON-EU TMAX_2M, Maximum der verfügbaren Ausgabeintervalle",
+                "cold": "ICON-EU TMIN_2M, Minimum der verfügbaren Ausgabeintervalle",
+                "fog": "ICON-EU Sichtweite, Gelb bei < 500 m (maximal Stufe 1), nur solange VIS bereitgestellt wird",
+                "convective": "Gewitter- und Hagelwarnungen werden nicht aus CAPE allein abgeleitet",
+            },
+        }
+        for wi, (start, stop) in enumerate(WINDOWS):
+            if stop - start != duration:
+                continue
+            manifest["periods"].append({
+                "start_h": start,
+                "end_h": stop,
+                "layers": {key: pack_levels(agg.data[key][wi])
+                           if agg.coverage[key][wi] else None for key in HAZARDS},
+                "samples": {key: agg.coverage[key][wi] for key in HAZARDS},
+                "rain_intervals_available": {str(d): sum(
+                    1 for h in range(start + d, stop + 1)
+                    if h - d in rain and h in rain) if d <= duration else 0
+                    for d in RAIN_LIMITS},
+            })
+        target = output if duration == 24 else output.with_name(
+            output.stem + "_" + str(duration) + "h" + output.suffix)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
+                          encoding="utf-8")
+        log.info("%s-h Gefahrenkarte: %s (%.1f KiB)", duration, target,
+                 target.stat().st_size / 1024)
 
 
 def main():
