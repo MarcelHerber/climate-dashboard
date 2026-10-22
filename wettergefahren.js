@@ -30,9 +30,24 @@
   map.getPane("hazardBorders").style.zIndex="450";
   map.getPane("hazardBorders").style.pointerEvents="none";
   const basemapIndex=-1;
-  fetch("wettergefahren_basemap.json")
-    .then(resp=>{if(!resp.ok)throw Error("HTTP "+resp.status);return resp.json();})
-    .then(geo=>{
+  async function loadBorders() {
+    // Keep an on-site 110m fallback, but prefer the significantly more
+    // detailed 50m Natural Earth geometry for both land and national borders.
+    for (const filename of ["wettergefahren_basemap_50m.json","wettergefahren_basemap.json"]) {
+      try {
+        const resp=await fetch(filename);
+        if(!resp.ok)throw Error("HTTP "+resp.status);
+        const geo=await resp.json();
+        if(!Array.isArray(geo.countries)||geo.countries.length<50)
+          throw Error("Länderpolygone nicht plausibel");
+        return geo;
+      } catch(err) {
+        console.warn("Grenzdatei "+filename+" nicht ladbar:",err);
+      }
+    }
+    throw Error("Keine lokale Grenzdatei verfügbar");
+  }
+  loadBorders().then(geo=>{
       if(!Array.isArray(geo.countries))throw Error("Keine Länderpolygone");
       for(const country of geo.countries){
         for(const polygon of country.p){
@@ -40,8 +55,8 @@
           if(!rings.length)continue;
           L.polygon(rings,{pane:"hazardLand",stroke:false,fill:true,
             fillColor:"#f8faf9",fillOpacity:1,interactive:false}).addTo(map);
-          L.polygon(rings,{pane:"hazardBorders",stroke:true,color:"#9fadb7",
-            weight:0.8,opacity:0.9,fill:false,interactive:false}).addTo(map);
+          L.polygon(rings,{pane:"hazardBorders",stroke:true,color:"#8297a8",
+            weight:1.05,opacity:0.95,fill:false,interactive:false}).addTo(map);
         }
       }
     })
