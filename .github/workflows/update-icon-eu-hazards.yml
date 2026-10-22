@@ -62,12 +62,21 @@ jobs:
         run: |
           python - <<'PY'
           import base64,json,pathlib
+          same_coverage=None
           for duration in (6,12,24):
               path=pathlib.Path("/tmp/icon-hazards-build/current" +
                   ("" if duration==24 else f"_{duration}h") + ".json")
               doc=json.loads(path.read_text())
               assert doc["schema"]==2 and doc["duration_h"]==duration
               assert doc["grid"]["step"]==0.25
+              grid=doc["grid"]
+              bounds=grid.get("coverage_bounds")
+              assert isinstance(bounds,dict), "Modellgebiet fehlt"
+              assert all(isinstance(bounds.get(k),(int,float)) for k in ("west","east","south","north"))
+              assert grid["lon_min"]<=bounds["west"]<bounds["east"]<=grid["lon_min"]+grid["cols"]*grid["step"]
+              assert grid["lat_min"]<=bounds["south"]<bounds["north"]<=grid["lat_min"]+grid["rows"]*grid["step"]
+              if same_coverage is None: same_coverage=bounds
+              assert bounds==same_coverage, "Unterschiedliche geografische Ausschnitte"
               assert len(doc["periods"])==120//duration and doc["not_official_warning"] is True
               size=(doc["grid"]["rows"]*doc["grid"]["cols"]+1)//2
               for period in doc["periods"]:
