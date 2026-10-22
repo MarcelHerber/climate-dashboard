@@ -53,6 +53,7 @@ required_root_files=(
   wettergefahren.css
   wettergefahren_export.js
   wettergefahren_basemap.json
+  wettergefahren_basemap_50m.json
   saisonal_europa.html
   saisonal_europa.js
   saisonal_europa.css
@@ -271,7 +272,7 @@ for item in tiefdruck_tracker.html tiefdruck_tracker.js tiefdruck_tracker.css; d
   test -s "_site/$item" || { echo "FEHLER: Tracker-Datei $item fehlt im Pages-Artefakt"; exit 1; }
 done
 echo "Tiefdruck-Tracker HTML, CSS und JavaScript im Pages-Artefakt enthalten."
-for item in wettergefahren.html wettergefahren.js wettergefahren.css wettergefahren_export.js wettergefahren_basemap.json; do
+for item in wettergefahren.html wettergefahren.js wettergefahren.css wettergefahren_export.js wettergefahren_basemap.json wettergefahren_basemap_50m.json; do
   test -s "_site/$item" || { echo "FEHLER: ICON-EU-Gefahrenmonitor-Datei $item fehlt."; exit 1; }
 done
 echo "ICON-EU-Gefahrenmonitor HTML, CSS und JavaScript im Pages-Artefakt enthalten."

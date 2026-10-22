@@ -4,7 +4,7 @@
   const notice = document.getElementById("exportStatus");
   if (!button) return;
 
-  const GEOGRAPHY_URL = "wettergefahren_basemap.json";
+  const GEOGRAPHY_URL = "wettergefahren_basemap_50m.json";
   const WIDTH_LEGEND = 308;
   const PALETTE = {
     bg: "#eef3f8",
@@ -12,8 +12,8 @@
     muted: "#586d80",
     ocean: "#e8f0f5",
     land: "#f8faf9",
-    border: "#9fadb7",
-    coastline: "#9fadb7"
+    border: "#8297a8",
+    coastline: "#8297a8"
   };
   const SOURCE = {
     osm: "Kartenbasis: © OpenStreetMap-Mitwirkende (ODbL)",
@@ -55,19 +55,24 @@
 
   async function geographicData() {
     if (!geographyPromise) {
-      geographyPromise = fetch(GEOGRAPHY_URL)
-        .then(res => {
-          if (!res.ok) throw Error("HTTP " + res.status);
-          return res.json();
-        })
-        .then(doc => {
-          if (!Array.isArray(doc.countries)) throw Error("Ungültige Geografiedaten");
-          return doc;
-        })
-        .catch(error => {
-          geographyPromise = null;
-          throw error;
-        });
+      geographyPromise = (async () => {
+        for (const file of [GEOGRAPHY_URL,"wettergefahren_basemap.json"]) {
+          try {
+            const res=await fetch(file);
+            if(!res.ok)throw Error("HTTP "+res.status);
+            const doc=await res.json();
+            if(!Array.isArray(doc.countries)||doc.countries.length<50)
+              throw Error("Ungültige Geografiedaten");
+            return doc;
+          } catch(error) {
+            console.warn("PNG-Kartengrenzen: ",file,error);
+          }
+        }
+        throw Error("Keine geografische Basiskarte verfügbar");
+      })().catch(error=>{
+        geographyPromise=null;
+        throw error;
+      });
     }
     return geographyPromise;
   }
@@ -109,7 +114,7 @@
     ctx.save();
     ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();
     ctx.strokeStyle=PALETTE.border;
-    ctx.lineWidth=0.9;
+    ctx.lineWidth=1.05;
     for(const country of geography.countries) {
       for(const polygon of country.p) {
         ctx.beginPath();
