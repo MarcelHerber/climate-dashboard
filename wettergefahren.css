@@ -57,3 +57,19 @@ h1{font-size:clamp(25px,3vw,38px);line-height:1.15;margin:7px 0 10px}h2{font-siz
 .export-status{margin-top:10px;font-size:12px;border-radius:8px;padding:9px 12px;background:#f0f8ee;color:#255c35}
 .export-status.error{background:#fff1ed;color:#924536}
 .export-status[hidden]{display:none}
+
+/* Compact fixed-map controls, 6/12/24-h temporal navigation. */
+.durations{display:flex;gap:7px;flex-wrap:wrap}
+.durations button{padding:9px 15px;border-radius:9px;border:1px solid #cbd8e3;background:#f6f9fc;color:#284861;font:700 13px system-ui;cursor:pointer}
+.durations button[aria-pressed="true"]{background:#176397;color:#fff;border-color:#176397}
+.durations button:disabled{opacity:.42;cursor:not-allowed}
+.durations button:focus-visible,.periods button:focus-visible{outline:3px solid #f0b94d;outline-offset:2px}
+.periods{display:flex;gap:7px;flex-wrap:nowrap;max-width:min(100%,900px);overflow-x:auto;overscroll-behavior-inline:contain;padding:3px 3px 9px;scrollbar-width:thin}
+.periods button{flex:0 0 auto;white-space:nowrap;padding:9px 12px}
+.map-layout{grid-template-columns:minmax(0,1fr) 255px}
+.map-panel{position:relative}
+#hazardMap{background:#e8f0f5;cursor:crosshair}
+.leaflet-container{background:#e8f0f5}
+.map-heading .range{font-size:13px}
+@media(max-width:980px){.map-layout{grid-template-columns:1fr}}
+@media(max-width:560px){.durations button{flex:1 1 25%}.periods{max-width:100%}.periods button{flex:0 0 auto;font-size:12px}#hazardMap{min-height:330px}}
