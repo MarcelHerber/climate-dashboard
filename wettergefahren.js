@@ -12,57 +12,45 @@
   };
   const SEVERITY = ["Keine Schwelle","#ead44b","#f6a244","#de434c","#9a49b4"];
   const NAMES = ["Keine","Gelb","Orange","Rot","Violett"];
-  const map = L.map("hazardMap", {center:[49.8,12.1],zoom:4,minZoom:3,maxZoom:10,preferCanvas:true,worldCopyJump:false});
-  // CARTO's formerly anonymous light_all tiles now return "API KEY REQUIRED".
-  // Use a verified public OpenStreetMap basemap, switching to Esri on tile errors.
-  const basemaps = [
-    {
-      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      opts: {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> · ICON-EU: DWD',
-        maxZoom: 19
-      }
-    },
-    {
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-      opts: {
-        attribution: 'Tiles &copy; Esri, HERE, Garmin, USGS, EPA, NPS · Modell: DWD ICON-EU',
-        maxZoom: 19
-      }
-    }
-  ];
-  let basemapLayer = null;
-  let basemapIndex = 0;
-  function useBasemap(index) {
-    if (basemapLayer) map.removeLayer(basemapLayer);
-    basemapIndex = index;
-    const provider = basemaps[index];
-    let tileFailures = 0;
-    let tileSuccesses = 0;
-    const candidate = L.tileLayer(provider.url, Object.assign({
-      keepBuffer: 3, updateWhenIdle: true, detectRetina: false
-    }, provider.opts));
-    basemapLayer = candidate;
-    candidate.on("tileload", () => { tileSuccesses++; });
-    candidate.on("tileerror", () => {
-      tileFailures++;
-      if (basemapLayer !== candidate || tileSuccesses > 0 || tileFailures < 3) return;
-      if (basemapIndex + 1 < basemaps.length) {
-        useBasemap(basemapIndex + 1);
-      } else {
-        const notice = $("basemapStatus");
-        if (notice) {
-          notice.hidden = false;
-          notice.textContent = "Die Hintergrundkarte konnte nicht geladen werden. Bitte Netzwerkzugriff auf Kartenkacheln prüfen.";
+  // Fixed map viewport and static, low-contrast Natural Earth outlines.
+  // No external street-map tiles, labels, pan or zoom.
+  const map = L.map("hazardMap", {
+    center:[51,13], zoom:4, minZoom:3, maxZoom:8, preferCanvas:true,
+    zoomControl:false, attributionControl:false, dragging:false,
+    scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false,
+    boxZoom:false, keyboard:false, tap:false, worldCopyJump:false
+  });
+  map.fitBounds([[28,-25],[73,56]],{padding:[6,6],animate:false});
+  map.createPane("hazardLand");
+  map.getPane("hazardLand").style.zIndex="210";
+  map.getPane("hazardLand").style.pointerEvents="none";
+  map.createPane("hazardBorders");
+  map.getPane("hazardBorders").style.zIndex="450";
+  map.getPane("hazardBorders").style.pointerEvents="none";
+  const basemapIndex=-1;
+  fetch("wettergefahren_basemap.json")
+    .then(resp=>{if(!resp.ok)throw Error("HTTP "+resp.status);return resp.json();})
+    .then(geo=>{
+      if(!Array.isArray(geo.countries))throw Error("Keine Länderpolygone");
+      for(const country of geo.countries){
+        for(const polygon of country.p){
+          const rings=polygon.map(ring=>ring.map(([lon,lat])=>[lat,lon]));
+          if(!rings.length)continue;
+          L.polygon(rings,{pane:"hazardLand",stroke:false,fill:true,
+            fillColor:"#f8faf9",fillOpacity:1,interactive:false}).addTo(map);
+          L.polygon(rings,{pane:"hazardBorders",stroke:true,color:"#9fadb7",
+            weight:0.8,opacity:0.9,fill:false,interactive:false}).addTo(map);
         }
       }
+    })
+    .catch(err=>{
+      const msg=$("basemapStatus");
+      if(msg){msg.hidden=false;msg.textContent="Ländergrenzen konnten nicht geladen werden ("+err.message+").";}
     });
-    candidate.addTo(map);
-    const notice = $("basemapStatus");
-    if (notice) notice.hidden = true;
-  }
-  useBasemap(0);
-  let data=null, decoded=null, currentPeriod=0, currentType="all", overlay;
+  let data=null, decoded=null, currentPeriod=0, currentDuration=12,
+    currentType="all", overlay;
+  const cache=Object.create(null);
+  let loadGeneration=0, selectionGeneration=0;
   function status(text, type) {
     const el=$("status");
     el.textContent=text;
@@ -78,21 +66,24 @@
   function decodePeriod(index) {
     const period=data.periods[index], count=data.grid.rows*data.grid.cols;
     const layers={};
-    Object.keys(TYPES).forEach(key => {
-      const s=period.layers[key];
-      if(!s){layers[key]=null;return;}
-      const bytes=atob(s);
-      if(bytes.length!==count)throw new Error("Rastergröße ungültig ("+key+")");
+    Object.keys(TYPES).forEach(key=>{
+      const encoded=period.layers[key];
+      if(!encoded){layers[key]=null;return;}
+      const bytes=atob(encoded);
+      const packed=data.grid.encoding==="uint4-base64";
+      const length=packed?Math.ceil(count/2):count;
+      if(bytes.length!==length)throw Error("Rastergröße ungültig ("+key+")");
       const arr=new Uint8Array(count);
-      // Clamp older data-branch forecasts too, without waiting for a new ICON run.
       for(let i=0;i<count;i++){
-        const level=bytes.charCodeAt(i);
-        arr[i]=key==="fog"?(level>0?1:0):level;
+        const value=packed?(i&1?bytes.charCodeAt(i>>1)>>4:bytes.charCodeAt(i>>1)&15)
+                          :bytes.charCodeAt(i);
+        arr[i]=key==="fog"?(value>0?1:0):Math.min(value,4);
       }
       layers[key]=arr;
     });
     return layers;
   }
+
   function typesAt(index) {
     const keys=currentType==="all"?Object.keys(TYPES):[currentType];
     return keys.filter(key=>decoded && decoded[key] && decoded[key][index]>0)
@@ -218,27 +209,88 @@
     const available=Object.entries(p.samples).filter(([key,count])=>count>0).map(([key])=>TYPES[key].name);
     $("availability").textContent="Berechnet: "+(available.join(", ")||"keine")+
       ". Fehlende Parameter bleiben transparent.";
-    const hourly=p.rain_intervals_available && p.rain_intervals_available["1"];
-    $("rainCoverage").textContent=hourly===0 ?
-      "Hinweis: In diesem Zeitfenster stehen keine exakt einstündigen Niederschlagsintervalle zur Verfügung; lokale Starkregenspitzen können fehlen." :
-      "Niederschlagsprüfung: "+hourly+" einstündige Intervalle sowie verfügbare 3-, 6- und 24-Stunden-Mengen.";
+    const counts=p.rain_intervals_available || {};
+    const availableIntervals=[1,3,6,24]
+      .filter(d=>d<=currentDuration && Number(counts[String(d)])>0)
+      .map(d=>d+" h: "+counts[String(d)]+" Intervalle");
+    $("rainCoverage").textContent="Niederschlagsprüfung: "+(availableIntervals.join(" · ")||
+      "keine vollständig verfügbaren Intervalle")+
+      (Number(counts["1"]||0)===0?
+      " · Hinweis: Keine 1-h-Werte, kleinräumige Starkregenspitzen können fehlen.":"");
+  }
+  function absoluteUTC(hour) {
+    const date=new Date(new Date(data.run_utc).getTime()+hour*3600000);
+    return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",
+      month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(date);
+  }
+  function updatePeriodButtons() {
+    const holder=$("periodButtons");
+    holder.replaceChildren();
+    data.periods.forEach((period,i)=>{
+      const button=document.createElement("button");
+      button.type="button";
+      button.dataset.index=String(i);
+      button.textContent=absoluteUTC(period.start_h)+" – "+absoluteUTC(period.end_h);
+      button.title="+"+period.start_h+" bis +"+period.end_h+" h · UTC";
+      button.setAttribute("aria-pressed",String(i===currentPeriod));
+      button.addEventListener("click",()=>{
+        currentPeriod=i;
+        render();
+      });
+      holder.append(button);
+    });
+    const selected=holder.querySelector('[aria-pressed="true"]');
+    if(selected)holder.scrollLeft=Math.max(0,selected.offsetLeft-holder.offsetLeft-20);
   }
   function render() {
     if(!data)return;
     decoded=decodePeriod(currentPeriod);
     const p=data.periods[currentPeriod];
-    document.querySelectorAll(".periods button").forEach((el,i)=>{
-      el.setAttribute("aria-pressed",String(i===currentPeriod));
+    document.querySelectorAll(".durations button").forEach(el=>{
+      const duration=Number(el.dataset.duration);
+      el.setAttribute("aria-pressed",String(duration===currentDuration));
+      el.disabled=data.schema===1 && duration!==24;
+      el.title=el.disabled?"Neuer ICON-EU-Datensatz noch nicht verfügbar":"";
     });
-    $("periodLabel").textContent="+"+p.start_h+" bis +"+p.end_h+" Stunden ab Modellstart";
+    $("periodLabel").textContent=absoluteUTC(p.start_h)+" – "+
+      absoluteUTC(p.end_h)+" UTC · +"+p.start_h+" bis +"+p.end_h+" h";
     $("type").value=currentType;
+    updatePeriodButtons();
     summary();
     overlay.redraw();
   }
-  document.querySelectorAll(".periods button").forEach(button=>{
-    button.addEventListener("click",()=>{
-      currentPeriod=Number(button.dataset.index);render();
-    });
+  async function selectDuration(duration) {
+    if(!data || duration===currentDuration)return;
+    if(data.schema===1){
+      status("6-/12-h-Daten stehen erst nach dem nächsten neuen Modelllauf zur Verfügung.","warn");
+      return;
+    }
+    const generation=loadGeneration, selection=++selectionGeneration;
+    try {
+      status("ICON-EU "+duration+"-Stunden-Karten werden geladen …");
+      if(!cache[duration]){
+        const path=duration===24?"current.json":"current_"+duration+"h.json";
+        const url=URL.replace(/current\.json$/,path);
+        const response=await fetch(url+"?t="+Date.now(),{cache:"no-store"});
+        if(!response.ok)throw Error("HTTP "+response.status);
+        const incoming=await response.json();
+        validate(incoming,duration);
+        if(incoming.run_utc!==data.run_utc)
+          throw Error("Die Zeitfenster stammen nicht aus demselben Modelllauf");
+        cache[duration]=incoming;
+      }
+      if(generation!==loadGeneration||selection!==selectionGeneration)return;
+      data=cache[duration];currentDuration=duration;currentPeriod=0;
+      render();
+      status(duration+"-h-Karten geladen · 0,25° Auswerteraster, keine amtliche Warnung.");
+    }catch(error){
+      if(generation!==loadGeneration||selection!==selectionGeneration)return;
+      status(duration+"-h-Karten sind noch nicht verfügbar ("+error.message+
+        "). Bisherige Ansicht bleibt erhalten.","warn");
+    }
+  }
+  document.querySelectorAll(".durations button").forEach(button=>{
+    button.addEventListener("click",()=>selectDuration(Number(button.dataset.duration)));
   });
   $("type").addEventListener("change",event=>{
     currentType=event.target.value;render();
@@ -268,43 +320,72 @@
     wrapper.append(tip);
     L.popup({maxWidth:320}).setLatLng(event.latlng).setContent(wrapper).openOn(map);
   });
+  function validate(doc,duration) {
+    if(![1,2].includes(doc.schema) || !doc.grid ||
+       !Array.isArray(doc.periods) || doc.not_official_warning!==true)
+      throw Error("Dateiformat nicht plausibel");
+    if(doc.schema===2 && (doc.duration_h!==duration ||
+       doc.grid.step!==0.25 || doc.grid.encoding!=="uint4-base64"))
+      throw Error("Auflösung oder Intervall weicht vom Datenformat ab");
+    if(doc.schema===1 && duration!==24)throw Error("Veraltetes 24-h-Datenformat");
+    const count=120/duration;
+    if(doc.periods.length!==count)throw Error("Anzahl der Prognosefenster stimmt nicht");
+    doc.periods.forEach((p,i)=>{
+      if(p.start_h!==i*duration||p.end_h!==(i+1)*duration)
+        throw Error("Ungültige Vorhersagezeiten");
+    });
+  }
   async function load() {
+    const generation=++loadGeneration;
+    ++selectionGeneration;
     status("Aktuelle ICON-EU-Gefahrenkarten werden abgerufen …");
     try {
       const response=await fetch(URL+"?t="+Date.now(),{cache:"no-store"});
-      if(!response.ok)throw new Error("HTTP "+response.status);
-      const incoming=await response.json();
-      if(incoming.schema!==1 || !incoming.grid ||
-        !Array.isArray(incoming.periods) || incoming.periods.length!==5 ||
-        incoming.not_official_warning!==true){
-        throw new Error("Dateiformat nicht plausibel");
-      }
-      const expected=Array.from({length:5},(_,i)=>[i*24,(i+1)*24]);
-      expected.forEach((range,i)=>{
-        if(incoming.periods[i].start_h!==range[0]||incoming.periods[i].end_h!==range[1]){
-          throw new Error("Zeitfenster weicht von der Spezifikation ab");
+      if(!response.ok)throw Error("HTTP "+response.status);
+      const mainData=await response.json();
+      validate(mainData,24);
+      if(generation!==loadGeneration)return;
+      for(const key of Object.keys(cache))delete cache[key];
+      cache[24]=mainData;
+      let selected=mainData,duration=24;
+      if(mainData.schema===2){
+        try{
+          const r=await fetch(URL.replace(/current\.json$/,"current_12h.json")+
+            "?t="+Date.now(),{cache:"no-store"});
+          if(!r.ok)throw Error("HTTP "+r.status);
+          const proposed=await r.json();
+          validate(proposed,12);
+          if(proposed.run_utc!==mainData.run_utc)
+            throw Error("Läufe sind zeitlich unterschiedlich");
+          selected=proposed;duration=12;cache[12]=proposed;
+        }catch(e){
+          console.warn("12-h-Karten noch nicht bereit:",e);
         }
-      });
-      data=incoming;
-      $("runTime").textContent="ICON-EU-Lauf: "+formatUTC(data.run_utc)+
-        " · Berechnung: "+formatUTC(data.generated_utc);
-      const runAge=(Date.now()-new Date(data.run_utc).getTime())/3600000;
-      if(!Number.isFinite(runAge)||runAge>18){
-        status("Achtung: Der zuletzt verfügbare ICON-EU-Lauf ist älter als 18 Stunden. Daten sind möglicherweise veraltet.","warn");
-      }else{
-        status("Gefahrenindikatoren geladen. Mit dem Zeitraum und der Wetterart kannst du die Karte umschalten.");
       }
+      if(generation!==loadGeneration)return;
+      data=selected;currentDuration=duration;currentPeriod=0;
+      $("runTime").textContent="ICON-EU-Lauf: "+formatUTC(data.run_utc)+
+        " · Berechnung: "+formatUTC(data.generated_utc)+
+        " · Auswerteraster: "+data.grid.step+"°";
+      const age=(Date.now()-new Date(data.run_utc).getTime())/3600000;
+      if(!Number.isFinite(age)||age>18)
+        status("Achtung: Modelllauf älter als 18 Stunden. Wetterprognose möglicherweise veraltet.","warn");
+      else if(data.schema===1)
+        status("Noch 24-h-Altdaten · neue 6/12-h-Karten folgen mit dem nächsten vollständigen Datenlauf.","warn");
+      else
+        status("Gefahrenindikatoren geladen · "+duration+"-h-Zeiträume · keine amtliche Warnung.");
       render();
-    } catch (error) {
+    }catch(error){
+      if(generation!==loadGeneration)return;
       data=null;decoded=null;overlay.redraw();
       $("metrics").textContent="Noch keine berechneten Gefahrenkarten vorhanden.";
-      status("Es liegen derzeit keine veröffentlichten ICON-EU-Gefahrenkarten vor ("+
-        error.message+"). Keine simulierten Daten werden angezeigt.","error");
+      status("Der ICON-EU-Datensatz konnte nicht geladen werden ("+error.message+
+        "). Keine simulierten Daten werden angezeigt.","error");
     }
   }
   // Read-only snapshot bridge for the dedicated PNG export module.
   window.iconEuHazardExportState = () => ({
-    map, data, decoded, currentPeriod, currentType, TYPES, SEVERITY, NAMES,
+    map, data, decoded, currentPeriod, currentDuration, currentType, TYPES, SEVERITY, NAMES,
     basemapIndex, paintGlyph
   });
   load();

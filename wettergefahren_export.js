@@ -10,10 +10,10 @@
     bg: "#eef3f8",
     ink: "#182b40",
     muted: "#586d80",
-    ocean: "#e1eff5",
-    land: "#f4f1e8",
-    border: "#a5b8c1",
-    coastline: "#859da6"
+    ocean: "#e8f0f5",
+    land: "#f8faf9",
+    border: "#9fadb7",
+    coastline: "#9fadb7"
   };
   const SOURCE = {
     osm: "Kartenbasis: © OpenStreetMap-Mitwirkende (ODbL)",
@@ -82,24 +82,6 @@
     ctx.fillStyle = PALETTE.ocean;
     ctx.fillRect(x, y, w, h);
 
-    // Subtle geographic graticule in the current Web Mercator viewport.
-    ctx.strokeStyle = "#c1d3dc";
-    ctx.lineWidth = 0.8;
-    for (let lon = -40; lon <= 80; lon += 10) {
-      ctx.beginPath();
-      for (let lat = 0; lat <= 85; lat += 1) {
-        const p = map.latLngToContainerPoint([lat,lon]);
-        if (lat===0) ctx.moveTo(x+p.x,y+p.y);
-        else ctx.lineTo(x+p.x,y+p.y);
-      }
-      ctx.stroke();
-    }
-    for (let lat = 20; lat <= 80; lat += 10) {
-      const a=map.latLngToContainerPoint([lat,-180]);
-      const b=map.latLngToContainerPoint([lat,180]);
-      ctx.beginPath();ctx.moveTo(x+a.x,y+a.y);ctx.lineTo(x+b.x,y+b.y);ctx.stroke();
-    }
-
     for (const country of geography.countries) {
       for (const polygon of country.p) {
         ctx.beginPath();
@@ -119,24 +101,28 @@
       }
     }
 
-    const cities = [
-      ["Reykjavík",64.15,-21.94],["Oslo",59.91,10.75],
-      ["Stockholm",59.33,18.07],["Helsinki",60.17,24.94],
-      ["London",51.51,-0.13],["Paris",48.86,2.35],
-      ["Berlin",52.52,13.41],["Frankfurt",50.11,8.68],
-      ["Madrid",40.42,-3.70],["Rom",41.90,12.50],
-      ["Wien",48.21,16.37],["Warschau",52.23,21.01],
-      ["Athen",37.98,23.73],["Istanbul",41.01,28.98],
-      ["Kopenhagen",55.68,12.57],["Prag",50.08,14.42],
-      ["Dublin",53.35,-6.26],["Bukarest",44.43,26.10]
-    ];
-    ctx.fillStyle = "#384d5a";
-    ctx.font = "11px Arial, sans-serif";
-    for (const [name,lat,lon] of cities) {
-      const p=map.latLngToContainerPoint([lat,lon]);
-      if(p.x<8||p.y<8||p.x>w-70||p.y>h-15) continue;
-      ctx.beginPath();ctx.arc(x+p.x,y+p.y,2.4,0,Math.PI*2);ctx.fill();
-      ctx.fillText(name,x+p.x+5,y+p.y-4);
+    ctx.restore();
+  }
+
+  function drawVectorBorders(ctx,state,box,geography) {
+    const {map}=state;
+    ctx.save();
+    ctx.beginPath();ctx.rect(box.x,box.y,box.w,box.h);ctx.clip();
+    ctx.strokeStyle=PALETTE.border;
+    ctx.lineWidth=0.9;
+    for(const country of geography.countries) {
+      for(const polygon of country.p) {
+        ctx.beginPath();
+        for(const ring of polygon) {
+          ring.forEach(([lon,lat],i)=>{
+            const pt=map.latLngToContainerPoint([lat,lon]);
+            if(i===0)ctx.moveTo(box.x+pt.x,box.y+pt.y);
+            else ctx.lineTo(box.x+pt.x,box.y+pt.y);
+          });
+          ctx.closePath();
+        }
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -236,8 +222,8 @@
     ctx.strokeStyle="#e1e8ed";ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x+WIDTH_LEGEND-30,top);ctx.stroke();
     text(ctx,"KARTENAUSWAHL",x,top+28,"bold 12px Arial");
     text(ctx,selected,x,top+50,"12px Arial",PALETTE.muted);
-    text(ctx,"Nebel maximal Gelb.",x,top+82,"12px Arial",PALETTE.muted);
-    text(ctx,"Raster: 0,5° · ICON-EU",x,top+104,"12px Arial",PALETTE.muted);
+    text(ctx,"Fenster: "+state.currentDuration+" h",x,top+82,"12px Arial",PALETTE.muted);
+    text(ctx,"Auswerteraster: "+state.data.grid.step+"°",x,top+104,"12px Arial",PALETTE.muted);
   }
 
   async function makePNG() {
@@ -278,18 +264,11 @@
       ctx.fillRect(box.x,box.y,w,h);
     }
 
-    // If the currently visible tiles can be legally/cross-origin safely painted,
-    // prefer the identical on-screen basemap. Otherwise keep Natural Earth.
-    let provider="Natural Earth (© Natural Earth)";
-    const tileCanvas=await createTileSnapshot(mapEl,box);
-    if(tileCanvas){
-      ctx.drawImage(tileCanvas,box.x,box.y,w,h);
-      provider=state.basemapIndex===1?SOURCE.esri:SOURCE.osm;
-    }else if(!geography){
-      throw Error("Weder Kartenkacheln noch geografische Ersatzkarte verfügbar");
-    }
+    if(!geography)throw Error("Feste Länderkarte nicht verfügbar");
+    const provider="Natural Earth (Public Domain)";
 
     drawRiskCanvas(ctx,mapEl,box);
+    drawVectorBorders(ctx,state,box,geography);
     ctx.strokeStyle="#a8b9c7";ctx.lineWidth=1;ctx.strokeRect(box.x+.5,box.y+.5,w-1,h-1);
     drawLegend(ctx,state,box);
 

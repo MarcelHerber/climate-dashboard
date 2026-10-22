@@ -38,8 +38,21 @@ jobs:
           assert a.classify("wind",np.array([64.9,65,84.9,85,104.9,105,119.9,120])/3.6).tolist()==[0,1,1,2,2,3,3,4]
           assert a.classify("rain",np.array([9.9,10,15,25,40],dtype=float),duration=1).tolist()==[0,1,2,3,4]
           assert a.classify("fog",np.array([500,499,200,199,100,99,50,49,float("nan")],dtype=float)).tolist()==[0,1,1,1,1,1,1,1,0]
-          assert len(mod.WINDOWS)==5 and mod.WINDOWS[-1]==(96,120)
-          print("Schwellenwerte und Zeitfenster geprüft")
+          assert mod.DURATIONS==(6,12,24)
+          assert len(mod.WINDOWS)==35
+          assert mod.WINDOWS[0]==(0,6) and mod.WINDOWS[-1]==(96,120)
+          assert mod.STEP==0.25 and mod.ROWS*mod.COLS==63296
+          assert mod.hours_for("SNOW_GSP")==list(range(0,121,6))
+          assert mod.hours_for("VMAX_10M")[-1]==120
+          for duration in (6,12,24):
+            a=mod.Aggregator()
+            for key in a.data:
+              assert len(a.data[key])==35
+            assert a.classify("snow",np.array([3.0]),duration=duration).shape==(1,)
+          import base64
+          encoded=base64.b64decode(mod.pack_levels(np.array([0,1,2,3,4],dtype=np.uint8)))
+          assert encoded==bytes([0x10,0x32,0x04])
+          print("0,25°-Raster, 6/12/24-h-Fenster und kompakte Kodierung geprüft")
           PY
       - name: Neuesten vollständigen ICON-EU-Lauf auswerten
         run: |
@@ -49,17 +62,24 @@ jobs:
         run: |
           python - <<'PY'
           import base64,json,pathlib
-          doc=json.loads(pathlib.Path("/tmp/icon-hazards-build/current.json").read_text())
-          assert len(doc["periods"])==5 and doc["not_official_warning"] is True
-          size=doc["grid"]["rows"]*doc["grid"]["cols"]
-          for period in doc["periods"]:
-              assert len(base64.b64decode(period["layers"]["wind"]))==size
-              assert len(base64.b64decode(period["layers"]["rain"]))==size
-              fog=base64.b64decode(period["layers"]["fog"])
-              assert len(fog)==size
-              assert set(fog).issubset({0,1}), "Nebel darf maximal Gelb sein"
-              assert period["rain_intervals_available"]["24"]>=1
-          print("5 x 24 h ICON-EU Wind/Regen geprüft",doc["run_utc"])
+          for duration in (6,12,24):
+              path=pathlib.Path("/tmp/icon-hazards-build/current" +
+                  ("" if duration==24 else f"_{duration}h") + ".json")
+              doc=json.loads(path.read_text())
+              assert doc["schema"]==2 and doc["duration_h"]==duration
+              assert doc["grid"]["step"]==0.25
+              assert len(doc["periods"])==120//duration and doc["not_official_warning"] is True
+              size=(doc["grid"]["rows"]*doc["grid"]["cols"]+1)//2
+              for period in doc["periods"]:
+                  assert period["end_h"]-period["start_h"]==duration
+                  assert len(base64.b64decode(period["layers"]["wind"]))==size
+                  assert len(base64.b64decode(period["layers"]["rain"]))==size
+                  if period["layers"]["fog"]:
+                      fog=base64.b64decode(period["layers"]["fog"])
+                      assert all((v&15)<=1 and (v>>4)<=1 for v in fog)
+                  assert period["rain_intervals_available"][str(min(duration,6))]>=1
+              print(f"{120//duration} x {duration} h ICON-EU Wind/Regen geprüft",
+                    doc["run_utc"])
           PY
       - name: Separate Datenbranch aktualisieren
         env:
@@ -78,6 +98,8 @@ jobs:
           fi
           mkdir -p "$TARGET/data/icon-hazards"
           cp /tmp/icon-hazards-build/current.json "$TARGET/data/icon-hazards/current.json"
+          cp /tmp/icon-hazards-build/current_6h.json "$TARGET/data/icon-hazards/current_6h.json"
+          cp /tmp/icon-hazards-build/current_12h.json "$TARGET/data/icon-hazards/current_12h.json"
           touch "$TARGET/.nojekyll"
           cd "$TARGET"
           git config user.name "github-actions[bot]"
