@@ -41,7 +41,7 @@ jobs:
           assert mod.DURATIONS==(6,12,24)
           assert len(mod.WINDOWS)==35
           assert mod.WINDOWS[0]==(0,6) and mod.WINDOWS[-1]==(96,120)
-          assert mod.STEP==0.25 and mod.ROWS*mod.COLS==52992
+          assert mod.STEP==0.25 and mod.ROWS*mod.COLS==63296
           assert mod.hours_for("SNOW_GSP")==list(range(0,121,6))
           assert mod.hours_for("VMAX_10M")[-1]==120
           for duration in (6,12,24):
