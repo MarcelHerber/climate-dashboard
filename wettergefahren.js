@@ -235,9 +235,8 @@
       });
       holder.append(button);
     });
-    holder.querySelector('[aria-pressed="true"]')?.scrollIntoView({
-      behavior:"instant",block:"nearest",inline:"nearest"
-    });
+    const selected=holder.querySelector('[aria-pressed="true"]');
+    if(selected)holder.scrollLeft=Math.max(0,selected.offsetLeft-holder.offsetLeft-20);
   }
   function render() {
     if(!data)return;
