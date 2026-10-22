@@ -198,6 +198,11 @@ class Aggregator:
 
 
 def hours_for(param):
+    if param == "VMAX_10M":
+        # Unlike most fields, gust maxima on the legacy regular ICON-EU grid
+        # are available hourly up to +120 h. Sampling only 3-hourly after
+        # +75 h can miss the strongest forecast gusts.
+        return list(range(0, 121))
     if param in ("SNOW_GSP", "SNOW_CON"):
         return list(range(0, 121, 24))
     if param in ("TMAX_2M", "TMIN_2M"):
