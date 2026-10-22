@@ -39,6 +39,7 @@ jobs:
           assert a.classify("rain",np.array([9.9,10,15,25,40],dtype=float),duration=1).tolist()==[0,1,2,3,4]
           assert a.classify("fog",np.array([500,499,200,199,100,99,50,49,float("nan")],dtype=float)).tolist()==[0,1,1,1,1,1,1,1,0]
           assert len(mod.WINDOWS)==5 and mod.WINDOWS[-1]==(96,120)
+          assert mod.hours_for("VMAX_10M")==list(range(0,121)), "Böen müssen bis +120 h stündlich abgerufen werden"
           print("Schwellenwerte und Zeitfenster geprüft")
           PY
       - name: Neuesten vollständigen ICON-EU-Lauf auswerten
