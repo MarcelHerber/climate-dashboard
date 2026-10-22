@@ -147,6 +147,10 @@ class Aggregator:
         self.mask = None
         self.layout = None
         self.size = ROWS * COLS
+        # The fixed output raster is larger than the actual model domain.
+        # Record geographic cells with valid ICON data, including level zero.
+        self.domain_cells = np.zeros(self.size, dtype=bool)
+        self.domain_initialized = False
         self.data = {key: [np.zeros(self.size, dtype=np.uint8) for _ in WINDOWS]
                      for key in HAZARDS}
         self.metrics = {key: [None for _ in WINDOWS] for key in HAZARDS}
@@ -172,6 +176,9 @@ class Aggregator:
             raise ValueError("GRIB-Feld hat unerwartete Rastergröße")
         relevant = values[self.mask]
         good = np.isfinite(relevant) & (np.abs(relevant) < 1e15)
+        if not self.domain_initialized and np.any(good):
+            self.domain_cells[self.index[good]] = True
+            self.domain_initialized = True
         out = np.full(self.size, -np.inf if reducer == "max" else np.inf, np.float32)
         if reducer == "max":
             np.maximum.at(out, self.index[good], relevant[good])
@@ -343,6 +350,19 @@ def build(cycle, output):
     for wi, (start, stop) in enumerate(WINDOWS):
         if not agg.coverage["wind"][wi] or not agg.coverage["rain"][wi]:
             raise RuntimeError("Wind/Regen im Zeitfenster %s–%s h nicht verfügbar" % (start, stop))
+    # Bounding rectangle of VALID meteorological model points, not the
+    # raster envelope and never the extent of non-zero warning colours.
+    if not agg.domain_initialized:
+        raise RuntimeError("Keine gültigen ICON-EU-Rasterpunkte für den Kartenausschnitt")
+    occupied = np.flatnonzero(agg.domain_cells)
+    row, col = np.divmod(occupied, COLS)
+    coverage_bounds = {
+        "south": LAT_MIN + int(row.min()) * STEP,
+        "north": LAT_MIN + (int(row.max()) + 1) * STEP,
+        "west": LON_MIN + int(col.min()) * STEP,
+        "east": LON_MIN + (int(col.max()) + 1) * STEP,
+    }
+    log.info("ICON-EU Rasterabdeckung: %s", coverage_bounds)
     generated = utcnow().isoformat().replace("+00:00", "Z")
     for duration in DURATIONS:
         manifest = {
@@ -353,7 +373,8 @@ def build(cycle, output):
             "duration_h": duration,
             "not_official_warning": True,
             "grid": {"lat_min": LAT_MIN, "lon_min": LON_MIN, "step": STEP,
-                     "rows": ROWS, "cols": COLS, "encoding": "uint4-base64"},
+                     "rows": ROWS, "cols": COLS, "encoding": "uint4-base64",
+                     "coverage_bounds": coverage_bounds},
             "thresholds": {**LIMITS, "snow_by_duration": SNOW_LIMITS},
             "periods": [],
             "notes": {
