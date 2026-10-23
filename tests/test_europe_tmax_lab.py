@@ -61,7 +61,14 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertAlmostEqual(oslo["tx"]["2026-10-24"],13.0,places=1)
         self.assertNotIn("2026-10-23",oslo["tx"])
         self.assertLessEqual(oslo["distance_km"],app.MAX_DISTANCE_KM)
-        self.assertEqual(len({p["station_id"] for p in points}),len(points))
+        self.assertEqual(len(points),31)
+        present=[p for p in points if p["station_id"] is not None]
+        self.assertEqual(len({p["station_id"] for p in present}),len(present))
+        perm=next(p for p in points if p["city"]=="Perm")
+        self.assertIsNotNone(perm["station_id"])
+        island=next(p for p in points if p["city"]=="Kanaren")
+        self.assertIsNone(island["station_id"])
+        self.assertEqual(island["tx"],{})
 
     def test_temperature_colours_and_explicit_output_grid(self):
         self.assertEqual(app.STOPS[0][0],-35)
