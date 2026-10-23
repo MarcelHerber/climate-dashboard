@@ -64,8 +64,8 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertEqual(len(points),31)
         present=[p for p in points if p["station_id"] is not None]
         self.assertEqual(len({p["station_id"] for p in present}),len(present))
-        perm=next(p for p in points if p["city"]=="Perm")
-        self.assertIsNotNone(perm["station_id"])
+        syktywkar=next(p for p in points if p["city"]=="Syktywkar")
+        self.assertIsNotNone(syktywkar["station_id"])
         island=next(p for p in points if p["city"]=="Kanaren")
         self.assertIsNone(island["station_id"])
         self.assertEqual(island["tx"],{})
@@ -77,7 +77,7 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertEqual(app.HEIGHT,369)
         # Exact places shown on the supplied reference map, without extra cities.
         self.assertEqual(tuple(city for city, _, _ in app.CITIES), (
-            "Reykjavík",            "Rovaniemi",            "Perm",            "Helsinki",            "Oslo",
+            "Reykjavík",            "Rovaniemi",            "Syktywkar",            "Helsinki",            "Oslo",
             "Stockholm",            "Moskau",            "Minsk",            "Wolgograd",            "Dublin",
             "London",            "Warschau",            "Kiew",            "Frankfurt",            "Wien",
             "Paris",            "Bordeaux",            "Nizza",            "Belgrad",            "Varna",
@@ -87,7 +87,7 @@ class EuropeTmaxTests(unittest.TestCase):
         ))
         self.assertEqual(len(app.CITIES),31)
         self.assertEqual(len({name for name,_,_ in app.CITIES}),31)
-        self.assertGreater(app.LON_MAX,56.2)  # Perm must be on the map
+        self.assertGreater(app.LON_MAX,50.82)  # Syktywkar must be on the map
         self.assertLess(app.LON_MIN,-25.67)  # Azores on source grid
         self.assertLess(app.LAT_MIN,28.29)  # Canary Islands on source grid
 
