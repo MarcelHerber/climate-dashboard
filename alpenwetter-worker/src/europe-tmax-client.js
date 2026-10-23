@@ -166,11 +166,19 @@ function applyBoxEdits(){
   delete state.prefs.values[day.date][entry.key];
   if(!Object.keys(state.prefs.values[day.date]).length)delete state.prefs.values[day.date];
  }
- state.prefs.styles[entry.key]={
+ const chosen={
   fill:hex($("tmaxBoxFill").value,"#ffffff"),
   text:hex($("tmaxBoxText").value,"#172d41"),
   border:hex($("tmaxBoxBorder").value,"#1e3444")
  };
+ const inheritedFill=hex(state.prefs.globalFill,"#ffffff");
+ // Editing a temperature alone should not freeze the inherited global color.
+ if(!state.prefs.styles[entry.key]&&chosen.fill===inheritedFill&&
+    chosen.text===contrast(inheritedFill)&&chosen.border==="#1e3444"){
+  delete state.prefs.styles[entry.key];
+ }else{
+  state.prefs.styles[entry.key]=chosen;
+ }
  persist();render();openBoxEditor(entry.key);
  note("Anzeige geändert. MOSMIX-Original bleibt erhalten; * kennzeichnet manuelle Werte.");
 }
