@@ -4,6 +4,7 @@ import { LAB_CSS } from "./cloud-lab-style.js";
 const DATA_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-cloud-film-data/data/icon-cloud-film/";
 const ICON_D2_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-d2-cloud-film-data/data/icon-d2-cloud-film/";
 const MIXER_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/icon-cloud-mixer-data/data/cloud-mixer/";
+const EUROPE_TMAX_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/europe-tmax-lab-data/data/europe-tmax-lab/";
 const GEO_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/seasonal-europe-data/data/seasonal-europe/geography_50m.json";
 
 export function cloudLabLoginPage(){
@@ -22,7 +23,7 @@ export function cloudLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>Wolkenfilm-Studio · Privat</title><style>'+
  LAB_CSS+'</style></head><body><header><div><div class="sub">Climate Dashboard · privates Studio</div><strong>ICON Wolkenfilm-Studio</strong> <span class="badge">Geschützt</span></div>'+
- '<nav><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
+ '<nav><a href="/wolkenlabor/europa-tmax">Europa Tmax · MOS + ICON <span class="badge">Test</span></a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
  '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Sendefähige Wolkenfilm-Darstellung aus echten DWD-Modellfeldern. Wolkenschichten individuell in Graustufen einstellen; bei ICON-D2 auf Wunsch mit stündlichen Regen- und Schneefeldern. Keine künstlich erzeugten Wetterdaten.</p>'+
  '<div class="model-switch" role="group" aria-label="Vorhersagemodell und Region">'+
  '<button id="modelEU" type="button" aria-pressed="true">Europa · ICON-EU</button>'+
@@ -77,6 +78,12 @@ export async function cloudLabData(request,url,securityHeaders){
  }
  else if(/^mixer\/(?:icon-d2-ruc|gfs|ecmwf-aifs|ecmwf-ifs-0p1|ecmwf-ifs|gem|arome|harmonie)\/frames\/\d{10}\/(?:clcl|clcm|clch|clct)_\d{3}\.png$/.test(suffix)){
    source=MIXER_SOURCE+suffix.slice(6);mime="image/png";
+ }
+ else if(suffix==="europa-tmax/current.json"){
+   source=EUROPE_TMAX_SOURCE+"current.json";mime="application/json; charset=utf-8";
+ }
+ else if(/^europa-tmax\/icon_tmax_\d{4}-\d{2}-\d{2}\.png$/.test(suffix)){
+   source=EUROPE_TMAX_SOURCE+suffix.slice("europa-tmax/".length);mime="image/png";
  }
  else if(suffix==="d2/precip.json"){source=ICON_D2_SOURCE+"precip.json";mime="application/json; charset=utf-8";}
  else if(/^d2\/precip\/frames\/\d{10}\/(?:rain|snow)_\d{3}\.png$/.test(suffix)){
