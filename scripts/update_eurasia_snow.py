@@ -11,6 +11,7 @@ Source files: https://noaadata.apps.nsidc.org/NOAA/G02156/24km/YYYY/
 from __future__ import annotations
 
 import argparse
+import calendar
 import datetime as dt
 import gzip
 import html
@@ -36,6 +37,7 @@ LON_0 = -80.0
 LAT_TS = 60.0
 REGION = {"lat_south": 20, "lat_north": 60, "lon_west": -10, "lon_east": 180}
 HISTORY_YEARS = [year for year in range(1999, 2026) if year != 2014]
+WINTER_MONTHS = (10, 11, 12, 1, 2, 3)
 AGENT = "ClimateDashboardEurasianSnow/1.0 (academic/visualization; IMS G02156)"
 ROW = re.compile(rb"^[0-4]{1024}$")
 FILENAME = re.compile(r"ims(\d{4})(\d{3})(?:_00UTC)?_24km_v([\d.]+)\.asc\.gz", re.I)
@@ -114,90 +116,111 @@ def area_for_day(data: np.ndarray, region_mask: np.ndarray, weights: np.ndarray)
     return round(float(weights[(data == 4) & region_mask].sum()), 5)
 
 
-def calculate_climatology(archive: dict[str, float]) -> list[dict]:
-    climatology = []
-    for day in range(1, 32):
-        samples = [archive[f"{year}-10-{day:02d}"] for year in HISTORY_YEARS
-                   if f"{year}-10-{day:02d}" in archive]
-        if len(samples) >= 10:
-            climatology.append({"day": day, "mean": round(float(np.mean(samples)), 5),
-                                "stddev": round(float(np.std(samples, ddof=1)), 5),
-                                "years": len(samples)})
-        else:
-            climatology.append({"day": day, "mean": None, "stddev": None,
-                                "years": len(samples)})
-    return climatology
+def calendar_dates_for_season(season: int) -> list[dt.date]:
+    """E.g., 2025 means 1 Oct 2025 through 31 Mar 2026."""
+    return [dt.date(season if month>=10 else season+1,month,day)
+            for month in WINTER_MONTHS
+            for day in range(1,calendar.monthrange(
+                season if month>=10 else season+1,month)[1]+1)]
 
 
-def update(output: Path, max_new: int, today: dt.date) -> dict:
-    existing = json.loads(output.read_text()) if output.exists() else {}
-    archive = {key: val for key, val in existing.get("daily", {}).items()
-               if isinstance(val, (int, float)) and re.fullmatch(r"\d{4}-10-\d{2}", key)}
-    mask, weights = geographic_mask_and_weights()
-    if today.month >= 10:
-        current = [dt.date(today.year, 10, day) for day in range(
-            1, min(31, ((today - dt.date(today.year, 10, 1)).days)) + 1)]
-    else:
-        current = []
-    years = sorted(HISTORY_YEARS, reverse=True)
-    historic = [dt.date(y, 10, day) for y in years for day in range(1, 32)]
-    # Prioritize current month every day; fill the full 1999–2025 Oct archive
-    # incrementally rather than downloading hundreds of files on every run.
-    tasks = [day for day in current + historic if day.isoformat() not in archive]
-    found = 0
-    failed = 0
-    catalogs = {}
+def calculate_month_climatology(archive: dict[str,float],month: int) -> list[dict]:
+    if month not in WINTER_MONTHS:
+        raise ValueError("Kein Wintermonat")
+    max_days=29 if month==2 else calendar.monthrange(2025,month)[1]
+    result=[]
+    for day in range(1,max_days+1):
+        vals=[archive[f"{year}-{month:02d}-{day:02d}"]
+              for year in HISTORY_YEARS
+              if f"{year}-{month:02d}-{day:02d}" in archive]
+        minimum=5 if month==2 and day==29 else 10
+        result.append({
+            "day":day,
+            "mean":round(float(np.mean(vals)),5) if len(vals)>=minimum else None,
+            "stddev":round(float(np.std(vals,ddof=1)),5) if len(vals)>=minimum else None,
+            "years":len(vals),"min_years":minimum})
+    return result
+
+
+def calculate_climatology(archive: dict[str,float]) -> list[dict]:
+    """Backward-compatible October array, with multi-month fields alongside."""
+    return calculate_month_climatology(archive,10)
+
+
+def update(output: Path,max_new: int,today: dt.date) -> dict:
+    if max_new<1: raise ValueError("--max-new muss positiv sein")
+    existing=json.loads(output.read_text()) if output.exists() else {}
+    date_re=re.compile(r"^\d{4}-(?:01|02|03|10|11|12)-\d{2}$")
+    archive={key:float(val) for key,val in existing.get("daily",{}).items()
+             if isinstance(val,(int,float)) and math.isfinite(val)
+             and date_re.fullmatch(key)}
+    mask,weights=geographic_mask_and_weights()
+    season=today.year if today.month>=10 else today.year-1
+    last_day=today-dt.timedelta(days=1)
+    current=[d for d in calendar_dates_for_season(season) if d<=last_day]
+    previous=calendar_dates_for_season(season-1)
+    history=[dt.date(y,m,d) for y in sorted(HISTORY_YEARS,reverse=True)
+             for m in WINTER_MONTHS
+             for d in range(1,calendar.monthrange(y,m)[1]+1)]
+    tasks=list(dict.fromkeys(d for d in current+previous+history
+                             if d<=last_day and d.isoformat() not in archive))
+    found=failed=0
+    catalogs={}
     for date in tasks:
-        if found >= max_new:
-            break
+        if found>=max_new: break
         if date.year not in catalogs:
-            try:
-                catalogs[date.year] = inventory(date.year)
+            try: catalogs[date.year]=inventory(date.year)
             except Exception as exc:
-                LOG.warning("IMS-Verzeichnis %d: %s", date.year, exc)
-                catalogs[date.year] = {}
-        link = catalogs[date.year].get(date.isoformat())
-        if not link:
-            continue
+                LOG.warning("IMS-Verzeichnis %d: %s",date.year,exc)
+                catalogs[date.year]={}
+        link=catalogs[date.year].get(date.isoformat())
+        if not link: continue
         try:
-            grid = parse_ascii(url_bytes(link))
-            archive[date.isoformat()] = area_for_day(grid, mask, weights)
-            found += 1
-            if found < 4 or found % 20 == 0:
-                LOG.info("NOAA IMS %s: %.4f Mio. km²", date, archive[date.isoformat()])
-        except (ValueError, urllib.error.URLError, OSError) as exc:
-            failed += 1
-            LOG.warning("IMS %s nicht verarbeitet: %s", date, exc)
-    if not archive:
-        raise RuntimeError("Kein echter NOAA IMS-24-km-Tagesdatensatz eingelesen")
-    # The machine-readable result contains NO model lines until independently
-    # calculated. This makes accidental fabrication impossible.
-    result = {
-        "schema": 1,
-        "product": "Eurasien: tägliche Schneebedeckung im Oktober",
-        "source": {"name": "NOAA/USNIC IMS 24km / NSIDC G02156",
-                   "url": "https://nsidc.org/data/g02156/versions/1",
-                   "doi": "10.7265/N52R3PMC"},
-        "analysis": {"region": REGION, "resolution_km_nominal": 24,
-                     "snow_code": 4, "sea_ice_included": False,
-                     "area_unit": "million km2",
-                     "area_method": "spherical polar stereographic distortion-corrected"},
-        "climatology_period": {"start": 1999, "end": 2025, "excluded": [2014],
-                               "min_years_per_day": 10},
-        "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
-        "observed_latest": max((d for d in archive if d.startswith(f"{today.year}-")),
-                               default=None),
-        "daily": dict(sorted(archive.items())),
-        "climatology": calculate_climatology(archive),
-        "forecast": None,
-        "status": {"n_daily": len(archive), "n_new": found, "n_errors": failed,
-                   "n_oct_2026": sum(d.startswith("2026-10-") for d in archive),
-                   "n_climatology_days": sum(x["mean"] is not None for x in calculate_climatology(archive))},
+            grid=parse_ascii(url_bytes(link))
+            archive[date.isoformat()]=area_for_day(grid,mask,weights)
+            found+=1
+            if found<4 or found%40==0:
+                LOG.info("NOAA IMS %s: %.4f Mio. km²",date,archive[date.isoformat()])
+        except (ValueError,urllib.error.URLError,OSError) as exc:
+            failed+=1
+            LOG.warning("IMS %s nicht verarbeitet: %s",date,exc)
+    if not archive: raise RuntimeError("Keine echten NOAA IMS-Tagesdaten")
+    by_month={f"{m:02d}":calculate_month_climatology(archive,m)
+              for m in WINTER_MONTHS}
+    coverage={key:sum(row["mean"] is not None for row in values)
+              for key,values in by_month.items()}
+    def season_for(date: str) -> int:
+        return int(date[:4]) if int(date[5:7])>=10 else int(date[:4])-1
+    seasons=sorted({season_for(d) for d in archive},reverse=True)
+    result={
+        "schema":1,
+        "product":"Eurasien: tägliche Schneebedeckung Oktober–März",
+        "source":{"name":"NOAA/USNIC IMS 24km / NSIDC G02156",
+                  "url":"https://nsidc.org/data/g02156/versions/1",
+                  "doi":"10.7265/N52R3PMC"},
+        "analysis":{"region":REGION,"resolution_km_nominal":24,
+                    "snow_code":4,"sea_ice_included":False,
+                    "area_unit":"million km2",
+                    "area_method":"spherical polar stereographic distortion-corrected"},
+        "winter_months":list(WINTER_MONTHS),
+        "seasons":seasons,
+        "climatology_period":{"start":1999,"end":2025,"excluded":[2014],
+                              "min_years_per_day":10,"feb29_min_years":5},
+        "generated_utc":dt.datetime.now(dt.timezone.utc).isoformat(),
+        "observed_latest":max((d for d in archive if season_for(d)==season),default=None),
+        "daily":dict(sorted(archive.items())),
+        "climatology":by_month["10"],
+        "climatology_by_month":by_month,
+        "forecast":None,
+        "status":{"n_daily":len(archive),"n_new":found,"n_errors":failed,
+                  "n_oct_2026":sum(d.startswith("2026-10-") for d in archive),
+                  "n_climatology_days":coverage["10"],
+                  "n_climatology_days_by_month":coverage},
     }
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, ensure_ascii=False, separators=(",", ":")) + "\n")
-    LOG.info("Archiv gespeichert: %d echte Tageswerte (%d neu), %d Klima-Tage",
-             len(archive), found, result["status"]["n_climatology_days"])
+    output.parent.mkdir(parents=True,exist_ok=True)
+    output.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":"))+"\n")
+    LOG.info("IMS %d Tageswerte, %d neu, Klimatologietage: %s",
+             len(archive),found,coverage)
     return result
 
 
