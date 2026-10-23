@@ -6,10 +6,10 @@
 <meta name="description" content="ICON-EU Europa-Gefahrenmonitor: modellbasierte Hinweise für Wind, Starkregen, Schnee, Hitze, Kälte und eingeschränkte Sicht für fünf 24-Stunden-Zeiträume.">
 <title>ICON-EU Europa-Gefahrenmonitor · Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="wettergefahren.css?v=20261022-zoom">
+<link rel="stylesheet" href="wettergefahren.css?v=20261023-solid">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="wettergefahren.js?v=20261022-ne50"></script>
-<script defer src="wettergefahren_export.js?v=20261022-ne50"></script>
+<script defer src="wettergefahren.js?v=20261023-solid"></script>
+<script defer src="wettergefahren_export.js?v=20261023-solid"></script>
 </head>
 <body>
 <header>
@@ -57,7 +57,7 @@
       <div class="map-heading"><h2>ICON-EU · Europa</h2><span class="range" id="periodLabel">Gültigkeit wird geladen …</span></div>
       <div id="hazardMap" role="application" aria-label="Interaktive Europa-Karte mit modellbasierten Gefahrenflächen"></div>
       <div id="basemapStatus" class="basemap-status" role="status" hidden></div>
-      <div class="tips">In die feste Europakarte klicken, um alle verfügbaren Gefahrenstufen am ausgewählten Rasterpunkt anzuzeigen. Die farbige Fläche zeigt die höchste Stufe; unterschiedliche Muster stehen für Gefahrenarten. Bei Überlagerungen werden höchstens zwei Muster gleichzeitig dargestellt, im Kartenklick jedoch alle verfügbaren Gefahren aufgelistet.</div>
+      <div class="tips" id="mapTips">In die Karte klicken, um die Gefahrenstufen am Rasterpunkt anzuzeigen. Bei der Gesamtübersicht helfen Muster, die Gefahrenarten zu unterscheiden. Die Einzeldarstellung zeigt nur die Farben der Gefahrenstufen.</div>
     </section>
     <aside class="panel side-panel" aria-label="Legende und Hinweise">
       <h2>Legende</h2>
@@ -66,14 +66,16 @@
       <div class="legend-row"><span class="swatch" style="background:#f6a244"></span> Orange · markant</div>
       <div class="legend-row"><span class="swatch" style="background:#de434c"></span> Rot · schwer</div>
       <div class="legend-row"><span class="swatch" style="background:#9a49b4"></span> Violett · extrem</div>
-      <div class="legend-title">Gefahrenart (Musterfarbe / Struktur)</div>
+      <div id="hazardPatternLegend">
+        <div class="legend-title">Gefahrenart (Musterfarbe / Struktur)</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#8137bc">╱</span> Wind · diagonale Schraffur</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#087e97">∴</span> Niederschlag · Punkte</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#2278d7">×</span> Schnee · Kreuze</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#c85c10">═</span> Hitze · Querlinien</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#2454b7">║</span> Kälte · Längslinien</div>
       <div class="legend-row"><span class="legend-pattern" style="color:#677782">┄</span> Nebel · gestrichelte Ränder (nur Gelb)</div>
-      <p class="note"><strong>Hinweis:</strong> Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Muster helfen bei der Unterscheidung, werden bei sehr kleinem Zoom zugunsten der Lesbarkeit reduziert. Fehlende Felder bleiben transparent, nicht grün. Die Kartenbasis zeigt bewusst keine Straßen oder Orte.</p>
+      </div>
+      <p class="note" id="legendExplanation">Bei mehreren Gefahren wird die höchste Stufe eingefärbt; Muster helfen bei der Unterscheidung. In der Einzeldarstellung entfallen alle Muster und die Stufenfarben werden kräftiger.</p>
       <p class="note" id="availability">Datenverfügbarkeit wird geprüft …</p>
       <p class="note" id="rainCoverage"></p>
     </aside>
