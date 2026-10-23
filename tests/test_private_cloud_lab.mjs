@@ -125,7 +125,7 @@ const original={key:"base:Frankfurt",city:"Frankfurt",station_name:"FRANKFURT-SA
 const day1={date:"2026-10-23",stations:[original]},day2={date:"2026-10-24",stations:[{...original,tmax_c:15.2}]};
 const jsState={data:{days:[day1,day2]},index:0,selectedKey:"base:Frankfurt",
  prefs:{styles:{},values:{},globalFill:"#ffffff",autoBoxes:false,scale:{min:-35,max:45,colors:["#1b2572","#2352ad","#319ad2","#6ecad2","#53a976","#a7c567","#f6d762","#f9984e","#eb5f4b","#ce3e5f","#772b5e"]}}};
-const el={tmaxBoxMode:{value:"manual"},tmaxBoxEditor:{hidden:true},tmaxBoxTitle:{},tmaxOriginal:{},tmaxValueOverride:{value:"14.5",focus(){}},
+const el={tmaxBoxMode:{value:"manual"},tmaxBoxPresets:{querySelectorAll:()=>[]},tmaxBoxEditor:{hidden:true},tmaxBoxTitle:{},tmaxOriginal:{},tmaxValueOverride:{value:"14.5",focus(){}},
  tmaxBoxFill:{value:"#ffdc82"},tmaxBoxText:{value:"#172d41"},tmaxBoxBorder:{value:"#873d12"}};
 let calls=0;
 const paint=new Function("state","$","objectsForDay","dateLabel","renderEditorList","persist","render","note",
