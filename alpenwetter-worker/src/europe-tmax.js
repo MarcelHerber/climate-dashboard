@@ -36,6 +36,22 @@ const STYLE = `
 .tmax-stage.editing canvas{cursor:crosshair;touch-action:none}
 .tmax-edit-note{font-size:12px;padding:7px 0;color:#d5e9fb}
 
+.tmax-style-editor{margin:12px 0 16px;padding:14px;border-radius:10px;background:#0b2336;border:1px solid #5b819b}
+.tmax-style-editor[hidden]{display:none!important}
+.tmax-style-editor h3{font-size:17px;margin:0 0 8px;color:#f3f9fc}
+.tmax-style-editor .original{font-size:13px;color:#bed8e6;margin:4px 0 10px}
+.tmax-style-editor .field-grid{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.tmax-style-editor .field-grid label{font-size:12px;color:#e3f0fa;display:flex;flex-direction:column;gap:5px}
+.tmax-style-editor input[type=number]{width:115px;min-width:0;padding:8px;border-radius:6px;border:1px solid #6a8499;background:#071b2c;color:#f5fbff;font:inherit}
+.tmax-style-editor input[type=color],.tmax-global-style input[type=color]{width:52px;height:38px;padding:3px;border:1px solid #829bad;border-radius:6px;background:#fff;cursor:pointer}
+.tmax-style-editor .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tmax-style-editor .manual-badge{font-weight:700;color:#ffd18b}
+.tmax-style-editor .original strong{color:#fff}
+.tmax-global-style{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;color:#d6e9f4}
+.tmax-global-style label{display:flex;gap:7px;align-items:center;font-size:12px}
+.tmax-global-style button{font-size:12px}
+.tmax-station-row button.edit-selected{background:#deefff;color:#18364c;border-color:#bbdef5}
+
 #tmaxStatus{margin-top:12px}
 .tmax-card{max-width:1550px;margin:0 auto}
 .tmax-card .tools{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -79,8 +95,29 @@ export function europeTmaxPage() {
   '<button id="tmaxReset" type="button">Standard wiederherstellen</button></div>'+
   '<div class="tmax-matches" id="tmaxMatches" aria-live="polite"></div>'+
   '<div class="tmax-edit-note" id="tmaxEditNote" role="status">Wähle einen Ort oder setze einen Punkt.</div>'+
+  '<div class="tmax-global-style">'+
+  '<label>Standard-Kästchenfarbe <input id="tmaxGlobalFill" type="color" value="#ffffff" aria-label="Standard Hintergrundfarbe aller Kästchen"></label>'+
+  '<button id="tmaxGlobalReset" type="button">Standardfarbe zurücksetzen</button>'+
+  '</div>'+
+  '<section class="tmax-style-editor" id="tmaxBoxEditor" hidden aria-label="Einzelnes Temperaturkästchen bearbeiten">'+
+  '<h3 id="tmaxBoxTitle">Kästchen bearbeiten</h3>'+
+  '<div class="original" id="tmaxOriginal">Originalwert aus MOSMIX</div>'+
+  '<div class="field-grid">'+
+  '<label>Anzeige in °C (nur dieser Tag) <input id="tmaxValueOverride" type="number" step="0.1" min="-55" max="55" placeholder="MOS-Wert verwenden"></label>'+
+  '<label>Hintergrund <input id="tmaxBoxFill" type="color" value="#ffffff"></label>'+
+  '<label>Schrift <input id="tmaxBoxText" type="color" value="#172d41"></label>'+
+  '<label>Rahmen <input id="tmaxBoxBorder" type="color" value="#1e3444"></label>'+
+  '</div>'+
+  '<div class="actions">'+
+  '<button id="tmaxStyleSave" type="button">Änderungen übernehmen</button>'+
+  '<button id="tmaxValueReset" type="button">MOS-Originalwert</button>'+
+  '<button id="tmaxColorReset" type="button">Individuelle Farben entfernen</button>'+
+  '<button id="tmaxStyleClose" type="button">Schließen</button>'+
+  '</div>'+
+  '<p>Temperaturänderungen gelten ausschließlich für das ausgewählte Datum. Die MOSMIX-Daten werden nicht verändert. Manuell geänderte Werte tragen auf der Karte ein *.</p>'+
+  '</section>'+
   '<div class="tmax-station-list" id="tmaxStationList" aria-label="Temperaturkästchen ein- und ausblenden"></div>'+
-  '<p>Beim Verschieben ändert sich ausschließlich die Position auf der Karte – der echte MOSMIX-Stationswert bleibt unverändert. Änderungen werden nur in diesem Browser gespeichert und nicht an GitHub übertragen.</p>'+
+  '<p>Du kannst Kästchen anklicken oder in der Ortsliste ✎ wählen, ihren Anzeigewert und ihre Farben bearbeiten oder sie verschieben. Änderungen werden nur in diesem Browser gespeichert und nicht an GitHub übertragen.</p>'+
   '</section>'+
   '<div class="tmax-preview"><div class="tmax-stage" id="tmaxStage"><canvas id="tmaxCanvas" width="1920" height="1080" role="img" '+ 
   'aria-label="Experimentelle Europakarte mit echten MOSMIX-Höchsttemperaturen als Boxen über ICON-EU-Temperaturfläche"></canvas></div></div>'+
