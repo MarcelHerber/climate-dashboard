@@ -254,7 +254,15 @@ def daily_mos_values(kmz,dates):
             dist=12742*np.arcsin(min(1,np.sqrt(hav)))
             if dist<=MAX_DISTANCE_KM:
                 options.append((dist,-len(station["tx"]),station))
-        if not options:continue
+        if not options:
+            # Keep the reference city's location in the graphic, but NEVER
+            # fabricate a MOS temperature when no suitable station exists.
+            selected.append({"city":city,"lon":lon,"lat":lat,
+                             "station_id":None,"station_name":None,
+                             "station_lon":None,"station_lat":None,
+                             "distance_km":None,"tx":{},"missing":True})
+            LOG.warning("MOSMIX-TX not available near reference city: %s",city)
+            continue
         options.sort(key=lambda item:(item[0],item[1]))
         station=options[0][2]
         used.add(station["id"])
@@ -291,10 +299,10 @@ def build(out,workers):
         image,coverage,hours=daydata[i]
         points=[]
         for s in stations:
-            if date not in s["tx"]:continue
+            # Reference cities without native MOSMIX TX are kept with null.
             points.append({k:s[k] for k in ("city","lon","lat","station_id","station_name",
-                                           "station_lon","station_lat","distance_km")}|{"tmax_c":s["tx"][date]})
-        if len(points)<15:
+                                           "station_lon","station_lat","distance_km")}|{"tmax_c":s["tx"].get(date)})
+        if sum(point["tmax_c"] is not None for point in points)<15:
             raise RuntimeError(f"Nur {len(points)} aktuelle MOSMIX-TX-Städte für {date}")
         days.append({"date":date,"icon_png":image,"icon_hours":hours,
                      "coverage":coverage,"stations":points})
