@@ -257,6 +257,9 @@
   function fitMapToCoverage() {
     if(!data)return;
     const bounds=gridCoverageBounds(data);
+    // Changing only forecast time/meteorological layer must not resize or
+    // reproject the whole map at each arrow-key press.
+    if(fittedBounds && fittedBounds.equals(bounds,1e-9))return;
     // Match the map DIV to the bounding rectangle in Leaflet's Web Mercator
     // projection. Together with zoomSnap=0 this avoids wide side/top gutters.
     const nw=map.project(bounds.getNorthWest(),0);
@@ -346,6 +349,7 @@
   function changePeriod(index) {
     if(!data || index<0 || index>=data.periods.length || index===currentPeriod)return false;
     currentPeriod=index;
+    map.closePopup();
     render();
     return true;
   }
@@ -382,9 +386,10 @@
     $("legendExplanation").textContent=isOverview
       ? "Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Die Muster helfen, unterschiedliche Gefahrenarten zu erkennen. Fehlende Felder bleiben transparent. Die Karte enthält keine Straßen oder Ortslabels."
       : "Die Einzeldarstellung zeigt ausschließlich die Gefahrenstufe als farbige Fläche – ohne Muster. Die Farben sind für bessere Lesbarkeit kräftiger. Fehlende Felder bleiben transparent.";
-    $("mapTips").textContent=isOverview
+    $("mapTips").textContent=(isOverview
       ? "In die feste Europakarte klicken, um alle verfügbaren Gefahrenstufen am Rasterpunkt anzuzeigen. Die Flächenfarbe steht für die höchste Stufe, die Muster für die Gefahrenart. Bei Überlagerungen sind maximal zwei Muster sichtbar; per Klick werden alle berechneten Gefahren angezeigt."
-      : "In die Karte klicken, um die berechneten Gefahrenstufen am Rasterpunkt anzuzeigen. In dieser Einzelansicht werden nur die Gefahrenstufen farbig dargestellt, ohne zusätzliche Schraffuren oder Muster.";
+      : "In die Karte klicken, um die berechneten Gefahrenstufen am Rasterpunkt anzuzeigen. In dieser Einzelansicht werden nur die Gefahrenstufen farbig dargestellt, ohne zusätzliche Schraffuren oder Muster.")
+      +" Mit den Pfeilen an der Karte oder den Tasten ← und → wechselst du den Prognosezeitraum.";
     updatePeriodButtons();
     summary();
     fitMapToCoverage();
