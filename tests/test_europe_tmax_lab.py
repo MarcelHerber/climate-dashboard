@@ -57,7 +57,7 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertEqual(issue,"2026-10-23T09:00:00Z")
         self.assertGreaterEqual(len(points),18)
         oslo=next(p for p in points if p["city"]=="Oslo")
-        self.assertEqual(oslo["station_id"],"S0003")
+        self.assertEqual(oslo["station_id"],"S0004")
         self.assertAlmostEqual(oslo["tx"]["2026-10-24"],13.0,places=1)
         self.assertNotIn("2026-10-23",oslo["tx"])
         self.assertLessEqual(oslo["distance_km"],app.MAX_DISTANCE_KM)
@@ -66,9 +66,23 @@ class EuropeTmaxTests(unittest.TestCase):
     def test_temperature_colours_and_explicit_output_grid(self):
         self.assertEqual(app.STOPS[0][0],-35)
         self.assertEqual(app.STOPS[-1][0],45)
-        self.assertEqual(app.WIDTH,609)
+        self.assertEqual(app.WIDTH,729)
         self.assertEqual(app.HEIGHT,369)
-        self.assertEqual(len(app.CITIES)>25,True)
+        # Exact places shown on the supplied reference map, without extra cities.
+        self.assertEqual(tuple(city for city, _, _ in app.CITIES), (
+            "Reykjavík",            "Rovaniemi",            "Perm",            "Helsinki",            "Oslo",
+            "Stockholm",            "Moskau",            "Minsk",            "Wolgograd",            "Dublin",
+            "London",            "Warschau",            "Kiew",            "Frankfurt",            "Wien",
+            "Paris",            "Bordeaux",            "Nizza",            "Belgrad",            "Varna",
+            "Ankara",            "Lissabon",            "Madrid",            "Sevilla",            "Rom",
+            "Palermo",            "Athen",            "Antalya",            "Algier",            "Azoren",
+            "Kanaren",
+        ))
+        self.assertEqual(len(app.CITIES),31)
+        self.assertEqual(len({name for name,_,_ in app.CITIES}),31)
+        self.assertGreater(app.LON_MAX,56.2)  # Perm must be on the map
+        self.assertLess(app.LON_MIN,-25.67)  # Azores on source grid
+        self.assertLess(app.LAT_MIN,28.29)  # Canary Islands on source grid
 
 if __name__=="__main__":
     unittest.main()
