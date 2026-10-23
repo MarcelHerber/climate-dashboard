@@ -1,5 +1,6 @@
 import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
+import { europeTminPage } from "./europe-tmin.js";
 
 const SESSION_COOKIE = "alpenwetter_session";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
@@ -31,7 +32,7 @@ export default {
       if (url.pathname.startsWith("/wolkenlabor/data/")) {
         return jsonResponse({ error: "Nur nach Anmeldung für den Laborbereich erreichbar" }, 401);
       }
-      if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/" || url.pathname === "/wolkenlabor/europa-tmax") {
+      if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/" || (url.pathname === "/wolkenlabor/europa-tmax" || url.pathname === "/wolkenlabor/europa-tmin")) {
         return htmlResponse(cloudLabLoginPage());
       }
       if (url.pathname.startsWith("/api/")) {
@@ -47,6 +48,9 @@ export default {
 
     if (url.pathname === "/wolkenlabor/europa-tmax") {
       return htmlResponse(europeTmaxPage());
+    }
+    if (url.pathname === "/wolkenlabor/europa-tmin") {
+      return htmlResponse(europeTminPage());
     }
 
     if (url.pathname.startsWith("/wolkenlabor/data/")) {
