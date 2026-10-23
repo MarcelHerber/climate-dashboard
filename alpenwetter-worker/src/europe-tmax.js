@@ -49,8 +49,8 @@ export function europeTmaxPage() {
   '<label><input type="checkbox" id="tmaxPoints" checked> MOS-Zahlen</label>'+
   '<label><input type="checkbox" id="tmaxNames" checked> Städtenamen</label>'+
   '<label for="tmaxDensity">Stationsdichte <select id="tmaxDensity">'+
-  '<option value="sparse">Locker</option><option value="medium" selected>Mittel</option>'+
-  '<option value="dense">Dicht</option></select></label></div>'+
+  '<option value="sparse">Locker</option><option value="medium">Mittel</option>'+
+  '<option value="dense" selected>Alle Vorlagenstädte</option></select></label></div>'+
   '<div class="tmax-preview"><div class="tmax-stage"><canvas id="tmaxCanvas" width="1920" height="1080" role="img" '+ 
   'aria-label="Experimentelle Europakarte mit echten MOSMIX-Höchsttemperaturen als Boxen über ICON-EU-Temperaturfläche"></canvas></div></div>'+
   '<div class="status" id="tmaxStatus" role="status" aria-live="polite">Warte auf verifizierte Daten …</div>'+
@@ -58,7 +58,7 @@ export function europeTmaxPage() {
   ' MOSMIX-TX ist das 12-Stunden-Maximum gültig 18 UTC; der ICON-EU-Hintergrund kombiniert echte'+
   ' sechs­stündige Temperaturmaximumfelder mit Ende 06, 12 und 18 UTC. '+ 
   ' Die ICON-EU-Ausgabe wird zur Kartendarstellung auf 0,125° umgerechnet – nicht als natives Modellgitter ausgewiesen.'+
-  ' Städtewerte stammen jeweils von einer realen MOSMIX-Station höchstens 100 km entfernt;'+
+  ' Inselwerte für Azoren und Kanaren stehen in eigenen geografischen Ausschnitten, ohne ICON-EU-Fläche. Städtewerte stammen jeweils von einer realen MOSMIX-Station höchstens 100 km entfernt;'+
   ' fehlen Modellfelder oder Stationen, wird nichts erfunden. Pfeiltasten links/rechts blättern durch die Tage.</p>'+
   '<p class="tmax-help"><strong>Quellen:</strong> Deutscher Wetterdienst (DWD), MOSMIX-L und ICON-EU Open Data. '+ 
   'Prognosewerte, keine Messungen. Vor Veröffentlichung redaktionell prüfen. Experimenteller Testbereich ohne öffentlichen Navigationslink.</p>'+
