@@ -32,7 +32,7 @@ jobs:
       - name: Parser und Tagesmaximum-Tests
         run: |
           python -m py_compile scripts/build_europe_tmin_lab.py
-          python -m unittest discover -s tests -p test_europe_tmax_lab.py -v
+          python -m unittest discover -s tests -p test_europe_tmin_lab.py -v
       - name: Eigenständigen Testdatenbranch vorbereiten
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
