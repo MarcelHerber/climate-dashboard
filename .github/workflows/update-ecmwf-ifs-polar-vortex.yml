@@ -1,0 +1,84 @@
+name: ECMWF IFS Polarwirbel · 60N / 10hPa Runarchiv
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "25 8,11,20,23 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_ecmwf_ifs_u60_run_archive.py"
+      - "tests/test_ecmwf_ifs_u60_run_archive.py"
+      - ".github/workflows/update-ecmwf-ifs-polar-vortex.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ecmwf-ifs-u60-run-archive
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF Download- und GRIB-Bibliotheken installieren
+        run: python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "eccodes>=2,<3" "ecmwf-opendata>=0.3.28,<1"
+      - name: Wissenschaftliche Tests und Python-Syntax
+        run: |
+          python -m py_compile scripts/build_ecmwf_ifs_u60_run_archive.py
+          python -m unittest discover -s tests -p test_ecmwf_ifs_u60_run_archive.py -v
+      - name: Eigenständigen ECMWF-Datenbranch laden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch stratosphere-ecmwf-data "$remote" /tmp/strato-ecmwf
+          else
+            mkdir -p /tmp/strato-ecmwf
+            git -C /tmp/strato-ecmwf init -q -b stratosphere-ecmwf-data
+            git -C /tmp/strato-ecmwf remote add origin "$remote"
+          fi
+      - name: Tatsächliche IFS-10-hPa-Windfelder zonal mitteln
+        run: python scripts/build_ecmwf_ifs_u60_run_archive.py --output /tmp/strato-ecmwf/data/stratosphere/ecmwf/ifs_runs.json --max-new 1
+      - name: Alle Original-Zeitstempel und Prognosewerte validieren
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+          from scripts.build_ecmwf_ifs_u60_run_archive import validate_run, STEPS
+          p=Path("/tmp/strato-ecmwf/data/stratosphere/ecmwf/ifs_runs.json")
+          j=json.loads(p.read_text())
+          assert j["provider"]=="ECMWF IFS" and j["schema_version"]==1
+          assert j["latitude_deg"]==60 and j["level_hpa"]==10 and j["units"]=="m/s"
+          assert j["forecast_step_hours"]==STEPS and j["horizon_hours"]==360
+          assert 1<=len(j["runs"])<=61 and all(validate_run(r) for r in j["runs"])
+          dates=[r["cycle_utc"] for r in j["runs"]]
+          assert dates==sorted(set(dates),reverse=True)
+          newest=datetime.fromisoformat(dates[0].replace("Z","+00:00"))
+          assert timedelta(0)<=datetime.now(timezone.utc)-newest<timedelta(days=3)
+          assert j["run_count"]==len(j["runs"])
+          print("Validierte ECMWF-Läufe:",len(j["runs"]),"neuester:",dates[0])
+          PY
+      - name: Echtzeit-IFS-Laufarchiv veröffentlichen
+        run: |
+          set -euo pipefail
+          cd /tmp/strato-ecmwf
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/stratosphere/ecmwf/ifs_runs.json .nojekyll
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "ECMWF IFS 60N 10hPa: echte 00/12UTC-Modelllaufprognosen"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-data >/dev/null 2>&1; then
+            git pull --rebase origin stratosphere-ecmwf-data
+          fi
+          git push origin HEAD:refs/heads/stratosphere-ecmwf-data
