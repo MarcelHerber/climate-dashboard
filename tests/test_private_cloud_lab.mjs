@@ -20,6 +20,7 @@ const unauthTemperatureHtml=await unauthTemperaturePage.text();
 assert.match(unauthTemperatureHtml,/GESCHÜTZTER TESTBEREICH/);
 assert.doesNotMatch(unauthTemperatureHtml,/id="tmaxCanvas"/);
 for(const path of ["/wolkenlabor/data/europa-tmax/current.json",
+ "/wolkenlabor/data/europa-tmax/stations_catalog.json",
  "/wolkenlabor/data/europa-tmax/icon_tmax_2026-10-24.png"]){
  const res=await request(path);
  assert.equal(res.status,401);
@@ -76,6 +77,18 @@ assert.match(TMAX_JS,/const \[cx,cy\]=xy\(s.lon,s.lat,region\)/);
 assert.doesNotMatch(TMAX_JS,/ctx\.lineTo\(position\.x/);
 assert.match(TMAX_JS,/drawIconField\(image\)/);
 assert.match(temperatureHtml,/Alle Vorlagenstädte/);
+for(const id of ["tmaxEditorToggle","tmaxEditor","tmaxStage","tmaxFind",
+                 "tmaxPinLabel","tmaxMatches","tmaxAdd","tmaxPin","tmaxMove",
+                 "tmaxReset","tmaxStationList","tmaxEditNote"]){
+ assert.match(temperatureHtml,new RegExp('id="'+id+'"'),"Missing editor control "+id);
+}
+for(const phrase of ["stations_catalog.json","pointerdown","pointermove",
+                     "pointerup","localStorage.setItem","state.prefs.hidden",
+                     "nearestStation","searchCandidates","createCustom"]){
+ assert(TMAX_JS.includes(phrase),"Missing editor behavior "+phrase);
+}
+assert.match(TMAX_JS,/region\.west\+\(x-region\.x\)\/region\.w\*\(region\.east-region\.west\)/);
+
 assert.match(content,/id="filmCanvas"/);
 assert.match(content,/Nur hohe Wolken/);
 assert.match(content,/Nur mittelhohe Wolken/);
