@@ -8,6 +8,9 @@ on:
       - "scripts/update_era5_stratosphere_stage2.py"
       - "stratosphere_temperature.js"
       - "stratosphere_ensemble.js"
+      - "stratosphere_ecmwf_runs.js"
+      - "scripts/build_ecmwf_ifs_u60_run_archive.py"
+      - "tests/test_ecmwf_ifs_u60_run_archive.py"
       - "tests/test_stratosphere_ensemble_members.cjs"
       - "tests/test_stratosphere_forecast_focus.cjs"
       - "tests/test_gefs_stratosphere.py"
@@ -34,11 +37,12 @@ jobs:
         with:
           python-version: "3.12"
       - name: Validate Python syntax
-        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py scripts/build_gefs_60n_10hpa_ensemble.py
+        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py scripts/build_gefs_60n_10hpa_ensemble.py scripts/build_ecmwf_ifs_u60_run_archive.py
       - name: Validate JavaScript syntax
         run: |
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
+          node --check stratosphere_ecmwf_runs.js
           node --test tests/test_stratosphere_ensemble_members.cjs
           node --test tests/test_stratosphere_forecast_focus.cjs
           node --check stratosphere_ssw_comparison.js
@@ -54,6 +58,8 @@ jobs:
                   path.write_text(code,encoding="utf-8")
                   subprocess.run(["node","--check",str(path)],check=True)
           assert "stratosphere_ensemble.js" in page
+          assert "stratosphere_ecmwf_runs.js" in page
+          assert 'id="stratoEcmwfView"' in page
           assert 'id="stratoEnsembleCard"' in page
           assert 'id="windCustomDates"' in page
           assert 'id="levelsCard"' in page
@@ -64,5 +70,6 @@ jobs:
         run: python -m pip install --disable-pip-version-check numpy xarray pandas
       - name: Check ERA5 science, four temperature levels and SSW backfill scheduling
         run: |
+          python -m unittest discover -s tests -p test_ecmwf_ifs_u60_run_archive.py -v
           python scripts/update_era5_stratosphere.py --self-test
           python scripts/update_era5_stratosphere_stage2.py --self-test
