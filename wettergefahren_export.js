@@ -213,15 +213,19 @@
       roundRect(ctx,x,top,28,20,4,state.SEVERITY[i]);
       text(ctx,state.NAMES[i],x+40,top+15,"14px Arial");
     }
-    const types=state.currentType==="all"?Object.keys(state.TYPES):[state.currentType];
-    let top=startY+208;
-    text(ctx,"WETTERARTEN",x,top,"bold 14px Arial");
-    top+=16;
-    for(const key of types){
-      roundRect(ctx,x,top,31,25,4,"#ecf1f5");
-      state.paintGlyph(ctx,key,x,top,31,25);
-      text(ctx,state.TYPES[key].name,x+41,top+17,"12px Arial");
-      top+=40;
+    let top=startY+196;
+    if(state.currentType==="all"){
+      // Nur in der Gesamtübersicht werden unterschiedliche Wetterarten
+      // als Schraffuren/Symbole ausgewiesen.
+      top+=12;
+      text(ctx,"WETTERARTEN",x,top,"bold 14px Arial");
+      top+=16;
+      for(const key of Object.keys(state.TYPES)){
+        roundRect(ctx,x,top,31,25,4,"#ecf1f5");
+        state.paintGlyph(ctx,key,x,top,31,25);
+        text(ctx,state.TYPES[key].name,x+41,top+17,"12px Arial");
+        top+=40;
+      }
     }
     top+=14;
     ctx.strokeStyle="#e1e8ed";ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x+WIDTH_LEGEND-30,top);ctx.stroke();
