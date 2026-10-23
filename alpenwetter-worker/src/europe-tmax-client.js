@@ -506,16 +506,23 @@ function drawTemperatureBox(s,region){
  // Keep the box inside its own main map / island inset, without displacing
  // its geographical point. Out-of-bounds editing is therefore not accepted.
  if(x<region.x+1||x+w>region.x+region.w-1||y<region.y+1)return null;
- ctx.fillStyle="#ffffff";ctx.fillRect(x,y,w,h);
- ctx.strokeStyle="#1e3444";ctx.lineWidth=2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
- ctx.fillStyle="#172d41";ctx.textAlign="center";
+ const colors=boxColors(s.key);
+ ctx.fillStyle=colors.fill;ctx.fillRect(x,y,w,h);
+ ctx.strokeStyle=colors.border;ctx.lineWidth=2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+ ctx.fillStyle=colors.text;ctx.textAlign="center";
  if(state.showNames){
   ctx.font=region===MAIN?"600 13px system-ui":"600 12px system-ui";
   ctx.fillText(s.city.length>11?s.city.slice(0,11):s.city,cx,y+18,w-4);
  }
- ctx.font="bold 27px system-ui";
- ctx.fillText(Number.isFinite(s.tmax_c)?String(Math.round(s.tmax_c))+"°":"–",
-              cx,y+(state.showNames?44:29));
+ const displayed=shownValue(s,state.data?.days?.[state.index]?.date);
+ const valueText=Number.isFinite(displayed.value)?
+  (displayed.manual?displayed.value.toLocaleString("de-DE",{maximumFractionDigits:1}):
+   String(Math.round(displayed.value)))+"°"+(displayed.manual?"*":""):"–";
+ let font=27;ctx.font="bold "+font+"px system-ui";
+ while(font>15&&ctx.measureText(valueText).width>w-5){
+  font--;ctx.font="bold "+font+"px system-ui";
+ }
+ ctx.fillText(valueText,cx,y+(state.showNames?44:29));
  ctx.fillStyle=s.is_custom?"#ec8a24":"#173a57";
  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#ffffff";ctx.lineWidth=1.5;ctx.stroke();
@@ -540,6 +547,7 @@ function labels(day){
  }
 }
 function render(){
+ state.hits=[];
  bg();
  const day=state.data?.days?.[state.index];
  if(day){
@@ -555,6 +563,11 @@ function render(){
   ctx.font="bold 27px system-ui";ctx.fillStyle="#18384d";
   ctx.fillText(dateLabel(day.date),1205,64);
   if(state.showPoints)labels(day);
+  if(state.showPoints&&objectsForDay(day).some(s=>
+      !state.prefs.hidden.includes(s.key)&&manualValue(s.key,day.date)!==null)){
+   ctx.fillStyle="#7c243a";ctx.textAlign="left";ctx.font="bold 18px system-ui";
+   ctx.fillText("* Manuell angepasste Anzeige – kein originaler MOSMIX-Wert",480,967);
+  }
  }else{
   ctx.font="bold 30px system-ui";ctx.fillStyle="#f2f7fb";
   ctx.fillText("Noch keine geprüften MOSMIX-/ICON-EU-Daten veröffentlicht",300,430);
@@ -602,6 +615,7 @@ async function selectDay(){
   }
  }
  setButtons();render();renderEditorList();
+ if(state.selectedKey&&state.editorOpen)openBoxEditor(state.selectedKey);
  if(state.pictures.has(day.date))
   setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+
     day.stations.filter(s=>Number.isFinite(s.tmax_c)).length+" MOSMIX-Werte / "+
