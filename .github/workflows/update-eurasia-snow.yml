@@ -1,0 +1,72 @@
+name: NOAA IMS Eurasien-Schneebedeckung Oktober
+
+on:
+  schedule:
+    - cron: "37 5,17 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_eurasia_snow.py"
+      - "tests/test_eurasia_snow.py"
+      - ".github/workflows/update-eurasia-snow.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noaa-ims-eurasia-october
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Python installieren
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Geografiebibliothek installieren
+        run: pip install "numpy>=1.26,<3"
+      - name: Raster- und Datentests
+        run: python -m unittest discover -s tests -p test_eurasia_snow.py -v
+      - name: NOAA IMS 24km laden und Oktoberflächen berechnen
+        run: python scripts/update_eurasia_snow.py --max-new 95
+      - name: Nur verifizierte Tageswerte übernehmen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          obj=json.loads(Path("eurasia_snow/index.json").read_text())
+          assert obj["schema"]==1 and obj["forecast"] is None
+          assert obj["source"]["doi"]=="10.7265/N52R3PMC"
+          assert obj["status"]["n_daily"]==len(obj["daily"])>=1
+          assert all(0<=val<=70 for val in obj["daily"].values())
+          print("Echte IMS-Tageswerte:",len(obj["daily"]),
+                "Neue Daten:",obj["status"]["n_new"])
+          PY
+      - name: NOAA-Beobachtungsarchiv veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add eurasia_snow/index.json
+          if git diff --cached --quiet; then
+            echo "Keine neuen Daten"; exit 0
+          fi
+          git commit -m "NOAA IMS Eurasien-Schneebedeckung: verifizierte Oktoberwerte"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Archiv gespeichert"; exit 0
+            fi
+            git rebase --abort || true
+            sleep "$((attempt * 3))"
+          done
+          echo "Fehler: Push wegen konkurrierender Commits gescheitert"
+          exit 1
