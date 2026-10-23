@@ -104,6 +104,53 @@ assert(Math.abs(al+25.67)<1e-9&&Math.abs(at-37.74)<1e-9);
 assert(coords.geoDistance(13.4,52.52,13.4,52.52)<0.01);
 assert(coords.geoDistance(13.4,52.52,13.42,52.52)<3);
 
+// Temperature overrides affect presentation only. Preserve raw DWD MOSMIX
+// value, isolate manual values by date, and retain colors across dates.
+for(const id of ["tmaxBoxEditor","tmaxBoxTitle","tmaxOriginal","tmaxValueOverride",
+                 "tmaxBoxFill","tmaxBoxText","tmaxBoxBorder","tmaxStyleSave",
+                 "tmaxValueReset","tmaxColorReset","tmaxStyleClose","tmaxGlobalFill",
+                 "tmaxGlobalReset"]){
+ assert.match(temperatureHtml,new RegExp('id="'+id+'"'),"Missing manual-temperature/color control "+id);
+}
+assert.match(temperatureHtml,/Originalwert/);
+assert.match(temperatureHtml,/nur dieser Tag/);
+assert.match(TMAX_JS,/Manuell angepasste Anzeige/);
+assert.match(TMAX_JS,/ctx\.fillStyle=colors\.fill/);
+assert.match(TMAX_JS,/ctx\.strokeStyle=colors\.border/);
+assert.match(TMAX_JS,/ctx\.fillStyle=colors\.text/);
+assert.match(TMAX_JS,/while\(font>15&&ctx\.measureText\(valueText\)\.width>w-5\)/);
+const helperSection=TMAX_JS.slice(TMAX_JS.indexOf("function hex("),TMAX_JS.indexOf("const EDIT_STORAGE="));
+const original={key:"base:Frankfurt",city:"Frankfurt",station_name:"FRANKFURT-SACHSENH.",tmax_c:13.6};
+const day1={date:"2026-10-23",stations:[original]},day2={date:"2026-10-24",stations:[{...original,tmax_c:15.2}]};
+const jsState={data:{days:[day1,day2]},index:0,selectedKey:"base:Frankfurt",
+ prefs:{styles:{},values:{},globalFill:"#ffffff"}};
+const el={tmaxBoxEditor:{hidden:true},tmaxBoxTitle:{},tmaxOriginal:{},tmaxValueOverride:{value:"14.5",focus(){}},
+ tmaxBoxFill:{value:"#ffdc82"},tmaxBoxText:{value:"#172d41"},tmaxBoxBorder:{value:"#873d12"}};
+let calls=0;
+const paint=new Function("state","$","objectsForDay","dateLabel","renderEditorList","persist","render","note",
+ helperSection+"return {boxColors,manualValue,shownValue,openBoxEditor,applyBoxEdits,resetBoxValue,resetBoxColor,contrast};"
+)(jsState,id=>el[id],day=>day.stations,x=>x,()=>{},()=>{calls++},()=>{calls++},()=>{});
+assert.equal(paint.shownValue(original,day1.date).value,13.6);
+paint.applyBoxEdits();
+assert.equal(original.tmax_c,13.6,"The original DWD MOS value must not be modified");
+assert.equal(paint.shownValue(original,day1.date).value,14.5);
+assert.equal(paint.shownValue(original,day1.date).manual,true);
+assert.equal(paint.shownValue(day2.stations[0],day2.date).value,15.2);
+assert.equal(paint.boxColors("base:Frankfurt").fill,"#ffdc82");
+assert.equal(paint.boxColors("base:Frankfurt").border,"#873d12");
+assert.equal(paint.boxColors("base:Frankfurt").text,"#172d41");
+assert(calls>=2,"Editor writes should persist and redraw");
+paint.resetBoxValue();
+assert.equal(paint.shownValue(original,day1.date).value,13.6);
+assert.equal(paint.shownValue(original,day1.date).manual,false);
+assert.equal(paint.boxColors("base:Frankfurt").fill,"#ffdc82");
+paint.resetBoxColor();
+assert.equal(paint.boxColors("base:Frankfurt").fill,"#ffffff");
+jsState.prefs.globalFill="#111111";
+assert.equal(paint.boxColors("base:Frankfurt").text,"#ffffff");
+assert.equal(paint.contrast("#ffffff"),"#172d41");
+
+
 
 assert.match(content,/id="filmCanvas"/);
 assert.match(content,/Nur hohe Wolken/);
