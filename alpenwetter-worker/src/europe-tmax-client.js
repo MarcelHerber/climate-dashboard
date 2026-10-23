@@ -5,7 +5,12 @@ const $=id=>document.getElementById(id);
 const canvas=$("tmaxCanvas"),ctx=canvas.getContext("2d",{alpha:false});
 const PREFIX="/wolkenlabor/data/europa-tmax/";
 const GEO="/wolkenlabor/data/geo.json";
-const BOUNDS={west:-29,east:47,south:27,north:73};
+// Original DWD grid covers a broader area than the MAIN broadcast crop.
+const MAIN={west:-24.8,east:62,south:33.5,north:71,x:220,y:108,w:1610,h:835};
+const INSETS=[
+ {city:"Azoren",name:"Azoren · Ponta Delgada",west:-29,east:-23.4,south:36.5,north:39.8,x:22,y:526,w:178,h:177},
+ {city:"Kanaren",name:"Kanaren · Teneriffa",west:-18.7,east:-13.4,south:27,north:30.5,x:22,y:761,w:178,h:177}
+];
 const STOPS=[
  [-35,"#1b2572"],[-20,"#2352ad"],[-10,"#319ad2"],[0,"#6ecad2"],
  [7,"#53a976"],[13,"#a7c567"],[18,"#f6d762"],[23,"#f9984e"],
@@ -13,12 +18,18 @@ const STOPS=[
 ];
 const state={data:null,geo:null,index:0,pictures:new Map(),showField:true,
  showPoints:true,showNames:true,density:"medium",busy:false};
-const X0=94,Y0=105,MAP_W=1732,MAP_H=838;
-
-function xy(lon,lat){return [
- X0+(lon-BOUNDS.west)/(BOUNDS.east-BOUNDS.west)*MAP_W,
- Y0+(BOUNDS.north-lat)/(BOUNDS.north-BOUNDS.south)*MAP_H
+function xy(lon,lat,region=MAIN){return [
+ region.x+(lon-region.west)/(region.east-region.west)*region.w,
+ region.y+(region.north-lat)/(region.north-region.south)*region.h
 ];}
+function rectPath(region){
+ ctx.beginPath();ctx.rect(region.x,region.y,region.w,region.h);ctx.clip();
+}
+function regionForCity(name){return INSETS.find(r=>r.city===name)||MAIN;}
+function isInRegion(lon,lat,region,margin=0){
+ return lon>=region.west+margin&&lon<=region.east-margin&&
+        lat>=region.south+margin&&lat<=region.north-margin;
+}
 function dateLabel(iso){
  const d=new Date(iso+"T12:00:00Z");
  return new Intl.DateTimeFormat("de-DE",{weekday:"short",day:"2-digit",month:"long",year:"numeric",timeZone:"UTC"}).format(d);
@@ -27,32 +38,59 @@ function setStatus(msg,error=false){
  const el=$("tmaxStatus");el.textContent=msg;el.className="status"+(error?" error":"");
 }
 function bg(){
- const fill=ctx.createLinearGradient(0,Y0,0,Y0+MAP_H);
- fill.addColorStop(0,"#547b9b");fill.addColorStop(1,"#6e99a7");
  ctx.fillStyle="#f5f8fb";ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.fillStyle=fill;ctx.fillRect(X0,Y0,MAP_W,MAP_H);
+ const grad=ctx.createLinearGradient(0,MAIN.y,0,MAIN.y+MAIN.h);
+ grad.addColorStop(0,"#4e799b");grad.addColorStop(1,"#6695aa");
+ ctx.fillStyle=grad;ctx.fillRect(MAIN.x,MAIN.y,MAIN.w,MAIN.h);
+ for(const inset of INSETS){
+  ctx.fillStyle="#eaf0f4";ctx.fillRect(inset.x-3,inset.y-31,inset.w+6,inset.h+34);
+  ctx.strokeStyle="#9babbb";ctx.lineWidth=2;
+  ctx.strokeRect(inset.x-3,inset.y-31,inset.w+6,inset.h+34);
+  ctx.fillStyle="#315d7b";ctx.fillRect(inset.x,inset.y,inset.w,inset.h);
+  ctx.fillStyle="#233e55";ctx.font="bold 16px system-ui";ctx.textAlign="center";
+  ctx.fillText(inset.name,inset.x+inset.w/2,inset.y-11,inset.w);
+  ctx.textAlign="left";
+ }
 }
-function drawCoast(){
+function strokeGeography(region){
  if(!state.geo?.countries)return;
- ctx.save();ctx.beginPath();ctx.rect(X0,Y0,MAP_W,MAP_H);ctx.clip();
+ ctx.save();rectPath(region);
  for(const country of state.geo.countries){
   for(const poly of country.p||[]){
    ctx.beginPath();
    for(const ring of poly){
     let valid=false;
-    for(const p of ring){
-     if(!Array.isArray(p)||p.length<2)continue;
-     const [x,y]=xy(p[0],p[1]);
+    for(const point of ring){
+     if(!Array.isArray(point)||point.length<2)continue;
+     const [x,y]=xy(point[0],point[1],region);
      if(!valid){ctx.moveTo(x,y);valid=true}else ctx.lineTo(x,y);
     }
     if(valid)ctx.closePath();
    }
-   ctx.fillStyle="rgba(250,248,236,.045)";
+   // Real Natural Earth coastline; no artistic/fictional islands.
+   ctx.fillStyle="rgba(248,248,236,.06)";
    try{ctx.fill("evenodd")}catch(_){ctx.fill()}
-   ctx.strokeStyle="rgba(17,43,56,.72)";
-   ctx.lineWidth=1.45;ctx.stroke();
+   ctx.strokeStyle="rgba(20,46,61,.8)";
+   ctx.lineWidth=region===MAIN?1.4:1.0;ctx.stroke();
   }
  }
+ ctx.restore();
+}
+function drawCoast(){
+ strokeGeography(MAIN);
+ for(const inset of INSETS)strokeGeography(inset);
+}
+function drawIconField(image){
+ const bounds=state.data?.grid;
+ if(!image||!bounds)return;
+ const sx=(MAIN.west-bounds.west)/(bounds.east-bounds.west)*image.naturalWidth;
+ const sy=(bounds.north-MAIN.north)/(bounds.north-bounds.south)*image.naturalHeight;
+ const sw=(MAIN.east-MAIN.west)/(bounds.east-bounds.west)*image.naturalWidth;
+ const sh=(MAIN.north-MAIN.south)/(bounds.north-bounds.south)*image.naturalHeight;
+ if(sx<0||sy<0||sx+sw>image.naturalWidth+.5||sy+sh>image.naturalHeight+.5)
+  throw Error("Temperaturfeld und Kartenausschnitt stimmen nicht überein");
+ ctx.save();rectPath(MAIN);
+ ctx.drawImage(image,sx,sy,sw,sh,MAIN.x,MAIN.y,MAIN.w,MAIN.h);
  ctx.restore();
 }
 function drawLegend(){
@@ -70,46 +108,40 @@ function drawLegend(){
  }
  ctx.textAlign="left";
 }
-function within(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+function boxesTouch(a,b){
+ return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+function drawTemperatureBox(s,region){
+ if(!Number.isFinite(s.tmax_c))return null;
+ if(!isInRegion(s.lon,s.lat,region))return null;
+ const [cx,cy]=xy(s.lon,s.lat,region);
+ // Exactly at the city coordinates: NO leader lines and NO displaced boxes.
+ const w=region===MAIN?65:62,h=state.showNames?51:41;
+ const x=Math.round(cx-w/2),y=Math.round(cy-h/2);
+ ctx.fillStyle="#ffffff";ctx.fillRect(x,y,w,h);
+ ctx.strokeStyle="#1e3444";ctx.lineWidth=2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
+ ctx.fillStyle="#172d41";ctx.textAlign="center";
+ if(state.showNames){
+  ctx.font=region===MAIN?"600 13px system-ui":"600 12px system-ui";
+  const short=s.city.length>11?s.city.slice(0,11):s.city;
+  ctx.fillText(short,cx,y+17,w-4);
+ }
+ ctx.font="bold 27px system-ui";
+ ctx.fillText(String(Math.round(s.tmax_c))+"°",cx,y+(state.showNames?43:30));
+ ctx.textAlign="left";
+ return {x,y,w,h,city:s.city};
+}
 function labels(day){
- const points=day.stations||[];
- const placed=[],used=[];
- const pad=state.density==="sparse"?125:state.density==="medium"?55:9;
- // Priority order from the editorial list, not automatically ranked by value.
- for(const s of points){
-  if(!Number.isFinite(s.tmax_c))continue;
-  const [ax,ay]=xy(s.lon,s.lat);
-  if(ax<X0+24||ax>X0+MAP_W-24||ay<Y0+32||ay>Y0+MAP_H-25)continue;
-  if(state.density!=="dense"&&used.some(p=>Math.hypot(p[0]-ax,p[1]-ay)<pad))continue;
-  const w=state.showNames?80:60,h=state.showNames?67:48;
-  const variants=[[0,-56],[60,-37],[-60,-37],[0,28],[70,15],[-70,15],
-                  [105,-60],[-105,-60],[110,58],[-110,58]];
-  let position=null;
-  for(const [dx,dy] of variants){
-   const rect={x:ax-w/2+dx,y:ay-h/2+dy,w,h};
-   if(rect.x<X0+4||rect.y<Y0+4||rect.x+w>X0+MAP_W-4||rect.y+h>Y0+MAP_H-4)continue;
-   if(placed.some(a=>within({x:rect.x-4,y:rect.y-4,w:w+8,h:h+8},a)))continue;
-   position=rect;break;
-  }
-  if(!position)continue;
-  placed.push(position);used.push([ax,ay]);
-  ctx.strokeStyle="rgba(7,25,42,.7)";
-  ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax,ay);
-  ctx.lineTo(position.x+w/2,position.y+h/2);ctx.stroke();
-  ctx.fillStyle="#fbfcfe";ctx.fillRect(position.x,position.y,w,h);
-  ctx.strokeStyle="#273947";ctx.lineWidth=2;ctx.strokeRect(position.x,position.y,w,h);
-  if(state.showNames){
-   ctx.fillStyle="#172f43";ctx.textAlign="center";
-   ctx.font="600 15px system-ui";
-   let name=s.city;
-   while(name.length>12)name=name.slice(0,-1);
-   ctx.fillText(name,position.x+w/2,position.y+19,w-6);
-  }
-  ctx.font="bold 29px system-ui";ctx.fillStyle="#101e2e";
-  ctx.textAlign="center";
-  ctx.fillText(String(Math.round(s.tmax_c))+"°",position.x+w/2,
-    position.y+(state.showNames?52:33));
-  ctx.textAlign="left";
+ const all=day.stations||[],used=[];
+ for(const s of all){
+  const region=regionForCity(s.city);
+  if(!isInRegion(s.lon,s.lat,region))continue;
+  const [cx,cy]=xy(s.lon,s.lat,region);
+  const size={x:cx-33,y:cy-26,w:66,h:52};
+  if(state.density!=="dense"&&used.some(r=>boxesTouch(size,r)))continue;
+  // Density only hides collided labels; it never displaces values from cities.
+  const added=drawTemperatureBox(s,region);
+  if(added)used.push(size);
  }
 }
 function render(){
@@ -118,24 +150,23 @@ function render(){
  if(day){
   const image=state.pictures.get(day.date);
   if(state.showField&&image){
-   ctx.save();ctx.beginPath();ctx.rect(X0,Y0,MAP_W,MAP_H);ctx.clip();
-   ctx.drawImage(image,X0,Y0,MAP_W,MAP_H);ctx.restore();
+   try{drawIconField(image)}catch(error){console.warn("ICON-Kartenausschnitt:",error)}
   }
  }
  drawCoast();
  ctx.fillStyle="#163047";ctx.textAlign="left";
- ctx.font="bold 48px system-ui";ctx.fillText("Europa · Tageshöchsttemperaturen",94,63);
+ ctx.font="bold 48px system-ui";ctx.fillText("Europa · Tageshöchsttemperaturen",64,63);
  if(day){
   ctx.font="bold 27px system-ui";ctx.fillStyle="#18384d";
-  ctx.fillText(dateLabel(day.date),1170,64);
+  ctx.fillText(dateLabel(day.date),1205,64);
   if(state.showPoints)labels(day);
  }else{
   ctx.font="bold 30px system-ui";ctx.fillStyle="#f2f7fb";
-  ctx.fillText("Noch keine geprüften MOSMIX-/ICON-EU-Daten veröffentlicht",160,430);
+  ctx.fillText("Noch keine geprüften MOSMIX-/ICON-EU-Daten veröffentlicht",300,430);
  }
  drawLegend();
  ctx.fillStyle="#44566c";ctx.font="16px system-ui";
- ctx.fillText("DWD · MOSMIX-L TX (12 h) + ICON-EU TMAX_2M · 06–18 UTC",94,1070);
+ ctx.fillText("DWD · MOSMIX-L TX (12 h) + ICON-EU TMAX_2M · 06–18 UTC · Inselkästchen: MOS",64,1070);
  ctx.textAlign="right";
  ctx.fillText(state.data?"ICON-Lauf "+state.data.icon_cycle+" UTC · MOS "+state.data.mos_issue_utc:"Experimenteller Testbereich",1825,1070);
  ctx.textAlign="left";
