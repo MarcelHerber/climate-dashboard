@@ -44,7 +44,7 @@ MAX_DISTANCE_KM=100
 # sampled island location; never modelled group averages.
 CITIES=(
  ("Reykjavík",-21.94,64.14),("Rovaniemi",25.73,66.50),
- ("Perm",56.23,58.01),("Helsinki",24.94,60.17),
+ ("Syktywkar",50.82,61.67),("Helsinki",24.94,60.17),
  ("Oslo",10.75,59.91),("Stockholm",18.06,59.33),
  ("Moskau",37.62,55.75),("Minsk",27.57,53.90),
  ("Wolgograd",44.51,48.71),("Dublin",-6.26,53.35),
