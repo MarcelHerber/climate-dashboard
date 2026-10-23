@@ -136,8 +136,10 @@ def calculate_month_climatology(archive: dict[str,float],month: int) -> list[dic
         vals=[value for value,_year in samples]
         minimum=5 if month==2 and day==29 else 10
         valid=len(vals)>=minimum
-        lowest=min(samples) if valid else None
-        highest=max(samples) if valid else None
+        # If several years tie, show the earliest documented record year
+        # consistently with the browser-side fallback used for older JSON.
+        lowest=min(samples,key=lambda entry:entry[0]) if valid else None
+        highest=max(samples,key=lambda entry:entry[0]) if valid else None
         result.append({
             "day":day,
             "mean":round(float(np.mean(vals)),5) if valid else None,
