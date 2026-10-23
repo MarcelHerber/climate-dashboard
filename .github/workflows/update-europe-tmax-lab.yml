@@ -59,7 +59,7 @@ jobs:
           from PIL import Image
           root=Path("/tmp/europe-tmax-lab-data/data/europe-tmax-lab")
           manifest=json.loads((root/"current.json").read_text(encoding="utf-8"))
-          assert manifest["schema"]==1 and len(manifest["days"])==5
+          assert manifest["schema"]==2 and len(manifest["days"])==5
           assert manifest["daily_window"]=="06:00-18:00 UTC"
           cycle=datetime.strptime(manifest["icon_cycle"],"%Y%m%d%H").replace(tzinfo=timezone.utc)
           assert cycle.hour==0
@@ -87,15 +87,23 @@ jobs:
                 assert station["station_id"]
                 assert 0<=station["distance_km"]<=100
             assert sum(s["tmax_c"] is not None for s in day["stations"])>=25
-            name=day["icon_png"]
-            assert name==f"icon_tmax_{day['date']}.png"
-            img=root/name
-            assert img.is_file() and img.stat().st_size>1000
-            with Image.open(img) as photo:
-              photo.verify()
-            with Image.open(img) as photo:
-              assert photo.size==(manifest["grid"]["width"],manifest["grid"]["height"])
-              assert photo.mode=="RGBA"
+            for key,prefix in (("icon_png","icon_tmax_"),("icon_raw_png","icon_tmax_raw_")):
+              name=day[key]
+              assert name==f"{prefix}{day['date']}.png"
+              img=root/name
+              assert img.is_file() and img.stat().st_size>1000
+              with Image.open(img) as photo:
+                photo.verify()
+              with Image.open(img) as photo:
+                assert photo.size==(manifest["grid"]["width"],manifest["grid"]["height"])
+                assert photo.mode=="RGBA"
+            with Image.open(root/day["icon_raw_png"]) as raw:
+              import numpy as np
+              rgba=np.asarray(raw)
+              valid=rgba[:,:,3]>0
+              assert valid.mean()>=.80
+              t=(rgba[:,:,0].astype(np.uint16)*256+rgba[:,:,1].astype(np.uint16))/10-100
+              assert t[valid].min()>-80 and t[valid].max()<65
           print("PASS: fünf echte MOSMIX-/ICON-EU-Tageskarten, alle Quellen und Ausgabezeiten geprüft")
           PY
       - name: Nur vollständige Testkarten auf separatem Datenbranch veröffentlichen
