@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-22T22:33:35+00:00",
+  "checked_utc": "2026-10-23T06:13:17+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -116,13 +116,11 @@
         "https://www.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
         "https://www.vedur.is/skin/basic/js/init.js?v17"
       ],
-      "script_errors": [
+      "script_hints": [
         {
           "url": "https://www.vedur.is/skin/basic/js/noflicker.js",
-          "error": "TimeoutError: The read operation timed out"
-        }
-      ],
-      "script_hints": [
+          "image_or_endpoint_strings": []
+        },
         {
           "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
           "image_or_endpoint_strings": []
@@ -468,13 +466,21 @@
       "forecast_hours": 126,
       "calculated_valid_utc": "2026-10-27T18:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
+    },
+    {
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261022_1200_132.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "run_utc": "2026-10-22T12:00+00:00",
+      "forecast_hours": 132,
+      "calculated_valid_utc": "2026-10-28T00:00+00:00",
+      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     }
   ],
   "sample_forecast_image": {
-    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261022_1200_12.png",
-    "expected_valid_utc": "2026-10-23T00:00+00:00",
-    "forecast_hours": 12,
-    "printed_caption_ocr": "o NV Cee 60W a .\ni op a or if A r Le 23. okt. Kl. 00:00 a” Vetursofa stands\n\n: — AE Shite a\n"
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261022_1200_18.png",
+    "expected_valid_utc": "2026-10-23T06:00+00:00",
+    "forecast_hours": 18,
+    "printed_caption_ocr": "Ps lige. a Ne a a I? Fos. 23. okt. kl. 06:00 «~ Veurstofa stands\n_ ay ph at eee Ps SO a) ; Re\n\no\" 05 = > ~y ONG jl r\nVindur (i's) 1 100 m haed og lotiprystingur (hPa) ECMWEFIECM 0.125: 22.10.2026 12.00 UTC (+14)\n"
   },
   "sample_error": null,
   "matching_metadata_candidates": 0,
