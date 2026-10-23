@@ -224,7 +224,7 @@ def daily_mos_values(kmz,dates):
                         if local_name(f.tag)!="Forecast":continue
                         key=next((v for k,v in f.attrib.items() if local_name(k)=="elementName"),"")
                         if key=="TX":
-                            vals=(f.text or " ".join(f.itertext())).split()
+                            vals=" ".join(part.strip() for part in f.itertext() if part and part.strip()).split()
                             for index,date in dates_at_index.items():
                                 if index>=len(vals) or vals[index] in ("-","--"):continue
                                 try:
