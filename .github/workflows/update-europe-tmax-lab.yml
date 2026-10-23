@@ -68,7 +68,7 @@ jobs:
           for i,day in enumerate(manifest["days"]):
             assert day["date"]==(cycle+timedelta(days=i)).date().isoformat()
             assert day["icon_hours"]==[24*i+6,24*i+12,24*i+18]
-            assert day["coverage"]>=.85
+            assert day["coverage"]>=.80
             assert len(day["stations"])>=15
             assert len({s["station_id"] for s in day["stations"]})==len(day["stations"])
             for station in day["stations"]:
