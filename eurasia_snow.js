@@ -2,187 +2,228 @@
   "use strict";
   const $=id=>document.getElementById(id);
   const SRC="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/index.json";
-  const days=Array.from({length:31},(_,i)=>i+1);
-  const palette={obs:"#182a41",model:"#087eb3",eps:"#2542c1",climo:"#78889a",band:"rgba(142,163,181,.19)",fit:"#ef6871"};
+  const MONTHS=[10,11,12,1,2,3], MONTH_NAMES={10:"Oktober",11:"November",12:"Dezember",1:"Januar",2:"Februar",3:"März"},
+    ABBR={10:"Okt",11:"Nov",12:"Dez",1:"Jan",2:"Feb",3:"Mär"};
+  const COLORS={obs:"#182a41",climo:"#78889a",band:"rgba(142,163,181,.22)",fit:"#ef6871"};
   let doc=null,chart=null;
 
   function show(message,kind="normal"){
     $("message").textContent=message;
     $("message").dataset.kind=kind;
   }
-  function parseDay(date){
-    const match=/^\d{4}-10-(\d{2})$/.exec(date);
-    return match?Number(match[1]):null;
+  function seasonName(y){return y+" / "+String(y+1);}
+  function yearForMonth(season,month){return month>=10?season:season+1;}
+  function monthLength(year,month){return new Date(Date.UTC(year,month,0)).getUTCDate();}
+  function monthDaysForReference(month){return month===2?29:monthLength(2025,month);}
+  function dateKey(year,month,day){
+    return year+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  function pointsFor(year){
-    const values=Array(31).fill(null);
-    for(const [date,value] of Object.entries(doc.daily||{})){
-      if(!date.startsWith(year+"-"))continue;
-      const day=parseDay(date);
-      if(day&&day<=31&&Number.isFinite(value))values[day-1]=value;
-    }
-    return values;
-  }
-  function trend(observed){
-    const xs=[],ys=[];
-    observed.forEach((value,i)=>{
-      if(value!==null&&i<31){xs.push(i+1);ys.push(value);}
+  function monthSeries(season,month){
+    const year=yearForMonth(season,month),days=monthLength(year,month);
+    return Array.from({length:days},(_,i)=>{
+      const day=i+1;
+      return {month,day,year,date:dateKey(year,month,day),label:String(day)};
     });
-    if(xs.length<8 || xs.at(-1)<17)return null;
-    const n=xs.length, sx=xs.reduce((s,v)=>s+v,0),
-      sy=ys.reduce((s,v)=>s+v,0);
-    const sxx=xs.reduce((s,v)=>s+v*v,0),
-      sxy=xs.reduce((s,v,i)=>s+v*ys[i],0);
-    const denominator=n*sxx-sx*sx;
-    if(!denominator)return null;
-    const slope=(n*sxy-sx*sy)/denominator;
-    const offset=(sy-slope*sx)/n;
-    // Regression is an optional statistical extension, NOT an ECMWF forecast.
-    return {slope,values:days.map(d=>Math.max(0,offset+slope*d))};
   }
-  function dataset(label,data,color,extra={}){
-    return {label,data,borderColor:color,backgroundColor:color,
-      borderWidth:2.8,pointRadius:2.8,pointHoverRadius:5,spanGaps:false,
-      fill:false,tension:0, ...extra};
+  function winterSeries(season){
+    // Fixed reference-day axis with leap day reserved, so February/March
+    // always line up across leap/nonleap seasons. A nonexistent Feb 29
+    // is left missing rather than interpolated.
+    return MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
+      const day=i+1,year=yearForMonth(season,month);
+      const valid=day<=monthLength(year,month);
+      return {month,day,year,date:valid?dateKey(year,month,day):null,
+        label:day+" "+ABBR[month]};
+    }));
   }
-  function mkChart(){
+  function climatologyRow(month,day){
+    const series=doc.climatology_by_month?.[String(month).padStart(2,"0")] ||
+      (month===10?doc.climatology:[]);
+    return Array.isArray(series)?series.find(p=>p.day===day):null;
+  }
+  function sourceRows(season,selection){
+    return selection==="winter"?winterSeries(season):monthSeries(season,Number(selection));
+  }
+  function regression(values){
+    const p=values.map((value,i)=>({x:i+1,y:value}))
+      .filter(x=>Number.isFinite(x.y));
+    if(p.length<8||p.at(-1).x<10)return null;
+    const n=p.length,sx=p.reduce((s,v)=>s+v.x,0),
+      sy=p.reduce((s,v)=>s+v.y,0),sxx=p.reduce((s,v)=>s+v.x*v.x,0),
+      sxy=p.reduce((s,v)=>s+v.x*v.y,0),den=n*sxx-sx*sx;
+    if(!den)return null;
+    const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
+    return {slope,series:values.map((_,i)=>Math.max(0,intercept+slope*(i+1)))};
+  }
+  function dataset(label,arr,color,extra={}){
+    return {label,data:arr,borderColor:color,backgroundColor:color,
+      borderWidth:2.5,pointRadius:2.5,pointHoverRadius:5,
+      spanGaps:false,tension:0,fill:false,...extra};
+  }
+  function initChart(){
     chart=new Chart($("plot"),{
-      type:"line",
-      data:{labels:days.map(d=>String(d)),datasets:[]},
+      type:"line",data:{labels:[],datasets:[]},
       options:{
         responsive:true,maintainAspectRatio:false,
         interaction:{mode:"index",intersect:false},
         scales:{
-          x:{title:{display:true,text:"Oktobertag (UTC)"},ticks:{maxTicksLimit:16}},
+          x:{title:{display:true,text:"Winterhalbjahr (UTC)"},ticks:{maxTicksLimit:18}},
           y:{min:0,title:{display:true,text:"Schneebedeckte Landfläche (Mio. km²)"}}
         },
         plugins:{
-          legend:{position:"top",labels:{boxWidth:14,usePointStyle:true}},
-          tooltip:{callbacks:{label:c=>c.parsed.y===null?"":c.dataset.label+": "+c.parsed.y.toFixed(2)+" Mio. km²"}}
+          legend:{position:"top",labels:{
+            boxWidth:14,usePointStyle:true,
+            filter:item=>!item.text.startsWith("Untergrenze ")}},
+          tooltip:{callbacks:{
+            label:item=>item.parsed.y===null?"":item.dataset.label+": "+item.parsed.y.toFixed(2)+" Mio. km²"
+          }}
         }
       }
     });
   }
   function render(){
     if(!doc)return;
-    const year=Number($("year").value)||2026;
-    const obs=pointsFor(year);
-    const c=doc.climatology||[];
-    const mean=days.map(day=>{
-      const item=c.find(v=>v.day===day);
-      return item&&item.mean!==null?item.mean:null;
-    });
-    const lo=days.map(day=>{
-      const item=c.find(v=>v.day===day);
-      return item&&item.mean!==null?Math.max(0,item.mean-item.stddev):null;
-    });
-    const hi=days.map(day=>{
-      const item=c.find(v=>v.day===day);
-      return item&&item.mean!==null?item.mean+item.stddev:null;
-    });
+    const season=Number($("season").value),selection=$("month").value;
+    if(!Number.isInteger(season))return;
+    const rows=sourceRows(season,selection);
+    const obs=rows.map(row=>row.date&&Number.isFinite(doc.daily[row.date])?doc.daily[row.date]:null);
+    const clima=rows.map(row=>climatologyRow(row.month,row.day));
+    const mean=clima.map(row=>row&&Number.isFinite(row.mean)?row.mean:null),
+      low=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
+        Math.max(0,row.mean-row.stddev):null),
+      high=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
+        row.mean+row.stddev:null);
+    const isWinter=selection==="winter";
+    const seasonTitle=seasonName(season), monthTitle=isWinter?"Oktober–März":MONTH_NAMES[Number(selection)];
+    const available=mean.filter(Number.isFinite).length;
     const series=[];
-    if(mean.some(v=>v!==null)){
-      series.push(dataset("Klimatologie −1σ",lo,"rgba(0,0,0,0)",{
-        backgroundColor:"rgba(0,0,0,0)",pointRadius:0,borderWidth:0
+    if(available){
+      series.push(dataset("Untergrenze ±1σ",low,"rgba(0,0,0,0)",{
+        pointRadius:0,borderWidth:0,backgroundColor:"rgba(0,0,0,0)"
       }));
-      series.push(dataset("Klimatologie ±1σ",hi,"rgba(0,0,0,0)",{
-        pointRadius:0,borderWidth:0,backgroundColor:palette.band,
-        fill:{target:"-1",above:palette.band,below:palette.band}
+      series.push(dataset("Klimatologie ±1σ",high,"rgba(0,0,0,0)",{
+        pointRadius:0,borderWidth:0,backgroundColor:COLORS.band,
+        fill:{target:"-1",above:COLORS.band,below:COLORS.band}
       }));
-      series.push(dataset("Klimamittel 1999–2025 (ohne 2014)",mean,palette.climo,{
+      series.push(dataset("Klimamittel (verfügbare Referenzjahre)",mean,COLORS.climo,{
         pointRadius:0,borderDash:[8,5],borderWidth:2.3
       }));
     }
-    series.push(dataset("NOAA IMS beobachtet · "+year,obs,palette.obs,{borderWidth:3.5,pointRadius:3.5}));
-    if($("showTrend").checked){
-      const t=trend(obs);
-      if(t)series.push(dataset("Lineare Trendfortschreibung (keine Prognose)",t.values,palette.fit,{
+    series.push(dataset("NOAA IMS · "+seasonTitle,obs,COLORS.obs,{
+      borderWidth:3.2,pointRadius:isWinter?0:3.2
+    }));
+    $("showTrend").disabled=isWinter;
+    const fit=(!isWinter&&$("showTrend").checked)?regression(obs):null;
+    if(fit){
+      series.push(dataset("Lineare Trendgerade (keine Prognose)",fit.series,COLORS.fit,{
         pointRadius:0,borderDash:[5,4],borderWidth:2
       }));
     }
-    // Never create model lines from unverified screenshot values. An actual
-    // independent model ingest may add explicit model series in the future.
-    if(doc.forecast && doc.forecast.verified===true &&
-       Number.isInteger(doc.forecast.run_year) &&
-       doc.forecast.run_year===year){
-      for(const [key,label,color] of [["hres","ECMWF IFS",palette.model],
-                                       ["eps_mean","ECMWF EPS-Mittel",palette.eps]]){
-        const line=doc.forecast[key];
-        if(Array.isArray(line)&&line.length===31)
-          series.push(dataset(label,line.map(v=>Number.isFinite(v)?v:null),color,{pointRadius:3}));
-      }
-    }
+    chart.options.scales.x.title.text=isWinter?"Winterhalbjahr "+seasonTitle:
+      MONTH_NAMES[Number(selection)]+" "+yearForMonth(season,Number(selection));
+    chart.data.labels=rows.map(r=>r.label);
     chart.data.datasets=series;
     chart.update();
-    const valid=obs.map((v,i)=>({v,day:i+1})).filter(x=>x.v!==null);
+
+    const valid=obs.map((value,i)=>({value,date:rows[i].date}))
+      .filter(item=>item.value!==null);
     const last=valid.at(-1);
-    $("latest").textContent=last?(last.v.toFixed(2)+" Mio. km² am "+last.day+". Oktober "+year):"Keine Beobachtungen verfügbar";
-    const slope=trend(obs);
-    $("slope").textContent=slope?(slope.slope>=0?"+":"")+slope.slope.toFixed(3)+" Mio. km²/Tag":"Noch keine belastbare Trendlinie";
-    const count=c.filter(x=>x.mean!==null).length;
-    $("coverage").textContent=count===31?"31 / 31 Oktobertage":count+" / 31 Oktobertage";
-    $("climNote").textContent=count===31?
-      "Klimatologie vollständig: mindestens 10 historische Vergleichsjahre pro Oktobertag.":
-      "Klimatologie im Aufbau: derzeit "+count+" von 31 Tagen mit mindestens 10 historischen Vergleichsjahren.";
-    $("modelNote").textContent=doc.forecast?.verified===true?
-      "Verifizierte, räumlich vereinheitlichte Modellflächen verfügbar.":
-      "ECMWF IFS/EPS: noch nicht aus Original-Modellfeldern berechnet. Deshalb erscheinen bewusst keine Prognosekurven.";
+    $("latest").textContent=last?
+      last.value.toFixed(2)+" Mio. km² · "+new Date(last.date+"T12:00:00Z")
+        .toLocaleDateString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}):
+      "Für die Auswahl noch keine IMS-Tageswerte";
+    $("slope").textContent=isWinter?"Nur für einzelne Monate":
+      fit?(fit.slope>=0?"+":"")+fit.slope.toFixed(3)+" Mio. km²/Tag":
+        "Noch keine belastbare Trendlinie";
+    $("coverage").textContent=available+" / "+rows.length+" Kalendertage";
+    const counts=clima.filter(row=>row&&Number.isFinite(row.mean))
+      .map(row=>row.years);
+    const loYears=counts.length?Math.min(...counts):0,hiYears=counts.length?Math.max(...counts):0;
+    $("climNote").textContent="Referenz 1999–2025 ohne 2014 · "+available+
+      " von "+rows.length+" Kalendertagen mit ausreichenden historischen Vergleichen"+
+      (counts.length?" ("+loYears+"–"+hiYears+" Stichprobenjahre je dargestelltem Tag)":"")+
+      ". Das historische Archiv wird weiter ergänzt. Für den 29. Februar gelten mindestens fünf statt zehn Vergleichsjahre.";
+    $("modelNote").textContent="ECMWF IFS/EPS: bisher keine unabhängig berechneten, mit NOAA IMS räumlich vergleichbaren Modellflächen. Keine Prognosekurven aus dem Screenshot übernommen.";
+    $("selectionNote").textContent=isWinter?
+      "Gesamtes Winterhalbjahr: Oktober bis März in zeitlich richtiger Reihenfolge; der 29. Februar bleibt in Nichtschaltjahren leer. Kein interpolierter Wert.":
+      "Monatsansicht: "+monthTitle+" "+yearForMonth(season,Number(selection))+
+      " · beobachtete Tage und tagesgenaue Klimatologie.";
   }
-  function yearsInArchive(){
-    const years=[...new Set(Object.keys(doc.daily||{}).map(k=>Number(k.slice(0,4))))].filter(Number.isFinite);
-    return years.sort((a,b)=>b-a);
+  function archivedSeasons(){
+    if(Array.isArray(doc.seasons)&&doc.seasons.length)
+      return doc.seasons.map(Number).filter(Number.isInteger);
+    return [...new Set(Object.keys(doc.daily).map(k=>{
+      const year=Number(k.slice(0,4)),month=Number(k.slice(5,7));
+      return month>=10?year:year-1;
+    }))].sort((a,b)=>b-a);
+  }
+  function yearOptions(){
+    const previous=$("season").value;
+    $("season").replaceChildren();
+    archivedSeasons().forEach(season=>{
+      const option=new Option(seasonName(season),String(season));
+      $("season").append(option);
+    });
+    if([...$("season").options].some(option=>option.value===previous))
+      $("season").value=previous;
   }
   async function load(){
     try{
-      show("Verifizierte NOAA-IMS-Daten werden geladen …");
-      const resp=await fetch(SRC+"?t="+Date.now(),{cache:"no-store"});
-      if(!resp.ok)throw new Error("HTTP "+resp.status);
-      const value=await resp.json();
-      if(value.schema!==1 || !value.daily || value.source?.doi!=="10.7265/N52R3PMC")
-        throw new Error("Ungültiges Datenformat");
-      doc=value;
-      const available=yearsInArchive();
-      $("year").replaceChildren();
-      available.forEach(year=>{
-        const option=new Option(String(year),String(year));
-        $("year").append(option);
-      });
-      $("year").value=available.includes(2026)?"2026":String(available[0]);
-      $("updated").textContent=value.generated_utc?
-        "Datenstand: "+new Intl.DateTimeFormat("de-DE",{dateStyle:"medium",timeStyle:"short",timeZone:"UTC"}).format(new Date(value.generated_utc))+" UTC":"";
+      show("NOAA-IMS-Winterdaten werden geladen …");
+      const response=await fetch(SRC+"?t="+Date.now(),{cache:"no-store"});
+      if(!response.ok)throw Error("HTTP "+response.status);
+      const incoming=await response.json();
+      if(incoming.schema!==1 || !incoming.daily ||
+         incoming.source?.doi!=="10.7265/N52R3PMC")
+        throw Error("Datenformat ungültig");
+      doc=incoming;
+      const first=!$("season").options.length;
+      yearOptions();
+      if(first){
+        const today=new Date();
+        const thisSeason=today.getUTCMonth()>=9?today.getUTCFullYear():today.getUTCFullYear()-1;
+        if([...$("season").options].some(x=>x.value===String(thisSeason)))
+          $("season").value=String(thisSeason);
+        const m=today.getUTCMonth()+1;
+        $("month").value=MONTHS.includes(m)?String(m):"winter";
+      }
+      $("updated").textContent="Datenstand: "+new Date(incoming.generated_utc).toLocaleString(
+        "de-DE",{timeZone:"UTC",dateStyle:"medium",timeStyle:"short"})+" UTC";
       render();
-      show("NOAA IMS: "+Object.keys(value.daily).length+" geprüfte Tageswerte · Beobachtungen und Klimatologie werden schrittweise ergänzt.","success");
-    }catch(err){
-      show("Noch keine verifizierten NOAA-IMS-Zeitreihen veröffentlicht ("+err.message+"). Das Diagramm bleibt bewusst leer.","warn");
-      $("latest").textContent="Ausstehend";
-      $("slope").textContent="Ausstehend";
-      $("coverage").textContent="Ausstehend";
-      $("modelNote").textContent="Keine Modellwerte aus der Vorlage übernommen; ECMWF muss unabhängig ausgewertet werden.";
+      show("NOAA IMS: "+Object.keys(incoming.daily).length+
+        " verifizierte Tageswerte · Auswahl Oktober–März · historische Klimatologie wird monatlich ergänzt.","success");
+    }catch(error){
+      show("NOAA-IMS-Beobachtungen konnten nicht geladen werden: "+
+        error.message+". Keine geschätzten Schneewerte angezeigt.","warn");
     }
   }
-  $("year").addEventListener("change",render);
+  $("season").addEventListener("change",render);
+  $("month").addEventListener("change",render);
   $("showTrend").addEventListener("change",render);
   $("refresh").addEventListener("click",load);
   $("png").addEventListener("click",()=>{
-    if(!chart||!doc)return;
+    if(!doc||!chart)return;
     const a=document.createElement("a");
     a.href=chart.toBase64Image("image/png",1);
-    a.download="Eurasien_Schneebedeckung_NOAA_IMS_"+$("year").value+".png";
+    a.download="Eurasien_NOAA_IMS_"+$("season").value+"_"+$("month").value+".png";
     a.click();
   });
   $("csv").addEventListener("click",()=>{
     if(!doc)return;
-    const year=$("year").value,obs=pointsFor(Number(year));
-    const rows=["day,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,climatology_years"];
-    days.forEach((d,i)=>{
-      const c=doc.climatology.find(x=>x.day===d)||{};
-      rows.push([d,obs[i]??"",c.mean??"",c.stddev??"",c.years??0].join(","));
-    });
-    const blob=new Blob([rows.join("\n")+"\n"],{type:"text/csv;charset=utf-8"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-    a.download="Eurasien_NOAA_IMS_Oktober_"+year+".csv";
-    a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    const rows=sourceRows(Number($("season").value),$("month").value),
+      csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,reference_years"];
+    for(const row of rows){
+      const c=climatologyRow(row.month,row.day)||{};
+      csv.push([row.date||"",row.date?doc.daily[row.date]??"": "",
+        c.mean??"",c.stddev??"",c.years??0].join(","));
+    }
+    const blob=new Blob([csv.join("\n")+"\n"],{type:"text/csv;charset=utf-8"});
+    const link=document.createElement("a");
+    link.href=URL.createObjectURL(blob);
+    link.download="Eurasien_NOAA_IMS_"+$("season").value+"_"+$("month").value+".csv";
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(link.href),2000);
   });
-  mkChart();
+  initChart();
   load();
 })();

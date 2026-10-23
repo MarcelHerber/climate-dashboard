@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 from scripts.update_eurasia_snow import (
     COLUMNS, ROWS, ROW, FILENAME, HISTORY_YEARS,
-    geographic_mask_and_weights, area_for_day, calculate_climatology, parse_ascii,
+    geographic_mask_and_weights, area_for_day, calculate_climatology,
+    calculate_month_climatology, calendar_dates_for_season, WINTER_MONTHS, parse_ascii,
 )
 
 
@@ -46,6 +47,32 @@ class IMSChecks(unittest.TestCase):
         self.assertIsNotNone(series[0]["mean"])
         self.assertEqual(series[0]["years"], 11)
         self.assertIsNone(series[1]["mean"])
+
+    def test_winter_seasons(self):
+        self.assertEqual(WINTER_MONTHS, (10, 11, 12, 1, 2, 3))
+        winter = calendar_dates_for_season(2023)
+        self.assertEqual(winter[0], dt.date(2023, 10, 1))
+        self.assertEqual(winter[-1], dt.date(2024, 3, 31))
+        self.assertIn(dt.date(2024, 2, 29), winter)
+        self.assertEqual(len(winter), 183)
+        regular = calendar_dates_for_season(2024)
+        self.assertEqual(len(regular), 182)
+        self.assertNotIn(dt.date(2025, 2, 29), regular)
+
+    def test_month_reference_and_february_29(self):
+        daily = {f"{year}-02-29": float(year) for year in (2000,2004,2008,2012,2016,2020)}
+        daily.update({f"{year}-11-30": float(year) for year in HISTORY_YEARS[:12]})
+        feb = calculate_month_climatology(daily, 2)
+        self.assertEqual(len(feb), 29)
+        self.assertEqual(feb[28]["years"], 6)
+        self.assertEqual(feb[28]["min_years"], 5)
+        self.assertIsNotNone(feb[28]["mean"])
+        november = calculate_month_climatology(daily, 11)
+        self.assertEqual(len(november), 30)
+        self.assertEqual(november[-1]["years"], 12)
+        self.assertIsNotNone(november[-1]["stddev"])
+        for month, length in ((10,31),(11,30),(12,31),(1,31),(2,29),(3,31)):
+            self.assertEqual(len(calculate_month_climatology({},month)), length)
 
     def test_filename(self):
         m = FILENAME.fullmatch("ims2026296_00UTC_24km_v1.3.asc.gz")

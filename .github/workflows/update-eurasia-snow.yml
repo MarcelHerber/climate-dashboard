@@ -1,8 +1,8 @@
-name: NOAA IMS Eurasien-Schneebedeckung Oktober
+name: NOAA IMS Eurasien-Schneebedeckung Winterhalbjahr
 
 on:
   schedule:
-    - cron: "37 5,17 * * *"
+    - cron: "37 5,13,21 * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: noaa-ims-eurasia-october
+  group: noaa-ims-eurasia-winter
   cancel-in-progress: false
 
 jobs:
@@ -35,8 +35,8 @@ jobs:
         run: pip install "numpy>=1.26,<3"
       - name: Raster- und Datentests
         run: python -m unittest discover -s tests -p test_eurasia_snow.py -v
-      - name: NOAA IMS 24km laden und Oktoberflächen berechnen
-        run: python scripts/update_eurasia_snow.py --max-new 270
+      - name: NOAA IMS 24km laden und Oktober–März-Flächen berechnen
+        run: python scripts/update_eurasia_snow.py --max-new 420
       - name: Nur verifizierte Tageswerte übernehmen
         run: |
           python - <<'PY'
@@ -44,6 +44,9 @@ jobs:
           from pathlib import Path
           obj=json.loads(Path("eurasia_snow/index.json").read_text())
           assert obj["schema"]==1 and obj["forecast"] is None
+          assert obj["winter_months"]==[10,11,12,1,2,3]
+          assert set(obj["climatology_by_month"])=={"10","11","12","01","02","03"}
+          assert all(len(obj["climatology_by_month"][f"{m:02d}"])==(29 if m==2 else (30 if m in (11,) else 31)) for m in (10,11,12,1,2,3))
           assert obj["source"]["doi"]=="10.7265/N52R3PMC"
           assert obj["status"]["n_daily"]==len(obj["daily"])>=1
           assert all(0<=val<=70 for val in obj["daily"].values())
