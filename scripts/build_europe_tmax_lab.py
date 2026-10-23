@@ -185,7 +185,7 @@ def nested_text(node,key):
     return ""
 
 
-def daily_mos_values(kmz,dates):
+def daily_mos_values(kmz,dates,include_catalog=False):
     """Parse original DWD TX at 18 UTC, nearest actual forecast station by city."""
     from io import BytesIO
     expected=set(dates)
@@ -274,7 +274,7 @@ def daily_mos_values(kmz,dates):
     if not issue_time:raise RuntimeError("DWD MOSMIX IssueTime fehlt")
     LOG.info("MOSMIX %s: %d Stationen gelesen, %d Städte zugeordnet",
              issue_time,len(stations),len(selected))
-    return issue_time,selected
+    return (issue_time,selected,stations) if include_catalog else (issue_time,selected)
 
 
 def build(out,workers):
@@ -284,10 +284,27 @@ def build(out,workers):
     dates=[(cycle+timedelta(days=i)).date().isoformat() for i in range(5)]
     mos_payload=request_bytes(MOS_URL)
     if not mos_payload.startswith(b"PK"):raise RuntimeError("MOSMIX KMZ ist kein ZIP")
-    issue,stations=daily_mos_values(mos_payload,dates)
+    issue,stations,catalog=daily_mos_values(mos_payload,dates,include_catalog=True)
     mos_age=now-datetime.fromisoformat(issue.replace("Z","+00:00"))
     if not timedelta(0)<=mos_age<=timedelta(hours=30):
         raise RuntimeError(f"MOSMIX-L-Ausgabe veraltet: {issue}")
+    # Compact, real MOSMIX-TX catalogue for private editing/search.
+    # The user interface may place a label at any coordinate, but only these
+    # actual DWD station forecasts are eligible as temperature sources.
+    catalog_data={
+        "schema":1,"issue_time":issue,"days":dates,
+        "stations":[{"id":x["id"],"name":x["name"],
+                     "lon":round(x["lon"],5),"lat":round(x["lat"],5),
+                     "tx":[x["tx"].get(day) for day in dates]}
+                    for x in sorted(catalog,key=lambda q:(q["name"],q["id"]))
+                    if x["id"] and x["name"]]
+    }
+    if len(catalog_data["stations"])<1000:
+        raise RuntimeError("MOSMIX-Stationskatalog unvollständig")
+    (out/"stations_catalog.json").write_text(
+        json.dumps(catalog_data,ensure_ascii=False,separators=(",",":")),
+        encoding="utf-8"
+    )
     daydata={}
     with ThreadPoolExecutor(max_workers=workers) as pool:
         jobs={pool.submit(icon_day,cycle,i,out):i for i in range(5)}
@@ -311,6 +328,8 @@ def build(out,workers):
         "icon_cycle":cycle.strftime("%Y%m%d%H"),"mos_issue_utc":issue,
         "built_utc":now.isoformat().replace("+00:00","Z"),
         "timezone":"UTC","daily_window":"06:00-18:00 UTC",
+        "stations_catalog":"stations_catalog.json",
+        "stations_catalog_count":len(catalog_data["stations"]),
         "mos_parameter":"TX 12-hour maximum valid at 18 UTC",
         "icon_parameter":"TMAX_2M six-hour maxima, combined 06-18 UTC",
         "units":"degrees C",
