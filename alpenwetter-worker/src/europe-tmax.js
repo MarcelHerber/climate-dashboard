@@ -20,6 +20,22 @@ const STYLE = `
 .tmax-options select{color:#eff7ff;background:#162e46;border:1px solid #48627a;border-radius:8px;padding:6px}
 .tmax-help{font-size:12px;line-height:1.7;color:#b9cee2}
 .tmax-help strong{color:#f4f9ff}
+.tmax-edit-panel{padding:15px;border-radius:12px;border:1px solid #49667f;background:#11293d;margin:13px 0}
+.tmax-edit-panel[hidden]{display:none!important}
+.tmax-edit-controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:9px}
+.tmax-edit-controls input{background:#071b2c;color:#eaf3fb;border:1px solid #54748c;border-radius:8px;padding:10px;max-width:310px;min-width:210px;font:inherit}
+.tmax-edit-controls button[aria-pressed=true]{background:#daefff;color:#12324b;border-color:#bfe4ff}
+.tmax-edit-panel p{font-size:12px;color:#b8ccdc;line-height:1.55}
+.tmax-matches{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 11px}
+.tmax-matches button{font-size:12px}
+.tmax-station-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:5px 12px;max-height:210px;overflow:auto;padding:9px;border:1px solid #3b5a75;border-radius:7px}
+.tmax-station-row{display:flex;align-items:center;gap:7px;font-size:12px;color:#e3edf6}
+.tmax-station-row button{font-size:11px;padding:4px 7px;white-space:nowrap}
+.tmax-station-row .station-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmax-station-row input{accent-color:#68bfff}
+.tmax-stage.editing canvas{cursor:crosshair;touch-action:none}
+.tmax-edit-note{font-size:12px;padding:7px 0;color:#d5e9fb}
+
 #tmaxStatus{margin-top:12px}
 .tmax-card{max-width:1550px;margin:0 auto}
 .tmax-card .tools{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -50,7 +66,21 @@ export function europeTmaxPage() {
   '<label><input type="checkbox" id="tmaxNames" checked> Städtenamen</label>'+
   '<label for="tmaxDensity">Stationsdichte <select id="tmaxDensity">'+
   '<option value="sparse">Locker</option><option value="medium">Mittel</option>'+
-  '<option value="dense" selected>Alle Vorlagenstädte</option></select></label></div>'+
+  '<option value="dense" selected>Alle Vorlagenstädte</option></select></label>'+
+  '<button type="button" id="tmaxEditorToggle" aria-expanded="false">✎ Karte bearbeiten</button></div>'+
+  '<section class="tmax-edit-panel" id="tmaxEditor" hidden aria-label="Karteneditor">'+
+  '<strong>Orte und Temperaturkästchen bearbeiten</strong>'+
+  '<p>Ort/Station suchen und hinzufügen oder auf „Punkt setzen“ klicken und direkt auf der Karte markieren. Es werden ausschließlich reale MOSMIX-TX-Daten verwendet.</p>'+
+  '<div class="tmax-edit-controls"><input type="search" id="tmaxFind" autocomplete="off" placeholder="Ort oder MOSMIX-Station suchen" aria-label="Stationsname suchen">'+
+  '<button id="tmaxAdd" type="button" disabled>+ Ort hinzufügen</button>'+
+  '<button id="tmaxPin" type="button" aria-pressed="false">⌖ Punkt setzen</button>'+
+  '<button id="tmaxMove" type="button" aria-pressed="false">↔ Kästchen verschieben</button>'+
+  '<button id="tmaxReset" type="button">Standard wiederherstellen</button></div>'+
+  '<div class="tmax-matches" id="tmaxMatches" aria-live="polite"></div>'+
+  '<div class="tmax-edit-note" id="tmaxEditNote" role="status">Wähle einen Ort oder setze einen Punkt.</div>'+
+  '<div class="tmax-station-list" id="tmaxStationList" aria-label="Temperaturkästchen ein- und ausblenden"></div>'+
+  '<p>Beim Verschieben ändert sich ausschließlich die Position auf der Karte – der echte MOSMIX-Stationswert bleibt unverändert. Änderungen werden nur in diesem Browser gespeichert und nicht an GitHub übertragen.</p>'+
+  '</section>'+
   '<div class="tmax-preview"><div class="tmax-stage"><canvas id="tmaxCanvas" width="1920" height="1080" role="img" '+ 
   'aria-label="Experimentelle Europakarte mit echten MOSMIX-Höchsttemperaturen als Boxen über ICON-EU-Temperaturfläche"></canvas></div></div>'+
   '<div class="status" id="tmaxStatus" role="status" aria-live="polite">Warte auf verifizierte Daten …</div>'+
