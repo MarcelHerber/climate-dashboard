@@ -209,7 +209,7 @@ async function selectDay(){
  setButtons();render();
  if(state.pictures.has(day.date))
   setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+day.stations.length+
-    echte MOSMIX-Stationswerte · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
+    " echte MOSMIX-Stationswerte · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
 }
 async function load(){
  if(state.busy)return;state.busy=true;
