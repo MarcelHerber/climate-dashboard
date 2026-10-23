@@ -33,6 +33,9 @@ required_root_files=(
   meereis.html
   meereis.js
   meereis.css
+  eurasia_snow.html
+  eurasia_snow.js
+  eurasia_snow.css
   ace.html
   ace.js
   ace_spatial.js
@@ -294,6 +297,18 @@ if [[ -s climate_indices/index.json ]]; then
   echo "NOAA-Zirkulations- und ENSO-Indizes in Pages-Artefakt übernommen."
 else
   echo "HINWEIS: NOAA-Indexarchiv noch nicht erstellt."
+fi
+
+# Eurasia snow observations are stored in the repository and loaded
+# from the main branch by the independent NOAA IMS page. No pretend values
+# are published if the first background ingestion has not succeeded.
+node --check eurasia_snow.js
+if [[ -s eurasia_snow/index.json ]]; then
+  mkdir -p _site/eurasia_snow
+  cp eurasia_snow/index.json _site/eurasia_snow/index.json
+  echo "NOAA IMS Eurasien-Schneebedeckung in Pages-Artefakt"
+else
+  echo "HINWEIS: Erste verifizierte NOAA IMS-Tageswerte noch ausstehend"
 fi
 
 # NSIDC daily sea ice v4: compact 1978-present extent and 1991–2020
