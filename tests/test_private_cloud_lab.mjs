@@ -4,6 +4,7 @@ import worker from "../alpenwetter-worker/src/index.js";
 import { LAB_JS } from "../alpenwetter-worker/src/cloud-lab-client.js";
 import { LAB_CSS } from "../alpenwetter-worker/src/cloud-lab-style.js";
 import { TMAX_JS } from "../alpenwetter-worker/src/europe-tmax-client.js";
+import { europeTminPage } from "../alpenwetter-worker/src/europe-tmin.js";
 globalThis.crypto ??= webcrypto;
 
 const domain="https://climate-dashboard-alpenwetter.example.workers.dev";
@@ -14,6 +15,9 @@ assert.equal(landing.status,200);
 const login=await landing.text();
 assert.match(login,/GESCHÜTZTER TESTBEREICH/);
 assert.doesNotMatch(login,/id="filmCanvas"/);
+const unauthTmin=await request("/wolkenlabor/europa-tmin");
+assert.equal(unauthTmin.status,200);
+assert.match(await unauthTmin.text(),/GESCHÜTZTER TESTBEREICH/);
 const unauthTemperaturePage=await request("/wolkenlabor/europa-tmax");
 assert.equal(unauthTemperaturePage.status,200);
 const unauthTemperatureHtml=await unauthTemperaturePage.text();
@@ -22,6 +26,9 @@ assert.doesNotMatch(unauthTemperatureHtml,/id="tmaxCanvas"/);
 for(const path of ["/wolkenlabor/data/europa-tmax/current.json",
  "/wolkenlabor/data/europa-tmax/stations_catalog.json",
  "/wolkenlabor/data/europa-tmax/icon_tmax_raw_2026-10-24.png",
+ "/wolkenlabor/data/europa-tmin/current.json",
+ "/wolkenlabor/data/europa-tmin/stations_catalog.json",
+ "/wolkenlabor/data/europa-tmin/icon_tmin_raw_2026-10-24.png",
  "/wolkenlabor/data/europa-tmax/icon_tmax_2026-10-24.png"]){
  const res=await request(path);
  assert.equal(res.status,401);
@@ -58,6 +65,27 @@ assert.match(content,/Europa Tmax · MOS \+ ICON/);
 const temperaturePage=await request("/wolkenlabor/europa-tmax",{headers:{Cookie:cookie}});
 assert.equal(temperaturePage.status,200);
 const temperatureHtml=await temperaturePage.text();
+const tminPage=await request("/wolkenlabor/europa-tmin",{headers:{Cookie:cookie}});
+assert.equal(tminPage.status,200);
+assert.match(tminPage.headers.get("cache-control"),/no-store/);
+assert.match(tminPage.headers.get("x-robots-tag"),/noindex/);
+const tminHtml=await tminPage.text();
+assert.match(tminHtml,/Nachttiefsttemperaturen/);
+assert.match(tminHtml,/MOSMIX-TN/);
+assert.match(tminHtml,/TMIN_2M/);
+assert.match(tminHtml,/18–06 UTC/);
+assert.match(tminHtml,/Nacht zum/);
+assert.match(tminHtml,/europe-tmin|europa-tmin/);
+assert.doesNotMatch(tminHtml,/const PREFIX="\/wolkenlabor\/data\/europa-tmax\//);
+assert.match(tminHtml,/const PREFIX="\/wolkenlabor\/data\/europa-tmin\//);
+assert.match(tminHtml,/climate-europa-tmin-editor-v1/);
+assert.match(tminHtml,/icon_tmin_raw_/);
+assert.match(tminHtml,/tmin_c/);
+assert.match(tminHtml,/\.tn/);
+assert.doesNotMatch(tminHtml,/\bMOSMIX-TX\b/);
+assert.doesNotThrow(()=>new Function(tminHtml.match(/<script>([\s\S]*?)<\/script>/)[1]));
+assert.match(content,/Europa Tmin/);
+
 for(const id of ["tmaxCanvas","tmaxPrev","tmaxNext","tmaxDays","tmaxStatus",
                  "tmaxField","tmaxPoints","tmaxNames","tmaxDensity","tmaxSave"]){
  assert.match(temperatureHtml,new RegExp('id="'+id+'"'));
