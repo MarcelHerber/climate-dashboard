@@ -67,6 +67,7 @@
   let data=null, decoded=null, currentPeriod=0, currentDuration=12,
     currentType="all", overlay;
   const cache=Object.create(null);
+  const decodedCache=new Map();
   let loadGeneration=0, selectionGeneration=0;
   function status(text, type) {
     const el=$("status");
@@ -86,19 +87,43 @@
     Object.keys(TYPES).forEach(key=>{
       const encoded=period.layers[key];
       if(!encoded){layers[key]=null;return;}
-      const bytes=atob(encoded);
-      const packed=data.grid.encoding==="uint4-base64";
-      const length=packed?Math.ceil(count/2):count;
-      if(bytes.length!==length)throw Error("Rastergröße ungültig ("+key+")");
+      const bytes=atob(encoded), format=data.grid.encoding;
       const arr=new Uint8Array(count);
-      for(let i=0;i<count;i++){
-        const value=packed?(i&1?bytes.charCodeAt(i>>1)>>4:bytes.charCodeAt(i>>1)&15)
-                          :bytes.charCodeAt(i);
-        arr[i]=key==="fog"?(value>0?1:0):Math.min(value,4);
+      if(format==="rle-u8-base64"){
+        if(bytes.length%3!==0 || bytes.length===0)
+          throw Error("Ungültige RLE-Daten ("+key+")");
+        let position=0;
+        for(let i=0;i<bytes.length;i+=3){
+          const level=bytes.charCodeAt(i);
+          const span=bytes.charCodeAt(i+1)+256*bytes.charCodeAt(i+2);
+          if(level>(key==="fog"?1:4)||span===0||position+span>count)
+            throw Error("Beschädigte Gefahrenzellen ("+key+")");
+          arr.fill(level,position,position+span);
+          position+=span;
+        }
+        if(position!==count)throw Error("Unvollständiges Raster ("+key+")");
+      } else {
+        const packed=format==="uint4-base64";
+        const length=packed?Math.ceil(count/2):count;
+        if(bytes.length!==length)throw Error("Rastergröße ungültig ("+key+")");
+        for(let i=0;i<count;i++){
+          const value=packed?(i&1?bytes.charCodeAt(i>>1)>>4:bytes.charCodeAt(i>>1)&15)
+                            :bytes.charCodeAt(i);
+          arr[i]=key==="fog"?(value>0?1:0):Math.min(value,4);
+        }
       }
       layers[key]=arr;
     });
     return layers;
+  }
+
+  function decodeCachedPeriod(index) {
+    const key=data.generated_utc+"|"+currentDuration+"|"+index;
+    if(decodedCache.has(key))return decodedCache.get(key);
+    const result=decodePeriod(index);
+    decodedCache.set(key,result);
+    if(decodedCache.size>4)decodedCache.delete(decodedCache.keys().next().value);
+    return result;
   }
 
   function typesAt(index) {
@@ -174,18 +199,28 @@
       const endCol=Math.min(g.cols-1,Math.ceil((b.getEast()-g.lon_min)/g.step)+1);
       for(let r=startRow;r<=endRow;r++){
         for(let c=startCol;c<=endCol;c++){
-          const risks=typesAt(r*g.cols+c);
-          if(!risks.length)continue;
+          const index=r*g.cols+c;
+          // Fast path: in a single-layer view skip zero cells without
+          // allocating per-cell objects. At 0.125° this matters greatly.
+          const single=currentType!=="all";
+          let risks=null, level=0;
+          if(single){
+            const layer=decoded[currentType];
+            level=layer?layer[index]:0;
+            if(!level)continue;
+          }else{
+            risks=typesAt(index);
+            if(!risks.length)continue;
+            level=risks[0].level;
+          }
           const left=g.lon_min+c*g.step, bottom=g.lat_min+r*g.step;
           const tl=this._map.latLngToContainerPoint([bottom+g.step,left]);
           const br=this._map.latLngToContainerPoint([bottom,left+g.step]);
           const x=Math.floor(Math.min(tl.x,br.x)), y=Math.floor(Math.min(tl.y,br.y));
           const w=Math.max(1,Math.ceil(Math.abs(br.x-tl.x)));
           const h=Math.max(1,Math.ceil(Math.abs(br.y-tl.y)));
-          const level=risks[0].level;
           // Einzelansicht: nur die meteorologische Gefahrenstufe als satte
           // Fläche. Keine Muster oder Zusatzsymbole, damit die Zonen klar sind.
-          const single=currentType!=="all";
           ctx.globalAlpha=single ? (.60+.05*level) : (.28+.07*level);
           ctx.fillStyle=SEVERITY[level];
           ctx.fillRect(x,y,w+1,h+1);
@@ -301,17 +336,34 @@
       button.title="+"+period.start_h+" bis +"+period.end_h+" h · UTC";
       button.setAttribute("aria-pressed",String(i===currentPeriod));
       button.addEventListener("click",()=>{
-        currentPeriod=i;
-        render();
+        changePeriod(i);
       });
       holder.append(button);
     });
     const selected=holder.querySelector('[aria-pressed="true"]');
     if(selected)holder.scrollLeft=Math.max(0,selected.offsetLeft-holder.offsetLeft-20);
   }
+  function changePeriod(index) {
+    if(!data || index<0 || index>=data.periods.length || index===currentPeriod)return false;
+    currentPeriod=index;
+    render();
+    return true;
+  }
+  $("previousPeriod").addEventListener("click",()=>changePeriod(currentPeriod-1));
+  $("nextPeriod").addEventListener("click",()=>changePeriod(currentPeriod+1));
+  document.addEventListener("keydown",event=>{
+    if(event.defaultPrevented||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||
+       !data || !["ArrowLeft","ArrowRight"].includes(event.key))return;
+    const target=event.target;
+    // Arrow keys retain their expected meaning in form controls or editable areas.
+    if(target instanceof Element &&
+       target.closest('input,textarea,select,[contenteditable="true"],[role="combobox"],[role="listbox"]'))return;
+    if(changePeriod(currentPeriod+(event.key==="ArrowRight"?1:-1)))
+      event.preventDefault();
+  });
   function render() {
     if(!data)return;
-    decoded=decodePeriod(currentPeriod);
+    decoded=decodeCachedPeriod(currentPeriod);
     const p=data.periods[currentPeriod];
     document.querySelectorAll(".durations button").forEach(el=>{
       const duration=Number(el.dataset.duration);
@@ -321,6 +373,9 @@
     });
     $("periodLabel").textContent=absoluteUTC(p.start_h)+" – "+
       absoluteUTC(p.end_h)+" UTC · +"+p.start_h+" bis +"+p.end_h+" h";
+    $("previousPeriod").disabled=currentPeriod===0;
+    $("nextPeriod").disabled=currentPeriod>=data.periods.length-1;
+    $("periodPosition").textContent=(currentPeriod+1)+" / "+data.periods.length;
     $("type").value=currentType;
     const isOverview=currentType==="all";
     $("hazardPatternLegend").hidden=!isOverview;
@@ -358,7 +413,7 @@
       if(generation!==loadGeneration||selection!==selectionGeneration)return;
       data=cache[duration];currentDuration=duration;currentPeriod=0;
       render();
-      status(duration+"-h-Karten geladen · 0,25° Auswerteraster, keine amtliche Warnung.");
+      status(duration+"-h-Karten geladen · "+data.grid.step+"° Auswerteraster, keine amtliche Warnung.");
     }catch(error){
       if(generation!==loadGeneration||selection!==selectionGeneration)return;
       status(duration+"-h-Karten sind noch nicht verfügbar ("+error.message+
@@ -401,7 +456,8 @@
        !Array.isArray(doc.periods) || doc.not_official_warning!==true)
       throw Error("Dateiformat nicht plausibel");
     if(doc.schema===2 && (doc.duration_h!==duration ||
-       doc.grid.step!==0.25 || doc.grid.encoding!=="uint4-base64"))
+       !((doc.grid.step===0.125&&doc.grid.encoding==="rle-u8-base64") ||
+         (doc.grid.step===0.25&&doc.grid.encoding==="uint4-base64"))))
       throw Error("Auflösung oder Intervall weicht vom Datenformat ab");
     if(doc.schema===1 && duration!==24)throw Error("Veraltetes 24-h-Datenformat");
     const count=120/duration;
@@ -422,6 +478,7 @@
       validate(mainData,24);
       if(generation!==loadGeneration)return;
       for(const key of Object.keys(cache))delete cache[key];
+      decodedCache.clear();
       cache[24]=mainData;
       let selected=mainData,duration=24;
       if(mainData.schema===2){
