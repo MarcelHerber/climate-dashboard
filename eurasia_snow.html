@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Eurasien-Schneebedeckung: täglich beobachtete NOAA IMS Land-Schneefläche im Oktober, Klimatologie 1999–2025 und SAI-Trend.">
-<title>Eurasien · Schneebedeckung im Oktober | Climate Dashboard Deutschland</title>
-<link rel="stylesheet" href="eurasia_snow.css?v=1">
+<meta name="description" content="Eurasien-Schneebedeckung: täglich beobachtete NOAA IMS Land-Schneefläche im Winterhalbjahr Oktober–März, Klimatologie 1999–2025 und Trend.">
+<title>Eurasien · Schneebedeckung Oktober–März | Climate Dashboard Deutschland</title>
+<link rel="stylesheet" href="eurasia_snow.css?v=20261023-winter">
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script defer src="eurasia_snow.js?v=1"></script>
+<script defer src="eurasia_snow.js?v=20261023-winter"></script>
 </head>
 <body>
 <header>
@@ -15,16 +15,27 @@
   <span>Kryosphäre · NOAA IMS</span>
 </header>
 <main>
-  <div class="eyebrow">Schnee · Beobachtungen · Klimatologie · Oktober</div>
-  <h1>Eurasien: Schneebedeckung im Oktober</h1>
-  <p class="intro">Wie schnell breitet sich die Schneedecke in Eurasien im Oktober aus? Die Grafik zeigt die täglich analysierte <strong>schneebedeckte Landfläche</strong> im Band von 20–60° N und 10° W–180° O. NOAA IMS-Beobachtungen und daraus berechnete Klimawerte werden getrennt von Modellprognosen dargestellt.</p>
+  <div class="eyebrow">Schnee · Beobachtungen · Klimatologie · Oktober–März</div>
+  <h1>Eurasien: Schneebedeckung im Winterhalbjahr</h1>
+  <p class="intro">Wie verändert sich die Schneebedeckung Eurasiens von Oktober bis März? Die Grafik zeigt die täglich analysierte <strong>schneebedeckte Landfläche</strong> im festen Gebiet von 20–60° N und 10° W–180° O. Die Region umfasst Teile Europas und Asiens, aber nicht Nordskandinavien und den hohen Norden Sibiriens. NOAA-IMS-Beobachtungen, monatliche Klimawerte und statistische Trends werden klar voneinander getrennt.</p>
 
   <section class="panel">
     <div class="controls">
-      <label>Oktoberjahr
-        <select id="year"><option value="2026">2026</option></select>
+      <label>Winterhalbjahr
+        <select id="season" aria-label="Winterhalbjahr"><option value="2026">2026 / 2027</option></select>
       </label>
-      <label class="checkbox"><input type="checkbox" id="showTrend" checked> Lineare Oktober-Trendfortschreibung anzeigen</label>
+      <label>Zeitraum
+        <select id="month" aria-label="Monat oder gesamtes Winterhalbjahr">
+          <option value="winter">Gesamtes Winterhalbjahr · Okt–Mär</option>
+          <option value="10" selected>Oktober</option>
+          <option value="11">November</option>
+          <option value="12">Dezember</option>
+          <option value="1">Januar</option>
+          <option value="2">Februar</option>
+          <option value="3">März</option>
+        </select>
+      </label>
+      <label class="checkbox"><input type="checkbox" id="showTrend" checked> Lineare Monatstrendlinie (keine Prognose)</label>
       <button type="button" id="refresh">Daten aktualisieren ↻</button>
       <button type="button" id="png">Diagramm als PNG ↓</button>
       <button type="button" id="csv">Daten als CSV ↓</button>
@@ -34,24 +45,25 @@
   </section>
 
   <section class="panel">
-    <h2>Tägliche Schneebedeckung Eurasiens</h2>
+    <h2>Tägliche Schneebedeckung Eurasiens · Oktober bis März</h2>
     <div class="chart"><canvas id="plot" role="img" aria-label="Schneebedeckungsfläche Eurasiens im Oktober in Millionen Quadratkilometern"></canvas></div>
+    <p class="small" id="selectionNote">Winterhalbjahr und Monat auswählen.</p>
     <p class="small" id="climNote">Klimatologie wird geprüft …</p>
     <p class="small" id="modelNote">ECMWF IFS und EPS benötigen separat berechnete Modellflächen.</p>
   </section>
 
   <section class="stats">
     <article class="panel"><h3>Letzter Beobachtungswert</h3><div class="metric" id="latest">–</div></article>
-    <article class="panel"><h3>Oktober-Trend</h3><div class="metric" id="slope">–</div><p class="small">Lineare Regression, keine Wetterprognose</p></article>
+    <article class="panel"><h3>Monatstrend</h3><div class="metric" id="slope">–</div><p class="small">Lineare Regression, keine Wetterprognose</p></article>
     <article class="panel"><h3>Klimatologische Abdeckung</h3><div class="metric" id="coverage">–</div></article>
   </section>
 
   <section class="panel methodology">
     <h2>Datengrundlage und Einordnung</h2>
     <p><strong>Beobachtung:</strong> U.S. National Ice Center / NOAA Interactive Multisensor Snow and Ice Mapping System (IMS), tägliches 24-km-Produkt, Kategorie „schneebedecktes Land“. Meereis wird nicht mitgerechnet. Die tatsächliche Fläche wird aus der polaren stereografischen Projektion flächengewichtet berechnet.</p>
-    <p><strong>Gebiet:</strong> 20–60° nördliche Breite, 10° westliche bis 180° östliche Länge. Dies ist eine definierte geografische Auswertung, nicht die exakte unbekannte Maske einer externen Grafik. Das Raster ist 24 km nominal; Grenzzellen werden nach ihrem Mittelpunkt zugeordnet.</p>
-    <p><strong>Klimatologie:</strong> Oktober 1999–2025 ohne 2014; Mittelwert und ±1 Standardabweichung werden pro Kalendertag erst angezeigt, wenn mindestens zehn echte Vergleichsjahre verfügbar sind. Das historische Archiv wird stufenweise aufgebaut. Keine interpolierten oder aus dem Bild abgelesenen Werte.</p>
-    <p><strong>Prognosen:</strong> ECMWF IFS und EPS werden erst hinzugefügt, wenn die Flächen auf einem vergleichbaren geografischen Gebiet aus den Originalfeldern berechnet sind. Schneewasseräquivalent ist nicht automatisch identisch mit der binären IMS-Schneebedeckung. Eine Trendfortschreibung ist keine dynamische Modellvorhersage.</p>
+    <p><strong>Gebiet:</strong> 20–60° nördliche Breite, 10° westliche bis 180° östliche Länge. Enthält Teile Europas und Asiens, aber nicht ganz Eurasien – gerade hohe nördliche Breiten fehlen. Der Gebietsausschnitt bleibt für alle Monate gleich und entspricht nicht zwingend der unbekannten Maske einer externen Grafik. Das IMS-Raster ist nominal 24 km groß; Grenzzellen werden nach ihrem Mittelpunkt zugeordnet.</p>
+    <p><strong>Klimatologie:</strong> Oktober, November, Dezember, Januar, Februar und März werden je Kalendertag aus 1999–2025 ohne 2014 berechnet. Mindestens zehn historische Jahre pro Tag sind erforderlich, am 29. Februar fünf echte Schaltjahre. Die Vergleichsjahre werden schrittweise vervollständigt. Fehlende Daten bleiben Lücken, statt interpoliert zu werden; das graue Band ist historische Streuung, kein Prognoseunsicherheitsbereich.</p>
+    <p><strong>Winterhalbjahre:</strong> 2025 / 2026 bedeutet Oktober–Dezember 2025 und Januar–März 2026. In der Gesamtdarstellung bleibt der 29. Februar in Nichtschaltjahren leer. <strong>Prognosen:</strong> ECMWF IFS und EPS werden erst hinzugefügt, wenn die Flächen vergleichbar und unabhängig aus Modellfeldern berechnet sind. Schneewasseräquivalent ist nicht automatisch identisch mit binärer IMS-Schneebedeckung. Eine Trendgerade ist keine Modellvorhersage.</p>
     <p><strong>Datenquelle:</strong> <a href="https://nsidc.org/data/g02156/versions/1" target="_blank" rel="noopener">NOAA/USNIC IMS via NSIDC, G02156</a>, DOI <a href="https://doi.org/10.7265/N52R3PMC" target="_blank" rel="noopener">10.7265/N52R3PMC</a>. Meteorologische Interpretation und Flächenberechnung erfolgen unabhängig. Diese Darstellung ersetzt keine amtlichen Warnungen.</p>
   </section>
 </main>
