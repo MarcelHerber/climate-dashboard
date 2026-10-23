@@ -1,4 +1,4 @@
-export const TMAX_JS = String.raw\`
+export const TMAX_JS = String.raw`
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
@@ -233,4 +233,4 @@ $("tmaxSave").addEventListener("click",()=>{
 $("tmaxRefresh").addEventListener("click",()=>void load());
 setButtons();render();void load();
 })();
-\`;\n
+`;
