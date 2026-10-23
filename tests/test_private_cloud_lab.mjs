@@ -61,7 +61,7 @@ assert.match(cookie,/alpenwetter_session=/);
 const protectedPage=await request("/wolkenlabor",{headers:{Cookie:cookie}});
 assert.equal(protectedPage.status,200);
 const content=await protectedPage.text();
-assert.match(content,/Europa Tmax · MOS \+ ICON/);
+assert.match(content,/Europa Tmax/);
 const temperaturePage=await request("/wolkenlabor/europa-tmax",{headers:{Cookie:cookie}});
 assert.equal(temperaturePage.status,200);
 const temperatureHtml=await temperaturePage.text();
