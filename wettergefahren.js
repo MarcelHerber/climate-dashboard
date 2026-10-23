@@ -183,15 +183,20 @@
           const w=Math.max(1,Math.ceil(Math.abs(br.x-tl.x)));
           const h=Math.max(1,Math.ceil(Math.abs(br.y-tl.y)));
           const level=risks[0].level;
-          ctx.globalAlpha=.28+.07*level;
+          // Einzelansicht: nur die meteorologische Gefahrenstufe als satte
+          // Fläche. Keine Muster oder Zusatzsymbole, damit die Zonen klar sind.
+          const single=currentType!=="all";
+          ctx.globalAlpha=single ? (.60+.05*level) : (.28+.07*level);
           ctx.fillStyle=SEVERITY[level];
           ctx.fillRect(x,y,w+1,h+1);
-          ctx.globalAlpha=.85;
-          // At most two independent hazard patterns to avoid illegible overlaps.
-          risks.slice(0,2).forEach(risk=>paintGlyph(ctx,risk.key,x,y,w,h));
-          if(risks.length>2 && w>12 && h>12){
-            ctx.globalAlpha=.72;ctx.fillStyle="#192e45";
-            ctx.fillRect(x+w-3,y+h-3,2,2);
+          if(!single){
+            ctx.globalAlpha=.85;
+            // Nur die Gesamtkarte braucht Struktur zum Trennen der Gefahrenarten.
+            risks.slice(0,2).forEach(risk=>paintGlyph(ctx,risk.key,x,y,w,h));
+            if(risks.length>2 && w>12 && h>12){
+              ctx.globalAlpha=.72;ctx.fillStyle="#192e45";
+              ctx.fillRect(x+w-3,y+h-3,2,2);
+            }
           }
         }
       }
@@ -317,6 +322,14 @@
     $("periodLabel").textContent=absoluteUTC(p.start_h)+" – "+
       absoluteUTC(p.end_h)+" UTC · +"+p.start_h+" bis +"+p.end_h+" h";
     $("type").value=currentType;
+    const isOverview=currentType==="all";
+    $("hazardPatternLegend").hidden=!isOverview;
+    $("legendExplanation").textContent=isOverview
+      ? "Bei mehreren Gefahren wird die höchste Stufe eingefärbt. Die Muster helfen, unterschiedliche Gefahrenarten zu erkennen. Fehlende Felder bleiben transparent. Die Karte enthält keine Straßen oder Ortslabels."
+      : "Die Einzeldarstellung zeigt ausschließlich die Gefahrenstufe als farbige Fläche – ohne Muster. Die Farben sind für bessere Lesbarkeit kräftiger. Fehlende Felder bleiben transparent.";
+    $("mapTips").textContent=isOverview
+      ? "In die feste Europakarte klicken, um alle verfügbaren Gefahrenstufen am Rasterpunkt anzuzeigen. Die Flächenfarbe steht für die höchste Stufe, die Muster für die Gefahrenart. Bei Überlagerungen sind maximal zwei Muster sichtbar; per Klick werden alle berechneten Gefahren angezeigt."
+      : "In die Karte klicken, um die berechneten Gefahrenstufen am Rasterpunkt anzuzeigen. In dieser Einzelansicht werden nur die Gefahrenstufen farbig dargestellt, ohne zusätzliche Schraffuren oder Muster.";
     updatePeriodButtons();
     summary();
     fitMapToCoverage();
