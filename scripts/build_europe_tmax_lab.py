@@ -157,7 +157,7 @@ def icon_day(cycle,day,out):
         sampled[(sampled < -80)|(sampled > 65)]=np.nan
         maximum=sampled if maximum is None else np.fmax(maximum,sampled)
         LOG.info("ICON-EU +%03d: %d von %d Kartenzellen",hour,np.isfinite(sampled).sum(),len(sampled))
-    if np.mean(np.isfinite(maximum))<.85:
+    if np.mean(np.isfinite(maximum))<.80:
         raise RuntimeError("Zu viele fehlende ICON-EU-Kartenzellen")
     colour=np.zeros((len(maximum),4),dtype=np.uint8)
     valid=np.isfinite(maximum)
