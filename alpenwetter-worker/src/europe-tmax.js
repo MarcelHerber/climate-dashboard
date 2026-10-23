@@ -82,7 +82,7 @@ export function europeTmaxPage() {
   '<div class="tmax-station-list" id="tmaxStationList" aria-label="Temperaturkästchen ein- und ausblenden"></div>'+
   '<p>Beim Verschieben ändert sich ausschließlich die Position auf der Karte – der echte MOSMIX-Stationswert bleibt unverändert. Änderungen werden nur in diesem Browser gespeichert und nicht an GitHub übertragen.</p>'+
   '</section>'+
-  '<div class="tmax-preview"><div class="tmax-stage"><canvas id="tmaxCanvas" width="1920" height="1080" role="img" '+ 
+  '<div class="tmax-preview"><div class="tmax-stage" id="tmaxStage"><canvas id="tmaxCanvas" width="1920" height="1080" role="img" '+ 
   'aria-label="Experimentelle Europakarte mit echten MOSMIX-Höchsttemperaturen als Boxen über ICON-EU-Temperaturfläche"></canvas></div></div>'+
   '<div class="status" id="tmaxStatus" role="status" aria-live="polite">Warte auf verifizierte Daten …</div>'+
   '<p class="tmax-help"><strong>Meteorologischer Zeitraum:</strong> 06–18 UTC desselben Kalendertages.'+
