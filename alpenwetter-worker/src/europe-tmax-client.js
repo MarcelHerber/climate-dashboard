@@ -17,7 +17,9 @@ const STOPS=[
  [28,"#eb5f4b"],[34,"#ce3e5f"],[45,"#772b5e"]
 ];
 const state={data:null,geo:null,index:0,pictures:new Map(),showField:true,
- showPoints:true,showNames:true,density:"dense",busy:false};
+ showPoints:true,showNames:true,density:"dense",busy:false,
+ catalog:[],prefs:{hidden:[],custom:[],positions:{}},editMode:"off",hits:[],drag:null,
+ selectedSearch:null,pointTarget:null,editorOpen:false};
 function xy(lon,lat,region=MAIN){return [
  region.x+(lon-region.west)/(region.east-region.west)*region.w,
  region.y+(region.north-lat)/(region.north-region.south)*region.h
@@ -108,39 +110,316 @@ function drawLegend(){
  }
  ctx.textAlign="left";
 }
+
+const EDIT_STORAGE="climate-europa-tmax-editor-v1";
+function restorePrefs(){
+ try{
+  const parsed=JSON.parse(localStorage.getItem(EDIT_STORAGE)||"{}");
+  return {
+   hidden:Array.isArray(parsed.hidden)?parsed.hidden.filter(x=>typeof x==="string").slice(0,350):[],
+   custom:Array.isArray(parsed.custom)?parsed.custom.filter(x=>
+     typeof x.key==="string"&&typeof x.stationId==="string"&&
+     Number.isFinite(x.lon)&&Number.isFinite(x.lat)&&typeof x.name==="string").slice(0,160):[],
+   positions:parsed.positions&&typeof parsed.positions==="object"?parsed.positions:{}
+  };
+ }catch(_){return {hidden:[],custom:[],positions:{}}}
+}
+function persist(){
+ try{localStorage.setItem(EDIT_STORAGE,JSON.stringify(state.prefs));}
+ catch(err){$("tmaxEditNote").textContent="Lokales Speichern nicht möglich: "+err.message;}
+}
+function norm(text){
+ return String(text||"").toLocaleLowerCase("de-DE").normalize("NFKD")
+   .replace(/[\u0300-\u036f]/g,"").replace(/ß/g,"ss").replace(/[^a-z0-9]+/g,"");
+}
+function regionAt(x,y){
+ return [...INSETS,MAIN].find(region=>x>=region.x&&x<=region.x+region.w&&
+   y>=region.y&&y<=region.y+region.h)||null;
+}
+function lonlat(x,y,region){
+ return [region.west+(x-region.x)/region.w*region.w,
+         region.north-(y-region.y)/region.h*(region.north-region.south)];
+}
+function geoDistance(lon1,lat1,lon2,lat2){
+ const rad=Math.PI/180,dLat=(lat2-lat1)*rad,dLon=(lon2-lon1)*rad;
+ const a=Math.sin(dLat/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+ return 12742*Math.asin(Math.min(1,Math.sqrt(a)));
+}
+function availableValue(station,dayIndex){return station?.tx?.[dayIndex]??null}
+function stationById(id){return state.catalog.find(s=>s.id===id)||null}
+function objectsForDay(day){
+ const keys=new Set(),objects=[];
+ for(const item of day.stations){
+  const key="base:"+item.city;keys.add(key);
+  objects.push({...item,key});
+ }
+ for(const custom of state.prefs.custom){
+  if(keys.has(custom.key))continue;
+  const station=stationById(custom.stationId);
+  if(!station)continue;
+  const temp=availableValue(station,state.index);
+  objects.push({key:custom.key,city:custom.name,lon:custom.lon,lat:custom.lat,
+   station_id:station.id,station_name:station.name,station_lat:station.lat,
+   station_lon:station.lon,tmax_c:temp,
+   distance_km:Math.round(geoDistance(custom.lon,custom.lat,station.lon,station.lat)*10)/10,
+   is_custom:true});
+  keys.add(custom.key);
+ }
+ return objects;
+}
+function drawCoords(s){
+ const moved=state.prefs.positions[s.key];
+ if(Array.isArray(moved)&&moved.length===2&&
+    Number.isFinite(moved[0])&&Number.isFinite(moved[1])){
+  const reg=regionForCity(s.city);
+  if(isInRegion(moved[0],moved[1],reg))return [moved[0],moved[1]];
+ }
+ return [s.lon,s.lat];
+}
+function fullName(s){return s.city+(s.station_name?" · MOS: "+s.station_name:" · kein MOS-TX")}
+function note(text){$("tmaxEditNote").textContent=text}
+function toCanvas(event){
+ const bound=canvas.getBoundingClientRect();
+ return [(event.clientX-bound.left)*canvas.width/bound.width,
+         (event.clientY-bound.top)*canvas.height/bound.height];
+}
+function updateMode(mode){
+ state.editMode=state.editMode===mode?"off":mode;
+ $("tmaxPin").setAttribute("aria-pressed",String(state.editMode==="pin"));
+ $("tmaxMove").setAttribute("aria-pressed",String(state.editMode==="move"));
+ $("tmaxStage").classList.toggle("editing",state.editMode!=="off");
+ if(state.editMode==="pin")note("Klicke auf den exakten Kartenpunkt. Der nächstgelegene reale MOSMIX-Wert (maximal 100 km) wird verwendet.");
+ else if(state.editMode==="move")note("Klicke auf ein Temperaturkästchen und ziehe es an die neue Position. Die MOS-Station und ihre Werte bleiben unverändert.");
+ else note("Bearbeitungsmodus beendet.");
+}
+function createCustom(station,lon,lat,label){
+ const region=regionAt(...xy(lon,lat,regionForCity(label)));
+ // A searched MOS station must be in a displayed map or island region.
+ const map=[...INSETS,MAIN].find(r=>isInRegion(lon,lat,r));
+ if(!map){note("Dieser Punkt liegt außerhalb der dargestellten Kartenregionen.");return false}
+ const name=String(label||station.name||station.id).trim().slice(0,35);
+ if(!name)return false;
+ const id="custom:"+Date.now()+":"+Math.random().toString(36).slice(2,9);
+ state.prefs.custom.push({key:id,name,lon,lat,stationId:station.id});
+ persist();render();renderEditorList();
+ note(name+" hinzugefügt · Original-MOS-Station "+station.name+
+      " · "+geoDistance(lon,lat,station.lon,station.lat).toFixed(1)+" km.");
+ return true;
+}
+function searchCandidates(search){
+ const needle=norm(search);
+ if(needle.length<2)return [];
+ return state.catalog.filter(s=>norm(s.name).includes(needle)||
+   norm(s.id).includes(needle))
+   .sort((a,b)=>{
+    const a0=norm(a.name).startsWith(needle)?0:1,b0=norm(b.name).startsWith(needle)?0:1;
+    return a0-b0||a.name.localeCompare(b.name,"de");
+   }).slice(0,9);
+}
+function chooseStation(station){
+ state.selectedSearch=station;
+ $("tmaxFind").value=station.name;
+ drawMatches([]);
+ $("tmaxAdd").disabled=false;
+ note("Ausgewählte echte MOSMIX-Station "+station.name+" ("+station.id+") – „Ort hinzufügen“ klicken.");
+}
+function drawMatches(items){
+ const el=$("tmaxMatches");el.replaceChildren();
+ for(const station of items){
+  const b=document.createElement("button");b.type="button";
+  b.textContent=station.name+" · "+station.id;
+  b.title="Breite "+station.lon+"°, Länge "+station.lat+"°";
+  b.addEventListener("click",()=>chooseStation(station));
+  el.appendChild(b);
+ }
+}
+function renderEditorList(){
+ const root=$("tmaxStationList");root.replaceChildren();
+ const day=state.data?.days?.[state.index];
+ if(!day)return;
+ for(const station of objectsForDay(day)){
+  const row=document.createElement("div");
+  row.className="tmax-station-row";
+  const check=document.createElement("input");check.type="checkbox";
+  check.checked=!state.prefs.hidden.includes(station.key);
+  check.title="Temperaturwert sichtbar";
+  check.setAttribute("aria-label",station.city+" anzeigen");
+  check.addEventListener("change",()=>{
+   const hidden=new Set(state.prefs.hidden);
+   if(check.checked)hidden.delete(station.key);else hidden.add(station.key);
+   state.prefs.hidden=[...hidden];persist();render();
+  });
+  const name=document.createElement("span");name.className="station-name";
+  name.textContent=station.city;name.title=fullName(station);
+  const move=document.createElement("button");move.type="button";move.textContent="⌖";
+  move.title=station.city+" durch Klick auf einen Kartenpunkt platzieren";
+  move.addEventListener("click",()=>{
+    state.pointTarget=station.key;updateMode("off");note("Jetzt auf die gewünschte Kartenposition für "+station.city+" klicken.");
+    $("tmaxStage").classList.add("editing");
+  });
+  row.append(check,name,move);
+  if(station.is_custom){
+   const del=document.createElement("button");del.type="button";del.textContent="×";
+   del.title="Zusätzliche Station entfernen";
+   del.addEventListener("click",()=>{
+    state.prefs.custom=state.prefs.custom.filter(c=>c.key!==station.key);
+    state.prefs.hidden=state.prefs.hidden.filter(k=>k!==station.key);
+    delete state.prefs.positions[station.key];persist();render();renderEditorList();
+   });
+   row.appendChild(del);
+  }
+  root.appendChild(row);
+ }
+}
+function nearestStation(lon,lat){
+ let best=null,distance=Infinity;
+ for(const station of state.catalog){
+  if(!station.tx.some(Number.isFinite))continue;
+  const d=geoDistance(lon,lat,station.lon,station.lat);
+  if(d<distance){best=station;distance=d;}
+ }
+ return best&&distance<=100?{station:best,distance}:null;
+}
+function setLabelPosition(key,lon,lat,region){
+ // Disallow repositioning to a different geographic map/inset.
+ const day=state.data?.days?.[state.index];
+ const entry=day?objectsForDay(day).find(p=>p.key===key):null;
+ if(!entry)return false;
+ if(region!==regionForCity(entry.city)||!isInRegion(lon,lat,region)){
+  note("Für diese Markierung bitte im gleichen Kartenausschnitt bleiben.");
+  return false;
+ }
+ state.prefs.positions[key]=[+lon.toFixed(5),+lat.toFixed(5)];
+ persist();render();
+ return true;
+}
+function mapTap(x,y){
+ const region=regionAt(x,y);
+ if(!region){note("Bitte auf einen gültigen Bereich der Europa- oder Inselkarte klicken.");return}
+ const [lon,lat]=lonlat(x,y,region);
+ if(state.pointTarget){
+  const target=state.pointTarget;state.pointTarget=null;
+  if(setLabelPosition(target,lon,lat,region))
+   note("Punkt neu gesetzt; die MOSMIX-Datenquelle des Orts bleibt unverändert.");
+  $("tmaxStage").classList.toggle("editing",state.editMode!=="off");
+  return;
+ }
+ if(state.editMode!=="pin")return;
+ const nearest=nearestStation(lon,lat);
+ if(!nearest){note("In höchstens 100 km Entfernung liegt keine MOSMIX-Station mit TX-Werten. Kein Wert eingefügt.");return}
+ const label=$("tmaxPinLabel").value.trim()||nearest.station.name;
+ if(createCustom(nearest.station,lon,lat,label))note(
+  "Punkt "+label+" bei "+lat.toFixed(3)+"° N / "+lon.toFixed(3)+
+  "° O gesetzt · MOS: "+nearest.station.name+" · Abstand "+
+  nearest.distance.toFixed(1)+" km. (Wert der Station, keine Interpolation)");
+}
+function pointerDown(event){
+ if(!state.editorOpen||!state.data)return;
+ const [x,y]=toCanvas(event);
+ if(state.pointTarget){mapTap(x,y);return}
+ if(state.editMode==="move"){
+  const hit=[...state.hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);
+  if(hit){
+   state.drag={key:hit.key,region:hit.region,pointerId:event.pointerId};
+   canvas.setPointerCapture(event.pointerId);
+   event.preventDefault();
+   note(hit.city+" verschieben – Original-MOS-Prognose bleibt erhalten.");
+  }
+ }else if(state.editMode==="pin"){mapTap(x,y)}
+}
+function pointerMove(event){
+ if(!state.drag||state.drag.pointerId!==event.pointerId)return;
+ const [x,y]=toCanvas(event),reg=state.drag.region;
+ const lon=reg.west+(x-reg.x)/reg.w*reg.w;
+ const lat=reg.north-(y-reg.y)/reg.h*(reg.north-reg.south);
+ if(isInRegion(lon,lat,reg))setLabelPosition(state.drag.key,lon,lat,reg);
+ event.preventDefault();
+}
+function pointerUp(event){
+ if(!state.drag||state.drag.pointerId!==event.pointerId)return;
+ state.drag=null;
+ try{canvas.releasePointerCapture(event.pointerId)}catch(_){}
+ persist();note("Position gespeichert. Auf allen fünf Tageskarten bleibt derselbe Ort an dieser Stelle.");
+}
+function initEditor(){
+ state.prefs=restorePrefs();
+ $("tmaxEditorToggle").addEventListener("click",()=>{
+  state.editorOpen=!state.editorOpen;
+  $("tmaxEditor").hidden=!state.editorOpen;
+  $("tmaxEditorToggle").setAttribute("aria-expanded",String(state.editorOpen));
+  if(!state.editorOpen){
+   state.editMode="off";state.pointTarget=null;$("tmaxStage").classList.remove("editing");
+   $("tmaxPin").setAttribute("aria-pressed","false");$("tmaxMove").setAttribute("aria-pressed","false");
+  }
+  renderEditorList();
+ });
+ $("tmaxFind").addEventListener("input",()=>{
+  state.selectedSearch=null;
+  $("tmaxAdd").disabled=true;
+  drawMatches(searchCandidates($("tmaxFind").value));
+ });
+ $("tmaxAdd").addEventListener("click",()=>{
+  const station=state.selectedSearch||searchCandidates($("tmaxFind").value)[0];
+  if(station)createCustom(station,station.lon,station.lat,
+    $("tmaxPinLabel").value.trim()||station.name);
+ });
+ $("tmaxPin").addEventListener("click",()=>{state.pointTarget=null;updateMode("pin")});
+ $("tmaxMove").addEventListener("click",()=>{state.pointTarget=null;updateMode("move")});
+ $("tmaxReset").addEventListener("click",()=>{
+  if(!confirm("Alle selbst hinzugefügten Orte, ausgeblendeten Kästchen und Positionskorrekturen zurücksetzen?"))return;
+  state.prefs={hidden:[],custom:[],positions:{}};persist();render();renderEditorList();
+  note("Standardansicht wiederhergestellt.");
+ });
+ canvas.addEventListener("pointerdown",pointerDown);
+ canvas.addEventListener("pointermove",pointerMove);
+ canvas.addEventListener("pointerup",pointerUp);
+ canvas.addEventListener("pointercancel",pointerUp);
+}
+
 function boxesTouch(a,b){
  return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 }
 function drawTemperatureBox(s,region){
- if(!isInRegion(s.lon,s.lat,region))return null;
- const [cx,cy]=xy(s.lon,s.lat,region);
- // Exactly at the city coordinates: NO leader lines and NO displaced boxes.
- const w=region===MAIN?65:62,h=state.showNames?51:41;
- const x=Math.round(cx-w/2),y=Math.round(cy-h/2);
+ const [lon,lat]=drawCoords(s);
+ if(!isInRegion(lon,lat,region))return null;
+ const [cx,cy]=xy(lon,lat,region);
+ // The PIN is exact; the rectangle sits above it with no connecting line.
+ const w=region===MAIN?68:62,h=state.showNames?52:39;
+ const x=Math.round(cx-w/2),y=Math.round(cy-h-8);
+ // Keep the box inside its own main map / island inset, without displacing
+ // its geographical point. Out-of-bounds editing is therefore not accepted.
+ if(x<region.x+1||x+w>region.x+region.w-1||y<region.y+1)return null;
  ctx.fillStyle="#ffffff";ctx.fillRect(x,y,w,h);
  ctx.strokeStyle="#1e3444";ctx.lineWidth=2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
  ctx.fillStyle="#172d41";ctx.textAlign="center";
  if(state.showNames){
   ctx.font=region===MAIN?"600 13px system-ui":"600 12px system-ui";
-  const short=s.city.length>11?s.city.slice(0,11):s.city;
-  ctx.fillText(short,cx,y+17,w-4);
+  ctx.fillText(s.city.length>11?s.city.slice(0,11):s.city,cx,y+18,w-4);
  }
  ctx.font="bold 27px system-ui";
- ctx.fillText(Number.isFinite(s.tmax_c)?String(Math.round(s.tmax_c))+"°":"–",cx,y+(state.showNames?43:30));
+ ctx.fillText(Number.isFinite(s.tmax_c)?String(Math.round(s.tmax_c))+"°":"–",
+              cx,y+(state.showNames?44:29));
+ ctx.fillStyle=s.is_custom?"#ec8a24":"#173a57";
+ ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();
+ ctx.strokeStyle="#ffffff";ctx.lineWidth=1.5;ctx.stroke();
  ctx.textAlign="left";
- return {x,y,w,h,city:s.city};
+ const hit={x,y,w,h,city:s.city,key:s.key,region};
+ state.hits.push(hit);
+ return hit;
 }
 function labels(day){
- const all=day.stations||[],used=[];
- for(const s of all){
+ state.hits=[];
+ const items=objectsForDay(day),used=[];
+ for(const s of items){
+  if(state.prefs.hidden.includes(s.key))continue;
   const region=regionForCity(s.city);
-  if(!isInRegion(s.lon,s.lat,region))continue;
-  const [cx,cy]=xy(s.lon,s.lat,region);
-  const size={x:cx-33,y:cy-26,w:66,h:52};
-  if(state.density!=="dense"&&used.some(r=>boxesTouch(size,r)))continue;
-  // Density only hides collided labels; it never displaces values from cities.
-  const added=drawTemperatureBox(s,region);
-  if(added)used.push(size);
+  const [lon,lat]=drawCoords(s);
+  if(!isInRegion(lon,lat,region))continue;
+  const [cx,cy]=xy(lon,lat,region);
+  const rect={x:cx-35,y:cy-(state.showNames?60:47),w:70,h:53};
+  if(state.density!=="dense"&&used.some(r=>boxesTouch(rect,r)))continue;
+  const hit=drawTemperatureBox(s,region);
+  if(hit)used.push(hit);
  }
 }
 function render(){
@@ -205,7 +484,7 @@ async function selectDay(){
    setStatus("ICON-EU-Fläche fehlt: "+error.message+"; MOS-Werte bleiben nutzbar.",true);
   }
  }
- setButtons();render();
+ setButtons();render();renderEditorList();
  if(state.pictures.has(day.date))
   setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+
     day.stations.filter(s=>Number.isFinite(s.tmax_c)).length+" MOSMIX-Werte / "+
@@ -218,7 +497,8 @@ async function load(){
  try{
   const responses=await Promise.all([
    fetch(PREFIX+"current.json?v="+Date.now(),{cache:"no-store"}),
-   fetch(GEO,{cache:"force-cache"})
+   fetch(GEO,{cache:"force-cache"}),
+   fetch(PREFIX+"stations_catalog.json?v="+Date.now(),{cache:"no-store"})
   ]);
   if(!responses[0].ok)throw Error("Noch kein vollständiger Datenlauf veröffentlicht (HTTP "+responses[0].status+")");
   const data=await responses[0].json();
@@ -234,7 +514,18 @@ async function load(){
    throw Error("Veröffentlichte MOS-/ICON-Daten sind unvollständig");
   if(Date.now()-Date.parse(data.built_utc)>72*3600000)throw Error("Vorhersagedaten älter als 72 Stunden");
   if(responses[1].ok)state.geo=await responses[1].json();
+  if(!responses[2].ok)throw Error("MOSMIX-Stationskatalog ist noch nicht veröffentlicht");
+  const catalog=await responses[2].json();
+  if(catalog.schema!==1||catalog.issue_time!==data.mos_issue_utc||
+     catalog.days.join(",")!==data.days.map(d=>d.date).join(",")||
+     !Array.isArray(catalog.stations)||catalog.stations.length<1000||
+     !catalog.stations.every(s=>typeof s.id==="string"&&
+       typeof s.name==="string"&&Number.isFinite(s.lon)&&Number.isFinite(s.lat)&&
+       Array.isArray(s.tx)&&s.tx.length===5))
+    throw Error("MOSMIX-Stationskatalog passt nicht zum aktuellen Modelllauf");
+  state.catalog=catalog.stations;
   state.data=data;state.index=0;state.pictures.clear();await selectDay();
+  renderEditorList();
  }catch(error){
   state.data=null;state.pictures.clear();state.index=0;
   setStatus("Experimenteller Datenlauf noch nicht bereit: "+error.message+". Keine Ersatz- oder Beispielwerte.",true);
@@ -264,6 +555,6 @@ $("tmaxSave").addEventListener("click",()=>{
  },"image/png");
 });
 $("tmaxRefresh").addEventListener("click",()=>void load());
-setButtons();render();void load();
+initEditor();setButtons();render();void load();
 })();
 `;
