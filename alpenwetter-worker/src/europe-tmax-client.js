@@ -112,7 +112,6 @@ function boxesTouch(a,b){
  return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 }
 function drawTemperatureBox(s,region){
- if(!Number.isFinite(s.tmax_c))return null;
  if(!isInRegion(s.lon,s.lat,region))return null;
  const [cx,cy]=xy(s.lon,s.lat,region);
  // Exactly at the city coordinates: NO leader lines and NO displaced boxes.
@@ -127,7 +126,7 @@ function drawTemperatureBox(s,region){
   ctx.fillText(short,cx,y+17,w-4);
  }
  ctx.font="bold 27px system-ui";
- ctx.fillText(String(Math.round(s.tmax_c))+"°",cx,y+(state.showNames?43:30));
+ ctx.fillText(Number.isFinite(s.tmax_c)?String(Math.round(s.tmax_c))+"°":"–",cx,y+(state.showNames?43:30));
  ctx.textAlign="left";
  return {x,y,w,h,city:s.city};
 }
@@ -208,8 +207,9 @@ async function selectDay(){
  }
  setButtons();render();
  if(state.pictures.has(day.date))
-  setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+day.stations.length+
-    " echte MOSMIX-Stationswerte · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
+  setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+
+    day.stations.filter(s=>Number.isFinite(s.tmax_c)).length+" MOSMIX-Werte / "+
+    day.stations.length+" Vorlagenorte · Fehlwerte als „–“ · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
 }
 async function load(){
  if(state.busy)return;state.busy=true;
@@ -227,8 +227,10 @@ async function load(){
      !data.grid||data.grid.width<300||data.grid.height<200||
      !data.days.every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d.date)&&
        /^icon_tmax_\d{4}-\d{2}-\d{2}\.png$/.test(d.icon_png)&&
-       d.stations?.length>=15&&d.stations.every(s=>Number.isFinite(s.tmax_c)&&
-        Number.isFinite(s.lon)&&Number.isFinite(s.lat))))
+       d.stations?.length===31&&
+       d.stations.every(s=>(s.tmax_c===null||Number.isFinite(s.tmax_c))&&
+        Number.isFinite(s.lon)&&Number.isFinite(s.lat))&&
+       d.stations.filter(s=>Number.isFinite(s.tmax_c)).length>=15))
    throw Error("Veröffentlichte MOS-/ICON-Daten sind unvollständig");
   if(Date.now()-Date.parse(data.built_utc)>72*3600000)throw Error("Vorhersagedaten älter als 72 Stunden");
   if(responses[1].ok)state.geo=await responses[1].json();
