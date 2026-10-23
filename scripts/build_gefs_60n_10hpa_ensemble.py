@@ -128,15 +128,18 @@ def candidates():
 
 
 def choose_cycle():
-    # Never mix members from different GEFS initialization times.
-    # First probe the 35-day endpoint. If not yet published, try day 16.
-    for days in (35,16):
-        last=days*24
-        for candidate in candidates():
+    # A fresh 16-day run is preferred to an *older* 35-day run.
+    # Previously the horizon-first loop silently kept yesterday's 35-day
+    # forecast even when a current, fully available 16-day run existed.
+    # Never mix members/validity dates from different model cycles.
+    for candidate in candidates():
+        for days in (35,16):
+            last=days*24
             try:
                 fetch_wind(candidate,"c00",last)
                 fetch_wind(candidate,"p30",last)
-                LOG.info("GEFS complete-cycle candidate %s, horizon %d days",candidate,days)
+                LOG.info("GEFS newest complete-cycle candidate %s, horizon %d days",
+                         candidate,days)
                 return candidate,days
             except Exception as error:
                 LOG.warning("GEFS %s +%d unavailable: %s",candidate,last,error)
