@@ -22,3 +22,10 @@ h1{font-size:clamp(28px,3vw,40px);line-height:1.2;margin:5px 0 10px}h2{font-size
 .methodology p{max-width:1100px;margin:11px 0}.methodology a{color:#166498}
 @media(max-width:980px){.stats{grid-template-columns:1fr 1fr}.chart{height:55vh;min-height:390px}}
 @media(max-width:580px){.stats{grid-template-columns:1fr}.chart{height:55vh;min-height:360px}.panel{padding:14px}.controls{align-items:stretch}.controls button{flex:1 1 40%}}
+
+/* Seasonal navigation, longer winter-half-year selectors. */
+.controls select{min-width:155px;max-width:100%}
+.controls label:has(#month) select{min-width:238px}
+.controls label:has(#season) select{min-width:150px}
+.controls label.checkbox{font-weight:650}
+@media(max-width:580px){.controls label:has(#month),.controls label:has(#season){flex:1 1 45%}}
