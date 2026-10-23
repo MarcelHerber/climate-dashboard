@@ -57,7 +57,7 @@ class IMSChecks(unittest.TestCase):
         self.assertEqual(len(winter), 183)
         regular = calendar_dates_for_season(2024)
         self.assertEqual(len(regular), 182)
-        self.assertNotIn(dt.date(2025, 2, 29), regular)
+        self.assertFalse(any(d.month == 2 and d.day == 29 for d in regular))
 
     def test_month_reference_and_february_29(self):
         daily = {f"{year}-02-29": float(year) for year in (2000,2004,2008,2012,2016,2020)}
