@@ -99,6 +99,15 @@ def choose_cycle(now):
     midnight=now.replace(hour=0,minute=0,second=0,microsecond=0)
     for lag in range(3):
         candidate=midnight+timedelta(hours=12)-timedelta(days=lag)
+        first_morning=(candidate+timedelta(days=1)).date()
+        # A valid TN forecast for an already elapsed 06 UTC morning is not
+        # available in the latest MOSMIX-L update. Never splice old ICON
+        # nights with fresh MOS forecasts or publish incomplete five-night data.
+        if first_morning<now.date() or (
+            first_morning==now.date() and now.hour>=6
+        ):
+            LOG.info("Skipping stale ICON 12 UTC cycle %s; first night already elapsed",candidate)
+            continue
         try:
             raw=request_bytes(icon_url(candidate,114),retries=1)
             if not raw.startswith(b"BZh"):continue
