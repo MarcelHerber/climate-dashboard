@@ -133,7 +133,7 @@ function render(){
  const first=archive.runs[0].cycle_utc;
  const last=archive.runs.at(-1).cycle_utc;
  $("stratoEcmwfSummary").textContent="ECMWF IFS · "+archive.run_count+
-   " archivierte echte 00/12-UTC-Läufe · neuester "+first+
+   " archivierte echte 00/12-UTC-Modellläufe (keine EPS-Mitglieder) · neuester "+first+
    " · ältester "+last+" · Prognose bis +360 h";
  lastData=runs;
  $("stratoEcmwfPng").disabled=false;
