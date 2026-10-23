@@ -36,7 +36,7 @@ jobs:
       - name: Raster- und Datentests
         run: python -m unittest discover -s tests -p test_eurasia_snow.py -v
       - name: NOAA IMS 24km laden und Oktoberflächen berechnen
-        run: python scripts/update_eurasia_snow.py --max-new 95
+        run: python scripts/update_eurasia_snow.py --max-new 270
       - name: Nur verifizierte Tageswerte übernehmen
         run: |
           python - <<'PY'
