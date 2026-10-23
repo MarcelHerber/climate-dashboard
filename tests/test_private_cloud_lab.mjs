@@ -3,6 +3,7 @@ import { webcrypto } from "node:crypto";
 import worker from "../alpenwetter-worker/src/index.js";
 import { LAB_JS } from "../alpenwetter-worker/src/cloud-lab-client.js";
 import { LAB_CSS } from "../alpenwetter-worker/src/cloud-lab-style.js";
+import { TMAX_JS } from "../alpenwetter-worker/src/europe-tmax-client.js";
 globalThis.crypto ??= webcrypto;
 
 const domain="https://climate-dashboard-alpenwetter.example.workers.dev";
@@ -13,6 +14,17 @@ assert.equal(landing.status,200);
 const login=await landing.text();
 assert.match(login,/GESCHÜTZTER TESTBEREICH/);
 assert.doesNotMatch(login,/id="filmCanvas"/);
+const unauthTemperaturePage=await request("/wolkenlabor/europa-tmax");
+assert.equal(unauthTemperaturePage.status,200);
+const unauthTemperatureHtml=await unauthTemperaturePage.text();
+assert.match(unauthTemperatureHtml,/GESCHÜTZTER TESTBEREICH/);
+assert.doesNotMatch(unauthTemperatureHtml,/id="tmaxCanvas"/);
+for(const path of ["/wolkenlabor/data/europa-tmax/current.json",
+ "/wolkenlabor/data/europa-tmax/icon_tmax_2026-10-24.png"]){
+ const res=await request(path);
+ assert.equal(res.status,401);
+ assert.match(res.headers.get("cache-control"),/no-store/);
+}
 const unauthData=await request("/wolkenlabor/data/current.json");
 assert.equal(unauthData.status,401);
 const unauthD2Manifest=await request("/wolkenlabor/data/d2/current.json");
@@ -40,6 +52,23 @@ assert.match(cookie,/alpenwetter_session=/);
 const protectedPage=await request("/wolkenlabor",{headers:{Cookie:cookie}});
 assert.equal(protectedPage.status,200);
 const content=await protectedPage.text();
+assert.match(content,/Europa Tmax · MOS \+ ICON/);
+const temperaturePage=await request("/wolkenlabor/europa-tmax",{headers:{Cookie:cookie}});
+assert.equal(temperaturePage.status,200);
+const temperatureHtml=await temperaturePage.text();
+for(const id of ["tmaxCanvas","tmaxPrev","tmaxNext","tmaxDays","tmaxStatus",
+                 "tmaxField","tmaxPoints","tmaxNames","tmaxDensity","tmaxSave"]){
+ assert.match(temperatureHtml,new RegExp('id="'+id+'"'));
+}
+assert.match(temperatureHtml,/06–18 UTC/);
+assert.match(temperatureHtml,/noindex,nofollow/);
+assert.match(temperaturePage.headers.get("cache-control"),/no-store/);
+assert.match(temperaturePage.headers.get("x-robots-tag"),/noindex/);
+assert.doesNotMatch(content,/id="tmaxCanvas"/);
+assert.doesNotThrow(()=>new Function(TMAX_JS));
+assert.match(TMAX_JS,/icon_tmax_/);
+assert.match(TMAX_JS,/toBlob/);
+assert.match(TMAX_JS,/ArrowLeft/);
 assert.match(content,/id="filmCanvas"/);
 assert.match(content,/Nur hohe Wolken/);
 assert.match(content,/Nur mittelhohe Wolken/);
