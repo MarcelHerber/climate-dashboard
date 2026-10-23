@@ -44,6 +44,16 @@ def synthetic_kmz():
 
 
 class EuropeTmaxTests(unittest.TestCase):
+    def test_encoded_temperature_raw_raster(self):
+        import numpy as np
+        original=np.array([-35.5,-10.0,0.0,23.7,44.9,np.nan],dtype=np.float32)
+        data=app.encode_temperature_rgba(original)
+        self.assertEqual(data.shape,(6,4))
+        self.assertEqual(list(data[:,3]),[255,255,255,255,255,0])
+        reconstructed=(data[:5,0].astype(int)*256+data[:5,1].astype(int))/10-100
+        np.testing.assert_allclose(reconstructed,original[:5],atol=.05)
+        self.assertEqual(data[5,:].tolist(),[0,0,0,0])
+
     def test_icon_main_cycle_five_days(self):
         run=datetime(2026,10,23,0,tzinfo=timezone.utc)
         self.assertTrue(app.icon_url(run,114).endswith(
