@@ -85,7 +85,7 @@ export async function cloudLabData(request,url,securityHeaders){
  else if(suffix==="europa-tmax/stations_catalog.json"){
    source=EUROPE_TMAX_SOURCE+"stations_catalog.json";mime="application/json; charset=utf-8";
  }
- else if(/^europa-tmax\/icon_tmax_\d{4}-\d{2}-\d{2}\.png$/.test(suffix)){
+ else if(/^europa-tmax\/(?:icon_tmax_|icon_tmax_raw_)\d{4}-\d{2}-\d{2}\.png$/.test(suffix)){
    source=EUROPE_TMAX_SOURCE+suffix.slice("europa-tmax/".length);mime="image/png";
  }
  else if(suffix==="d2/precip.json"){source=ICON_D2_SOURCE+"precip.json";mime="application/json; charset=utf-8";}
