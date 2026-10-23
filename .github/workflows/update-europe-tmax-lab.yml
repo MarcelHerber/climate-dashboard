@@ -69,11 +69,17 @@ jobs:
             assert day["date"]==(cycle+timedelta(days=i)).date().isoformat()
             assert day["icon_hours"]==[24*i+6,24*i+12,24*i+18]
             assert day["coverage"]>=.80
-            assert len(day["stations"])>=15
-            assert len({s["station_id"] for s in day["stations"]})==len(day["stations"])
+            assert len(day["stations"])==31
+            actual=[s for s in day["stations"] if s["station_id"] is not None]
+            assert len({s["station_id"] for s in actual})==len(actual)
             for station in day["stations"]:
-              assert -55<station["tmax_c"]<55
-              assert 0<=station["distance_km"]<=100
+              if station["tmax_c"] is None:
+                assert station["station_id"] is None or station["station_name"]
+              else:
+                assert -55<station["tmax_c"]<55
+                assert station["station_id"]
+                assert 0<=station["distance_km"]<=100
+            assert sum(s["tmax_c"] is not None for s in day["stations"])>=25
             name=day["icon_png"]
             assert name==f"icon_tmax_{day['date']}.png"
             img=root/name
