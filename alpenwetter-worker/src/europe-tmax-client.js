@@ -265,9 +265,20 @@ function contrast(hexColor){
  const a=[1,3,5].map(i=>{const v=parseInt(hexColor.slice(i,i+2),16)/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});
  return .2126*a[0]+.7152*a[1]+.0722*a[2]<.19?"#ffffff":"#172d41";
 }
-function boxColors(key){
- const own=state.prefs.styles[key]||{},fill=hex(own.fill,hex(state.prefs.globalFill,"#ffffff"));
- return {fill,text:hex(own.text,contrast(fill)),border:hex(own.border,"#1e3444")};
+function boxMode(key){
+ const item=state.prefs.styles[key];
+ if(["manual","auto","default"].includes(item?.mode))return item.mode;
+ return item?.fill?"manual":"default";
+}
+function boxColors(key,entry=null,date=null){
+ const item=state.prefs.styles[key]||{};
+ const mode=boxMode(key);
+ const auto=mode==="auto"||(mode==="default"&&state.prefs.autoBoxes);
+ const temperature=entry?shownValue(entry,date).value:null;
+ const fill=mode==="manual"?hex(item.fill,"#ffffff"):
+  (auto?scaleHex(temperature):null)||hex(state.prefs.globalFill,"#ffffff");
+ return {fill,text:mode==="manual"?hex(item.text,contrast(fill)):contrast(fill),
+  border:mode==="manual"?hex(item.border,"#1e3444"):"#1e3444"};
 }
 function manualValue(key,date){
  const val=state.prefs.values[date]?.[key];
@@ -291,8 +302,10 @@ function openBoxEditor(key){
  $("tmaxOriginal").textContent="DWD MOSMIX (Original): "+original+" · "+(s.station_name||"kein Stationsname")+" · "+dateLabel(day.date);
  const manual=manualValue(key,day.date);
  $("tmaxValueOverride").value=manual===null?"":String(manual);
- const c=boxColors(key);
+ const c=boxColors(key,s,day.date);
+ $("tmaxBoxMode").value=boxMode(key);
  $("tmaxBoxFill").value=c.fill;$("tmaxBoxText").value=c.text;$("tmaxBoxBorder").value=c.border;
+ updateBoxModeControls();
  renderEditorList();
 }
 function closeBoxEditor(){
@@ -312,21 +325,25 @@ function applyBoxEdits(){
   delete state.prefs.values[day.date][entry.key];
   if(!Object.keys(state.prefs.values[day.date]).length)delete state.prefs.values[day.date];
  }
- const chosen={
-  fill:hex($("tmaxBoxFill").value,"#ffffff"),
-  text:hex($("tmaxBoxText").value,"#172d41"),
-  border:hex($("tmaxBoxBorder").value,"#1e3444")
- };
- const inheritedFill=hex(state.prefs.globalFill,"#ffffff");
- // Editing a temperature alone should not freeze the inherited global color.
- if(!state.prefs.styles[entry.key]&&chosen.fill===inheritedFill&&
-    chosen.text===contrast(inheritedFill)&&chosen.border==="#1e3444"){
-  delete state.prefs.styles[entry.key];
+ const mode=$("tmaxBoxMode").value||"manual";
+ if(mode==="manual"){
+  state.prefs.styles[entry.key]={mode,
+   fill:hex($("tmaxBoxFill").value,"#ffffff"),
+   text:hex($("tmaxBoxText").value,"#172d41"),
+   border:hex($("tmaxBoxBorder").value,"#1e3444")
+  };
+ }else if(mode==="auto"||(mode==="default"&&state.prefs.autoBoxes)){
+  state.prefs.styles[entry.key]={mode};
  }else{
-  state.prefs.styles[entry.key]=chosen;
+  delete state.prefs.styles[entry.key];
  }
  persist();render();openBoxEditor(entry.key);
  note("Anzeige geändert. MOSMIX-Original bleibt erhalten; * kennzeichnet manuelle Werte.");
+}
+function updateBoxModeControls(){
+ const manual=$("tmaxBoxMode").value==="manual";
+ for(const key of ["tmaxBoxFill","tmaxBoxText","tmaxBoxBorder"])$(key).disabled=!manual;
+ for(const b of $("tmaxBoxPresets").querySelectorAll("button"))b.disabled=!manual;
 }
 function resetBoxValue(){
  const day=state.data?.days?.[state.index],key=state.selectedKey;if(!day||!key)return;
@@ -354,9 +371,11 @@ function restorePrefs(){
    positions:parsed.positions&&typeof parsed.positions==="object"?parsed.positions:{},
    styles:parsed.styles&&typeof parsed.styles==="object"?parsed.styles:{},
    values:parsed.values&&typeof parsed.values==="object"?parsed.values:{},
-   globalFill:hex(parsed.globalFill,"#ffffff")
+   globalFill:hex(parsed.globalFill,"#ffffff"),
+   scale:sanitizedScale(parsed.scale),
+   autoBoxes:parsed.autoBoxes===true
   };
- }catch(_){return {hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"}}
+ }catch(_){return {hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff",scale:defaultScale(),autoBoxes:false}}
 }
 function persist(){
  try{localStorage.setItem(EDIT_STORAGE,JSON.stringify(state.prefs));}
@@ -621,11 +640,34 @@ function initEditor(){
  $("tmaxMove").addEventListener("click",()=>{state.pointTarget=null;updateMode("move")});
  $("tmaxReset").addEventListener("click",()=>{
   if(!confirm("Alle selbst hinzugefügten Orte, ausgeblendeten Kästchen und Positionskorrekturen zurücksetzen?"))return;
-  state.prefs={hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"};
-  $("tmaxGlobalFill").value="#ffffff";closeBoxEditor();persist();render();renderEditorList();
+  state.prefs={hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff",scale:defaultScale(),autoBoxes:false};
+  $("tmaxGlobalFill").value="#ffffff";$("tmaxAutoBoxes").checked=false;
+  $("tmaxScalePreset").value="original";
+  reflectScale();recolorLoaded();closeBoxEditor();persist();render();renderEditorList();
   note("Standardansicht wiederhergestellt.");
  });
  $("tmaxGlobalFill").value=state.prefs.globalFill;
+ $("tmaxAutoBoxes").checked=state.prefs.autoBoxes;
+ initializeScaleControls();
+ $("tmaxBoxMode").addEventListener("change",()=>{
+  const entry=selectedEntry(),date=state.data?.days?.[state.index]?.date;
+  if(entry&&$("tmaxBoxMode").value!=="manual"){
+   const fill=$("tmaxBoxMode").value==="auto"?
+    scaleHex(shownValue(entry,date).value)||"#ffffff":
+    hex(state.prefs.globalFill,"#ffffff");
+   $("tmaxBoxFill").value=fill;
+   $("tmaxBoxText").value=contrast(fill);
+   $("tmaxBoxBorder").value="#1e3444";
+  }
+  updateBoxModeControls();
+ });
+ for(const b of $("tmaxBoxPresets").querySelectorAll("[data-box-color]")){
+  b.addEventListener("click",()=>{
+   $("tmaxBoxMode").value="manual";updateBoxModeControls();
+   $("tmaxBoxFill").value=hex(b.dataset.boxColor,"#ffffff");
+   $("tmaxBoxText").value=contrast($("tmaxBoxFill").value);
+  });
+ }
  $("tmaxGlobalFill").addEventListener("input",e=>{
   state.prefs.globalFill=hex(e.target.value,"#ffffff");persist();render();
   if(state.selectedKey)openBoxEditor(state.selectedKey);
@@ -639,6 +681,7 @@ function initEditor(){
  $("tmaxColorReset").addEventListener("click",resetBoxColor);
  $("tmaxStyleClose").addEventListener("click",closeBoxEditor);
  $("tmaxBoxFill").addEventListener("input",event=>{
+  $("tmaxBoxMode").value="manual";updateBoxModeControls();
   $("tmaxBoxText").value=contrast(hex(event.target.value,"#ffffff"));
  });
  canvas.addEventListener("pointerdown",pointerDown);
@@ -660,7 +703,7 @@ function drawTemperatureBox(s,region){
  // Keep the box inside its own main map / island inset, without displacing
  // its geographical point. Out-of-bounds editing is therefore not accepted.
  if(x<region.x+1||x+w>region.x+region.w-1||y<region.y+1)return null;
- const colors=boxColors(s.key);
+ const colors=boxColors(s.key,s,state.data?.days?.[state.index]?.date);
  ctx.fillStyle=colors.fill;ctx.fillRect(x,y,w,h);
  ctx.strokeStyle=colors.border;ctx.lineWidth=2;ctx.strokeRect(x+.5,y+.5,w-1,h-1);
  ctx.fillStyle=colors.text;ctx.textAlign="center";
