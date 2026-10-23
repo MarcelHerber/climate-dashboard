@@ -6,10 +6,10 @@
 <meta name="description" content="ICON-EU Europa-Gefahrenmonitor: modellbasierte Hinweise für Wind, Starkregen, Schnee, Hitze, Kälte und eingeschränkte Sicht für fünf 24-Stunden-Zeiträume.">
 <title>ICON-EU Europa-Gefahrenmonitor · Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="wettergefahren.css?v=20261023-solid">
+<link rel="stylesheet" href="wettergefahren.css?v=20261023-grid0125">
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script defer src="wettergefahren.js?v=20261023-solid"></script>
-<script defer src="wettergefahren_export.js?v=20261023-solid"></script>
+<script defer src="wettergefahren.js?v=20261023-grid0125"></script>
+<script defer src="wettergefahren_export.js?v=20261023-grid0125"></script>
 </head>
 <body>
 <header>
@@ -54,7 +54,14 @@
 
   <div class="map-layout">
     <section class="panel map-panel">
-      <div class="map-heading"><h2>ICON-EU · Europa</h2><span class="range" id="periodLabel">Gültigkeit wird geladen …</span></div>
+      <div class="map-heading">
+        <h2>ICON-EU · Europa</h2>
+        <div class="map-time-navigation" aria-label="Prognosezeitraum wechseln">
+          <button type="button" id="previousPeriod" aria-label="Vorheriger Prognosezeitraum" aria-keyshortcuts="ArrowLeft" title="Vorheriger Zeitraum (←)" disabled>←</button>
+          <span class="map-time-content"><span class="range" id="periodLabel" aria-live="polite">Gültigkeit wird geladen …</span><span class="period-position" id="periodPosition">– / –</span></span>
+          <button type="button" id="nextPeriod" aria-label="Nächster Prognosezeitraum" aria-keyshortcuts="ArrowRight" title="Nächster Zeitraum (→)" disabled>→</button>
+        </div>
+      </div>
       <div id="hazardMap" role="application" aria-label="Interaktive Europa-Karte mit modellbasierten Gefahrenflächen"></div>
       <div id="basemapStatus" class="basemap-status" role="status" hidden></div>
       <div class="tips" id="mapTips">In die Karte klicken, um die Gefahrenstufen am Rasterpunkt anzuzeigen. Bei der Gesamtübersicht helfen Muster, die Gefahrenarten zu unterscheiden. Die Einzeldarstellung zeigt nur die Farben der Gefahrenstufen.</div>
@@ -83,7 +90,7 @@
   <section class="panel">
     <h2>Auswertung im gewählten Zeitfenster</h2>
     <div id="metrics" aria-live="polite">Daten werden geladen …</div>
-    <p class="note">Die Anzahl der Rasterfelder ist eine rein technische Flächenzählung im vergröberten 0,5°-Darstellungsraster und keine Bevölkerungs- oder Risikobewertung.</p>
+    <p class="note">Die Anzahl der Rasterfelder beschreibt die technische Fläche des jeweils veröffentlichten Auswerterasters (0,125° nach Datenaktualisierung); sie ist keine Bevölkerungs- oder Schadensrisikobewertung.</p>
   </section>
   <section class="panel">
     <h2>Verwendete Modell-Schwellen</h2>
@@ -96,7 +103,7 @@
       <section><h3>Sichtweite (m)</h3><p>Nur Gelb bei Sichtweite &lt; 500 m, auch bei dichterem Nebel keine höhere Stufe</p></section>
     </div>
     <p class="note">Für Niederschlag gelten zusätzlich 3-h-Grenzen 15/20/30/50 mm und 6-h-Grenzen 15/20/35/60 mm. Berücksichtigt werden nur verfügbare Akkumulationsintervalle, die vollständig innerhalb des gewählten 6-, 12- oder 24-h-Fensters liegen. 24-h-Mengen werden nicht als 6-h-Risiko ausgegeben.</p>
-    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und auf einem 0,25°-Auswerteraster zusammengefasst (nicht die native Modellauflösung). Innerhalb einer Rasterzelle gilt das höchste Modellrisiko, nicht ein flächengemittelter Wert. Kleine Gefahrengebiete können dadurch größer wirken. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen und wird deshalb ausschließlich als Gelbhinweis eingestuft.</p>
+    <p class="note">Die Karte wird aus ICON-EU Open Data abgeleitet und nach dem nächsten vollständigen Datenlauf auf einem 0,125°-Auswerteraster zusammengefasst (nicht die native Modellauflösung). Innerhalb einer Rasterzelle gilt das höchste Modellrisiko, nicht ein flächengemittelter Wert. Kleine Gefahrengebiete können dadurch größer wirken. Temperatur-Schwellen sind absolute Werte und keine regional angepassten Belastungswarnungen. Schneewasseräquivalent ist nicht mit Neuschneehöhe gleichzusetzen. Nebel lässt sich modellseitig nur begrenzt zuverlässig vorhersagen und wird deshalb ausschließlich als Gelbhinweis eingestuft.</p>
     <p class="note"><strong>Gewitter und Hagel:</strong> Für diese beiden Gefahren ist eine robuste Kombination von CAPE, Auslösebedingungen, Scherung und weiteren Parametern erforderlich. Bis dahin werden keine vermeintlichen Gewitterwarnungen auf der Gesamtkarte ausgegeben.</p>
     <p class="note">Datenquelle: <a href="https://opendata.dwd.de/weather/nwp/icon-eu/grib/" target="_blank" rel="noopener">Deutscher Wetterdienst · ICON-EU Open Data</a>. Die Einstufungen sind eigene, experimentelle Modellindikatoren und <strong>keine amtlichen Warnungen</strong>. Amtliche Warnungen bei den jeweiligen nationalen Wetterdiensten prüfen.</p>
   </section>
