@@ -336,14 +336,31 @@ function renderEditorList(){
     state.pointTarget=station.key;updateMode("off");note("Jetzt auf die gewünschte Kartenposition für "+station.city+" klicken.");
     $("tmaxStage").classList.add("editing");
   });
-  row.append(check,name,move);
+  const edit=document.createElement("button");edit.type="button";edit.textContent="✎";
+  edit.title=station.city+" · Temperaturwert und Kästchenfarben bearbeiten";
+  edit.setAttribute("aria-label",station.city+" bearbeiten");
+  if(station.key===state.selectedKey)edit.className="edit-selected";
+  edit.addEventListener("click",()=>{
+   if(state.prefs.hidden.includes(station.key)){
+    state.prefs.hidden=state.prefs.hidden.filter(k=>k!==station.key);persist();render();
+   }
+   openBoxEditor(station.key);
+  });
+  row.append(check,name,edit,move);
   if(station.is_custom){
    const del=document.createElement("button");del.type="button";del.textContent="×";
    del.title="Zusätzliche Station entfernen";
    del.addEventListener("click",()=>{
     state.prefs.custom=state.prefs.custom.filter(c=>c.key!==station.key);
     state.prefs.hidden=state.prefs.hidden.filter(k=>k!==station.key);
-    delete state.prefs.positions[station.key];persist();render();renderEditorList();
+    delete state.prefs.positions[station.key];
+    delete state.prefs.styles[station.key];
+    for(const date of Object.keys(state.prefs.values)){
+     delete state.prefs.values[date][station.key];
+     if(!Object.keys(state.prefs.values[date]).length)delete state.prefs.values[date];
+    }
+    if(state.selectedKey===station.key)closeBoxEditor();
+    persist();render();renderEditorList();
    });
    row.appendChild(del);
   }
@@ -405,11 +422,15 @@ function pointerDown(event){
    note(hit.city+" verschieben – Original-MOS-Prognose bleibt erhalten.");
   }
  }else if(state.editMode==="pin"){mapTap(x,y)}
+ else {
+  const hit=[...state.hits].reverse().find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);
+  if(hit){openBoxEditor(hit.key);note("Kästchen "+hit.city+" ausgewählt.");}
+ }
 }
 function pointerMove(event){
  if(!state.drag||state.drag.pointerId!==event.pointerId)return;
  const [x,y]=toCanvas(event),reg=state.drag.region;
- const lon=reg.west+(x-reg.x)/reg.w*reg.w;
+ const lon=reg.west+(x-reg.x)/reg.w*(reg.east-reg.west);
  const lat=reg.north-(y-reg.y)/reg.h*(reg.north-reg.south);
  if(isInRegion(lon,lat,reg))setLabelPosition(state.drag.key,lon,lat,reg);
  event.preventDefault();
@@ -446,8 +467,25 @@ function initEditor(){
  $("tmaxMove").addEventListener("click",()=>{state.pointTarget=null;updateMode("move")});
  $("tmaxReset").addEventListener("click",()=>{
   if(!confirm("Alle selbst hinzugefügten Orte, ausgeblendeten Kästchen und Positionskorrekturen zurücksetzen?"))return;
-  state.prefs={hidden:[],custom:[],positions:{}};persist();render();renderEditorList();
+  state.prefs={hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"};
+  $("tmaxGlobalFill").value="#ffffff";closeBoxEditor();persist();render();renderEditorList();
   note("Standardansicht wiederhergestellt.");
+ });
+ $("tmaxGlobalFill").value=state.prefs.globalFill;
+ $("tmaxGlobalFill").addEventListener("input",e=>{
+  state.prefs.globalFill=hex(e.target.value,"#ffffff");persist();render();
+  if(state.selectedKey)openBoxEditor(state.selectedKey);
+ });
+ $("tmaxGlobalReset").addEventListener("click",()=>{
+  state.prefs.globalFill="#ffffff";$("tmaxGlobalFill").value="#ffffff";
+  persist();render();if(state.selectedKey)openBoxEditor(state.selectedKey);
+ });
+ $("tmaxStyleSave").addEventListener("click",applyBoxEdits);
+ $("tmaxValueReset").addEventListener("click",resetBoxValue);
+ $("tmaxColorReset").addEventListener("click",resetBoxColor);
+ $("tmaxStyleClose").addEventListener("click",closeBoxEditor);
+ $("tmaxBoxFill").addEventListener("input",event=>{
+  $("tmaxBoxText").value=contrast(hex(event.target.value,"#ffffff"));
  });
  canvas.addEventListener("pointerdown",pointerDown);
  canvas.addEventListener("pointermove",pointerMove);
