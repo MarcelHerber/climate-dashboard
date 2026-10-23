@@ -65,6 +65,13 @@ jobs:
           assert cycle.hour==0
           assert datetime.now(timezone.utc)-cycle<timedelta(days=4)
           assert manifest["grid"]["step"]==.125
+          catalog=json.loads((root/"stations_catalog.json").read_text(encoding="utf-8"))
+          assert manifest["stations_catalog"]=="stations_catalog.json"
+          assert catalog["schema"]==1 and catalog["days"]==[d["date"] for d in manifest["days"]]
+          assert catalog["issue_time"]==manifest["mos_issue_utc"]
+          assert len(catalog["stations"])==manifest["stations_catalog_count"]>=1000
+          assert all(len(x["tx"])==5 and x["id"] and x["name"] and
+                     -29<=x["lon"]<=62 and 27<=x["lat"]<=73 for x in catalog["stations"])
           for i,day in enumerate(manifest["days"]):
             assert day["date"]==(cycle+timedelta(days=i)).date().isoformat()
             assert day["icon_hours"]==[24*i+6,24*i+12,24*i+18]
