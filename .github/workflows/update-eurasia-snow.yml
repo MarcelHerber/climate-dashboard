@@ -1,4 +1,4 @@
-name: NOAA IMS Eurasien-Schneebedeckung Winterhalbjahr
+name: NOAA IMS Eurasien-Schneebedeckung Jahresverlauf
 
 on:
   schedule:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: noaa-ims-eurasia-winter
+  group: noaa-ims-eurasia-annual
   cancel-in-progress: false
 
 jobs:
@@ -35,8 +35,8 @@ jobs:
         run: pip install "numpy>=1.26,<3"
       - name: Raster- und Datentests
         run: python -m unittest discover -s tests -p test_eurasia_snow.py -v
-      - name: NOAA IMS 24km laden und Oktober–März-Flächen berechnen
-        run: python scripts/update_eurasia_snow.py --max-new 1900
+      - name: NOAA IMS 24km laden und Januar–Dezember-Flächen berechnen
+        run: python scripts/update_eurasia_snow.py --max-new 2800
       - name: Nur verifizierte Tageswerte übernehmen
         run: |
           python - <<'PY'
@@ -45,8 +45,10 @@ jobs:
           obj=json.loads(Path("eurasia_snow/index.json").read_text())
           assert obj["schema"]==1 and obj["forecast"] is None
           assert obj["winter_months"]==[10,11,12,1,2,3]
-          assert set(obj["climatology_by_month"])=={"10","11","12","01","02","03"}
-          assert all(len(obj["climatology_by_month"][f"{m:02d}"])==(29 if m==2 else (30 if m in (11,) else 31)) for m in (10,11,12,1,2,3))
+          assert obj["months"]==list(range(1,13))
+          assert obj["calendar_years"] and isinstance(obj["calendar_years"][0],int)
+          assert set(obj["climatology_by_month"])=={f"{m:02d}" for m in range(1,13)}
+          assert all(len(obj["climatology_by_month"][f"{m:02d}"])==(29 if m==2 else (30 if m in (4,6,9,11) else 31)) for m in range(1,13))
           assert obj["source"]["doi"]=="10.7265/N52R3PMC"
           assert obj["status"]["n_daily"]==len(obj["daily"])>=1
           assert all(0<=val<=70 for val in obj["daily"].values())
@@ -60,7 +62,7 @@ jobs:
                   assert row["max_year"] in range(1999,2026) and row["max_year"] != 2014
                   assert row["years"] >= row["min_years"]
           print("Tagesminima und Tagesmaxima samt Referenzjahren geprüft")
-          print("Klimatologietage Oktober–März:",obj["status"]["n_climatology_days_by_month"])
+          print("Klimatologietage Januar–Dezember:",obj["status"]["n_climatology_days_by_month"])
           print("Echte IMS-Tageswerte:",len(obj["daily"]),
                 "Neue Daten:",obj["status"]["n_new"])
           PY
