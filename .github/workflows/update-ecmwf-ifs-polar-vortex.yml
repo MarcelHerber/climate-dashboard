@@ -47,7 +47,7 @@ jobs:
             git -C /tmp/strato-ecmwf remote add origin "$remote"
           fi
       - name: Tatsächliche IFS-10-hPa-Windfelder zonal mitteln
-        run: python scripts/build_ecmwf_ifs_u60_run_archive.py --output /tmp/strato-ecmwf/data/stratosphere/ecmwf/ifs_runs.json --max-new 1
+        run: python scripts/build_ecmwf_ifs_u60_run_archive.py --output /tmp/strato-ecmwf/data/stratosphere/ecmwf/ifs_runs.json --max-new 3
       - name: Alle Original-Zeitstempel und Prognosewerte validieren
         run: |
           python - <<'PY'
