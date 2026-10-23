@@ -34,29 +34,33 @@ LOG=logging.getLogger("europe-tmax-lab")
 MOS_URL="https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/all_stations/kml/MOSMIX_L_LATEST.kmz"
 ICON_ROOT="https://opendata.dwd.de/weather/nwp/icon-eu/grib"
 ICON_PREFIX="icon-eu_europe_regular-lat-lon_single-level"
-LON_MIN,LON_MAX,LAT_MIN,LAT_MAX=-29.0,47.0,27.0,73.0
+LON_MIN,LON_MAX,LAT_MIN,LAT_MAX=-29.0,62.0,27.0,73.0
 STEP=.125
 WIDTH=round((LON_MAX-LON_MIN)/STEP)+1
 HEIGHT=round((LAT_MAX-LAT_MIN)/STEP)+1
 MAX_DISTANCE_KM=100
+# Editorially MATCH the supplied monochrome Europe-temperature reference.
+# "Azoren"/"Kanaren" are island labels for real MOSMIX stations near the
+# sampled island location; never modelled group averages.
 CITIES=(
- ("Reykjavík",-21.94,64.14),("Dublin",-6.26,53.35),("London",-.13,51.51),
- ("Oslo",10.75,59.91),("Stockholm",18.06,59.33),("Helsinki",24.94,60.17),
- ("Rovaniemi",25.73,66.50),("Kopenhagen",12.57,55.68),
- ("Berlin",13.40,52.52),("Hamburg",9.99,53.55),("Warschau",21.01,52.23),
- ("Minsk",27.57,53.90),("Kyjiw",30.52,50.45),("Moskau",37.62,55.75),
- ("Paris",2.35,48.86),("Bordeaux",-.58,44.84),("Frankfurt",8.68,50.11),
- ("Prag",14.42,50.08),("Wien",16.37,48.21),("Zürich",8.54,47.38),
- ("Amsterdam",4.90,52.37),("Brüssel",4.35,50.85),
- ("Madrid",-3.70,40.42),("Lissabon",-9.14,38.72),("Sevilla",-5.99,37.39),
- ("Nizza",7.26,43.70),("Rom",12.50,41.90),("Palermo",13.36,38.12),
- ("Athen",23.73,37.98),("Belgrad",20.46,44.82),("Budapest",19.04,47.50),
- ("Bukarest",26.10,44.43),("Sofia",23.32,42.70),
- ("Istanbul",28.98,41.01),("Antalya",30.71,36.89),
- ("Riga",24.11,56.95),("Tallinn",24.75,59.44),("Vilnius",25.28,54.69),
- ("Varna",27.91,43.21),("Ponta Delgada",-25.67,37.74),
- ("Teneriffa",-16.57,28.29),("Algier",3.06,36.75),
+ ("Reykjavík",-21.94,64.14),("Rovaniemi",25.73,66.50),
+ ("Perm",56.23,58.01),("Helsinki",24.94,60.17),
+ ("Oslo",10.75,59.91),("Stockholm",18.06,59.33),
+ ("Moskau",37.62,55.75),("Minsk",27.57,53.90),
+ ("Wolgograd",44.51,48.71),("Dublin",-6.26,53.35),
+ ("London",-.13,51.51),("Warschau",21.01,52.23),
+ ("Kiew",30.52,50.45),("Frankfurt",8.68,50.11),
+ ("Wien",16.37,48.21),("Paris",2.35,48.86),
+ ("Bordeaux",-.58,44.84),("Nizza",7.26,43.70),
+ ("Belgrad",20.46,44.82),("Varna",27.91,43.21),
+ ("Ankara",32.86,39.93),("Lissabon",-9.14,38.72),
+ ("Madrid",-3.70,40.42),("Sevilla",-5.99,37.39),
+ ("Rom",12.50,41.90),("Palermo",13.36,38.12),
+ ("Athen",23.73,37.98),("Antalya",30.71,36.89),
+ ("Algier",3.06,36.75),
+ ("Azoren",-25.67,37.74),("Kanaren",-16.57,28.29),
 )
+
 # Temperature palette -35..45 C; these are DISPLAY colours only.
 STOPS=(
  (-35,(27,37,114)),(-20,(35,82,173)),(-10,(49,154,210)),
