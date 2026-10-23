@@ -1,0 +1,127 @@
+name: Europa Tmin · MOSMIX + ICON-EU (privates Wolkenlabor)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 4,10,16,22 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_europe_tmin_lab.py"
+      - "tests/test_europe_tmin_lab.py"
+      - ".github/workflows/update-europe-tmin-lab.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: europe-tmin-lab-data
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: DWD-GRIB2- und Kartenbibliotheken installieren
+        run: pip install "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3"
+      - name: Parser und Tagesmaximum-Tests
+        run: |
+          python -m py_compile scripts/build_europe_tmin_lab.py
+          python -m unittest discover -s tests -p test_europe_tmax_lab.py -v
+      - name: Eigenständigen Testdatenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          origin="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/europe-tmin-lab-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch europe-tmin-lab-data "$origin" /tmp/europe-tmin-lab-data
+          else
+            mkdir -p /tmp/europe-tmin-lab-data
+            git -C /tmp/europe-tmin-lab-data init -q -b europe-tmin-lab-data
+            git -C /tmp/europe-tmin-lab-data remote add origin "$origin"
+          fi
+      - name: 5 echte DWD-Europakarten erzeugen
+        run: |
+          set -o pipefail
+          python scripts/build_europe_tmin_lab.py --out /tmp/europe-tmin-lab-data/data/europe-tmin-lab --max-workers 2 2>&1 | tee /tmp/europe-tmin.log
+      - name: Forecast- und Bildvalidierung
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from datetime import datetime,timedelta,timezone
+          from PIL import Image
+          root=Path("/tmp/europe-tmin-lab-data/data/europe-tmin-lab")
+          manifest=json.loads((root/"current.json").read_text(encoding="utf-8"))
+          assert manifest["schema"]==2 and len(manifest["days"])==5
+          assert manifest["daily_window"]=="18:00-06:00 UTC"
+          cycle=datetime.strptime(manifest["icon_cycle"],"%Y%m%d%H").replace(tzinfo=timezone.utc)
+          assert cycle.hour==12
+          assert datetime.now(timezone.utc)-cycle<timedelta(days=4)
+          assert manifest["grid"]["step"]==.125
+          catalog=json.loads((root/"stations_catalog.json").read_text(encoding="utf-8"))
+          assert manifest["stations_catalog"]=="stations_catalog.json"
+          assert catalog["schema"]==1 and catalog["days"]==[d["date"] for d in manifest["days"]]
+          assert catalog["issue_time"]==manifest["mos_issue_utc"]
+          assert len(catalog["stations"])==manifest["stations_catalog_count"]>=1000
+          assert all(len(x["tn"])==5 and x["id"] and x["name"] and
+                     -29<=x["lon"]<=62 and 27<=x["lat"]<=73 for x in catalog["stations"])
+          for i,day in enumerate(manifest["days"]):
+            assert day["date"]==(cycle+timedelta(days=i+1)).date().isoformat()
+            assert day["icon_hours"]==[24*i+12,24*i+18]
+            assert day["coverage"]>=.80
+            assert len(day["stations"])==31
+            actual=[s for s in day["stations"] if s["station_id"] is not None]
+            assert len({s["station_id"] for s in actual})==len(actual)
+            for station in day["stations"]:
+              if station["tmin_c"] is None:
+                assert station["station_id"] is None or station["station_name"]
+              else:
+                assert -55<station["tmin_c"]<55
+                assert station["station_id"]
+                assert 0<=station["distance_km"]<=100
+            assert sum(s["tmin_c"] is not None for s in day["stations"])>=25
+            for key,prefix in (("icon_png","icon_tmin_"),("icon_raw_png","icon_tmin_raw_")):
+              name=day[key]
+              assert name==f"{prefix}{day['date']}.png"
+              img=root/name
+              assert img.is_file() and img.stat().st_size>1000
+              with Image.open(img) as photo:
+                photo.verify()
+              with Image.open(img) as photo:
+                assert photo.size==(manifest["grid"]["width"],manifest["grid"]["height"])
+                assert photo.mode=="RGBA"
+            with Image.open(root/day["icon_raw_png"]) as raw:
+              import numpy as np
+              rgba=np.asarray(raw)
+              valid=rgba[:,:,3]>0
+              assert valid.mean()>=.80
+              t=(rgba[:,:,0].astype(np.uint16)*256+rgba[:,:,1].astype(np.uint16))/10-100
+              assert t[valid].min()>-80 and t[valid].max()<65
+          print("PASS: fünf echte MOSMIX-/ICON-EU-Nachtkarten, alle Quellen und Ausgabezeiten geprüft")
+          PY
+      - name: Nur vollständige Testkarten auf separatem Datenbranch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd /tmp/europe-tmin-lab-data
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/europe-tmin-lab .nojekyll
+          if git diff --cached --quiet; then
+            echo "Keine neuen Dateien."
+            exit 0
+          fi
+          git commit -m "Experimentelles Europa Tmin: geprüfte MOSMIX-/ICON-EU-Prognosen"
+          if git ls-remote --exit-code origin refs/heads/europe-tmin-lab-data >/dev/null 2>&1; then
+            git pull --rebase origin europe-tmin-lab-data
+          fi
+          git push origin HEAD:refs/heads/europe-tmin-lab-data
