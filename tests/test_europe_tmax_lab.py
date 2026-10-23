@@ -61,6 +61,11 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertAlmostEqual(oslo["tx"]["2026-10-24"],13.0,places=1)
         self.assertNotIn("2026-10-23",oslo["tx"])
         self.assertLessEqual(oslo["distance_km"],app.MAX_DISTANCE_KM)
+        issue2,selected2,catalog=app.daily_mos_values(synthetic_kmz(),dates,include_catalog=True)
+        self.assertEqual(issue2,issue)
+        self.assertEqual(len(selected2),31)
+        self.assertEqual(len(catalog),110)
+        self.assertTrue(all(item["tx"].get("2026-10-24") is not None for item in catalog))
         self.assertEqual(len(points),31)
         present=[p for p in points if p["station_id"] is not None]
         self.assertEqual(len({p["station_id"] for p in present}),len(present))
