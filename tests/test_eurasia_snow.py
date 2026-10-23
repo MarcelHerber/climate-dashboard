@@ -47,6 +47,12 @@ class IMSChecks(unittest.TestCase):
         self.assertIsNotNone(series[0]["mean"])
         self.assertEqual(series[0]["years"], 11)
         self.assertIsNone(series[1]["mean"])
+        self.assertEqual(series[0]["min"], 9.0)
+        self.assertEqual(series[0]["max"], 19.0)
+        self.assertEqual(series[0]["min_year"], 1999)
+        self.assertEqual(series[0]["max_year"], 2009)
+        self.assertIsNone(series[1]["min"])
+        self.assertIsNone(series[1]["max"])
 
     def test_winter_seasons(self):
         self.assertEqual(WINTER_MONTHS, (10, 11, 12, 1, 2, 3))
@@ -67,10 +73,18 @@ class IMSChecks(unittest.TestCase):
         self.assertEqual(feb[28]["years"], 6)
         self.assertEqual(feb[28]["min_years"], 5)
         self.assertIsNotNone(feb[28]["mean"])
+        self.assertEqual(feb[28]["min_year"], 2000)
+        self.assertEqual(feb[28]["max_year"], 2020)
+        self.assertEqual(feb[28]["min"], 2000.0)
+        self.assertEqual(feb[28]["max"], 2020.0)
         november = calculate_month_climatology(daily, 11)
         self.assertEqual(len(november), 30)
         self.assertEqual(november[-1]["years"], 12)
         self.assertIsNotNone(november[-1]["stddev"])
+        self.assertEqual(november[-1]["min_year"], 1999)
+        self.assertEqual(november[-1]["max_year"], 2010)
+        self.assertTrue(november[-1]["min"] <= november[-1]["mean"] <= november[-1]["max"])
+        self.assertLess(november[-1]["min"], november[-1]["max"])
         for month, length in ((10,31),(11,30),(12,31),(1,31),(2,29),(3,31)):
             self.assertEqual(len(calculate_month_climatology({},month)), length)
 

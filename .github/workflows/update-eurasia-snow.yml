@@ -50,6 +50,16 @@ jobs:
           assert obj["source"]["doi"]=="10.7265/N52R3PMC"
           assert obj["status"]["n_daily"]==len(obj["daily"])>=1
           assert all(0<=val<=70 for val in obj["daily"].values())
+          for month,points in obj["climatology_by_month"].items():
+              for row in points:
+                  if row["mean"] is None:
+                      assert row["min"] is None and row["max"] is None
+                      continue
+                  assert 0 <= row["min"] <= row["mean"] <= row["max"] <= 70
+                  assert row["min_year"] in range(1999,2026) and row["min_year"] != 2014
+                  assert row["max_year"] in range(1999,2026) and row["max_year"] != 2014
+                  assert row["years"] >= row["min_years"]
+          print("Tagesminima und Tagesmaxima samt Referenzjahren geprüft")
           print("Klimatologietage Oktober–März:",obj["status"]["n_climatology_days_by_month"])
           print("Echte IMS-Tageswerte:",len(obj["daily"]),
                 "Neue Daten:",obj["status"]["n_new"])

@@ -130,14 +130,24 @@ def calculate_month_climatology(archive: dict[str,float],month: int) -> list[dic
     max_days=29 if month==2 else calendar.monthrange(2025,month)[1]
     result=[]
     for day in range(1,max_days+1):
-        vals=[archive[f"{year}-{month:02d}-{day:02d}"]
-              for year in HISTORY_YEARS
-              if f"{year}-{month:02d}-{day:02d}" in archive]
+        samples=[(archive[f"{year}-{month:02d}-{day:02d}"],year)
+                 for year in HISTORY_YEARS
+                 if f"{year}-{month:02d}-{day:02d}" in archive]
+        vals=[value for value,_year in samples]
         minimum=5 if month==2 and day==29 else 10
+        valid=len(vals)>=minimum
+        # If several years tie, show the earliest documented record year
+        # consistently with the browser-side fallback used for older JSON.
+        lowest=min(samples,key=lambda entry:entry[0]) if valid else None
+        highest=max(samples,key=lambda entry:entry[0]) if valid else None
         result.append({
             "day":day,
-            "mean":round(float(np.mean(vals)),5) if len(vals)>=minimum else None,
-            "stddev":round(float(np.std(vals,ddof=1)),5) if len(vals)>=minimum else None,
+            "mean":round(float(np.mean(vals)),5) if valid else None,
+            "stddev":round(float(np.std(vals,ddof=1)),5) if valid else None,
+            "min":round(lowest[0],5) if valid else None,
+            "max":round(highest[0],5) if valid else None,
+            "min_year":lowest[1] if valid else None,
+            "max_year":highest[1] if valid else None,
             "years":len(vals),"min_years":minimum})
     return result
 
