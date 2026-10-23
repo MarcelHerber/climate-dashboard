@@ -34,7 +34,7 @@
     // Fixed reference-day axis with leap day reserved, so February/March
     // always line up across leap/nonleap seasons. A nonexistent Feb 29
     // is left missing rather than interpolated.
-    return MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
+    return WINTER_MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
       const day=i+1,year=yearForMonth(season,month);
       const valid=day<=monthLength(year,month);
       return {month,day,year,date:valid?dateKey(year,month,day):null,
