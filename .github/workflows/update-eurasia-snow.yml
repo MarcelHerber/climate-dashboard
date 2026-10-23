@@ -36,7 +36,7 @@ jobs:
       - name: Raster- und Datentests
         run: python -m unittest discover -s tests -p test_eurasia_snow.py -v
       - name: NOAA IMS 24km laden und Oktober–März-Flächen berechnen
-        run: python scripts/update_eurasia_snow.py --max-new 420
+        run: python scripts/update_eurasia_snow.py --max-new 1900
       - name: Nur verifizierte Tageswerte übernehmen
         run: |
           python - <<'PY'
@@ -50,6 +50,7 @@ jobs:
           assert obj["source"]["doi"]=="10.7265/N52R3PMC"
           assert obj["status"]["n_daily"]==len(obj["daily"])>=1
           assert all(0<=val<=70 for val in obj["daily"].values())
+          print("Klimatologietage Oktober–März:",obj["status"]["n_climatology_days_by_month"])
           print("Echte IMS-Tageswerte:",len(obj["daily"]),
                 "Neue Daten:",obj["status"]["n_new"])
           PY
