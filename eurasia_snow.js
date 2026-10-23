@@ -4,7 +4,8 @@
   const SRC="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/index.json";
   const MONTHS=[10,11,12,1,2,3], MONTH_NAMES={10:"Oktober",11:"November",12:"Dezember",1:"Januar",2:"Februar",3:"März"},
     ABBR={10:"Okt",11:"Nov",12:"Dez",1:"Jan",2:"Feb",3:"Mär"};
-  const COLORS={obs:"#182a41",climo:"#78889a",band:"rgba(142,163,181,.22)",fit:"#ef6871"};
+  const COLORS={obs:"#182a41",climo:"#78889a",band:"rgba(142,163,181,.22)",
+    fit:"#ef6871",historicalMin:"#138ab5",historicalMax:"#d07846"};
   let doc=null,chart=null;
 
   function show(message,kind="normal"){
@@ -44,6 +45,25 @@
   function sourceRows(season,selection){
     return selection==="winter"?winterSeries(season):monthSeries(season,Number(selection));
   }
+  function historicalExtrema(row,climo){
+    // The server generates extrema from the same observed reference years as
+    // mean/stddev. Old published JSON stays usable while the next data run
+    // builds these fields; NEVER read extrema from the provided screenshot.
+    if(!climo || !Number.isFinite(climo.mean))return null;
+    if(Number.isFinite(climo.min) && Number.isFinite(climo.max))
+      return {min:climo.min,max:climo.max,minYear:climo.min_year,maxYear:climo.max_year};
+    const samples=[];
+    for(let year=1999;year<=2025;year++){
+      if(year===2014 || (row.month===2&&row.day===29&&monthLength(year,2)!==29))continue;
+      const value=doc.daily[dateKey(year,row.month,row.day)];
+      if(Number.isFinite(value))samples.push({year,value});
+    }
+    const minimum=row.month===2&&row.day===29?5:10;
+    if(samples.length<minimum)return null;
+    const low=samples.reduce((a,b)=>b.value<a.value?b:a);
+    const high=samples.reduce((a,b)=>b.value>a.value?b:a);
+    return {min:low.value,max:high.value,minYear:low.year,maxYear:high.year};
+  }
   function regression(values){
     const p=values.map((value,i)=>({x:i+1,y:value}))
       .filter(x=>Number.isFinite(x.y));
@@ -71,11 +91,17 @@
           y:{min:0,title:{display:true,text:"Schneebedeckte Landfläche (Mio. km²)"}}
         },
         plugins:{
+          title:{display:true,text:"Eurasien · Schneebedeckung",font:{size:15,weight:"bold"},padding:{bottom:12}},
           legend:{position:"top",labels:{
             boxWidth:14,usePointStyle:true,
             filter:item=>!item.text.startsWith("Untergrenze ")}},
           tooltip:{callbacks:{
-            label:item=>item.parsed.y===null?"":item.dataset.label+": "+item.parsed.y.toFixed(2)+" Mio. km²"
+            label:item=>{
+              if(item.parsed.y===null)return "";
+              let text=item.dataset.label+": "+item.parsed.y.toFixed(2)+" Mio. km²";
+              const year=item.dataset.recordYears?.[item.dataIndex];
+              return year?text+" (Rekordjahr "+year+")":text;
+            }
           }}
         }
       }
@@ -95,6 +121,16 @@
         row.mean+row.stddev:null);
     const isWinter=selection==="winter";
     const seasonTitle=seasonName(season), monthTitle=isWinter?"Oktober–März":MONTH_NAMES[Number(selection)];
+    const chartTitle=isWinter?
+      "Schneebedeckung Eurasiens · Winterhalbjahr "+seasonTitle:
+      "Schneebedeckung Eurasiens · "+monthTitle+" "+yearForMonth(season,Number(selection));
+    $("plotTitle").textContent=chartTitle;
+    $("plot").setAttribute("aria-label",chartTitle+" in Millionen Quadratkilometern");
+    document.title=chartTitle+" | Climate Dashboard Deutschland";
+    chart.options.plugins.title.text=chartTitle;
+    const extrema=rows.map((row,i)=>historicalExtrema(row,clima[i]));
+    const minima=extrema.map(e=>e?e.min:null),maxima=extrema.map(e=>e?e.max:null);
+    const minYears=extrema.map(e=>e?e.minYear:null),maxYears=extrema.map(e=>e?e.maxYear:null);
     const available=mean.filter(Number.isFinite).length;
     const series=[];
     if(available){
@@ -105,6 +141,14 @@
         pointRadius:0,borderWidth:0,backgroundColor:COLORS.band,
         fill:{target:"-1",above:COLORS.band,below:COLORS.band}
       }));
+      if($("showExtremes").checked){
+        series.push(dataset("Historisches Tagesminimum",minima,COLORS.historicalMin,{
+          pointRadius:0,borderDash:[3,4],borderWidth:1.8,recordYears:minYears
+        }));
+        series.push(dataset("Historisches Tagesmaximum",maxima,COLORS.historicalMax,{
+          pointRadius:0,borderDash:[3,4],borderWidth:1.8,recordYears:maxYears
+        }));
+      }
       series.push(dataset("Klimamittel (verfügbare Referenzjahre)",mean,COLORS.climo,{
         pointRadius:0,borderDash:[8,5],borderWidth:2.3
       }));
@@ -142,7 +186,7 @@
     $("climNote").textContent="Referenz 1999–2025 ohne 2014 · "+available+
       " von "+rows.length+" Kalendertagen mit ausreichenden historischen Vergleichen"+
       (counts.length?" ("+loYears+"–"+hiYears+" Stichprobenjahre je dargestelltem Tag)":"")+
-      ". Das historische Archiv wird weiter ergänzt. Für den 29. Februar gelten mindestens fünf statt zehn Vergleichsjahre.";
+      ". Die Min-/Max-Kurven zeigen das niedrigste und höchste Tagesflächenmittel der vorhandenen Vergleichsjahre (jeweiliges Jahr im Tooltip); bei weiteren Archivdaten können sich Extremwerte ändern. Für den 29. Februar gelten mindestens fünf statt zehn Vergleichsjahre.";
     $("modelNote").textContent="ECMWF IFS/EPS: bisher keine unabhängig berechneten, mit NOAA IMS räumlich vergleichbaren Modellflächen. Keine Prognosekurven aus dem Screenshot übernommen.";
     $("selectionNote").textContent=isWinter?
       "Gesamtes Winterhalbjahr: Oktober bis März in zeitlich richtiger Reihenfolge; der 29. Februar bleibt in Nichtschaltjahren leer. Kein interpolierter Wert.":
@@ -200,6 +244,7 @@
   $("season").addEventListener("change",render);
   $("month").addEventListener("change",render);
   $("showTrend").addEventListener("change",render);
+  $("showExtremes").addEventListener("change",render);
   $("refresh").addEventListener("click",load);
   $("png").addEventListener("click",()=>{
     if(!doc||!chart)return;
@@ -211,11 +256,13 @@
   $("csv").addEventListener("click",()=>{
     if(!doc)return;
     const rows=sourceRows(Number($("season").value),$("month").value),
-      csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,reference_years"];
+      csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,historical_min_million_km2,min_year,historical_max_million_km2,max_year,reference_years"];
     for(const row of rows){
       const c=climatologyRow(row.month,row.day)||{};
+      const extrema=historicalExtrema(row,c);
       csv.push([row.date||"",row.date?doc.daily[row.date]??"": "",
-        c.mean??"",c.stddev??"",c.years??0].join(","));
+        c.mean??"",c.stddev??"",extrema?.min??"",extrema?.minYear??"",
+        extrema?.max??"",extrema?.maxYear??"",c.years??0].join(","));
     }
     const blob=new Blob([csv.join("\n")+"\n"],{type:"text/csv;charset=utf-8"});
     const link=document.createElement("a");
