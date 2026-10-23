@@ -28,6 +28,7 @@ function rectPath(region){
  ctx.beginPath();ctx.rect(region.x,region.y,region.w,region.h);ctx.clip();
 }
 function regionForCity(name){return INSETS.find(r=>r.city===name)||MAIN;}
+function regionForPlace(s){return s.is_custom?(INSETS.find(r=>isInRegion(s.lon,s.lat,r))||MAIN):regionForCity(s.city);}
 function isInRegion(lon,lat,region,margin=0){
  return lon>=region.west+margin&&lon<=region.east-margin&&
         lat>=region.south+margin&&lat<=region.north-margin;
@@ -137,7 +138,7 @@ function regionAt(x,y){
    y>=region.y&&y<=region.y+region.h)||null;
 }
 function lonlat(x,y,region){
- return [region.west+(x-region.x)/region.w*region.w,
+ return [region.west+(x-region.x)/region.w*(region.east-region.west),
          region.north-(y-region.y)/region.h*(region.north-region.south)];
 }
 function geoDistance(lon1,lat1,lon2,lat2){
@@ -171,7 +172,7 @@ function drawCoords(s){
  const moved=state.prefs.positions[s.key];
  if(Array.isArray(moved)&&moved.length===2&&
     Number.isFinite(moved[0])&&Number.isFinite(moved[1])){
-  const reg=regionForCity(s.city);
+  const reg=regionForPlace(s);
   if(isInRegion(moved[0],moved[1],reg))return [moved[0],moved[1]];
  }
  return [s.lon,s.lat];
@@ -193,7 +194,6 @@ function updateMode(mode){
  else note("Bearbeitungsmodus beendet.");
 }
 function createCustom(station,lon,lat,label){
- const region=regionAt(...xy(lon,lat,regionForCity(label)));
  // A searched MOS station must be in a displayed map or island region.
  const map=[...INSETS,MAIN].find(r=>isInRegion(lon,lat,r));
  if(!map){note("Dieser Punkt liegt außerhalb der dargestellten Kartenregionen.");return false}
@@ -285,7 +285,7 @@ function setLabelPosition(key,lon,lat,region){
  const day=state.data?.days?.[state.index];
  const entry=day?objectsForDay(day).find(p=>p.key===key):null;
  if(!entry)return false;
- if(region!==regionForCity(entry.city)||!isInRegion(lon,lat,region)){
+ if(region!==regionForPlace(entry)||!isInRegion(lon,lat,region)){
   note("Für diese Markierung bitte im gleichen Kartenausschnitt bleiben.");
   return false;
  }
@@ -412,7 +412,7 @@ function labels(day){
  const items=objectsForDay(day),used=[];
  for(const s of items){
   if(state.prefs.hidden.includes(s.key))continue;
-  const region=regionForCity(s.city);
+  const region=regionForPlace(s);
   const [lon,lat]=drawCoords(s);
   if(!isInRegion(lon,lat,region))continue;
   const [cx,cy]=xy(lon,lat,region);
