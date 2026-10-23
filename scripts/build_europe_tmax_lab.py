@@ -146,6 +146,21 @@ def image_mapping(lat,lon):
     return index, distance<.20
 
 
+def encode_temperature_rgba(values):
+    """16-bit unsigned fixed-point °C in R/G (0.1 °C); alpha marks valid cells.
+
+    Decode as ((R*256+G)/10 - 100). No interpolation or reforecasting.
+    """
+    valid=np.isfinite(values)
+    result=np.zeros((len(values),4),dtype=np.uint8)
+    encoded=np.zeros(len(values),dtype=np.uint16)
+    encoded[valid]=np.rint((values[valid]+100.0)*10.0).clip(0,65535).astype(np.uint16)
+    result[valid,0]=(encoded[valid]>>8).astype(np.uint8)
+    result[valid,1]=(encoded[valid]&255).astype(np.uint8)
+    result[valid,3]=255
+    return result
+
+
 def icon_day(cycle,day,out):
     # For the 00Z cycle: day 1 uses +6/+12/+18, day 5 +102/+108/+114.
     hours=[day*24+6,day*24+12,day*24+18]
@@ -171,7 +186,10 @@ def icon_day(cycle,day,out):
     colour[valid,3]=242
     filename=f"icon_tmax_{(cycle+timedelta(days=day)).date().isoformat()}.png"
     Image.fromarray(colour.reshape(HEIGHT,WIDTH,4),"RGBA").save(out/filename,optimize=True)
-    return filename,round(float(valid.mean()),4),hours
+    rawfilename=f"icon_tmax_raw_{(cycle+timedelta(days=day)).date().isoformat()}.png"
+    raw=encode_temperature_rgba(maximum)
+    Image.fromarray(raw.reshape(HEIGHT,WIDTH,4),"RGBA").save(out/rawfilename,optimize=True)
+    return filename,rawfilename,round(float(valid.mean()),4),hours
 
 
 def local_name(name):return name.rsplit("}",1)[-1]
@@ -313,7 +331,7 @@ def build(out,workers):
             daydata[i]=future.result()
     days=[]
     for i,date in enumerate(dates):
-        image,coverage,hours=daydata[i]
+        image,rawimage,coverage,hours=daydata[i]
         points=[]
         for s in stations:
             # Reference cities without native MOSMIX TX are kept with null.
@@ -321,10 +339,11 @@ def build(out,workers):
                                            "station_lon","station_lat","distance_km")}|{"tmax_c":s["tx"].get(date)})
         if sum(point["tmax_c"] is not None for point in points)<15:
             raise RuntimeError(f"Nur {len(points)} aktuelle MOSMIX-TX-Städte für {date}")
-        days.append({"date":date,"icon_png":image,"icon_hours":hours,
+        days.append({"date":date,"icon_png":image,
+                     "icon_raw_png":rawimage,"icon_hours":hours,
                      "coverage":coverage,"stations":points})
     manifest={
-        "schema":1,"product":"Europa Tmax · MOSMIX-L + ICON-EU",
+        "schema":2,"product":"Europa Tmax · MOSMIX-L + ICON-EU",
         "icon_cycle":cycle.strftime("%Y%m%d%H"),"mos_issue_utc":issue,
         "built_utc":now.isoformat().replace("+00:00","Z"),
         "timezone":"UTC","daily_window":"06:00-18:00 UTC",
@@ -336,15 +355,17 @@ def build(out,workers):
         "grid":{"west":LON_MIN,"east":LON_MAX,"south":LAT_MIN,"north":LAT_MAX,
                 "width":WIDTH,"height":HEIGHT,"step":STEP},
         "raster_note":"0.125 degree display grid only; no assertion of native ICON-EU resolution.",
+        "raw_raster_encoding":"R*256+G = round((Tmax_C+100)*10); A=255 valid, A=0 missing",
         "sources":{"mos":"DWD Open Data MOSMIX-L all_stations KMZ",
                    "icon":"DWD Open Data ICON-EU Europe regular-lat-lon GRIB2"},
         "days":days
     }
     # Publish manifest last, after all images are valid on disk.
     for day in days:
-        fp=out/day["icon_png"]
-        with Image.open(fp) as img:
-            img.verify()
+        for key in ("icon_png","icon_raw_png"):
+            fp=out/day[key]
+            with Image.open(fp) as img:
+                img.verify()
     tmp=out/"current.json.tmp"
     tmp.write_text(json.dumps(manifest,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     tmp.replace(out/"current.json")
