@@ -1,0 +1,58 @@
+name: MOSMIX TX · Ost-Europa-Städte prüfen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-mosmix-east-cities.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-current-mos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: MOSMIX-KML-Werkzeuge installieren
+        run: python -m pip install --disable-pip-version-check "numpy>=2,<3" "pillow>=11,<13" "scipy>=1.13,<2" "eccodes>=2,<3"
+      - name: Echte aktuelle MOSMIX-L-TX-Werte um Kandidaten prüfen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys
+          from datetime import datetime,timezone,timedelta
+          sys.path.insert(0, "scripts")
+          import build_europe_tmax_lab as m
+          candidates=(
+             ("Syktywkar",50.82,61.67),
+             ("Kirow",49.67,58.60),
+             ("Jekaterinburg",60.61,56.84),
+          )
+          m.CITIES=tuple(m.CITIES)+candidates
+          current=datetime.now(timezone.utc)
+          dates=[(current+timedelta(days=i)).date().isoformat() for i in range(1,6)]
+          print("Checking latest official DWD MOSMIX_L_LATEST.kmz for TX at 18 UTC")
+          print("FORECAST_DATES:",",".join(dates),flush=True)
+          payload=m.request_bytes(m.MOS_URL)
+          issue,selected=m.daily_mos_values(payload,dates)
+          print("ISSUED_AT:",issue,flush=True)
+          for city,lon,lat in candidates:
+             row=next((x for x in selected if x["city"]==city),None)
+             if row is None:
+                print("RESULT|"+city+"|NO MATCH|no suitable station",flush=True)
+                continue
+             values=row["tx"]
+             print("RESULT|{}|{}|{}|{}|distance_km={}|tx_days={}|tx_c={}".format(
+               city,
+               "TX AVAILABLE" if values else "NO TX",
+               row["station_id"],row["station_name"],
+               row["distance_km"],len(values),
+               ",".join(str(values.get(day,"missing")) for day in dates)
+             ),flush=True)
+          PY
