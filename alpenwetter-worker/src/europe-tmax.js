@@ -52,6 +52,26 @@ const STYLE = `
 .tmax-global-style button{font-size:12px}
 .tmax-station-row button.edit-selected{background:#deefff;color:#18364c;border-color:#bbdef5}
 
+.tmax-scale-editor{margin:16px 0;padding:15px;border:1px solid #526f87;border-radius:11px;background:#0d273a}
+.tmax-scale-editor .scale-header{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.tmax-scale-editor .scale-header strong{font-size:16px;color:#f1f8fc}
+.tmax-scale-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:10px 0}
+.tmax-scale-controls label{font-size:12px;color:#dfebf5;display:flex;flex-direction:column;gap:5px}
+.tmax-scale-controls input[type=number]{font:inherit;width:95px;min-width:0;padding:8px;color:#f6f9ff;background:#091e30;border:1px solid #577991;border-radius:7px}
+.tmax-scale-controls select{background:#091e30;color:#f6f9ff;border:1px solid #577991;border-radius:7px;padding:8px}
+.tmax-scale-stops{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:9px;margin:12px 0}
+.tmax-scale-stops label{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;color:#d5eaf5}
+.tmax-scale-stops input[type=color]{width:100%;height:35px;padding:2px;border:1px solid #7795a9;border-radius:6px;background:#eee;cursor:pointer}
+.tmax-scale-preview{height:18px;border-radius:6px;border:1px solid #8697a9;overflow:hidden}
+.tmax-scale-note{font-size:12px;color:#bbd0e0;line-height:1.5;margin-top:8px}
+.tmax-box-mode{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.tmax-box-mode label{font-size:12px;color:#ebf5fb}
+.tmax-box-mode select{background:#091e30;color:#fff;border:1px solid #648499;padding:9px;border-radius:7px}
+.tmax-box-presets{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+.tmax-box-presets button{padding:7px 10px;font-size:12px}
+.tmax-scale-editor input[type=checkbox]{accent-color:#69beef}
+#tmaxScaleState{font-size:12px;color:#ffd78c}
+#tmaxBoxFill:disabled,#tmaxBoxText:disabled,#tmaxBoxBorder:disabled{opacity:.45;cursor:not-allowed}
 #tmaxStatus{margin-top:12px}
 .tmax-card{max-width:1550px;margin:0 auto}
 .tmax-card .tools{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -95,6 +115,20 @@ export function europeTmaxPage() {
   '<button id="tmaxReset" type="button">Standard wiederherstellen</button></div>'+
   '<div class="tmax-matches" id="tmaxMatches" aria-live="polite"></div>'+
   '<div class="tmax-edit-note" id="tmaxEditNote" role="status">Wähle einen Ort oder setze einen Punkt.</div>'+
+  '<section class="tmax-scale-editor" id="tmaxScaleEditor" aria-label="Temperaturskala einstellen">'+
+  '<div class="scale-header"><strong>Temperaturskala · ICON-EU-Fläche</strong>'+
+  '<button id="tmaxScaleReset" type="button">Originalskala</button>'+
+  '<span id="tmaxScaleState" role="status">Lade Rohdaten für flexible Skala …</span></div>'+
+  '<div class="tmax-scale-controls">'+
+  '<label>Minimum °C <input id="tmaxScaleMin" type="number" value="-35" min="-65" max="55" step="1"></label>'+
+  '<label>Maximum °C <input id="tmaxScaleMax" type="number" value="45" min="-55" max="65" step="1"></label>'+
+  '<label>Farbpalette <select id="tmaxScalePreset"><option value="original">Original</option><option value="warm">Warm / Kontrast</option><option value="cold">Kalt / Warm</option><option value="gray">Graustufen</option><option value="custom">Eigene Farben</option></select></label>'+
+  '<label style="flex-direction:row;align-items:center"><input id="tmaxAutoBoxes" type="checkbox"> Temperaturkästchen standardmäßig nach Skala färben</label>'+
+  '</div>'+
+  '<div class="tmax-scale-stops" id="tmaxScaleStops" aria-label="Elf Farben der Temperaturskala"></div>'+
+  '<div class="tmax-scale-preview" id="tmaxScalePreview" aria-label="Vorschau des Temperaturverlaufs"></div>'+
+  '<div class="tmax-scale-note">Minimum, Maximum und jede einzelne Farbe verändern die echte ICON-EU-Tmax-Fläche sowie die Legende. Beim Export wird dieselbe Skala verwendet. Individuelle Kästchenfarben gehen vor.</div>'+
+  '</section>'+
   '<div class="tmax-global-style">'+
   '<label>Standard-Kästchenfarbe <input id="tmaxGlobalFill" type="color" value="#ffffff" aria-label="Standard Hintergrundfarbe aller Kästchen"></label>'+
   '<button id="tmaxGlobalReset" type="button">Standardfarbe zurücksetzen</button>'+
@@ -102,6 +136,15 @@ export function europeTmaxPage() {
   '<section class="tmax-style-editor" id="tmaxBoxEditor" hidden aria-label="Einzelnes Temperaturkästchen bearbeiten">'+
   '<h3 id="tmaxBoxTitle">Kästchen bearbeiten</h3>'+
   '<div class="original" id="tmaxOriginal">Originalwert aus MOSMIX</div>'+
+  '<div class="tmax-box-mode"><label>Färbung für diesen Ort <select id="tmaxBoxMode">'+
+  '<option value="default">Standard</option><option value="auto">Automatisch nach Temperaturskala</option>'+
+  '<option value="manual">Individuelle Farbe</option></select></label></div>'+
+  '<div class="tmax-box-presets" id="tmaxBoxPresets">'+
+  '<button type="button" data-box-color="#ffffff">Weiß</button>'+
+  '<button type="button" data-box-color="#ffe08a">Gelb</button>'+
+  '<button type="button" data-box-color="#ffab8f">Orange</button>'+
+  '<button type="button" data-box-color="#b8def6">Hellblau</button>'+
+  '<button type="button" data-box-color="#253c59">Dunkel</button></div>'+
   '<div class="field-grid">'+
   '<label>Anzeige in °C (nur dieser Tag) <input id="tmaxValueOverride" type="number" step="0.1" min="-55" max="55" placeholder="MOS-Wert verwenden"></label>'+
   '<label>Hintergrund <input id="tmaxBoxFill" type="color" value="#ffffff"></label>'+
