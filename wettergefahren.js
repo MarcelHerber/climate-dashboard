@@ -323,27 +323,34 @@
       (Number(counts["1"]||0)===0?
       " · Hinweis: Keine 1-h-Werte, kleinräumige Starkregenspitzen können fehlen.":"");
   }
+  const periodTimeFormat=new Intl.DateTimeFormat("de-DE",{
+    timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"
+  });
   function absoluteUTC(hour) {
     const date=new Date(new Date(data.run_utc).getTime()+hour*3600000);
-    return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",
-      month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(date);
+    return periodTimeFormat.format(date);
   }
   function updatePeriodButtons() {
     const holder=$("periodButtons");
-    holder.replaceChildren();
-    data.periods.forEach((period,i)=>{
-      const button=document.createElement("button");
-      button.type="button";
-      button.dataset.index=String(i);
-      button.textContent=absoluteUTC(period.start_h)+" – "+absoluteUTC(period.end_h);
-      button.title="+"+period.start_h+" bis +"+period.end_h+" h · UTC";
-      button.setAttribute("aria-pressed",String(i===currentPeriod));
-      button.addEventListener("click",()=>{
-        changePeriod(i);
+    const sourceId=data.run_utc+"|"+data.generated_utc+"|"+currentDuration;
+    if(holder.dataset.sourceId!==sourceId){
+      holder.replaceChildren();
+      data.periods.forEach((period,i)=>{
+        const button=document.createElement("button");
+        button.type="button";
+        button.dataset.index=String(i);
+        button.textContent=absoluteUTC(period.start_h)+" – "+absoluteUTC(period.end_h);
+        button.title="+"+period.start_h+" bis +"+period.end_h+" h · UTC";
+        button.addEventListener("click",()=>changePeriod(i));
+        holder.append(button);
       });
-      holder.append(button);
+      holder.dataset.sourceId=sourceId;
+    }
+    const buttons=holder.querySelectorAll("button");
+    buttons.forEach((button,i)=>{
+      button.setAttribute("aria-pressed",String(i===currentPeriod));
     });
-    const selected=holder.querySelector('[aria-pressed="true"]');
+    const selected=buttons[currentPeriod];
     if(selected)holder.scrollLeft=Math.max(0,selected.offsetLeft-holder.offsetLeft-20);
   }
   function changePeriod(index) {
