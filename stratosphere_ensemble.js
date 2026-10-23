@@ -114,7 +114,7 @@ async function reload(){
  if(forecast){
   lastForecastAt=forecast.cycle_utc;
   note("31/31 echte Ensemblemitglieder · GEFS-Lauf "+forecast.cycle_utc+
-    " · Prognose bis "+forecast.valid_dates.at(-1));
+    " · "+forecast.forecast_horizon_days+" Tage Vorlauf · Prognose bis "+forecast.valid_dates.at(-1));
  }else{
   note("Ensemble-Prognose derzeit nicht verfügbar: "+(result[0].reason?.message||"kein geprüfter GEFS-Lauf")+
     ". NASA-Analyse und 1991–2020-Klimamittel bleiben sichtbar.");

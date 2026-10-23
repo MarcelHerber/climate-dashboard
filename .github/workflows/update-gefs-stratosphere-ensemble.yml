@@ -3,7 +3,7 @@ name: Stratosphäre GEFS-Ensemble · 60N / 10hPa
 on:
   workflow_dispatch:
   schedule:
-    - cron: "35 8 * * *"
+    - cron: "35 8,20 * * *"
   push:
     branches: [main]
     paths:

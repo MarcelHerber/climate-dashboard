@@ -42,6 +42,35 @@ class GefsWindTests(unittest.TestCase):
         result=mod.zonal_mean_from_grid(lat,lon,speed)
         self.assertAlmostEqual(result,35.95,places=3)
 
+    def test_prefer_latest_sixteen_day_run_over_older_thirtyfive(self):
+        newest=datetime(2026,10,23,0,tzinfo=timezone.utc)
+        older=datetime(2026,10,22,0,tzinfo=timezone.utc)
+        checked=[]
+        def mocked_fetch(cycle,member,lead):
+            checked.append((cycle,member,lead))
+            if cycle==newest and lead==840:
+                raise RuntimeError("Fresh 35-day endpoint not yet published")
+            if cycle in (newest,older):
+                return member,lead,15.0
+            raise RuntimeError("not found")
+        with patch.object(mod,"candidates",return_value=[newest,older]), \
+             patch.object(mod,"fetch_wind",side_effect=mocked_fetch):
+            self.assertEqual(mod.choose_cycle(),(newest,16))
+        self.assertEqual(checked[0],(newest,"c00",840))
+        self.assertEqual(checked[1],(newest,"c00",384))
+        self.assertEqual(checked[2],(newest,"p30",384))
+
+    def test_fallback_to_older_complete_cycle(self):
+        newest=datetime(2026,10,23,0,tzinfo=timezone.utc)
+        older=datetime(2026,10,22,0,tzinfo=timezone.utc)
+        def mocked_fetch(cycle,member,lead):
+            if cycle==newest:
+                raise RuntimeError("new cycle missing")
+            return member,lead,20.0
+        with patch.object(mod,"candidates",return_value=[newest,older]), \
+             patch.object(mod,"fetch_wind",side_effect=mocked_fetch):
+            self.assertEqual(mod.choose_cycle(),(older,35))
+
     def test_missing_longitude_rejected(self):
         lon=np.arange(719,dtype=np.float32)/2
         lat=np.full(719,60,dtype=np.float32)
