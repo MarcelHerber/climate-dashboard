@@ -44,6 +44,7 @@ required_root_files=(
   climate_indices.css
   stratosphere_temperature.js
   stratosphere_ensemble.js
+  stratosphere_ecmwf_runs.js
   stratosphere_ssw_comparison.js
   tiefdruck_tracker.html
   tiefdruck_tracker.css
@@ -111,6 +112,7 @@ grep -q 'id="dashboardThemeToggle"' _site/index.html
 python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
 node --check stratosphere_ensemble.js
+node --check stratosphere_ecmwf_runs.js
 node --check synoptic_panel_logic.js
 node --check isobaren_original.js
 node --check synoptic_gallery.js
