@@ -29,3 +29,7 @@ h1{font-size:clamp(28px,3vw,40px);line-height:1.2;margin:5px 0 10px}h2{font-size
 .controls label:has(#season) select{min-width:150px}
 .controls label.checkbox{font-weight:650}
 @media(max-width:580px){.controls label:has(#month),.controls label:has(#season){flex:1 1 45%}}
+
+/* Year and winter season selectors are mutually exclusive. */
+.controls [hidden]{display:none!important}
+#calendarYearControl select,#winterYearControl select{min-width:125px}

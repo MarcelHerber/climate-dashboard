@@ -2,8 +2,12 @@
   "use strict";
   const $=id=>document.getElementById(id);
   const SRC="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/index.json";
-  const MONTHS=[10,11,12,1,2,3], MONTH_NAMES={10:"Oktober",11:"November",12:"Dezember",1:"Januar",2:"Februar",3:"März"},
-    ABBR={10:"Okt",11:"Nov",12:"Dez",1:"Jan",2:"Feb",3:"Mär"};
+  const WINTER_MONTHS=[10,11,12,1,2,3],
+    MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12],
+    MONTH_NAMES={1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",
+      7:"Juli",8:"August",9:"September",10:"Oktober",11:"November",12:"Dezember"},
+    ABBR={1:"Jan",2:"Feb",3:"Mär",4:"Apr",5:"Mai",6:"Jun",7:"Jul",8:"Aug",9:"Sep",
+      10:"Okt",11:"Nov",12:"Dez"};
   const COLORS={obs:"#182a41",climo:"#78889a",band:"rgba(142,163,181,.22)",
     fit:"#ef6871",historicalMin:"#138ab5",historicalMax:"#d07846"};
   let doc=null,chart=null;
@@ -19,8 +23,8 @@
   function dateKey(year,month,day){
     return year+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  function monthSeries(season,month){
-    const year=yearForMonth(season,month),days=monthLength(year,month);
+  function monthSeries(year,month){
+    const days=monthLength(year,month);
     return Array.from({length:days},(_,i)=>{
       const day=i+1;
       return {month,day,year,date:dateKey(year,month,day),label:String(day)};
@@ -30,9 +34,18 @@
     // Fixed reference-day axis with leap day reserved, so February/March
     // always line up across leap/nonleap seasons. A nonexistent Feb 29
     // is left missing rather than interpolated.
-    return MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
+    return WINTER_MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
       const day=i+1,year=yearForMonth(season,month);
       const valid=day<=monthLength(year,month);
+      return {month,day,year,date:valid?dateKey(year,month,day):null,
+        label:day+" "+ABBR[month]};
+    }));
+  }
+  function annualSeries(year){
+    // Use a stable 366-slot calendar axis, so leap-year February 29 is never
+    // shifted into March in comparisons across years.
+    return MONTHS.flatMap(month=>Array.from({length:monthDaysForReference(month)},(_,i)=>{
+      const day=i+1,valid=day<=monthLength(year,month);
       return {month,day,year,date:valid?dateKey(year,month,day):null,
         label:day+" "+ABBR[month]};
     }));
@@ -42,8 +55,10 @@
       (month===10?doc.climatology:[]);
     return Array.isArray(series)?series.find(p=>p.day===day):null;
   }
-  function sourceRows(season,selection){
-    return selection==="winter"?winterSeries(season):monthSeries(season,Number(selection));
+  function sourceRows(season,selection,calendarYear){
+    if(selection==="winter")return winterSeries(season);
+    if(selection==="year")return annualSeries(calendarYear);
+    return monthSeries(calendarYear,Number(selection));
   }
   function historicalExtrema(row,climo){
     // The server generates extrema from the same observed reference years as
@@ -109,9 +124,11 @@
   }
   function render(){
     if(!doc)return;
-    const season=Number($("season").value),selection=$("month").value;
-    if(!Number.isInteger(season))return;
-    const rows=sourceRows(season,selection);
+    const season=Number($("season").value),calendarYear=Number($("calendarYear").value),
+      selection=$("month").value;
+    const isWinter=selection==="winter",isYear=selection==="year",isLong=isWinter||isYear;
+    if(isWinter ? !Number.isInteger(season) : !Number.isInteger(calendarYear))return;
+    const rows=sourceRows(season,selection,calendarYear);
     const obs=rows.map(row=>row.date&&Number.isFinite(doc.daily[row.date])?doc.daily[row.date]:null);
     const clima=rows.map(row=>climatologyRow(row.month,row.day));
     const mean=clima.map(row=>row&&Number.isFinite(row.mean)?row.mean:null),
@@ -119,11 +136,13 @@
         Math.max(0,row.mean-row.stddev):null),
       high=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
         row.mean+row.stddev:null);
-    const isWinter=selection==="winter";
-    const seasonTitle=seasonName(season), monthTitle=isWinter?"Oktober–März":MONTH_NAMES[Number(selection)];
+    $("winterYearControl").hidden=!isWinter;
+    $("calendarYearControl").hidden=isWinter;
+    const seasonTitle=seasonName(season),monthTitle=MONTH_NAMES[Number(selection)];
     const chartTitle=isWinter?
       "Schneebedeckung Eurasiens · Winterhalbjahr "+seasonTitle:
-      "Schneebedeckung Eurasiens · "+monthTitle+" "+yearForMonth(season,Number(selection));
+      isYear?"Schneebedeckung Eurasiens · Kalenderjahr "+calendarYear:
+      "Schneebedeckung Eurasiens · "+monthTitle+" "+calendarYear;
     $("plotTitle").textContent=chartTitle;
     $("plot").setAttribute("aria-label",chartTitle+" in Millionen Quadratkilometern");
     document.title=chartTitle+" | Climate Dashboard Deutschland";
@@ -153,18 +172,19 @@
         pointRadius:0,borderDash:[8,5],borderWidth:2.3
       }));
     }
-    series.push(dataset("NOAA IMS · "+seasonTitle,obs,COLORS.obs,{
-      borderWidth:3.2,pointRadius:isWinter?0:3.2
+    series.push(dataset("NOAA IMS · "+(isWinter?seasonTitle:String(calendarYear)),obs,COLORS.obs,{
+      borderWidth:3.2,pointRadius:isLong?0:3.2
     }));
-    $("showTrend").disabled=isWinter;
-    const fit=(!isWinter&&$("showTrend").checked)?regression(obs):null;
+    $("showTrend").disabled=isLong;
+    const fit=(!isLong&&$("showTrend").checked)?regression(obs):null;
     if(fit){
       series.push(dataset("Lineare Trendgerade (keine Prognose)",fit.series,COLORS.fit,{
         pointRadius:0,borderDash:[5,4],borderWidth:2
       }));
     }
     chart.options.scales.x.title.text=isWinter?"Winterhalbjahr "+seasonTitle:
-      MONTH_NAMES[Number(selection)]+" "+yearForMonth(season,Number(selection));
+      isYear?"Kalenderjahr "+calendarYear:
+      MONTH_NAMES[Number(selection)]+" "+calendarYear;
     chart.data.labels=rows.map(r=>r.label);
     chart.data.datasets=series;
     chart.update();
@@ -176,7 +196,7 @@
       last.value.toFixed(2)+" Mio. km² · "+new Date(last.date+"T12:00:00Z")
         .toLocaleDateString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}):
       "Für die Auswahl noch keine IMS-Tageswerte";
-    $("slope").textContent=isWinter?"Nur für einzelne Monate":
+    $("slope").textContent=isLong?"Nur für einzelne Monate":
       fit?(fit.slope>=0?"+":"")+fit.slope.toFixed(3)+" Mio. km²/Tag":
         "Noch keine belastbare Trendlinie";
     $("coverage").textContent=available+" / "+rows.length+" Kalendertage";
@@ -189,9 +209,9 @@
       ". Die Min-/Max-Kurven zeigen das niedrigste und höchste Tagesflächenmittel der vorhandenen Vergleichsjahre (jeweiliges Jahr im Tooltip); bei weiteren Archivdaten können sich Extremwerte ändern. Für den 29. Februar gelten mindestens fünf statt zehn Vergleichsjahre.";
     $("modelNote").textContent="ECMWF IFS/EPS: bisher keine unabhängig berechneten, mit NOAA IMS räumlich vergleichbaren Modellflächen. Keine Prognosekurven aus dem Screenshot übernommen.";
     $("selectionNote").textContent=isWinter?
-      "Gesamtes Winterhalbjahr: Oktober bis März in zeitlich richtiger Reihenfolge; der 29. Februar bleibt in Nichtschaltjahren leer. Kein interpolierter Wert.":
-      "Monatsansicht: "+monthTitle+" "+yearForMonth(season,Number(selection))+
-      " · beobachtete Tage und tagesgenaue Klimatologie.";
+      "Gesamtes Winterhalbjahr "+seasonTitle+": Oktober bis März; der 29. Februar bleibt in Nichtschaltjahren leer.":
+      isYear?"Ganzes Kalenderjahr "+calendarYear+" (Januar–Dezember). Fehlende IMS-Beobachtungen bleiben sichtbar als Lücken; die Klimatologie wird tagesgenau nachgeladen.":
+      "Monatsansicht: "+monthTitle+" "+calendarYear+" · beobachtete Tage und tagesgenaue Klimatologie.";
   }
   function archivedSeasons(){
     if(Array.isArray(doc.seasons)&&doc.seasons.length)
@@ -201,15 +221,26 @@
       return month>=10?year:year-1;
     }))].sort((a,b)=>b-a);
   }
+  function archivedCalendarYears(){
+    if(Array.isArray(doc.calendar_years)&&doc.calendar_years.length)
+      return doc.calendar_years.map(Number).filter(Number.isInteger);
+    return [...new Set(Object.keys(doc.daily).map(k=>Number(k.slice(0,4))))]
+      .sort((a,b)=>b-a);
+  }
   function yearOptions(){
-    const previous=$("season").value;
+    const previousSeason=$("season").value,previousYear=$("calendarYear").value;
     $("season").replaceChildren();
     archivedSeasons().forEach(season=>{
-      const option=new Option(seasonName(season),String(season));
-      $("season").append(option);
+      $("season").append(new Option(seasonName(season),String(season)));
     });
-    if([...$("season").options].some(option=>option.value===previous))
-      $("season").value=previous;
+    if([...$("season").options].some(option=>option.value===previousSeason))
+      $("season").value=previousSeason;
+    $("calendarYear").replaceChildren();
+    archivedCalendarYears().forEach(year=>{
+      $("calendarYear").append(new Option(String(year),String(year)));
+    });
+    if([...$("calendarYear").options].some(option=>option.value===previousYear))
+      $("calendarYear").value=previousYear;
   }
   async function load(){
     try{
@@ -224,24 +255,26 @@
       const first=!$("season").options.length;
       yearOptions();
       if(first){
-        const today=new Date();
-        const thisSeason=today.getUTCMonth()>=9?today.getUTCFullYear():today.getUTCFullYear()-1;
+        const today=new Date(),thisYear=today.getUTCFullYear();
+        const thisSeason=today.getUTCMonth()>=9?thisYear:thisYear-1;
         if([...$("season").options].some(x=>x.value===String(thisSeason)))
           $("season").value=String(thisSeason);
-        const m=today.getUTCMonth()+1;
-        $("month").value=MONTHS.includes(m)?String(m):"winter";
+        if([...$("calendarYear").options].some(x=>x.value===String(thisYear)))
+          $("calendarYear").value=String(thisYear);
+        $("month").value="year";
       }
       $("updated").textContent="Datenstand: "+new Date(incoming.generated_utc).toLocaleString(
         "de-DE",{timeZone:"UTC",dateStyle:"medium",timeStyle:"short"})+" UTC";
       render();
       show("NOAA IMS: "+Object.keys(incoming.daily).length+
-        " verifizierte Tageswerte · Auswahl Oktober–März · historische Klimatologie wird monatlich ergänzt.","success");
+        " verifizierte Tageswerte · Jahresansicht und Winterhalbjahr · Klimatologie wird laufend ergänzt.","success");
     }catch(error){
       show("NOAA-IMS-Beobachtungen konnten nicht geladen werden: "+
         error.message+". Keine geschätzten Schneewerte angezeigt.","warn");
     }
   }
   $("season").addEventListener("change",render);
+  $("calendarYear").addEventListener("change",render);
   $("month").addEventListener("change",render);
   $("showTrend").addEventListener("change",render);
   $("showExtremes").addEventListener("change",render);
@@ -250,12 +283,12 @@
     if(!doc||!chart)return;
     const a=document.createElement("a");
     a.href=chart.toBase64Image("image/png",1);
-    a.download="Eurasien_NOAA_IMS_"+$("season").value+"_"+$("month").value+".png";
+    a.download="Eurasien_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".png";
     a.click();
   });
   $("csv").addEventListener("click",()=>{
     if(!doc)return;
-    const rows=sourceRows(Number($("season").value),$("month").value),
+    const rows=sourceRows(Number($("season").value),$("month").value,Number($("calendarYear").value)),
       csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,historical_min_million_km2,min_year,historical_max_million_km2,max_year,reference_years"];
     for(const row of rows){
       const c=climatologyRow(row.month,row.day)||{};
@@ -267,7 +300,7 @@
     const blob=new Blob([csv.join("\n")+"\n"],{type:"text/csv;charset=utf-8"});
     const link=document.createElement("a");
     link.href=URL.createObjectURL(blob);
-    link.download="Eurasien_NOAA_IMS_"+$("season").value+"_"+$("month").value+".csv";
+    link.download="Eurasien_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".csv";
     link.click();
     setTimeout(()=>URL.revokeObjectURL(link.href),2000);
   });

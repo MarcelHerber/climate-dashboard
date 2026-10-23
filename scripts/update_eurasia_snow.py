@@ -38,6 +38,7 @@ LAT_TS = 60.0
 REGION = {"lat_south": 20, "lat_north": 60, "lon_west": -10, "lon_east": 180}
 HISTORY_YEARS = [year for year in range(1999, 2026) if year != 2014]
 WINTER_MONTHS = (10, 11, 12, 1, 2, 3)
+ALL_MONTHS = tuple(range(1, 13))
 AGENT = "ClimateDashboardEurasianSnow/1.0 (academic/visualization; IMS G02156)"
 ROW = re.compile(rb"^[0-4]{1024}$")
 FILENAME = re.compile(r"ims(\d{4})(\d{3})(?:_00UTC)?_24km_v([\d.]+)\.asc\.gz", re.I)
@@ -125,8 +126,8 @@ def calendar_dates_for_season(season: int) -> list[dt.date]:
 
 
 def calculate_month_climatology(archive: dict[str,float],month: int) -> list[dict]:
-    if month not in WINTER_MONTHS:
-        raise ValueError("Kein Wintermonat")
+    if month not in ALL_MONTHS:
+        raise ValueError("Ungültiger Monat")
     max_days=29 if month==2 else calendar.monthrange(2025,month)[1]
     result=[]
     for day in range(1,max_days+1):
@@ -160,15 +161,24 @@ def calculate_climatology(archive: dict[str,float]) -> list[dict]:
 def update(output: Path,max_new: int,today: dt.date) -> dict:
     if max_new<1: raise ValueError("--max-new muss positiv sein")
     existing=json.loads(output.read_text()) if output.exists() else {}
-    date_re=re.compile(r"^\d{4}-(?:01|02|03|10|11|12)-\d{2}$")
+    date_re=re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])-\d{2}$")
     archive={key:float(val) for key,val in existing.get("daily",{}).items()
              if isinstance(val,(int,float)) and math.isfinite(val)
              and date_re.fullmatch(key)}
     mask,weights=geographic_mask_and_weights()
     season=today.year if today.month>=10 else today.year-1
     last_day=today-dt.timedelta(days=1)
+    # A true January–December calendar-year view needs the non-winter days,
+    # not a visual extension of the October–March series.
+    current_year=[dt.date(today.year,m,d)
+                  for m in ALL_MONTHS
+                  for d in range(1,calendar.monthrange(today.year,m)[1]+1)
+                  if dt.date(today.year,m,d)<=last_day]
     current=[d for d in calendar_dates_for_season(season) if d<=last_day]
     previous=calendar_dates_for_season(season-1)
+    previous_calendar=[dt.date(today.year-1,m,d)
+                       for m in ALL_MONTHS
+                       for d in range(1,calendar.monthrange(today.year-1,m)[1]+1)]
     # Five real leap-day reference samples need older leap years, which
     # would otherwise come last when filling recent winter seasons first.
     leap_days=[dt.date(y,2,29) for y in sorted(HISTORY_YEARS,reverse=True)
@@ -176,10 +186,18 @@ def update(output: Path,max_new: int,today: dt.date) -> dict:
     # Give each missing month daily historical observations, including
     # February and March. Avoid the previous 420-file cap which stalled
     # November–March at only 2–3 reference years per calendar day.
+    # Fill 10+ real historical summers as early as possible. This produces
+    # a continuous, honest 12-month mean/±σ while the full reference archive
+    # continues to grow. Earlier October–March values are retained.
+    missing_summer=[dt.date(y,m,d) for y in sorted(HISTORY_YEARS,reverse=True)
+                    for m in range(4,10)
+                    for d in range(1,calendar.monthrange(y,m)[1]+1)]
     history=[dt.date(y,m,d) for y in sorted(HISTORY_YEARS,reverse=True)
-             for m in WINTER_MONTHS
+             for m in ALL_MONTHS
              for d in range(1,calendar.monthrange(y,m)[1]+1)]
-    tasks=list(dict.fromkeys(d for d in current+previous+leap_days+history
+    tasks=list(dict.fromkeys(d for d in
+                             current_year+current+previous_calendar+previous+
+                             leap_days+missing_summer+history
                              if d<=last_day and d.isoformat() not in archive))
     found=failed=0
     catalogs={}
@@ -203,15 +221,16 @@ def update(output: Path,max_new: int,today: dt.date) -> dict:
             LOG.warning("IMS %s nicht verarbeitet: %s",date,exc)
     if not archive: raise RuntimeError("Keine echten NOAA IMS-Tagesdaten")
     by_month={f"{m:02d}":calculate_month_climatology(archive,m)
-              for m in WINTER_MONTHS}
+              for m in ALL_MONTHS}
     coverage={key:sum(row["mean"] is not None for row in values)
               for key,values in by_month.items()}
     def season_for(date: str) -> int:
         return int(date[:4]) if int(date[5:7])>=10 else int(date[:4])-1
     seasons=sorted({season_for(d) for d in archive},reverse=True)
+    calendar_years=sorted({int(d[:4]) for d in archive},reverse=True)
     result={
         "schema":1,
-        "product":"Eurasien: tägliche Schneebedeckung Oktober–März",
+        "product":"Eurasien: tägliche Schneebedeckung Januar–Dezember mit Winterhalbjahr",
         "source":{"name":"NOAA/USNIC IMS 24km / NSIDC G02156",
                   "url":"https://nsidc.org/data/g02156/versions/1",
                   "doi":"10.7265/N52R3PMC"},
@@ -220,7 +239,9 @@ def update(output: Path,max_new: int,today: dt.date) -> dict:
                     "area_unit":"million km2",
                     "area_method":"spherical polar stereographic distortion-corrected"},
         "winter_months":list(WINTER_MONTHS),
+        "months":list(ALL_MONTHS),
         "seasons":seasons,
+        "calendar_years":calendar_years,
         "climatology_period":{"start":1999,"end":2025,"excluded":[2014],
                               "min_years_per_day":10,"feb29_min_years":5},
         "generated_utc":dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -232,7 +253,8 @@ def update(output: Path,max_new: int,today: dt.date) -> dict:
         "status":{"n_daily":len(archive),"n_new":found,"n_errors":failed,
                   "n_oct_2026":sum(d.startswith("2026-10-") for d in archive),
                   "n_climatology_days":coverage["10"],
-                  "n_climatology_days_by_month":coverage},
+                  "n_climatology_days_by_month":coverage,
+                  "n_climatology_days_year":sum(coverage.values())},
     }
     output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":"))+"\n")

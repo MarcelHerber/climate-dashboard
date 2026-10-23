@@ -85,8 +85,25 @@ class IMSChecks(unittest.TestCase):
         self.assertEqual(november[-1]["max_year"], 2010)
         self.assertTrue(november[-1]["min"] <= november[-1]["mean"] <= november[-1]["max"])
         self.assertLess(november[-1]["min"], november[-1]["max"])
-        for month, length in ((10,31),(11,30),(12,31),(1,31),(2,29),(3,31)):
+        for month, length in ((1,31),(2,29),(3,31),(4,30),(5,31),(6,30),
+                              (7,31),(8,31),(9,30),(10,31),(11,30),(12,31)):
             self.assertEqual(len(calculate_month_climatology({},month)), length)
+
+    def test_full_calendar_climatology(self):
+        # April and September are based on real same-date archive inputs.
+        samples = {f"{year}-04-01": float(year-1990)
+                   for year in HISTORY_YEARS[:12]}
+        samples.update({f"{year}-09-30":float(year-1990)
+                        for year in HISTORY_YEARS[:12]})
+        april=calculate_month_climatology(samples,4)
+        sept=calculate_month_climatology(samples,9)
+        self.assertEqual((len(april),len(sept)),(30,30))
+        self.assertEqual(april[0]["years"],12)
+        self.assertEqual(sept[-1]["years"],12)
+        self.assertEqual(april[0]["min"],9.0)
+        self.assertEqual(sept[-1]["max"],20.0)
+        self.assertIsNone(april[1]["mean"])
+
 
     def test_filename(self):
         m = FILENAME.fullmatch("ims2026296_00UTC_24km_v1.3.asc.gz")
