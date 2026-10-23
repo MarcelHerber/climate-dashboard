@@ -21,6 +21,7 @@ assert.match(unauthTemperatureHtml,/GESCHÜTZTER TESTBEREICH/);
 assert.doesNotMatch(unauthTemperatureHtml,/id="tmaxCanvas"/);
 for(const path of ["/wolkenlabor/data/europa-tmax/current.json",
  "/wolkenlabor/data/europa-tmax/stations_catalog.json",
+ "/wolkenlabor/data/europa-tmax/icon_tmax_raw_2026-10-24.png",
  "/wolkenlabor/data/europa-tmax/icon_tmax_2026-10-24.png"]){
  const res=await request(path);
  assert.equal(res.status,401);
@@ -123,8 +124,8 @@ const helperSection=TMAX_JS.slice(TMAX_JS.indexOf("function hex("),TMAX_JS.index
 const original={key:"base:Frankfurt",city:"Frankfurt",station_name:"FRANKFURT-SACHSENH.",tmax_c:13.6};
 const day1={date:"2026-10-23",stations:[original]},day2={date:"2026-10-24",stations:[{...original,tmax_c:15.2}]};
 const jsState={data:{days:[day1,day2]},index:0,selectedKey:"base:Frankfurt",
- prefs:{styles:{},values:{},globalFill:"#ffffff"}};
-const el={tmaxBoxEditor:{hidden:true},tmaxBoxTitle:{},tmaxOriginal:{},tmaxValueOverride:{value:"14.5",focus(){}},
+ prefs:{styles:{},values:{},globalFill:"#ffffff",autoBoxes:false,scale:{min:-35,max:45,colors:["#1b2572","#2352ad","#319ad2","#6ecad2","#53a976","#a7c567","#f6d762","#f9984e","#eb5f4b","#ce3e5f","#772b5e"]}}};
+const el={tmaxBoxMode:{value:"manual"},tmaxBoxEditor:{hidden:true},tmaxBoxTitle:{},tmaxOriginal:{},tmaxValueOverride:{value:"14.5",focus(){}},
  tmaxBoxFill:{value:"#ffdc82"},tmaxBoxText:{value:"#172d41"},tmaxBoxBorder:{value:"#873d12"}};
 let calls=0;
 const paint=new Function("state","$","objectsForDay","dateLabel","renderEditorList","persist","render","note",
@@ -137,6 +138,7 @@ assert.equal(paint.shownValue(original,day1.date).value,14.5);
 assert.equal(paint.shownValue(original,day1.date).manual,true);
 assert.equal(paint.shownValue(day2.stations[0],day2.date).value,15.2);
 assert.equal(paint.boxColors("base:Frankfurt").fill,"#ffdc82");
+assert.equal(jsState.prefs.styles["base:Frankfurt"].mode,"manual");
 assert.equal(paint.boxColors("base:Frankfurt").border,"#873d12");
 assert.equal(paint.boxColors("base:Frankfurt").text,"#172d41");
 assert(calls>=2,"Editor writes should persist and redraw");
@@ -149,6 +151,40 @@ assert.equal(paint.boxColors("base:Frankfurt").fill,"#ffffff");
 jsState.prefs.globalFill="#111111";
 assert.equal(paint.boxColors("base:Frankfurt").text,"#ffffff");
 assert.equal(paint.contrast("#ffffff"),"#172d41");
+
+for(const id of ["tmaxScaleEditor","tmaxScaleMin","tmaxScaleMax",
+ "tmaxScaleStops","tmaxScalePreset","tmaxScaleReset","tmaxScalePreview",
+ "tmaxAutoBoxes","tmaxBoxMode","tmaxBoxPresets"]){
+ assert.match(temperatureHtml,new RegExp('id="'+id+'"'),"missing editor control "+id);
+}
+assert.match(TMAX_JS,/icon_tmax_raw_/);
+assert.match(TMAX_JS,/colorizeIcon\(raw\)/);
+assert.match(TMAX_JS,/drawLegend\(\)/);
+const tempStops=new Function(TMAX_JS.slice(TMAX_JS.indexOf("const STOPS="),
+ TMAX_JS.indexOf("const SCALE_PRESETS="))+"return STOPS;")();
+const scaleSource=TMAX_JS.slice(TMAX_JS.indexOf("const SCALE_PRESETS="),
+ TMAX_JS.indexOf("const state={"));
+const colorsState={prefs:{scale:{min:-35,max:45,colors:tempStops.map(x=>x[1])}},
+ rawPictures:new Map(),pictures:new Map(),data:{days:[]},index:0};
+const palette=new Function("STOPS","state","document","$","render","persist","note","openBoxEditor",
+ scaleSource+"return {sanitizedScale,scaleAt,scaleHex,paletteLut,colorizeIcon,defaultScale};"
+)(tempStops,colorsState,null,()=>({}),()=>{},()=>{},()=>{},()=>{});
+assert.equal(palette.scaleHex(-35),"#1b2572");
+assert.equal(palette.scaleHex(45),"#772b5e");
+assert.equal(palette.scaleHex(0),"#6ecad2");
+const oldColor=palette.scaleHex(10);
+colorsState.prefs.scale.min=-10;
+colorsState.prefs.scale.max=30;
+assert.notEqual(palette.scaleHex(10),oldColor,
+ "Range adjustment must affect a given physical temperature");
+colorsState.prefs.scale.colors[0]="#ffffff";
+assert.equal(palette.scaleHex(-10),"#ffffff");
+const lut=palette.paletteLut();
+assert.equal(lut.length,3072);
+assert.deepEqual(Array.from(lut.slice(0,3)),[255,255,255]);
+colorsState.prefs.scale=palette.defaultScale();
+assert.deepEqual(palette.sanitizedScale({min:30,max:-30}),palette.defaultScale());
+
 
 
 
