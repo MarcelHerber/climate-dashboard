@@ -84,7 +84,7 @@ export function europeTmaxPage() {
   '<style>'+LAB_CSS+STYLE+'</style></head><body>'+
   '<header><div><div class="sub">Climate Dashboard · geschütztes Wolkenlabor</div>'+
   '<strong>Wolkenfilm / Europa Tmax</strong> <span class="badge">Experimentell · privat</span></div>'+
-  '<nav><a href="/wolkenlabor">← Wolkenfilm</a><a href="/">Alpenwetter</a>'+
+  '<nav><a href="/wolkenlabor">← Wolkenfilm</a><a href="/wolkenlabor/europa-tmax">Tmax</a><a href="/wolkenlabor/europa-tmin">Tmin</a><a href="/">Alpenwetter</a>'+
   '<form method="POST" action="/logout"><button type="submit">Abmelden</button></form></nav></header>'+
   '<main><section class="card tmax-card">'+
   '<div class="tmax-head"><div><h1>Europäische Höchsttemperaturen</h1>'+
