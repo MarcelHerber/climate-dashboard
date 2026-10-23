@@ -18,8 +18,8 @@ const STOPS=[
 ];
 const state={data:null,geo:null,index:0,pictures:new Map(),showField:true,
  showPoints:true,showNames:true,density:"dense",busy:false,
- catalog:[],prefs:{hidden:[],custom:[],positions:{}},editMode:"off",hits:[],drag:null,
- selectedSearch:null,pointTarget:null,editorOpen:false};
+ catalog:[],prefs:{hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"},editMode:"off",hits:[],drag:null,
+ selectedSearch:null,pointTarget:null,editorOpen:false,selectedKey:null};
 function xy(lon,lat,region=MAIN){return [
  region.x+(lon-region.west)/(region.east-region.west)*region.w,
  region.y+(region.north-lat)/(region.north-region.south)*region.h
@@ -112,6 +112,82 @@ function drawLegend(){
  ctx.textAlign="left";
 }
 
+
+/* Presentation-only overrides, with original DWD TX retained unchanged. */
+function hex(c,defaultColor){return typeof c==="string"&&/^#[0-9a-f]{6}$/i.test(c)?c.toLowerCase():defaultColor}
+function contrast(hexColor){
+ const a=[1,3,5].map(i=>{const v=parseInt(hexColor.slice(i,i+2),16)/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});
+ return .2126*a[0]+.7152*a[1]+.0722*a[2]<.19?"#ffffff":"#172d41";
+}
+function boxColors(key){
+ const own=state.prefs.styles[key]||{},fill=hex(own.fill,hex(state.prefs.globalFill,"#ffffff"));
+ return {fill,text:hex(own.text,contrast(fill)),border:hex(own.border,"#1e3444")};
+}
+function manualValue(key,date){
+ const val=state.prefs.values[date]?.[key];
+ return typeof val==="number"&&Number.isFinite(val)&&val>=-55&&val<=55?val:null;
+}
+function shownValue(entry,date){
+ const manual=manualValue(entry.key,date);
+ return manual===null?{value:entry.tmax_c,manual:false}:{value:manual,manual:true};
+}
+function selectedEntry(){
+ const day=state.data?.days?.[state.index];
+ return day&&state.selectedKey?objectsForDay(day).find(s=>s.key===state.selectedKey):null;
+}
+function openBoxEditor(key){
+ const day=state.data?.days?.[state.index];if(!day)return;
+ const s=objectsForDay(day).find(e=>e.key===key);if(!s)return;
+ state.selectedKey=key;
+ $("tmaxBoxEditor").hidden=false;
+ $("tmaxBoxTitle").textContent="Kästchen bearbeiten: "+s.city;
+ const original=Number.isFinite(s.tmax_c)?s.tmax_c.toLocaleString("de-DE",{maximumFractionDigits:1})+" °C":"kein MOSMIX-TX";
+ $("tmaxOriginal").textContent="DWD MOSMIX (Original): "+original+" · "+(s.station_name||"kein Stationsname")+" · "+dateLabel(day.date);
+ const manual=manualValue(key,day.date);
+ $("tmaxValueOverride").value=manual===null?"":String(manual);
+ const c=boxColors(key);
+ $("tmaxBoxFill").value=c.fill;$("tmaxBoxText").value=c.text;$("tmaxBoxBorder").value=c.border;
+ renderEditorList();
+}
+function closeBoxEditor(){
+ state.selectedKey=null;$("tmaxBoxEditor").hidden=true;renderEditorList();
+}
+function applyBoxEdits(){
+ const day=state.data?.days?.[state.index],entry=selectedEntry();if(!day||!entry)return;
+ const raw=$("tmaxValueOverride").value.trim().replace(",",".");
+ if(raw!==""){
+  const value=Number(raw);
+  if(!Number.isFinite(value)||value< -55||value>55){
+   note("Temperatur muss zwischen −55 und +55 °C liegen.");return;
+  }
+  state.prefs.values[day.date]??={};
+  state.prefs.values[day.date][entry.key]=Math.round(value*10)/10;
+ }else if(state.prefs.values[day.date]){
+  delete state.prefs.values[day.date][entry.key];
+  if(!Object.keys(state.prefs.values[day.date]).length)delete state.prefs.values[day.date];
+ }
+ state.prefs.styles[entry.key]={
+  fill:hex($("tmaxBoxFill").value,"#ffffff"),
+  text:hex($("tmaxBoxText").value,"#172d41"),
+  border:hex($("tmaxBoxBorder").value,"#1e3444")
+ };
+ persist();render();openBoxEditor(entry.key);
+ note("Anzeige geändert. MOSMIX-Original bleibt erhalten; * kennzeichnet manuelle Werte.");
+}
+function resetBoxValue(){
+ const day=state.data?.days?.[state.index],key=state.selectedKey;if(!day||!key)return;
+ if(state.prefs.values[day.date]){
+  delete state.prefs.values[day.date][key];
+  if(!Object.keys(state.prefs.values[day.date]).length)delete state.prefs.values[day.date];
+ }
+ persist();render();openBoxEditor(key);note("MOSMIX-Originalwert wiederhergestellt.");
+}
+function resetBoxColor(){
+ const key=state.selectedKey;if(!key)return;
+ delete state.prefs.styles[key];persist();render();openBoxEditor(key);
+ note("Individuelle Farben zurückgesetzt.");
+}
+
 const EDIT_STORAGE="climate-europa-tmax-editor-v1";
 function restorePrefs(){
  try{
@@ -121,9 +197,12 @@ function restorePrefs(){
    custom:Array.isArray(parsed.custom)?parsed.custom.filter(x=>
      typeof x.key==="string"&&typeof x.stationId==="string"&&
      Number.isFinite(x.lon)&&Number.isFinite(x.lat)&&typeof x.name==="string").slice(0,160):[],
-   positions:parsed.positions&&typeof parsed.positions==="object"?parsed.positions:{}
+   positions:parsed.positions&&typeof parsed.positions==="object"?parsed.positions:{},
+   styles:parsed.styles&&typeof parsed.styles==="object"?parsed.styles:{},
+   values:parsed.values&&typeof parsed.values==="object"?parsed.values:{},
+   globalFill:hex(parsed.globalFill,"#ffffff")
   };
- }catch(_){return {hidden:[],custom:[],positions:{}}}
+ }catch(_){return {hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"}}
 }
 function persist(){
  try{localStorage.setItem(EDIT_STORAGE,JSON.stringify(state.prefs));}
