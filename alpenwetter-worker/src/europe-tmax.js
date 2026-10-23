@@ -72,6 +72,7 @@ export function europeTmaxPage() {
   '<strong>Orte und Temperaturkästchen bearbeiten</strong>'+
   '<p>Ort/Station suchen und hinzufügen oder auf „Punkt setzen“ klicken und direkt auf der Karte markieren. Es werden ausschließlich reale MOSMIX-TX-Daten verwendet.</p>'+
   '<div class="tmax-edit-controls"><input type="search" id="tmaxFind" autocomplete="off" placeholder="Ort oder MOSMIX-Station suchen" aria-label="Stationsname suchen">'+
+  '<input id="tmaxPinLabel" type="text" placeholder="Name für neuen Punkt (optional)" maxlength="35" aria-label="Eigener Name für Kartenpunkt">'+
   '<button id="tmaxAdd" type="button" disabled>+ Ort hinzufügen</button>'+
   '<button id="tmaxPin" type="button" aria-pressed="false">⌖ Punkt setzen</button>'+
   '<button id="tmaxMove" type="button" aria-pressed="false">↔ Kästchen verschieben</button>'+
