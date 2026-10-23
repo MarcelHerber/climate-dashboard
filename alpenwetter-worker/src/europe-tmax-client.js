@@ -231,11 +231,12 @@ function drawCoast(){
 function drawIconField(image){
  const bounds=state.data?.grid;
  if(!image||!bounds)return;
- const sx=(MAIN.west-bounds.west)/(bounds.east-bounds.west)*image.naturalWidth;
- const sy=(bounds.north-MAIN.north)/(bounds.north-bounds.south)*image.naturalHeight;
- const sw=(MAIN.east-MAIN.west)/(bounds.east-bounds.west)*image.naturalWidth;
- const sh=(MAIN.north-MAIN.south)/(bounds.north-bounds.south)*image.naturalHeight;
- if(sx<0||sy<0||sx+sw>image.naturalWidth+.5||sy+sh>image.naturalHeight+.5)
+ const width=image.naturalWidth||image.width,height=image.naturalHeight||image.height;
+ const sx=(MAIN.west-bounds.west)/(bounds.east-bounds.west)*width;
+ const sy=(bounds.north-MAIN.north)/(bounds.north-bounds.south)*height;
+ const sw=(MAIN.east-MAIN.west)/(bounds.east-bounds.west)*width;
+ const sh=(MAIN.north-MAIN.south)/(bounds.north-bounds.south)*height;
+ if(sx<0||sy<0||sx+sw>width+.5||sy+sh>height+.5)
   throw Error("Temperaturfeld und Kartenausschnitt stimmen nicht überein");
  ctx.save();rectPath(MAIN);
  ctx.drawImage(image,sx,sy,sw,sh,MAIN.x,MAIN.y,MAIN.w,MAIN.h);
@@ -794,30 +795,49 @@ function fetchImage(path){
  return new Promise((resolve,reject)=>{
   const image=new Image();
   image.onload=()=>resolve(image);image.onerror=()=>reject(Error("ICON-EU-Tageskarte fehlt"));
-  image.src=PREFIX+path+"?v="+encodeURIComponent(state.data.icon_cycle);
+  image.src=PREFIX+path+"?v="+encodeURIComponent(state.data.built_utc||state.data.icon_cycle);
  });
 }
 async function selectDay(){
  setButtons();
- const day=state.data?.days?.[state.index];if(!day){render();return;}
+ const day=state.data?.days?.[state.index];
+ if(!day){render();scaleControlState();return}
  if(!state.pictures.has(day.date)){
   setStatus("Lade ICON-EU-Tmax vom "+dateLabel(day.date)+" …");
   try{
-   const img=await fetchImage(day.icon_png);
-   if(img.naturalWidth!==state.data.grid.width||img.naturalHeight!==state.data.grid.height)
-    throw Error("ICON-EU-Gitter passt nicht zum veröffentlichten Datensatz");
-   state.pictures.set(day.date,img);
+   if(state.data.schema===2&&day.icon_raw_png){
+    if(!/^icon_tmax_raw_\d{4}-\d{2}-\d{2}\.png$/.test(day.icon_raw_png))
+     throw Error("Ungültiger Name für das ICON-EU-Temperaturraster");
+    const raw=await fetchImage(day.icon_raw_png);
+    if(raw.naturalWidth!==state.data.grid.width||
+       raw.naturalHeight!==state.data.grid.height)
+     throw Error("ICON-Rohdatenraster passt nicht zum DWD-Modellgitter");
+    state.rawPictures.set(day.date,raw);
+    state.pictures.set(day.date,colorizeIcon(raw));
+   }else{
+    const img=await fetchImage(day.icon_png);
+    if(img.naturalWidth!==state.data.grid.width||
+       img.naturalHeight!==state.data.grid.height)
+     throw Error("ICON-EU-Gitter passt nicht zum veröffentlichten Datensatz");
+    state.pictures.set(day.date,img);
+   }
   }catch(error){
-   setStatus("ICON-EU-Fläche fehlt: "+error.message+"; MOS-Werte bleiben nutzbar.",true);
+   // Do not show a wrong color scale with a legacy static image.
+   setStatus("ICON-Rohdaten nicht verfügbar: "+error.message+
+    " – keine irreführende farbige Ersatzkarte.",true);
   }
  }
+ scaleControlState();
  setButtons();render();renderEditorList();
  if(state.selectedKey&&state.editorOpen)openBoxEditor(state.selectedKey);
  if(state.pictures.has(day.date))
   setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+
     day.stations.filter(s=>Number.isFinite(s.tmax_c)).length+" MOSMIX-Werte / "+
-    day.stations.length+" Vorlagenorte · Fehlwerte als „–“ · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
+    day.stations.length+" Vorlagenorte · Farbskala "+
+    (state.rawPictures.has(day.date)?"frei einstellbar":"noch nicht verfügbar")+
+    " · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
 }
+
 async function load(){
  if(state.busy)return;state.busy=true;
  $("tmaxRefresh").disabled=true;
@@ -830,11 +850,12 @@ async function load(){
   ]);
   if(!responses[0].ok)throw Error("Noch kein vollständiger Datenlauf veröffentlicht (HTTP "+responses[0].status+")");
   const data=await responses[0].json();
-  if(data.schema!==1||!Array.isArray(data.days)||data.days.length!==5||
+  if(![1,2].includes(data.schema)||!Array.isArray(data.days)||data.days.length!==5||
      data.daily_window!=="06:00-18:00 UTC"||
      !data.grid||data.grid.width<300||data.grid.height<200||
      !data.days.every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d.date)&&
        /^icon_tmax_\d{4}-\d{2}-\d{2}\.png$/.test(d.icon_png)&&
+       (data.schema<2||/^icon_tmax_raw_\d{4}-\d{2}-\d{2}\.png$/.test(d.icon_raw_png))&&
        d.stations?.length===31&&
        d.stations.every(s=>(s.tmax_c===null||Number.isFinite(s.tmax_c))&&
         Number.isFinite(s.lon)&&Number.isFinite(s.lat))&&
@@ -852,10 +873,11 @@ async function load(){
        Array.isArray(s.tx)&&s.tx.length===5))
     throw Error("MOSMIX-Stationskatalog passt nicht zum aktuellen Modelllauf");
   state.catalog=catalog.stations;
-  state.data=data;state.index=0;state.pictures.clear();await selectDay();
+  state.data=data;state.index=0;state.pictures.clear();state.rawPictures.clear();await selectDay();
   renderEditorList();
  }catch(error){
-  state.data=null;state.pictures.clear();state.index=0;
+  state.data=null;state.pictures.clear();state.rawPictures.clear();state.index=0;
+  scaleControlState();
   setStatus("Experimenteller Datenlauf noch nicht bereit: "+error.message+". Keine Ersatz- oder Beispielwerte.",true);
   setButtons();render();
  }finally{state.busy=false;$("tmaxRefresh").disabled=false;}
