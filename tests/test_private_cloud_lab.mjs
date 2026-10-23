@@ -73,7 +73,7 @@ assert.match(TMAX_JS,/ArrowLeft/);
 assert.match(TMAX_JS,/const INSETS=\[/);
 assert.match(TMAX_JS,/city:"Azoren"/);
 assert.match(TMAX_JS,/city:"Kanaren"/);
-assert.match(TMAX_JS,/const \[cx,cy\]=xy\(s.lon,s.lat,region\)/);
+assert.match(TMAX_JS,/const \[cx,cy\]=xy\(lon,lat,region\)/);
 assert.doesNotMatch(TMAX_JS,/ctx\.lineTo\(position\.x/);
 assert.match(TMAX_JS,/drawIconField\(image\)/);
 assert.match(temperatureHtml,/Alle Vorlagenstädte/);
