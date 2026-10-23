@@ -89,6 +89,22 @@ for(const phrase of ["stations_catalog.json","pointerdown","pointermove",
 }
 assert.match(TMAX_JS,/region\.west\+\(x-region\.x\)\/region\.w\*\(region\.east-region\.west\)/);
 
+const pxCode=TMAX_JS.slice(TMAX_JS.indexOf("function xy("),TMAX_JS.indexOf("function rectPath("));
+const geoCode=TMAX_JS.slice(TMAX_JS.indexOf("function lonlat("),TMAX_JS.indexOf("function availableValue("));
+const mainMap={west:-24.8,east:62,south:33.5,north:71,x:220,y:108,w:1610,h:835};
+const coords=new Function("MAIN",pxCode+geoCode+"return {xy,lonlat,geoDistance};")(mainMap);
+const [cx,cy]=coords.xy(13.4,52.52);
+const [lonBack,latBack]=coords.lonlat(cx,cy,mainMap);
+assert(Math.abs(lonBack-13.4)<1e-9);
+assert(Math.abs(latBack-52.52)<1e-9);
+const azoresInset={west:-29,east:-23.4,south:36.5,north:39.8,x:22,y:526,w:178,h:177};
+const [ix,iy]=coords.xy(-25.67,37.74,azoresInset);
+const [al,at]=coords.lonlat(ix,iy,azoresInset);
+assert(Math.abs(al+25.67)<1e-9&&Math.abs(at-37.74)<1e-9);
+assert(coords.geoDistance(13.4,52.52,13.4,52.52)<0.01);
+assert(coords.geoDistance(13.4,52.52,13.42,52.52)<3);
+
+
 assert.match(content,/id="filmCanvas"/);
 assert.match(content,/Nur hohe Wolken/);
 assert.match(content,/Nur mittelhohe Wolken/);
