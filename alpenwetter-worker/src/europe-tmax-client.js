@@ -16,9 +16,154 @@ const STOPS=[
  [7,"#53a976"],[13,"#a7c567"],[18,"#f6d762"],[23,"#f9984e"],
  [28,"#eb5f4b"],[34,"#ce3e5f"],[45,"#772b5e"]
 ];
-const state={data:null,geo:null,index:0,pictures:new Map(),showField:true,
+
+const SCALE_PRESETS={
+ original:STOPS.map(x=>x[1]),
+ warm:["#11275f","#1b468d","#1d81bb","#48bbcc","#8dba92","#bfcc72",
+       "#f2d76b","#f6bb56","#f58246","#de5940","#a72e4f"],
+ cold:["#121c64","#234caa","#368ed5","#5cbde4","#80d6cb","#a1cf93",
+       "#d7db87","#f4c569","#f39c55","#db5c52","#8f2c57"],
+ gray:["#16202b","#34404d","#535d68","#74808b","#919da7","#adb9c1",
+       "#c4cfd5","#d8e0e4","#e8edf0","#f5f7f8","#ffffff"]
+};
+function defaultScale(){
+ return {min:-35,max:45,colors:[...SCALE_PRESETS.original]};
+}
+const FRACTIONS=STOPS.map(([t])=>(t+35)/80);
+function sanitizedScale(candidate){
+ const min=Number(candidate?.min),max=Number(candidate?.max);
+ const sensible=Number.isFinite(min)&&Number.isFinite(max)&&
+  min>=-65&&max<=65&&max-min>=5;
+ return {min:sensible?min:-35,max:sensible?max:45,
+  colors:Array.isArray(candidate?.colors)&&candidate.colors.length===STOPS.length?
+    candidate.colors.map((c,i)=>/^#[0-9a-f]{6}$/i.test(c)?c.toLowerCase():SCALE_PRESETS.original[i]):
+    [...SCALE_PRESETS.original]};
+}
+function scaleAt(t){
+ const cfg=state.prefs.scale||defaultScale();
+ if(!Number.isFinite(t))return null;
+ const position=Math.max(0,Math.min(1,(t-cfg.min)/(cfg.max-cfg.min)));
+ let i=0;
+ while(i<FRACTIONS.length-2&&FRACTIONS[i+1]<position)i++;
+ const fraction=(position-FRACTIONS[i])/(FRACTIONS[i+1]-FRACTIONS[i]);
+ const a=cfg.colors[i],b=cfg.colors[i+1];
+ return [1,3,5].map(j=>Math.round(
+  parseInt(a.slice(j,j+2),16)*(1-fraction)+parseInt(b.slice(j,j+2),16)*fraction
+ ));
+}
+function scaleHex(t){
+ const rgb=scaleAt(t);
+ return rgb?"#"+rgb.map(v=>v.toString(16).padStart(2,"0")).join(""):null;
+}
+function paletteLut(){
+ const out=new Uint8Array(1024*3);
+ const {min,max}=state.prefs.scale;
+ for(let i=0;i<1024;i++){
+  const rgb=scaleAt(min+(max-min)*i/1023);
+  out.set(rgb,i*3);
+ }
+ return out;
+}
+function colorizeIcon(rawImage){
+ const width=rawImage.naturalWidth,height=rawImage.naturalHeight;
+ const tmp=document.createElement("canvas");tmp.width=width;tmp.height=height;
+ const tctx=tmp.getContext("2d",{willReadFrequently:true});
+ if(!tctx)throw Error("Kein Canvas-Kontext für ICON-Rohdaten");
+ tctx.drawImage(rawImage,0,0);
+ const original=tctx.getImageData(0,0,width,height).data;
+ const output=tctx.createImageData(width,height),arr=output.data;
+ const lut=paletteLut(),s=state.prefs.scale;
+ for(let i=0;i<original.length;i+=4){
+  if(!original[i+3])continue;
+  const temperature=((original[i]<<8)|original[i+1])/10-100;
+  const pos=Math.max(0,Math.min(1023,Math.round(
+   (temperature-s.min)/(s.max-s.min)*1023)));
+  const j=pos*3;
+  arr[i]=lut[j];arr[i+1]=lut[j+1];arr[i+2]=lut[j+2];arr[i+3]=242;
+ }
+ tctx.putImageData(output,0,0);
+ return tmp;
+}
+function recolorLoaded(){
+ for(const [date,raw] of state.rawPictures){
+  state.pictures.set(date,colorizeIcon(raw));
+ }
+ render();
+}
+function scaleControlState(){
+ const day=state.data?.days?.[state.index];
+ const isReady=Boolean(day&&state.rawPictures.has(day.date));
+ for(const id of ["tmaxScaleMin","tmaxScaleMax","tmaxScalePreset","tmaxScaleReset"]){
+  $(id).disabled=!isReady;
+ }
+ for(const input of $("tmaxScaleStops").querySelectorAll("input")){
+  input.disabled=!isReady;
+ }
+ $("tmaxScaleState").textContent=isReady?
+  "Echte ICON-EU-Rohwerte · Skala aktiv":"Skala aktiv, sobald der neue ICON-Rohdatenlauf vorliegt";
+}
+function reflectScale(){
+ const s=state.prefs.scale;
+ $("tmaxScaleMin").value=String(s.min);
+ $("tmaxScaleMax").value=String(s.max);
+ const editor=$("tmaxScaleStops");editor.replaceChildren();
+ for(let i=0;i<FRACTIONS.length;i++){
+  const label=document.createElement("label");
+  const temp=(s.min+FRACTIONS[i]*(s.max-s.min)).toFixed(1).replace(/\.0$/,"");
+  const span=document.createElement("span");span.textContent=temp+"°";
+  const field=document.createElement("input");field.type="color";field.value=s.colors[i];
+  field.setAttribute("aria-label","Temperaturskala Farbe bei "+temp+" Grad");
+  field.addEventListener("input",()=>{
+   state.prefs.scale.colors[i]=field.value;
+   $("tmaxScalePreset").value="custom";
+   persist();updateScalePreview();recolorLoaded();
+  });
+  label.append(span,field);editor.append(label);
+ }
+ updateScalePreview();
+ scaleControlState();
+}
+function updateScalePreview(){
+ const s=state.prefs.scale;
+ $("tmaxScalePreview").style.background="linear-gradient(90deg,"+
+  s.colors.map((c,i)=>c+" "+(FRACTIONS[i]*100).toFixed(1)+"%").join(",")+")";
+}
+function applyScaleRange(){
+ const min=Number($("tmaxScaleMin").value),max=Number($("tmaxScaleMax").value);
+ if(!Number.isFinite(min)||!Number.isFinite(max)||min< -65||max>65||max-min<5){
+  note("Skalenbereich ungültig: Minimum ≥ −65 °C, Maximum ≤ 65 °C, mindestens 5 °C Abstand.");
+  return;
+ }
+ state.prefs.scale={...state.prefs.scale,min,max};
+ persist();reflectScale();recolorLoaded();
+ if(state.selectedKey)openBoxEditor(state.selectedKey);
+ note("Temperaturskala, ICON-EU-Fläche und Legende für alle Prognosetage angepasst.");
+}
+function initializeScaleControls(){
+ $("tmaxScaleMin").addEventListener("change",applyScaleRange);
+ $("tmaxScaleMax").addEventListener("change",applyScaleRange);
+ $("tmaxScalePreset").addEventListener("change",event=>{
+  const colors=SCALE_PRESETS[event.target.value];
+  if(!colors)return;
+  state.prefs.scale.colors=[...colors];
+  persist();reflectScale();recolorLoaded();
+ });
+ $("tmaxScaleReset").addEventListener("click",()=>{
+  state.prefs.scale=defaultScale();
+  $("tmaxScalePreset").value="original";
+  persist();reflectScale();recolorLoaded();
+  note("ICON-Farben und Temperaturbereich auf Original zurückgesetzt.");
+ });
+ $("tmaxAutoBoxes").addEventListener("change",e=>{
+  state.prefs.autoBoxes=e.target.checked;
+  persist();render();if(state.selectedKey)openBoxEditor(state.selectedKey);
+ });
+ reflectScale();
+}
+
+const state={data:null,geo:null,index:0,pictures:new Map(),rawPictures:new Map(),showField:true,
  showPoints:true,showNames:true,density:"dense",busy:false,
- catalog:[],prefs:{hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff"},editMode:"off",hits:[],drag:null,
+ catalog:[],prefs:{hidden:[],custom:[],positions:{},styles:{},values:{},globalFill:"#ffffff",scale:defaultScale(),autoBoxes:false},editMode:"off",hits:[],drag:null,
  selectedSearch:null,pointTarget:null,editorOpen:false,selectedKey:null};
 function xy(lon,lat,region=MAIN){return [
  region.x+(lon-region.west)/(region.east-region.west)*region.w,
@@ -98,20 +243,21 @@ function drawIconField(image){
 }
 function drawLegend(){
  const start=500,end=1380,barY=1006,height=17;
+ const {min,max,colors}=state.prefs.scale||defaultScale();
  const grad=ctx.createLinearGradient(start,0,end,0);
- for(const [temp,color] of STOPS)grad.addColorStop((temp+35)/80,color);
+ for(let i=0;i<colors.length;i++)grad.addColorStop(FRACTIONS[i],colors[i]);
  ctx.fillStyle=grad;ctx.fillRect(start,barY,end-start,height);
  ctx.strokeStyle="#536477";ctx.lineWidth=1;ctx.strokeRect(start,barY,end-start,height);
  ctx.fillStyle="#25394b";ctx.font="bold 19px system-ui";
  ctx.fillText("Temperaturmaximum (°C)",start,989);
  ctx.font="17px system-ui";ctx.textAlign="center";
- for(const t of [-30,-20,-10,0,10,20,30,40]){
-  const x=start+(t+35)/80*(end-start);
-  ctx.fillText(String(t)+"°",x,1044);
+ for(let i=0;i<=8;i++){
+  const x=start+i*(end-start)/8,t=min+i*(max-min)/8;
+  const label=Number(t.toFixed(1)).toLocaleString("de-DE",{maximumFractionDigits:1});
+  ctx.fillText(label+"°",x,1044);
  }
  ctx.textAlign="left";
 }
-
 
 /* Presentation-only overrides, with original DWD TX retained unchanged. */
 function hex(c,defaultColor){return typeof c==="string"&&/^#[0-9a-f]{6}$/i.test(c)?c.toLowerCase():defaultColor}
