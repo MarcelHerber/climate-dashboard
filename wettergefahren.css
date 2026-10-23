@@ -97,3 +97,18 @@ main{width:100%;max-width:1880px;padding-inline:clamp(12px,2.1vw,38px)}
   .map-heading .range{font-size:12px}
   #metrics{grid-template-columns:1fr}
 }
+
+/* Compact, keyboard-accessible map playback toolbar. */
+.map-time-navigation{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:1 1 400px;min-width:0}
+.map-time-navigation button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:43px;height:43px;border:1px solid #adc1d1;background:#eaf4fa;border-radius:10px;color:#145786;font:800 24px/1 system-ui;cursor:pointer;transition:background .15s}
+.map-time-navigation button:hover:not(:disabled){background:#176397;color:white}
+.map-time-navigation button:disabled{opacity:.35;cursor:default}
+.map-time-navigation button:focus-visible{outline:3px solid #f0b94d;outline-offset:2px}
+.map-time-content{display:flex;align-items:center;flex-direction:column;gap:2px;min-width:0;text-align:center}
+.map-time-content .range{font-size:13px;color:#25455e;font-weight:800}
+.period-position{font-size:11px;letter-spacing:.03em;color:#708496;font-variant-numeric:tabular-nums}
+@media(max-width:750px){
+  .map-heading{flex-direction:column;align-items:stretch}
+  .map-time-navigation{flex:0 0 auto;justify-content:space-between;width:100%}
+  .map-time-content .range{font-size:12px}
+}

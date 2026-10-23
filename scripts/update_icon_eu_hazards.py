@@ -25,8 +25,9 @@ import eccodes
 ROOT = "https://opendata.dwd.de/weather/nwp/icon-eu/grib"
 PREFIX = "icon-eu_europe_regular-lat-lon_single-level"
 PARAMETERS = ("VMAX_10M", "TOT_PREC", "SNOW_GSP", "SNOW_CON", "TMAX_2M", "TMIN_2M", "VIS")
-# 0.25° is the dashboard aggregation grid, not the native ICON-EU model mesh.
-LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.25, 184, 344
+# 0.125° is the aggregation grid, not the native ICON-EU model resolution.
+# It divides the older 0.25° cells into four independently classified areas.
+LAT_MIN, LON_MIN, STEP, ROWS, COLS = 27.0, -26.0, 0.125, 368, 688
 DURATIONS = (6, 12, 24)
 WINDOWS = tuple((h, h + duration) for duration in DURATIONS
                 for h in range(0, 120, duration))
@@ -336,6 +337,27 @@ def pack_levels(arr):
     return base64.b64encode(packed.tobytes()).decode("ascii")
 
 
+def encode_rle_levels(arr):
+    """Compact lossless per-cell hazard severity in 3-byte (value, uint16-run) tuples.
+
+    Unlike blurring/interpolation, this preserves every classified grid cell.
+    Base64 payloads shrink dramatically for the large level-zero regions.
+    """
+    if arr.ndim != 1 or np.any(arr > 4):
+        raise ValueError("Ungueltige Gefahrenstufen fuer RLE")
+    changes = np.flatnonzero(arr[1:] != arr[:-1]) + 1
+    stops = np.concatenate(([0], changes, [arr.size]))
+    output = bytearray()
+    for start, end in zip(stops[:-1], stops[1:]):
+        remaining = int(end - start)
+        value = int(arr[start])
+        while remaining:
+            count = min(remaining, 65535)
+            output.extend((value, count & 255, count >> 8))
+            remaining -= count
+    return base64.b64encode(output).decode("ascii")
+
+
 def build(cycle, output):
     agg = Aggregator()
     wind = download_parameter(cycle, "VMAX_10M")
@@ -373,7 +395,7 @@ def build(cycle, output):
             "duration_h": duration,
             "not_official_warning": True,
             "grid": {"lat_min": LAT_MIN, "lon_min": LON_MIN, "step": STEP,
-                     "rows": ROWS, "cols": COLS, "encoding": "uint4-base64",
+                     "rows": ROWS, "cols": COLS, "encoding": "rle-u8-base64",
                      "coverage_bounds": coverage_bounds},
             "thresholds": {**LIMITS, "snow_by_duration": SNOW_LIMITS},
             "periods": [],
@@ -393,7 +415,7 @@ def build(cycle, output):
             manifest["periods"].append({
                 "start_h": start,
                 "end_h": stop,
-                "layers": {key: pack_levels(agg.data[key][wi])
+                "layers": {key: encode_rle_levels(agg.data[key][wi])
                            if agg.coverage[key][wi] else None for key in HAZARDS},
                 "samples": {key: agg.coverage[key][wi] for key in HAZARDS},
                 "rain_intervals_available": {str(d): sum(
