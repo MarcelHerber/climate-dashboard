@@ -159,10 +159,17 @@ def update(output: Path,max_new: int,today: dt.date) -> dict:
     last_day=today-dt.timedelta(days=1)
     current=[d for d in calendar_dates_for_season(season) if d<=last_day]
     previous=calendar_dates_for_season(season-1)
+    # Five real leap-day reference samples need older leap years, which
+    # would otherwise come last when filling recent winter seasons first.
+    leap_days=[dt.date(y,2,29) for y in sorted(HISTORY_YEARS,reverse=True)
+               if calendar.isleap(y)]
+    # Give each missing month daily historical observations, including
+    # February and March. Avoid the previous 420-file cap which stalled
+    # November–March at only 2–3 reference years per calendar day.
     history=[dt.date(y,m,d) for y in sorted(HISTORY_YEARS,reverse=True)
              for m in WINTER_MONTHS
              for d in range(1,calendar.monthrange(y,m)[1]+1)]
-    tasks=list(dict.fromkeys(d for d in current+previous+history
+    tasks=list(dict.fromkeys(d for d in current+previous+leap_days+history
                              if d<=last_day and d.isoformat() not in archive))
     found=failed=0
     catalogs={}
