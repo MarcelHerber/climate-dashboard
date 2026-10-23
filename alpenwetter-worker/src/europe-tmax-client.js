@@ -17,7 +17,7 @@ const STOPS=[
  [28,"#eb5f4b"],[34,"#ce3e5f"],[45,"#772b5e"]
 ];
 const state={data:null,geo:null,index:0,pictures:new Map(),showField:true,
- showPoints:true,showNames:true,density:"medium",busy:false};
+ showPoints:true,showNames:true,density:"dense",busy:false};
 function xy(lon,lat,region=MAIN){return [
  region.x+(lon-region.west)/(region.east-region.west)*region.w,
  region.y+(region.north-lat)/(region.north-region.south)*region.h
@@ -209,7 +209,7 @@ async function selectDay(){
  setButtons();render();
  if(state.pictures.has(day.date))
   setStatus("Tag "+(state.index+1)+"/5 · "+dateLabel(day.date)+" · "+day.stations.length+
-   " echte MOSMIX-Stationen · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
+    echte MOSMIX-Stationswerte · ICON-EU-Lauf "+state.data.icon_cycle+" UTC.");
 }
 async function load(){
  if(state.busy)return;state.busy=true;
