@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-25T12:40:59+00:00",
+  "checked_utc": "2026-10-25T17:08:06+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -88,68 +88,10 @@
     },
     {
       "page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
-      "state": "inspected",
-      "image_count": 4,
-      "script_count": 9,
-      "inline_image_or_endpoint_hints": [
-        "/photos/sjo_atlant_spa/261025_0000_3.png",
-        "/photos/sjo_atlant_spa/261025_0000_6.png",
-        "/photos/sjo_atlant_spa/261025_0000_9.png",
-        "/photos/sjo_atlant_spa/261025_0000_12.png",
-        "/photos/sjo_atlant_spa/261025_0000_15.png",
-        "/photos/sjo_atlant_spa/261025_0000_18.png",
-        "/photos/sjo_atlant_spa/261025_0000_21.png",
-        "/photos/sjo_atlant_spa/261025_0000_24.png",
-        "/photos/sjo_atlant_spa/261025_0000_27.png",
-        "/photos/sjo_atlant_spa/261025_0000_30.png",
-        "/photos/sjo_atlant_spa/261025_0000_33.png",
-        "/photos/sjo_atlant_spa/261025_0000_36.png"
-      ],
-      "provider_script_urls": [
-        "https://www.vedur.is/skin/basic/js/noflicker.js",
-        "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
-        "https://www.vedur.is/js/vi-base.js?v=538",
-        "https://www.vedur.is/js/vi-res_is.js?v=538",
-        "https://www.vedur.is/jslib/history.js?v=538",
-        "https://www.vedur.is/jslib/jquery-ui.js?v=538",
-        "https://www.vedur.is/web2/js/app.min.js?v=538",
-        "https://www.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
-        "https://www.vedur.is/skin/basic/js/init.js?v17"
-      ],
-      "script_hints": [
-        {
-          "url": "https://www.vedur.is/skin/basic/js/noflicker.js",
-          "image_or_endpoint_strings": []
-        },
-        {
-          "url": "https://www.vedur.is/skin/basic/js/jQuery-1.6.js",
-          "image_or_endpoint_strings": []
-        },
-        {
-          "url": "https://www.vedur.is/js/vi-base.js?v=538",
-          "image_or_endpoint_strings": [
-            "icon/wnone.gif",
-            "invalid.gif",
-            "icon/ydotsel.gif",
-            "icon/ydot.gif",
-            "+VI.r.forecasttime+"
-          ]
-        },
-        {
-          "url": "https://www.vedur.is/js/vi-res_is.js?v=538",
-          "image_or_endpoint_strings": [
-            "auto_forecast"
-          ]
-        },
-        {
-          "url": "https://www.vedur.is/jslib/history.js?v=538",
-          "image_or_endpoint_strings": []
-        },
-        {
-          "url": "https://www.vedur.is/jslib/jquery-ui.js?v=538",
-          "image_or_endpoint_strings": []
-        }
-      ]
+      "state": "unreachable",
+      "image_count": 0,
+      "script_count": 0,
+      "error": "TimeoutError: The read operation timed out"
     }
   ],
   "image_candidates": [
@@ -180,38 +122,6 @@
     {
       "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
       "url": "https://en.vedur.is/media/cssmedia/multilogo-en-v3.jpg",
-      "valid_hint_utc": null,
-      "filename_utc": null,
-      "strong_timestamp_match": false,
-      "alt": ""
-    },
-    {
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
-      "url": "https://www.vedur.is/media/cssmedia/app-v2.png",
-      "valid_hint_utc": null,
-      "filename_utc": null,
-      "strong_timestamp_match": false,
-      "alt": ""
-    },
-    {
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
-      "url": "https://www.vedur.is/media/cssmedia/facebook-v2.png",
-      "valid_hint_utc": null,
-      "filename_utc": null,
-      "strong_timestamp_match": false,
-      "alt": ""
-    },
-    {
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
-      "url": "https://www.vedur.is/media/cssmedia/twitter-logo-v2.png",
-      "valid_hint_utc": null,
-      "filename_utc": null,
-      "strong_timestamp_match": false,
-      "alt": ""
-    },
-    {
-      "source_page": "https://www.vedur.is/vedur/sjovedur/atlantshafskort/",
-      "url": "https://www.vedur.is/media/cssmedia/multilogo-en-v3.jpg",
       "valid_hint_utc": null,
       "filename_utc": null,
       "strong_timestamp_match": false,
@@ -477,10 +387,10 @@
     }
   ],
   "sample_forecast_image": {
-    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261025_0000_12.png",
-    "expected_valid_utc": "2026-10-25T12:00+00:00",
-    "forecast_hours": 12,
-    "printed_caption_ocr": "Eh OF a4 Mi Sun. 25. okt. kl. 12:00 «% Vedurstofa istands\nile Oe) ACN es\na fin’ Secs) 0— SRMRMRS | (CSCS) hea ae ee\n\nVindur (i's) | LOD m haed og lotiprystingur (hPa) ECMWEFIECM 0.125: 25.10.2026 00.00 UTC (+12)\n"
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261025_0000_18.png",
+    "expected_valid_utc": "2026-10-25T18:00+00:00",
+    "forecast_hours": 18,
+    "printed_caption_ocr": "2% ara VBP. OZ Sun. 25. okt. kl. 18:00 4% Vedurstofa istands\n* 2 a 3 ee eS MY es\n\nat a mn” \\ _ —™ AIS an a Af SS\n; \\ { ! § I (AG >\nVindur (mis) | L00 m haed og lotiprystingur (hPa) ECMWEFIECM 0.125: 25.10.2026 00.00 UTC (+14)\n"
   },
   "sample_error": null,
   "matching_metadata_candidates": 0,
