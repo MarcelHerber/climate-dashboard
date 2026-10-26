@@ -240,6 +240,7 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                 ttt = forecasts.get("TTT") or [None] * len(timesteps)
                 tx = forecasts.get("TX") or []
                 tn = forecasts.get("TN") or []
+                sun1 = forecasts.get("SunD1") or [None] * len(timesteps)
                 # Sparse maps avoid adding hundreds of nulls per station.
                 tx12 = {str(i): tx[i] for i in tx_indices if i < len(tx) and tx[i] is not None}
                 tn12 = {str(i): tn[i] for i in tn_indices if i < len(tn) and tn[i] is not None}
@@ -268,6 +269,7 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     stations.append({
                         **station_meta, "values": ttt,
                         "tx12": tx12, "tn12": tn12,
+                        "sun1":sun1,
                     })
                     detail = {
                         **station_meta,
