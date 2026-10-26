@@ -63,6 +63,22 @@
     return best;
   }
 
+  function colorForSun(value) {
+    if (!Number.isFinite(value)) return "#9ca3af";
+    const t=Math.max(0,Math.min(60,value));
+    const stops=[[0,"#9aa5b1"],[10,"#c9d8dc"],[20,"#a9d7c0"],
+      [30,"#f9e48e"],[40,"#f4c851"],[50,"#f19a30"],[60,"#e35b18"]];
+    let a=stops[0],b=stops[stops.length-1];
+    for(let i=0;i<stops.length-1;i++){
+      if(t<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
+    }
+    const fraction=(t-a[0])/(b[0]-a[0]||1);
+    const mix=(idx)=>Math.round(
+      parseInt(a[1].slice(idx,idx+2),16)*(1-fraction)+
+      parseInt(b[1].slice(idx,idx+2),16)*fraction).toString(16).padStart(2,"0");
+    return "#"+mix(1)+mix(3)+mix(5);
+  }
+
   function textColor(bg) {
     const hex = bg.replace("#","");
     const r = parseInt(hex.slice(0,2),16);
@@ -139,7 +155,7 @@
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button></div>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="Originale SunD1-Sonnenscheindauer der vergangenen Stunde">Sonne (1 h)</button></div>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
@@ -393,18 +409,21 @@
   }
 
   function renderLegend() {
-    const values = [-15,-10,-5,0,5,10,15,20,25,30,35];
+    const isSun=mapMode==="sun";
+    const values = isSun?[0,10,20,30,40,50,60]:[-15,-10,-5,0,5,10,15,20,25,30,35];
     document.getElementById("mosmixLegend").innerHTML = values.map(function(v) {
-      return '<span><i style="background:' + colorForTemp(v) + '"></i>' + v + '°</span>';
+      const color=isSun?colorForSun(v):colorForTemp(v);
+      return '<span><i style="background:' + color + '"></i>' + v + (isSun?' min':'°') + '</span>';
     }).join("");
   }
 
   function popupHtml(station, value, valid, kind) {
     const label=kind==="tmax" ? "TX · Maximum der letzten 12 h" :
-      kind==="tmin" ? "TN · Minimum der letzten 12 h" : "TTT · Temperatur 2 m";
+      kind==="tmin" ? "TN · Minimum der letzten 12 h" :
+      kind==="sun" ? "SunD1 · Sonnenscheindauer der letzten 1 h" : "TTT · Temperatur 2 m";
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
-      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' °C</strong><br>' +
+      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + (kind==="sun"?' min':' °C')+'</strong><br>' +
       'Gültig: ' + esc(fmtTime(valid));
   }
 
@@ -1017,7 +1036,7 @@
   }
 
   function renderCurrentMap() {
-    if (mapMode==="hourly") render();
+    if (mapMode==="hourly" || mapMode==="sun") render();
     else renderExtrema();
   }
 
@@ -1030,7 +1049,8 @@
   }
 
   function setMapMode(mode) {
-    mapMode=["hourly","tmax","tmin"].includes(mode) ? mode : "hourly";
+    mapMode=["hourly","tmax","tmin","sun"].includes(mode) ? mode : "hourly";
+    renderLegend();
     document.querySelectorAll("[data-mosmix-mode]").forEach(function(button) {
       button.classList.toggle("active",button.dataset.mosmixMode===mapMode);
     });
@@ -1039,11 +1059,11 @@
     const title=document.getElementById("mosmixSliderTitle");
     const nowButton=document.getElementById("mosmixNow");
 
-    if (mapMode==="hourly") {
+    if (mapMode==="hourly" || mapMode==="sun") {
       extremaFrames=[];
       slider.max=String(data.timesteps.length-1);
       sliderIndex=chooseInitialIndex();
-      title.textContent="Vorhersagezeitpunkt";
+      title.textContent=mapMode==="sun"?"Sonnenschein · vergangene Stunde":"Vorhersagezeitpunkt";
       nowButton.textContent="Nächster Termin";
       slider.value=String(sliderIndex);
       render();
@@ -1138,11 +1158,12 @@
 
       let label="";
       let points=[];
-      if (mapMode==="hourly") {
+      if (mapMode==="hourly" || mapMode==="sun") {
         const index=sliderIndex;
         label=fmtTime(data.timesteps[index]);
         data.stations.forEach(function(station) {
-          const value=station.values && station.values[index];
+          const source=mapMode==="sun"?station.sun1:station.values;
+          const value=source&&source[index];
           if (Number.isFinite(value)) points.push({lat:station.lat,lon:station.lon,value:value});
         });
       } else {
@@ -1183,7 +1204,7 @@
           const ll=unproject(x+cell/2,y+cell/2);
           const value=interpolatedValue(ll.lon,ll.lat,bins,binSize);
           if (!Number.isFinite(value)) continue;
-          ctx.fillStyle=colorForTemp(value);
+          ctx.fillStyle=mapMode==="sun"?colorForSun(value):colorForTemp(value);
           ctx.fillRect(x,y,cell+1,cell+1);
         }
       }
@@ -1196,19 +1217,21 @@
       ctx.stroke();
 
       const title=mapMode==="tmax" ? "DWD MOSMIX-L · Tagesmaximum" :
-        (mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" : "DWD MOSMIX-L · 2-m-Temperatur");
+        mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" :
+        mapMode==="sun" ? "DWD MOSMIX-L · Sonnenscheindauer letzte Stunde" :
+        "DWD MOSMIX-L · 2-m-Temperatur";
       ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
       ctx.font="600 18px Arial";ctx.fillText(label,margin.left,80);
       ctx.fillStyle="#64748b";ctx.font="14px Arial";
       ctx.fillText("Lauf: "+fmtTime(data.issue_time)+" · "+points.length+" MOSMIX-Punkte",margin.left,106);
 
-      const legendValues=[-15,-10,-5,0,5,10,15,20,25,30,35];
+      const legendValues=mapMode==="sun"?[0,10,20,30,40,50,60]:[-15,-10,-5,0,5,10,15,20,25,30,35];
       const legendY=height-94,boxW=74;
       legendValues.forEach(function(v,index) {
         const x=margin.left+index*boxW;
-        ctx.fillStyle=colorForTemp(v);ctx.fillRect(x,legendY,boxW,18);
+        ctx.fillStyle=mapMode==="sun"?colorForSun(v):colorForTemp(v);ctx.fillRect(x,legendY,boxW,18);
         ctx.strokeStyle="rgba(0,0,0,.15)";ctx.strokeRect(x,legendY,boxW,18);
-        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+"°",x+2,legendY+35);
+        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+(mapMode==="sun"?" min":"°"),x+2,legendY+35);
       });
       ctx.fillStyle="#64748b";ctx.font="12px Arial";
       ctx.fillText("Interpoliert aus DWD-MOSMIX-L-Punktprognosen · keine amtliche DWD-Rasterkarte",margin.left,height-28);
@@ -1234,6 +1257,7 @@
     if (!data || !map || !markerLayer) return;
     const i = sliderIndex;
     const valid = data.timesteps[i];
+    const isSun=mapMode==="sun";
     markerLayer.clearLayers();
 
     const zoom = map.getZoom();
@@ -1246,11 +1270,12 @@
     const vals = [];
 
     data.stations.forEach(function(station) {
-      const value = station.values && station.values[i];
+      const source=isSun?station.sun1:station.values;
+      const value = source && source[i];
       if (!Number.isFinite(value)) return;
       vals.push(value);
       shown++;
-      const color = colorForTemp(value);
+      const color = isSun?colorForSun(value):colorForTemp(value);
       const latlng = L.latLng(station.lat,station.lon);
 
       if (useLabels && bounds.contains(latlng)) {
@@ -1266,7 +1291,7 @@
             iconAnchor:[19,11]
           });
           L.marker(latlng, {icon:icon})
-            .bindPopup(popupHtml(station,value,valid))
+            .bindPopup(popupHtml(station,value,valid,mapMode))
             .on("click", function(){ selectStation(station); })
             .addTo(markerLayer);
           return;
@@ -1279,7 +1304,7 @@
         weight:.8,
         fillColor:color,
         fillOpacity:.9
-      }).bindPopup(popupHtml(station,value,valid))
+      }).bindPopup(popupHtml(station,value,valid,mapMode))
         .on("click", function(){ selectStation(station); })
         .addTo(markerLayer);
     });
@@ -1294,13 +1319,13 @@
     let info = 'Gültig: <strong>' + esc(fmtTime(valid)) + '</strong> · ' + shown + ' Punkte';
     if (useLabels) info += ' · ' + labelled + ' Werte beschriftet';
     if (Number.isFinite(min)) {
-      info += ' · ' + min.toFixed(1).replace(".", ",") + ' bis ' + max.toFixed(1).replace(".", ",") + ' °C';
+      info += ' · ' + min.toFixed(1).replace(".", ",") + ' bis ' + max.toFixed(1).replace(".", ",") + (isSun?' min Sonnenschein':' °C');
     }
     document.getElementById("mosmixValidInfo").innerHTML = info;
   }
 
   function setIndex(index) {
-    const maxIndex=mapMode==="hourly" ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
+    const maxIndex=(mapMode==="hourly"||mapMode==="sun") ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
     sliderIndex=Math.max(0,Math.min(maxIndex,Number(index)||0));
     document.getElementById("mosmixSlider").value=String(sliderIndex);
     renderCurrentMap();
@@ -1316,7 +1341,7 @@
     }
     button.textContent = "❚❚ Pause";
     playTimer = setInterval(function() {
-      const total=mapMode==="hourly" ? data.timesteps.length : Math.max(1,extremaFrames.length);
+      const total=(mapMode==="hourly"||mapMode==="sun") ? data.timesteps.length : Math.max(1,extremaFrames.length);
       setIndex((sliderIndex + 1) % total);
     }, 650);
   }
@@ -1380,7 +1405,7 @@
       });
       document.getElementById("mosmixPlay").addEventListener("click", togglePlay);
       document.getElementById("mosmixNow").addEventListener("click", function(){
-        setIndex(mapMode==="hourly" ? chooseInitialIndex() : chooseExtremaIndex());
+        setIndex((mapMode==="hourly"||mapMode==="sun") ? chooseInitialIndex() : chooseExtremaIndex());
       });
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
