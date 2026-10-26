@@ -24,14 +24,25 @@ class OfficialViewerTests(unittest.TestCase):
         r=mod.collect(fetch=f,now=datetime(2026,10,19,15,tzinfo=timezone.utc))
         self.assertEqual(len(r["sources"]),19)
         self.assertEqual(len({x["id"] for x in r["sources"]}),19)
-        self.assertTrue(all(x["state"]=="html_inspected" for x in r["sources"]))
+        self.assertEqual(sum(x["state"]=="html_inspected" for x in r["sources"]),18)
+        self.assertEqual(next(x for x in r["sources"] if x["id"]=="metservice_surface")["state"],"excluded_provider_terms")
         self.assertTrue(all(not x["ready_for_automatic_charts"] for x in r["sources"]))
+    def test_metservice_terms_exclude_automatic_network_calls(self):
+        calls=[]
+        def fetch(url,host):
+            calls.append(host)
+            if "metservice.com" in host:raise AssertionError("Restricted source queried")
+            return "<html></html>"
+        result=mod.collect(fetch=fetch)
+        self.assertEqual(len(result["sources"]),19)
+        self.assertEqual(len(calls),18)
+        self.assertNotIn("www.metservice.com",calls)
     def test_failed_source_does_not_stop_other_checks(self):
         def f(url,host):
             if "emy.gr" in host:raise TimeoutError("not responding")
             return '<html></html>'
         r=mod.collect(fetch=f)
         self.assertEqual(r["sources"][0]["state"],"not_reachable")
-        self.assertEqual(sum(x["state"]=="html_inspected" for x in r["sources"]),18)
+        self.assertEqual(sum(x["state"]=="html_inspected" for x in r["sources"]),17)
 
 if __name__=="__main__":unittest.main()
