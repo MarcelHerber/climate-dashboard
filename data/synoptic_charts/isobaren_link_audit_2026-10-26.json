@@ -1,0 +1,1382 @@
+{
+  "schema_version": 1,
+  "pruefdatum_utc": "2026-10-26",
+  "hinweis": "Dies ist ein einmaliger Quellen-/Linkziel-Audit. Ein erfolgreicher HTTP-Seitenabruf belegt weder visuell das konkrete Kartenbild noch dessen UTC-Gültigkeit. 403/5xx und Bild-Antworten ohne HTML dürfen nicht als definitive Tote-Links-Zahl interpretiert werden. 'Nicht vollverifiziert' bedeutet ausdrücklich keine bestätigte Funktionsfähigkeit.",
+  "pruefverfahren": "Abgleich beider GitHub-Listen und gezielte amtliche Seitenabrufe mit Inhaltsprüfung; kein Browser-End-to-End-Test für alle 120 individuellen URLs",
+  "statistik": {
+    "weltweit": 74,
+    "original": 95,
+    "eintraege": 169,
+    "unterschiedliche_urls": 120,
+    "pruefklassen": {
+      "amtlicher_fronten_gis_dienst": 1,
+      "linkziel_aktualitaet_nicht_vollverifiziert": 77,
+      "modell_isobaren_nicht_bodenanalyse": 1,
+      "bildlink_zeitpruefung_offen": 4,
+      "nicht_als_karte_bestaetigt": 30,
+      "amtliche_kartenansicht": 23,
+      "archiv_nicht_live": 21,
+      "keine_bestaetigte_isobarenkarte": 2,
+      "modellwetterkarten_keine_frontenanalyse": 3,
+      "keine_isobarenkarte": 1,
+      "technisch_nicht_pruefbar": 1,
+      "amtliches_portal_nicht_direktkarte": 2,
+      "modell_isobaren_keine_fronten": 2,
+      "produktseite_keine_offene_karte": 1
+    }
+  },
+  "eintraege": [
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA WPC · National Forecast Chart – Fronten als GIS-Layer",
+      "url": "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/natl_fcst_wx_chart/MapServer",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtlicher_fronten_gis_dienst",
+      "begruendung": "NOAA WPC Layer 2,14,26 für Fronten; kein eigenständiger Isobaren-Layer"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA WPC International Desk · Argentinien – Bodenanalyse",
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA WPC International Desk · Chile – Bodenanalyse",
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Kanada · ECCC MSC AniMet – modellbasierte Isobaren (Migration)",
+      "url": "https://eccc-msc.github.io/msc-animet/",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "modell_isobaren_nicht_bodenanalyse",
+      "begruendung": "Offizieller ECCC-Wetterlayer-Viewer; keine identische manuelle Frontenanalyse"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA OPC · Alaska/Arktis – Bodenanalyse (Original-GIF)",
+      "url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "status_im_dashboard": "image",
+      "pruefklasse": "bildlink_zeitpruefung_offen",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Polen · IMGW-PIB – eigene synoptische Bodenanalyse (Beleg)",
+      "url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Belgien · KMI – Frontenkarten",
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "KMI-Frontenkarten-Seite"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Dänemark · DMI – Frontkort",
+      "url": "https://www.dmi.dk/vejret/frontkort",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche DMI-Frontenkarten-Seite"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Deutschland · DWD Bodenanalyse",
+      "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "status_im_dashboard": "image",
+      "pruefklasse": "bildlink_zeitpruefung_offen",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Estland · Ilmateenistus",
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Europa · Météocentre",
+      "url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Finnland · FMI",
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Frankreich · Météo-France Isofronts",
+      "url": "https://meteofrance.com/isofronts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Météo-France Isofronts-Seite"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Irland · Met Éireann – Bodenanalyse",
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche irische Bodenanalyse"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Kroatien · DHMZ – Frontenprognose",
+      "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Niederlande · KNMI Archiv",
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Österreich · GeoSphere – keine Fronten-Originalkarte nachgewiesen",
+      "url": "https://geosphere.at/de/karten/wetterportal",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "keine_bestaetigte_isobarenkarte",
+      "begruendung": "Wetterportal statt Frontenanalyse"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Portugal · IPMA – numerische Wetterkarten (keine Fronten-Originalanalyse)",
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "modellwetterkarten_keine_frontenanalyse",
+      "begruendung": "Numerische Modellkarten statt manuell synoptischer Frontenanalyse"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Russland / Osteuropa · Meteoinfo",
+      "url": "https://meteoinfo.ru/mapsynop",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Slowakei · SHMÚ",
+      "url": "https://www.shmu.sk/en/?page=980",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Tschechien · ČHMÚ – historische Wetterlagentypisierung (KEIN Kartenarchiv)",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "keine_isobarenkarte",
+      "begruendung": "Typisierung und Kalender der Wetterlagen, kein tägliches Bildkarten-Archiv"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Tschechien · ČHMÚ – Synoptische Situation",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Tschechische synoptische Analyse"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Ungarn · HungaroMet",
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Vereinigtes Königreich · Netweather Fax",
+      "url": "https://www.netweather.tv/charts-and-data/fax",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Ostafrika/Indischer Ozean · MTOTEC",
+      "url": "https://www.mtotec.com/page-analyse",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Hongkong · HKO Weather Chart",
+      "url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "HKO-Karte mit Isobaren- und Frontenlegende"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Indien · IMD – Bodenanalyse 00 UTC",
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Indien · IMD – Bodenanalyse 12 UTC",
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 00 UTC)",
+      "url": "https://www.jma.go.jp/jmh/asas_00_s.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 06 UTC)",
+      "url": "https://www.jma.go.jp/jmh/asas_06_s.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Offizielle JMA ASAS 06 UTC mit Kartenbild"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Japan · JMA – JMH Marine-Prognosen (24–120 h)",
+      "url": "https://www.jma.go.jp/jmh/jmhmenu.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Japan · JMA – Marine-Oberflächenanalyse ASAS",
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Südkorea · KMA – Bodenanalyse",
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche Analysechart-Seite der KMA"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Vietnam · NCHMF – Modell-Meeresspiegeldruck (OHNE manuelle Fronten)",
+      "url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Australien · BoM – Analyse und Fronten",
+      "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche BoM-MSLP-Synoptikkarten"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Cookinseln · Meteorological Service",
+      "url": "https://met.gov.ck/weather-map",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Fidschi · Fiji Met / RSMC Nadi – Wetterkarten",
+      "url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Französisch-Polynesien · Météo-France – IsoFronts Analyse",
+      "url": "https://meteo.pf/fr/isofronts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Französisch-Polynesien · Météo-France – PréIso +24 h",
+      "url": "https://meteo.pf/fr/pre-isofronts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Neukaledonien · Météo NC",
+      "url": "https://meteo.nc/fr/carte-analyse",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche Météo-NC-Analyse für 00 und 12 UTC, alte URL war 404"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Neuseeland · MetService – Südwestpazifik Originalkarten",
+      "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Nordatlantik · Weathercharts",
+      "url": "https://www.weathercharts.org/noaa-charts.htm",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Tropischer Atlantik · Vorticity/NOAA",
+      "url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Brasilien · CPTEC/INPE Analysen",
+      "url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Chile · DMC – digitales Bodenanalysenarchiv",
+      "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Chile · Armada/SERVIMET – synoptische Bodenanalysen",
+      "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "China · CMA / WMC Beijing – Eurasien-Bodenanalyse",
+      "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "China · CMA – Nordhemisphäre Bodenanalyse",
+      "url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Japan · JMA – Wetterkartenarchiv",
+      "url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Südkorea · KMA – Bodenprognose",
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Australien · BoM – MSLP-Archiv",
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Brasilien · Marinha – Südatlantik-Bodenanalysen",
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Brasilien · Marinha – Kartenviewer mit Datumswahl",
+      "url": "https://pam.marinha.mil.br/sig.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA OPC · Nordostpazifik (UTC-geprüfte Originalkarten)",
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA OPC · Nordwestpazifik (aktuelle Bodenanalyse)",
+      "url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "status_im_dashboard": "image",
+      "pruefklasse": "bildlink_zeitpruefung_offen",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA OPC · Pazifik +24/+48/+96 h Prognosen",
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Israel · IMS – analysierte Mittelmeer-Bodenwetterkarte",
+      "url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Thailand · TMD – aktuelle synoptische Karten",
+      "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Taiwan · CWA – Bodenanalyse mit Isobaren und Fronten",
+      "url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
+      "status_im_dashboard": "image",
+      "pruefklasse": "bildlink_zeitpruefung_offen",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Bodenanalysen mit Fronten (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Brasilien · INMET – aktuelle Lageanalyse (Bildzugang offen)",
+      "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Brasilien · INMET – synoptische Originalkarten (Archiv)",
+      "url": "https://portal.inmet.gov.br/cartasinotica",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA Honolulu · zentrale Pazifik-Bodenanalysen und +24/+48/+72 h",
+      "url": "https://www.weather.gov/hfo/analyses",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik",
+      "url": "https://www.nhc.noaa.gov/marine/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Neuseeland · MetService – Tasmansee und Neuseeland",
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Kanada · ECCC – nationale und hemisphärische Frontenanalysen",
+      "url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "ECCC-MSLP-Bodenanalysen zu 00/06/12/18 UTC; einzelne Produkte laufen aus"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Fronten mit Satellitenbewölkung (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Mauritius · amtliche synoptische Bodenanalyse",
+      "url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliches Synoptic-Chart-Bild des mauritischen Wetterdienstes"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Philippinen · PAGASA – Surface Map Analysis",
+      "url": "https://www.pagasa.dost.gov.ph/weather",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "PAGASA-Seite zeigt Surface Map Analysis und separat Modell-MSLP"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Pakistan · PMD – acht UTC-Oberflächenkarten-Termine",
+      "url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Bangladesch · BMD – datierte synoptische Wetterkarten",
+      "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Mexiko · SEMAR – marine synoptische Karte",
+      "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Südafrika · SAWS – Synoptic Charts (PDF-Beleg vorhanden)",
+      "url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "status_im_dashboard": "candidate",
+      "pruefklasse": "technisch_nicht_pruefbar",
+      "begruendung": "Abruf Timeout/Serverfehler, keine Live-Karte bestätigt"
+    },
+    {
+      "seite": "weltweite_isobaren.html",
+      "name": "Deutschland · wetter3 – DWD-Bodenprognose-Faksimiles",
+      "url": "https://www.wetter3.de/fax_dt.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "DWD · Bodenanalyse",
+      "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "status_im_dashboard": "auto",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "AEMET · Frontenkarten",
+      "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "status_im_dashboard": "auto",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ČHMÚ · Synoptische Situation",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "status_im_dashboard": "auto",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Tschechische synoptische Analyse"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "DHMZ · Frontenprognose",
+      "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "status_im_dashboard": "auto",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "KNMI · Analysen und Prognosen",
+      "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "status_im_dashboard": "auto",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "KNMI · Wetterkartenarchiv",
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "KMI · Frontenkarten",
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "KMI-Frontenkarten-Seite"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "DMI · Analyse und Prognose",
+      "url": "https://www.dmi.dk/vejret/frontkort",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche DMI-Frontenkarten-Seite"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Met Éireann · Bodenanalyse",
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche irische Bodenanalyse"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Met Office · Surface Pressure",
+      "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Météo-France · Isofronts",
+      "url": "https://meteofrance.com/isofronts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Météo-France Isofronts-Seite"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Météociel · Frontenanalyse",
+      "url": "https://www.meteociel.fr/fronts/index.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "HungaroMet · Frontenkarte",
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "SHMÚ · Bodenwetterkarte",
+      "url": "https://www.shmu.sk/en/?page=980",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Ilmateenistus · Wetterkarte",
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "FMI · Europäische Wetterlage",
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MeteoAM · amtliche Fronten- und Bodenkarten",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MGM · Synoptikkarten",
+      "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "SMHI · tägliche Bodenanalysen im Monatsarchiv",
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMO · Atlantik-Windprognose (ECMWF)",
+      "url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MET Norway · synoptische Analysekarte / Værio",
+      "url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMGW-PIB · aktuelle Europa-Bodenanalysen",
+      "url": "https://meteo.imgw.pl/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliches_portal_nicht_direktkarte",
+      "begruendung": "Die zuvor verlinkte synoptische Unterseite /cmm/?page_id=19032 ist 404"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "GeoSphere Austria · Wetterportal (keine Frontenkarte)",
+      "url": "https://geosphere.at/de/karten/wetterportal",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "keine_bestaetigte_isobarenkarte",
+      "begruendung": "Wetterportal statt Frontenanalyse"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IPMA · Numerische Karten",
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "modellwetterkarten_keine_frontenanalyse",
+      "begruendung": "Numerische Modellkarten statt manuell synoptischer Frontenanalyse"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IPMA · Historische Bodenanalyse",
+      "url": "https://observar.ipma.pt/superficie-frontal-fria/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NIMH · Europa-/Balkananalysen dokumentiert",
+      "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ANM · Historische Analyse",
+      "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NOAA OPC/WPC · Unified Surface Analysis",
+      "url": "https://ocean.weather.gov/unified_analysis.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NOAA OPC · Pazifik",
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ECCC · Kanada und Nordhemisphäre – Bodenanalysen mit Fronten",
+      "url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "ECCC-MSLP-Bodenanalysen zu 00/06/12/18 UTC; einzelne Produkte laufen aus"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MeteoSchweiz · Allgemeine Lage",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Met Éireann · Atlantik-Modellprognose (Druck/Niederschlag)",
+      "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "modell_isobaren_keine_fronten",
+      "begruendung": "Modellbasierte Druck- und Niederschlagsprognosen"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "HNMS · Europa-Bodendruckkarte",
+      "url": "https://www.emy.gr/en/marine",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMGW-PIB · synoptische Tagesprognosen (Link offen)",
+      "url": "https://meteo.imgw.pl/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "amtliches_portal_nicht_direktkarte",
+      "begruendung": "Die zuvor verlinkte synoptische Unterseite /cmm/?page_id=19032 ist 404"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMGW-PIB · historisches Synoptik-Bulletinarchiv",
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Meteo LT · Ereignisanalysen",
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Météo-France Marine · NAVICAP-Produktseite (kein offener Kartenviewer)",
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "produktseite_keine_offene_karte",
+      "begruendung": "Kommerzielles NAVICAP-Produktangebot"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "RHMZ · Synoptische Analysen Europa/Balkan",
+      "url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ItaliaMeteo · ICON-2I-Bodendruck und Isobaren",
+      "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ItaliaMeteo · ICON-2I-Druckfelder (Open Data)",
+      "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "DOM Zypern · Östliches Mittelmeer WRF-Bodendruck",
+      "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "modell_isobaren_keine_fronten",
+      "begruendung": "Zyprische WRF-MSLP-Modellvorhersage"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ARSO · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "LVĢMC · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IGEO · meteorologische Vorhersagen",
+      "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Meteo Andorra · staatlicher Wetterdienst",
+      "url": "https://www.meteo.ad/en",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Belhydromet · Synoptik",
+      "url": "https://pogoda.by/weather/synoptic/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "FHMZ · GFS-Modellprognosen (keine Frontenanalyse)",
+      "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "modellwetterkarten_keine_frontenanalyse",
+      "begruendung": "GFS-Modellkarten statt manueller Frontenanalyse"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Landesverwaltung / MeteoSchweiz",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MeteoLux · TEMSI-Flugwetterkarten (Login nötig)",
+      "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Malta Airport · Meteorological Office",
+      "url": "https://www.maltairport.com/weather/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "SHS · Staatlicher Hydrometeorologischer Dienst",
+      "url": "https://www.meteo.md/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Météo-France · regionale Abdeckung Monaco",
+      "url": "https://meteofrance.com/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "ZHMS · WRF- und Wetterprognosen",
+      "url": "https://www.meteo.co.me/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "UHMR · nationaler Wetterdienst",
+      "url": "https://uhmr.gov.mk/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Hydrometcenter · Bodenanalysen 00/06/12/18 UTC",
+      "url": "https://meteoinfo.ru/mapsynop",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Hydrometcenter · Bodenprognosekarten",
+      "url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Italienische Wetterkarten · San Marino regional",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Ukrainischer Hydrometeorologischer Dienst",
+      "url": "https://www.meteo.gov.ua/en/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Italienische Wetterkarten · Vatikan regional",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IHMK · Hydrometeorologisches Institut",
+      "url": "https://ihmk-rks.net/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Hydrometeorology and Monitoring Center",
+      "url": "https://meteomonitoring.am/en/web",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "HMC · historische Bodenanalysen (Jahresbericht)",
+      "url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Nationaler Hydrometeorologischer Dienst",
+      "url": "https://meteo.az/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NEA · Hydrometeorologie",
+      "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Kazhydromet · synoptische Originalkarten",
+      "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "JMA · Asien-Pazifik Bodenanalyse",
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "KMA · ostasiatische Bodenanalysen",
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche Analysechart-Seite der KMA"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "KMA · synoptische Prognosekarten",
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NMC Beijing · eurasische Synoptikkarten",
+      "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "BoM · manuelle MSLP-Bodenanalyse",
+      "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliche BoM-MSLP-Synoptikkarten"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "BoM · MSLP-Analyse-Archiv",
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MetService · Südwestpazifik Isobaren",
+      "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MetService · MSL-Analysen (API-Dokumentation)",
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Marinha do Brasil · cartas sinóticas",
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "CPTEC/INPE · historisches Synoptikanalyse-Archiv",
+      "url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMD/RSMC · Bodenanalyse 00/03 UTC",
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "IMS Israel · analysierte Mittelmeer-Bodenwetterkarte",
+      "url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "TMD · synoptische Oberflächenkarten",
+      "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "CWA Taiwan · Bodenwetterkarten-Open-Data",
+      "url": "https://data.gov.tw/en/datasets/9246",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "CWA/ASRAD · Ostasien-Bodenanalysen mit Fronten (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "INMET · aktuelle synoptische Lageanalyse",
+      "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "INMET · Original-Synoptikkarten 2022–2026",
+      "url": "https://portal.inmet.gov.br/cartasinotica",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NOAA Honolulu · Zentralpazifik-Analyse und Bodenprognosen",
+      "url": "https://www.weather.gov/hfo/analyses",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik",
+      "url": "https://www.nhc.noaa.gov/marine/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "MetService · Tasmansee und Neuseeland",
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "CWA/ASRAD · Ostasien-Fronten mit Satellitenwolken (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "status_im_dashboard": "archive",
+      "pruefklasse": "archiv_nicht_live",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Mauritius Meteorological Services · synoptische Bodenanalyse",
+      "url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "Amtliches Synoptic-Chart-Bild des mauritischen Wetterdienstes"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Armada de Chile / SERVIMET · synoptische Bodenanalysen",
+      "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "PAGASA · Surface Map Analysis",
+      "url": "https://www.pagasa.dost.gov.ph/weather",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "amtliche_kartenansicht",
+      "begruendung": "PAGASA-Seite zeigt Surface Map Analysis und separat Modell-MSLP"
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "PMD Pakistan · synoptische Oberflächenkarten",
+      "url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "Fiji Met · südwestpazifische Wetterkarten",
+      "url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "BMD Bangladesch · synoptische Wetterkarten",
+      "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "SEMAR Mexiko · Carta Sinóptica (Marine)",
+      "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "SAWS Südafrika · Synoptic Charts (Zugang prüfen)",
+      "url": "https://www.weathersa.co.za/?contentID=81",
+      "status_im_dashboard": "unverified",
+      "pruefklasse": "nicht_als_karte_bestaetigt",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    },
+    {
+      "seite": "isobaren_original.js",
+      "name": "DWD · TKB-Bodenprognosen +36/+48/+60/+84/+108 h",
+      "url": "https://www.wetter3.de/fax_dt.html",
+      "status_im_dashboard": "viewer",
+      "pruefklasse": "linkziel_aktualitaet_nicht_vollverifiziert",
+      "begruendung": "Quellenklassifikation geprüft; ein aktuelles sichtbares Isobaren-/Frontenbild und seine UTC-Gültigkeit wurden für diesen Eintrag nicht unabhängig bis zum Bild verifiziert."
+    }
+  ]
+}
