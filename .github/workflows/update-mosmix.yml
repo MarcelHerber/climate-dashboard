@@ -1,4 +1,4 @@
-name: DWD MOSMIX-L Deutschland, Weltstationen und Sonnenschein aktualisieren
+name: DWD MOSMIX-L Deutschland und Sonnenschein aktualisieren
 
 on:
   schedule:
@@ -64,31 +64,16 @@ jobs:
           tx=sum(1 for s in stations if s.get("tx12"))
           tn=sum(1 for s in stations if s.get("tn12"))
           assert tx>100 and tn>100, "TX/TN Originalwerte fehlen weitgehend"
-          index=json.loads((p.parent/"world_stations.json").read_text(encoding="utf-8"))
-          assert index["schema"]==1
-          assert index["issue_time"]==j["issue_time"]
-          assert index["station_count"]==j["world_station_count"]>=3000
-          assert len({(x["key"],x["shard"]) for x in index["stations"]})==index["station_count"]
-          assert all(x["key"].startswith(x["shard"]) for x in index["stations"])
-          assert any(x["lon"]>100 for x in index["stations"]), "Asien/Pazifik fehlt"
-          assert any(x["lon"]< -50 for x in index["stations"]), "Amerika fehlt"
-          assert any(x["lat"]< -20 for x in index["stations"]), "Südhalbkugel fehlt"
-          sun=0
-          total=0
-          for shard in set(x["shard"] for x in index["stations"]):
-            f=p.parent/"world"/(shard+".json")
-            assert f.is_file()
-            group=json.loads(f.read_text(encoding="utf-8"))
-            assert group["issue_time"]==j["issue_time"]
-            for row in group["stations"].values():
-              total+=1
-              v=row["parameters"].get("SunD1",[])
-              if any(isinstance(n,(int,float)) and 0<=n<=60 for n in v):
-                sun+=1
-          assert total==index["station_count"] and sun>1000, "Sonnenschein nicht flächig verfügbar"
+          # No global catalogue or shards are published.
+          assert "world_index" not in j and "world_station_count" not in j
+          assert not (p.parent/"world_stations.json").exists()
+          assert not (p.parent/"world").exists()
+          sun=sum(1 for st in stations if any(
+              isinstance(v,(int,float)) and 0<=v<=60
+              for v in st.get("sun1",[]) ))
+          assert sun>100, "Sonnenschein ist nicht flächig vorhanden"
           assert sum(1 for p in (p.parent/"stations").glob("*.json"))==len(stations)
-          print("Weltweite Stationen:",total,"| mit SunD1:",sun)
-          print("DWD MOSMIX-L:",len(stations),"Stationen | TX:",tx,
+          print("DWD MOSMIX-L Deutschland:",len(stations),"Stationen | SunD1:",sun,"| TX:",tx,
                 "| TN:",tn,"| Lauf:",j.get("issue_time"))
           PY
 
@@ -103,7 +88,7 @@ jobs:
           cp -a /tmp/mosmix-public/. .
           touch .nojekyll
           git add -A
-          git commit -m "DWD MOSMIX-L Deutschland, Weltstationen, Sonnenschein aktualisiert"
+          git commit -m "DWD MOSMIX-L nur Deutschland, Sonnenschein aktualisiert"
           git branch -M mosmix-data
           git push --force origin mosmix-data
 
