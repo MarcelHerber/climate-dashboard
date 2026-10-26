@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-26T16:50:19+00:00",
+  "generated_utc": "2026-10-26T16:57:21+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -741,7 +741,7 @@
     },
     "noaa_pace": {
       "state": "available",
-      "charts": 8
+      "charts": 7
     },
     "noaa_pacw": {
       "state": "available",
@@ -977,18 +977,6 @@
       "publisher_id": "noaa",
       "image": "images/noaa_opc_20261025_0600.webp",
       "size_bytes": 166354
-    },
-    {
-      "source_id": "noaa_pace",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-25T06:00+00:00",
-      "issued_utc": "2026-10-25T08:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pace_sfcanal_06.2026102508.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pace_20261025_0600.webp",
-      "size_bytes": 141346
     },
     {
       "source_id": "noaa_pacfull",
@@ -1948,6 +1936,6 @@
     "2026-10-29T12:00+00:00",
     "2026-10-30T12:00+00:00"
   ],
-  "chart_count": 92,
+  "chart_count": 91,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
