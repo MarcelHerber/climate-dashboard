@@ -4,6 +4,7 @@
   // Use the small same-origin Pages copy first; avoid cross-origin fetch stalls
   // for the first map. Remote sources are retained for independent updates.
   const DATA_LOCAL_URL = "./data/mosmix/mosmix_ttt.json";
+  const DATA_COMPRESSED_URL = "./data/mosmix/mosmix_ttt.json.gz";
   const DATA_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json";
   // A second CDN prevents a blocked raw.githubusercontent.com request from
   // leaving the MOSMIX section in an endless loading state.
@@ -247,7 +248,15 @@
         cache:forceRefresh?"no-store":"default",signal:controller.signal
       });
       if(!response.ok)throw new Error("HTTP "+response.status);
-      const json=await response.json();
+      let json;
+      if(url===DATA_COMPRESSED_URL){
+        if(typeof DecompressionStream==="undefined"||!response.body)
+          throw new Error("Dieser Browser unterstützt keinen komprimierten Datenstream");
+        const stream=response.body.pipeThrough(new DecompressionStream("gzip"));
+        json=await new Response(stream).json();
+      } else {
+        json=await response.json();
+      }
       if(!Array.isArray(json.timesteps)||!Array.isArray(json.stations)||
          !json.timesteps.length||!json.stations.length){
         throw new Error("Ungültiger oder leerer MOSMIX-Datensatz");
@@ -260,12 +269,13 @@
 
   async function loadData(forceRefresh) {
     const status=document.getElementById("mosmixSectionStatus");
-    const endpoints=forceRefresh ? [DATA_URL,DATA_BACKUP_URL,DATA_LOCAL_URL] :
-      [DATA_LOCAL_URL,DATA_URL,DATA_BACKUP_URL];
+    const endpoints=forceRefresh ? [DATA_URL,DATA_BACKUP_URL,DATA_COMPRESSED_URL,DATA_LOCAL_URL] :
+      [DATA_COMPRESSED_URL,DATA_LOCAL_URL,DATA_URL,DATA_BACKUP_URL];
     const errors=[];
     for(let i=0;i<endpoints.length;i++){
       const url=endpoints[i];
-      const name=url===DATA_LOCAL_URL?"Website":url===DATA_URL?"GitHub":"Ersatzquelle";
+      const name=url===DATA_COMPRESSED_URL?"Website (komprimiert)":
+        url===DATA_LOCAL_URL?"Website":url===DATA_URL?"GitHub":"Ersatzquelle";
       if(status)status.textContent="Lade Deutschland-MOSMIX-Daten ("+name+") …";
       try {
         const result=await fetchMosmixSource(url,!!forceRefresh);
