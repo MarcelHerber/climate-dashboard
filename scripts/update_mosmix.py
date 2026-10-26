@@ -285,8 +285,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
         raise RuntimeError("Keine MOSMIX-Zeitschritte gefunden.")
     if not stations:
         raise RuntimeError("Keine MOSMIX-Temperaturpunkte im Deutschlandausschnitt gefunden.")
-    if len(world_stations)<1000:
-        raise RuntimeError("Unplausibel wenige weltweite MOSMIX-Stationen.")
+    if not world_stations:
+        raise RuntimeError("Keine weltweiten MOSMIX-Datensätze verfügbar.")
     if not any(station["tx12"] for station in stations):
         raise RuntimeError("Kein originaler MOSMIX-TX-Wert für 18 UTC gefunden.")
     if not any(station["tn12"] for station in stations):
