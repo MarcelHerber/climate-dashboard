@@ -86,6 +86,13 @@ def collect(fetch=read_provider,now=None):
         item={"id":id,"country":country,"url":url,"state":"not_reachable",
               "checked_utc":now.isoformat(timespec="seconds"),
               "ready_for_automatic_charts":False}
+        if id == "metservice_surface":
+            # The provider prohibits automated website monitoring/scraping.
+            # Retain this external link but do not contact its website.
+            item.update({"state":"excluded_provider_terms",
+                         "reason":"MetService NZ website terms restrict automated monitoring; external link only"})
+            out.append(item)
+            continue
         try:
             html=fetch(url,host)
             item.update(parse_viewer(html,url,host))
