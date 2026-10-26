@@ -9,6 +9,7 @@ on:
       - "scripts/update_mosmix.py"
       - "tests/test_mosmix_tx_tn.py"
       - "tests/test_mosmix_world.mjs"
+      - "tests/test_mosmix_sun_daily.mjs"
       - "mosmix.js"
   workflow_dispatch:
 
@@ -41,6 +42,7 @@ jobs:
         run: |
           node --check mosmix.js
           node tests/test_mosmix_world.mjs
+          node tests/test_mosmix_sun_daily.mjs
 
       - name: MOSMIX-L laden und Deutschlanddatei bauen
         run: |
