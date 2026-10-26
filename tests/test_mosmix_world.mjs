@@ -7,7 +7,8 @@ for(const phrase of [
  "mosmixWorldSearch","mosmixWorldList","mosmixBackGermany",
  "mosmixSunChart","SunD1","Rad1h",
  "Sonnenschein letzte 1 h","Gleitende 24-h-Sonnenscheindauer",
- "Globalstrahlung","worldMapPin","Weltstation anzeigen"
+ "Globalstrahlung","worldMapPin","Weltstation anzeigen",
+ "data-mosmix-mode=\\"sun\\"","colorForSun","station.sun1"
 ]){
  assert(js.includes(phrase),"MOSMIX UI missing: "+phrase);
 }
