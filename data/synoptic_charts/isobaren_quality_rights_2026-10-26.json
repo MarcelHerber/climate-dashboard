@@ -8,10 +8,10 @@
     "unique_urls": 119,
     "rights_classes": {
       "bedingungen_erlauben": 19,
-      "ungeklaert": 76,
+      "ungeklaert": 71,
       "nur_originalseite": 7,
       "drittanbieter": 9,
-      "produkt_pruefen": 8
+      "produkt_pruefen": 13
     },
     "printed_utc_current_snapshots": 9
   },
@@ -111,6 +111,24 @@
       "class": "produkt_pruefen",
       "rights_source": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
       "note": "Vier Hauptanalysetermine bestätigt, aber pauschale CC-BY-Freigabe aller dynamischen Grafiken hier nicht verifiziert."
+    },
+    {
+      "key": "kma",
+      "class": "produkt_pruefen",
+      "rights_source": "https://data.kma.go.kr/cmmn/static/staticPage.do?page=pageCr",
+      "note": "KMA erlaubt KOGL-Typ-1-Produkte mit Quellennennung; bei anderen Typen gelten Einschränkungen, nicht gekennzeichnete Grafiken erfordern Rücksprache."
+    },
+    {
+      "key": "cma",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.nmc.cn/publish/cms/view/722665831f0a4e98800c41e691444963.html",
+      "note": "Offizielle Website verlangt für kommerzielle und sonstige unzulässige Verwendungen schriftliche Erlaubnis; Karten nicht automatisch als frei nutzbar kennzeichnen."
+    },
+    {
+      "key": "hko",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.hko.gov.hk/en/metinfo/Newspaper-Important-notice.html",
+      "note": "Amtlicher Reproduktionshinweis für verbreitete HKO-Meteorologieprodukte verbietet deren erneute Veröffentlichung; Übertragbarkeit auf das konkrete Weather-Chart-Produkt prüfen."
     }
   ],
   "sources": [
@@ -866,7 +884,7 @@
         "weltweite_isobaren.html"
       ],
       "domain": "www.hko.gov.hk",
-      "publisher": "nicht_eindeutig",
+      "publisher": "hko",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "unbestimmt",
       "visual_status": "im_ersten_screenshot_keine_relevante_karte",
@@ -879,10 +897,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "HKO – Bildrecht produktbezogen, keine pauschale Freigabe",
+        "policy_url": "https://www.hko.gov.hk/en/metinfo/Newspaper-Important-notice.html",
+        "condition": "Amtlicher Reproduktionshinweis für verbreitete HKO-Meteorologieprodukte verbietet deren erneute Veröffentlichung; Übertragbarkeit auf das konkrete Weather-Chart-Produkt prüfen.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -1082,7 +1100,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.kma.go.kr",
-      "publisher": "nicht_eindeutig",
+      "publisher": "kma",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "unbestimmt",
       "visual_status": "im_ersten_screenshot_keine_relevante_karte",
@@ -1095,10 +1113,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "KMA – KOGL-Lizenz des konkreten Kartenprodukts erforderlich",
+        "policy_url": "https://data.kma.go.kr/cmmn/static/staticPage.do?page=pageCr",
+        "condition": "KMA erlaubt KOGL-Typ-1-Produkte mit Quellennennung; bei anderen Typen gelten Einschränkungen, nicht gekennzeichnete Grafiken erfordern Rücksprache.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -1415,8 +1433,13 @@
       "screenshot_evidence": 44,
       "example_image_url": null,
       "validity_utc_from_inspected_image": null,
-      "utc_product_doc": null,
-      "daily_analysis_slots_utc": null,
+      "utc_product_doc": "https://www6.cptec.inpe.br/produtos/dados/26",
+      "daily_analysis_slots_utc": [
+        0,
+        6,
+        12,
+        18
+      ],
       "rights": {
         "class": "ungeklaert",
         "label": "Keine produktbezogene Freigabe dokumentiert",
@@ -1425,7 +1448,7 @@
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
-      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt. | CPTEC bestätigt eigene synoptische Karten zu 00/06/12/18 UTC; konkreter Bildfeed im Dashboard separat prüfen."
     },
     {
       "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
@@ -1494,7 +1517,7 @@
         "isobaren_original.js"
       ],
       "domain": "disp.nmc.cn",
-      "publisher": "nicht_eindeutig",
+      "publisher": "cma",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -1507,10 +1530,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "CMA/NMC – kommerzielle Weiterverwendung ohne Genehmigung untersagt",
+        "policy_url": "https://www.nmc.cn/publish/cms/view/722665831f0a4e98800c41e691444963.html",
+        "condition": "Offizielle Website verlangt für kommerzielle und sonstige unzulässige Verwendungen schriftliche Erlaubnis; Karten nicht automatisch als frei nutzbar kennzeichnen.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -1523,7 +1546,7 @@
         "weltweite_isobaren.html"
       ],
       "domain": "www.nmc.cn",
-      "publisher": "nicht_eindeutig",
+      "publisher": "cma",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -1536,10 +1559,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "CMA/NMC – kommerzielle Weiterverwendung ohne Genehmigung untersagt",
+        "policy_url": "https://www.nmc.cn/publish/cms/view/722665831f0a4e98800c41e691444963.html",
+        "condition": "Offizielle Website verlangt für kommerzielle und sonstige unzulässige Verwendungen schriftliche Erlaubnis; Karten nicht automatisch als frei nutzbar kennzeichnen.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -1582,7 +1605,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.kma.go.kr",
-      "publisher": "nicht_eindeutig",
+      "publisher": "kma",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -1595,10 +1618,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "KMA – KOGL-Lizenz des konkreten Kartenprodukts erforderlich",
+        "policy_url": "https://data.kma.go.kr/cmmn/static/staticPage.do?page=pageCr",
+        "condition": "KMA erlaubt KOGL-Typ-1-Produkte mit Quellennennung; bei anderen Typen gelten Einschränkungen, nicht gekennzeichnete Grafiken erfordern Rücksprache.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
