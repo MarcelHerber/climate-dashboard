@@ -96,16 +96,15 @@ class MOSMIXExtremaTests(unittest.TestCase):
             self.assertNotIn("FFXh",saved["parameters"])
             self.assertEqual(saved["parameters"]["SunD1"],[0.0,10.0,60.0,None])
             self.assertEqual(saved["parameters"]["Rad1h"][2],2500.0)
-            index=json.loads((Path(folder)/"world_stations.json").read_text(encoding="utf-8"))
-            self.assertEqual(index["station_count"],2)
-            global_station=next(x for x in index["stations"] if x["id"]=="GLOBAL-001")
-            self.assertAlmostEqual(global_station["lon"],151.2093)
-            self.assertEqual(len(data["stations"]),1)  # Germany area remains intact
-            shard=json.loads((Path(folder)/"world"/(global_station["shard"]+".json")).read_text(encoding="utf-8"))
-            global_detail=shard["stations"][global_station["key"]]
-            self.assertEqual(global_detail["name"],"SYDNEY TEST AUSTRALIA")
-            self.assertEqual(global_detail["parameters"]["SunD1"],[15.0,30.0,60.0,0.0])
-            self.assertEqual(global_detail["parameters"]["Rad1h"][2],3000.0)
+            # The Australian record in the test KMZ must not be processed
+            # or exposed in the Germany-only MOSMIX output.
+            self.assertEqual(len(data["stations"]),1)
+            self.assertEqual(station["name"],"FRANKFURT TEST")
+            self.assertNotIn("world_index",data)
+            self.assertNotIn("world_station_count",data)
+            self.assertFalse((Path(folder)/"world_stations.json").exists())
+            self.assertFalse((Path(folder)/"world").exists())
+            self.assertEqual(len(list(details.glob("*.json"))),1)
 
     def test_sparse_original_extrema_not_hourly_maximum(self):
         # The DWD 12-h maximum differs from the hourly 2-m temperatures.
