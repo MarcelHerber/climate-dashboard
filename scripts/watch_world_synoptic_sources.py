@@ -70,6 +70,13 @@ def collect(previous=None,fetch=read_official,now=None):
                "original_images_republished":False,"sync_ready":False,
                "last_checked_utc":now.isoformat(timespec="seconds"),
                "reference_image_candidates":[],"new_candidate_urls":[]}
+        if id == "metservice":
+            # MetService website Terms of Use restrict automated scraping/monitoring.
+            # Preserve the source entry for external linking; never request its HTML.
+            entry.update({"status":"excluded_provider_terms",
+                          "reason":"MetService NZ web terms restrict automated monitoring and scraping; external link only"})
+            sources.append(entry)
+            continue
         try:
             html=fetch(url,host)
             p=Links(url,host);p.feed(html)
