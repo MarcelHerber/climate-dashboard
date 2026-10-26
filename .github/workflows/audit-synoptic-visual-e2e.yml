@@ -1,0 +1,69 @@
+name: Synoptic source URL and browser screenshot audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/audit_synoptic_visual_e2e.py
+      - .github/workflows/audit-synoptic-visual-e2e.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: synoptic-visual-e2e
+  cancel-in-progress: false
+
+jobs:
+  check-120-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/audit_synoptic_visual_e2e.py
+            weltweite_isobaren.html
+            isobaren_original.js
+            data/synoptic_charts/isobaren_e2e_latest.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser, screenshot and OCR dependencies
+        run: |
+          python -m pip install --disable-pip-version-check playwright Pillow
+          python -m playwright install --with-deps chromium
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr
+      - name: Visit every catalog URL with Chromium and capture visual evidence
+        run: python scripts/audit_synoptic_visual_e2e.py
+      - name: Upload full screenshots, contact sheets and per-URL report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synoptic-visual-120-url-audit
+          path: tmp/synoptic_visual_audit/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish compact machine findings, explicitly without image-content certification
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/isobaren_e2e_latest.json /tmp/isobaren_e2e_latest.json
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/synoptic_charts
+            cp /tmp/isobaren_e2e_latest.json data/synoptic_charts/isobaren_e2e_latest.json
+            git add data/synoptic_charts/isobaren_e2e_latest.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Publish Chromium browser audit for global synoptic map links"
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          exit 1
