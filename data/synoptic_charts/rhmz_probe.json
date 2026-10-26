@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-26T06:36:20+00:00",
+  "generated_utc": "2026-10-26T14:28:12+00:00",
   "provider": "RHMZ / Republic Hydrometeorological Service of Serbia",
   "source_page": "https://www.hidmet.gov.rs/eng/osmotreni/analiza.php",
   "copyright": "© RHMZ Serbia; no general reuse license verified",
@@ -25,7 +25,7 @@
       "slot_utc": "12:00",
       "state": "printed_utc_verified",
       "image_reuse_permitted": false,
-      "valid_utc": "2026-10-25T12:00+00:00",
+      "valid_utc": "2026-10-26T12:00+00:00",
       "verification": "OCR of full date and UTC in image header; slot and recency match"
     },
     {
@@ -45,10 +45,9 @@
       "image_url": "https://www.hidmet.gov.rs/data/analiza/BALKAN/balkan09_JPG.jpg",
       "source_page": "https://www.hidmet.gov.rs/eng/osmotreni/analiza.php",
       "slot_utc": "09:00",
-      "state": "printed_utc_verified",
+      "state": "unverified",
       "image_reuse_permitted": false,
-      "valid_utc": "2026-10-25T09:00+00:00",
-      "verification": "OCR of full date and UTC in image header; slot and recency match"
+      "reason": "ValueError: No complete DD-MM-YYYY HH UTC printed in chart"
     },
     {
       "product": "balkan12",
@@ -58,7 +57,7 @@
       "slot_utc": "12:00",
       "state": "printed_utc_verified",
       "image_reuse_permitted": false,
-      "valid_utc": "2026-10-25T12:00+00:00",
+      "valid_utc": "2026-10-26T12:00+00:00",
       "verification": "OCR of full date and UTC in image header; slot and recency match"
     },
     {
