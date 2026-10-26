@@ -8,10 +8,10 @@
     "unique_urls": 119,
     "rights_classes": {
       "bedingungen_erlauben": 19,
-      "ungeklaert": 71,
-      "nur_originalseite": 7,
+      "ungeklaert": 68,
+      "nur_originalseite": 8,
       "drittanbieter": 9,
-      "produkt_pruefen": 13
+      "produkt_pruefen": 15
     },
     "printed_utc_current_snapshots": 9
   },
@@ -129,6 +129,24 @@
       "class": "produkt_pruefen",
       "rights_source": "https://www.hko.gov.hk/en/metinfo/Newspaper-Important-notice.html",
       "note": "Amtlicher Reproduktionshinweis für verbreitete HKO-Meteorologieprodukte verbietet deren erneute Veröffentlichung; Übertragbarkeit auf das konkrete Weather-Chart-Produkt prüfen."
+    },
+    {
+      "key": "saws",
+      "class": "nur_originalseite",
+      "rights_source": "https://www.weathersa.co.za/Documents/Legislature/SOUTH_AFRICAN_WEATHER_SERVICE_ACT_8_OF_2001_SAWSA-8-of-2001_19092025172739.pdf",
+      "note": "SAWS Act 8 of 2001, §26(1)–(3): Der Dienst behält IP-Rechte an eigenen meteorologischen Daten und Leistungen; Übermittlung an Dritte durch Kunden erfordert schriftliche Zustimmung der Geschäftsführung, Veröffentlichungen müssen SAWS nennen. Öffentlich sichtbare Karte ist keine pauschale Weitergabe-/Einbettungslizenz."
+    },
+    {
+      "key": "mauritius",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.govmu.org/EN/Pages/Copyright.aspx",
+      "note": "Die zentrale Copyright-Erklärung der Regierung von Mauritius erlaubt die unverfälschte Reproduktion von staatseigenem Material mit Quellen-/Copyrightangabe unter Bedingungen, behandelt jedoch Veröffentlichungen auf konkreten anderen Portalen nicht zweifelsfrei. Die MMS-Synoptikkarte braucht daher eine produktspezifische Bestätigung, bevor automatisch kopiert wird."
+    },
+    {
+      "key": "pmd",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.weather.gov.pk/cdpc/page/2/guidelines",
+      "note": "PMD-Klimadaten-Richtlinie schränkt Weitergabe an Dritte ein und verlangt bei Weitervertrieb gesonderte Verhandlung. Diese Bestimmungen betreffen ausdrücklich bezogene Klimadaten und dürfen nicht pauschal mit frei sichtbaren synoptischen PMD-Aviation-Karten gleichgesetzt werden. Bildlizenz für Surface Charts nicht bestätigt."
     }
   ],
   "sources": [
@@ -2118,7 +2136,7 @@
         "isobaren_original.js"
       ],
       "domain": "metservice.intnet.mu",
-      "publisher": "nicht_eindeutig",
+      "publisher": "mauritius",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -2131,10 +2149,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "Mauritius MMS – staatliche Materiallizenz möglicherweise anwendbar, Kartenfreigabe unbewiesen",
+        "policy_url": "https://www.govmu.org/EN/Pages/Copyright.aspx",
+        "condition": "Die zentrale Copyright-Erklärung der Regierung von Mauritius erlaubt die unverfälschte Reproduktion von staatseigenem Material mit Quellen-/Copyrightangabe unter Bedingungen, behandelt jedoch Veröffentlichungen auf konkreten anderen Portalen nicht zweifelsfrei. Die MMS-Synoptikkarte braucht daher eine produktspezifische Bestätigung, bevor automatisch kopiert wird.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -2178,7 +2196,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.weather.gov.pk",
-      "publisher": "nicht_eindeutig",
+      "publisher": "pmd",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -2191,10 +2209,10 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "produkt_pruefen",
+        "label": "Pakistan PMD – Datenweitergabe eingeschränkt; öffentliches Kartenprodukt gesondert klären",
+        "policy_url": "https://www.weather.gov.pk/cdpc/page/2/guidelines",
+        "condition": "PMD-Klimadaten-Richtlinie schränkt Weitergabe an Dritte ein und verlangt bei Weitervertrieb gesonderte Verhandlung. Diese Bestimmungen betreffen ausdrücklich bezogene Klimadaten und dürfen nicht pauschal mit frei sichtbaren synoptischen PMD-Aviation-Karten gleichgesetzt werden. Bildlizenz für Surface Charts nicht bestätigt.",
         "automatic_crawling_prohibited": true
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
@@ -2268,7 +2286,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.weathersa.co.za",
-      "publisher": "nicht_eindeutig",
+      "publisher": "saws",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -2281,13 +2299,13 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "nur_originalseite",
+        "label": "SAWS – ausdrückliches schriftliches Einverständnis zur Weitergabe nötig",
+        "policy_url": "https://www.weathersa.co.za/Documents/Legislature/SOUTH_AFRICAN_WEATHER_SERVICE_ACT_8_OF_2001_SAWSA-8-of-2001_19092025172739.pdf",
+        "condition": "SAWS Act 8 of 2001, §26(1)–(3): Der Dienst behält IP-Rechte an eigenen meteorologischen Daten und Leistungen; Übermittlung an Dritte durch Kunden erfordert schriftliche Zustimmung der Geschäftsführung, Veröffentlichungen müssen SAWS nennen. Öffentlich sichtbare Karte ist keine pauschale Weitergabe-/Einbettungslizenz.",
         "automatic_crawling_prohibited": true
       },
-      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "publication_policy": "nur_originalseite",
       "meteorology_note": "SAWS MSLP analysis 2026-10-26 12 UTC: front and isobar image visually confirmed despite earlier requests' transport errors."
     },
     {
