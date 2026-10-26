@@ -99,5 +99,12 @@ class TestSynopticSourceRights(unittest.TestCase):
             check = subprocess.run(["node","--check",str(script)], capture_output=True,text=True)
             self.assertEqual(check.returncode, 0, check.stderr)
 
+            world_scripts = re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>", WORLD.read_text(encoding="utf-8"))
+            self.assertTrue(any("const DATA=" in x for x in world_scripts))
+            world_script = next(x for x in world_scripts if "const DATA=" in x)
+            script.write_text(world_script, encoding="utf-8")
+            check = subprocess.run(["node","--check",str(script)], capture_output=True, text=True)
+            self.assertEqual(check.returncode, 0, "world catalog JS: " + check.stderr)
+
 if __name__ == "__main__":
     unittest.main()
