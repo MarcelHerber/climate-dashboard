@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Quellenprüfung Isobaren & Fronten · Climate Dashboard</title>
+<meta name="description" content="Meteorologische, technische und rechtliche Qualitätsprüfung der weltweiten amtlichen Synoptikkarten.">
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color-scheme:light;--bg:#f4f7fb;--fg:#1a3144;--panel:white;--muted:#506678;--line:#dbe5ed;--link:#006f9f;--mint:#e8f6ed;--amber:#fff3d6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}header{background:#13354d;color:white;padding:14px max(22px,calc((100vw - 1240px)/2))}header a{color:#eaf6fe;margin-right:18px;text-decoration:none;font-size:14px}
+main{max-width:1240px;margin:auto;padding:26px 20px 55px}h1{font-size:clamp(28px,4vw,43px);line-height:1.15;margin:8px 0 13px}h2{font-size:20px;margin:20px 0 8px}.lead{color:var(--muted);max-width:940px;margin:0 0 20px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.stat{background:var(--panel);border:1px solid var(--line);padding:16px;border-radius:12px}.stat b{font-size:26px;display:block}.stat small{display:block;color:var(--muted)}
+section.panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-top:22px;padding:19px}.fine{font-size:13px;color:var(--muted)}.toolbar{display:flex;gap:11px;flex-wrap:wrap;align-items:flex-end}.control{display:flex;flex-direction:column;font-size:13px;font-weight:650;gap:5px;flex:1 1 195px}input,select{font:inherit;font-size:14px;padding:9px 11px;border-radius:8px;border:1px solid #b8cbd9;background:var(--panel);color:var(--fg);width:100%}.toggle{display:flex;gap:7px;align-items:center;font-size:13px;flex:1 1 190px}.toggle input{width:auto}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:9px;margin-top:16px}table{border-collapse:collapse;width:100%;min-width:900px}th{background:#eaf0f5;color:#344c60;text-align:left;font-size:12px;position:sticky;top:0;z-index:1}td,th{border-bottom:1px solid #e5edf2;padding:11px 10px;vertical-align:top}td{font-size:13px}tr:last-child td{border-bottom:0}tr:hover td{background:#f8fbfd}td:first-child{width:28%}td:nth-child(2){width:20%}td:nth-child(3){width:23%}td:nth-child(4){width:15%}a{color:var(--link)}.source{font-weight:700;text-decoration:none}.subtle{color:var(--muted);font-size:12px;margin-top:3px}.tag{display:inline-block;border-radius:6px;background:#ecf1f4;color:#395569;padding:3px 7px;font-size:11px;font-weight:650;white-space:normal}.good{background:var(--mint);color:#20643b}.caution{background:var(--amber);color:#805700}.bad{background:#fae9e8;color:#8f3026}.detail{margin-top:6px}details summary{color:var(--link);cursor:pointer;font-size:12px}details p{color:var(--muted);margin:5px 0}.links{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}.message{padding:13px;background:#f0f4f8;border-radius:9px;font-size:14px}footer{color:var(--muted);text-align:center;font-size:12px;margin:30px}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111d27;--fg:#e5eff4;--panel:#1d2d39;--muted:#b3c4cf;--line:#354957;--link:#75c4ef;--mint:#173d2b;--amber:#463c23}th{background:#273d4e;color:var(--fg)}td,th{border-color:#385064}tr:hover td{background:#233c4c}.tag{background:#314555;color:#e4eef5}.good{background:#16432d;color:#a3edbc}.caution{background:#4a3718;color:#ffdc93}.bad{background:#4a2321;color:#ffb5ad}.message{background:#273d4e}input,select{border-color:#506577}}
+</style>
+</head>
+<body>
+<header><a href="index.html">Climate Dashboard</a><a href="weltweite_isobaren.html">Weltweite Isobaren</a><a href="isobaren_original.html">Europa · Originalkarten</a></header>
+<main>
+<p class="fine">Synoptik · Quellensicherheit</p>
+<h1>Qualitäts- und Rechteprüfung der Isobarenkarten</h1>
+<p class="lead">Stand 26. Oktober 2026. Diese Übersicht trennt echte Bodenanalysen, Frontenprognosen, reine Modellkarten, technische Erreichbarkeit und Weiterverwendungsrechte. Sie ist ein <strong>stichtagsbezogener Prüfbericht</strong>, kein Echtzeitmonitor und keine Lizenzzusage.</p>
+<div class="statgrid">
+<div class="stat"><b id="countAll">–</b><small>verschiedene Zieladressen</small></div>
+<div class="stat"><b id="countCharts">–</b><small>im vorigen Sichtaudit als Karte eingestuft</small></div>
+<div class="stat"><b id="countReuse">–</b><small>Herausgeber mit allgemeinen Wiedernutzungsregeln</small></div>
+<div class="stat"><b id="countRights">–</b><small>nur Originalseite / eingeschränkte Rechte</small></div>
+</div>
+<section class="panel">
+<h2>Wichtig für die Einbindung</h2>
+<p class="message">„Bild vorhanden“ bedeutet nicht „aktueller Gültigkeitstermin“ und nicht „frei einbettbar“. Erst eine passende Lizenz <strong>und</strong> nachgewiesener Originalbild-Inhalt <strong>und</strong> klarer UTC-Gültigkeitstermin erlauben die automatische Veröffentlichung. Ein Screenshot einer Startseite genügt nicht. Bei allen übrigen Quellen bleibt ein externer Link die sichere Lösung.</p>
+<div class="links"><a href="data/synoptic_charts/isobaren_quality_rights_2026-10-26.json" target="_blank" rel="noopener">Vollständige Rechte-/Qualitätstabelle als JSON</a><a href="data/synoptic_charts/isobaren_browser_quick_latest.json" target="_blank" rel="noopener">Browserprüfung aller Quellen</a><a href="https://github.com/MarcelHerber/climate-dashboard/actions/runs/40354856404" target="_blank" rel="noopener">Original-Screenshots (GitHub Actions)</a></div>
+</section>
+<section class="panel">
+<h2>119 Quellen gezielt prüfen</h2>
+<div class="toolbar">
+<label class="control">Suche nach Dienst oder Land<input id="filterText" type="search" placeholder="z. B. JMA, Afrika, Met Office, Taiwan" autocomplete="off"></label>
+<label class="control">Rechte<select id="filterRights"><option value="">Alle Rechtsstände</option><option value="bedingungen_erlauben">Allgemeine Wiederverwendung gestattet</option><option value="nur_originalseite">Nur Originalseite / Nutzung eingeschränkt</option><option value="produkt_pruefen">Produktlizenz noch prüfen</option><option value="ungeklaert">Keine Lizenz belegt</option><option value="drittanbieter">Drittanbieter</option></select></label>
+<label class="control">Sichtprüfung<select id="filterVisual"><option value="">Alle Prüfstände</option><option value="sichtbar_echte_isobaren_oder_frontenkarte">Synoptikkarte nachgewiesen</option><option value="viewer_oder_portal_mit_weiterer_interaktion">Viewer: zusätzliche Interaktion</option><option value="im_ersten_screenshot_keine_relevante_karte">Erstbild ohne relevante Karte</option><option value="other">Technische Probleme / Sonderfälle</option></select></label>
+<label class="toggle"><input id="filterUTC" type="checkbox"> Nur Einzelbilder mit abgelesener UTC-Gültigkeit</label>
+</div>
+<p class="fine" id="summary">Quellenbericht wird geladen …</p>
+<div class="tablewrap"><table><thead><tr><th>Quelle / Originaladresse</th><th>Karten- und Sichtnachweis</th><th>Nutzungsrechte</th><th>UTC und Integration</th></tr></thead><tbody id="tableBody"><tr><td colspan="4">Lade …</td></tr></tbody></table></div>
+</section>
+<section class="panel"><h2>Methodik</h2><p class="fine">Die 120 ursprünglichen Adressen wurden am 26.10.2026 mit HTTP und Chromium besucht; nach Zusammenführung zweier SAWS-Einträge enthält die aktuelle Liste 119 eindeutige Ziele. Der vorherige Sichtaudit hatte nicht alle Untermenüs, PDF-Seiten und einzelnen Kartenbilder vollständig durchlaufen. Rechtsangaben beruhen auf den jeweils verlinkten offiziellen Bestimmungen. „Allgemeine Wiederverwendung“ ist <strong>keine Bestätigung einer konkreten Bildlizenz</strong>, wenn Rechte Dritter oder besondere Produktbedingungen gelten.</p></section>
+</main><footer>Climate Dashboard Deutschland · Quellenprüfung · Nur ausgewiesene amtliche Produkte als solche bezeichnen</footer>
+<script>
+(async function(){
+ const esc=(s)=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const $=id=>document.getElementById(id);
+ const statusLabel={
+ "sichtbar_echte_isobaren_oder_frontenkarte":"Synoptik im Bild bestätigt",
+ "viewer_oder_portal_mit_weiterer_interaktion":"Viewer – Nachprüfung offen",
+ "im_ersten_screenshot_keine_relevante_karte":"Erstbild ohne bestätigte Karte",
+ "browser_nicht_pruefbar":"Browserprüfung nicht möglich",
+ "zugriff_gesperrt":"Zugriff gesperrt",
+ "http_404":"HTTP 404",
+ "kartenviewer_aber_einzelbild_defekt":"Einzelbild defekt",
+ "veraltet_und_keine_isobarenkarte":"Veraltet / keine Isobaren",
+ "visueller_einzelnachweis_offen":"Bildsichtung offen",
+ "sichtbar_modell_druckfeld_ohne_originalfronten":"Nur Modell-Druckfeld"};
+ const rightsLabel={
+ "bedingungen_erlauben":"Wiedernutzung grundsätzlich möglich",
+ "nur_originalseite":"Nur Originalseite",
+ "produkt_pruefen":"Produktlizenz prüfen",
+ "ungeklaert":"Rechte offen",
+ "drittanbieter":"Drittanbieter prüfen"
+ };
+ function render(data) {
+  const text=$("filterText").value.trim().toLocaleLowerCase("de");
+  const r=$("filterRights").value;
+  const v=$("filterVisual").value;
+  const utc=$("filterUTC").checked;
+  const list=data.sources.filter(x=>(!text||(x.name+" "+x.url+" "+x.domain+" "+x.publisher).toLocaleLowerCase("de").includes(text))&&(!r||x.rights.class===r)&&(!v||(v==="other"?!["sichtbar_echte_isobaren_oder_frontenkarte","viewer_oder_portal_mit_weiterer_interaktion","im_ersten_screenshot_keine_relevante_karte"].includes(x.visual_status):x.visual_status===v))&&(!utc||!!x.validity_utc_from_inspected_image));
+  $("summary").textContent=list.length+" von "+data.sources.length+" eindeutigen URLs angezeigt";
+  $("tableBody").innerHTML=list.length?list.map(x=>{
+    const status=x.visual_status;
+    const cls=status==="sichtbar_echte_isobaren_oder_frontenkarte"?"good":status==="http_404"||status==="veraltet_und_keine_isobarenkarte"?"bad":"caution";
+    const right=x.rights.class;
+    const rcls=right==="bedingungen_erlauben"?"good":right==="nur_originalseite"?"bad":"caution";
+    const valid=x.validity_utc_from_inspected_image?x.validity_utc_from_inspected_image.replace("T"," ").replace(":00:00Z"," UTC"):"Noch nicht am Bild bestätigt";
+    const remark=x.meteorology_note||"";
+    return "<tr><td><a class='source' href='"+esc(x.url)+"' target='_blank' rel='noopener noreferrer'>"+esc(x.name)+"</a><div class='subtle'>"+esc(x.domain)+"</div><div class='subtle'>"+esc(x.publisher)+"</div></td>"+
+    "<td><span class='tag "+cls+"'>"+esc(statusLabel[status]||status)+"</span><details class='detail'><summary>Technik und Karteninhalt</summary><p>"+esc(remark)+"</p><p>HTTP "+esc(x.http_status)+" · "+esc(x.http_result)+"</p>"+(x.example_image_url?"<p><a target='_blank' rel='noopener noreferrer' href='"+esc(x.example_image_url)+"'>Bildkandidat auf Originalserver</a></p>":"")+"</details></td>"+
+    "<td><span class='tag "+rcls+"'>"+esc(rightsLabel[right]||right)+"</span><div class='subtle'>"+esc(x.rights.label)+"</div><details class='detail'><summary>Lizenzhinweis</summary><p>"+esc(x.rights.condition)+"</p>"+(x.rights.policy_url?"<p><a href='"+esc(x.rights.policy_url)+"' target='_blank' rel='noopener noreferrer'>Offizielle Nutzungsbedingungen</a></p>":"")+"</details></td>"+
+    "<td><strong>"+esc(valid)+"</strong><div class='subtle'>"+(x.validity_utc_from_inspected_image?"Abgelesener UTC-Termin der Prüfung":"Kein verifizierter Einzelbild-Termin")+"</div><div class='subtle'>"+esc(x.publication_policy.replaceAll("_"," "))+"</div>"+(x.utc_product_doc?"<a href='"+esc(x.utc_product_doc)+"' target='_blank' rel='noopener noreferrer'>Produktbeschreibung</a>":"")+"</td></tr>";
+  }).join(""):"<tr><td colspan='4'>Keine Quellen für diesen Filter.</td></tr>";
+ }
+ try {
+  const resp=await fetch("data/synoptic_charts/isobaren_quality_rights_2026-10-26.json?v=1",{cache:"no-store"});
+  if(!resp.ok)throw new Error("HTTP "+resp.status);
+  const data=await resp.json();
+  if(data.schema_version!==1||!Array.isArray(data.sources))throw new Error("Prüfschema unbekannt");
+  $("countAll").textContent=data.sources.length;
+  $("countCharts").textContent=data.sources.filter(x=>x.visual_status==="sichtbar_echte_isobaren_oder_frontenkarte").length;
+  $("countReuse").textContent=data.sources.filter(x=>x.rights.class==="bedingungen_erlauben").length;
+  $("countRights").textContent=data.sources.filter(x=>x.rights.class==="nur_originalseite").length;
+  ["filterText","filterRights","filterVisual","filterUTC"].forEach(id=>$(id).addEventListener(id==="filterText"?"input":"change",()=>render(data)));
+  render(data);
+ } catch(error) {
+  $("tableBody").innerHTML="<tr><td colspan='4'>Prüfdaten derzeit nicht verfügbar. Bitte die JSON-Datei im Quellenbereich öffnen.</td></tr>";
+  $("summary").textContent=String(error);
+ }
+})();
+</script>
+</body></html>
