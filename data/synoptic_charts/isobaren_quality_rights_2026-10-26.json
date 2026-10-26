@@ -8,10 +8,10 @@
     "unique_urls": 119,
     "rights_classes": {
       "bedingungen_erlauben": 19,
-      "ungeklaert": 68,
-      "nur_originalseite": 8,
+      "ungeklaert": 66,
+      "nur_originalseite": 9,
       "drittanbieter": 9,
-      "produkt_pruefen": 15
+      "produkt_pruefen": 16
     },
     "printed_utc_current_snapshots": 9
   },
@@ -147,6 +147,18 @@
       "class": "produkt_pruefen",
       "rights_source": "https://www.weather.gov.pk/cdpc/page/2/guidelines",
       "note": "PMD-Klimadaten-Richtlinie schränkt Weitergabe an Dritte ein und verlangt bei Weitervertrieb gesonderte Verhandlung. Diese Bestimmungen betreffen ausdrücklich bezogene Klimadaten und dürfen nicht pauschal mit frei sichtbaren synoptischen PMD-Aviation-Karten gleichgesetzt werden. Bildlizenz für Surface Charts nicht bestätigt."
+    },
+    {
+      "key": "cptec",
+      "class": "nur_originalseite",
+      "rights_source": "https://www6.cptec.inpe.br/",
+      "note": "Die amtliche CPTEC/INPE-Startseite untersagt die vollständige oder teilweise Übernahme der dortigen Produkte zur Wiederveröffentlichung ohne ausdrückliche Erlaubnis. Der bloße Quellenhinweis reicht nicht für die Einbettung. Synoptische Karten 00/06/12/18 UTC dürfen daher derzeit nur als Originalseiten-Link erscheinen."
+    },
+    {
+      "key": "tmd",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.tmd.go.th/content/copyright",
+      "note": "TMD nennt für öffentliche nichtkommerzielle Weitergabe der Websiteinhalte ausdrücklich die Pflicht, die Thailändische Meteorologische Behörde als Quelle anzugeben; eine allgemeine kommerzielle Bildlizenz ist nicht nachgewiesen. Produkt-/Nutzungszweck vor automatischem Einbetten verifizieren."
     }
   ],
   "sources": [
@@ -1441,7 +1453,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.cptec.inpe.br",
-      "publisher": "nicht_eindeutig",
+      "publisher": "cptec",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -1459,13 +1471,13 @@
         18
       ],
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "class": "nur_originalseite",
+        "label": "CPTEC/INPE – Kartenreproduktion ohne ausdrückliche Genehmigung untersagt",
+        "policy_url": "https://www6.cptec.inpe.br/",
+        "condition": "Die amtliche CPTEC/INPE-Startseite untersagt die vollständige oder teilweise Übernahme der dortigen Produkte zur Wiederveröffentlichung ohne ausdrückliche Erlaubnis. Der bloße Quellenhinweis reicht nicht für die Einbettung. Synoptische Karten 00/06/12/18 UTC dürfen daher derzeit nur als Originalseiten-Link erscheinen.",
         "automatic_crawling_prohibited": true
       },
-      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "publication_policy": "nur_originalseite",
       "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt. | CPTEC bestätigt eigene synoptische Karten zu 00/06/12/18 UTC; konkreter Bildfeed im Dashboard separat prüfen."
     },
     {
@@ -1832,7 +1844,7 @@
         "isobaren_original.js"
       ],
       "domain": "www.tmd.go.th",
-      "publisher": "nicht_eindeutig",
+      "publisher": "tmd",
       "official_independent_analysis": "nicht_abschliessend_belegt",
       "product": "sichtbare_isobaren_oder_frontenkarte",
       "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
@@ -1845,11 +1857,11 @@
       "utc_product_doc": null,
       "daily_analysis_slots_utc": null,
       "rights": {
-        "class": "ungeklaert",
-        "label": "Keine produktbezogene Freigabe dokumentiert",
-        "policy_url": null,
-        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
-        "automatic_crawling_prohibited": true
+        "class": "produkt_pruefen",
+        "label": "TMD Thailand – nichtkommerzielle Veröffentlichung mit Quellenhinweis",
+        "policy_url": "https://www.tmd.go.th/content/copyright",
+        "condition": "TMD nennt für öffentliche nichtkommerzielle Weitergabe der Websiteinhalte ausdrücklich die Pflicht, die Thailändische Meteorologische Behörde als Quelle anzugeben; eine allgemeine kommerzielle Bildlizenz ist nicht nachgewiesen. Produkt-/Nutzungszweck vor automatischem Einbetten verifizieren.",
+        "automatic_crawling_prohibited": false
       },
       "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
       "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
