@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Build compact Germany-only MOSMIX-L data for the dashboard.
+Build German MOSMIX map data and a worldwide, on-demand station catalogue.
 
 Outputs:
 - mosmix_ttt.json: compact TTT map data for all Germany-area points
-- stations/<key>.json: on-demand meteogram data for one point
+- stations/<key>.json: Germany on-demand meteograms
+- world_stations.json: searchable worldwide station index
+- world/<hex>.json: compact on-demand global meteogram shards
 """
 
 from __future__ import annotations
@@ -31,7 +33,13 @@ LAT_MIN, LAT_MAX = 47.15, 55.15
 METEOGRAM_PARAMS = (
     "TTT", "TX", "TN", "Td", "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
     "FF", "FX1", "FX3", "FXh", "FFXh", "DD", "N", "PPPP",
+    "SunD1", "Rad1h",
 )
+
+# Keep a compact yet useful worldwide meteogram. Full German files retain
+# all parameters and map detail as before; global chunks load only on demand.
+WORLD_DETAIL_PARAMS = ("TTT", "TX", "TN", "Td", "RR1c", "FF", "FX1",
+                       "DD", "N", "PPPP", "SunD1", "Rad1h")
 
 
 def local_name(tag: str) -> str:
@@ -82,6 +90,13 @@ def convert_values(parameter: str, values: list[float | None]) -> list[float | N
         elif parameter in {"FF", "FX1", "FX3", "FXh", "FFXh"}:
             # MOSMIX wind is m/s; display files use km/h for the dashboard.
             converted.append(round(value * 3.6, 1))
+        elif parameter == "SunD1":
+            # The DWD supplies one-hour sunshine duration in seconds.
+            # A plotted 60 min means full sunshine during the preceding hour.
+            converted.append(round(max(0.0,min(3600.0,value))/60.0, 1))
+        elif parameter == "Rad1h":
+            # One-hour shortwave energy sum in kJ/m².
+            converted.append(round(value, 1))
         elif parameter == "PPPP":
             # Reduced pressure is supplied in Pa; use hPa in the meteogram.
             converted.append(round(value / 100.0, 1))
@@ -123,6 +138,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
     stations: list[dict] = []
     issue_time: str | None = None
     models: list[dict] = []
+    world_stations: list[dict] = []
+    world_shards: dict[str, dict[str,dict]] = {}
     tx_indices: list[int] = []
     tn_indices: list[int] = []
     detail_dir.mkdir(parents=True, exist_ok=True)
@@ -192,9 +209,10 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                 if lon is None or lat is None:
                     elem.clear()
                     continue
-                if not (LON_MIN <= lon <= LON_MAX and LAT_MIN <= lat <= LAT_MAX):
+                if not (-180 <= lon <= 180 and -90 <= lat <= 90):
                     elem.clear()
                     continue
+                is_germany = LON_MIN <= lon <= LON_MAX and LAT_MIN <= lat <= LAT_MAX
 
                 forecasts: dict[str, list[float | None]] = {}
                 for node in elem.iter():
@@ -238,20 +256,28 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     "elev_m": None if elev is None else round(elev, 1),
                     "key": key,
                 }
-                stations.append({
-                    **station_meta, "values": ttt,
-                    "tx12": tx12, "tn12": tn12,
-                })
-
-                detail = {
+                shard=key[:1]
+                world_stations.append({**station_meta,"shard":shard})
+                world_shards.setdefault(shard,{})[key]={
                     **station_meta,
-                    "issue_time": issue_time,
-                    "parameters": forecasts,
+                    "issue_time":issue_time,
+                    "parameters":{name:forecasts[name] for name in WORLD_DETAIL_PARAMS
+                                  if name in forecasts},
                 }
-                (detail_dir / f"{key}.json").write_text(
-                    json.dumps(detail, ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8",
-                )
+                if is_germany:
+                    stations.append({
+                        **station_meta, "values": ttt,
+                        "tx12": tx12, "tn12": tn12,
+                    })
+                    detail = {
+                        **station_meta,
+                        "issue_time": issue_time,
+                        "parameters": forecasts,
+                    }
+                    (detail_dir / f"{key}.json").write_text(
+                        json.dumps(detail, ensure_ascii=False, separators=(",", ":")),
+                        encoding="utf-8",
+                    )
 
                 elem.clear()
 
@@ -259,10 +285,27 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
         raise RuntimeError("Keine MOSMIX-Zeitschritte gefunden.")
     if not stations:
         raise RuntimeError("Keine MOSMIX-Temperaturpunkte im Deutschlandausschnitt gefunden.")
+    if len(world_stations)<1000:
+        raise RuntimeError("Unplausibel wenige weltweite MOSMIX-Stationen.")
     if not any(station["tx12"] for station in stations):
         raise RuntimeError("Kein originaler MOSMIX-TX-Wert für 18 UTC gefunden.")
     if not any(station["tn12"] for station in stations):
         raise RuntimeError("Kein originaler MOSMIX-TN-Wert für 06 UTC gefunden.")
+
+    # Publish world catalogue and all shards only after the complete KML was
+    # parsed. Each shard is downloaded on demand when choosing a world station.
+    world_dir=detail_dir.parent/"world"
+    world_dir.mkdir(parents=True,exist_ok=True)
+    for shard,items in world_shards.items():
+        (world_dir/f"{shard}.json").write_text(
+            json.dumps({"issue_time":issue_time,"stations":items},
+                       ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+    (detail_dir.parent/"world_stations.json").write_text(
+        json.dumps({"schema":1,"issue_time":issue_time,
+                    "timesteps":timesteps,"station_count":len(world_stations),
+                    "stations":sorted(world_stations,
+                          key=lambda q:(q["name"],q["id"],q["key"]))},
+                   ensure_ascii=False,separators=(",",":")),encoding="utf-8")
 
     seen = set()
     unique_models = []
@@ -275,7 +318,9 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
 
     return {
         "product": "DWD MOSMIX-L",
-        "parameter": "TTT / TX / TN",
+        "parameter": "TTT / TX / TN / SunD1 / Rad1h",
+        "world_index": "world_stations.json",
+        "world_station_count":len(world_stations),
         "extrema_reference": {
             "TX": {"valid_hour_utc": 18, "period_hours": 12, "unit": "°C"},
             "TN": {"valid_hour_utc": 6, "period_hours": 12, "unit": "°C"},
@@ -305,6 +350,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
             "DD": {"label": "Windrichtung", "unit": "°"},
             "N": {"label": "Gesamtbedeckung", "unit": "%"},
             "PPPP": {"label": "Luftdruck", "unit": "hPa"},
+            "SunD1": {"label": "Sonnenscheindauer der letzten Stunde", "unit": "min"},
+            "Rad1h": {"label": "Globalstrahlung der letzten Stunde", "unit": "kJ/m²"},
         },
         "stations": sorted(stations, key=lambda s: (s["name"], s["id"], s["key"])),
     }
@@ -323,6 +370,9 @@ def main() -> None:
     if detail_dir.exists():
         for file in detail_dir.glob("*.json"):
             file.unlink()
+    world_dir=output.parent/"world"
+    if world_dir.exists():
+        for file in world_dir.glob("*.json"):file.unlink()
 
     with tempfile.TemporaryDirectory(prefix="mosmix-") as tmp:
         kmz = Path(tmp) / "MOSMIX_L_LATEST.kmz"
@@ -341,7 +391,8 @@ def main() -> None:
     print(
         f"Geschrieben: {output} | {data['station_count']} Punkte | "
         f"{len(data['timesteps'])} Zeitschritte | Lauf {data.get('issue_time')} | "
-        f"Meteogramme: {len(list(detail_dir.glob('*.json')))}"
+        f"Deutschland-Meteogramme: {len(list(detail_dir.glob('*.json')))}"
+        f" | weltweit: {data['world_station_count']}"
     )
 
 
