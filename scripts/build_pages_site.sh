@@ -102,6 +102,10 @@ done
 
 # Dark Mode muss mit HTML, Stylesheet und Skript gemeinsam ausgeliefert werden.
 node --check _site/dashboard_theme.js
+# MOSMIX muss auch im Haupt-Website-Deploy syntaktisch valide sein.
+node --check _site/mosmix.js
+node tests/test_mosmix_world.mjs
+node tests/test_mosmix_sun_daily.mjs
 test -s _site/dashboard_theme.css
 test -s _site/dashboard_theme.js
 grep -q 'dashboard_theme.css' _site/index.html
