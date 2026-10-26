@@ -100,6 +100,38 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+# MOSMIX Deutschlandkarte: einen verifizierten, aktuellen Daten-Snapshot direkt
+# mit Pages bereitstellen. Damit muss der Browser beim Öffnen keine große
+# GitHub-Raw-Datei mehr von einer anderen Domain herunterladen.
+# Bei einem temporären GitHub-Ausfall darf Pages trotzdem deployen;
+# das Frontend besitzt eigene Rückfallquellen und eine sichtbare Fehlermeldung.
+mkdir -p _site/data/mosmix
+mosmix_snapshot="_site/data/mosmix/mosmix_ttt.json"
+mosmix_source="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json"
+if curl -fsSL --connect-timeout 6 --max-time 35 --retry 1 --max-filesize 40000000 \
+  "$mosmix_source" -o "$mosmix_snapshot"; then
+  if python - "$mosmix_snapshot" <<'PY'
+import json,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+obj=json.loads(p.read_text(encoding="utf-8"))
+assert obj.get("product")=="DWD MOSMIX-L"
+assert len(obj.get("stations",[]))>100
+assert len(obj.get("timesteps",[]))>40
+assert all(k in obj["stations"][0] for k in ("values","sun1","tx12","tn12"))
+print("MOSMIX-Deutschlanddatei in Pages eingebunden:",p.stat().st_size,"Bytes")
+PY
+  then
+    echo "MOSMIX-Deutschlandkarte wird direkt von Pages geladen."
+  else
+    rm -f "$mosmix_snapshot"
+    echo "WARNUNG: Ungültige MOSMIX-Datei. Frontend nutzt Ersatzquellen."
+  fi
+else
+  rm -f "$mosmix_snapshot"
+  echo "WARNUNG: MOSMIX-Snapshot nicht geladen. Frontend nutzt Ersatzquellen."
+fi
+
 # Dark Mode muss mit HTML, Stylesheet und Skript gemeinsam ausgeliefert werden.
 node --check _site/dashboard_theme.js
 # MOSMIX muss auch im Haupt-Website-Deploy syntaktisch valide sein.
