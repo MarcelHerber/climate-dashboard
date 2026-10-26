@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-26T15:48:42.360065+00:00",
+  "checked_utc": "2026-10-26T15:51:24.087333+00:00",
   "unique_urls": 120,
   "world_entries": 74,
   "original_entries": 95,
   "classifications": {
-    "html_reached_not_visual_certified": 97,
+    "html_reached_not_visual_certified": 100,
     "direct_image_valid_bytes_not_content_certified": 3,
     "access_denied_not_proven_dead": 2,
-    "request_error": 8,
+    "request_error": 6,
     "http_missing": 1,
-    "other_content_type": 1,
-    "timeout": 4,
+    "direct_image_valid_bytes_nonstandard_mime": 1,
+    "timeout": 3,
     "pdf_reachable_not_visually_checked": 4
   },
   "note": "Jede URL per HTTP GET geprüft; bei HTML erster passender img-Link separat geladen. JavaScript-gerenderte Seiten können nicht durch diesen HTTP-Durchlauf visuell bestätigt werden. 403 ist kein kaputter Link. Tatsächliche Karte, UTC-Gültigkeit und Nutzungsrechte müssen im separaten Chromium-Screenshot-Audit bestätigt werden.",
@@ -40,7 +40,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
@@ -66,7 +66,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
@@ -92,7 +92,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://eccc-msc.github.io/msc-animet/",
@@ -115,7 +115,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
@@ -138,7 +138,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "direct_image_valid_bytes_not_content_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
@@ -161,7 +161,7 @@
       "chart_terms": [],
       "error": "image follow-up: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /wp-content/uploads/2025/08/mapasynop_202409150000.png (Caused by NewConnectionError(\"HTTP",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
@@ -189,7 +189,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.dmi.dk/vejret/frontkort",
@@ -218,7 +218,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
@@ -243,7 +243,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "direct_image_valid_bytes_not_content_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
@@ -270,7 +270,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
@@ -293,7 +293,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
@@ -318,7 +318,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteofrance.com/isofronts",
@@ -345,7 +345,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.met.ie/latest-reports/surface-analysis",
@@ -377,7 +377,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
@@ -402,7 +402,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
@@ -427,7 +427,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://geosphere.at/de/karten/wetterportal",
@@ -452,7 +452,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
@@ -479,7 +479,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteoinfo.ru/mapsynop",
@@ -504,7 +504,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.shmu.sk/en/?page=980",
@@ -529,7 +529,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
@@ -542,7 +542,7 @@
       "status": 200,
       "final_url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
       "mime": "text/html;charset=UTF-8",
-      "bytes_received": 189734,
+      "bytes_received": 189736,
       "image_width": null,
       "image_height": null,
       "image_followup": "https://www.chmi.cz/documents/42501/44291/chmu_logo.svg/71568472-0017-4b0c-2eb7-18d12f4a0fb3?version=1.0&t=1730800623107",
@@ -555,7 +555,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
@@ -570,7 +570,7 @@
       "status": 200,
       "final_url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
       "mime": "text/html;charset=UTF-8",
-      "bytes_received": 246777,
+      "bytes_received": 246774,
       "image_width": null,
       "image_height": null,
       "image_followup": "https://www.chmi.cz/documents/42501/344946/312_Synopticka_situace.svg/a1414d19-f9cf-6103-1379-48994d29b361?t=1729609971640",
@@ -584,7 +584,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
@@ -611,7 +611,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.netweather.tv/charts-and-data/fax",
@@ -634,7 +634,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "access_denied_not_proven_dead",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.mtotec.com/page-analyse",
@@ -659,7 +659,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
@@ -688,7 +688,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
@@ -713,7 +713,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
@@ -736,7 +736,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.jma.go.jp/jmh/asas_00_s.html",
@@ -759,7 +759,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.jma.go.jp/jmh/asas_06_s.html",
@@ -782,7 +782,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.jma.go.jp/jmh/jmhmenu.html",
@@ -805,7 +805,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.jma.go.jp/bosai/weather_map/",
@@ -830,7 +830,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
@@ -857,7 +857,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
@@ -880,7 +880,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
@@ -895,7 +895,7 @@
       "status": 200,
       "final_url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
       "mime": "text/html; charset=UTF-8",
-      "bytes_received": 30601,
+      "bytes_received": 30602,
       "image_width": 648,
       "image_height": 434,
       "image_followup": "https://www.bom.gov.au/difacs/IDX0894.gif",
@@ -909,7 +909,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://met.gov.ck/weather-map",
@@ -932,7 +932,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='met.gov.ck', port=443): Max retries exceeded with url: /weather-map (Caused by NameResolutionError(\"HTTPSConnection(host='met.gov.ck', port=443): Failed to resolve 'met.gov.ck' ([Errno -3] Temporary failu",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.met.gov.fj/maps-observation/weather-map/",
@@ -959,7 +959,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.pf/fr/isofronts",
@@ -986,7 +986,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.pf/fr/pre-isofronts",
@@ -1012,7 +1012,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.nc/fr/carte-analyse",
@@ -1035,7 +1035,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
@@ -1060,7 +1060,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weathercharts.org/noaa-charts.htm",
@@ -1087,7 +1087,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
@@ -1110,7 +1110,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "http_missing",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.cptec.inpe.br/cartas-e-boletins",
@@ -1135,7 +1135,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
@@ -1158,7 +1158,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
@@ -1183,7 +1183,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
@@ -1210,7 +1210,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
@@ -1233,7 +1233,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
@@ -1256,7 +1256,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
@@ -1284,7 +1284,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.bom.gov.au/australia/charts/archive/",
@@ -1299,7 +1299,7 @@
       "status": 200,
       "final_url": "https://www.bom.gov.au/australia/charts/archive/",
       "mime": "text/html; charset=UTF-8",
-      "bytes_received": 39039,
+      "bytes_received": 39040,
       "image_width": 1,
       "image_height": 1,
       "image_followup": "https://www.bom.gov.au/images/ui/bannerprint.gif",
@@ -1311,7 +1311,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
@@ -1336,7 +1336,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "access_denied_not_proven_dead",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://pam.marinha.mil.br/sig.html",
@@ -1359,7 +1359,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ocean.weather.gov/Pac_tab.php",
@@ -1388,7 +1388,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
@@ -1411,7 +1411,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "direct_image_valid_bytes_not_content_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ims.gov.il/en/analyzedSynopticMaps",
@@ -1438,7 +1438,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
@@ -1453,7 +1453,7 @@
       "status": 200,
       "final_url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
       "mime": "text/html; charset=utf-8",
-      "bytes_received": 4049347,
+      "bytes_received": 4003644,
       "image_width": 690,
       "image_height": 168,
       "image_followup": "https://www.tmd.go.th/CustomTheme3/logoes/Nav/logo_navbar.png",
@@ -1466,7 +1466,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
@@ -1480,16 +1480,16 @@
       "final_url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
       "mime": "binary/octet-stream",
       "bytes_received": 355935,
-      "image_width": null,
-      "image_height": null,
+      "image_width": 728,
+      "image_height": 531,
       "image_followup": null,
       "followup_status": null,
       "followup_mime": null,
       "detected_title": "",
       "chart_terms": [],
       "error": "",
-      "classification": "other_content_type",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "classification": "direct_image_valid_bytes_nonstandard_mime",
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
@@ -1514,7 +1514,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
@@ -1539,7 +1539,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://portal.inmet.gov.br/cartasinotica",
@@ -1564,7 +1564,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weather.gov/hfo/analyses",
@@ -1591,7 +1591,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.nhc.noaa.gov/marine/",
@@ -1618,7 +1618,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
@@ -1643,7 +1643,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weather.gc.ca/analysis/index_e.html",
@@ -1670,7 +1670,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
@@ -1695,7 +1695,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://metservice.intnet.mu/synoptic-chart.php",
@@ -1722,7 +1722,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.pagasa.dost.gov.ph/weather",
@@ -1747,7 +1747,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weather.gov.pk/aviation/weather-charts",
@@ -1774,7 +1774,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
@@ -1801,7 +1801,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
@@ -1829,7 +1829,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weathersa.co.za/observations/synopticcharts",
@@ -1852,7 +1852,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='www.weathersa.co.za', port=443): Max retries exceeded with url: /observations/synopticcharts (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: un",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.wetter3.de/fax_dt.html",
@@ -1877,7 +1877,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
@@ -1902,7 +1902,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
@@ -1925,7 +1925,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
@@ -1952,7 +1952,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteociel.fr/fronts/index.php",
@@ -1981,7 +1981,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteoam.it/it/meteo-citta/front",
@@ -1998,7 +1998,7 @@
       "status": 200,
       "final_url": "https://www.meteoam.it/it/meteo-citta/front",
       "mime": "text/html; charset=UTF-8",
-      "bytes_received": 52678,
+      "bytes_received": 52676,
       "image_width": 453,
       "image_height": 105,
       "image_followup": "https://cm.meteoam.it/it/media/1579687924042/native/LogoMeteo.png",
@@ -2010,7 +2010,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
@@ -2020,20 +2020,20 @@
       "pages": [
         "original"
       ],
-      "status": null,
-      "final_url": null,
-      "mime": null,
-      "bytes_received": 0,
-      "image_width": null,
-      "image_height": null,
-      "image_followup": null,
-      "followup_status": null,
-      "followup_mime": null,
-      "detected_title": "",
+      "status": 200,
+      "final_url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "mime": "text/html; charset=utf-8",
+      "bytes_received": 31264,
+      "image_width": 20,
+      "image_height": 12,
+      "image_followup": "https://hezarfen.mgm.gov.tr/imgGenel/IngilizBayrak.gif",
+      "followup_status": 200,
+      "followup_mime": "image/gif",
+      "detected_title": "Hezarfen",
       "chart_terms": [],
-      "error": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))",
-      "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "error": "",
+      "classification": "html_reached_not_visual_certified",
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
@@ -2056,7 +2056,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://en.vedur.is/weather/shipping/atlantic/",
@@ -2079,7 +2079,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
@@ -2102,7 +2102,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.imgw.pl/",
@@ -2127,7 +2127,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://observar.ipma.pt/superficie-frontal-fria/",
@@ -2150,7 +2150,7 @@
       "chart_terms": [],
       "error": "request_timeout",
       "classification": "timeout",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
@@ -2173,7 +2173,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='www.weather.bg', port=443): Max retries exceeded with url: /1en/index.php?koiFail=zaNas&lng=0 (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: H",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
@@ -2196,7 +2196,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "pdf_reachable_not_visually_checked",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ocean.weather.gov/unified_analysis.php",
@@ -2206,20 +2206,22 @@
       "pages": [
         "original"
       ],
-      "status": null,
-      "final_url": null,
-      "mime": null,
-      "bytes_received": 0,
-      "image_width": null,
-      "image_height": null,
-      "image_followup": null,
-      "followup_status": null,
-      "followup_mime": null,
-      "detected_title": "",
-      "chart_terms": [],
-      "error": "request_timeout",
-      "classification": "timeout",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "status": 200,
+      "final_url": "https://ocean.weather.gov/unified_analysis.php",
+      "mime": "text/html; charset=UTF-8",
+      "bytes_received": 35371,
+      "image_width": 800,
+      "image_height": 331,
+      "image_followup": "https://ocean.weather.gov/UA/entire_UA.gif",
+      "followup_status": 200,
+      "followup_mime": "image/gif",
+      "detected_title": "Unified Surface Analysis",
+      "chart_terms": [
+        "Surface Analysis"
+      ],
+      "error": "",
+      "classification": "html_reached_not_visual_certified",
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
@@ -2244,7 +2246,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
@@ -2271,7 +2273,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.emy.gr/en/marine",
@@ -2294,7 +2296,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='www.emy.gr', port=443): Max retries exceeded with url: /en/marine (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer ce",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
@@ -2317,7 +2319,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
@@ -2340,7 +2342,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "pdf_reachable_not_visually_checked",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
@@ -2365,7 +2367,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
@@ -2390,7 +2392,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
@@ -2413,7 +2415,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
@@ -2436,7 +2438,7 @@
       "chart_terms": [],
       "error": "request_timeout",
       "classification": "timeout",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
@@ -2459,7 +2461,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
@@ -2482,7 +2484,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "pdf_reachable_not_visually_checked",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
@@ -2505,7 +2507,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "pdf_reachable_not_visually_checked",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
@@ -2528,7 +2530,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.ad/en",
@@ -2553,7 +2555,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://pogoda.by/weather/synoptic/",
@@ -2576,7 +2578,7 @@
       "chart_terms": [],
       "error": "request_timeout",
       "classification": "timeout",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
@@ -2592,14 +2594,14 @@
       "bytes_received": 164047,
       "image_width": null,
       "image_height": null,
-      "image_followup": "https://www.fhmzbih.gov.ba/podaci/gfs/TEMP2M1.png?nocache=1793029736",
+      "image_followup": "https://www.fhmzbih.gov.ba/podaci/gfs/TEMP2M1.png?nocache=1793029896",
       "followup_status": 404,
       "followup_mime": "text/html; charset=iso-8859-1",
       "detected_title": "Federalni hidrometeorološki zavod",
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
@@ -2624,7 +2626,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.maltairport.com/weather/",
@@ -2647,7 +2649,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.md/",
@@ -2657,20 +2659,22 @@
       "pages": [
         "original"
       ],
-      "status": null,
-      "final_url": null,
-      "mime": null,
-      "bytes_received": 0,
+      "status": 200,
+      "final_url": "https://www.meteo.md/",
+      "mime": "text/html; charset=UTF-8",
+      "bytes_received": 110482,
       "image_width": null,
       "image_height": null,
-      "image_followup": null,
-      "followup_status": null,
-      "followup_mime": null,
-      "detected_title": "",
-      "chart_terms": [],
-      "error": "HTTPSConnectionPool(host='www.meteo.md', port=443): Max retries exceeded with url: / (Caused by NameResolutionError(\"HTTPSConnection(host='www.meteo.md', port=443): Failed to resolve 'www.meteo.md' ([Errno -3] Temporary failure in",
-      "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "image_followup": "https://www.meteo.md/images/layout/hydro-warning.svg",
+      "followup_status": 200,
+      "followup_mime": "image/svg+xml",
+      "detected_title": "Autoritatea de Meteorologie și Monitoring de Mediu",
+      "chart_terms": [
+        "frontal"
+      ],
+      "error": "",
+      "classification": "html_reached_not_visual_certified",
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteofrance.com/",
@@ -2693,7 +2697,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.co.me/",
@@ -2716,7 +2720,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='www.meteo.co.me', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certif",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://uhmr.gov.mk/",
@@ -2739,7 +2743,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteoinfo.ru/prognosticheskie-karty",
@@ -2762,7 +2766,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.meteo.gov.ua/en/",
@@ -2785,7 +2789,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://ihmk-rks.net/",
@@ -2808,7 +2812,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteomonitoring.am/en/web",
@@ -2831,7 +2835,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
@@ -2854,7 +2858,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://meteo.az/",
@@ -2877,7 +2881,7 @@
       "chart_terms": [],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
@@ -2890,7 +2894,7 @@
       "status": 200,
       "final_url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
       "mime": "text/html; charset=utf-8",
-      "bytes_received": 38161,
+      "bytes_received": 38159,
       "image_width": 66,
       "image_height": 66,
       "image_followup": "https://nea.gov.ge/images/accessibilityIcon.png",
@@ -2902,7 +2906,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
@@ -2928,7 +2932,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
@@ -2953,7 +2957,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://data.gov.tw/en/datasets/9246",
@@ -2978,7 +2982,7 @@
       ],
       "error": "",
       "classification": "html_reached_not_visual_certified",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     },
     {
       "url": "https://www.weathersa.co.za/?contentID=81",
@@ -3001,7 +3005,7 @@
       "chart_terms": [],
       "error": "HTTPSConnectionPool(host='www.weathersa.co.za', port=443): Max retries exceeded with url: /?contentID=81 (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get lo",
       "classification": "request_error",
-      "checked_utc": "2026-10-26T15:48:42.360065+00:00"
+      "checked_utc": "2026-10-26T15:51:24.087333+00:00"
     }
   ]
 }
