@@ -2,6 +2,10 @@
   "use strict";
 
   const DATA_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json";
+  // A second CDN prevents a blocked raw.githubusercontent.com request from
+  // leaving the MOSMIX section in an endless loading state.
+  const DATA_BACKUP_URL = "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@mosmix-data/data/mosmix/mosmix_ttt.json";
+  const DATA_TIMEOUT_MS = 15000;
   const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
   const WORLD_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/";
   const WORLD_INDEX_URL = WORLD_BASE + "world_stations.json";
@@ -246,14 +250,45 @@
     else main.appendChild(node);
   }
 
-  async function loadData() {
-    const response = await fetch(DATA_URL + "?v=" + Date.now(), {cache:"no-store"});
-    if (!response.ok) throw new Error("MOSMIX-Daten HTTP " + response.status);
-    const json = await response.json();
-    if (!Array.isArray(json.timesteps) || !Array.isArray(json.stations)) {
-      throw new Error("Ungültiges MOSMIX-Datenformat");
+  async function fetchMosmixSource(url, forceRefresh) {
+    const controller = new AbortController();
+    const timer = setTimeout(function(){controller.abort();},DATA_TIMEOUT_MS);
+    try {
+      // Raw GitHub already sends short-lived cache headers. Use browser cache
+      // for normal entry; the explicit reload button bypasses that cache.
+      const response = await fetch(url, {
+        cache:forceRefresh?"no-store":"default",signal:controller.signal
+      });
+      if(!response.ok)throw new Error("HTTP "+response.status);
+      const json=await response.json();
+      if(!Array.isArray(json.timesteps)||!Array.isArray(json.stations)||
+         !json.timesteps.length||!json.stations.length){
+        throw new Error("Ungültiger oder leerer MOSMIX-Datensatz");
+      }
+      return json;
+    } finally {
+      clearTimeout(timer);
     }
-    return json;
+  }
+
+  async function loadData(forceRefresh) {
+    const status=document.getElementById("mosmixSectionStatus");
+    const endpoints=[DATA_URL,DATA_BACKUP_URL];
+    const errors=[];
+    for(let i=0;i<endpoints.length;i++){
+      if(status)status.textContent=i===0?
+        "Lade Deutschland-MOSMIX-Daten … (maximal 15 Sekunden je Quelle)":
+        "GitHub-Datenserver reagiert nicht. Versuche Ersatzquelle …";
+      try {
+        const result=await fetchMosmixSource(endpoints[i],!!forceRefresh);
+        result._mosmixFallback=i>0;
+        return result;
+      } catch(error) {
+        errors.push((i===0?"GitHub":"Ersatzquelle")+": "+
+          (error.name==="AbortError"?"Zeitüberschreitung":error.message));
+      }
+    }
+    throw new Error("Keine MOSMIX-Quelle erreichbar. "+errors.join("; "));
   }
 
   async function loadStates() {
@@ -1066,6 +1101,8 @@
       if(mapMode==="tmax" && value>=20) above20++;
       const color=mapMode==="sun"?colorForSun(value):colorForTemp(value);
       const latlng=L.latLng(station.lat,station.lon);
+      // Avoid creating thousands of invisible Leaflet objects off screen.
+      if(!bounds.contains(latlng))return;
 
       if (useLabels && bounds.contains(latlng)) {
         const p=map.latLngToContainerPoint(latlng);
@@ -1352,6 +1389,7 @@
       shown++;
       const color = isSun?colorForSun(value):colorForTemp(value);
       const latlng = L.latLng(station.lat,station.lon);
+      if(!bounds.contains(latlng))return;
 
       if (useLabels && bounds.contains(latlng)) {
         const p = map.latLngToContainerPoint(latlng);
@@ -1427,7 +1465,8 @@
       data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte';
     document.getElementById("mosmixSectionStatus").textContent =
       'MOSMIX-L: TTT stündlich · TX 12 h bis 18 UTC · TN 12 h bis 06 UTC · Lauf '+
-      fmtTime(data.issue_time);
+      fmtTime(data.issue_time)+(data._mosmixFallback?
+      ' · Ersatzquelle (Laufdatum beachten)':'');
   }
 
   async function refreshForecast(){
@@ -1435,7 +1474,7 @@
     const previousKey=selectedStationKey;
     if(button){button.disabled=true;button.textContent="Aktualisiere …";}
     try{
-      const updated=await loadData();
+      const updated=await loadData(true);
       data=updated;
       detailCache.clear();
       selectedStationKey=null;
@@ -1470,7 +1509,7 @@
 
     try {
       makeMap();
-      data = await loadData();
+      data = await loadData(false);
 
       const slider = document.getElementById("mosmixSlider");
       slider.max = String(data.timesteps.length - 1);
@@ -1511,7 +1550,7 @@
         }
       });
       populateStationSearch();
-      map.on("zoomend", renderCurrentMap);
+      map.on("zoomend moveend", renderCurrentMap);
 
       updateIssueDisplay();
 
@@ -1528,7 +1567,8 @@
       loaded = false;
       console.error("MOSMIX:", err);
       const status = document.getElementById("mosmixSectionStatus");
-      if (status) status.textContent = "MOSMIX-Daten derzeit nicht verfügbar";
+      if (status) status.textContent = "MOSMIX-Laden fehlgeschlagen: "+err.message+
+        " · Bitte später erneut öffnen oder Verbindung zu GitHub prüfen.";
       const run = document.getElementById("mosmixRunInfo");
       if (run) run.textContent = "Fehler: " + err.message;
     }
