@@ -1,0 +1,58 @@
+name: Fast synoptic links and image endpoint check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/audit_synoptic_http_fast.py
+      - .github/workflows/audit-synoptic-http-fast.yml
+permissions:
+  contents: write
+concurrency:
+  group: synoptic-http-quick-test
+  cancel-in-progress: false
+jobs:
+  test-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts/audit_synoptic_http_fast.py
+            weltweite_isobaren.html
+            isobaren_original.js
+            data/synoptic_charts/isobaren_http_probe_latest.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install HTTP/image inspection
+        run: python -m pip install requests beautifulsoup4 Pillow
+      - name: Probe every unique original URL
+        run: python scripts/audit_synoptic_http_fast.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synoptic-http-probe-120-urls
+          path: data/synoptic_charts/isobaren_http_probe_latest.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish result
+        if: success()
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/isobaren_http_probe_latest.json /tmp/isobaren_http_probe_latest.json
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for retry in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/synoptic_charts
+            cp /tmp/isobaren_http_probe_latest.json data/synoptic_charts/isobaren_http_probe_latest.json
+            git add data/synoptic_charts/isobaren_http_probe_latest.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Publish bounded 120 URL synoptic HTTP and image probe"
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          exit 1
