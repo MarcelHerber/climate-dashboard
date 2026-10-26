@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bounded Chromium screenshot probe for every unique catalog URL."""
-import asyncio,datetime as dt,json,re,os,html
+import asyncio,datetime as dt,json,re,os,html,shutil
 from pathlib import Path
 from urllib.parse import urlsplit
 from collections import Counter
@@ -105,7 +105,10 @@ async def bounded(browser,i,x):
 
 async def main():
     async with async_playwright() as p:
-        browser=await p.chromium.launch(headless=True,args=["--no-sandbox","--disable-dev-shm-usage"])
+        binary=shutil.which("google-chrome") or shutil.which("google-chrome-stable") or shutil.which("chromium")
+        args={"headless":True,"args":["--no-sandbox","--disable-dev-shm-usage"]}
+        if binary:args["executable_path"]=binary
+        browser=await p.chromium.launch(**args)
         results=await asyncio.gather(*(bounded(browser,i,x) for i,x in enumerate(items)))
         await browser.close()
     counts=dict(Counter(r["stage"] for r in results))
