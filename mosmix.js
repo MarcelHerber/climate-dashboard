@@ -7,8 +7,6 @@
   const DATA_BACKUP_URL = "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@mosmix-data/data/mosmix/mosmix_ttt.json";
   const DATA_TIMEOUT_MS = 15000;
   const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
-  const WORLD_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/";
-  const WORLD_INDEX_URL = WORLD_BASE + "world_stations.json";
   const STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
   const TAB_ID = "mosmix";
 
@@ -24,10 +22,6 @@
   let selectedStationKey = null;
   let meteogramCharts = [];
   let currentDetail = null;
-  let worldIndex = null;
-  let worldIndexPromise = null;
-  let worldMapPin = null;
-  let worldTiles = null;
   let selectedStation = null;
   let rainPeriod = "1";
   let gustPeriod = "1";
@@ -124,10 +118,6 @@
       ".mosmix-meteogram-card h3{margin:0 0 4px;font-size:20px}.mosmix-meteogram-card p{margin:0}",
       ".mosmix-meteogram-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:12px}",
       ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
-      ".mosmix-world-search{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding:12px;border:1px solid #b7d0e4;border-radius:8px;background:#edf6fc}",
-      ".mosmix-world-search label{font-size:12px;font-weight:750;color:#193c58}",
-      ".mosmix-world-search input{min-width:260px;flex:1;padding:9px 10px;border:1px solid #a8bdcd;border-radius:7px;font:inherit}",
-      ".mosmix-world-hint{font-size:11px;color:#436276;flex-basis:100%;line-height:1.5}",
       ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
       ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
       ".mosmix-meteogram-actions .mosmix-button{font-size:12px;padding:7px 11px}",
@@ -171,12 +161,6 @@
       '</div></div>',
       '<div class="mosmix-card">',
       '<div id="mosmixMap" class="mosmix-map"></div>',
-      '<div class="mosmix-world-search"><label for="mosmixWorldSearch">Weltweite MOSMIX-Stationen</label>'+
-      '<input id="mosmixWorldSearch" type="search" list="mosmixWorldList" placeholder="Ort, Station oder WMO-ID weltweit suchen" autocomplete="off">'+
-      '<datalist id="mosmixWorldList"></datalist>'+
-      '<button class="mosmix-button" id="mosmixWorldOpen" type="button">Weltstation anzeigen</button>'+
-      '<button class="mosmix-button" id="mosmixBackGermany" type="button">Deutschlandkarte</button>'+
-      '<div class="mosmix-world-hint" id="mosmixWorldInfo">Die Deutschlandkarte bleibt unverändert. Für Stationen auf anderen Kontinenten lädt die Suche echte MOSMIX-Daten.</div></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
       '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC (20 Uhr MESZ), Tmin = originales TN bis 06 UTC (08 Uhr MESZ). Im Kartenexport wird eine Interpolation ausdrücklich gekennzeichnet. Für Sonne (Tag) werden SunD1-Stundenwerte vollständiger lokaler Kalendertage (00–24 Uhr Europe/Berlin) addiert. Unvollständige Tage oder Stationswerte bleiben ausgeblendet. DWD weist auf Ungenauigkeiten von SunD1 nahe Sonnenauf- und -untergang hin. Die Stationsauswahl und der Modelllauf können sich von Metmaps unterscheiden.</p>',
       '</div>',
@@ -305,121 +289,6 @@
     }
   }
 
-
-  // World search is opt-in; the original Germany temperature layer stays
-  // unchanged. World forecast files are split into small 16-way shards.
-  const worldShardCache=new Map();
-
-  async function loadWorldIndex(){
-    if(worldIndex&&worldIndex.issue_time===data?.issue_time)return worldIndex;
-    if(worldIndexPromise)return worldIndexPromise;
-    const status=document.getElementById("mosmixWorldInfo");
-    if(status)status.textContent="Lade weltweiten MOSMIX-Stationskatalog …";
-    worldIndexPromise=(async function(){
-      const response=await fetch(WORLD_INDEX_URL+"?v="+encodeURIComponent(data?.issue_time||""),{cache:"no-store"});
-      if(!response.ok)throw Error("Weltweiter Stationskatalog HTTP "+response.status);
-      const payload=await response.json();
-      if(payload.schema!==1||payload.issue_time!==data?.issue_time||
-         !Array.isArray(payload.stations)||payload.stations.length<1000)
-        throw Error("Weltweiter Katalog fehlt oder passt nicht zum Deutschland-Lauf.");
-      worldIndex=payload;
-      if(status)status.textContent=payload.stations.length.toLocaleString("de-DE")+
-        " weltweite DWD-MOSMIX-L-Stationen abrufbar (abhängig von verfügbarer DWD-Datenabdeckung).";
-      return payload;
-    })().catch(err=>{
-      if(status)status.textContent="Weltweite Stationssuche noch nicht verfügbar: "+err.message;
-      throw err;
-    }).finally(()=>{worldIndexPromise=null});
-    return worldIndexPromise;
-  }
-
-  async function getWorldShard(shard){
-    if(!/^[0-9a-f]$/.test(shard))throw Error("Ungültiger Stationsdatenblock");
-    if(!worldShardCache.has(shard)){
-      const loading=(async()=>{
-        const response=await fetch(WORLD_BASE+"world/"+shard+".json?v="+
-          encodeURIComponent(data.issue_time),{cache:"force-cache"});
-        if(!response.ok)throw Error("Weltstation-Datei HTTP "+response.status);
-        const x=await response.json();
-        if(x.issue_time!==data.issue_time||!x.stations)
-          throw Error("Weltstation-Datei stammt nicht vom aktuellen MOSMIX-Lauf");
-        return x;
-      })();
-      worldShardCache.set(shard,loading);
-      loading.catch(()=>worldShardCache.delete(shard));
-    }
-    return worldShardCache.get(shard);
-  }
-
-  function searchWorldStations(text){
-    const q=String(text||"").trim().toLocaleLowerCase("de-DE");
-    if(q.length<2||!worldIndex)return [];
-    const exact=[],begin=[],other=[];
-    for(const s of worldIndex.stations){
-      const id=String(s.id||"").toLocaleLowerCase("de-DE");
-      const name=String(s.name||"").toLocaleLowerCase("de-DE");
-      if(id===q||name===q)exact.push(s);
-      else if(name.startsWith(q)||id.startsWith(q))begin.push(s);
-      else if(name.includes(q)||id.includes(q))other.push(s);
-    }
-    return exact.concat(begin,other).slice(0,35);
-  }
-
-  function worldSearchSuggestions(){
-    const input=document.getElementById("mosmixWorldSearch");
-    if(!worldIndex){
-      void loadWorldIndex().then(worldSearchSuggestions).catch(()=>{});
-      return;
-    }
-    const results=searchWorldStations(input.value);
-    const list=document.getElementById("mosmixWorldList");
-    list.replaceChildren();
-    const frag=document.createDocumentFragment();
-    results.forEach(s=>{
-      const option=document.createElement("option");
-      option.value=stationDisplay(s);
-      frag.append(option);
-    });
-    list.append(frag);
-    const info=document.getElementById("mosmixWorldInfo");
-    if(input.value.trim().length>=2)info.textContent=
-      results.length+" Treffer angezeigt · weitere Suchbegriffe eingeben.";
-  }
-
-  async function openWorldStation(){
-    const info=document.getElementById("mosmixWorldInfo");
-    const button=document.getElementById("mosmixWorldOpen");
-    button.disabled=true;
-    try{
-      const index=await loadWorldIndex();
-      const query=document.getElementById("mosmixWorldSearch").value.trim();
-      if(!query)throw Error("Bitte einen Ortsnamen oder eine WMO-ID eingeben.");
-      const name=query.toLocaleLowerCase("de-DE");
-      const station=index.stations.find(s=>stationDisplay(s).toLocaleLowerCase("de-DE")===name)
-        ||searchWorldStations(query)[0];
-      if(!station)throw Error("Keine passende weltweite MOSMIX-Station gefunden.");
-      await selectStation(station);
-      // Show actual location, not the synthetic Germany-only gridded field.
-      if(worldMapPin){map.removeLayer(worldMapPin);worldMapPin=null;}
-      if(!worldTiles){
-        worldTiles=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-          attribution:"© OpenStreetMap-Mitwirkende",maxZoom:19
-        }).addTo(map);
-        worldTiles.bringToBack();
-      }
-      worldMapPin=L.circleMarker([station.lat,station.lon],{
-        radius:9,color:"#ffffff",weight:2,fillColor:"#ef7a17",fillOpacity:.95
-      }).bindPopup("<strong>"+esc(station.name)+"</strong><br>MOSMIX-ID: "+esc(station.id)+
-        "<br>Originale DWD-MOSMIX-L-Prognose").addTo(map);
-      map.setView([station.lat,station.lon],7);
-      worldMapPin.openPopup();
-      info.textContent=station.name+" · "+station.lat.toFixed(3)+"° / "+
-        station.lon.toFixed(3)+"° · echte MOSMIX-L-Stationsprognose; "+
-        "Deutschlandkarte bleibt davon unberührt.";
-    }catch(err){
-      info.textContent="Weltstation nicht geladen: "+err.message;
-    }finally{button.disabled=false}
-  }
 
   function makeMap() {
     if (map) return;
@@ -983,14 +852,6 @@
     if (!station || !station.key) throw new Error("Für diesen Punkt fehlen Detaildaten.");
     if (detailCache.has(station.key)) return detailCache.get(station.key);
 
-    if(station.shard){
-      const shard=await getWorldShard(station.shard);
-      const detail=shard.stations?.[station.key];
-      if(!detail||detail.issue_time!==data.issue_time)
-        throw new Error("Die Weltstation gehört nicht zum aktuellen DWD-Lauf.");
-      detailCache.set(station.key,detail);
-      return detail;
-    }
     const response = await fetch(DETAIL_BASE + encodeURIComponent(station.key) + ".json?v=" + encodeURIComponent(data.issue_time || ""), {
       cache:"no-store"
     });
@@ -1479,8 +1340,6 @@
       detailCache.clear();
       selectedStationKey=null;
       selectedStation=null;
-      worldIndex=null;worldIndexPromise=null;
-      worldShardCache.clear();
       populateStationSearch();
       updateIssueDisplay();
       setMapMode(mapMode);
@@ -1524,18 +1383,6 @@
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
       document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
-      document.getElementById("mosmixWorldOpen").addEventListener("click", openWorldStation);
-      document.getElementById("mosmixWorldSearch").addEventListener("focus",()=>{void loadWorldIndex().catch(()=>{});});
-      document.getElementById("mosmixWorldSearch").addEventListener("input",worldSearchSuggestions);
-      document.getElementById("mosmixWorldSearch").addEventListener("keydown",event=>{
-        if(event.key==="Enter"){event.preventDefault();void openWorldStation();}
-      });
-      document.getElementById("mosmixBackGermany").addEventListener("click",()=>{
-        if(worldMapPin){map.removeLayer(worldMapPin);worldMapPin=null;}
-        if(worldTiles){map.removeLayer(worldTiles);worldTiles=null;}
-        map.setView([51.05,10.35],6);renderCurrentMap();
-        document.getElementById("mosmixWorldInfo").textContent="Deutschlandkarte wiederhergestellt.";
-      });
       document.querySelectorAll("[data-mosmix-period]").forEach(function(button) {
         button.addEventListener("click",function(){
           selectMeteogramPeriod(button.dataset.mosmixPeriod,button.dataset.hours);
@@ -1557,10 +1404,8 @@
       renderLegend();
       setIndex(chooseInitialIndex());
 
-      const preferred = data.stations.find(function(station){
-        return /FRANKFURT.*MAIN|FRANKFURT\/M/i.test(station.name);
-      });
-      if (preferred) selectStation(preferred);
+      // Load individual meteograms only after a station is selected.
+      // Avoid extra network requests on the first map paint.
 
       setTimeout(function(){ map.invalidateSize(); }, 100);
     } catch (err) {
