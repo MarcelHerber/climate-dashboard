@@ -821,7 +821,7 @@
       grid:{display:false}};
     meteogramCharts.push(new Chart(document.getElementById("mosmixSunDailyChart"),{
       type:"bar",data:{
-        labels:dayFrames.map(frame=>frame.label.replace(/\\.?\\s*20\\d\\d$/, "")),
+        labels:dayFrames.map(frame=>frame.label.slice(0,-4)),
         datasets:[{label:"Sonnenschein pro Tag (h)",data:dayValues,
           backgroundColor:dayValues.map(value=>Number.isFinite(value)?colorForSun(value):"#cbd5e1"),
           borderRadius:4,maxBarThickness:44}]
