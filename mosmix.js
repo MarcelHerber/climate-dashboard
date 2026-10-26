@@ -346,6 +346,48 @@
     return leafletLoadPromise;
   }
 
+  // Standalone view does not load heavy chart/PDF libraries until needed.
+  let chartLoadPromise=null;
+  let pdfLoadPromise=null;
+  function loadLibrary(url,label){
+    return new Promise(function(resolve,reject){
+      const script=document.createElement("script");
+      script.src=url;script.async=true;
+      let finished=false;
+      const timer=setTimeout(function(){
+        finish(new Error(label+" nach 12 Sekunden nicht erreichbar."));
+      },12000);
+      function finish(error){
+        if(finished)return;
+        finished=true;
+        clearTimeout(timer);
+        script.onload=null;script.onerror=null;
+        if(error)reject(error);else resolve();
+      }
+      script.onload=function(){finish();};
+      script.onerror=function(){finish(new Error(label+" konnte nicht geladen werden."));};
+      document.head.appendChild(script);
+    });
+  }
+  function ensureCharts(){
+    if(window.Chart)return Promise.resolve();
+    if(!chartLoadPromise)chartLoadPromise=loadLibrary(
+      "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+      "Chart.js").then(function(){
+        if(!window.Chart)throw new Error("Chart.js konnte nicht initialisiert werden.");
+      }).finally(function(){chartLoadPromise=null;});
+    return chartLoadPromise;
+  }
+  function ensurePdfLibrary(){
+    if(window.jspdf?.jsPDF)return Promise.resolve();
+    if(!pdfLoadPromise)pdfLoadPromise=loadLibrary(
+      "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+      "PDF-Bibliothek").then(function(){
+        if(!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek konnte nicht initialisiert werden.");
+      }).finally(function(){pdfLoadPromise=null;});
+    return pdfLoadPromise;
+  }
+
   function makeMap() {
     if (map) return;
     map = L.map("mosmixMap", {
@@ -892,10 +934,14 @@
     pdf.save(meta.filename+".pdf");
   }
 
-  function downloadMeteogram(format) {
+  async function downloadMeteogram(format) {
     const status = document.getElementById("mosmixExportStatus");
     try {
-      if (format === "pdf") exportCombinedPdf();
+      if (format === "pdf") {
+        if(status)status.textContent="PDF-Bibliothek laden …";
+        await ensurePdfLibrary();
+        exportCombinedPdf();
+      }
       else exportCombinedPng();
       if (status) status.textContent = (format === "pdf" ? "PDF" : "PNG")+"-Export vorbereitet.";
     } catch(err) {
@@ -931,6 +977,9 @@
 
     try {
       const detail = await loadStationDetail(station);
+      if (selectedStationKey !== station.key) return;
+      if(status)status.textContent="Station geladen – Diagrammbibliothek wird vorbereitet …";
+      await ensureCharts();
       if (selectedStationKey !== station.key) return;
       createMeteogram(detail);
       if (status) {
@@ -1491,6 +1540,10 @@
     addCss();
     addSection();
     addNavigation();
+    if(document.body.hasAttribute("data-mosmix-standalone")){
+      const node=document.getElementById(TAB_ID);
+      if(node)node.classList.add("active");
+    }
     if (document.getElementById(TAB_ID) && document.getElementById(TAB_ID).classList.contains("active")) init();
   }
 
