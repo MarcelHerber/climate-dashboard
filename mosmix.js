@@ -1,6 +1,9 @@
 (() => {
   "use strict";
 
+  // Use the small same-origin Pages copy first; avoid cross-origin fetch stalls
+  // for the first map. Remote sources are retained for independent updates.
+  const DATA_LOCAL_URL = "./data/mosmix/mosmix_ttt.json";
   const DATA_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json";
   // A second CDN prevents a blocked raw.githubusercontent.com request from
   // leaving the MOSMIX section in an endless loading state.
@@ -257,18 +260,20 @@
 
   async function loadData(forceRefresh) {
     const status=document.getElementById("mosmixSectionStatus");
-    const endpoints=[DATA_URL,DATA_BACKUP_URL];
+    const endpoints=forceRefresh ? [DATA_URL,DATA_BACKUP_URL,DATA_LOCAL_URL] :
+      [DATA_LOCAL_URL,DATA_URL,DATA_BACKUP_URL];
     const errors=[];
     for(let i=0;i<endpoints.length;i++){
-      if(status)status.textContent=i===0?
-        "Lade Deutschland-MOSMIX-Daten … (maximal 15 Sekunden je Quelle)":
-        "GitHub-Datenserver reagiert nicht. Versuche Ersatzquelle …";
+      const url=endpoints[i];
+      const name=url===DATA_LOCAL_URL?"Website":url===DATA_URL?"GitHub":"Ersatzquelle";
+      if(status)status.textContent="Lade Deutschland-MOSMIX-Daten ("+name+") …";
       try {
-        const result=await fetchMosmixSource(endpoints[i],!!forceRefresh);
-        result._mosmixFallback=i>0;
+        const result=await fetchMosmixSource(url,!!forceRefresh);
+        result._mosmixFallback=url===DATA_BACKUP_URL;
+        result._mosmixSource=name;
         return result;
       } catch(error) {
-        errors.push((i===0?"GitHub":"Ersatzquelle")+": "+
+        errors.push(name+": "+
           (error.name==="AbortError"?"Zeitüberschreitung":error.message));
       }
     }
@@ -289,6 +294,47 @@
     }
   }
 
+
+  let leafletLoadPromise=null;
+
+  function ensureLeaflet(){
+    if(window.L)return Promise.resolve();
+    if(leafletLoadPromise)return leafletLoadPromise;
+    const status=document.getElementById("mosmixSectionStatus");
+    if(status)status.textContent="MOSMIX-Daten vorhanden. Lade Kartenbibliothek über Ersatzserver …";
+    leafletLoadPromise=new Promise(function(resolve,reject){
+      const script=document.createElement("script");
+      script.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+      script.async=true;
+      let done=false;
+      let timer=null;
+      function finish(error){
+        if(done)return;
+        done=true;
+        clearTimeout(timer);
+        script.onload=null;script.onerror=null;
+        if(error)reject(error);
+        else resolve();
+      }
+      timer=setTimeout(function(){
+        finish(new Error("Kartenbibliothek nach 10 Sekunden nicht erreichbar. Bitte Netzwerk oder Skriptblocker prüfen."));
+      },10000);
+      script.onload=function(){
+        if(window.L)finish();
+        else finish(new Error("Kartenbibliothek wurde geladen, aber nicht initialisiert."));
+      };
+      script.onerror=function(){finish(new Error("Kartenbibliothek über beide Server nicht verfügbar."));};
+      if(!document.getElementById("mosmix-leaflet-css-fallback")){
+        const css=document.createElement("link");
+        css.id="mosmix-leaflet-css-fallback";
+        css.rel="stylesheet";
+        css.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(css);
+      }
+      document.head.appendChild(script);
+    }).finally(function(){leafletLoadPromise=null;});
+    return leafletLoadPromise;
+  }
 
   function makeMap() {
     if (map) return;
@@ -1323,7 +1369,8 @@
   function updateIssueDisplay(){
     document.getElementById("mosmixRunInfo").innerHTML =
       'DWD MOSMIX-L · Lauf <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
-      data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte';
+      data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte' +
+      (data._mosmixSource?' · Quelle: '+esc(data._mosmixSource):'');
     document.getElementById("mosmixSectionStatus").textContent =
       'MOSMIX-L: TTT stündlich · TX 12 h bis 18 UTC · TN 12 h bis 06 UTC · Lauf '+
       fmtTime(data.issue_time)+(data._mosmixFallback?
@@ -1363,12 +1410,15 @@
       setTimeout(function(){ if (map) map.invalidateSize(); }, 50);
       return;
     }
-    if (!window.L) return;
     loaded = true;
 
     try {
-      makeMap();
+      // Fetch data independently. Missing Leaflet must never silently stop
+      // the module with a permanent "Daten werden geladen" placeholder.
       data = await loadData(false);
+      updateIssueDisplay();
+      if (!window.L) await ensureLeaflet();
+      makeMap();
 
       const slider = document.getElementById("mosmixSlider");
       slider.max = String(data.timesteps.length - 1);
@@ -1412,8 +1462,8 @@
       loaded = false;
       console.error("MOSMIX:", err);
       const status = document.getElementById("mosmixSectionStatus");
-      if (status) status.textContent = "MOSMIX-Laden fehlgeschlagen: "+err.message+
-        " · Bitte später erneut öffnen oder Verbindung zu GitHub prüfen.";
+      if (status) status.textContent = "MOSMIX konnte nicht gestartet werden: "+err.message+
+        " · Über „Erneut versuchen“ neu laden. Keine endlose Warteschleife.";
       const run = document.getElementById("mosmixRunInfo");
       if (run) run.textContent = "Fehler: " + err.message;
       const retry=document.getElementById("mosmixReload");
