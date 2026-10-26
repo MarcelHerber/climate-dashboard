@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-10-26T14:27:18+00:00",
+  "checked_utc": "2026-10-26T16:48:50+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -71,18 +71,18 @@
           "image_or_endpoint_strings": []
         },
         {
-          "url": "https://en.vedur.is/web2/js/app.min.js?v=538",
-          "image_or_endpoint_strings": [
-            "i/island-waters.png"
-          ]
-        },
-        {
           "url": "https://en.vedur.is/skin/basic/js/eplica_jqpub.js?v5",
           "image_or_endpoint_strings": []
         },
         {
           "url": "https://en.vedur.is/skin/basic/js/init.js?v17",
           "image_or_endpoint_strings": []
+        }
+      ],
+      "script_errors": [
+        {
+          "url": "https://en.vedur.is/web2/js/app.min.js?v=538",
+          "error": "TimeoutError: The read operation timed out"
         }
       ]
     },
@@ -477,10 +477,10 @@
     }
   ],
   "sample_forecast_image": {
-    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261026_0000_15.png",
-    "expected_valid_utc": "2026-10-26T15:00+00:00",
-    "forecast_hours": 15,
-    "printed_caption_ocr": "aft e\\ 54 er A fh\" Man. 26. okt. kl. 15:00 4% Vedurstofa istands\nNOP fa ys Se wh RY WF, <k Vy.\n\nPS + es my yey.\n"
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261026_0000_18.png",
+    "expected_valid_utc": "2026-10-26T18:00+00:00",
+    "forecast_hours": 18,
+    "printed_caption_ocr": "ope nd ee BOW Na 5!\nwKC\\. <4 ~, 39 Ae. BHAL Man. 26. okt. kl. 18:00 rv\nCS ‘ x) MY: Ag ay | : . 26. . kl. 18: aq” Vedurstofa islands\n\na Ny, °. . ZS 1 en\nan = >, Ca a of ie yi\n\noS \"nh Nip 7 985% A 4 sf, i coe\n\n» Ms _s 0. = ao \\ , ; vy?\n"
   },
   "sample_error": null,
   "matching_metadata_candidates": 0,
