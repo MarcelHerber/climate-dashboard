@@ -119,16 +119,25 @@ assert obj.get("product")=="DWD MOSMIX-L"
 assert len(obj.get("stations",[]))>100
 assert len(obj.get("timesteps",[]))>40
 assert all(k in obj["stations"][0] for k in ("values","sun1","tx12","tn12"))
-print("MOSMIX-Deutschlanddatei in Pages eingebunden:",p.stat().st_size,"Bytes")
+import gzip
+packed=p.with_suffix(p.suffix+".gz")
+with p.open("rb") as source, gzip.open(packed,"wb",compresslevel=7) as dest:
+    while True:
+        block=source.read(1024*1024)
+        if not block: break
+        dest.write(block)
+assert packed.stat().st_size>0
+print("MOSMIX-Deutschlanddatei in Pages eingebunden:",p.stat().st_size,
+      "Bytes; komprimiert:",packed.stat().st_size,"Bytes")
 PY
   then
     echo "MOSMIX-Deutschlandkarte wird direkt von Pages geladen."
   else
-    rm -f "$mosmix_snapshot"
+    rm -f "$mosmix_snapshot" "$mosmix_snapshot.gz"
     echo "WARNUNG: Ungültige MOSMIX-Datei. Frontend nutzt Ersatzquellen."
   fi
 else
-  rm -f "$mosmix_snapshot"
+  rm -f "$mosmix_snapshot" "$mosmix_snapshot.gz"
   echo "WARNUNG: MOSMIX-Snapshot nicht geladen. Frontend nutzt Ersatzquellen."
 fi
 
