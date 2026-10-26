@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-25T21:59:16+00:00",
+  "generated_utc": "2026-10-26T06:36:34+00:00",
   "ready": true,
   "method": "original_weather_service_surface_maps",
   "same_validity_rule": "Exact matching valid_utc; no rounding, no time-shift or fallback",
@@ -705,7 +705,7 @@
   "source_status": {
     "dwd": {
       "state": "available",
-      "charts": 8
+      "charts": 9
     },
     "aemet": {
       "state": "available",
@@ -765,7 +765,7 @@
     },
     "chmi": {
       "state": "available",
-      "charts": 3
+      "charts": 1
     },
     "dhmz": {
       "state": "unavailable",
@@ -782,83 +782,11 @@
       "kind": "Analyse",
       "valid_utc": "2026-10-24T00:00+00:00",
       "issued_utc": null,
-      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261024013340_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610240000_WV12.png",
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261024085029_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610240000_WV12.png",
       "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261024_0000.webp",
-      "size_bytes": 1423376
-    },
-    {
-      "source_id": "noaa_full",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T02:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_00.2026102402.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_full_20261024_0000.webp",
-      "size_bytes": 263420
-    },
-    {
-      "source_id": "noaa_opc",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T02:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_00.2026102402.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_opc_20261024_0000.webp",
-      "size_bytes": 158786
-    },
-    {
-      "source_id": "noaa_pace",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T03:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pace_sfcanal_00.2026102403.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pace_20261024_0000.webp",
-      "size_bytes": 143890
-    },
-    {
-      "source_id": "noaa_pacfull",
-      "kind": "0-h-Bodenkarte",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T03:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac00_sfcfcst_00.2026102403.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik 0 h)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pacfull_20261024_0000.webp",
-      "size_bytes": 253390
-    },
-    {
-      "source_id": "noaa_pacw",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T03:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pacw_sfcanal_00.2026102403.gif",
-      "source_page": "https://ocean.weather.gov/Pac_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_pacw_20261024_0000.webp",
-      "size_bytes": 155318
-    },
-    {
-      "source_id": "noaa_west",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-24T00:00+00:00",
-      "issued_utc": "2026-10-24T02:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_00.2026102402.gif",
-      "source_page": "https://ocean.weather.gov/Atl_tab.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
-      "publisher_id": "noaa",
-      "image": "images/noaa_west_20261024_0000.webp",
-      "size_bytes": 160418
+      "size_bytes": 1425600
     },
     {
       "source_id": "dwd",
@@ -1121,20 +1049,6 @@
       "size_bytes": 1421842
     },
     {
-      "source_id": "noaa_48",
-      "publisher_id": "noaa",
-      "kind": "Prognose",
-      "forecast_hours": 48,
-      "valid_utc": "2026-10-25T00:00+00:00",
-      "issued_utc": "2026-10-23T05:00+00:00",
-      "run_utc": "2026-10-23T00:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl48_sfcfcst_00.2026102305.gif",
-      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
-      "image": "images/noaa_48_20261025_0000.webp",
-      "size_bytes": 250902
-    },
-    {
       "source_id": "noaa_full",
       "kind": "0-h-Bodenkarte",
       "valid_utc": "2026-10-25T00:00+00:00",
@@ -1157,34 +1071,6 @@
       "publisher_id": "noaa",
       "image": "images/noaa_opc_20261025_0000.webp",
       "size_bytes": 164310
-    },
-    {
-      "source_id": "noaa_pac24",
-      "publisher_id": "noaa",
-      "kind": "Prognose",
-      "forecast_hours": 24,
-      "valid_utc": "2026-10-25T00:00+00:00",
-      "issued_utc": "2026-10-24T05:00+00:00",
-      "run_utc": "2026-10-24T00:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac24_sfcfcst_00.2026102405.gif",
-      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik +24 h)",
-      "image": "images/noaa_pac24_20261025_0000.webp",
-      "size_bytes": 230306
-    },
-    {
-      "source_id": "noaa_pac48",
-      "publisher_id": "noaa",
-      "kind": "Prognose",
-      "forecast_hours": 48,
-      "valid_utc": "2026-10-25T00:00+00:00",
-      "issued_utc": "2026-10-23T05:00+00:00",
-      "run_utc": "2026-10-23T00:00+00:00",
-      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac48_sfcfcst_00.2026102305.gif",
-      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
-      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik +48 h)",
-      "image": "images/noaa_pac48_20261025_0000.webp",
-      "size_bytes": 227810
     },
     {
       "source_id": "noaa_pace",
@@ -1316,18 +1202,6 @@
       "publisher_id": "noaa",
       "image": "images/noaa_west_20261025_0600.webp",
       "size_bytes": 167132
-    },
-    {
-      "source_id": "aemet",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-25T12:00+00:00",
-      "issued_utc": "2026-10-25T12:00+00:00",
-      "forecast_hours": 0,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026102512+000_ww_gpx0a200.gif",
-      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
-      "credit": "© AEMET · Agencia Estatal de Meteorología",
-      "image": "images/aemet_20261025_1200.webp",
-      "size_bytes": 316250
     },
     {
       "source_id": "dwd",
@@ -1483,21 +1357,6 @@
       "size_bytes": 168606
     },
     {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-25T18:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-10-25T11:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261025_1800.webp",
-      "size_bytes": 286684
-    },
-    {
       "source_id": "dwd",
       "kind": "Analyse",
       "valid_utc": "2026-10-25T18:00+00:00",
@@ -1507,18 +1366,6 @@
       "credit": "© Deutscher Wetterdienst (DWD)",
       "image": "images/dwd_20261025_1800.webp",
       "size_bytes": 1420784
-    },
-    {
-      "source_id": "knmi",
-      "publisher_id": "knmi",
-      "kind": "Analyse",
-      "valid_utc": "2026-10-25T18:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL2518_large.gif",
-      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
-      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
-      "image": "images/knmi_20261025_1800.webp",
-      "size_bytes": 170514
     },
     {
       "source_id": "noaa_full",
@@ -1594,27 +1441,38 @@
     },
     {
       "source_id": "aemet",
-      "kind": "Prognose",
+      "kind": "Analyse",
       "valid_utc": "2026-10-26T00:00+00:00",
-      "issued_utc": "2026-10-25T12:00+00:00",
-      "forecast_hours": 12,
-      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026102512+012_ww_g1x0a212.gif",
+      "issued_utc": "2026-10-26T00:00+00:00",
+      "forecast_hours": 0,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026102600+000_ww_gpx0a000.gif",
       "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261026_0000.webp",
-      "size_bytes": 330182
+      "size_bytes": 317922
+    },
+    {
+      "source_id": "dwd",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://opendata.dwd.de/weather/charts/analysis/Z__C_EDZW_20261026015903_tka01%2Cana_bwkman_dwdna_O_000000_000000_202610260000_WV12.png",
+      "source_page": "https://opendata.dwd.de/weather/charts/analysis/",
+      "credit": "© Deutscher Wetterdienst (DWD)",
+      "image": "images/dwd_20261026_0000.webp",
+      "size_bytes": 1401154
     },
     {
       "source_id": "knmi",
       "publisher_id": "knmi",
-      "kind": "Prognose",
+      "kind": "Analyse",
       "valid_utc": "2026-10-26T00:00+00:00",
       "issued_utc": null,
-      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL2600_large.gif",
+      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL2600_large.gif",
       "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
       "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
       "image": "images/knmi_20261026_0000.webp",
-      "size_bytes": 171304
+      "size_bytes": 171046
     },
     {
       "source_id": "noaa_48",
@@ -1629,6 +1487,30 @@
       "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
       "image": "images/noaa_48_20261026_0000.webp",
       "size_bytes": 249390
+    },
+    {
+      "source_id": "noaa_full",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl00_sfcfcst_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Gesamtatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_full_20261026_0000.webp",
+      "size_bytes": 260824
+    },
+    {
+      "source_id": "noaa_opc",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atle_sfcanal_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Ostatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_opc_20261026_0000.webp",
+      "size_bytes": 153122
     },
     {
       "source_id": "noaa_pac24",
@@ -1659,6 +1541,54 @@
       "size_bytes": 233044
     },
     {
+      "source_id": "noaa_pace",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pace_sfcanal_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordostpazifik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pace_20261026_0000.webp",
+      "size_bytes": 149384
+    },
+    {
+      "source_id": "noaa_pacfull",
+      "kind": "0-h-Bodenkarte",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac00_sfcfcst_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik 0 h)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pacfull_20261026_0000.webp",
+      "size_bytes": 254502
+    },
+    {
+      "source_id": "noaa_pacw",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pacw_sfcanal_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Pac_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordwestpazifik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_pacw_20261026_0000.webp",
+      "size_bytes": 158014
+    },
+    {
+      "source_id": "noaa_west",
+      "kind": "Analyse",
+      "valid_utc": "2026-10-26T00:00+00:00",
+      "issued_utc": "2026-10-26T02:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atlw_sfcanal_00.2026102602.gif",
+      "source_page": "https://ocean.weather.gov/Atl_tab.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Westatlantik)",
+      "publisher_id": "noaa",
+      "image": "images/noaa_west_20261026_0000.webp",
+      "size_bytes": 159334
+    },
+    {
       "source_id": "aemet",
       "kind": "Prognose",
       "valid_utc": "2026-10-26T12:00+00:00",
@@ -1669,21 +1599,6 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261026_1200.webp",
       "size_bytes": 340646
-    },
-    {
-      "source_id": "chmi",
-      "publisher_id": "chmi",
-      "kind": "Prognose",
-      "valid_utc": "2026-10-26T12:00+00:00",
-      "issued_utc": null,
-      "source_url": "https://data-provider.chmi.cz/api/playableImages/init/synopticka-mapa",
-      "source_page": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
-      "credit": "© Český hydrometeorologický ústav (ČHMÚ) · CC BY 4.0 · in WebP konvertiert",
-      "license_url": "https://creativecommons.org/licenses/by/4.0/",
-      "provider_timeline_utc": "2026-10-26T11:00+00:00",
-      "validity_method": "Printed DD.MM.YYYY HH UTC map heading, OCR verified; API dateTime is NOT used as valid time",
-      "image": "images/chmi_20261026_1200.webp",
-      "size_bytes": 288542
     },
     {
       "source_id": "knmi",
@@ -1806,6 +1721,20 @@
       "size_bytes": 245976
     },
     {
+      "source_id": "noaa_pac24",
+      "publisher_id": "noaa",
+      "kind": "Prognose",
+      "forecast_hours": 24,
+      "valid_utc": "2026-10-27T00:00+00:00",
+      "issued_utc": "2026-10-26T05:00+00:00",
+      "run_utc": "2026-10-26T00:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac24_sfcfcst_00.2026102605.gif",
+      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik +24 h)",
+      "image": "images/noaa_pac24_20261027_0000.webp",
+      "size_bytes": 235450
+    },
+    {
       "source_id": "noaa_pac48",
       "publisher_id": "noaa",
       "kind": "Prognose",
@@ -1830,6 +1759,18 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261027_1200.webp",
       "size_bytes": 332114
+    },
+    {
+      "source_id": "knmi",
+      "publisher_id": "knmi",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-27T12:00+00:00",
+      "issued_utc": null,
+      "source_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/PL2712_large.gif",
+      "source_page": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten/",
+      "credit": "Quelle: KNMI · CC0, soweit keine Ausnahme",
+      "image": "images/knmi_20261027_1200.webp",
+      "size_bytes": 160204
     },
     {
       "source_id": "noaa_48",
@@ -1898,6 +1839,46 @@
       "credit": "© AEMET · Agencia Estatal de Meteorología",
       "image": "images/aemet_20261028_0000.webp",
       "size_bytes": 333524
+    },
+    {
+      "source_id": "noaa_48",
+      "publisher_id": "noaa",
+      "kind": "Prognose",
+      "forecast_hours": 48,
+      "valid_utc": "2026-10-28T00:00+00:00",
+      "issued_utc": "2026-10-26T05:00+00:00",
+      "run_utc": "2026-10-26T00:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/atl48_sfcfcst_00.2026102605.gif",
+      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordatlantik +48 h)",
+      "image": "images/noaa_48_20261028_0000.webp",
+      "size_bytes": 240172
+    },
+    {
+      "source_id": "noaa_pac48",
+      "publisher_id": "noaa",
+      "kind": "Prognose",
+      "forecast_hours": 48,
+      "valid_utc": "2026-10-28T00:00+00:00",
+      "issued_utc": "2026-10-26T06:00+00:00",
+      "run_utc": "2026-10-26T00:00+00:00",
+      "source_url": "https://ftp.opc.ncep.noaa.gov/ncdc/pac48_sfcfcst_00.2026102606.gif",
+      "source_page": "https://ocean.weather.gov/Loops/NCDC_names.php",
+      "credit": "NOAA/NWS · Ocean Prediction Center (Nordpazifik +48 h)",
+      "image": "images/noaa_pac48_20261028_0000.webp",
+      "size_bytes": 227748
+    },
+    {
+      "source_id": "aemet",
+      "kind": "Prognose",
+      "valid_utc": "2026-10-28T12:00+00:00",
+      "issued_utc": "2026-10-25T12:00+00:00",
+      "forecast_hours": 72,
+      "source_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026102512+072_ww_g1x0a2d3.gif",
+      "source_page": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "credit": "© AEMET · Agencia Estatal de Meteorología",
+      "image": "images/aemet_20261028_1200.webp",
+      "size_bytes": 335286
     },
     {
       "source_id": "chmi",
@@ -1988,6 +1969,6 @@
     "2026-10-28T12:00+00:00",
     "2026-10-29T12:00+00:00"
   ],
-  "chart_count": 95,
+  "chart_count": 94,
   "note": "Original maps with isobars and fronts, not a common model or cartographic projection."
 }
