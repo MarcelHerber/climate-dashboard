@@ -27,7 +27,7 @@ jobs:
       - name: Repository laden
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Python einrichten
         uses: actions/setup-python@v6
