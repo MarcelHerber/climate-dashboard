@@ -32,7 +32,7 @@ def read_array(path, prefix, suffix):
     s = (ROOT / path).read_text("utf-8")
     start = s.index(prefix) + len(prefix)
     end = s.index(suffix, start)
-    return json.loads(s[start:end])
+    return json.loads(s[start:end] + ("]" if suffix == "];" else ""))
 
 def all_sources():
     world = read_array("weltweite_isobaren.html", "const DATA=", ";const REGIONS=")
