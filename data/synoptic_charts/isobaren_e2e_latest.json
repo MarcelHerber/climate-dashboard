@@ -1,0 +1,4066 @@
+{
+  "schema_version": 2,
+  "created_utc": "2026-10-26T16:01:03.605869+00:00",
+  "test_started_utc": "2026-10-26T15:29:33.449894+00:00",
+  "github_actions_run_url": "https://github.com/MarcelHerber/climate-dashboard/actions/runs/40349706961",
+  "unique_urls": 120,
+  "sources_world": 74,
+  "sources_original": 95,
+  "stages": {
+    "page_without_large_map_evidence": 28,
+    "page_with_large_visual_needs_map_validation": 65,
+    "image_rendered_needs_visual_validation": 3,
+    "dynamic_page_needs_map_validation": 10,
+    "access_blocked_or_challenge": 4,
+    "unresolved_navigation": 9,
+    "http_missing": 1
+  },
+  "note": "Alle URL-Ziele wurden mit einem echten Headless-Chromium-Browser geöffnet, DOM-/Bildinformationen und Screenshots gespeichert. Automatische Erreichbarkeitsprüfung ist KEIN menschliches visuelles Urteil über meteorologischen Inhalt, Rechte oder UTC-Aktualität. Zeitstempel aus OCR sind Indizien, keine verifizierten Analysegültigkeiten. Fehler/403 können Bot-Abwehr bedeuten.",
+  "results": [
+    {
+      "url": "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/natl_fcst_wx_chart/MapServer",
+      "names": [
+        "NOAA WPC · National Forecast Chart – Fronten als GIS-Layer"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 1,
+      "checked_utc": "2026-10-26T15:29:34.826927+00:00",
+      "http_status": 200,
+      "final_url": "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/natl_fcst_wx_chart/MapServer",
+      "content_type": "text/html;charset=utf-8",
+      "title": "outlooks/natl_fcst_wx_chart (MapServer)",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
+      "names": [
+        "NOAA WPC International Desk · Argentinien – Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 2,
+      "checked_utc": "2026-10-26T15:29:34.827400+00:00",
+      "http_status": 200,
+      "final_url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "WPC's South American Surface Analyses",
+      "page_utc_marks": [
+        "00Z",
+        "06Z",
+        "12Z",
+        "18Z"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
+      "names": [
+        "NOAA WPC International Desk · Chile – Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 3,
+      "checked_utc": "2026-10-26T15:29:34.827666+00:00",
+      "http_status": 200,
+      "final_url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "WPC's South American Surface Analyses",
+      "page_utc_marks": [
+        "00Z",
+        "06Z",
+        "12Z",
+        "18Z"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://eccc-msc.github.io/msc-animet/",
+      "names": [
+        "Kanada · ECCC MSC AniMet – modellbasierte Isobaren (Migration)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 4,
+      "checked_utc": "2026-10-26T15:29:34.827880+00:00",
+      "http_status": 200,
+      "final_url": "https://eccc-msc.github.io/msc-animet/",
+      "content_type": "text/html; charset=utf-8",
+      "title": "MSC AniMet",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 9,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "names": [
+        "NOAA OPC · Alaska/Arktis – Bodenanalyse (Original-GIF)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "image"
+      ],
+      "ordinal": 5,
+      "checked_utc": "2026-10-26T15:29:34.828083+00:00",
+      "http_status": 200,
+      "final_url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "content_type": "image/gif",
+      "title": "Arctic_00hrsfc.gif (1200×875)",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "largest_img_dimensions": [
+        1200,
+        875
+      ],
+      "stage": "image_rendered_needs_visual_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
+      "names": [
+        "Polen · IMGW-PIB – eigene synoptische Bodenanalyse (Beleg)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 6,
+      "checked_utc": "2026-10-26T15:29:34.828285+00:00",
+      "http_status": 200,
+      "final_url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Komunikat IMGW-PIB o aktualnej i prognozowanej sytuacji synoptycznej i hydrologicznej – IMGW-PIB",
+      "page_utc_marks": [
+        "00:00 UTC",
+        "06:00 UTC",
+        "00 UTC"
+      ],
+      "page_date_marks": [
+        "15.09.2024",
+        "14.09.2024",
+        "16.09.2024",
+        "17.09.2024"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 2
+    },
+    {
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "names": [
+        "Belgien · KMI – Frontenkarten",
+        "KMI · Frontenkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 7,
+      "checked_utc": "2026-10-26T15:29:34.828479+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "KMI - Frontenkarten",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 5
+    },
+    {
+      "url": "https://www.dmi.dk/vejret/frontkort",
+      "names": [
+        "Dänemark · DMI – Frontkort",
+        "DMI · Analyse und Prognose"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 8,
+      "checked_utc": "2026-10-26T15:29:34.828546+00:00",
+      "http_status": 200,
+      "final_url": "https://www.dmi.dk/vejret/frontkort",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Frontkort | DMI",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.dmi.dk/dmidk_byvejrWS/rest/image/png/analyse",
+      "largest_img_dimensions": [
+        1332,
+        816
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 4
+    },
+    {
+      "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "names": [
+        "Deutschland · DWD Bodenanalyse",
+        "DWD · Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "image",
+        "unspecified"
+      ],
+      "ordinal": 9,
+      "checked_utc": "2026-10-26T15:29:34.828567+00:00",
+      "http_status": 200,
+      "final_url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "content_type": "image/png",
+      "title": "bwk_bodendruck_na_ana.png (4389×3114)",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "largest_img_dimensions": [
+        4389,
+        3114
+      ],
+      "stage": "image_rendered_needs_visual_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "names": [
+        "Estland · Ilmateenistus",
+        "Ilmateenistus · Wetterkarte"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 10,
+      "checked_utc": "2026-10-26T15:29:34.828582+00:00",
+      "http_status": 200,
+      "final_url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Weathermap |Estonian Environment Agency Weather Services",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://looduspildid.envir.ee/rp-kemit-ilm04/map/weathermap/ilmakaart.jpg?1793026800",
+      "largest_img_dimensions": [
+        1621,
+        1184
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
+      "names": [
+        "Europa · Météocentre"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 11,
+      "checked_utc": "2026-10-26T15:29:34.828603+00:00",
+      "http_status": 200,
+      "final_url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Analyses / surface / Europe / Atlantique Nord & Europe | MeteoCentre.com",
+      "page_utc_marks": [
+        "15:00 UTC",
+        "12 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteocentre.com/analysis/local/eur_full.gif?1793028365",
+      "largest_img_dimensions": [
+        936,
+        759
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "names": [
+        "Finnland · FMI",
+        "FMI · Europäische Wetterlage"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 12,
+      "checked_utc": "2026-10-26T15:29:34.829769+00:00",
+      "http_status": 200,
+      "final_url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "content_type": "text/html;charset=utf-8",
+      "title": "Weather in Europe - Finnish Meteorological Institute",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://en.ilmatieteenlaitos.fi/v3.0.0/_nuxt/il-pattern-footer_2x.C-tqSPoU.png",
+      "largest_img_dimensions": [
+        1050,
+        252
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 19
+    },
+    {
+      "url": "https://meteofrance.com/isofronts",
+      "names": [
+        "Frankreich · Météo-France Isofronts",
+        "Météo-France · Isofronts"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 13,
+      "checked_utc": "2026-10-26T15:29:34.829790+00:00",
+      "http_status": 200,
+      "final_url": "https://meteofrance.com/isofronts",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "METEO ISOFRONTS par Météo-France - Prévisions Météo gratuites à 15 jours sur toutes les villes",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "14/10/2026",
+        "02/10/2026",
+        "23/09/2026",
+        "23/09/2024",
+        "23/10/2024",
+        "03/09/2025",
+        "29/09/2026",
+        "04/08/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteofrance.com/sites/default/files/logo/LOGO_MF.png",
+      "largest_img_dimensions": [
+        1181,
+        1181
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "names": [
+        "Irland · Met Éireann – Bodenanalyse",
+        "Met Éireann · Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 14,
+      "checked_utc": "2026-10-26T15:29:34.829805+00:00",
+      "http_status": 200,
+      "final_url": "https://www.met.ie/latest-reports/surface-analysis",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Surface Analysis Chart - Met Éireann - The Irish Meteorological Service",
+      "page_utc_marks": [
+        "00UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.met.ie/images/surface-analysis/web17_atl_analysis_20261026_00.png",
+      "largest_img_dimensions": [
+        1140,
+        635
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "names": [
+        "Kroatien · DHMZ – Frontenprognose",
+        "DHMZ · Frontenprognose"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "unspecified"
+      ],
+      "ordinal": 15,
+      "checked_utc": "2026-10-26T15:29:34.829818+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "DHMZ - Croatian Meteorological and Hydrological Service",
+      "page_utc_marks": [
+        "12UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://prognoza.hr/web_fronte_sutra12.jpg",
+      "largest_img_dimensions": [
+        720,
+        720
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "names": [
+        "Niederlande · KNMI Archiv",
+        "KNMI · Wetterkartenarchiv"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "archive",
+        "archive"
+      ],
+      "ordinal": 16,
+      "checked_utc": "2026-10-26T15:29:34.829830+00:00",
+      "http_status": 200,
+      "final_url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "content_type": "text/html; charset=utf-8",
+      "title": "KNMI - Weerkaarten archief Europa",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://cdn.knmi.nl/knmi/map/page/klimatologie/daggegevens/weerkaarten/analyse_2026102612.gif",
+      "largest_img_dimensions": [
+        1083,
+        696
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://geosphere.at/de/karten/wetterportal",
+      "names": [
+        "Österreich · GeoSphere – keine Fronten-Originalkarte nachgewiesen",
+        "GeoSphere Austria · Wetterportal (keine Frontenkarte)"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "candidate",
+        "unverified"
+      ],
+      "ordinal": 17,
+      "checked_utc": "2026-10-26T15:29:34.829847+00:00",
+      "http_status": 200,
+      "final_url": "https://geosphere.at/de/karten/wetterportal",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Wetterportal",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 65
+    },
+    {
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "names": [
+        "Portugal · IPMA – numerische Wetterkarten (keine Fronten-Originalanalyse)",
+        "IPMA · Numerische Karten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "candidate",
+        "unverified"
+      ],
+      "ordinal": 18,
+      "checked_utc": "2026-10-26T15:29:34.829864+00:00",
+      "http_status": 200,
+      "final_url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "IPMA - Cartas meteorológicas",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [
+        "26-10-2026"
+      ],
+      "best_image_url": "https://www.ipma.pt/resources.www/data/previsao/numerica/cartas/20261026/olZDouKkIHwQfTJOdIEO/52002_20261026_00_006.png",
+      "largest_img_dimensions": [
+        920,
+        660
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteoinfo.ru/mapsynop",
+      "names": [
+        "Russland / Osteuropa · Meteoinfo",
+        "Hydrometcenter · Bodenanalysen 00/06/12/18 UTC"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 19,
+      "checked_utc": "2026-10-26T15:29:34.829876+00:00",
+      "http_status": 200,
+      "final_url": "https://meteoinfo.ru/mapsynop",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Синоптические карты",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteoinfo.ru/media/djmediatools/cache/hmc-input/mapsynop/150x150-crop-95-analiz.png",
+      "largest_img_dimensions": [
+        1366,
+        1366
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.shmu.sk/en/?page=980",
+      "names": [
+        "Slowakei · SHMÚ",
+        "SHMÚ · Bodenwetterkarte"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 20,
+      "checked_utc": "2026-10-26T15:29:34.829890+00:00",
+      "http_status": 200,
+      "final_url": "https://www.shmu.sk/en/?page=980",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Surface pressure charts - SHMÚ",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26.10.2026",
+        "25.10.2026",
+        "24.10.2026",
+        "23.10.2026",
+        "22.10.2026",
+        "21.10.2026"
+      ],
+      "image_utc_marks": [
+        "88:88 UTC"
+      ],
+      "image_date_marks": [],
+      "best_image_url": "https://www.shmu.sk/data/data002/map01-PPVA60-20261026-0000-ovp-.png",
+      "largest_img_dimensions": [
+        750,
+        513
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
+      "names": [
+        "Tschechien · ČHMÚ – historische Wetterlagentypisierung (KEIN Kartenarchiv)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 21,
+      "checked_utc": "2026-10-26T15:29:34.829902+00:00",
+      "http_status": 200,
+      "final_url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Synoptické situace v minulosti",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.chmi.cz/documents/42501/44291/CC-BY-4.0.png/be7e059d-bde2-f39f-2a82-92718df8923e?version=1.0&t=1778831719213",
+      "largest_img_dimensions": [
+        1200,
+        423
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 5
+    },
+    {
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "names": [
+        "Tschechien · ČHMÚ – Synoptische Situation",
+        "ČHMÚ · Synoptische Situation"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "unspecified"
+      ],
+      "ordinal": 22,
+      "checked_utc": "2026-10-26T15:29:34.829914+00:00",
+      "http_status": 200,
+      "final_url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Synoptická situace",
+      "page_utc_marks": [
+        "18:00 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.chmi.cz/documents/d/chmi.cz/synop-bez-dat",
+      "largest_img_dimensions": [
+        760,
+        435
+      ],
+      "stage": "page_without_large_map_evidence",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4476ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 5
+    },
+    {
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "names": [
+        "Ungarn · HungaroMet",
+        "HungaroMet · Frontenkarte"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 23,
+      "checked_utc": "2026-10-26T15:29:34.829939+00:00",
+      "http_status": 200,
+      "final_url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Weather fronts - Latest weather - met.hu",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.netweather.tv/charts-and-data/fax",
+      "names": [
+        "Vereinigtes Königreich · Netweather Fax"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 24,
+      "checked_utc": "2026-10-26T15:29:34.829952+00:00",
+      "http_status": 403,
+      "final_url": "https://www.netweather.tv/charts-and-data/fax?__cf_chl_rt_tk=lGCjm_EsXx9pLkOzuzewgMGM6CIRpQ6uyTN70w2z0vU-1793028602-1.0.1.1-UWD359OQWVaUCpmUy.PPJQ3Cj10WK51EdhdgGvt_5Cc",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Just a moment...",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "access_blocked_or_challenge",
+      "error": "",
+      "likely_challenge": true,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.mtotec.com/page-analyse",
+      "names": [
+        "Ostafrika/Indischer Ozean · MTOTEC"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 25,
+      "checked_utc": "2026-10-26T15:29:34.829963+00:00",
+      "http_status": 200,
+      "final_url": "https://www.mtotec.com/page-analyse",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Mtotec",
+      "page_utc_marks": [
+        "15:30 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.mtotec.com/public/images/youtube.png",
+      "largest_img_dimensions": [
+        1024,
+        721
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
+      "names": [
+        "Hongkong · HKO Weather Chart"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 26,
+      "checked_utc": "2026-10-26T15:29:34.829974+00:00",
+      "http_status": 200,
+      "final_url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Weather Chart｜Hong Kong Observatory(HKO)｜Weather Monitoring Imagery",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.hko.gov.hk/images/HKOWxIconOutline/Outline_wxicon_pic62.png",
+      "largest_img_dimensions": [
+        1000,
+        1000
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 1,
+      "svg_elements": 6
+    },
+    {
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "names": [
+        "Indien · IMD – Bodenanalyse 00 UTC",
+        "IMD/RSMC · Bodenanalyse 00/03 UTC"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 27,
+      "checked_utc": "2026-10-26T15:29:34.829989+00:00",
+      "http_status": 200,
+      "final_url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Surface Charts",
+      "page_utc_marks": [
+        "03 UTC",
+        "12 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+      "largest_img_dimensions": [
+        4960,
+        3507
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
+      "names": [
+        "Indien · IMD – Bodenanalyse 12 UTC"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 28,
+      "checked_utc": "2026-10-26T15:29:34.830001+00:00",
+      "http_status": 200,
+      "final_url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Surface Charts",
+      "page_utc_marks": [
+        "12 UTC",
+        "03 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/eve_Sur.jpg",
+      "largest_img_dimensions": [
+        4960,
+        3507
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/asas_00_s.html",
+      "names": [
+        "Japan · JMA – JMH Marinekarten (ASAS 00 UTC)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 29,
+      "checked_utc": "2026-10-26T15:29:34.830015+00:00",
+      "http_status": 200,
+      "final_url": "https://www.jma.go.jp/jmh/asas_00_s.html",
+      "content_type": "text/html",
+      "title": "気象庁｜船舶向け天気図",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.jma.go.jp/jmh/wmapimgs/asas_00_small.png",
+      "largest_img_dimensions": [
+        705,
+        576
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/asas_06_s.html",
+      "names": [
+        "Japan · JMA – JMH Marinekarten (ASAS 06 UTC)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 30,
+      "checked_utc": "2026-10-26T15:29:34.830025+00:00",
+      "http_status": 200,
+      "final_url": "https://www.jma.go.jp/jmh/asas_06_s.html",
+      "content_type": "text/html",
+      "title": "気象庁｜船舶向け天気図",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.jma.go.jp/jmh/wmapimgs/asas_06_small.png",
+      "largest_img_dimensions": [
+        705,
+        576
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/jmhmenu.html",
+      "names": [
+        "Japan · JMA – JMH Marine-Prognosen (24–120 h)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 31,
+      "checked_utc": "2026-10-26T15:29:34.830036+00:00",
+      "http_status": 200,
+      "final_url": "https://www.jma.go.jp/jmh/jmhmenu.html",
+      "content_type": "text/html",
+      "title": "気象庁｜船舶向け天気図",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "names": [
+        "Japan · JMA – Marine-Oberflächenanalyse ASAS",
+        "JMA · Asien-Pazifik Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 32,
+      "checked_utc": "2026-10-26T15:29:34.830049+00:00",
+      "http_status": 200,
+      "final_url": "https://www.jma.go.jp/bosai/weather_map/",
+      "content_type": "text/html",
+      "title": "気象庁｜天気図",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "names": [
+        "Südkorea · KMA – Bodenanalyse",
+        "KMA · ostasiatische Bodenanalysen"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 33,
+      "checked_utc": "2026-10-26T15:29:34.830065+00:00",
+      "http_status": 200,
+      "final_url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Analysis Chart - Korea Meteorological Administration",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
+      "names": [
+        "Vietnam · NCHMF – Modell-Meeresspiegeldruck (OHNE manuelle Fronten)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 34,
+      "checked_utc": "2026-10-26T15:29:34.830079+00:00",
+      "http_status": 200,
+      "final_url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Trung tâm Dự báo KTTV quốc gia",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 22
+    },
+    {
+      "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "names": [
+        "Australien · BoM – Analyse und Fronten",
+        "BoM · manuelle MSLP-Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 35,
+      "checked_utc": "2026-10-26T15:29:34.830092+00:00",
+      "http_status": 403,
+      "final_url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "content_type": "text/html",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "access_blocked_or_challenge",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://met.gov.ck/weather-map",
+      "names": [
+        "Cookinseln · Meteorological Service"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 36,
+      "checked_utc": "2026-10-26T15:29:34.830102+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: net::ERR_NAME_NOT_RESOLVED at https://met.gov.ck/weather-map\nCall log:\n  - navigating to \"https://met.gov.ck/weather-map\", waiting until \"domcontentloaded\"\n",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "names": [
+        "Fidschi · Fiji Met / RSMC Nadi – Wetterkarten",
+        "Fiji Met · südwestpazifische Wetterkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 37,
+      "checked_utc": "2026-10-26T15:29:34.830112+00:00",
+      "http_status": 200,
+      "final_url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Weather Map - Fiji Meteorological and Hydrological Services",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.met.gov.fj/media/images/0992_qOWruF4.original.jpg",
+      "largest_img_dimensions": [
+        1390,
+        758
+      ],
+      "stage": "page_without_large_map_evidence",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4391ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 33
+    },
+    {
+      "url": "https://meteo.pf/fr/isofronts",
+      "names": [
+        "Französisch-Polynesien · Météo-France – IsoFronts Analyse"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 38,
+      "checked_utc": "2026-10-26T15:29:34.830122+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.pf/fr/isofronts",
+      "content_type": "text/html; charset=utf-8",
+      "title": "METEO ISOFRONTS par Météo-France - Prévisions Météo gratuites à 15 jours sur toutes les villes",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteo.pf/sites/default/files/logo/LOGO_MF.png",
+      "largest_img_dimensions": [
+        1181,
+        1181
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.pf/fr/pre-isofronts",
+      "names": [
+        "Französisch-Polynesien · Météo-France – PréIso +24 h"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 39,
+      "checked_utc": "2026-10-26T15:29:34.830133+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.pf/fr/pre-isofronts",
+      "content_type": "text/html; charset=utf-8",
+      "title": "METEO PRÉ-ISOFRONTS par Météo-France - Prévisions Météo gratuites à 15 jours sur toutes les villes",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteo.pf/sites/default/files/logo/LOGO_MF.png",
+      "largest_img_dimensions": [
+        1181,
+        1181
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.nc/fr/carte-analyse",
+      "names": [
+        "Neukaledonien · Météo NC"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 40,
+      "checked_utc": "2026-10-26T15:29:34.830144+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.nc/fr/carte-analyse",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Carte d’analyse météo | Météo-France Nouvelle-Calédonie",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "21/10/2026",
+        "20/10/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteo.nc/sites/default/files/inline-images/carteanalyse_Wallis_Futuna%20%282%29.png",
+      "largest_img_dimensions": [
+        615,
+        810
+      ],
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4400ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "names": [
+        "Neuseeland · MetService – Südwestpazifik Originalkarten",
+        "MetService · Südwestpazifik Isobaren"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 41,
+      "checked_utc": "2026-10-26T15:29:34.830157+00:00",
+      "http_status": 200,
+      "final_url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Surface pressure charts - Southwest Pacific - Low-bandwidth Page - Weather Radar Imagery, Rain Forecasts and more from MetService.com",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://services.metservice.com/mobile/swPacificCharts/analysis/latest",
+      "largest_img_dimensions": [
+        620,
+        452
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.weathercharts.org/noaa-charts.htm",
+      "names": [
+        "Nordatlantik · Weathercharts"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 42,
+      "checked_utc": "2026-10-26T15:29:34.830168+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weathercharts.org/noaa-charts.htm",
+      "content_type": "text/html",
+      "title": "NOAA- North Atlantic MSLP - 500mb - Wind Wave - Analysis and Prognosis",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ocean.weather.gov/A_e_sfc_color.png",
+      "largest_img_dimensions": [
+        1200,
+        1433
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
+      "names": [
+        "Tropischer Atlantik · Vorticity/NOAA"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 43,
+      "checked_utc": "2026-10-26T15:29:34.830181+00:00",
+      "http_status": 404,
+      "final_url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
+      "content_type": "text/html; charset=utf-8",
+      "title": "IIS 10.0 Detailed Error - 404.0 - Not Found",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "http_missing",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "names": [
+        "Brasilien · CPTEC/INPE Analysen",
+        "CPTEC/INPE · historisches Synoptikanalyse-Archiv"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "archive"
+      ],
+      "ordinal": 44,
+      "checked_utc": "2026-10-26T15:29:34.830192+00:00",
+      "http_status": 200,
+      "final_url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "content_type": "text/html; charset=utf-8",
+      "title": "HOMEPAGE CPTEC - 2025",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [
+        "6/01/2022"
+      ],
+      "best_image_url": "https://dataserver.cptec.inpe.br/dataserver_diptc/web/rgptimg/Produtos-Pagina/Carta-Sinotica/Analise/Superficie/2022/superficie_2022012600.gif",
+      "largest_img_dimensions": [
+        1150,
+        831
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 3
+    },
+    {
+      "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
+      "names": [
+        "Chile · DMC – digitales Bodenanalysenarchiv"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 45,
+      "checked_utc": "2026-10-26T15:29:34.830203+00:00",
+      "http_status": 200,
+      "final_url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Servicios Climáticos",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://climatologia.meteochile.gob.cl/images/requerimiento/RE1033.png",
+      "largest_img_dimensions": [
+        1309,
+        837
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "names": [
+        "Chile · Armada/SERVIMET – synoptische Bodenanalysen",
+        "Armada de Chile / SERVIMET · synoptische Bodenanalysen"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 46,
+      "checked_utc": "2026-10-26T15:29:34.830213+00:00",
+      "http_status": 200,
+      "final_url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Cartas Sinópticas - | Servicio Meteorológico de la Armada de Chile",
+      "page_utc_marks": [
+        "30:32\n\nUTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "names": [
+        "China · CMA / WMC Beijing – Eurasien-Bodenanalyse",
+        "NMC Beijing · eurasische Synoptikkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 47,
+      "checked_utc": "2026-10-26T15:29:34.830227+00:00",
+      "http_status": 200,
+      "final_url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "content_type": "text/html",
+      "title": "Monitoring_Weather Analysis_Eurasia_Surface_Principle Synoptic Analysis",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://image.nmc.cn/product/2026/10/26/WESA/SEVP_NMC_WESA_SFER_EGH_ACHN_L00_P9_20261026120000000.JPG?v=1793025951294",
+      "largest_img_dimensions": [
+        1949,
+        1640
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
+      "names": [
+        "China · CMA – Nordhemisphäre Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 48,
+      "checked_utc": "2026-10-26T15:29:34.830247+00:00",
+      "http_status": 200,
+      "final_url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
+      "content_type": "text/html",
+      "title": "天气实况_天气图_北半球_地面_基本天气分析",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://image.nmc.cn/product/2026/10/26/WESA/SEVP_NMC_WESA_SFER_EGH_ANHE_L00_P9_20261026120000000.JPG?v=1793024266653",
+      "largest_img_dimensions": [
+        2485,
+        2691
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 1
+    },
+    {
+      "url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
+      "names": [
+        "Japan · JMA – Wetterkartenarchiv"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 49,
+      "checked_utc": "2026-10-26T15:29:34.830257+00:00",
+      "http_status": 200,
+      "final_url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
+      "content_type": "text/html",
+      "title": "気象庁｜保存用天気図（1ページ目）",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "names": [
+        "Südkorea · KMA – Bodenprognose",
+        "KMA · synoptische Prognosekarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 50,
+      "checked_utc": "2026-10-26T15:29:34.830272+00:00",
+      "http_status": 200,
+      "final_url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Forecast Chart - Korea Meteorological Administration",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "names": [
+        "Australien · BoM – MSLP-Archiv",
+        "BoM · MSLP-Analyse-Archiv"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "archive",
+        "archive"
+      ],
+      "ordinal": 51,
+      "checked_utc": "2026-10-26T15:29:34.830283+00:00",
+      "http_status": 403,
+      "final_url": "https://www.bom.gov.au/australia/charts/archive/",
+      "content_type": "text/html",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "access_blocked_or_challenge",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "names": [
+        "Brasilien · Marinha – Südatlantik-Bodenanalysen",
+        "Marinha do Brasil · cartas sinóticas"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 52,
+      "checked_utc": "2026-10-26T15:29:34.830294+00:00",
+      "http_status": 403,
+      "final_url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas?__cf_chl_rt_tk=sdkYm2BknoDessKpuETff8rsuyDhbTT6mv4sSeJakRc-1793028633-1.0.1.1-f8ubBcp0ZodZna2Qxa.6ZuD6KHv.IMK.R4G9wR26Drc",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Just a moment...",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "access_blocked_or_challenge",
+      "error": "",
+      "likely_challenge": true,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://pam.marinha.mil.br/sig.html",
+      "names": [
+        "Brasilien · Marinha – Kartenviewer mit Datumswahl"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 53,
+      "checked_utc": "2026-10-26T15:29:34.830306+00:00",
+      "http_status": 200,
+      "final_url": "https://pam.marinha.mil.br/sig.html",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Previsão Ambiental Marinha (PAM)",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26/10/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 1
+    },
+    {
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "names": [
+        "NOAA OPC · Nordostpazifik (UTC-geprüfte Originalkarten)",
+        "NOAA OPC · Pazifik +24/+48/+96 h Prognosen",
+        "NOAA OPC · Pazifik"
+      ],
+      "catalogs": [
+        "weltweit",
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 54,
+      "checked_utc": "2026-10-26T15:29:34.830317+00:00",
+      "http_status": 200,
+      "final_url": "https://ocean.weather.gov/Pac_tab.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Ocean Prediction Center - Pacific Marine",
+      "page_utc_marks": [
+        "17:07 UTC",
+        "16:51 UTC",
+        "17:01 UTC",
+        "54:45 UTC",
+        "23:00 UTC",
+        "29:01 UTC",
+        "29:40 UTC",
+        "30:38 UTC",
+        "31:21 UTC",
+        "37:06 UTC",
+        "14:57 UTC",
+        "43:57 UTC",
+        "20:06 UTC",
+        "00:11 UTC",
+        "55:06 UTC",
+        "45:02 UTC",
+        "29:59 UTC",
+        "15:43 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ocean.weather.gov/shtml/thumb_P_full_00hrsfc.gif",
+      "largest_img_dimensions": [
+        640,
+        420
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "names": [
+        "NOAA OPC · Nordwestpazifik (aktuelle Bodenanalyse)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "image"
+      ],
+      "ordinal": 55,
+      "checked_utc": "2026-10-26T15:29:34.830327+00:00",
+      "http_status": 200,
+      "final_url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "content_type": "image/gif",
+      "title": "P_west_00hrsfc.gif (1200×1433)",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "largest_img_dimensions": [
+        1200,
+        1433
+      ],
+      "stage": "image_rendered_needs_visual_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "names": [
+        "Israel · IMS – analysierte Mittelmeer-Bodenwetterkarte",
+        "IMS Israel · analysierte Mittelmeer-Bodenwetterkarte"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 56,
+      "checked_utc": "2026-10-26T15:29:34.830337+00:00",
+      "http_status": 200,
+      "final_url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Analyzed Synoptic Maps | Israel Meteorological Service",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ims.gov.il/themes/imst/ims/svgs/tlogo.svg",
+      "largest_img_dimensions": [
+        1809,
+        738
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "names": [
+        "Thailand · TMD – aktuelle synoptische Karten",
+        "TMD · synoptische Oberflächenkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 57,
+      "checked_utc": "2026-10-26T15:29:34.830347+00:00",
+      "http_status": 200,
+      "final_url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "content_type": "text/html; charset=utf-8",
+      "title": "กรมอุตุนิยมวิทยา | แผนที่อากาศผิวพื้น",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.tmd.go.th/media/forecast/airmap/topchart_26_october_2026_0611.jpg?ver=NaN",
+      "largest_img_dimensions": [
+        4414,
+        2944
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 6
+    },
+    {
+      "url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
+      "names": [
+        "Taiwan · CWA – Bodenanalyse mit Isobaren und Fronten"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "image"
+      ],
+      "ordinal": 58,
+      "checked_utc": "2026-10-26T15:29:34.830358+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: Download is starting\nCall log:\n  - navigating to \"https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg\", waiting until \"domcontentloaded\"\n",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "names": [
+        "Taiwan · CWA/ASRAD – Ostasien-Bodenanalysen mit Fronten (Archiv)",
+        "CWA/ASRAD · Ostasien-Bodenanalysen mit Fronten (Archiv)"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "archive",
+        "archive"
+      ],
+      "ordinal": 59,
+      "checked_utc": "2026-10-26T15:29:34.830368+00:00",
+      "http_status": 200,
+      "final_url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "東亞地面分析圖 – ASRAD 大氣科學研究與應用資料庫",
+      "page_utc_marks": [
+        "18UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://asrad.pccu.edu.tw/dbar/wp-content/uploads/2019/02/ASRAD3-1024x315.png",
+      "largest_img_dimensions": [
+        1024,
+        315
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "names": [
+        "Brasilien · INMET – aktuelle Lageanalyse (Bildzugang offen)",
+        "INMET · aktuelle synoptische Lageanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "candidate",
+        "unverified"
+      ],
+      "ordinal": 60,
+      "checked_utc": "2026-10-26T15:29:34.830382+00:00",
+      "http_status": 200,
+      "final_url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "content_type": "text/html",
+      "title": "INMET :: Tempo",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://portal.inmet.gov.br/cartasinotica",
+      "names": [
+        "Brasilien · INMET – synoptische Originalkarten (Archiv)",
+        "INMET · Original-Synoptikkarten 2022–2026"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "archive",
+        "archive"
+      ],
+      "ordinal": 61,
+      "checked_utc": "2026-10-26T15:29:34.830393+00:00",
+      "http_status": 200,
+      "final_url": "https://portal.inmet.gov.br/cartasinotica",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Instituto Nacional de Meteorologia - INMET",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "30/09/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.weather.gov/hfo/analyses",
+      "names": [
+        "NOAA Honolulu · zentrale Pazifik-Bodenanalysen und +24/+48/+72 h",
+        "NOAA Honolulu · Zentralpazifik-Analyse und Bodenprognosen"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 62,
+      "checked_utc": "2026-10-26T15:29:34.830403+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weather.gov/hfo/analyses",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Hawaii Analyses/Forecasts",
+      "page_utc_marks": [
+        "00Z",
+        "06Z",
+        "12Z",
+        "18Z"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.nhc.noaa.gov/marine/",
+      "names": [
+        "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik",
+        "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 63,
+      "checked_utc": "2026-10-26T15:29:34.830416+00:00",
+      "http_status": 200,
+      "final_url": "https://www.nhc.noaa.gov/marine/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.nhc.noaa.gov/assets/images/NOAA_noText_logo.svg",
+      "largest_img_dimensions": [
+        424,
+        424
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "names": [
+        "Neuseeland · MetService – Tasmansee und Neuseeland",
+        "MetService · Tasmansee und Neuseeland"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 64,
+      "checked_utc": "2026-10-26T15:29:34.830428+00:00",
+      "http_status": 200,
+      "final_url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Surface Pressure Maps | MetService",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.metservice.com/IcePics/fc/1e8545-1a17814ee00-1a17814ee00-1a17814ee00-1a1787a12e9.gif",
+      "largest_img_dimensions": [
+        822,
+        567
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 31
+    },
+    {
+      "url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "names": [
+        "Kanada · ECCC – nationale und hemisphärische Frontenanalysen",
+        "ECCC · Kanada und Nordhemisphäre – Bodenanalysen mit Fronten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 65,
+      "checked_utc": "2026-10-26T15:29:34.830438+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Analysis Charts - Environment Canada",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "2026-10-19"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.weather.gc.ca/cacheable/images/banners/Yesterday_EN.jpg?ver=1792690520",
+      "largest_img_dimensions": [
+        481,
+        271
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "names": [
+        "Taiwan · CWA/ASRAD – Ostasien-Fronten mit Satellitenbewölkung (Archiv)",
+        "CWA/ASRAD · Ostasien-Fronten mit Satellitenwolken (Archiv)"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "archive",
+        "archive"
+      ],
+      "ordinal": 66,
+      "checked_utc": "2026-10-26T15:29:34.830455+00:00",
+      "http_status": 200,
+      "final_url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "東亞地面天氣圖(疊加雲圖) – ASRAD 大氣科學研究與應用資料庫",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://asrad.pccu.edu.tw/dbar/wp-content/uploads/2019/02/ASRAD3-1024x315.png",
+      "largest_img_dimensions": [
+        1024,
+        315
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "names": [
+        "Mauritius · amtliche synoptische Bodenanalyse",
+        "Mauritius Meteorological Services · synoptische Bodenanalyse"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 67,
+      "checked_utc": "2026-10-26T15:29:34.830467+00:00",
+      "http_status": 200,
+      "final_url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Mauritius Meteorological Services",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://metservice.intnet.mu/mmsimages/2026-10-26_16:34:16_chart.jpg",
+      "largest_img_dimensions": [
+        1305,
+        949
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.pagasa.dost.gov.ph/weather",
+      "names": [
+        "Philippinen · PAGASA – Surface Map Analysis",
+        "PAGASA · Surface Map Analysis"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 68,
+      "checked_utc": "2026-10-26T15:29:34.830513+00:00",
+      "http_status": 200,
+      "final_url": "https://www.pagasa.dost.gov.ph/weather",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "PAGASA",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://pubfiles.pagasa.dost.gov.ph/pagasaweb/images/pagasa-logo.png",
+      "largest_img_dimensions": [
+        777,
+        777
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "names": [
+        "Pakistan · PMD – acht UTC-Oberflächenkarten-Termine",
+        "PMD Pakistan · synoptische Oberflächenkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 69,
+      "checked_utc": "2026-10-26T15:29:34.830550+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Pakistan Meteorological Department - PMD",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.weather.gov.pk/storage/uploads/aviation/weather_charts/image/Surface/0000%20%20%20%20%2026-10-2026/SaChart-00-3.jpg",
+      "largest_img_dimensions": [
+        1600,
+        1161
+      ],
+      "stage": "page_without_large_map_evidence",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4314ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 4
+    },
+    {
+      "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "names": [
+        "Bangladesch · BMD – datierte synoptische Wetterkarten",
+        "BMD Bangladesch · synoptische Wetterkarten"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 70,
+      "checked_utc": "2026-10-26T15:29:34.830573+00:00",
+      "http_status": 200,
+      "final_url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Weather chart 26.10. 2026. 0600 UTC - Bangladesh Meteorological Department (BMD)",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.bmd.gov.bd/file/images/pages/199960.png",
+      "largest_img_dimensions": [
+        1673,
+        300
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "names": [
+        "Mexiko · SEMAR – marine synoptische Karte",
+        "SEMAR Mexiko · Carta Sinóptica (Marine)"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 71,
+      "checked_utc": "2026-10-26T15:29:34.830652+00:00",
+      "http_status": 200,
+      "final_url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "content_type": "text/html",
+      "title": "Meteorología | DIGAOHM | SEMAR",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://framework-gb.cdn.gob.mx/gobmx/img/logo_blanco.svg",
+      "largest_img_dimensions": [
+        1535,
+        476
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "names": [
+        "Südafrika · SAWS – Synoptic Charts (PDF-Beleg vorhanden)"
+      ],
+      "catalogs": [
+        "weltweit"
+      ],
+      "categories": [
+        "candidate"
+      ],
+      "ordinal": 72,
+      "checked_utc": "2026-10-26T15:29:34.830685+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "content_type": "text/HTML",
+      "title": "South African Weather Service - SAWS",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "2026/10/26"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.weathersa.co.za/assets/img/data/specialised/ma_sy.gif",
+      "largest_img_dimensions": [
+        853,
+        480
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 13
+    },
+    {
+      "url": "https://www.wetter3.de/fax_dt.html",
+      "names": [
+        "Deutschland · wetter3 – DWD-Bodenprognose-Faksimiles",
+        "DWD · TKB-Bodenprognosen +36/+48/+60/+84/+108 h"
+      ],
+      "catalogs": [
+        "weltweit",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "viewer"
+      ],
+      "ordinal": 73,
+      "checked_utc": "2026-10-26T15:29:34.830712+00:00",
+      "http_status": 200,
+      "final_url": "https://www.wetter3.de/fax_dt.html",
+      "content_type": "text/html",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 2
+    },
+    {
+      "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "names": [
+        "AEMET · Frontenkarten"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unspecified"
+      ],
+      "ordinal": 74,
+      "checked_utc": "2026-10-26T15:29:34.830759+00:00",
+      "http_status": 200,
+      "final_url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "content_type": "text/html;charset=ISO-8859-15",
+      "title": "El Tiempo. Mapas con frentes - Agencia Estatal de Meteorología - AEMET. Gobierno de España",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.aemet.es/imagenes_d/eltiempo/prediccion/mapa_frentes/2026102600+000_ww_gpx0a000.gif",
+      "largest_img_dimensions": [
+        2000,
+        1400
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "names": [
+        "KNMI · Analysen und Prognosen"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "auto"
+      ],
+      "ordinal": 75,
+      "checked_utc": "2026-10-26T15:29:34.830789+00:00",
+      "http_status": 200,
+      "final_url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "content_type": "text/html; charset=utf-8",
+      "title": "KNMI - Weerkaarten",
+      "page_utc_marks": [
+        "12 UTC",
+        "00 UTC"
+      ],
+      "page_date_marks": [
+        "26-10-2026",
+        "27-10-2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://cdn.knmi.nl/knmi/map/page/weer/waarschuwingen_verwachtingen/weerkaarten/AL2612_large.gif",
+      "largest_img_dimensions": [
+        1083,
+        696
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "names": [
+        "Met Office · Surface Pressure"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 76,
+      "checked_utc": "2026-10-26T15:29:34.830818+00:00",
+      "http_status": 200,
+      "final_url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Surface Pressure Charts - Met Office",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://data.consumer-digital.api.metoffice.gov.uk/v1/surface-pressure/colour/2026-10-26T0000/FSXX00T_00.gif",
+      "largest_img_dimensions": [
+        800,
+        540
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 19
+    },
+    {
+      "url": "https://www.meteociel.fr/fronts/index.php",
+      "names": [
+        "Météociel · Frontenanalyse"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 77,
+      "checked_utc": "2026-10-26T15:29:34.830844+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteociel.fr/fronts/index.php",
+      "content_type": "text/html; charset=iso-8859-1",
+      "title": "Meteociel - Analyse et fronts en Europe",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.meteociel.fr/cartes_obs/cartes/analyse-2026-10-26-12.png",
+      "largest_img_dimensions": [
+        768,
+        768
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "names": [
+        "MeteoAM · amtliche Fronten- und Bodenkarten",
+        "Italienische Wetterkarten · San Marino regional",
+        "Italienische Wetterkarten · Vatikan regional"
+      ],
+      "catalogs": [
+        "europa",
+        "europa",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "unverified",
+        "unverified"
+      ],
+      "ordinal": 78,
+      "checked_utc": "2026-10-26T15:29:34.833708+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteoam.it/it/meteo-citta/front",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Previsioni Meteo Front | Meteo Aeronautica Militare",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://cm.meteoam.it/it/media/1579687924097/native/Araldica-AM-Negativo.png",
+      "largest_img_dimensions": [
+        1536,
+        460
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "names": [
+        "MGM · Synoptikkarten"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 79,
+      "checked_utc": "2026-10-26T15:29:34.833754+00:00",
+      "http_status": 200,
+      "final_url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Hezarfen",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "names": [
+        "SMHI · tägliche Bodenanalysen im Monatsarchiv"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 80,
+      "checked_utc": "2026-10-26T15:29:34.833784+00:00",
+      "http_status": 200,
+      "final_url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Månadens väder och vatten i Sverige — SMHI",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.smhi.se/images/200.6da8c3bd198c10f02253659/1757847036598/6231140-host.webp",
+      "largest_img_dimensions": [
+        1366,
+        911
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 33
+    },
+    {
+      "url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "names": [
+        "IMO · Atlantik-Windprognose (ECMWF)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 81,
+      "checked_utc": "2026-10-26T15:29:34.833812+00:00",
+      "http_status": 200,
+      "final_url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Wind | Atlantic ocean | Icelandic Meteorological office",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "28.10.2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://en.vedur.is/photos/sjo_atlant_spa/261026_0000_18.png",
+      "largest_img_dimensions": [
+        750,
+        568
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
+      "names": [
+        "MET Norway · synoptische Analysekarte / Værio"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 82,
+      "checked_utc": "2026-10-26T15:29:34.833840+00:00",
+      "http_status": 200,
+      "final_url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Meteorologens værkart - Værio",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.imgw.pl/",
+      "names": [
+        "IMGW-PIB · aktuelle Europa-Bodenanalysen",
+        "IMGW-PIB · synoptische Tagesprognosen (Link offen)"
+      ],
+      "catalogs": [
+        "europa",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "unverified"
+      ],
+      "ordinal": 83,
+      "checked_utc": "2026-10-26T15:29:34.833866+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.imgw.pl/",
+      "content_type": "text/html",
+      "title": "METEO IMGW-PIB | Serwis pogodowy",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteo.imgw.pl/cmm_img/EN/TEMPERATURA_1793027736.webp",
+      "largest_img_dimensions": [
+        1680,
+        1680
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 3,
+      "svg_elements": 9
+    },
+    {
+      "url": "https://observar.ipma.pt/superficie-frontal-fria/",
+      "names": [
+        "IPMA · Historische Bodenanalyse"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 84,
+      "checked_utc": "2026-10-26T15:29:34.833890+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "Loading https://observar.ipma.pt/superficie-frontal-fria/",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "navigation_timeout; screenshot Page.screenshot: Timeout 7000ms exceeded.\nCall log:\n  - taking page screenshot\n    - disabled all CSS animations\n  - wai; DOM Page.evaluate: Execution context was destroyed, most likely because of a navigation",
+      "likely_challenge": false
+    },
+    {
+      "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "names": [
+        "NIMH · Europa-/Balkananalysen dokumentiert"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 85,
+      "checked_utc": "2026-10-26T15:29:34.833920+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "content_type": "text/html",
+      "title": "Department of Weather Forecasts - NIMH",
+      "page_utc_marks": [
+        "18 UTC",
+        "00UTC",
+        "06UTC",
+        "12UTC",
+        "18UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
+      "names": [
+        "ANM · Historische Analyse"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 86,
+      "checked_utc": "2026-10-26T15:29:34.833954+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: Download is starting\nCall log:\n  - navigating to \"https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf\", waiting un",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://ocean.weather.gov/unified_analysis.php",
+      "names": [
+        "NOAA OPC/WPC · Unified Surface Analysis"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 87,
+      "checked_utc": "2026-10-26T15:29:34.833985+00:00",
+      "http_status": 200,
+      "final_url": "https://ocean.weather.gov/unified_analysis.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Unified Surface Analysis",
+      "page_utc_marks": [
+        "16:16 UTC",
+        "15:31 UTC",
+        "16:49 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ocean.weather.gov/UA/entire_UA.gif",
+      "largest_img_dimensions": [
+        800,
+        331
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "names": [
+        "MeteoSchweiz · Allgemeine Lage",
+        "Landesverwaltung / MeteoSchweiz"
+      ],
+      "catalogs": [
+        "europa",
+        "europa"
+      ],
+      "categories": [
+        "viewer",
+        "unverified"
+      ],
+      "ordinal": 88,
+      "checked_utc": "2026-10-26T15:29:34.834013+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "content_type": "text/html;charset=UTF-8",
+      "title": "Allgemeine Lage - MeteoSchweiz",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "names": [
+        "Met Éireann · Atlantik-Modellprognose (Druck/Niederschlag)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 89,
+      "checked_utc": "2026-10-26T15:29:34.834038+00:00",
+      "http_status": 200,
+      "final_url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Atlantic Charts - Precipitation and Pressure - Met Éireann - The Irish Meteorological Service",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.emy.gr/en/marine",
+      "names": [
+        "HNMS · Europa-Bodendruckkarte"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 90,
+      "checked_utc": "2026-10-26T15:29:34.834061+00:00",
+      "http_status": 200,
+      "final_url": "https://www.emy.gr/en/marine",
+      "content_type": "text/html;charset=utf-8",
+      "title": "HNMS - Marine",
+      "page_utc_marks": [
+        "09 UTC",
+        "18 UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "; canvas Locator.screenshot: Timeout 4837ms exceeded.\nCall log:\n  - taking element screenshot\n  - waiting for",
+      "likely_challenge": false,
+      "canvases": 2,
+      "svg_elements": 74
+    },
+    {
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "names": [
+        "IMGW-PIB · historisches Synoptik-Bulletinarchiv"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 91,
+      "checked_utc": "2026-10-26T15:29:34.834093+00:00",
+      "http_status": 200,
+      "final_url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "content_type": "text/html;charset=ISO-8859-1",
+      "title": "Index of /data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "2019-11-26",
+        "2020-02-25",
+        "2019-12-20",
+        "2020-02-07",
+        "2020-01-31",
+        "2020-02-20",
+        "2020-03-18",
+        "2020-04-20",
+        "2020-05-20",
+        "2020-08-02",
+        "2020-07-20",
+        "2020-08-20"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "names": [
+        "Meteo LT · Ereignisanalysen"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 92,
+      "checked_utc": "2026-10-26T15:29:34.834117+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: Download is starting\nCall log:\n  - navigating to \"https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf\", waiting until \"domcontentloaded\"\n",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "names": [
+        "Météo-France Marine · NAVICAP-Produktseite (kein offener Kartenviewer)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 93,
+      "checked_utc": "2026-10-26T15:29:34.834144+00:00",
+      "http_status": 200,
+      "final_url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "NAVICAP : Météo marine | METEO FRANCE SERVICES",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://services.meteofrance.com/sites/default/files/logo/republique_francaise.png",
+      "largest_img_dimensions": [
+        1217,
+        1083
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+      "names": [
+        "RHMZ · Synoptische Analysen Europa/Balkan"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 94,
+      "checked_utc": "2026-10-26T15:29:34.834170+00:00",
+      "http_status": 200,
+      "final_url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Republic Hydrometeorological Service of Serbia Kneza Višeslava 66 Beograd::::::::::::::::::::::::::::::::::::::::::::::::::::::",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.hidmet.gov.rs/data/analiza/SATREP/satrep-evropa.png",
+      "largest_img_dimensions": [
+        1027,
+        949
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "names": [
+        "ItaliaMeteo · ICON-2I-Bodendruck und Isobaren"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 95,
+      "checked_utc": "2026-10-26T15:29:34.834194+00:00",
+      "http_status": 200,
+      "final_url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "MeteoHub: MeteoHub",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteohub.agenziaitaliameteo.it/app/app/custom/assets/images/logo-cineca-bianco.png",
+      "largest_img_dimensions": [
+        3454,
+        942
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 1
+    },
+    {
+      "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "names": [
+        "ItaliaMeteo · ICON-2I-Druckfelder (Open Data)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 96,
+      "checked_utc": "2026-10-26T15:29:34.834217+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "navigation_timeout",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "names": [
+        "DOM Zypern · Östliches Mittelmeer WRF-Bodendruck"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 97,
+      "checked_utc": "2026-10-26T15:29:34.834244+00:00",
+      "http_status": 200,
+      "final_url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "content_type": "text/html",
+      "title": "",
+      "page_utc_marks": [
+        "00UTC",
+        "12UTC"
+      ],
+      "page_date_marks": [],
+      "image_utc_marks": [
+        "00:00 UTC"
+      ],
+      "image_date_marks": [
+        "2026-10-28",
+        "2026-10-26"
+      ],
+      "best_image_url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-000.gif",
+      "largest_img_dimensions": [
+        720,
+        720
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
+      "names": [
+        "ARSO · datierte Europa-Frontenanalyse (Ereignisarchiv)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 98,
+      "checked_utc": "2026-10-26T15:29:34.834272+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: Download is starting\nCall log:\n  - navigating to \"https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf\", waiting until \"domcontentloaded\"\n",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
+      "names": [
+        "LVĢMC · datierte Europa-Frontenanalyse (Ereignisarchiv)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 99,
+      "checked_utc": "2026-10-26T15:29:34.834297+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "Page.goto: Download is starting\nCall log:\n  - navigating to \"https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf\", waiting until \"domcontentloaded\"\n",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "names": [
+        "IGEO · meteorologische Vorhersagen"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 100,
+      "checked_utc": "2026-10-26T15:29:34.834320+00:00",
+      "http_status": 200,
+      "final_url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Hydrologic & Meteorological Forecast",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://geo.edu.al/rc/img/WhatsApp_Image_2024_01_08_at_15_18_39_6673.jpeg",
+      "largest_img_dimensions": [
+        1600,
+        1200
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteo.ad/en",
+      "names": [
+        "Meteo Andorra · staatlicher Wetterdienst"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 101,
+      "checked_utc": "2026-10-26T15:29:34.834344+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteo.ad/en",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Meteo.ad. Servei Meteorològic Nacional.",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26/10/2026",
+        "20/10/2026",
+        "11/10/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.meteo.ad/images/alertes/img/mapes_no_punts/1_1_1.jpeg",
+      "largest_img_dimensions": [
+        1087,
+        898
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://pogoda.by/weather/synoptic/",
+      "names": [
+        "Belhydromet · Synoptik"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 102,
+      "checked_utc": "2026-10-26T15:29:34.834366+00:00",
+      "http_status": null,
+      "final_url": "about:blank",
+      "content_type": "",
+      "title": "Loading https://pogoda.by/weather/synoptic/",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "unresolved_navigation",
+      "error": "navigation_timeout; screenshot Page.screenshot: Timeout 7000ms exceeded.\nCall log:\n  - taking page screenshot\n    - disabled all CSS animations\n  - wai; DOM Page.evaluate: Execution context was destroyed, most likely because of a navigation",
+      "likely_challenge": false
+    },
+    {
+      "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "names": [
+        "FHMZ · GFS-Modellprognosen (keine Frontenanalyse)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 103,
+      "checked_utc": "2026-10-26T15:29:34.834390+00:00",
+      "http_status": 200,
+      "final_url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Federalni hidrometeorološki zavod",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "names": [
+        "MeteoLux · TEMSI-Flugwetterkarten (Login nötig)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 104,
+      "checked_utc": "2026-10-26T15:29:34.834428+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Cartes du TEMps SIgnificatif - MeteoLux - Portail Météo Luxembourg",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26/10/2026",
+        "27/10/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.maltairport.com/weather/",
+      "names": [
+        "Malta Airport · Meteorological Office"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 105,
+      "checked_utc": "2026-10-26T15:29:34.834454+00:00",
+      "http_status": 200,
+      "final_url": "https://maltametoffice.com/",
+      "content_type": "text/html",
+      "title": "Malta International Airport - MetOffice",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://maltametoffice.com/images/ocean.png",
+      "largest_img_dimensions": [
+        923,
+        615
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 27
+    },
+    {
+      "url": "https://www.meteo.md/",
+      "names": [
+        "SHS · Staatlicher Hydrometeorologischer Dienst"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 106,
+      "checked_utc": "2026-10-26T15:29:34.834481+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteo.md/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Autoritatea de Meteorologie și Monitoring de Mediu",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "23.10.2026",
+        "30.10.2026",
+        "26.10.2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.meteo.md/images/uploads/fb/logo_fb4.png",
+      "largest_img_dimensions": [
+        512,
+        512
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 30
+    },
+    {
+      "url": "https://meteofrance.com/",
+      "names": [
+        "Météo-France · regionale Abdeckung Monaco"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 107,
+      "checked_utc": "2026-10-26T15:29:34.834536+00:00",
+      "http_status": 200,
+      "final_url": "https://meteofrance.com/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "PREVISIONS METEO FRANCE - Site Officiel de Météo-France - Prévisions gratuites à 15 jours sur la France et sur le monde",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26/10/2026",
+        "27/10/2026",
+        "14/10/2026",
+        "02/10/2026",
+        "23/09/2026",
+        "25/10/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteofrance.com/sites/default/files/logo/LOGO_MF.png",
+      "largest_img_dimensions": [
+        1181,
+        1181
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 2
+    },
+    {
+      "url": "https://www.meteo.co.me/",
+      "names": [
+        "ZHMS · WRF- und Wetterprognosen"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 108,
+      "checked_utc": "2026-10-26T15:29:34.834565+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteo.co.me/",
+      "content_type": "text/html; charset=utf-8",
+      "title": "ZHMS",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26.10.2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.meteo.co.me/design/ZHMS-Logo1-CG.svg",
+      "largest_img_dimensions": [
+        624,
+        280
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 1
+    },
+    {
+      "url": "https://uhmr.gov.mk/",
+      "names": [
+        "UHMR · nationaler Wetterdienst"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 109,
+      "checked_utc": "2026-10-26T15:29:34.834591+00:00",
+      "http_status": 200,
+      "final_url": "https://uhmr.gov.mk/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "УХМР – Управа за хидрометеоролошки работи",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "26.10.2026",
+        "24/03/2026",
+        "25/08/2026",
+        "19/06/2026",
+        "05/06/2026",
+        "27/03/2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://uhmr.gov.mk/wp-content/uploads/photo-gallery/RadarImages/MKTO/images/1.jpg",
+      "largest_img_dimensions": [
+        1581,
+        1088
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 56
+    },
+    {
+      "url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "names": [
+        "Hydrometcenter · Bodenprognosekarten"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 110,
+      "checked_utc": "2026-10-26T15:29:34.834620+00:00",
+      "http_status": 200,
+      "final_url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "content_type": "text/html; charset=utf-8",
+      "title": "Приземные прогностические карты",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteoinfo.ru/media/djmediatools/cache/hmc-input/mapsynop/700x450-crop-95-prognoz24h.png",
+      "largest_img_dimensions": [
+        683,
+        439
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.meteo.gov.ua/en/",
+      "names": [
+        "Ukrainischer Hydrometeorologischer Dienst"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 111,
+      "checked_utc": "2026-10-26T15:29:34.834645+00:00",
+      "http_status": 200,
+      "final_url": "https://www.meteo.gov.ua/en/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Ukrainian Hydrometeorological Center",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.meteo.gov.ua/_/slogo-w.svg",
+      "largest_img_dimensions": [
+        583,
+        829
+      ],
+      "stage": "page_without_large_map_evidence",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4470ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 86
+    },
+    {
+      "url": "https://ihmk-rks.net/",
+      "names": [
+        "IHMK · Hydrometeorologisches Institut"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 112,
+      "checked_utc": "2026-10-26T15:29:34.834679+00:00",
+      "http_status": 200,
+      "final_url": "https://ihmk-rks.net/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Fillimi - Instituti Hidrometeorologjik i Kosovës",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://ihmk-rks.net/uplds/images/11047-2.jpg",
+      "largest_img_dimensions": [
+        1165,
+        1428
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 1
+    },
+    {
+      "url": "https://meteomonitoring.am/en/web",
+      "names": [
+        "Hydrometeorology and Monitoring Center"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 113,
+      "checked_utc": "2026-10-26T15:29:34.834704+00:00",
+      "http_status": 200,
+      "final_url": "https://meteomonitoring.am/en/web",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "HAMC",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "2026-10-09",
+        "2025-11-11"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 3
+    },
+    {
+      "url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
+      "names": [
+        "HMC · historische Bodenanalysen (Jahresbericht)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "archive"
+      ],
+      "ordinal": 114,
+      "checked_utc": "2026-10-26T15:29:34.834727+00:00",
+      "http_status": 200,
+      "final_url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "HAMC",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://meteo.az/",
+      "names": [
+        "Nationaler Hydrometeorologischer Dienst"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 115,
+      "checked_utc": "2026-10-26T15:29:34.834749+00:00",
+      "http_status": 200,
+      "final_url": "https://meteo.az/",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Əsas səhifə | Milli Hidrometeorologiya Xidməti",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://meteo.az/frq-content/plugins/home_x1/entry/20251112111431_72606400.jpg",
+      "largest_img_dimensions": [
+        674,
+        980
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 3
+    },
+    {
+      "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "names": [
+        "NEA · Hydrometeorologie"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 116,
+      "checked_utc": "2026-10-26T15:29:34.834770+00:00",
+      "http_status": 200,
+      "final_url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "content_type": "text/html; charset=utf-8",
+      "title": "National Environmental Agency | Nea",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://nea.gov.ge/En/Download/LinkImg/35",
+      "largest_img_dimensions": [
+        1024,
+        512
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "names": [
+        "Kazhydromet · synoptische Originalkarten"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "viewer"
+      ],
+      "ordinal": 117,
+      "checked_utc": "2026-10-26T15:29:34.834797+00:00",
+      "http_status": 200,
+      "final_url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "content_type": "text/html; charset=UTF-8",
+      "title": "Synoptic Weather Maps - Kazhydromet",
+      "page_utc_marks": [
+        "09:00 UTC"
+      ],
+      "page_date_marks": [
+        "26.10.2026",
+        "25.10.2026",
+        "24.10.2026",
+        "23.10.2026",
+        "22.10.2026",
+        "21.10.2026",
+        "20.10.2026",
+        "19.10.2026",
+        "18.10.2026",
+        "17.10.2026",
+        "16.10.2026",
+        "15.10.2026",
+        "14.10.2026",
+        "13.10.2026",
+        "12.10.2026",
+        "11.10.2026",
+        "10.10.2026",
+        "09.10.2026",
+        "08.10.2026",
+        "07.10.2026"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.kazhydromet.kz/img/kgm.ab98eab3.png",
+      "largest_img_dimensions": [
+        650,
+        368
+      ],
+      "stage": "page_without_large_map_evidence",
+      "error": "; img Locator.scroll_into_view_if_needed: Timeout 4479ms exceeded.\nCall log:\n  - attempting scroll into vi",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 0
+    },
+    {
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "names": [
+        "MetService · MSL-Analysen (API-Dokumentation)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 118,
+      "checked_utc": "2026-10-26T15:29:34.834820+00:00",
+      "http_status": 200,
+      "final_url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "content_type": "text/html",
+      "title": "MSL Analysis Charts | MetService API Platform Docs",
+      "page_utc_marks": [
+        "35:45Z",
+        "00:00Z",
+        "50:00Z",
+        "36:37Z",
+        "51:00Z"
+      ],
+      "page_date_marks": [
+        "2025/09/08"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "page_without_large_map_evidence",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 21
+    },
+    {
+      "url": "https://data.gov.tw/en/datasets/9246",
+      "names": [
+        "CWA Taiwan · Bodenwetterkarten-Open-Data"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 119,
+      "checked_utc": "2026-10-26T15:29:34.834843+00:00",
+      "http_status": 200,
+      "final_url": "https://data.gov.tw/en/datasets/9246",
+      "content_type": "text/html;charset=utf-8",
+      "title": "Weather Analysis and Forecast Map - Surface Weather Map ｜ 政府資料開放平臺",
+      "page_utc_marks": [],
+      "page_date_marks": [
+        "2015-12-29",
+        "2026-06-01"
+      ],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "",
+      "largest_img_dimensions": null,
+      "stage": "dynamic_page_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 17
+    },
+    {
+      "url": "https://www.weathersa.co.za/?contentID=81",
+      "names": [
+        "SAWS Südafrika · Synoptic Charts (Zugang prüfen)"
+      ],
+      "catalogs": [
+        "europa"
+      ],
+      "categories": [
+        "unverified"
+      ],
+      "ordinal": 120,
+      "checked_utc": "2026-10-26T15:29:34.834867+00:00",
+      "http_status": 200,
+      "final_url": "https://www.weathersa.co.za/?contentID=81",
+      "content_type": "text/HTML",
+      "title": "South African Weather Service - SAWS",
+      "page_utc_marks": [],
+      "page_date_marks": [],
+      "image_utc_marks": [],
+      "image_date_marks": [],
+      "best_image_url": "https://www.weathersa.co.za/assets/img/Partners/umhlathuze.png",
+      "largest_img_dimensions": [
+        800,
+        329
+      ],
+      "stage": "page_with_large_visual_needs_map_validation",
+      "error": "",
+      "likely_challenge": false,
+      "canvases": 0,
+      "svg_elements": 15
+    }
+  ]
+}
