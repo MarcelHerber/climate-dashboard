@@ -11,6 +11,17 @@ class WorldSourceWatchTests(unittest.TestCase):
         self.assertEqual(len({x["id"] for x in out["sources"]}),9)
         self.assertTrue(out["no_image_copied"] and out["no_automatic_chart_publication"])
         self.assertTrue(all(not x["sync_ready"] for x in out["sources"]))
+    def test_restricted_metservice_is_never_requested(self):
+        calls=[]
+        def fetch(url,host):
+            calls.append(host)
+            if "metservice.com" in host:raise AssertionError("Restricted site queried")
+            return "<html></html>"
+        output=watch.collect(fetch=fetch,now=NOW)
+        self.assertEqual(len(output["sources"]),9)
+        self.assertEqual(len(calls),8)
+        self.assertNotIn("services.metservice.com",calls)
+        self.assertEqual(next(x for x in output["sources"] if x["id"]=="metservice")["status"],"excluded_provider_terms")
     def test_only_chart_files_same_https_host(self):
         p=watch.Links("https://www.bom.gov.au/australia/charts/","www.bom.gov.au")
         p.feed("""<img src="/images/logo.png">
@@ -36,5 +47,6 @@ class WorldSourceWatchTests(unittest.TestCase):
             return "<html></html>"
         result=watch.collect(fetch=fetch,now=NOW)
         self.assertEqual(result["sources"][0]["status"],"unreachable")
-        self.assertEqual(sum(x["status"]=="source_html_available" for x in result["sources"]),8)
+        self.assertEqual(sum(x["status"]=="source_html_available" for x in result["sources"]),7)
+        self.assertEqual(next(x for x in result["sources"] if x["id"]=="metservice")["status"],"excluded_provider_terms")
 if __name__=="__main__":unittest.main()
