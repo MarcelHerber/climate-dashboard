@@ -1,0 +1,1632 @@
+{
+  "version": 1,
+  "datum_utc": "2026-10-26",
+  "basis": "Chromium-Vollabruf aller 120 initialen Original-URLs mit je einer Seitenscreenshot-Aufnahme und, wo möglich, einem ausgewählten großen Bild; sechs visuell inspizierte 20er-Montagen und ergänzende Detailbilder. Keine vollständige manuelle Einzelprüfung sämtlicher Bilder, Tabs und Datumsstände innerhalb jeder Website.",
+  "github_actions_run": "https://github.com/MarcelHerber/climate-dashboard/actions/runs/40354856404",
+  "screenshot_artifact": "synoptic-browser-120-screenshots",
+  "original_links": 120,
+  "statistik": {
+    "viewer_oder_portal_mit_weiterer_interaktion": 27,
+    "sichtbar_echte_isobaren_oder_frontenkarte": 35,
+    "im_ersten_screenshot_keine_relevante_karte": 42,
+    "zugriff_gesperrt": 2,
+    "browser_nicht_pruefbar": 6,
+    "kartenviewer_aber_einzelbild_defekt": 1,
+    "http_404": 1,
+    "veraltet_und_keine_isobarenkarte": 1,
+    "visueller_einzelnachweis_offen": 4,
+    "sichtbar_modell_druckfeld_ohne_originalfronten": 1
+  },
+  "hinweis": "Gültigkeitszeit, Unabhängigkeit des Herstellers und Bildnutzungsrecht sind separate Prüfkriterien. Ein großes Screenshot-Bild kann auch ein Logo sein und wird hier nicht blind als Wetterkarte gezählt. Unter 'sichtbar' zählt die Karte nur, wenn die visuelle Stichprobe echte synoptische Konturen zeigt. Der Screenshot bildet jeweils die erste geladene Ansicht ab.",
+  "eintraege": [
+    {
+      "nr": 1,
+      "name": "NOAA WPC · National Forecast Chart – Fronten als GIS-Layer",
+      "url": "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/natl_fcst_wx_chart/MapServer",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "001",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 2,
+      "name": "NOAA WPC International Desk · Argentinien – Bodenanalyse",
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "002",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 3,
+      "name": "NOAA WPC International Desk · Chile – Bodenanalyse",
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "003",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 4,
+      "name": "Kanada · ECCC MSC AniMet – modellbasierte Isobaren (Migration)",
+      "url": "https://eccc-msc.github.io/msc-animet/",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "004",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 5,
+      "name": "NOAA OPC · Alaska/Arktis – Bodenanalyse (Original-GIF)",
+      "url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "http": 200,
+      "stage": "image_endpoint_browser_reached",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "NOAA Arctic GIF mit Isobaren/Fronten; tatsächliches Druckdatum im Karteneck separat lesen",
+      "screenshot_id": "005",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 6,
+      "name": "Polen · IMGW-PIB – eigene synoptische Bodenanalyse (Beleg)",
+      "url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "006",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 7,
+      "name": "Belgien · KMI – Frontenkarten",
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "007",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 8,
+      "name": "Dänemark · DMI – Frontkort",
+      "url": "https://www.dmi.dk/vejret/frontkort",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Karte direkt am amtlichen Endpunkt visuell mit Isobaren, Fronten und gültig 2026-10-26 12 UTC bestätigt; Screenshot der Portalseite zeigte Consent/scroll-Overlay.",
+      "screenshot_id": "008",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 9,
+      "name": "Deutschland · DWD Bodenanalyse",
+      "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "http": 200,
+      "stage": "image_endpoint_browser_reached",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "DWD Original-Bodenanalyse direkt mit Konturen und Fronten im Chromium-Bild",
+      "screenshot_id": "009",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 10,
+      "name": "Estland · Ilmateenistus",
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "010",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 11,
+      "name": "Europa · Météocentre",
+      "url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "011",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 12,
+      "name": "Finnland · FMI",
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "012",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 13,
+      "name": "Frankreich · Météo-France Isofronts",
+      "url": "https://meteofrance.com/isofronts",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "013",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 14,
+      "name": "Irland · Met Éireann – Bodenanalyse",
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Met Éireann Atlantik/Europa Analyse 2026-10-26 00 UTC",
+      "screenshot_id": "014",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 15,
+      "name": "Kroatien · DHMZ – Frontenprognose",
+      "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "015",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 16,
+      "name": "Niederlande · KNMI Archiv",
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "016",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 17,
+      "name": "Österreich · GeoSphere – keine Fronten-Originalkarte nachgewiesen",
+      "url": "https://geosphere.at/de/karten/wetterportal",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "017",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 18,
+      "name": "Portugal · IPMA – numerische Wetterkarten (keine Fronten-Originalanalyse)",
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "018",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 19,
+      "name": "Russland / Osteuropa · Meteoinfo",
+      "url": "https://meteoinfo.ru/mapsynop",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "019",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 20,
+      "name": "Slowakei · SHMÚ",
+      "url": "https://www.shmu.sk/en/?page=980",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "SHMÚ Europa Frontenkarte 2026-10-26 00 UTC",
+      "screenshot_id": "020",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 21,
+      "name": "Tschechien · ČHMÚ – historische Wetterlagentypisierung (KEIN Kartenarchiv)",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "021",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 22,
+      "name": "Tschechien · ČHMÚ – Synoptische Situation",
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "022",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 23,
+      "name": "Ungarn · HungaroMet",
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "023",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 24,
+      "name": "Vereinigtes Königreich · Netweather Fax",
+      "url": "https://www.netweather.tv/charts-and-data/fax",
+      "http": 403,
+      "stage": "blocked_access_not_dead",
+      "sichtkategorie": "zugriff_gesperrt",
+      "bewertung": "HTTP 403; kein Beweis, dass der Kartenlink für reguläre Browser defekt ist.",
+      "screenshot_id": "024",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 25,
+      "name": "Ostafrika/Indischer Ozean · MTOTEC",
+      "url": "https://www.mtotec.com/page-analyse",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "025",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 26,
+      "name": "Hongkong · HKO Weather Chart",
+      "url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "026",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 27,
+      "name": "Indien · IMD – Bodenanalyse 00 UTC",
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "IMD originale Surface Chart 00 UTC; vollständige Datumsangabe aus Bild separat lesen",
+      "screenshot_id": "027",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 28,
+      "name": "Indien · IMD – Bodenanalyse 12 UTC",
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "IMD originale Surface Chart 12 UTC; vollständige Datumsangabe aus Bild separat lesen",
+      "screenshot_id": "028",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 29,
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 00 UTC)",
+      "url": "https://www.jma.go.jp/jmh/asas_00_s.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "JMA ASAS 00 UTC Bild echt; 2026-10-26 00 UTC",
+      "screenshot_id": "029",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 30,
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 06 UTC)",
+      "url": "https://www.jma.go.jp/jmh/asas_06_s.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "JMA ASAS 06 UTC Bild echt; 2026-10-26 06 UTC",
+      "screenshot_id": "030",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 31,
+      "name": "Japan · JMA – JMH Marine-Prognosen (24–120 h)",
+      "url": "https://www.jma.go.jp/jmh/jmhmenu.html",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "031",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 32,
+      "name": "Japan · JMA – Marine-Oberflächenanalyse ASAS",
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "032",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 33,
+      "name": "Südkorea · KMA – Bodenanalyse",
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "033",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 34,
+      "name": "Vietnam · NCHMF – Modell-Meeresspiegeldruck (OHNE manuelle Fronten)",
+      "url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "034",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 35,
+      "name": "Australien · BoM – Analyse und Fronten",
+      "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "035",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 36,
+      "name": "Cookinseln · Meteorological Service",
+      "url": "https://met.gov.ck/weather-map",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein.",
+      "screenshot_id": "036",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 37,
+      "name": "Fidschi · Fiji Met / RSMC Nadi – Wetterkarten",
+      "url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "kartenviewer_aber_einzelbild_defekt",
+      "bewertung": "Fiji-Viewer mit MSLP-Grundkarte hinter Ladeoverlay; bislang verwendetes amtliches Bild 0992_Qck34J8.original.jpg lieferte 404, daher kein nachgewiesenes aktuelles Livebild.",
+      "screenshot_id": "037",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 38,
+      "name": "Französisch-Polynesien · Météo-France – IsoFronts Analyse",
+      "url": "https://meteo.pf/fr/isofronts",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "038",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 39,
+      "name": "Französisch-Polynesien · Météo-France – PréIso +24 h",
+      "url": "https://meteo.pf/fr/pre-isofronts",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "039",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 40,
+      "name": "Neukaledonien · Météo NC",
+      "url": "https://meteo.nc/fr/carte-analyse",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "040",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 41,
+      "name": "Neuseeland · MetService – Südwestpazifik Originalkarten",
+      "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "041",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 42,
+      "name": "Nordatlantik · Weathercharts",
+      "url": "https://www.weathercharts.org/noaa-charts.htm",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "042",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 43,
+      "name": "Tropischer Atlantik · Vorticity (privater NOAA-Verweis, 404)",
+      "url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
+      "http": 404,
+      "stage": "http_missing",
+      "sichtkategorie": "http_404",
+      "bewertung": "HTTP 404 bei privatem Vorticity/NOAA-Mirror.",
+      "screenshot_id": "043",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 44,
+      "name": "Brasilien · CPTEC/INPE Analysen",
+      "url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "044",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 45,
+      "name": "Chile · DMC – digitales Bodenanalysenarchiv",
+      "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "045",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 46,
+      "name": "Chile · Armada/SERVIMET – synoptische Bodenanalysen",
+      "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "046",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 47,
+      "name": "China · CMA / WMC Beijing – Eurasien-Bodenanalyse",
+      "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "047",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 48,
+      "name": "China · CMA – Nordhemisphäre Bodenanalyse",
+      "url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "048",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 49,
+      "name": "Japan · JMA – Wetterkartenarchiv",
+      "url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "049",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 50,
+      "name": "Südkorea · KMA – Bodenprognose",
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "050",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 51,
+      "name": "Australien · BoM – MSLP-Archiv",
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "051",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 52,
+      "name": "Brasilien · Marinha – Südatlantik-Bodenanalysen",
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "http": 403,
+      "stage": "blocked_access_not_dead",
+      "sichtkategorie": "zugriff_gesperrt",
+      "bewertung": "Cloudflare HTTP403; nicht als definitiv defekt einstufen.",
+      "screenshot_id": "052",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 53,
+      "name": "Brasilien · Marinha – Kartenviewer mit Datumswahl",
+      "url": "https://pam.marinha.mil.br/sig.html",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "053",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 54,
+      "name": "NOAA OPC · Nordostpazifik (UTC-geprüfte Originalkarten)",
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "054",
+      "quellen": [
+        "weltweite",
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 55,
+      "name": "NOAA OPC · Nordwestpazifik (aktuelle Bodenanalyse)",
+      "url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "http": 200,
+      "stage": "image_endpoint_browser_reached",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "055",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 56,
+      "name": "Israel · IMS – analysierte Mittelmeer-Bodenwetterkarte",
+      "url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "056",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 57,
+      "name": "Thailand · TMD – aktuelle synoptische Karten",
+      "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "057",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 58,
+      "name": "Taiwan · CWA – Bodenanalyse mit Isobaren und Fronten",
+      "url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Chromium scheiterte beim Bildabruf; separater HTTP-GET belegte echtes JPEG 728×531 trotz application/octet-stream. Bildinhalt und UTC nicht ausreichend visuell bewertet.",
+      "screenshot_id": "058",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 59,
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Bodenanalysen mit Fronten (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "059",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 60,
+      "name": "Brasilien · INMET – aktuelle Lageanalyse (Bildzugang offen)",
+      "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "060",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 61,
+      "name": "Brasilien · INMET – synoptische Originalkarten (Archiv)",
+      "url": "https://portal.inmet.gov.br/cartasinotica",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "061",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 62,
+      "name": "NOAA Honolulu · zentrale Pazifik-Bodenanalysen und +24/+48/+72 h",
+      "url": "https://www.weather.gov/hfo/analyses",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "062",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 63,
+      "name": "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik",
+      "url": "https://www.nhc.noaa.gov/marine/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "063",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 64,
+      "name": "Neuseeland · MetService – Tasmansee und Neuseeland",
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "064",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 65,
+      "name": "Kanada · ECCC – nationale und hemisphärische Frontenanalysen",
+      "url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Großes Bild war 'Yesterday's Data'-Symbol, NICHT Oberflächenanalyse; richtige 00/06/12/18-UTC-Analysekarten über Links in der amtlichen Tabelle erreichbar.",
+      "screenshot_id": "065",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 66,
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Fronten mit Satellitenbewölkung (Archiv)",
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "066",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 67,
+      "name": "Mauritius · amtliche synoptische Bodenanalyse",
+      "url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Mauritius reale Analyse für 2026-10-26 16 Uhr Ortszeit (12 UTC); Isobaren/Fronten bestätigt.",
+      "screenshot_id": "067",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 68,
+      "name": "Philippinen · PAGASA – Surface Map Analysis",
+      "url": "https://www.pagasa.dost.gov.ph/weather",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "PAGASA Browser-Screenshot zeigte nicht die Karte, separater Original-JPG-Abruf zeigte echte Isobarenkarte, gültig 2026-10-25 18 UTC.",
+      "screenshot_id": "068",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 69,
+      "name": "Pakistan · PMD – acht UTC-Oberflächenkarten-Termine",
+      "url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "PMD Browser-Screenshot leere Ansicht; original verlinktes 00-UTC-JPG zeigt handbearbeitete Bodenkarte 2026-10-26 00 UTC.",
+      "screenshot_id": "069",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 70,
+      "name": "Bangladesch · BMD – datierte synoptische Wetterkarten",
+      "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Amtlicher BMD-Seitentitel 2026-10-26 06 UTC, aber Kartenbild liegt auf anderem Host und ist nicht visuell bestätigt.",
+      "screenshot_id": "070",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 71,
+      "name": "Mexiko · SEMAR – synoptische Lagekarte (derzeit veraltet, keine Isobaren)",
+      "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "veraltet_und_keine_isobarenkarte",
+      "bewertung": "SEMAR JPG mit meteorologischen Symbolen, aber keine klassisch auswertbaren Isobaren und Bilddatum 2026-10-20.",
+      "screenshot_id": "071",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 72,
+      "name": "Südafrika · SAWS – Synoptic Charts (PDF-Beleg vorhanden)",
+      "url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "SAWS MSLP analysis 2026-10-26 12 UTC: front and isobar image visually confirmed despite earlier requests' transport errors.",
+      "screenshot_id": "072",
+      "quellen": [
+        "weltweite"
+      ]
+    },
+    {
+      "nr": 73,
+      "name": "Deutschland · wetter3 – DWD-Bodenprognose-Faksimiles",
+      "url": "https://www.wetter3.de/fax_dt.html",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "wetter3 enthält Prognose-Auswahl im Browser, aber kein automatisch bestätigtes einzelnes Prognosebild in der Übersicht.",
+      "screenshot_id": "073",
+      "quellen": [
+        "weltweite",
+        "europa"
+      ]
+    },
+    {
+      "nr": 74,
+      "name": "AEMET · Frontenkarten",
+      "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "074",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 75,
+      "name": "KNMI · Analysen und Prognosen",
+      "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "075",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 76,
+      "name": "Met Office · Surface Pressure",
+      "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "076",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 77,
+      "name": "Météociel · Frontenanalyse",
+      "url": "https://www.meteociel.fr/fronts/index.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "077",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 78,
+      "name": "MeteoAM · amtliche Fronten- und Bodenkarten",
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "078",
+      "quellen": [
+        "europa",
+        "europa",
+        "europa"
+      ]
+    },
+    {
+      "nr": 79,
+      "name": "MGM · Synoptikkarten",
+      "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "079",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 80,
+      "name": "SMHI · tägliche Bodenanalysen im Monatsarchiv",
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "SMHI Rückblickseiten-Screenshot zeigte Herbstblatt, nicht die tägliche synoptische Karte.",
+      "screenshot_id": "080",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 81,
+      "name": "IMO · Atlantik-Windprognose (ECMWF)",
+      "url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "081",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 82,
+      "name": "MET Norway · synoptische Analysekarte / Værio",
+      "url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "082",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 83,
+      "name": "IMGW-PIB · aktuelle Europa-Bodenanalysen",
+      "url": "https://meteo.imgw.pl/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "IMGW-Wetterportal zeigte einen Diensthinweis, keine überprüfte aktuelle Frontengrafik.",
+      "screenshot_id": "083",
+      "quellen": [
+        "europa",
+        "europa"
+      ]
+    },
+    {
+      "nr": 84,
+      "name": "IPMA · Historische Bodenanalyse",
+      "url": "https://observar.ipma.pt/superficie-frontal-fria/",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein.",
+      "screenshot_id": "084",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 85,
+      "name": "NIMH · Europa-/Balkananalysen dokumentiert",
+      "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "085",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 86,
+      "name": "ANM · Historische Analyse",
+      "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein.",
+      "screenshot_id": "086",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 87,
+      "name": "NOAA OPC/WPC · Unified Surface Analysis",
+      "url": "https://ocean.weather.gov/unified_analysis.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "NOAA OPC Unified Surface Analysis mit Isobaren/Fronten visuell auf Screenshot.",
+      "screenshot_id": "087",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 88,
+      "name": "MeteoSchweiz · Allgemeine Lage",
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "088",
+      "quellen": [
+        "europa",
+        "europa"
+      ]
+    },
+    {
+      "nr": 89,
+      "name": "Met Éireann · Atlantik-Modellprognose (Druck/Niederschlag)",
+      "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "089",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 90,
+      "name": "HNMS · Europa-Bodendruckkarte",
+      "url": "https://www.emy.gr/en/marine",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "090",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 91,
+      "name": "IMGW-PIB · historisches Synoptik-Bulletinarchiv",
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "091",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 92,
+      "name": "Meteo LT · Ereignisanalysen",
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "visueller_einzelnachweis_offen",
+      "bewertung": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich.",
+      "screenshot_id": "092",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 93,
+      "name": "Météo-France Marine · NAVICAP-Produktseite (kein offener Kartenviewer)",
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Météo-France NAVICAP war nur kommerzielle Produktseite; ausgewähltes großes Bild ist Logo.",
+      "screenshot_id": "093",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 94,
+      "name": "RHMZ · Synoptische Analysen Europa/Balkan",
+      "url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "bewertung": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt.",
+      "screenshot_id": "094",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 95,
+      "name": "ItaliaMeteo · ICON-2I-Bodendruck und Isobaren",
+      "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "095",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 96,
+      "name": "ItaliaMeteo · ICON-2I-Druckfelder (Open Data)",
+      "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein.",
+      "screenshot_id": "096",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 97,
+      "name": "DOM Zypern · Östliches Mittelmeer WRF-Bodendruck",
+      "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "sichtbar_modell_druckfeld_ohne_originalfronten",
+      "bewertung": "Zypern WRF-MSLP Modellkarte mit Druckkonturen, KEINE analysierten Originalfronten.",
+      "screenshot_id": "097",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 98,
+      "name": "ARSO · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "visueller_einzelnachweis_offen",
+      "bewertung": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich.",
+      "screenshot_id": "098",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 99,
+      "name": "LVĢMC · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "visueller_einzelnachweis_offen",
+      "bewertung": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich.",
+      "screenshot_id": "099",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 100,
+      "name": "IGEO · meteorologische Vorhersagen",
+      "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "100",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 101,
+      "name": "Meteo Andorra · staatlicher Wetterdienst",
+      "url": "https://www.meteo.ad/en",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "101",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 102,
+      "name": "Belhydromet · Synoptik",
+      "url": "https://pogoda.by/weather/synoptic/",
+      "http": null,
+      "stage": "navigation_error_or_timeout",
+      "sichtkategorie": "browser_nicht_pruefbar",
+      "bewertung": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein.",
+      "screenshot_id": "102",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 103,
+      "name": "FHMZ · GFS-Modellprognosen (keine Frontenanalyse)",
+      "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "103",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 104,
+      "name": "MeteoLux · TEMSI-Flugwetterkarten (Login nötig)",
+      "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "104",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 105,
+      "name": "Malta Airport · Meteorological Office",
+      "url": "https://www.maltairport.com/weather/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "105",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 106,
+      "name": "SHS · Staatlicher Hydrometeorologischer Dienst",
+      "url": "https://www.meteo.md/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "visueller_einzelnachweis_offen",
+      "bewertung": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich.",
+      "screenshot_id": "106",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 107,
+      "name": "Météo-France · regionale Abdeckung Monaco",
+      "url": "https://meteofrance.com/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "107",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 108,
+      "name": "ZHMS · WRF- und Wetterprognosen",
+      "url": "https://www.meteo.co.me/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "108",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 109,
+      "name": "UHMR · nationaler Wetterdienst",
+      "url": "https://uhmr.gov.mk/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "109",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 110,
+      "name": "Hydrometcenter · Bodenprognosekarten",
+      "url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "110",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 111,
+      "name": "Ukrainischer Hydrometeorologischer Dienst",
+      "url": "https://www.meteo.gov.ua/en/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "111",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 112,
+      "name": "IHMK · Hydrometeorologisches Institut",
+      "url": "https://ihmk-rks.net/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "112",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 113,
+      "name": "Hydrometeorology and Monitoring Center",
+      "url": "https://meteomonitoring.am/en/web",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "113",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 114,
+      "name": "HMC · historische Bodenanalysen (Jahresbericht)",
+      "url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "114",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 115,
+      "name": "Nationaler Hydrometeorologischer Dienst",
+      "url": "https://meteo.az/",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "115",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 116,
+      "name": "NEA · Hydrometeorologie",
+      "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen.",
+      "screenshot_id": "116",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 117,
+      "name": "Kazhydromet · synoptische Originalkarten",
+      "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Kazhydromet amtliche Seite 'Synoptic Weather Maps', im Erstbild keine Einzelkarte; Karte evtl. nach Interaktion.",
+      "screenshot_id": "117",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 118,
+      "name": "MetService · MSL-Analysen (API-Dokumentation)",
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "http": 200,
+      "stage": "html_screenshot_no_large_map",
+      "sichtkategorie": "im_ersten_screenshot_keine_relevante_karte",
+      "bewertung": "MetService API Dokumentation, nicht öffentlich sichtbare aktuelle Karte.",
+      "screenshot_id": "118",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 119,
+      "name": "CWA Taiwan · Bodenwetterkarten-Open-Data",
+      "url": "https://data.gov.tw/en/datasets/9246",
+      "http": 200,
+      "stage": "dynamic_viewer_captured_unverified",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen.",
+      "screenshot_id": "119",
+      "quellen": [
+        "europa"
+      ]
+    },
+    {
+      "nr": 120,
+      "name": "SAWS Südafrika · Synoptic Charts (Zugang prüfen)",
+      "url": "https://www.weathersa.co.za/?contentID=81",
+      "http": 200,
+      "stage": "browser_map_candidate_image_captured",
+      "sichtkategorie": "viewer_oder_portal_mit_weiterer_interaktion",
+      "bewertung": "Veraltete SAWS-Einstiegsadresse zeigte nur Header; im Katalog inzwischen auf funktionierende /observations/synopticcharts gesetzt.",
+      "screenshot_id": "120",
+      "quellen": [
+        "europa"
+      ]
+    }
+  ]
+}
