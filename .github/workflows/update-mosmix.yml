@@ -7,6 +7,9 @@ on:
     paths:
       - ".github/workflows/update-mosmix.yml"
       - "scripts/update_mosmix.py"
+      - "tests/test_mosmix_tx_tn.py"
+      - "tests/test_mosmix_world.mjs"
+      - "mosmix.js"
   workflow_dispatch:
 
 permissions:
