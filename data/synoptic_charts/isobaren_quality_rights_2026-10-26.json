@@ -1,0 +1,3639 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-26",
+  "scope": "Aktueller Zustand 169 Katalogeinträge; 119 eindeutige Zieladressen nach SAWS-Deduplizierung",
+  "not_a_license_grant": true,
+  "notes": "Rechtsbewertung ist eine an amtlichen Bedingungen orientierte Risikoklassifikation, keine individuelle Rechtezusage. Direkter Bildzugang und aktuelle UTC-Gültigkeit separat nachweisen. Bereits vorhandene publizierte Grafiken nicht automatisch durch neue fremde Bilder ersetzen.",
+  "summary": {
+    "unique_urls": 119,
+    "rights_classes": {
+      "bedingungen_erlauben": 19,
+      "ungeklaert": 76,
+      "nur_originalseite": 7,
+      "drittanbieter": 9,
+      "produkt_pruefen": 8
+    },
+    "printed_utc_current_snapshots": 9
+  },
+  "provider_policies": [
+    {
+      "key": "noaa",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://www.weather.gov/disclaimer",
+      "note": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben."
+    },
+    {
+      "key": "dwd",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://kunden.dwd.de/ankonda/info/copyright.jsf",
+      "note": "Freie DWD-Open-Data-Leistungen und DWD-Logo-Karten unter ihren jeweiligen Nutzungsbedingungen; Originalkarten nicht verfälschen."
+    },
+    {
+      "key": "jma",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://www.jma.go.jp/jma/en/copyright.html",
+      "note": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten."
+    },
+    {
+      "key": "knmi",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://www.knmi.nl/copyright",
+      "note": "Empfohlene KNMI-Quellenangabe; Rechte Dritter, vor allem Modellhintergründe, kontrollieren."
+    },
+    {
+      "key": "aemet",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://www.aemet.es/es/nota_legal",
+      "note": "AEMET nennen, Inhalt nicht verfälschen, Drittanteile prüfen."
+    },
+    {
+      "key": "dhmz",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://www.meteo.hr/o_nama.php?param=uvjeti&section=naslovnica",
+      "note": "Wiedernutzung mit Quellenhinweis; 12-UTC-Folgeprognose nutzt ECMWF-Druckfeld, darum Drittanteile prüfen."
+    },
+    {
+      "key": "cwa",
+      "class": "bedingungen_erlauben",
+      "rights_source": "https://wede.cwa.gov.tw/openDataDeclare",
+      "note": "Offene CWA-Materialien unter Quellenangabe nutzbar; Ausnahmen für bestimmte Abbildungen/Drittmaterial beachten."
+    },
+    {
+      "key": "metoffice",
+      "class": "nur_originalseite",
+      "rights_source": "https://www.metoffice.gov.uk/policies/tandc",
+      "note": "Ausschließlich Originalseite vollbildfähig verlinken; kein Bild-Hotlink oder automatisierter Bildabruf."
+    },
+    {
+      "key": "metie",
+      "class": "nur_originalseite",
+      "rights_source": "https://www.met.ie/about-us/copyright-notice",
+      "note": "Keine pauschale Freigabe der Webseiten-Grafiken; Scraping/Monitoring ausdrücklich untersagt. Open-Data-CC-BY ist nicht automatisch Kartenlizenz."
+    },
+    {
+      "key": "metservice",
+      "class": "nur_originalseite",
+      "rights_source": "https://about.metservice.com/web-terms-of-use",
+      "note": "Websitebedingungen vom Februar 2026: privat, keine Wiederlieferung, keine Web-Scraper und keine automatischen Monitoringzugriffe."
+    },
+    {
+      "key": "kmi",
+      "class": "nur_originalseite",
+      "rights_source": "https://cdn.meteo.be/fr/a-propos-irm/informations-juridiques/conditions-d-utilisation",
+      "note": "Website-Inhalte nur privat/Lehre; Wiedergabe/Publikation ausdrücklich untersagt."
+    },
+    {
+      "key": "bom",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.bom.gov.au/copyright",
+      "note": "Mediennutzung mit Attribution teils erlaubt, nicht alle Karten sind gleichermaßen lizenziert; Spezial- und hochauflösende Produkte ggf. lizenzpflichtig."
+    },
+    {
+      "key": "eccc",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.canada.ca/en/canadian-heritage/services/crown-copyright-request.html",
+      "note": "Unveränderte nichtkommerzielle Wiederverwendung staatlicher Originalwerke meist möglich; kommerzielle/abgeleitete Nutzung ggf. Genehmigung."
+    },
+    {
+      "key": "imgw",
+      "class": "produkt_pruefen",
+      "rights_source": "https://danepubliczne.imgw.pl/pl/datastore?product=Mapa+synoptyczna",
+      "note": "Open-Data-Nutzungsbedingungen umfassen nicht automatisch öffentliche Bild-Wiederveröffentlichung. Einzelbild und Nutzungskontext klären."
+    },
+    {
+      "key": "meteofrance",
+      "class": "produkt_pruefen",
+      "rights_source": "https://meteofrance.com/mentions-legales",
+      "note": "Original-Grafiken nicht ungeprüft spiegeln; Nutzungsrechte für Isofronts und Überseeprodukte nicht einheitlich belegt."
+    },
+    {
+      "key": "chmi",
+      "class": "produkt_pruefen",
+      "rights_source": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "note": "Vier Hauptanalysetermine bestätigt, aber pauschale CC-BY-Freigabe aller dynamischen Grafiken hier nicht verifiziert."
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/natl_fcst_wx_chart/MapServer",
+      "name": "NOAA WPC · National Forecast Chart – Fronten als GIS-Layer",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "mapservices.weather.noaa.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 1,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ag",
+      "name": "NOAA WPC International Desk · Argentinien – Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.wpc.ncep.noaa.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 2,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.wpc.ncep.noaa.gov/international/samsfc_anal.php?region=ch",
+      "name": "NOAA WPC International Desk · Chile – Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.wpc.ncep.noaa.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 3,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://eccc-msc.github.io/msc-animet/",
+      "name": "Kanada · ECCC MSC AniMet – modellbasierte Isobaren (Migration)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "eccc-msc.github.io",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 4,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://ocean.weather.gov/shtml/arctic/Arctic_00hrsfc.gif",
+      "name": "NOAA OPC · Alaska/Arktis – Bodenanalyse (Original-GIF)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "ocean.weather.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "direct_image_valid_bytes_not_content_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 5,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "NOAA Arctic GIF mit Isobaren/Fronten; tatsächliches Druckdatum im Karteneck separat lesen"
+    },
+    {
+      "url": "https://imgw.pl/komunikat-imgw-pib-o-aktualnej-i-prognozowanej-sytuacji-synoptycznej-i-hydrologicznej-6/",
+      "name": "Polen · IMGW-PIB – eigene synoptische Bodenanalyse (Beleg)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "imgw.pl",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 6,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteo.be/de/wetter/vorhersage/frontenkarten",
+      "name": "Belgien · KMI – Frontenkarten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.be",
+      "publisher": "kmi",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 7,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "KMI/IRM – erneute Veröffentlichung ohne Erlaubnis untersagt",
+        "policy_url": "https://cdn.meteo.be/fr/a-propos-irm/informations-juridiques/conditions-d-utilisation",
+        "condition": "Website-Inhalte nur privat/Lehre; Wiedergabe/Publikation ausdrücklich untersagt.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.dmi.dk/vejret/frontkort",
+      "name": "Dänemark · DMI – Frontkort",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.dmi.dk",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 8,
+      "example_image_url": "https://www.dmi.dk/dmidk_byvejrWS/rest/image/png/analyse",
+      "validity_utc_from_inspected_image": "2026-10-26T12:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Karte direkt am amtlichen Endpunkt visuell mit Isobaren, Fronten und gültig 2026-10-26 12 UTC bestätigt; Screenshot der Portalseite zeigte Consent/scroll-Overlay."
+    },
+    {
+      "url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "name": "Deutschland · DWD Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.dwd.de",
+      "publisher": "dwd",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "direct_image_valid_bytes_not_content_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 9,
+      "example_image_url": "https://www.dwd.de/DWD/wetter/wv_spez/hobbymet/wetterkarten/bwk_bodendruck_na_ana.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "DWD – freie Produkte, Quellenvermerk",
+        "policy_url": "https://kunden.dwd.de/ankonda/info/copyright.jsf",
+        "condition": "Freie DWD-Open-Data-Leistungen und DWD-Logo-Karten unter ihren jeweiligen Nutzungsbedingungen; Originalkarten nicht verfälschen.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "DWD Original-Bodenanalyse direkt mit Konturen und Fronten im Chromium-Bild"
+    },
+    {
+      "url": "https://www.ilmateenistus.ee/ilm/prognoosid/ilmakaart/?lang=en",
+      "name": "Estland · Ilmateenistus",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.ilmateenistus.ee",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 10,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://meteocentre.com/analysis/map-surface.php?date=0&lang=fr&area=eur&size=standard",
+      "name": "Europa · Météocentre",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "meteocentre.com",
+      "publisher": "Drittanbieter Météocentre",
+      "official_independent_analysis": "nein",
+      "product": "drittanbieteranzeige_keine_unabhaengige_analyse",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 11,
+      "example_image_url": "https://meteocentre.com/analysis/local/eur_full.gif?1793029326",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://en.ilmatieteenlaitos.fi/weather-in-europe",
+      "name": "Finnland · FMI",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "en.ilmatieteenlaitos.fi",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 12,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteofrance.com/isofronts",
+      "name": "Frankreich · Météo-France Isofronts",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "meteofrance.com",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 13,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.met.ie/latest-reports/surface-analysis",
+      "name": "Irland · Met Éireann – Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.met.ie",
+      "publisher": "metie",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 14,
+      "example_image_url": "https://www.met.ie/images/surface-analysis/web17_atl_analysis_20261026_00.png",
+      "validity_utc_from_inspected_image": "2026-10-26T00:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "Met Éireann – Website-Grafiken geschützt",
+        "policy_url": "https://www.met.ie/about-us/copyright-notice",
+        "condition": "Keine pauschale Freigabe der Webseiten-Grafiken; Scraping/Monitoring ausdrücklich untersagt. Open-Data-CC-BY ist nicht automatisch Kartenlizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Met Éireann Atlantik/Europa Analyse 2026-10-26 00 UTC"
+    },
+    {
+      "url": "https://meteo.hr/prognoze_e.php?param=web_fronte_sutra12&section=prognoze_model",
+      "name": "Kroatien · DHMZ – Frontenprognose",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "meteo.hr",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "prognose_fronten_folge_12utc",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 15,
+      "example_image_url": "https://prognoza.hr/web_fronte_sutra12.jpg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": "https://meteo.hr/prognoze.php?param=web_fronte_sutra12&section=prognoze_model",
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.knmi.nl/nederland-nu/klimatologie/daggegevens/weerkaarten",
+      "name": "Niederlande · KNMI Archiv",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.knmi.nl",
+      "publisher": "knmi",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 16,
+      "example_image_url": "https://cdn.knmi.nl/knmi/map/page/klimatologie/daggegevens/weerkaarten/analyse_2026102612.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "KNMI – grundsätzlich CC0 mit Ausnahmen",
+        "policy_url": "https://www.knmi.nl/copyright",
+        "condition": "Empfohlene KNMI-Quellenangabe; Rechte Dritter, vor allem Modellhintergründe, kontrollieren.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://geosphere.at/de/karten/wetterportal",
+      "name": "Österreich · GeoSphere – keine Fronten-Originalkarte nachgewiesen",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "geosphere.at",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 17,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.ipma.pt/pt/otempo/prev.numerica/index.jsp",
+      "name": "Portugal · IPMA – numerische Wetterkarten (keine Fronten-Originalanalyse)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.ipma.pt",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 18,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteoinfo.ru/mapsynop",
+      "name": "Russland / Osteuropa · Meteoinfo",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "meteoinfo.ru",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 19,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.shmu.sk/en/?page=980",
+      "name": "Slowakei · SHMÚ",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.shmu.sk",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 20,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": "2026-10-26T00:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "SHMÚ Europa Frontenkarte 2026-10-26 00 UTC"
+    },
+    {
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticke-situace-v-minulosti",
+      "name": "Tschechien · ČHMÚ – historische Wetterlagentypisierung (KEIN Kartenarchiv)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.chmi.cz",
+      "publisher": "chmi",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 21,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "ČHMÚ – konkrete Bildfreigabe prüfen",
+        "policy_url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+        "condition": "Vier Hauptanalysetermine bestätigt, aber pauschale CC-BY-Freigabe aller dynamischen Grafiken hier nicht verifiziert.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "name": "Tschechien · ČHMÚ – Synoptische Situation",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.chmi.cz",
+      "publisher": "chmi",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "analyse_00_06_12_18utc",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 22,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+      "daily_analysis_slots_utc": [
+        0,
+        6,
+        12,
+        18
+      ],
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "ČHMÚ – konkrete Bildfreigabe prüfen",
+        "policy_url": "https://www.chmi.cz/predpoved-pocasi/synopticka-situace",
+        "condition": "Vier Hauptanalysetermine bestätigt, aber pauschale CC-BY-Freigabe aller dynamischen Grafiken hier nicht verifiziert.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.met.hu/en/idojaras/aktualis_idojaras/front/",
+      "name": "Ungarn · HungaroMet",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.met.hu",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 23,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.netweather.tv/charts-and-data/fax",
+      "name": "Vereinigtes Königreich · Netweather Fax",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.netweather.tv",
+      "publisher": "Drittanbieter Netweather",
+      "official_independent_analysis": "nein",
+      "product": "unbestimmt",
+      "visual_status": "zugriff_gesperrt",
+      "http_status": 403,
+      "http_result": "access_denied_not_proven_dead",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 24,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "HTTP 403; kein Beweis, dass der Kartenlink für reguläre Browser defekt ist."
+    },
+    {
+      "url": "https://www.mtotec.com/page-analyse",
+      "name": "Ostafrika/Indischer Ozean · MTOTEC",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.mtotec.com",
+      "publisher": "Privatanbieter MTOTEC",
+      "official_independent_analysis": "nein",
+      "product": "drittanbieteranzeige_keine_unabhaengige_analyse",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 25,
+      "example_image_url": "https://www.mtotec.com/public/images/sit.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.hko.gov.hk/en/wxinfo/currwx/wxcht.htm",
+      "name": "Hongkong · HKO Weather Chart",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.hko.gov.hk",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 26,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart00.php",
+      "name": "Indien · IMD – Bodenanalyse 00 UTC",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "rsmcnewdelhi.imd.gov.in",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 27,
+      "example_image_url": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/mor_Sur.jpg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": [
+        0,
+        12
+      ],
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "IMD originale Surface Chart 00 UTC; vollständige Datumsangabe aus Bild separat lesen"
+    },
+    {
+      "url": "https://rsmcnewdelhi.imd.gov.in/surface_chart12.php",
+      "name": "Indien · IMD – Bodenanalyse 12 UTC",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "rsmcnewdelhi.imd.gov.in",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 28,
+      "example_image_url": "https://rsmcnewdelhi.imd.gov.in/uploads/charts/eve_Sur.jpg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": [
+        0,
+        12
+      ],
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "IMD originale Surface Chart 12 UTC; vollständige Datumsangabe aus Bild separat lesen"
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/asas_00_s.html",
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 00 UTC)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.jma.go.jp",
+      "publisher": "jma",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 29,
+      "example_image_url": "https://www.jma.go.jp/jmh/wmapimgs/asas_00_small.png",
+      "validity_utc_from_inspected_image": "2026-10-26T00:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": [
+        0
+      ],
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "JMA – Public Data License v1.0",
+        "policy_url": "https://www.jma.go.jp/jma/en/copyright.html",
+        "condition": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "JMA ASAS 00 UTC Bild echt; 2026-10-26 00 UTC"
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/asas_06_s.html",
+      "name": "Japan · JMA – JMH Marinekarten (ASAS 06 UTC)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.jma.go.jp",
+      "publisher": "jma",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 30,
+      "example_image_url": "https://www.jma.go.jp/jmh/wmapimgs/asas_06_small.png",
+      "validity_utc_from_inspected_image": "2026-10-26T06:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": [
+        6
+      ],
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "JMA – Public Data License v1.0",
+        "policy_url": "https://www.jma.go.jp/jma/en/copyright.html",
+        "condition": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "JMA ASAS 06 UTC Bild echt; 2026-10-26 06 UTC"
+    },
+    {
+      "url": "https://www.jma.go.jp/jmh/jmhmenu.html",
+      "name": "Japan · JMA – JMH Marine-Prognosen (24–120 h)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.jma.go.jp",
+      "publisher": "jma",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 31,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "JMA – Public Data License v1.0",
+        "policy_url": "https://www.jma.go.jp/jma/en/copyright.html",
+        "condition": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.jma.go.jp/bosai/weather_map/",
+      "name": "Japan · JMA – Marine-Oberflächenanalyse ASAS",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.jma.go.jp",
+      "publisher": "jma",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 32,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "JMA – Public Data License v1.0",
+        "policy_url": "https://www.jma.go.jp/jma/en/copyright.html",
+        "condition": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.kma.go.kr/neng/image/chart/analysis-chart.do",
+      "name": "Südkorea · KMA – Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.kma.go.kr",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 33,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://kttv.gov.vn/kttv/en-US/2/0/image-model-p3.html",
+      "name": "Vietnam · NCHMF – Modell-Meeresspiegeldruck (OHNE manuelle Fronten)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "kttv.gov.vn",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 34,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.bom.gov.au/australia/charts/synoptic_bw.shtml",
+      "name": "Australien · BoM – Analyse und Fronten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.bom.gov.au",
+      "publisher": "bom",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 35,
+      "example_image_url": "https://www.bom.gov.au/difacs/IDX0894.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "BoM – Karte und Nutzungsart gesondert prüfen",
+        "policy_url": "https://www.bom.gov.au/copyright",
+        "condition": "Mediennutzung mit Attribution teils erlaubt, nicht alle Karten sind gleichermaßen lizenziert; Spezial- und hochauflösende Produkte ggf. lizenzpflichtig.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://met.gov.ck/weather-map",
+      "name": "Cookinseln · Meteorological Service",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "met.gov.ck",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": null,
+      "http_result": "request_error",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 36,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein."
+    },
+    {
+      "url": "https://www.met.gov.fj/maps-observation/weather-map/",
+      "name": "Fidschi · Fiji Met / RSMC Nadi – Wetterkarten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.met.gov.fj",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "kartenviewer_aber_einzelbild_defekt",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 37,
+      "example_image_url": "https://www.met.gov.fj/media/images/Key_to_MSLP.original.jpg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Fiji-Viewer mit MSLP-Grundkarte hinter Ladeoverlay; bislang verwendetes amtliches Bild 0992_Qck34J8.original.jpg lieferte 404, daher kein nachgewiesenes aktuelles Livebild."
+    },
+    {
+      "url": "https://meteo.pf/fr/isofronts",
+      "name": "Französisch-Polynesien · Météo-France – IsoFronts Analyse",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "meteo.pf",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 38,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteo.pf/fr/pre-isofronts",
+      "name": "Französisch-Polynesien · Météo-France – PréIso +24 h",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "meteo.pf",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 39,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteo.nc/fr/carte-analyse",
+      "name": "Neukaledonien · Météo NC",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "meteo.nc",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 40,
+      "example_image_url": "https://meteo.nc/sites/default/files/inline-images/carteanalyse_Wallis_Futuna%20%282%29.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://services.metservice.com/maps-radar/maps/southwest-pacific-low-bandwidth",
+      "name": "Neuseeland · MetService – Südwestpazifik Originalkarten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "services.metservice.com",
+      "publisher": "metservice",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 41,
+      "example_image_url": "https://services.metservice.com/mobile/swPacificCharts/analysis/latest",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "MetService – Resupply/Scraping untersagt",
+        "policy_url": "https://about.metservice.com/web-terms-of-use",
+        "condition": "Websitebedingungen vom Februar 2026: privat, keine Wiederlieferung, keine Web-Scraper und keine automatischen Monitoringzugriffe.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.weathercharts.org/noaa-charts.htm",
+      "name": "Nordatlantik · Weathercharts",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.weathercharts.org",
+      "publisher": "NOAA-Spiegel Weathercharts",
+      "official_independent_analysis": "nein",
+      "product": "drittanbieteranzeige_keine_unabhaengige_analyse",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 42,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.vorticity.de/vorticity_e_e1_tropics.php#0_ANKER_OPC_ANA",
+      "name": "Tropischer Atlantik · Vorticity (privater NOAA-Verweis, 404)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.vorticity.de",
+      "publisher": "Drittanbieter Vorticity",
+      "official_independent_analysis": "nein",
+      "product": "derzeit_unbrauchbar",
+      "visual_status": "http_404",
+      "http_status": 404,
+      "http_result": "http_missing",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 43,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "HTTP 404 bei privatem Vorticity/NOAA-Mirror."
+    },
+    {
+      "url": "https://www.cptec.inpe.br/cartas-e-boletins",
+      "name": "Brasilien · CPTEC/INPE Analysen",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.cptec.inpe.br",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 44,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://climatologia.meteochile.gob.cl/application/requerimiento/producto/RE1033",
+      "name": "Chile · DMC – digitales Bodenanalysenarchiv",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "climatologia.meteochile.gob.cl",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 45,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://meteoarmada.directemar.cl/meteo/site/tax/port/all/taxport_22___1.html",
+      "name": "Chile · Armada/SERVIMET – synoptische Bodenanalysen",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "meteoarmada.directemar.cl",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 46,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://disp.nmc.cn/publish/observations/asia/dm/weatherchart-h000/basic.html",
+      "name": "China · CMA / WMC Beijing – Eurasien-Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "disp.nmc.cn",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 47,
+      "example_image_url": "https://image.nmc.cn/product/2026/10/26/WESA/SEVP_NMC_WESA_SFER_EGH_ACHN_L00_P9_20261026120000000.JPG?v=1793025951294",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.nmc.cn/publish/observations/north/dm/weatherchart-h000.htm",
+      "name": "China · CMA – Nordhemisphäre Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.nmc.cn",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 48,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.data.jma.go.jp/yoho/wxchart/archive/index.html",
+      "name": "Japan · JMA – Wetterkartenarchiv",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "www.data.jma.go.jp",
+      "publisher": "jma",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 49,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "JMA – Public Data License v1.0",
+        "policy_url": "https://www.jma.go.jp/jma/en/copyright.html",
+        "condition": "Quellenangabe, Änderungskennzeichnung und mögliche Rechte Dritter beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.kma.go.kr/neng/image/chart/forecast-chart.do",
+      "name": "Südkorea · KMA – Bodenprognose",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.kma.go.kr",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 50,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.bom.gov.au/australia/charts/archive/",
+      "name": "Australien · BoM – MSLP-Archiv",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.bom.gov.au",
+      "publisher": "bom",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 51,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "BoM – Karte und Nutzungsart gesondert prüfen",
+        "policy_url": "https://www.bom.gov.au/copyright",
+        "condition": "Mediennutzung mit Attribution teils erlaubt, nicht alle Karten sind gleichermaßen lizenziert; Spezial- und hochauflösende Produkte ggf. lizenzpflichtig.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.marinha.mil.br/chm/dados-do-smm-cartas-sinoticas/cartas-sinoticas",
+      "name": "Brasilien · Marinha – Südatlantik-Bodenanalysen",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.marinha.mil.br",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "zugriff_gesperrt",
+      "http_status": 403,
+      "http_result": "access_denied_not_proven_dead",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 52,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Cloudflare HTTP403; nicht als definitiv defekt einstufen."
+    },
+    {
+      "url": "https://pam.marinha.mil.br/sig.html",
+      "name": "Brasilien · Marinha – Kartenviewer mit Datumswahl",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "pam.marinha.mil.br",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 53,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://ocean.weather.gov/Pac_tab.php",
+      "name": "NOAA OPC · Nordostpazifik (UTC-geprüfte Originalkarten)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "ocean.weather.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 54,
+      "example_image_url": "https://ocean.weather.gov/shtml/thumb_P_full_00hrsfc.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://ocean.weather.gov/shtml/P_west_00hrsfc.gif",
+      "name": "NOAA OPC · Nordwestpazifik (aktuelle Bodenanalyse)",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "ocean.weather.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "direct_image_valid_bytes_not_content_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 55,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://ims.gov.il/en/analyzedSynopticMaps",
+      "name": "Israel · IMS – analysierte Mittelmeer-Bodenwetterkarte",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "ims.gov.il",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 56,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.tmd.go.th/en/supportData/synopticChartsEn",
+      "name": "Thailand · TMD – aktuelle synoptische Karten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.tmd.go.th",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 57,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Forecast/F-C0035-001.jpg",
+      "name": "Taiwan · CWA – Bodenanalyse mit Isobaren und Fronten",
+      "pages": [
+        "weltweite_isobaren.html"
+      ],
+      "domain": "cwaopendata.s3.ap-northeast-1.amazonaws.com",
+      "publisher": "cwa",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "manuelle_analyse",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": 200,
+      "http_result": "direct_image_valid_bytes_nonstandard_mime",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 58,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": "https://opendata.cwa.gov.tw/opendatadoc/Forecast/F-C0035-001_003.pdf",
+      "daily_analysis_slots_utc": [
+        0,
+        6,
+        12,
+        18
+      ],
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "CWA – offene Regierungsdaten mit Produktausnahmen",
+        "policy_url": "https://wede.cwa.gov.tw/openDataDeclare",
+        "condition": "Offene CWA-Materialien unter Quellenangabe nutzbar; Ausnahmen für bestimmte Abbildungen/Drittmaterial beachten.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Chromium scheiterte beim Bildabruf; separater HTTP-GET belegte echtes JPEG 728×531 trotz application/octet-stream. Bildinhalt und UTC nicht ausreichend visuell bewertet."
+    },
+    {
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/1-%E6%9D%B1%E4%BA%9E%E5%9C%B0%E9%9D%A2%E5%88%86%E6%9E%90%E5%9C%96/",
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Bodenanalysen mit Fronten (Archiv)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "asrad.pccu.edu.tw",
+      "publisher": "Universitätsarchiv ASRAD",
+      "official_independent_analysis": "nein",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 59,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://tempo.inmet.gov.br/AnaliseSituacaoAtual",
+      "name": "Brasilien · INMET – aktuelle Lageanalyse (Bildzugang offen)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "tempo.inmet.gov.br",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 60,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://portal.inmet.gov.br/cartasinotica",
+      "name": "Brasilien · INMET – synoptische Originalkarten (Archiv)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "portal.inmet.gov.br",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 61,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.weather.gov/hfo/analyses",
+      "name": "NOAA Honolulu · zentrale Pazifik-Bodenanalysen und +24/+48/+72 h",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.weather.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 62,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.nhc.noaa.gov/marine/",
+      "name": "NOAA NHC/TAFB · tropischer Atlantik und Ostpazifik",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.nhc.noaa.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 63,
+      "example_image_url": "https://www.nhc.noaa.gov/marine/tafb_text_map.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.metservice.com/maps-radar/surface-pressure/tasman-sea-new-zealand?tab=nz",
+      "name": "Neuseeland · MetService – Tasmansee und Neuseeland",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.metservice.com",
+      "publisher": "metservice",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 64,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "MetService – Resupply/Scraping untersagt",
+        "policy_url": "https://about.metservice.com/web-terms-of-use",
+        "condition": "Websitebedingungen vom Februar 2026: privat, keine Wiederlieferung, keine Web-Scraper und keine automatischen Monitoringzugriffe.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.weather.gc.ca/analysis/index_e.html",
+      "name": "Kanada · ECCC – nationale und hemisphärische Frontenanalysen",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.weather.gc.ca",
+      "publisher": "eccc",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 65,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "ECCC – Crown Copyright, Nutzung abhängig vom Zweck",
+        "policy_url": "https://www.canada.ca/en/canadian-heritage/services/crown-copyright-request.html",
+        "condition": "Unveränderte nichtkommerzielle Wiederverwendung staatlicher Originalwerke meist möglich; kommerzielle/abgeleitete Nutzung ggf. Genehmigung.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Großes Bild war 'Yesterday's Data'-Symbol, NICHT Oberflächenanalyse; richtige 00/06/12/18-UTC-Analysekarten über Links in der amtlichen Tabelle erreichbar."
+    },
+    {
+      "url": "https://asrad.pccu.edu.tw/dbar/digital_data/2-1-%E5%9C%B0%E9%9D%A2%E5%A4%A9%E6%B0%A3%E5%9C%96%E7%96%8A%E5%8A%A0%E9%9B%B2%E5%9C%96/",
+      "name": "Taiwan · CWA/ASRAD – Ostasien-Fronten mit Satellitenbewölkung (Archiv)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "asrad.pccu.edu.tw",
+      "publisher": "Universitätsarchiv ASRAD",
+      "official_independent_analysis": "nein",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 66,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://metservice.intnet.mu/synoptic-chart.php",
+      "name": "Mauritius · amtliche synoptische Bodenanalyse",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "metservice.intnet.mu",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 67,
+      "example_image_url": "http://metservice.intnet.mu/mmsimages/2026-10-26_16:34:16_chart.jpg",
+      "validity_utc_from_inspected_image": "2026-10-26T12:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Mauritius reale Analyse für 2026-10-26 16 Uhr Ortszeit (12 UTC); Isobaren/Fronten bestätigt."
+    },
+    {
+      "url": "https://www.pagasa.dost.gov.ph/weather",
+      "name": "Philippinen · PAGASA – Surface Map Analysis",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.pagasa.dost.gov.ph",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 68,
+      "example_image_url": "https://pubfiles.pagasa.dost.gov.ph/tamss/weather/surface_map.jpg",
+      "validity_utc_from_inspected_image": "2026-10-25T18:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "PAGASA Browser-Screenshot zeigte nicht die Karte, separater Original-JPG-Abruf zeigte echte Isobarenkarte, gültig 2026-10-25 18 UTC."
+    },
+    {
+      "url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "name": "Pakistan · PMD – acht UTC-Oberflächenkarten-Termine",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.weather.gov.pk",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 69,
+      "example_image_url": "https://www.weather.gov.pk/aviation/weather-charts",
+      "validity_utc_from_inspected_image": "2026-10-26T00:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "PMD Browser-Screenshot leere Ansicht; original verlinktes 00-UTC-JPG zeigt handbearbeitete Bodenkarte 2026-10-26 00 UTC."
+    },
+    {
+      "url": "https://www.bmd.gov.bd/web/en/p/Weather-Charts",
+      "name": "Bangladesch · BMD – datierte synoptische Wetterkarten",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.bmd.gov.bd",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 70,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Amtlicher BMD-Seitentitel 2026-10-26 06 UTC, aber Kartenbild liegt auf anderem Host und ist nicht visuell bestätigt."
+    },
+    {
+      "url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.html",
+      "name": "Mexiko · SEMAR – synoptische Lagekarte (derzeit veraltet, keine Isobaren)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "meteorologia.semar.gob.mx",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "derzeit_unbrauchbar",
+      "visual_status": "veraltet_und_keine_isobarenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 71,
+      "example_image_url": "https://meteorologia.semar.gob.mx/dirmet/sinoptica.jpg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "SEMAR JPG mit meteorologischen Symbolen, aber keine klassisch auswertbaren Isobaren und Bilddatum 2026-10-20."
+    },
+    {
+      "url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "name": "Südafrika · SAWS – amtliche MSLP-Bodenanalyse (aktuell)",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.weathersa.co.za",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": null,
+      "http_result": "request_error",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 72,
+      "example_image_url": "https://www.weathersa.co.za/observations/synopticcharts",
+      "validity_utc_from_inspected_image": "2026-10-26T12:00:00Z",
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "SAWS MSLP analysis 2026-10-26 12 UTC: front and isobar image visually confirmed despite earlier requests' transport errors."
+    },
+    {
+      "url": "https://www.wetter3.de/fax_dt.html",
+      "name": "Deutschland · wetter3 – DWD-Bodenprognose-Faksimiles",
+      "pages": [
+        "weltweite_isobaren.html",
+        "isobaren_original.js"
+      ],
+      "domain": "www.wetter3.de",
+      "publisher": "Drittanbieter wetter3",
+      "official_independent_analysis": "nein",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 73,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "wetter3 enthält Prognose-Auswahl im Browser, aber kein automatisch bestätigtes einzelnes Prognosebild in der Übersicht."
+    },
+    {
+      "url": "https://www.aemet.es/es/eltiempo/prediccion/mapa_frentes",
+      "name": "AEMET · Frontenkarten",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.aemet.es",
+      "publisher": "aemet",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 74,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "AEMET – bedingte Wiederverwendung",
+        "policy_url": "https://www.aemet.es/es/nota_legal",
+        "condition": "AEMET nennen, Inhalt nicht verfälschen, Drittanteile prüfen.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.knmi.nl/nederland-nu/weer/waarschuwingen-en-verwachtingen/weerkaarten",
+      "name": "KNMI · Analysen und Prognosen",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.knmi.nl",
+      "publisher": "knmi",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 75,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "KNMI – grundsätzlich CC0 mit Ausnahmen",
+        "policy_url": "https://www.knmi.nl/copyright",
+        "condition": "Empfohlene KNMI-Quellenangabe; Rechte Dritter, vor allem Modellhintergründe, kontrollieren.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure",
+      "name": "Met Office · Surface Pressure",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "weather.metoffice.gov.uk",
+      "publisher": "metoffice",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 76,
+      "example_image_url": "https://data.consumer-digital.api.metoffice.gov.uk/v1/surface-pressure/colour/2026-10-26T0000/FSXX00T_00.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "Met Office – Bild-Hotlink und Einbettung untersagt",
+        "policy_url": "https://www.metoffice.gov.uk/policies/tandc",
+        "condition": "Ausschließlich Originalseite vollbildfähig verlinken; kein Bild-Hotlink oder automatisierter Bildabruf.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.meteociel.fr/fronts/index.php",
+      "name": "Météociel · Frontenanalyse",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteociel.fr",
+      "publisher": "Drittanbieter Météociel",
+      "official_independent_analysis": "nein",
+      "product": "drittanbieteranzeige_keine_unabhaengige_analyse",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 77,
+      "example_image_url": "https://www.meteociel.fr/cartes_obs/cartes/analyse-2026-10-26-12.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "drittanbieter",
+        "label": "Drittanbieter – keine unabhängige amtliche Quelle",
+        "policy_url": null,
+        "condition": "Originalherkunft und Fremdrechte separat prüfen.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://www.meteoam.it/it/meteo-citta/front",
+      "name": "MeteoAM · amtliche Fronten- und Bodenkarten",
+      "pages": [
+        "isobaren_original.js",
+        "isobaren_original.js",
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteoam.it",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 78,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://hezarfen.mgm.gov.tr/HzUsr/SinHarita/Default.aspx",
+      "name": "MGM · Synoptikkarten",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "hezarfen.mgm.gov.tr",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 79,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.smhi.se/klimat/klimatet-da-och-nu/manadens-vader-och-vatten-i-sverige",
+      "name": "SMHI · tägliche Bodenanalysen im Monatsarchiv",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.smhi.se",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 80,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "SMHI Rückblickseiten-Screenshot zeigte Herbstblatt, nicht die tägliche synoptische Karte."
+    },
+    {
+      "url": "https://en.vedur.is/weather/shipping/atlantic/",
+      "name": "IMO · Atlantik-Windprognose (ECMWF)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "en.vedur.is",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 81,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://xn--vrio-voa.no/weather-maps?product=analyse_map",
+      "name": "MET Norway · synoptische Analysekarte / Værio",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "xn--vrio-voa.no",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 82,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://meteo.imgw.pl/",
+      "name": "IMGW-PIB · aktuelle Europa-Bodenanalysen",
+      "pages": [
+        "isobaren_original.js",
+        "isobaren_original.js"
+      ],
+      "domain": "meteo.imgw.pl",
+      "publisher": "imgw",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 83,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "IMGW – keine pauschale Grafiklizenz",
+        "policy_url": "https://danepubliczne.imgw.pl/pl/datastore?product=Mapa+synoptyczna",
+        "condition": "Open-Data-Nutzungsbedingungen umfassen nicht automatisch öffentliche Bild-Wiederveröffentlichung. Einzelbild und Nutzungskontext klären.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "IMGW-Wetterportal zeigte einen Diensthinweis, keine überprüfte aktuelle Frontengrafik."
+    },
+    {
+      "url": "https://observar.ipma.pt/superficie-frontal-fria/",
+      "name": "IPMA · Historische Bodenanalyse",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "observar.ipma.pt",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": null,
+      "http_result": "timeout",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 84,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein."
+    },
+    {
+      "url": "https://www.weather.bg/1en/index.php?koiFail=zaNas&lng=0",
+      "name": "NIMH · Europa-/Balkananalysen dokumentiert",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.weather.bg",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": null,
+      "http_result": "request_error",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 85,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteoromania.ro/wp-content/uploads/comunicate/30_NOIEMBRIE_ANALIZ%C4%82%20SINOPTIC%C4%82%20%C8%98I%20IMPACT%20METEOROLOGIC%20AL%20CICLONULUI%20MEDITERANEAN%20ADEL%20%C3%8EN%20PERIOADA%2026-30%20NOIEMBRIE%202025.pdf",
+      "name": "ANM · Historische Analyse",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteoromania.ro",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": 200,
+      "http_result": "pdf_reachable_not_visually_checked",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 86,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein."
+    },
+    {
+      "url": "https://ocean.weather.gov/unified_analysis.php",
+      "name": "NOAA OPC/WPC · Unified Surface Analysis",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "ocean.weather.gov",
+      "publisher": "noaa",
+      "official_independent_analysis": "gleicher_NOAA_herausgeber",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 87,
+      "example_image_url": "https://ocean.weather.gov/UA/entire_UA.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "bedingungen_erlauben",
+        "label": "NOAA/NWS – Public Domain, Drittmaterial ausgenommen",
+        "policy_url": "https://www.weather.gov/disclaimer",
+        "condition": "Fremde Basiskarten prüfen. Keine amtliche Unterstützung suggerieren; Gültigkeitszeit und Quelle angeben.",
+        "automatic_crawling_prohibited": false
+      },
+      "publication_policy": "nur_nach_konkreter_utc_und_drittanbieterpruefung_einbetten",
+      "meteorology_note": "NOAA OPC Unified Surface Analysis mit Isobaren/Fronten visuell auf Screenshot."
+    },
+    {
+      "url": "https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/allgemeine-lage.html",
+      "name": "MeteoSchweiz · Allgemeine Lage",
+      "pages": [
+        "isobaren_original.js",
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteoschweiz.admin.ch",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 88,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.met.ie/forecasts/atlantic-charts/precipitation-pressure",
+      "name": "Met Éireann · Atlantik-Modellprognose (Druck/Niederschlag)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.met.ie",
+      "publisher": "metie",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 89,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "Met Éireann – Website-Grafiken geschützt",
+        "policy_url": "https://www.met.ie/about-us/copyright-notice",
+        "condition": "Keine pauschale Freigabe der Webseiten-Grafiken; Scraping/Monitoring ausdrücklich untersagt. Open-Data-CC-BY ist nicht automatisch Kartenlizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.emy.gr/en/marine",
+      "name": "HNMS · Europa-Bodendruckkarte",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.emy.gr",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": null,
+      "http_result": "request_error",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 90,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/Biuletyn_PSHM/",
+      "name": "IMGW-PIB · historisches Synoptik-Bulletinarchiv",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "danepubliczne.imgw.pl",
+      "publisher": "imgw",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 91,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "IMGW – keine pauschale Grafiklizenz",
+        "policy_url": "https://danepubliczne.imgw.pl/pl/datastore?product=Mapa+synoptyczna",
+        "condition": "Open-Data-Nutzungsbedingungen umfassen nicht automatisch öffentliche Bild-Wiederveröffentlichung. Einzelbild und Nutzungskontext klären.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteo.lt/app/uploads/2025/06/2024-METU-SHMR-compressed-2.pdf",
+      "name": "Meteo LT · Ereignisanalysen",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.lt",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "visueller_einzelnachweis_offen",
+      "http_status": 200,
+      "http_result": "pdf_reachable_not_visually_checked",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 92,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich."
+    },
+    {
+      "url": "https://services.meteofrance.com/marine-et-offshore/marine/navicap-meteo-marine",
+      "name": "Météo-France Marine · NAVICAP-Produktseite (kein offener Kartenviewer)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "services.meteofrance.com",
+      "publisher": "meteofrance",
+      "official_independent_analysis": "gleiche_meteofrance_herausgeber",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 93,
+      "example_image_url": "https://services.meteofrance.com/sites/default/files/logo/republique_francaise.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "produkt_pruefen",
+        "label": "Météo-France – Bildrechte für genaues Produkt klären",
+        "policy_url": "https://meteofrance.com/mentions-legales",
+        "condition": "Original-Grafiken nicht ungeprüft spiegeln; Nutzungsrechte für Isofronts und Überseeprodukte nicht einheitlich belegt.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Météo-France NAVICAP war nur kommerzielle Produktseite; ausgewähltes großes Bild ist Logo."
+    },
+    {
+      "url": "https://hidmet.gov.rs/eng/osmotreni/analiza.php",
+      "name": "RHMZ · Synoptische Analysen Europa/Balkan",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "hidmet.gov.rs",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "sichtbare_isobaren_oder_frontenkarte",
+      "visual_status": "sichtbar_echte_isobaren_oder_frontenkarte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 94,
+      "example_image_url": "https://www.hidmet.gov.rs/data/analiza/SATREP/satrep-evropa.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Originalbild oder konkret nachgeladene Karte visuell geprüft; UTC-Datum nicht bei allen bestätigt."
+    },
+    {
+      "url": "https://meteohub.agenziaitaliameteo.it/app/maps/meteotiles",
+      "name": "ItaliaMeteo · ICON-2I-Bodendruck und Isobaren",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteohub.agenziaitaliameteo.it",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 95,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://dati.agenziaitaliameteo.it/dataset/previsioni-meteorologiche-modello-icon-2i",
+      "name": "ItaliaMeteo · ICON-2I-Druckfelder (Open Data)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "dati.agenziaitaliameteo.it",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": null,
+      "http_result": "timeout",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 96,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein."
+    },
+    {
+      "url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/index.html",
+      "name": "DOM Zypern · Östliches Mittelmeer WRF-Bodendruck",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.dom.org.cy",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "sichtbar_modell_druckfeld_ohne_originalfronten",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 97,
+      "example_image_url": "https://www.dom.org.cy/WRF4/00Z/01/SLP_W10m_T2m/SLP_W10m_T2m_d01-000.gif",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Zypern WRF-MSLP Modellkarte mit Druckkonturen, KEINE analysierten Originalfronten."
+    },
+    {
+      "url": "https://meteo.arso.gov.si/uploads/probase/www/climate/text/sl/weather_events/neurja-16sep2025.pdf",
+      "name": "ARSO · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteo.arso.gov.si",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "visueller_einzelnachweis_offen",
+      "http_status": 200,
+      "http_result": "pdf_reachable_not_visually_checked",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 98,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich."
+    },
+    {
+      "url": "https://klimats.meteo.lv/enciklopedija/ekstremi/lietavas_rezekne_2017/Nokrisni_Latgale_2017-08.pdf",
+      "name": "LVĢMC · datierte Europa-Frontenanalyse (Ereignisarchiv)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "klimats.meteo.lv",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "visueller_einzelnachweis_offen",
+      "http_status": 200,
+      "http_result": "pdf_reachable_not_visually_checked",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 99,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich."
+    },
+    {
+      "url": "https://geo.edu.al/MonitoringForecast/Hydrologic_Meteorological_Forecast/",
+      "name": "IGEO · meteorologische Vorhersagen",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "geo.edu.al",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 100,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteo.ad/en",
+      "name": "Meteo Andorra · staatlicher Wetterdienst",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.ad",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 101,
+      "example_image_url": "https://www.meteo.ad/images/alertes/img/mapes_no_punts/1_1_1.jpeg",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://pogoda.by/weather/synoptic/",
+      "name": "Belhydromet · Synoptik",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "pogoda.by",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "browser_nicht_pruefbar",
+      "http_status": null,
+      "http_result": "timeout",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 102,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kein vollständiger Browserabruf; HTTP-Einzeltest kann abweichend erfolgreich gewesen sein."
+    },
+    {
+      "url": "https://www.fhmzbih.gov.ba/latinica/METEO/GFSprognoza.php",
+      "name": "FHMZ · GFS-Modellprognosen (keine Frontenanalyse)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.fhmzbih.gov.ba",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 103,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteolux.lu/fr/produits-et-services/produits-aeronautiques/cartes-du-temps-significatif/",
+      "name": "MeteoLux · TEMSI-Flugwetterkarten (Login nötig)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteolux.lu",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 104,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.maltairport.com/weather/",
+      "name": "Malta Airport · Meteorological Office",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.maltairport.com",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 105,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteo.md/",
+      "name": "SHS · Staatlicher Hydrometeorologischer Dienst",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.md",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "visueller_einzelnachweis_offen",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 106,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Keine sichere meteorologische Klassifikation aus dem konkreten ersten Screenshot möglich."
+    },
+    {
+      "url": "https://meteofrance.com/",
+      "name": "Météo-France · regionale Abdeckung Monaco",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteofrance.com",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 107,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.meteo.co.me/",
+      "name": "ZHMS · WRF- und Wetterprognosen",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.co.me",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "modellfeld_oder_numerische_prognose",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": null,
+      "http_result": "request_error",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 108,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://uhmr.gov.mk/",
+      "name": "UHMR · nationaler Wetterdienst",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "uhmr.gov.mk",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 109,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteoinfo.ru/prognosticheskie-karty",
+      "name": "Hydrometcenter · Bodenprognosekarten",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteoinfo.ru",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 110,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.meteo.gov.ua/en/",
+      "name": "Ukrainischer Hydrometeorologischer Dienst",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.meteo.gov.ua",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 111,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://ihmk-rks.net/",
+      "name": "IHMK · Hydrometeorologisches Institut",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "ihmk-rks.net",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 112,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteomonitoring.am/en/web",
+      "name": "Hydrometeorology and Monitoring Center",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteomonitoring.am",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 113,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    },
+    {
+      "url": "https://www.new.meteomonitoring.am/web/information-platform/publications",
+      "name": "HMC · historische Bodenanalysen (Jahresbericht)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.new.meteomonitoring.am",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "archiv_oder_historisch",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 114,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://meteo.az/",
+      "name": "Nationaler Hydrometeorologischer Dienst",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "meteo.az",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 115,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://nea.gov.ge/En/Departments/Hydrometeorology",
+      "name": "NEA · Hydrometeorologie",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "nea.gov.ge",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 116,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Logo, Startseite, Archivindex, Wettermodell-/Dienstinformation oder leere Karte im abgerufenen Screenshot. Eine per Klick nachladbare Karte ist dadurch nicht ausgeschlossen."
+    },
+    {
+      "url": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
+      "name": "Kazhydromet · synoptische Originalkarten",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "www.kazhydromet.kz",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": true,
+      "screenshot_evidence": 117,
+      "example_image_url": "https://www.kazhydromet.kz/img/kgm.ab98eab3.png",
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Kazhydromet amtliche Seite 'Synoptic Weather Maps', im Erstbild keine Einzelkarte; Karte evtl. nach Interaktion."
+    },
+    {
+      "url": "https://developer.metservice.com/docs/api-catalog/aviation/msl-analysis-charts/",
+      "name": "MetService · MSL-Analysen (API-Dokumentation)",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "developer.metservice.com",
+      "publisher": "metservice",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "im_ersten_screenshot_keine_relevante_karte",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 118,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "nur_originalseite",
+        "label": "MetService – Resupply/Scraping untersagt",
+        "policy_url": "https://about.metservice.com/web-terms-of-use",
+        "condition": "Websitebedingungen vom Februar 2026: privat, keine Wiederlieferung, keine Web-Scraper und keine automatischen Monitoringzugriffe.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "nur_originalseite",
+      "meteorology_note": "MetService API Dokumentation, nicht öffentlich sichtbare aktuelle Karte."
+    },
+    {
+      "url": "https://data.gov.tw/en/datasets/9246",
+      "name": "CWA Taiwan · Bodenwetterkarten-Open-Data",
+      "pages": [
+        "isobaren_original.js"
+      ],
+      "domain": "data.gov.tw",
+      "publisher": "nicht_eindeutig",
+      "official_independent_analysis": "nicht_abschliessend_belegt",
+      "product": "unbestimmt",
+      "visual_status": "viewer_oder_portal_mit_weiterer_interaktion",
+      "http_status": 200,
+      "http_result": "html_reached_not_visual_certified",
+      "image_bytes_validated": false,
+      "screenshot_evidence": 119,
+      "example_image_url": null,
+      "validity_utc_from_inspected_image": null,
+      "utc_product_doc": null,
+      "daily_analysis_slots_utc": null,
+      "rights": {
+        "class": "ungeklaert",
+        "label": "Keine produktbezogene Freigabe dokumentiert",
+        "policy_url": null,
+        "condition": "Keine automatische Bildübernahme und keine Aussage zu Bildrechten ohne konkrete Lizenz.",
+        "automatic_crawling_prohibited": true
+      },
+      "publication_policy": "kein_automatisches_einbetten_ohne_freigabe",
+      "meteorology_note": "Navigation, Cookies, Auswahl oder dynamischer Viewer erforderlich; eine konkret datierte große synoptische Originalkarte ist im Screenshot nicht unabhängig nachgewiesen."
+    }
+  ]
+}
