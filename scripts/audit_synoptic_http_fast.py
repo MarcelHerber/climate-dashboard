@@ -67,6 +67,12 @@ def check(item):
                         out["classification"]="direct_image_valid_bytes_not_content_certified"
                     except Exception as exc:
                         out["classification"]="image_bytes_invalid_or_truncated";out["error"]=str(exc)[:110]
+                elif "octet-stream" in mim or re.search(r"\.(?:jpe?g|png|gif|webp)(?:$|[?#])",r.url,re.I):
+                    try:
+                        im=Image.open(io.BytesIO(body));out["image_width"],out["image_height"]=im.size
+                        out["classification"]="direct_image_valid_bytes_nonstandard_mime"
+                    except Exception:
+                        out["classification"]="nonstandard_mime_not_proven_image"
                 elif "text/html" in mim or b"<html" in body[:500].lower():
                     soup=BeautifulSoup(body[:4000000],"html.parser")
                     out["detected_title"]=(soup.title.get_text(" ",strip=True) if soup.title else "")[:170]
