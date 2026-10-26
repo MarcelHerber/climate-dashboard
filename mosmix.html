@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>DWD MOSMIX Deutschland – Climate Dashboard</title>
+<link rel="icon" type="image/png" href="./favicon.png">
+<style>
+:root{--page:#f3f6f9;--card:#fff;--text:#172033;--muted:#536476;--border:#dce3eb;--shadow:0 2px 12px rgba(16,33,61,.055)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#fff;border-bottom:1px solid var(--border)}
+.sitehead{max-width:1520px;margin:0 auto;padding:16px 24px;display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap}
+.sitehead h1{font-size:19px;line-height:1.3;margin:0;font-weight:750}
+.sitehead p{color:var(--muted);margin:3px 0 0;font-size:12px}
+.sitehead a{font-weight:650;color:#135792;text-decoration:none;border:1px solid #cbdce9;border-radius:7px;padding:9px 12px;background:#f5fafc}
+.sitehead a:hover{text-decoration:underline}
+.dashboard-main{max-width:1520px;margin:0 auto;padding:20px 24px 32px}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.section-header{margin:0 0 16px}
+.section-header h2{font-size:23px;line-height:1.35;margin:0 0 5px}
+.section-header p{margin:0 0 12px;color:var(--muted)}
+.section-status{background:#fff;border:1px solid var(--border);padding:9px 12px;border-radius:8px;color:#475569;font-size:13px}
+.mosmix-card{box-shadow:var(--shadow)!important}
+@media(max-width:650px){.sitehead,.dashboard-main{padding:13px 12px}.section-header h2{font-size:21px}}
+</style>
+</head>
+<body data-mosmix-standalone="1">
+<header><div class="sitehead"><div>
+<h1>DWD MOSMIX · Deutschland</h1>
+<p>Schlanke Ansicht · Temperatur, Tagesextreme, Sonnenschein und Stations-Meteogramme</p>
+</div><a href="./index.html">Zur gesamten Wetter- und Klimaseite</a></div></header>
+<main class="dashboard-main" id="mosmix-standalone"></main>
+<noscript>Für die interaktive Wetterkarte muss JavaScript aktiviert sein.</noscript>
+<script src="./mosmix.js?v=20261026-slim-v1"></script>
+</body>
+</html>
