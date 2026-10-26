@@ -1571,6 +1571,14 @@
         " · Bitte später erneut öffnen oder Verbindung zu GitHub prüfen.";
       const run = document.getElementById("mosmixRunInfo");
       if (run) run.textContent = "Fehler: " + err.message;
+      const retry=document.getElementById("mosmixReload");
+      if(retry){
+        retry.textContent="Erneut versuchen";
+        retry.addEventListener("click",function(){
+          retry.textContent="Neuen Lauf laden ↻";
+          void init();
+        },{once:true});
+      }
     }
   }
 
