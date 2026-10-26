@@ -38,6 +38,18 @@ KML="""<?xml version="1.0" encoding="UTF-8"?>
         <dwd:Forecast dwd:elementName="FX1">7 8 9 10</dwd:Forecast>
         <dwd:Forecast dwd:elementName="FX3">8 9 10 11</dwd:Forecast>
         <dwd:Forecast dwd:elementName="FFXh">- - 13 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="SunD1">0 600 3600 -</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="Rad1h">0 120 2500 -</dwd:Forecast>
+      </kml:ExtendedData>
+    </kml:Placemark>
+    <kml:Placemark>
+      <kml:name>GLOBAL-001</kml:name>
+      <kml:description>SYDNEY TEST AUSTRALIA</kml:description>
+      <kml:Point><kml:coordinates>151.2093,-33.8688,40</kml:coordinates></kml:Point>
+      <kml:ExtendedData>
+        <dwd:Forecast dwd:elementName="TTT">302.15 305.15 300.15 299.15</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="SunD1">900 1800 3600 0</dwd:Forecast>
+        <dwd:Forecast dwd:elementName="Rad1h">200 800 3000 0</dwd:Forecast>
       </kml:ExtendedData>
     </kml:Placemark>
   </kml:Document>
@@ -52,6 +64,8 @@ class MOSMIXExtremaTests(unittest.TestCase):
         self.assertEqual(mos.convert_values("FXh",[10.0]),[36.0])
         self.assertEqual(mos.convert_values("FFXh",[10.0]),[36.0])
         self.assertEqual(mos.convert_values("RRdc",[6.789]),[6.79])
+        self.assertEqual(mos.convert_values("SunD1",[0,600,3600,None]),[0.0,10.0,60.0,None])
+        self.assertEqual(mos.convert_values("Rad1h",[950.7,None]),[950.7,None])
 
     def test_daily_extrema_use_only_dwd_standard_synop_times(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -80,6 +94,18 @@ class MOSMIXExtremaTests(unittest.TestCase):
             self.assertEqual(saved["parameters"]["FX3"][2],36.0)
             self.assertEqual(saved["parameters"]["FXh"][2],46.8)
             self.assertNotIn("FFXh",saved["parameters"])
+            self.assertEqual(saved["parameters"]["SunD1"],[0.0,10.0,60.0,None])
+            self.assertEqual(saved["parameters"]["Rad1h"][2],2500.0)
+            index=json.loads((Path(folder)/"world_stations.json").read_text(encoding="utf-8"))
+            self.assertEqual(index["station_count"],2)
+            global_station=next(x for x in index["stations"] if x["id"]=="GLOBAL-001")
+            self.assertAlmostEqual(global_station["lon"],151.2093)
+            self.assertEqual(len(data["stations"]),1)  # Germany area remains intact
+            shard=json.loads((Path(folder)/"world"/(global_station["shard"]+".json")).read_text(encoding="utf-8"))
+            global_detail=shard["stations"][global_station["key"]]
+            self.assertEqual(global_detail["name"],"SYDNEY TEST AUSTRALIA")
+            self.assertEqual(global_detail["parameters"]["SunD1"],[15.0,30.0,60.0,0.0])
+            self.assertEqual(global_detail["parameters"]["Rad1h"][2],3000.0)
 
     def test_sparse_original_extrema_not_hourly_maximum(self):
         # The DWD 12-h maximum differs from the hourly 2-m temperatures.
