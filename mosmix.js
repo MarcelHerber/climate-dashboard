@@ -1425,7 +1425,7 @@
     try {
       // Fetch data independently. Missing Leaflet must never silently stop
       // the module with a permanent "Daten werden geladen" placeholder.
-      data = await loadData(false);
+      if (!data) data = await loadData(false);
       updateIssueDisplay();
       if (!window.L) await ensureLeaflet();
       makeMap();
