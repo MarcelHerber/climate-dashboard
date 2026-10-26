@@ -10,6 +10,10 @@ on:
       - "isobaren_original.js"
       - "data/synoptic_charts/isobaren_quality_rights_2026-10-26.json"
       - "tests/test_synoptic_quality_rights.py"
+      - "scripts/watch_world_synoptic_sources.py"
+      - "scripts/probe_europe_synoptic_viewers.py"
+      - "tests/test_world_synoptic_source_watch.py"
+      - "tests/test_europe_synoptic_viewers.py"
       - ".github/workflows/test-synoptic-source-rights.yml"
 permissions:
   contents: read
@@ -23,6 +27,10 @@ jobs:
           ref: main
           sparse-checkout: |
             tests/test_synoptic_quality_rights.py
+            tests/test_world_synoptic_source_watch.py
+            tests/test_europe_synoptic_viewers.py
+            scripts/watch_world_synoptic_sources.py
+            scripts/probe_europe_synoptic_viewers.py
             data/synoptic_charts/isobaren_quality_rights_2026-10-26.json
             weltweite_isobaren.html
             isobaren_original.html
@@ -35,4 +43,7 @@ jobs:
         with:
           node-version: "22"
       - name: Validate all provider policies, UTC examples, source URL coverage and JavaScript
-        run: python tests/test_synoptic_quality_rights.py -v
+        run: |
+          python tests/test_synoptic_quality_rights.py -v
+          python -m unittest discover -s tests -p test_world_synoptic_source_watch.py -v
+          python -m unittest discover -s tests -p test_europe_synoptic_viewers.py -v
