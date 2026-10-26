@@ -3,6 +3,8 @@
 
   const DATA_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json";
   const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
+  const WORLD_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/";
+  const WORLD_INDEX_URL = WORLD_BASE + "world_stations.json";
   const STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
   const TAB_ID = "mosmix";
 
@@ -18,6 +20,11 @@
   let selectedStationKey = null;
   let meteogramCharts = [];
   let currentDetail = null;
+  let worldIndex = null;
+  let worldIndexPromise = null;
+  let worldMapPin = null;
+  let worldTiles = null;
+  let selectedStation = null;
   let rainPeriod = "1";
   let gustPeriod = "1";
   const RAIN_PERIODS = {"1":"RR1c","3":"RR3c","6":"RR6c","12":"RRhc","24":"RRdc"};
@@ -95,6 +102,10 @@
       ".mosmix-meteogram-card h3{margin:0 0 4px;font-size:20px}.mosmix-meteogram-card p{margin:0}",
       ".mosmix-meteogram-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:12px}",
       ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
+      ".mosmix-world-search{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding:12px;border:1px solid #b7d0e4;border-radius:8px;background:#edf6fc}",
+      ".mosmix-world-search label{font-size:12px;font-weight:750;color:#193c58}",
+      ".mosmix-world-search input{min-width:260px;flex:1;padding:9px 10px;border:1px solid #a8bdcd;border-radius:7px;font:inherit}",
+      ".mosmix-world-hint{font-size:11px;color:#436276;flex-basis:100%;line-height:1.5}",
       ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
       ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
       ".mosmix-meteogram-actions .mosmix-button{font-size:12px;padding:7px 11px}",
@@ -136,6 +147,12 @@
       '</div></div>',
       '<div class="mosmix-card">',
       '<div id="mosmixMap" class="mosmix-map"></div>',
+      '<div class="mosmix-world-search"><label for="mosmixWorldSearch">Weltweite MOSMIX-Stationen</label>'+
+      '<input id="mosmixWorldSearch" type="search" list="mosmixWorldList" placeholder="Ort, Station oder WMO-ID weltweit suchen" autocomplete="off">'+
+      '<datalist id="mosmixWorldList"></datalist>'+
+      '<button class="mosmix-button" id="mosmixWorldOpen" type="button">Weltstation anzeigen</button>'+
+      '<button class="mosmix-button" id="mosmixBackGermany" type="button">Deutschlandkarte</button>'+
+      '<div class="mosmix-world-hint" id="mosmixWorldInfo">Die Deutschlandkarte bleibt unverändert. Für Stationen auf anderen Kontinenten lädt die Suche echte MOSMIX-Daten.</div></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
       '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC (20 Uhr MESZ), Tmin = originales TN bis 06 UTC (08 Uhr MESZ). Im Kartenexport wird eine Interpolation ausdrücklich gekennzeichnet. Die Stationsauswahl und der Modelllauf können sich von Metmaps unterscheiden.</p>',
       '</div>',
@@ -151,6 +168,7 @@
       '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><h4>Sonnenscheindauer &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1: Minuten der letzten Stunde sowie gleitende 24-h-Summe · Rad1h: kJ/m² je Stunde. DWD weist auf Unsicherheiten der Stundenwerte nahe Sonnenauf- und -untergang hin.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div></div>',
       '</div>',
       '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. TX/TN sind eigenständige 12-h-Extremprognosen. Niederschlag: originale DWD-Summen, Böen: originale DWD-Maxima (jeweils rückblickender Zeitraum bis zum Gültigkeitstermin). Wind in km/h, Niederschlag in mm. Ausgegraute Zeiträume sind im geladenen Lauf nicht verfügbar.</p>',
       '</div></div></div>'
@@ -311,6 +329,16 @@
       return String(s.name).toLocaleLowerCase("de-DE").includes(q) ||
         String(s.id).toLocaleLowerCase("de-DE").includes(q);
     }) || null;
+  }
+
+  function rollingSunshine24h(values){
+    if(!Array.isArray(values))return [];
+    return values.map(function(_v,i){
+      if(i<23)return null;
+      const window=values.slice(i-23,i+1);
+      if(window.length!==24||window.some(v=>!Number.isFinite(v)))return null;
+      return Math.round(window.reduce((a,b)=>a+b,0)/60*10)/10;
+    });
   }
 
   function destroyMeteogramCharts() {
@@ -571,6 +599,27 @@
       ]},
       options:baseChartOptions("hPa")
     }));
+    const sunOptions=baseChartOptions("Sonnenschein (Minuten pro Stunde)");
+    sunOptions.scales.y.min=0;
+    sunOptions.scales.y.max=60;
+    sunOptions.scales.y24={type:"linear",position:"right",min:0,max:24,
+      title:{display:true,text:"24-h-Sonnenschein (h)"},
+      grid:{drawOnChartArea:false}};
+    sunOptions.scales.rad={type:"linear",display:false,position:"right",min:0,
+      grid:{drawOnChartArea:false}};
+    const sunshine=p.SunD1||[];
+    const radiation=p.Rad1h||[];
+    meteogramCharts.push(new Chart(document.getElementById("mosmixSunChart"),{
+      type:"bar",data:{labels:labels,datasets:[
+        {label:"Sonnenschein letzte 1 h (min)",data:sunshine,
+         yAxisID:"y",backgroundColor:"rgba(238,175,26,.68)",borderWidth:0},
+        Object.assign({type:"line",label:"Gleitende 24-h-Sonnenscheindauer (h)",
+         data:rollingSunshine24h(sunshine),yAxisID:"y24",borderColor:"#c65a14",
+         backgroundColor:"rgba(198,90,20,.07)"},commonLine),
+        Object.assign({type:"line",label:"Globalstrahlung (kJ/m², 1 h)",
+         data:radiation,yAxisID:"rad",hidden:true,borderColor:"#7751ad"},commonLine)
+      ]},options:sunOptions
+    }));
     setMeteogramExportReady(true);
   }
 
@@ -582,7 +631,7 @@
   }
 
   function meteogramExportMeta() {
-    const station = data && data.stations.find(function(s){return s.key === selectedStationKey;});
+    const station = selectedStation || (data && data.stations.find(function(s){return s.key === selectedStationKey;}));
     return {
       station:station ? station.name : "MOSMIX",
       issue:fmtTime(data && data.issue_time),
@@ -592,12 +641,13 @@
   }
 
   function meteogramExportSections() {
-    if (!currentDetail || meteogramCharts.length !== 4) throw new Error("Bitte zuerst eine Station mit vier Diagrammen laden.");
+    if (!currentDetail || meteogramCharts.length !== 5) throw new Error("Bitte zuerst eine Station mit fünf Diagrammen laden.");
     const specs = [
       ["mosmixTempChart","Temperatur und Taupunkt"],
       ["mosmixRainChart","Niederschlag und Bewölkung · "+rainPeriod+" h"],
       ["mosmixWindChart","Wind und maximale Böen · "+gustPeriod+" h"],
-      ["mosmixPressureChart","Luftdruck"]
+      ["mosmixPressureChart","Luftdruck"],
+      ["mosmixSunChart","Sonnenscheindauer und Globalstrahlung · SunD1 / Rad1h"]
     ];
     return specs.map(function(spec) {
       const source = document.getElementById(spec[0]);
@@ -690,6 +740,14 @@
     if (!station || !station.key) throw new Error("Für diesen Punkt fehlen Detaildaten.");
     if (detailCache.has(station.key)) return detailCache.get(station.key);
 
+    if(station.shard){
+      const shard=await getWorldShard(station.shard);
+      const detail=shard.stations?.[station.key];
+      if(!detail||detail.issue_time!==data.issue_time)
+        throw new Error("Die Weltstation gehört nicht zum aktuellen DWD-Lauf.");
+      detailCache.set(station.key,detail);
+      return detail;
+    }
     const response = await fetch(DETAIL_BASE + encodeURIComponent(station.key) + ".json?v=" + encodeURIComponent(data.issue_time || ""), {
       cache:"no-store"
     });
@@ -702,6 +760,7 @@
   async function selectStation(station) {
     if (!station) return;
     selectedStationKey = station.key;
+    selectedStation = station;
     currentDetail = null;
     setMeteogramExportReady(false);
     const input = document.getElementById("mosmixStationSearch");
@@ -1164,6 +1223,9 @@
       data=updated;
       detailCache.clear();
       selectedStationKey=null;
+      selectedStation=null;
+      worldIndex=null;worldIndexPromise=null;
+      worldShardCache.clear();
       populateStationSearch();
       updateIssueDisplay();
       setMapMode(mapMode);
@@ -1207,6 +1269,18 @@
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
       document.getElementById("mosmixStationButton").addEventListener("click", selectStationFromSearch);
+      document.getElementById("mosmixWorldOpen").addEventListener("click", openWorldStation);
+      document.getElementById("mosmixWorldSearch").addEventListener("focus",()=>{void loadWorldIndex().catch(()=>{});});
+      document.getElementById("mosmixWorldSearch").addEventListener("input",worldSearchSuggestions);
+      document.getElementById("mosmixWorldSearch").addEventListener("keydown",event=>{
+        if(event.key==="Enter"){event.preventDefault();void openWorldStation();}
+      });
+      document.getElementById("mosmixBackGermany").addEventListener("click",()=>{
+        if(worldMapPin){map.removeLayer(worldMapPin);worldMapPin=null;}
+        if(worldTiles){map.removeLayer(worldTiles);worldTiles=null;}
+        map.setView([51.05,10.35],6);renderCurrentMap();
+        document.getElementById("mosmixWorldInfo").textContent="Deutschlandkarte wiederhergestellt.";
+      });
       document.querySelectorAll("[data-mosmix-period]").forEach(function(button) {
         button.addEventListener("click",function(){
           selectMeteogramPeriod(button.dataset.mosmixPeriod,button.dataset.hours);
