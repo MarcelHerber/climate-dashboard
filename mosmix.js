@@ -65,9 +65,11 @@
 
   function colorForSun(value) {
     if (!Number.isFinite(value)) return "#9ca3af";
-    const t=Math.max(0,Math.min(60,value));
-    const stops=[[0,"#9aa5b1"],[10,"#c9d8dc"],[20,"#a9d7c0"],
-      [30,"#f9e48e"],[40,"#f4c851"],[50,"#f19a30"],[60,"#e35b18"]];
+    const t=Math.max(0,Math.min(24,value));
+    // Daily sunshine hours: continuous palette from overcast to long sunshine.
+    const stops=[[0,"#94a3b8"],[1,"#c2dce3"],[2,"#b8e1d4"],[4,"#f7e8a0"],
+      [6,"#fbd16a"],[8,"#f6a63a"],[10,"#ea732f"],[12,"#d9542e"],
+      [16,"#b13a4a"],[24,"#772260"]];
     let a=stops[0],b=stops[stops.length-1];
     for(let i=0;i<stops.length-1;i++){
       if(t<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;}
@@ -134,6 +136,8 @@
       ".mosmix-period-hint{font-size:10px;color:#64748b;margin:0 0 4px}",
       ".mosmix-export-status{font-size:11px;color:#475569;margin-right:auto}",
       ".mosmix-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}",
+      ".mosmix-chart-card.mosmix-chart-wide{grid-column:1/-1}",
+      ".mosmix-chart-wrap.mosmix-chart-short{height:230px}",
       ".mosmix-chart-card{min-width:0;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
       ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
       "@media(max-width:900px){.mosmix-chart-grid{grid-template-columns:1fr}.mosmix-station-search{width:100%}.mosmix-station-search input{min-width:0;flex:1}}",
@@ -148,14 +152,14 @@
       '<div id="mosmix" class="tab-content">',
       '<div class="section-header">',
       '<h2>DWD MOSMIX – Vorhersagekarte</h2>',
-      '<p>MOSMIX-L Punktvorhersagen: stündliche 2-m-Temperatur (TTT), originales 12-h-Maximum TX (18 UTC) und Minimum TN (06 UTC).</p>',
+      '<p>MOSMIX-L Punktvorhersagen: stündliche 2-m-Temperatur (TTT), originales 12-h-Maximum TX (18 UTC), Minimum TN (06 UTC) und Tagessonnenschein (SunD1).</p>',
       '<div class="section-status" id="mosmixSectionStatus">Daten werden geladen …</div>',
       '</div>',
       '<div class="mosmix-grid">',
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="Originale SunD1-Sonnenscheindauer der vergangenen Stunde">Sonne (1 h)</button></div>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button></div>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
@@ -170,7 +174,7 @@
       '<button class="mosmix-button" id="mosmixBackGermany" type="button">Deutschlandkarte</button>'+
       '<div class="mosmix-world-hint" id="mosmixWorldInfo">Die Deutschlandkarte bleibt unverändert. Für Stationen auf anderen Kontinenten lädt die Suche echte MOSMIX-Daten.</div></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
-      '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC (20 Uhr MESZ), Tmin = originales TN bis 06 UTC (08 Uhr MESZ). Im Kartenexport wird eine Interpolation ausdrücklich gekennzeichnet. Die Stationsauswahl und der Modelllauf können sich von Metmaps unterscheiden.</p>',
+      '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC (20 Uhr MESZ), Tmin = originales TN bis 06 UTC (08 Uhr MESZ). Im Kartenexport wird eine Interpolation ausdrücklich gekennzeichnet. Für Sonne (Tag) werden SunD1-Stundenwerte vollständiger lokaler Kalendertage (00–24 Uhr Europe/Berlin) addiert. Unvollständige Tage oder Stationswerte bleiben ausgeblendet. DWD weist auf Ungenauigkeiten von SunD1 nahe Sonnenauf- und -untergang hin. Die Stationsauswahl und der Modelllauf können sich von Metmaps unterscheiden.</p>',
       '</div>',
       '<div class="mosmix-card mosmix-meteogram-card">',
       '<div class="mosmix-meteogram-head">',
@@ -184,7 +188,8 @@
       '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div></div>',
       '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div></div>',
-      '<div class="mosmix-chart-card"><h4>Sonnenscheindauer &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1: Minuten der letzten Stunde sowie gleitende 24-h-Summe · Rad1h: kJ/m² je Stunde. DWD weist auf Unsicherheiten der Stundenwerte nahe Sonnenauf- und -untergang hin.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card"><h4>Sonnenschein pro Stunde &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1-Stundenbalken (Minuten), gleitende 24-h-Summe (Stunden) und optionale Globalstrahlung.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div></div>',
+      '<div class="mosmix-chart-card mosmix-chart-wide"><h4>Sonnenscheindauer pro Tag</h4><div class="mosmix-period-hint">Balken in Stunden für vollständige Kalendertage (00–24 Uhr Europe/Berlin). Unvollständige Prognosetage und fehlende Werte werden nicht als Null dargestellt.</div><div class="mosmix-chart-wrap mosmix-chart-short"><canvas id="mosmixSunDailyChart"></canvas></div></div>',
       '</div>',
       '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. TX/TN sind eigenständige 12-h-Extremprognosen. Niederschlag: originale DWD-Summen, Böen: originale DWD-Maxima (jeweils rückblickender Zeitraum bis zum Gültigkeitstermin). Wind in km/h, Niederschlag in mm. Ausgegraute Zeiträume sind im geladenen Lauf nicht verfügbar.</p>',
       '</div></div></div>'
@@ -410,21 +415,21 @@
 
   function renderLegend() {
     const isSun=mapMode==="sun";
-    const values = isSun?[0,10,20,30,40,50,60]:[-15,-10,-5,0,5,10,15,20,25,30,35];
+    const values = isSun?[0,1,2,4,6,8,10,12,16,24]:[-15,-10,-5,0,5,10,15,20,25,30,35];
     document.getElementById("mosmixLegend").innerHTML = values.map(function(v) {
       const color=isSun?colorForSun(v):colorForTemp(v);
-      return '<span><i style="background:' + color + '"></i>' + v + (isSun?' min':'°') + '</span>';
+      return '<span><i style="background:' + color + '"></i>' + v + (isSun?' h':'°') + '</span>';
     }).join("");
   }
 
   function popupHtml(station, value, valid, kind) {
     const label=kind==="tmax" ? "TX · Maximum der letzten 12 h" :
       kind==="tmin" ? "TN · Minimum der letzten 12 h" :
-      kind==="sun" ? "SunD1 · Sonnenscheindauer der letzten 1 h" : "TTT · Temperatur 2 m";
+      kind==="sun" ? "SunD1 · Sonnenscheindauer am Kalendertag" : "TTT · Temperatur 2 m";
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
-      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + (kind==="sun"?' min':' °C')+'</strong><br>' +
-      'Gültig: ' + esc(fmtTime(valid));
+      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + (kind==="sun"?' h':' °C')+'</strong><br>' +
+      (kind==="sun" ? 'Kalendertag: '+esc(valid) : 'Gültig: '+esc(fmtTime(valid)));
   }
 
 
@@ -474,6 +479,57 @@
       if(window.length!==24||window.some(v=>!Number.isFinite(v)))return null;
       return Math.round(window.reduce((a,b)=>a+b,0)/60*10)/10;
     });
+  }
+
+  // A SunD1 sample represents the preceding hour. Midnight hour-end
+  // belongs to the previous day; UTC elapsed time handles DST 23/25h days.
+  function sunDayFramesFromTimesteps(timesteps) {
+    const days=new Map();
+    (timesteps||[]).forEach(function(iso,index){
+      const end=Date.parse(iso);
+      if(!Number.isFinite(end))return;
+      const parts=berlinDateParts(new Date(end-1).toISOString());
+      if(!parts)return;
+      const key=dateKey(parts.year,parts.month,parts.day,0);
+      if(!days.has(key))days.set(key,[]);
+      days.get(key).push({index:index,end:end});
+    });
+    return [...days].map(function(entry){
+      const key=entry[0],rows=entry[1];
+      const first=rows[0].end,last=rows[rows.length-1].end;
+      const begin=berlinDateParts(new Date(first-3600000).toISOString());
+      const finish=berlinDateParts(new Date(last).toISOString());
+      if(!begin||!finish||begin.hour!==0||finish.hour!==0||
+         dateKey(begin.year,begin.month,begin.day,0)!==key||
+         dateKey(finish.year,finish.month,finish.day,0)!==dateKey(begin.year,begin.month,begin.day,1)||
+         rows.some(function(row,i){return i>0&&row.end-rows[i-1].end!==3600000;}))return null;
+      const label=new Intl.DateTimeFormat("de-DE",{
+        timeZone:"UTC",weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"
+      }).format(new Date(key+"T12:00:00Z"));
+      return {key:key,label:label,indices:rows.map(row=>row.index),kind:"sunDay"};
+    }).filter(Boolean);
+  }
+
+  function sunDayValue(values,frame) {
+    if(!Array.isArray(values)||!frame||!Array.isArray(frame.indices))return null;
+    let minutes=0;
+    for(const index of frame.indices){
+      const value=values[index];
+      if(!Number.isFinite(value)||value<0||value>60)return null;
+      minutes+=value;
+    }
+    return Math.round(minutes/60*10)/10;
+  }
+
+  function buildSunFrames(){
+    return sunDayFramesFromTimesteps(data.timesteps).map(function(frame){
+      frame.valuesByKey=new Map();
+      data.stations.forEach(function(station){
+        const value=sunDayValue(station.sun1,frame);
+        if(value!==null)frame.valuesByKey.set(station.key,value);
+      });
+      return frame;
+    }).filter(frame=>frame.valuesByKey.size>0);
   }
 
   function destroyMeteogramCharts() {
@@ -755,6 +811,22 @@
          data:radiation,yAxisID:"rad",hidden:true,borderColor:"#7751ad"},commonLine)
       ]},options:sunOptions
     }));
+    const dayFrames=sunDayFramesFromTimesteps(data.timesteps);
+    const dayValues=dayFrames.map(frame=>sunDayValue(sunshine,frame));
+    const dayOptions=baseChartOptions("Sonnenscheindauer (h pro Tag)");
+    dayOptions.plugins.legend.display=false;
+    dayOptions.scales.y.min=0;
+    dayOptions.scales.y.suggestedMax=12;
+    dayOptions.scales.x={ticks:{autoSkip:true,maxTicksLimit:10,minRotation:0,maxRotation:0},
+      grid:{display:false}};
+    meteogramCharts.push(new Chart(document.getElementById("mosmixSunDailyChart"),{
+      type:"bar",data:{
+        labels:dayFrames.map(frame=>frame.label.replace(/\\.?\\s*20\\d\\d$/, "")),
+        datasets:[{label:"Sonnenschein pro Tag (h)",data:dayValues,
+          backgroundColor:dayValues.map(value=>Number.isFinite(value)?colorForSun(value):"#cbd5e1"),
+          borderRadius:4,maxBarThickness:44}]
+      },options:dayOptions
+    }));
     setMeteogramExportReady(true);
   }
 
@@ -776,13 +848,14 @@
   }
 
   function meteogramExportSections() {
-    if (!currentDetail || meteogramCharts.length !== 5) throw new Error("Bitte zuerst eine Station mit fünf Diagrammen laden.");
+    if (!currentDetail || meteogramCharts.length !== 6) throw new Error("Bitte zuerst eine Station mit fünf Diagrammen laden.");
     const specs = [
       ["mosmixTempChart","Temperatur und Taupunkt"],
       ["mosmixRainChart","Niederschlag und Bewölkung · "+rainPeriod+" h"],
       ["mosmixWindChart","Wind und maximale Böen · "+gustPeriod+" h"],
       ["mosmixPressureChart","Luftdruck"],
-      ["mosmixSunChart","Sonnenscheindauer und Globalstrahlung · SunD1 / Rad1h"]
+      ["mosmixSunChart","Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
+      ["mosmixSunDailyChart","Sonnenscheindauer pro Kalendertag (h)"]
     ];
     return specs.map(function(spec) {
       const source = document.getElementById(spec[0]);
@@ -963,7 +1036,8 @@
 
   function extremaHit(station,frame) {
     if (!station || !frame) return null;
-    const value=station[frame.kind] && station[frame.kind][frame.index];
+    const value=frame.kind==="sunDay" ? frame.valuesByKey.get(station.key) :
+      station[frame.kind] && station[frame.kind][frame.index];
     return Number.isFinite(value) ? {value:value,index:frame.index} : null;
   }
 
@@ -990,7 +1064,7 @@
       vals.push(value);
       shown++;
       if(mapMode==="tmax" && value>=20) above20++;
-      const color=colorForTemp(value);
+      const color=mapMode==="sun"?colorForSun(value):colorForTemp(value);
       const latlng=L.latLng(station.lat,station.lon);
 
       if (useLabels && bounds.contains(latlng)) {
@@ -1006,7 +1080,7 @@
             iconAnchor:[19,11]
           });
           L.marker(latlng,{icon:icon})
-            .bindPopup(popupHtml(station,value,data.timesteps[hit.index],mapMode))
+            .bindPopup(popupHtml(station,value,mapMode==="sun"?frame.label:data.timesteps[hit.index],mapMode))
             .on("click",function(){ selectStation(station); })
             .addTo(markerLayer);
           return;
@@ -1019,7 +1093,7 @@
         weight:.8,
         fillColor:color,
         fillOpacity:.9
-      }).bindPopup(popupHtml(station,value,data.timesteps[hit.index],mapMode))
+      }).bindPopup(popupHtml(station,value,mapMode==="sun"?frame.label:data.timesteps[hit.index],mapMode))
         .on("click",function(){ selectStation(station); })
         .addTo(markerLayer);
     });
@@ -1030,13 +1104,13 @@
 
     let info='Auswahl: <strong>'+esc(frame.label)+'</strong> · '+shown+' Punkte';
     if (useLabels) info+=' · '+labelled+' Werte beschriftet';
-    if (Number.isFinite(min)) info+=' · '+min.toFixed(1).replace(".",",")+' bis '+max.toFixed(1).replace(".",",")+' °C';
+    if (Number.isFinite(min)) info+=' · '+min.toFixed(1).replace(".",",")+' bis '+max.toFixed(1).replace(".",",")+(mapMode==="sun"?' h Sonnenschein':' °C');
     if(mapMode==="tmax") info+=" · <strong>"+above20+" Stationen ≥ 20,0 °C</strong> (Kartenausschnitt)";
     document.getElementById("mosmixValidInfo").innerHTML=info;
   }
 
   function renderCurrentMap() {
-    if (mapMode==="hourly" || mapMode==="sun") render();
+    if (mapMode==="hourly") render();
     else renderExtrema();
   }
 
@@ -1059,31 +1133,32 @@
     const title=document.getElementById("mosmixSliderTitle");
     const nowButton=document.getElementById("mosmixNow");
 
-    if (mapMode==="hourly" || mapMode==="sun") {
+    if (mapMode==="hourly") {
       extremaFrames=[];
       slider.max=String(data.timesteps.length-1);
       sliderIndex=chooseInitialIndex();
-      title.textContent=mapMode==="sun"?"Sonnenschein · vergangene Stunde":"Vorhersagezeitpunkt";
+      title.textContent="Vorhersagezeitpunkt";
       nowButton.textContent="Nächster Termin";
       slider.value=String(sliderIndex);
       render();
       return;
     }
 
-    extremaFrames=buildExtremaFrames(mapMode);
+    extremaFrames=mapMode==="sun" ? buildSunFrames() : buildExtremaFrames(mapMode);
     slider.max=String(Math.max(0,extremaFrames.length-1));
     if(!extremaFrames.length){
       markerLayer?.clearLayers();
-      title.textContent=mapMode==="tmax"?"MOSMIX TX · 12 h":"MOSMIX TN · 12 h";
+      title.textContent=mapMode==="sun"?"Sonnenschein · Kalendertag":mapMode==="tmax"?"MOSMIX TX · 12 h":"MOSMIX TN · 12 h";
       document.getElementById("mosmixSliderLabel").textContent="Noch keine Originalwerte";
-      document.getElementById("mosmixValidInfo").textContent=
+      document.getElementById("mosmixValidInfo").textContent=mapMode==="sun"?
+        "Noch kein vollständig abgedeckter Kalendertag mit SunD1-Werten verfügbar. Unvollständige Tage werden nicht als Tagessumme ausgegeben.":
         "Dieser Datenlauf enthält noch keine echten MOSMIX-"+
         (mapMode==="tmax"?"TX-":"TN-")+"Werte am DWD-Standardtermin. "+
         "Der Datenimport wird aktualisiert – stündliche TTT-Werte sind kein Ersatz.";
       return;
     }
     sliderIndex=chooseExtremaIndex();
-    title.textContent="Vorhersagetag";
+    title.textContent=mapMode==="sun"?"Sonnenschein · Kalendertag":"Vorhersagetag";
     nowButton.textContent="Aktueller Tag";
     slider.value=String(sliderIndex);
     renderExtrema();
@@ -1158,11 +1233,11 @@
 
       let label="";
       let points=[];
-      if (mapMode==="hourly" || mapMode==="sun") {
+      if (mapMode==="hourly") {
         const index=sliderIndex;
         label=fmtTime(data.timesteps[index]);
         data.stations.forEach(function(station) {
-          const source=mapMode==="sun"?station.sun1:station.values;
+          const source=station.values;
           const value=source&&source[index];
           if (Number.isFinite(value)) points.push({lat:station.lat,lon:station.lon,value:value});
         });
@@ -1218,20 +1293,20 @@
 
       const title=mapMode==="tmax" ? "DWD MOSMIX-L · Tagesmaximum" :
         mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" :
-        mapMode==="sun" ? "DWD MOSMIX-L · Sonnenscheindauer letzte Stunde" :
+        mapMode==="sun" ? "DWD MOSMIX-L · Sonnenscheindauer pro Kalendertag" :
         "DWD MOSMIX-L · 2-m-Temperatur";
       ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
       ctx.font="600 18px Arial";ctx.fillText(label,margin.left,80);
       ctx.fillStyle="#64748b";ctx.font="14px Arial";
       ctx.fillText("Lauf: "+fmtTime(data.issue_time)+" · "+points.length+" MOSMIX-Punkte",margin.left,106);
 
-      const legendValues=mapMode==="sun"?[0,10,20,30,40,50,60]:[-15,-10,-5,0,5,10,15,20,25,30,35];
+      const legendValues=mapMode==="sun"?[0,1,2,4,6,8,10,12,16,24]:[-15,-10,-5,0,5,10,15,20,25,30,35];
       const legendY=height-94,boxW=74;
       legendValues.forEach(function(v,index) {
         const x=margin.left+index*boxW;
         ctx.fillStyle=mapMode==="sun"?colorForSun(v):colorForTemp(v);ctx.fillRect(x,legendY,boxW,18);
         ctx.strokeStyle="rgba(0,0,0,.15)";ctx.strokeRect(x,legendY,boxW,18);
-        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+(mapMode==="sun"?" min":"°"),x+2,legendY+35);
+        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+(mapMode==="sun"?" h":"°"),x+2,legendY+35);
       });
       ctx.fillStyle="#64748b";ctx.font="12px Arial";
       ctx.fillText("Interpoliert aus DWD-MOSMIX-L-Punktprognosen · keine amtliche DWD-Rasterkarte",margin.left,height-28);
@@ -1257,7 +1332,7 @@
     if (!data || !map || !markerLayer) return;
     const i = sliderIndex;
     const valid = data.timesteps[i];
-    const isSun=mapMode==="sun";
+    const isSun=false;
     markerLayer.clearLayers();
 
     const zoom = map.getZoom();
@@ -1325,7 +1400,7 @@
   }
 
   function setIndex(index) {
-    const maxIndex=(mapMode==="hourly"||mapMode==="sun") ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
+    const maxIndex=mapMode==="hourly" ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
     sliderIndex=Math.max(0,Math.min(maxIndex,Number(index)||0));
     document.getElementById("mosmixSlider").value=String(sliderIndex);
     renderCurrentMap();
@@ -1341,7 +1416,7 @@
     }
     button.textContent = "❚❚ Pause";
     playTimer = setInterval(function() {
-      const total=(mapMode==="hourly"||mapMode==="sun") ? data.timesteps.length : Math.max(1,extremaFrames.length);
+      const total=mapMode==="hourly" ? data.timesteps.length : Math.max(1,extremaFrames.length);
       setIndex((sliderIndex + 1) % total);
     }, 650);
   }
@@ -1405,7 +1480,7 @@
       });
       document.getElementById("mosmixPlay").addEventListener("click", togglePlay);
       document.getElementById("mosmixNow").addEventListener("click", function(){
-        setIndex((mapMode==="hourly"||mapMode==="sun") ? chooseInitialIndex() : chooseExtremaIndex());
+        setIndex(mapMode==="hourly" ? chooseInitialIndex() : chooseExtremaIndex());
       });
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
