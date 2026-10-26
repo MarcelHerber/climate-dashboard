@@ -7,6 +7,7 @@ mkdir -p _site/data
 
 required_root_files=(
   index.html
+  mosmix.html
   datenstatus.html
   dashboard_cleanup.css
   dashboard_theme.css
@@ -148,6 +149,8 @@ node --check _site/mosmix.js
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
+test -s _site/mosmix.html
+grep -q 'data-mosmix-standalone="1"' _site/mosmix.html
 test -s _site/dashboard_theme.css
 test -s _site/dashboard_theme.js
 grep -q 'dashboard_theme.css' _site/index.html
