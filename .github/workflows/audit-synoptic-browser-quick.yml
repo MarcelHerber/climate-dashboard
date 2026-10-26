@@ -1,0 +1,60 @@
+name: Fast bounded Chromium screenshots of all synoptic source links
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/audit_synoptic_browser_quick.py
+      - .github/workflows/audit-synoptic-browser-quick.yml
+permissions:
+  contents: write
+concurrency:
+  group: synoptic-browser-quick-independent
+  cancel-in-progress: false
+jobs:
+  browser-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            scripts/audit_synoptic_browser_quick.py
+            weltweite_isobaren.html
+            isobaren_original.js
+            data/synoptic_charts/isobaren_browser_quick_latest.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser setup
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Visit all source URLs and capture screenshots
+        run: python scripts/audit_synoptic_browser_quick.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: synoptic-browser-120-screenshots
+          path: tmp/synoptic_browser_quick/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish per-link browser result
+        if: success()
+        run: |
+          set -euo pipefail
+          cp data/synoptic_charts/isobaren_browser_quick_latest.json /tmp/isobaren_browser_quick_latest.json
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for retry in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/synoptic_charts
+            cp /tmp/isobaren_browser_quick_latest.json data/synoptic_charts/isobaren_browser_quick_latest.json
+            git add data/synoptic_charts/isobaren_browser_quick_latest.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Publish bounded visual Chromium audit of 120 original chart links"
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          exit 1
