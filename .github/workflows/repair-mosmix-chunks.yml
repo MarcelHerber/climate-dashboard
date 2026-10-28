@@ -57,13 +57,19 @@ jobs:
           PY
           if git show FETCH_HEAD:data/mosmix/manifest.json >/tmp/mosmix-existing-manifest.json 2>/dev/null &&
              git show FETCH_HEAD:data/mosmix/quality_status.json >/tmp/mosmix-existing-quality.json 2>/dev/null; then
+            git ls-tree -r --name-only FETCH_HEAD data/mosmix/maps > /tmp/mosmix-existing-map-files.txt
             python - <<'PY'
           import json,os
           from pathlib import Path
           raw=json.loads(Path("/tmp/mosmix-repair/data/mosmix/mosmix_ttt.json").read_text())
           manifest=json.loads(Path("/tmp/mosmix-existing-manifest.json").read_text())
           quality=json.loads(Path("/tmp/mosmix-existing-quality.json").read_text())
-          healthy=(manifest.get("schema")==2 and manifest.get("issue_time")==raw.get("issue_time")
+          published=set(Path("/tmp/mosmix-existing-map-files.txt").read_text().splitlines())
+          expected={"data/mosmix/"+frame["path"]
+                    for frames in manifest.get("modes",{}).values()
+                    for frame in frames}
+          healthy=(bool(expected) and expected.issubset(published)
+                   and manifest.get("schema")==2 and manifest.get("issue_time")==raw.get("issue_time")
                    and quality.get("issue_time")==raw.get("issue_time")
                    and quality.get("quality")=="passed"
                    and len(manifest.get("modes",{}).get("hourly",[]))>40
