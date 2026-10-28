@@ -152,6 +152,7 @@ node --check _site/mosmix.js
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
+python -m unittest discover -s tests -p test_mosmix_chunks.py -v
 test -s _site/mosmix.html
 grep -q 'data-mosmix-standalone="1"' _site/mosmix.html
 test -s _site/dashboard_theme.css
