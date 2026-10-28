@@ -32,6 +32,8 @@
   let meteogramCharts = [];
   let currentDetail = null;
   let comparePreviousRun = false;
+  let secondaryDetail = null;
+  let secondaryStation = null;
   let selectedStation = null;
   let rainPeriod = "1";
   let gustPeriod = "1";
@@ -198,6 +200,7 @@
       '<div class="mosmix-station-search"><input id="mosmixStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Frankfurt, Saarbrücken …" autocomplete="off"><datalist id="mosmixStationList"></datalist><button id="mosmixStationButton" class="mosmix-button" type="button">Diagramm anzeigen</button></div>',
       '</div>',
       '<div id="mosmixMeteogramStatus" class="mosmix-meteogram-status">Noch keine Station ausgewählt.</div>',
+      '<div class="mosmix-chart-toolbar"><label>Zweite Station <input id="mosmixCompareStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Saarbrücken" style="min-width:170px;padding:7px;border:1px solid #cbd5df;border-radius:6px"><button class="mosmix-button" id="mosmixCompareStationBtn" type="button">Station vergleichen</button><button class="mosmix-button" id="mosmixClearComparison" type="button" disabled>Vergleich entfernen</button></label><span id="mosmixSecondStationStatus"></span></div>',
       '<div class="mosmix-chart-toolbar"><label>Diagrammzeitraum <select id="mosmixDiagramRange"><option value="all">Alle Tage</option><option value="72">Ab jetzt · 3 Tage</option><option value="120">Ab jetzt · 5 Tage</option></select></label><label><input type="checkbox" id="mosmixComparePrevious" disabled> Vorherigen Lauf vergleichen (Temperatur, TX/TN)</label><span id="mosmixCompareStatus">Vorheriger Lauf noch nicht geladen</span></div>',
       '<div class="mosmix-meteogram-actions"><span class="mosmix-export-status" id="mosmixExportStatus" role="status">Export für ausgewählte Station</span><button class="mosmix-button" id="mosmixDiagramPng" type="button" disabled>⬇ Alle Diagramme PNG</button><button class="mosmix-button" id="mosmixDiagramPdf" type="button" disabled>⬇ Alle Diagramme PDF</button></div>',
       '<div class="mosmix-chart-grid">',
@@ -956,6 +959,8 @@
           borderRadius:4,maxBarThickness:44}]
       },options:dayOptions
     }));
+    if(secondaryDetail && secondaryDetail.issue_time===data.issue_time)
+      addSecondaryMeteogramDatasets(secondaryDetail);
     const toggle=document.getElementById("mosmixComparePrevious");
     const status=document.getElementById("mosmixCompareStatus");
     if(toggle){toggle.disabled=!validPrevious;toggle.checked=validPrevious&&comparePreviousRun;}
@@ -964,6 +969,58 @@
       "Kein archivierter Vorlauf verfügbar.";
     applyMeteogramRange();
     setMeteogramExportReady(true);
+  }
+
+  function addSecondaryMeteogramDatasets(other){
+    if(meteogramCharts.length!==6)return;
+    const p=other.parameters||{};
+    const label=secondaryStation?.name||other.name||"Zweite Station";
+    const line=(values,title,yAxisID)=>({
+      label:label+" · "+title,data:values||[],
+      type:"line",borderColor:"#855bb6",backgroundColor:"transparent",
+      borderDash:[5,3],borderWidth:1.8,pointRadius:0,pointHoverRadius:3,
+      yAxisID:yAxisID||"y",tension:.12,spanGaps:false
+    });
+    const charts=meteogramCharts;
+    charts[0].data.datasets.push(line(p.TTT,"Temperatur"));
+    charts[0].data.datasets.push({...line(p.Td,"Taupunkt"),borderColor:"#5294bd"});
+    charts[1].data.datasets.push(line(p[RAIN_PERIODS[rainPeriod]],rainPeriod+" h Regen"));
+    charts[2].data.datasets.push(line(p.FF,"Wind"));
+    charts[2].data.datasets.push({...line(p[GUST_PERIODS[gustPeriod]],gustPeriod+" h Böen"),borderColor:"#e68a30"});
+    charts[3].data.datasets.push(line(p.PPPP,"Luftdruck"));
+    charts[4].data.datasets.push(line(p.SunD1,"Sonnenschein/h"));
+    const frames=sunDayFramesFromTimesteps(data.timesteps);
+    charts[5].data.datasets.push(line(frames.map(frame=>sunDayValue(p.SunD1||[],frame)),"Sonne/Tag"));
+    charts.forEach(chart=>chart.update("none"));
+  }
+
+  async function compareStation(){
+    const status=document.getElementById("mosmixSecondStationStatus");
+    const input=document.getElementById("mosmixCompareStationSearch");
+    const other=findStation(input?.value);
+    if(!currentDetail){if(status)status.textContent="Erst Hauptstation auswählen.";return;}
+    if(!other){if(status)status.textContent="Zweite Station nicht gefunden.";return;}
+    if(other.key===selectedStationKey){if(status)status.textContent="Bitte eine andere Station wählen.";return;}
+    if(status)status.textContent="Lade Vergleich "+other.name+" …";
+    try{
+      const detail=await loadStationDetail(other);
+      if(detail.issue_time!==data.issue_time)throw Error("Prognoseläufe stimmen nicht überein.");
+      secondaryStation=other;
+      secondaryDetail=detail;
+      createMeteogram(currentDetail);
+      if(status)status.textContent="Vergleich aktiv: "+other.name+" · gleicher MOSMIX-Lauf";
+      document.getElementById("mosmixClearComparison").disabled=false;
+    }catch(error){
+      if(status)status.textContent="Stationsvergleich fehlgeschlagen: "+error.message;
+    }
+  }
+
+  function clearStationComparison(){
+    secondaryDetail=null;secondaryStation=null;
+    const status=document.getElementById("mosmixSecondStationStatus");
+    if(status)status.textContent="Vergleich entfernt.";
+    document.getElementById("mosmixClearComparison").disabled=true;
+    if(currentDetail)createMeteogram(currentDetail);
   }
 
   function applyMeteogramRange(){
@@ -1119,6 +1176,14 @@
 
   async function selectStation(station) {
     if (!station) return;
+    if(selectedStationKey!==station.key){
+      secondaryDetail=null;
+      secondaryStation=null;
+      const clear=document.getElementById("mosmixClearComparison");
+      if(clear)clear.disabled=true;
+      const comparison=document.getElementById("mosmixSecondStationStatus");
+      if(comparison)comparison.textContent="";
+    }
     selectedStationKey = station.key;
     selectedStation = station;
     currentDetail = null;
@@ -1765,6 +1830,9 @@
       mapChunkCache.clear();
       mapRequestSequence++;
       detailCache.clear();
+      secondaryDetail=null;secondaryStation=null;
+      const clear=document.getElementById("mosmixClearComparison");
+      if(clear)clear.disabled=true;
       selectedStationKey=null;
       selectedStation=null;
       populateStationSearch();
@@ -1832,6 +1900,11 @@
         });
       });
       document.getElementById("mosmixDiagramRange").addEventListener("change",applyMeteogramRange);
+      document.getElementById("mosmixCompareStationBtn").addEventListener("click",compareStation);
+      document.getElementById("mosmixClearComparison").addEventListener("click",clearStationComparison);
+      document.getElementById("mosmixCompareStationSearch").addEventListener("keydown",event=>{
+        if(event.key==="Enter"){event.preventDefault();void compareStation();}
+      });
       document.getElementById("mosmixComparePrevious").addEventListener("change",function(event){
         comparePreviousRun=event.target.checked;
         if(currentDetail)createMeteogram(currentDetail);
