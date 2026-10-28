@@ -29,6 +29,17 @@ MODES={
     "cloudNl":("Nl","Tiefe Wolken","%"),
     "cloudNm":("Nm","Mittelhohe Wolken","%"),
     "cloudNh":("Nh","Hohe Wolken","%"),
+    "visibility":("VV","Sichtweite","km"),
+    "lowVis":("VV10","Wahrsch. Sicht unter 1 km","%"),
+    "fog1":("wwM","Nebelwahrscheinlichkeit 1 h","%"),
+    "fog6":("wwM6","Nebelwahrscheinlichkeit 6 h","%"),
+    "snow1":("RRS1c","Schneeniederschlag (Wasseräquivalent) 1 h","mm"),
+    "snow3":("RRS3c","Schneeniederschlag (Wasseräquivalent) 3 h","mm"),
+    "snowProb":("wwS","Wahrsch. fester Niederschlag 1 h","%"),
+    "thunder1":("wwT","Gewitterwahrscheinlichkeit 1 h","%"),
+    "thunder6":("wwT6","Gewitterwahrscheinlichkeit 6 h","%"),
+    "conv1":("wwC","Wahrsch. konvektiver Niederschlag 1 h","%"),
+    "weatherCode":("ww","Signifikantes Wetter (Code)","Code"),
 }
 
 
@@ -49,8 +60,14 @@ def hour_value(station,mode,index):
         return None
     if mode.startswith("rain") or mode.startswith("gust"):
         return value if value>=0 else None
-    if mode.startswith("cloud"):
+    if mode.startswith("cloud") or mode in ("lowVis","fog1","fog6","snowProb","thunder1","thunder6","conv1"):
         return value if 0<=value<=100 else None
+    if mode=="visibility":
+        return value if 0<=value<=100 else None
+    if mode=="weatherCode":
+        return value if 0<=value<=99 and value==int(value) else None
+    if mode.startswith("snow"):
+        return value if value>=0 else None
     return value
 
 
@@ -160,6 +177,9 @@ def build(source,out):
     write_mode("sun",sun_entries)
     write_mode("rainDay",rain_day_entries)
     write_mode("gustDay",gust_day_entries)
+    metadata["availability"]={mode:len(frames) for mode,frames in metadata["modes"].items()}
+    # Publishing the manifest last acts as the release-commit indicator;
+    # clients never see half-written manifests on a local Pages build.
     save_json(out/"manifest.json",metadata)
     print("MOSMIX-Kacheln:",len(metadata["stations"]),"Stationen",
           len(metadata["modes"]),"Kartenarten",
