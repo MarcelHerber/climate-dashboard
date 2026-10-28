@@ -1,0 +1,101 @@
+name: MOSMIX Deutschland-Kartenpakete reparieren
+
+# Reparatur ohne erneuten 50-MB-DWD-KMZ-Download:
+# vorhandenen geprüften Deutschland-Rohdatensatz aus mosmix-data einlesen,
+# daraus ein Manifest und kleine Karten nach Parameter/Tag erzeugen.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/repair-mosmix-chunks.yml"
+      - "scripts/build_mosmix_chunks.py"
+      - "scripts/audit_mosmix_release.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mosmix-data-publish
+  cancel-in-progress: false
+
+jobs:
+  repair-mosmix-chunks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Hauptrepository auschecken
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Python für Kartenaufbereitung
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Alten Deutschlanddatensatz vom Datenbranch laden
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mosmix-repair/data/mosmix
+          git fetch --quiet --no-tags --depth=1 origin mosmix-data
+          git show FETCH_HEAD:data/mosmix/mosmix_ttt.json > /tmp/mosmix-repair/data/mosmix/mosmix_ttt.json
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("/tmp/mosmix-repair/data/mosmix/mosmix_ttt.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d.get("product")=="DWD MOSMIX-L"
+          assert len(d.get("stations",[]))>100
+          assert len(d.get("timesteps",[]))>40
+          print("Deutschland-Rohdaten:",round(p.stat().st_size/1e6,1),"MB",
+                "| Stationen:",len(d["stations"]),"| Lauf:",d["issue_time"])
+          PY
+
+      - name: Karten nach Parametern und Tagen generieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_mosmix_chunks.py \
+            /tmp/mosmix-repair/data/mosmix/mosmix_ttt.json \
+            /tmp/mosmix-repair/data/mosmix
+          python scripts/audit_mosmix_release.py \
+            /tmp/mosmix-repair/data/mosmix \
+            /tmp/mosmix-repair/data/mosmix/mosmix_ttt.json
+          python - <<'PY'
+          import datetime,json,pathlib
+          root=pathlib.Path("/tmp/mosmix-repair/data/mosmix")
+          m=json.loads((root/"manifest.json").read_text(encoding="utf-8"))
+          payload={"schema":1,"product":"DWD MOSMIX-L",
+             "issue_time":m["issue_time"],
+             "generated_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+             "stations":len(m["stations"]),
+             "modes":{k:len(v) for k,v in m["modes"].items()},
+             "quality":"passed",
+             "source":"Reparatur aus verifiziertem Deutschland-Datenbranch"}
+          (root/"quality_status.json").write_text(
+             json.dumps(payload,ensure_ascii=False),encoding="utf-8")
+          print("Kartenarten:",len(m["modes"]),
+                "| Zeitpunkte:",sum(len(v) for v in m["modes"].values()))
+          PY
+
+      - name: Nur neue Karten und Manifest veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --quiet --no-tags --depth=1 origin mosmix-data
+          git switch --detach FETCH_HEAD
+          mkdir -p data/mosmix/maps
+          cp -a /tmp/mosmix-repair/data/mosmix/maps/. data/mosmix/maps/
+          cp /tmp/mosmix-repair/data/mosmix/quality_status.json data/mosmix/quality_status.json
+          cp /tmp/mosmix-repair/data/mosmix/manifest.json data/mosmix/manifest.json
+          git add -A data/mosmix/maps data/mosmix/quality_status.json data/mosmix/manifest.json
+          if git diff --cached --quiet; then
+            echo "Die Kartenpakete sind bereits aktuell."
+          else
+            git commit -m "MOSMIX: Deutschland-Tageskarten und Qualitätskatalog nachliefern"
+            git push origin HEAD:mosmix-data
+          fi
+          echo "Reparierte MOSMIX-Daten wurden veröffentlicht."
