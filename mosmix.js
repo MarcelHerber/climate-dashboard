@@ -28,6 +28,7 @@
   let selectedStationKey = null;
   let meteogramCharts = [];
   let currentDetail = null;
+  let comparePreviousRun = false;
   let selectedStation = null;
   let rainPeriod = "1";
   let gustPeriod = "1";
@@ -137,6 +138,9 @@
       ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
       ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
       ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
+      ".mosmix-chart-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0 12px;font-size:12px;color:#475569}",
+      ".mosmix-chart-toolbar select{padding:6px 8px;border:1px solid #cbd5df;border-radius:6px}",
+      ".mosmix-chart-toolbar label{display:flex;gap:5px;align-items:center}",
       ".mosmix-meteogram-actions .mosmix-button{font-size:12px;padding:7px 11px}",
       ".mosmix-button:disabled,.mosmix-period-button:disabled{opacity:.42;cursor:not-allowed}",
       ".mosmix-period-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:7px}",
@@ -187,6 +191,7 @@
       '<div class="mosmix-station-search"><input id="mosmixStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Frankfurt, Saarbrücken …" autocomplete="off"><datalist id="mosmixStationList"></datalist><button id="mosmixStationButton" class="mosmix-button" type="button">Diagramm anzeigen</button></div>',
       '</div>',
       '<div id="mosmixMeteogramStatus" class="mosmix-meteogram-status">Noch keine Station ausgewählt.</div>',
+      '<div class="mosmix-chart-toolbar"><label>Diagrammzeitraum <select id="mosmixDiagramRange"><option value="all">Alle Tage</option><option value="72">Ab jetzt · 3 Tage</option><option value="120">Ab jetzt · 5 Tage</option></select></label><label><input type="checkbox" id="mosmixComparePrevious" disabled> Vorherigen Lauf vergleichen (Temperatur, TX/TN)</label><span id="mosmixCompareStatus">Vorheriger Lauf noch nicht geladen</span></div>',
       '<div class="mosmix-meteogram-actions"><span class="mosmix-export-status" id="mosmixExportStatus" role="status">Export für ausgewählte Station</span><button class="mosmix-button" id="mosmixDiagramPng" type="button" disabled>⬇ Alle Diagramme PNG</button><button class="mosmix-button" id="mosmixDiagramPdf" type="button" disabled>⬇ Alle Diagramme PDF</button></div>',
       '<div class="mosmix-chart-grid">',
       '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div></div>',
@@ -778,10 +783,25 @@
     const officialTN=(p.TN||[]).map(function(v,i){
       return new Date(data.timesteps[i]).getUTCHours()===6 && Number.isFinite(v) ? v : null;
     });
+    const previous=detail.previous;
+    const validPrevious=previous&&previous.issue_time!==data.issue_time&&
+      Array.isArray(previous.timesteps)&&Array.isArray(previous.TTT);
+    const beforeIndex=validPrevious?new Map(previous.timesteps.map((iso,i)=>[iso,i])):null;
+    const previousSeries=function(field){
+      if(!validPrevious)return [];
+      return data.timesteps.map(function(iso){
+        const index=beforeIndex.get(iso);
+        if(index===undefined)return null;
+        const value=field==="TTT"?previous.TTT[index]:
+          (previous[field]||{})[String(index)];
+        return Number.isFinite(value)?value:null;
+      });
+    };
     const tempOptions = baseChartOptions("°C");
     tempOptions.plugins.datalabels = {
       display:function(context){
-        return context.datasetIndex>=2 && Number.isFinite(context.dataset.data[context.dataIndex]);
+        return (context.datasetIndex===2||context.datasetIndex===3) &&
+          Number.isFinite(context.dataset.data[context.dataIndex]);
       },
       formatter:function(value,context){
         return (context.datasetIndex===2?"TX ":"TN ")+
@@ -812,7 +832,16 @@
         {label:"TX 12 h · 18 UTC",data:officialTX,showLine:false,pointRadius:3.5,
          pointHoverRadius:5,pointStyle:"triangle",borderColor:"#a5271f",backgroundColor:"#a5271f"},
         {label:"TN 12 h · 06 UTC",data:officialTN,showLine:false,pointRadius:3.5,
-         pointHoverRadius:5,pointStyle:"rectRot",borderColor:"#1f5f99",backgroundColor:"#1f5f99"}
+         pointHoverRadius:5,pointStyle:"rectRot",borderColor:"#1f5f99",backgroundColor:"#1f5f99"},
+        Object.assign({label:"Vorheriger Lauf · Temperatur",data:previousSeries("TTT"),
+         borderColor:"#a45e5e",borderDash:[6,4],pointRadius:0,
+         hidden:!comparePreviousRun||!validPrevious},commonLine),
+        {label:"Vorheriger Lauf · TX",data:previousSeries("TX"),showLine:false,
+         pointRadius:3,pointStyle:"triangle",borderColor:"#ad6c62",backgroundColor:"#ad6c62",
+         hidden:!comparePreviousRun||!validPrevious},
+        {label:"Vorheriger Lauf · TN",data:previousSeries("TN"),showLine:false,
+         pointRadius:3,pointStyle:"rectRot",borderColor:"#688ba8",backgroundColor:"#688ba8",
+         hidden:!comparePreviousRun||!validPrevious}
       ]},
       options:tempOptions
     }));
@@ -895,7 +924,32 @@
           borderRadius:4,maxBarThickness:44}]
       },options:dayOptions
     }));
+    const toggle=document.getElementById("mosmixComparePrevious");
+    const status=document.getElementById("mosmixCompareStatus");
+    if(toggle){toggle.disabled=!validPrevious;toggle.checked=validPrevious&&comparePreviousRun;}
+    if(status)status.textContent=validPrevious?
+      "Vorheriger Lauf: "+fmtTime(previous.issue_time)+" · gleiche UTC-Termine":
+      "Kein archivierter Vorlauf verfügbar.";
+    applyMeteogramRange();
     setMeteogramExportReady(true);
+  }
+
+  function applyMeteogramRange(){
+    if(!data||!meteogramCharts.length)return;
+    const range=document.getElementById("mosmixDiagramRange")?.value||"all";
+    const hours=Number(range);
+    let first=undefined,last=undefined;
+    if(Number.isFinite(hours)&&hours>0){
+      const now=Date.now();
+      first=data.timesteps.findIndex(iso=>Date.parse(iso)>=now);
+      if(first<0)first=Math.max(0,data.timesteps.length-1);
+      last=Math.min(data.timesteps.length-1,first+hours);
+    }
+    meteogramCharts.slice(0,5).forEach(function(chart){
+      chart.options.scales.x.min=first;
+      chart.options.scales.x.max=last;
+      chart.update("none");
+    });
   }
 
   function setMeteogramExportReady(ready) {
@@ -1666,6 +1720,7 @@
       updateIssueDisplay();
       setMapMode(mapMode);
       currentDetail = null;
+      comparePreviousRun=false;
       destroyMeteogramCharts();
       setMeteogramExportReady(false);
       const target=data.stations.find(s=>s.key===previousKey);
@@ -1716,6 +1771,11 @@
         button.addEventListener("click",function(){
           selectMeteogramPeriod(button.dataset.mosmixPeriod,button.dataset.hours);
         });
+      });
+      document.getElementById("mosmixDiagramRange").addEventListener("change",applyMeteogramRange);
+      document.getElementById("mosmixComparePrevious").addEventListener("change",function(event){
+        comparePreviousRun=event.target.checked;
+        if(currentDetail)createMeteogram(currentDetail);
       });
       document.getElementById("mosmixDiagramPng").addEventListener("click",function(){downloadMeteogram("png");});
       document.getElementById("mosmixDiagramPdf").addEventListener("click",function(){downloadMeteogram("pdf");});
