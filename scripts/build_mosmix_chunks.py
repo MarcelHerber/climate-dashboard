@@ -72,6 +72,19 @@ def local_sun_days(steps):
         yield str(day),[index for index,_ in rows]
 
 
+def calendar_day_stat(station,indices,source,method):
+    """Derived calendar aggregate using complete, genuine hourly DWD values."""
+    series=station.get("map_extra",{}).get(source,[])
+    vals=[]
+    for i in indices:
+        value=finite(series[i]) if i<len(series) else None
+        if value is None or value<0:
+            return None
+        vals.append(value)
+    if not vals:return None
+    return round(sum(vals),1) if method=="sum" else round(max(vals),1)
+
+
 def sun_day_value(station,indices):
     series=station.get("sun1",[])
     minutes=0
@@ -102,7 +115,7 @@ def build(source,out):
     metadata["stations"]=[{key:row.get(key) for key in ("id","name","lat","lon","elev_m","key")}
                            for row in stations]
     metadata["modes"]={}
-    metadata["units"]={"hourly":"°C","tmax":"°C","tmin":"°C","sun":"h"}
+    metadata["units"]={"hourly":"°C","tmax":"°C","tmin":"°C","sun":"h","rainDay":"mm","gustDay":"km/h"}
     metadata["units"].update({mode:spec[2] for mode,spec in MODES.items()})
     timestamps=[datetime.fromisoformat(x.replace("Z","+00:00")) for x in steps]
 
@@ -138,10 +151,15 @@ def build(source,out):
         write_mode(mode,entries)
 
     sun_entries=[]
+    rain_day_entries=[]
+    gust_day_entries=[]
     for day,indices in local_sun_days(steps):
-        values=[sun_day_value(station,indices) for station in stations]
-        sun_entries.append((day,day,day,values))
+        sun_entries.append((day,day,day,[sun_day_value(st,indices) for st in stations]))
+        rain_day_entries.append((day,day,day,[calendar_day_stat(st,indices,"RR1c","sum") for st in stations]))
+        gust_day_entries.append((day,day,day,[calendar_day_stat(st,indices,"FX1","max") for st in stations]))
     write_mode("sun",sun_entries)
+    write_mode("rainDay",rain_day_entries)
+    write_mode("gustDay",gust_day_entries)
     save_json(out/"manifest.json",metadata)
     print("MOSMIX-Kacheln:",len(metadata["stations"]),"Stationen",
           len(metadata["modes"]),"Kartenarten",
