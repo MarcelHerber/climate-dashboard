@@ -9,6 +9,7 @@ on:
       - "scripts/update_mosmix.py"
       - "scripts/merge_mosmix_previous.py"
       - "scripts/build_mosmix_chunks.py"
+      - "scripts/audit_mosmix_release.py"
       - "tests/test_mosmix_tx_tn.py"
       - "tests/test_mosmix_world.mjs"
       - "tests/test_mosmix_sun_daily.mjs"
@@ -81,6 +82,21 @@ jobs:
           print("MOSMIX-Kartenpakete vollständig:",len(manifest["modes"]))
           PY
 
+      - name: Meteo-Qualitätsprüfung aller Kartenpakete
+        run: |
+          python scripts/audit_mosmix_release.py /tmp/mosmix-public/data/mosmix /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+          python - <<'PY'
+          import datetime,json,pathlib
+          d=pathlib.Path("/tmp/mosmix-public/data/mosmix")
+          m=json.loads((d/"manifest.json").read_text(encoding="utf-8"))
+          status={"schema":1,"product":"DWD MOSMIX-L","issue_time":m["issue_time"],
+                  "generated_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  "stations":len(m["stations"]),
+                  "modes":{k:len(v) for k,v in m["modes"].items()},
+                  "quality":"passed"}
+          (d/"quality_status.json").write_text(json.dumps(status,ensure_ascii=False),encoding="utf-8")
+          PY
+
       - name: Vorherigen echten MOSMIX-Lauf für Meteogrammvergleich sichern
         shell: bash
         run: |
@@ -127,6 +143,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          test -s /tmp/mosmix-public/data/mosmix/manifest.json
+          test -s /tmp/mosmix-public/data/mosmix/quality_status.json
           git checkout --orphan mosmix-publish
           git rm -rf . >/dev/null 2>&1 || true
           cp -a /tmp/mosmix-public/. .
