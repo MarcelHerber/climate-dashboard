@@ -34,7 +34,7 @@ LAT_MIN, LAT_MAX = 47.15, 55.15
 METEOGRAM_PARAMS = (
     "TTT", "TX", "TN", "Td", "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
     "FF", "FX1", "FX3", "FXh", "FFXh", "DD", "N", "PPPP",
-    "SunD1", "Rad1h",
+    "SunD1", "Rad1h", "Neff", "Nl", "Nm", "Nh",
 )
 
 
@@ -254,10 +254,18 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     "elev_m": None if elev is None else round(elev, 1),
                     "key": key,
                 }
+                # Extra map parameters are held in the source archive only.
+                # The browser receives day/parameter slices, not these arrays.
+                map_extra = {
+                    name: forecasts[name] for name in (
+                        "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
+                        "FX1", "FX3", "FXh", "N", "Neff", "Nl", "Nm", "Nh",
+                    ) if name in forecasts
+                }
                 stations.append({
                     **station_meta, "values": ttt,
                     "tx12": tx12, "tn12": tn12,
-                    "sun1": sun1,
+                    "sun1": sun1, "map_extra": map_extra,
                 })
                 detail = {
                     **station_meta,
@@ -320,6 +328,10 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
             "FXh": {"label": "12-h-Böe", "unit": "km/h"},
             "DD": {"label": "Windrichtung", "unit": "°"},
             "N": {"label": "Gesamtbedeckung", "unit": "%"},
+            "Neff": {"label": "Effektiver Bedeckungsgrad", "unit": "%"},
+            "Nl": {"label": "Tiefe Bewölkung unter 2 km", "unit": "%"},
+            "Nm": {"label": "Mittelhohe Bewölkung 2 bis 7 km", "unit": "%"},
+            "Nh": {"label": "Hohe Bewölkung über 7 km", "unit": "%"},
             "PPPP": {"label": "Luftdruck", "unit": "hPa"},
             "SunD1": {"label": "Sonnenscheindauer der letzten Stunde", "unit": "min"},
             "Rad1h": {"label": "Globalstrahlung der letzten Stunde", "unit": "kJ/m²"},
