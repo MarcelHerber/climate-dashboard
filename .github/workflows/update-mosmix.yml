@@ -11,6 +11,7 @@ on:
       - "tests/test_mosmix_world.mjs"
       - "tests/test_mosmix_sun_daily.mjs"
       - "tests/test_mosmix_loader.mjs"
+      - "tests/test_mosmix_chunks.py"
       - "mosmix.js"
   workflow_dispatch:
 
@@ -38,6 +39,9 @@ jobs:
 
       - name: MOSMIX Parameter und 12-h-Zeitbezug testen
         run: python -m unittest discover -s tests -p test_mosmix_tx_tn.py -v
+
+      - name: MOSMIX-Tagespakete und Zeitumstellung testen
+        run: python -m unittest discover -s tests -p test_mosmix_chunks.py -v
 
       - name: MOSMIX-Oberfläche auf Syntax prüfen
         run: |
