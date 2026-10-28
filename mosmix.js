@@ -11,6 +11,8 @@
   const DATA_BACKUP_URL = "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@mosmix-data/data/mosmix/mosmix_ttt.json";
   const DATA_TIMEOUT_MS = 15000;
   const MANIFEST_URL = "./data/mosmix/manifest.json";
+  const MANIFEST_BACKUP_URL = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/manifest.json";
+  const MAP_BACKUP_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/";
   const MAP_BASE = "./data/mosmix/";
   const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
   const STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
@@ -287,26 +289,30 @@
 
   async function loadData(forceRefresh) {
     const status=document.getElementById("mosmixSectionStatus");
-    // The tiny station manifest replaces 2,800 full 247-step station vectors.
-    // The legacy archive is kept only for older / incomplete deployments.
-    try {
-      if(status)status.textContent="Lade kompakten MOSMIX-Stationskatalog …";
+    // A few hundred KB of metadata, followed by just the chosen day's layer.
+    // The data branch is the fallback if Pages has not yet been redeployed.
+    for(const source of [MANIFEST_URL,MANIFEST_BACKUP_URL]){
+      const remote=source===MANIFEST_BACKUP_URL;
       const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),10000);
+      const timer=setTimeout(()=>controller.abort(),9000);
       try {
-        const response=await fetch(MANIFEST_URL,{cache:forceRefresh?"no-store":"default",signal:controller.signal});
-        if(response.ok){
-          const manifest=await response.json();
-          if(manifest.schema===2&&Array.isArray(manifest.stations)&&manifest.stations.length>100&&
-             Array.isArray(manifest.timesteps)&&manifest.modes?.hourly?.length){
-            manifest._split=true;
-            manifest._mosmixSource="Website (Tagespakete)";
-            return manifest;
-          }
-        }
-      } finally { clearTimeout(timer); }
-    } catch(error){
-      console.warn("MOSMIX Tagespakete nicht erreichbar, verwende bisherige Quelle:",error);
+        if(status)status.textContent="Lade kompakten MOSMIX-Katalog ("+
+          (remote?"Datenserver":"Website")+") …";
+        const response=await fetch(source,{
+          cache:remote||forceRefresh?"no-store":"default",signal:controller.signal
+        });
+        if(!response.ok)continue;
+        const manifest=await response.json();
+        if(manifest.schema!==2||!Array.isArray(manifest.stations)||
+           manifest.stations.length<=100||!Array.isArray(manifest.timesteps)||
+           !manifest.modes?.hourly?.length)continue;
+        manifest._split=true;
+        manifest._mosmixSource=remote?"Datenserver (Tagespakete)":"Website (Tagespakete)";
+        manifest._mapsBase=remote?MAP_BACKUP_BASE:MAP_BASE;
+        return manifest;
+      }catch(error){
+        console.warn("MOSMIX Tageskatalog nicht erreichbar:",source,error);
+      }finally{clearTimeout(timer);}
     }
     const endpoints=forceRefresh ? [DATA_URL,DATA_BACKUP_URL,DATA_COMPRESSED_URL,DATA_LOCAL_URL] :
       [DATA_COMPRESSED_URL,DATA_LOCAL_URL,DATA_URL,DATA_BACKUP_URL];
@@ -1242,7 +1248,7 @@
     }
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),12000);
-    let promise=fetch(MAP_BASE+frame.path,{cache:"default",signal:controller.signal})
+    let promise=fetch((data._mapsBase||MAP_BASE)+frame.path,{cache:"default",signal:controller.signal})
       .then(async function(response){
         if(!response.ok)throw Error("Kartendatei HTTP "+response.status);
         const chunk=await response.json();
