@@ -1007,12 +1007,14 @@
     const status=document.getElementById("mosmixSecondStationStatus");
     const input=document.getElementById("mosmixCompareStationSearch");
     const other=findStation(input?.value);
+    const primaryKey=selectedStationKey;
     if(!currentDetail){if(status)status.textContent="Erst Hauptstation auswählen.";return;}
     if(!other){if(status)status.textContent="Zweite Station nicht gefunden.";return;}
     if(other.key===selectedStationKey){if(status)status.textContent="Bitte eine andere Station wählen.";return;}
     if(status)status.textContent="Lade Vergleich "+other.name+" …";
     try{
       const detail=await loadStationDetail(other);
+      if(primaryKey!==selectedStationKey||!currentDetail)return;
       if(detail.issue_time!==data.issue_time)throw Error("Prognoseläufe stimmen nicht überein.");
       secondaryStation=other;
       secondaryDetail=detail;
@@ -1048,6 +1050,15 @@
       chart.options.scales.x.max=last;
       chart.update("none");
     });
+    const daily=meteogramCharts[5];
+    if(daily){
+      const frames=sunDayFramesFromTimesteps(data.timesteps);
+      const start=first===undefined?undefined:frames.findIndex(f=>f.indices.at(-1)>=first);
+      const end=last===undefined?undefined:frames.findLastIndex(f=>f.indices[0]<=last);
+      daily.options.scales.x.min=start>=0?start:undefined;
+      daily.options.scales.x.max=end>=0?end:undefined;
+      daily.update("none");
+    }
   }
 
   function setMeteogramExportReady(ready) {
