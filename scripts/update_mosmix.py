@@ -35,6 +35,8 @@ METEOGRAM_PARAMS = (
     "TTT", "TX", "TN", "Td", "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
     "FF", "FX1", "FX3", "FXh", "FFXh", "DD", "N", "PPPP",
     "SunD1", "Rad1h", "Neff", "Nl", "Nm", "Nh",
+    "VV", "VV10", "wwM", "wwM6", "wwT", "wwT6", "wwC",
+    "wwS", "RRS1c", "RRS3c", "ww",
 )
 
 
@@ -90,13 +92,22 @@ def convert_values(parameter: str, values: list[float | None]) -> list[float | N
             # The DWD supplies one-hour sunshine duration in seconds.
             # A plotted 60 min means full sunshine during the preceding hour.
             converted.append(round(max(0.0,min(3600.0,value))/60.0, 1))
+        elif parameter == "VV":
+            # Visibility is published in metres. Map and diagrams use km.
+            converted.append(round(value / 1000.0, 2))
+        elif parameter == "ww":
+            # WMO-like code is categorical, not a probability.
+            converted.append(int(value) if 0 <= value <= 99 and value.is_integer() else None)
+        elif parameter in {"VV10", "wwM", "wwM6", "wwT", "wwT6",
+                           "wwC", "wwS"}:
+            converted.append(round(value, 1) if 0 <= value <= 100 else None)
         elif parameter == "Rad1h":
             # One-hour shortwave energy sum in kJ/m².
             converted.append(round(value, 1))
         elif parameter == "PPPP":
             # Reduced pressure is supplied in Pa; use hPa in the meteogram.
             converted.append(round(value / 100.0, 1))
-        elif parameter in {"RR1c", "RR3c", "RR6c", "RRhc", "RRdc"}:
+        elif parameter in {"RR1c", "RR3c", "RR6c", "RRhc", "RRdc", "RRS1c", "RRS3c"}:
             # kg/m² water equivalent == mm precipitation.
             converted.append(round(value, 2))
         elif parameter in {"N", "DD"}:
@@ -260,6 +271,8 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
                     name: forecasts[name] for name in (
                         "RR1c", "RR3c", "RR6c", "RRhc", "RRdc",
                         "FX1", "FX3", "FXh", "N", "Neff", "Nl", "Nm", "Nh",
+                        "VV", "VV10", "wwM", "wwM6", "wwT", "wwT6",
+                        "wwC", "wwS", "RRS1c", "RRS3c", "ww",
                     ) if name in forecasts
                 }
                 stations.append({
@@ -335,6 +348,17 @@ def parse_kmz(path: Path, source_url: str, detail_dir: Path) -> dict:
             "PPPP": {"label": "Luftdruck", "unit": "hPa"},
             "SunD1": {"label": "Sonnenscheindauer der letzten Stunde", "unit": "min"},
             "Rad1h": {"label": "Globalstrahlung der letzten Stunde", "unit": "kJ/m²"},
+            "VV": {"label": "Sichtweite", "unit": "km"},
+            "VV10": {"label": "Wahrscheinlichkeit Sichtweite unter 1 km", "unit": "%"},
+            "wwM": {"label": "Nebelwahrscheinlichkeit letzte 1 h", "unit": "%"},
+            "wwM6": {"label": "Nebelwahrscheinlichkeit letzte 6 h", "unit": "%"},
+            "wwT": {"label": "Gewitterwahrscheinlichkeit letzte 1 h", "unit": "%"},
+            "wwT6": {"label": "Gewitterwahrscheinlichkeit letzte 6 h", "unit": "%"},
+            "wwC": {"label": "Konvektiver Niederschlag letzte 1 h", "unit": "%"},
+            "wwS": {"label": "Fester Niederschlag letzte 1 h", "unit": "%"},
+            "RRS1c": {"label": "Schneeniederschlag Wasseräquivalent letzte 1 h", "unit": "mm"},
+            "RRS3c": {"label": "Schneeniederschlag Wasseräquivalent letzte 3 h", "unit": "mm"},
+            "ww": {"label": "Signifikantes Wetter, DWD-Wettercode", "unit": "Code"},
         },
         "stations": sorted(stations, key=lambda s: (s["name"], s["id"], s["key"])),
     }
