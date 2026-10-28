@@ -15,6 +15,7 @@ on:
       - "tests/test_mosmix_loader.mjs"
       - "tests/test_mosmix_chunks.py"
       - "tests/test_mosmix_run_compare.py"
+      - "tests/test_mosmix_map_layers.mjs"
       - "mosmix.js"
   workflow_dispatch:
 
@@ -54,6 +55,7 @@ jobs:
           node tests/test_mosmix_world.mjs
           node tests/test_mosmix_sun_daily.mjs
           node tests/test_mosmix_loader.mjs
+          node tests/test_mosmix_map_layers.mjs
 
       - name: MOSMIX-L laden und Deutschlanddatei bauen
         run: |
