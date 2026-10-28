@@ -152,6 +152,7 @@ node --check _site/mosmix.js
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
+node tests/test_mosmix_map_layers.mjs
 python -m unittest discover -s tests -p test_mosmix_chunks.py -v
 python -m unittest discover -s tests -p test_mosmix_run_compare.py -v
 test -s _site/mosmix.html
