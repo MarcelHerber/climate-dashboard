@@ -1,0 +1,88 @@
+{
+  "ready": true,
+  "date": "2026-09-01",
+  "analysis_time": "12:00 UTC",
+  "source": "ERA5 hourly reanalysis",
+  "resolution": "0.5°",
+  "hourly_samples": 24,
+  "products": {
+    "vo500": {
+      "label": "Relative Vorticity 500 hPa",
+      "unit": "10⁻⁵ s⁻¹",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-vo500.png"
+    },
+    "div300": {
+      "label": "Divergenz 300 hPa",
+      "unit": "10⁻⁵ s⁻¹",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-div300.png"
+    },
+    "pv300": {
+      "label": "Potenzielle Vorticity 300 hPa",
+      "unit": "PVU",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-pv300.png"
+    },
+    "omega700": {
+      "label": "Vertikalbewegung 700 hPa",
+      "unit": "Pa/s",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-omega700.png"
+    },
+    "cape": {
+      "label": "CAPE",
+      "unit": "J/kg",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-cape.png"
+    },
+    "cin": {
+      "label": "CIN",
+      "unit": "J/kg",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-cin.png"
+    },
+    "ivt": {
+      "label": "Integrierter Wasserdampftransport (IVT)",
+      "unit": "kg/(m·s)",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-ivt.png"
+    },
+    "jet250": {
+      "label": "Windgeschwindigkeit 250 hPa",
+      "unit": "m/s",
+      "time": "12:00 UTC",
+      "file": "https://github.com/MarcelHerber/climate-dashboard/releases/download/era5-synoptic-2026-v1/2026-09-01-jet250.png"
+    }
+  },
+  "cin_policy": "Missing CIN is retained as missing; omit image if valid-grid coverage is below 5%.",
+  "event_count_policy": "Hourly exceedances and per-grid valid-hour denominators are stored separately.",
+  "hourly_counts_file": "2026-09-01-hourly-counts.npz",
+  "thresholds": {
+    "cape1000": {
+      "label": "CAPE ≥ 1000 J/kg",
+      "operator": ">=",
+      "value": 1000.0
+    },
+    "ivt500": {
+      "label": "IVT ≥ 500 kg/(m·s)",
+      "operator": ">=",
+      "value": 500.0
+    },
+    "jet40": {
+      "label": "250-hPa-Wind ≥ 40 m/s",
+      "operator": ">=",
+      "value": 40.0
+    },
+    "lift700": {
+      "label": "Omega 700 hPa ≤ −0,2 Pa/s",
+      "operator": "<=",
+      "value": -0.2
+    },
+    "vo500_10": {
+      "label": "Vorticity 500 hPa ≥ 10 · 10⁻⁵ s⁻¹",
+      "operator": ">=",
+      "value": 0.0001
+    }
+  }
+}
