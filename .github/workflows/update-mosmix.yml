@@ -17,7 +17,6 @@ on:
       - "tests/test_mosmix_chunks.py"
       - "tests/test_mosmix_run_compare.py"
       - "tests/test_mosmix_map_layers.mjs"
-      - "mosmix.js"
   workflow_dispatch:
 
 permissions:
@@ -25,7 +24,7 @@ permissions:
 
 concurrency:
   group: mosmix-data-publish
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update-mosmix:
