@@ -151,7 +151,7 @@ jobs:
           p=Path("/tmp/mosmix-public/data/mosmix/mosmix_ttt.json")
           size=p.stat().st_size
           print(f"MOSMIX-Rohdaten zur Veröffentlichung: {size/1e6:.1f} MB")
-          if size>=95_000_000:
+          if size>=100*1024*1024:
               raise SystemExit("MOSMIX-Rohdatei zu groß für GitHub: Kartenquellen separat publizieren.")
           PY
           # Keinen veralteten Orphan-Stand mit --force über den Datenbranch
