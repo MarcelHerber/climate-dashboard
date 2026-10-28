@@ -37,8 +37,8 @@
   const RAIN_PERIODS = {"1":"RR1c","3":"RR3c","6":"RR6c","12":"RRhc","24":"RRdc"};
   const GUST_PERIODS = {"1":"FX1","3":"FX3","12":"FXh"};
   const MAP_VARIANTS = {
-    rain:[["rain1","1 Stunde"],["rain3","3 Stunden"],["rain6","6 Stunden"],["rain12","12 Stunden"],["rain24","24 Stunden"]],
-    gust:[["gust1","1 Stunde"],["gust3","3 Stunden"],["gust12","12 Stunden"]],
+    rain:[["rain1","1 Stunde"],["rain3","3 Stunden"],["rain6","6 Stunden"],["rain12","12 Stunden"],["rain24","24 Stunden (gleitend)"],["rainDay","Kalendertag (Summe RR1c)"]],
+    gust:[["gust1","1 Stunde"],["gust3","3 Stunden"],["gust12","12 Stunden"],["gustDay","Kalendertag (Maximum FX1)"]],
     cloud:[["cloudN","Gesamt"],["cloudNeff","Effektiv"],["cloudNl","Tief"],["cloudNm","Mittel"],["cloudNh","Hoch"]]
   };
   let mapVariant = "rain1";
@@ -499,8 +499,9 @@
   }
 
   function popupHtml(station, value, valid, kind) {
-    const label=kind==="rain" ? "Niederschlag · Originalintervall" :
-      kind==="gust" ? "Maximalböe · Originalintervall" :
+    const daily=MAP_VARIANTS[kind]&&mapVariant.endsWith("Day");
+    const label=kind==="rain" ? (daily?"Tagesniederschlag · Summe RR1c":"Niederschlag · Originalintervall") :
+      kind==="gust" ? (daily?"Tagesmaximalböe · Maximum FX1":"Maximalböe · Originalintervall") :
       kind==="cloud" ? "Bedeckungsgrad · Modellzeitpunkt" :
       kind==="tmax" ? "TX · Maximum der letzten 12 h" :
       kind==="tmin" ? "TN · Minimum der letzten 12 h" :
@@ -508,7 +509,7 @@
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
       esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' '+esc(kind==="rain"?"mm":kind==="gust"?"km/h":kind==="cloud"?"%":kind==="sun"?"h":"°C")+'</strong><br>' +
-      (kind==="sun" ? 'Kalendertag: '+esc(valid) : 'Gültig: '+esc(fmtTime(valid)));
+      (kind==="sun"||daily ? 'Kalendertag: '+esc(valid) : 'Gültig: '+esc(fmtTime(valid)));
   }
 
 
@@ -1378,8 +1379,8 @@
         Date.parse(frame.valid)>=Date.now())) : chooseExtremaIndex();
       if(sliderIndex<0||sliderIndex>=extremaFrames.length)sliderIndex=0;
       title.textContent=mapMode==="sun"?"Sonnenscheindauer · Kalendertag":
-        mapMode==="rain"?"Niederschlag · DWD-Originalintervall":
-        mapMode==="gust"?"Windböen · DWD-Originalintervall":
+        mapMode==="rain"?(mapVariant==="rainDay"?"Niederschlag · voller Kalendertag":"Niederschlag · DWD-Originalintervall"):
+        mapMode==="gust"?(mapVariant==="gustDay"?"Maximalböe · voller Kalendertag":"Windböen · DWD-Originalintervall"):
         mapMode==="cloud"?"Bewölkung · Prognosetermin":"Vorhersagezeitpunkt";
       nowButton.textContent=mapMode==="hourly"?"Nächster Termin":"Aktueller Tag / Termin";
       slider.value=String(sliderIndex);
@@ -1561,11 +1562,13 @@
       ctx.lineWidth=1.15;
       ctx.stroke();
 
+      const selectedVariant=(MAP_VARIANTS[mapMode]||[]).find(row=>row[0]===mapVariant);
+      const intervalName=selectedVariant?selectedVariant[1]:"";
       const title=mapMode==="tmax" ? "DWD MOSMIX-L · Tagesmaximum" :
         mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" :
         mapMode==="sun" ? "DWD MOSMIX-L · Sonnenscheindauer pro Kalendertag" :
-        mapMode==="rain" ? "DWD MOSMIX-L · Niederschlag "+mapVariant.slice(4)+" h" :
-        mapMode==="gust" ? "DWD MOSMIX-L · Windböe "+mapVariant.slice(4)+" h" :
+        mapMode==="rain" ? "DWD MOSMIX-L · Niederschlag · "+intervalName :
+        mapMode==="gust" ? "DWD MOSMIX-L · Windböe · "+intervalName :
         mapMode==="cloud" ? "DWD MOSMIX-L · Wolken "+mapVariant.slice(5) :
         "DWD MOSMIX-L · 2-m-Temperatur";
       ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
