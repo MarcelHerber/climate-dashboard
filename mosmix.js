@@ -182,7 +182,7 @@
       '</div>',
       '<div class="mosmix-grid">',
       '<div class="mosmix-card">',
-      '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
+      '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><div class="mosmix-status" id="mosmixQualityStatus"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
       '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button><button class="mosmix-mode-button" data-mosmix-mode="rain" type="button">Niederschlag</button><button class="mosmix-mode-button" data-mosmix-mode="gust" type="button">Böen</button><button class="mosmix-mode-button" data-mosmix-mode="cloud" type="button">Wolken</button><button class="mosmix-mode-button" data-mosmix-mode="fog" type="button">Sicht / Nebel</button><button class="mosmix-mode-button" data-mosmix-mode="snow" type="button">Schnee</button><button class="mosmix-mode-button" data-mosmix-mode="thunder" type="button">Gewitter</button><button class="mosmix-mode-button" data-mosmix-mode="weather" type="button">Wettercode</button></div><label class="mosmix-map-variant" id="mosmixMapVariantWrap" hidden>Zeitraum / Höhe <select id="mosmixMapVariant"></select></label>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
@@ -1843,6 +1843,29 @@
     }, 650);
   }
 
+  async function checkPublishedQuality(){
+    const status=document.getElementById("mosmixQualityStatus");
+    if(!status||!data)return;
+    const issue=data.issue_time;
+    status.textContent="Prüfstatus wird geladen …";
+    const candidates=[data._mapsBase||MAP_BASE,MAP_BACKUP_BASE];
+    for(const base of [...new Set(candidates)]){
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),5000);
+      try{
+        const response=await fetch(base+"quality_status.json",{cache:"no-store",signal:controller.signal});
+        if(!response.ok)continue;
+        const result=await response.json();
+        if(data?.issue_time!==issue)return;
+        if(result.issue_time===issue&&result.quality==="passed"){
+          status.textContent="Datenqualität geprüft · "+result.stations+" Stationen";
+          return;
+        }
+      }catch(_error){}finally{clearTimeout(timer);}
+    }
+    if(data?.issue_time===issue)status.textContent="Qualitätsnachweis noch nicht veröffentlicht";
+  }
+
   function updateIssueDisplay(){
     document.getElementById("mosmixRunInfo").innerHTML =
       'DWD MOSMIX-L · Lauf <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
@@ -1874,6 +1897,7 @@
       selectedStation=null;
       populateStationSearch();
       updateIssueDisplay();
+      void checkPublishedQuality();
       updateMapAvailability();
       setMapMode(mapMode);
       currentDetail = null;
@@ -1957,6 +1981,7 @@
       });
       populateStationSearch();
       updateMapAvailability();
+      void checkPublishedQuality();
       map.on("zoomend moveend", renderCurrentMap);
 
       updateIssueDisplay();
