@@ -14,6 +14,10 @@ const compressed=gzipSync(Buffer.from(JSON.stringify(sample)));
 const dataMock=(fetchImpl)=>{
   const status={textContent:""};
   const maker=new Function("fetch","document","DecompressionStream","Response",`
+    const MANIFEST_URL="./data/mosmix/manifest.json";
+    const MANIFEST_BACKUP_URL="https://raw.example/manifest.json";
+    const MAP_BASE="./data/mosmix/";
+    const MAP_BACKUP_BASE="https://raw.example/";
     const DATA_COMPRESSED_URL="./data/mosmix/mosmix_ttt.json.gz";
     const DATA_LOCAL_URL="./data/mosmix/mosmix_ttt.json";
     const DATA_URL="https://raw.example/mosmix_ttt.json";
@@ -25,6 +29,23 @@ const dataMock=(fetchImpl)=>{
   return {load:maker(fetchImpl,{getElementById:()=>status},DecompressionStream,Response),
     status};
 };
+{
+  const calls=[];
+  const manifest={schema:2,issue_time:"2026-10-28T09:00:00Z",
+    timesteps:["2026-10-28T12:00:00Z"],
+    stations:Array.from({length:150},(_,i)=>({id:String(i),name:"S"+i})),
+    modes:{hourly:[{path:"maps/hourly/2026-10-28.json",slot:0,valid:"2026-10-28T12:00:00Z"}]}}};
+  const {load}=dataMock(async(url)=>{
+    calls.push(url);
+    if(url=== "./data/mosmix/manifest.json")return {ok:true,json:async()=>manifest};
+    throw new Error("Large JSON should never be requested with a valid manifest");
+  });
+  const result=await load(false);
+  assert.equal(result._split,true);
+  assert.equal(result.stations.length,150);
+  assert.equal(result._mapsBase,"./data/mosmix/");
+  assert.equal(calls.length,1);
+}
 {
   const calls=[];
   const {load}=dataMock(async(url)=>{
@@ -39,7 +60,7 @@ const dataMock=(fetchImpl)=>{
   const result=await load(false);
   assert.equal(result._mosmixSource,"Website (komprimiert)");
   assert.equal(result.stations[0].name,"FRANKFURT/M");
-  assert.equal(calls.length,1);
+  assert.equal(calls.filter(url=>!url.endsWith("manifest.json")).length,1);
 }
 {
   const calls=[];
@@ -51,7 +72,7 @@ const dataMock=(fetchImpl)=>{
   });
   const result=await load(false);
   assert.equal(result._mosmixSource,"Website");
-  assert.equal(calls.length,2);
+  assert.equal(calls.filter(url=>!url.endsWith("manifest.json")).length,2);
 }
 {
   const calls=[];
@@ -63,7 +84,7 @@ const dataMock=(fetchImpl)=>{
   const result=await load(false);
   assert.equal(result._mosmixSource,"Ersatzquelle");
   assert.equal(result._mosmixFallback,true);
-  assert.equal(calls.length,4);
+  assert.equal(calls.filter(url=>!url.endsWith("manifest.json")).length,4);
 }
 {
   const {load,status}=dataMock(async()=>{throw new Error("Offline")});
