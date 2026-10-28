@@ -135,6 +135,7 @@ PY
     # Manifest zuerst, dann nur die jeweils benötigte Karte pro Tag laden.
     python scripts/build_mosmix_chunks.py "$mosmix_snapshot" _site/data/mosmix
     test -s _site/data/mosmix/manifest.json
+    python scripts/audit_mosmix_release.py _site/data/mosmix "$mosmix_snapshot"
     echo "MOSMIX-Deutschlandkarte mit geteilten Tages-/Parameterdateien veröffentlicht."
   else
     rm -f "$mosmix_snapshot" "$mosmix_snapshot.gz"
