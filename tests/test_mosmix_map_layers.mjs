@@ -6,6 +6,9 @@ new Function(js);
 for(const requirement of [
   'data-mosmix-mode="rain"', 'data-mosmix-mode="gust"', 'data-mosmix-mode="cloud"',
   "rainDay","gustDay","cloudNl","cloudNm","cloudNh","cloudNeff",
+  "visibility","lowVis","fog1","fog6","snow1","snow3","snowProb",
+  "thunder1","thunder6","conv1","weatherCode",
+  "mosmixCompareStationBtn","mosmixClearComparison","addSecondaryMeteogramDatasets",
   'const MANIFEST_URL = "./data/mosmix/manifest.json"',
   "MANIFEST_BACKUP_URL","loadSplitFrame","splitFrameValues","renderSplitMap",
   "mapChunkCache","DATA_COMPRESSED_URL","sunDayFramesFromTimesteps",
@@ -27,4 +30,8 @@ assert.equal(thresholdColor(19.9,thresholds),"#eee");
 assert.equal(thresholdColor(20,thresholds),"#aaa");
 assert.equal(thresholdColor(100,thresholds),"#000");
 assert.equal(thresholdColor(null,thresholds),"#9ca3af");
-console.log("PASS: MOSMIX-L Deutschland-Tagespakete, Regen/Böen/Wolken und Laufvergleich.");
+assert(js.includes('interpolatedValue(ll.lon,ll.lat,bins,binSize,mapMode==="weather")'),
+  "Categorical weather codes must not be interpolated as numeric forecasts.");
+assert(js.includes("secondaryDetail.parameters?.[fields[hours]]"),
+  "Second-station forecast must follow the selected rainfall/gust interval.");
+console.log("PASS: MOSMIX-L Tagespakete, Karten, DWD-Wetterparameter und Stations-/Laufvergleich.");
