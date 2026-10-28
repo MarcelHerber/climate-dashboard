@@ -4,6 +4,10 @@ name: MOSMIX Deutschland-Kartenpakete reparieren
 # vorhandenen geprüften Deutschland-Rohdatensatz aus mosmix-data einlesen,
 # daraus ein Manifest und kleine Karten nach Parameter/Tag erzeugen.
 on:
+  # Sicherheitslauf nach den vier großen DWD-Datenimporten.
+  # Bereits geprüfte unveränderte Karten werden nicht neu veröffentlicht.
+  schedule:
+    - cron: "45 5,11,17,23 * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -51,8 +55,30 @@ jobs:
           print("Deutschland-Rohdaten:",round(p.stat().st_size/1e6,1),"MB",
                 "| Stationen:",len(d["stations"]),"| Lauf:",d["issue_time"])
           PY
+          if git show FETCH_HEAD:data/mosmix/manifest.json >/tmp/mosmix-existing-manifest.json 2>/dev/null &&
+             git show FETCH_HEAD:data/mosmix/quality_status.json >/tmp/mosmix-existing-quality.json 2>/dev/null; then
+            python - <<'PY'
+import json,os
+from pathlib import Path
+raw=json.loads(Path("/tmp/mosmix-repair/data/mosmix/mosmix_ttt.json").read_text())
+manifest=json.loads(Path("/tmp/mosmix-existing-manifest.json").read_text())
+quality=json.loads(Path("/tmp/mosmix-existing-quality.json").read_text())
+healthy=(manifest.get("schema")==2 and manifest.get("issue_time")==raw.get("issue_time")
+         and quality.get("issue_time")==raw.get("issue_time")
+         and quality.get("quality")=="passed"
+         and len(manifest.get("modes",{}).get("hourly",[]))>40
+         and len(manifest.get("modes",{}).get("sun",[]))>=2)
+if healthy:
+    with open(os.environ["GITHUB_ENV"],"a") as env:
+        env.write("MOSMIX_RELEASE_COMPLETE=true\n")
+    print("MOSMIX Release ist vollständig: keine Reparatur erforderlich.")
+else:
+    print("MOSMIX Release ist unvollständig: Reparatur wird ausgeführt.")
+PY
+          fi
 
       - name: Karten nach Parametern und Tagen generieren
+        if: env.MOSMIX_RELEASE_COMPLETE != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,6 +106,7 @@ jobs:
           PY
 
       - name: Nur neue Karten und Manifest veröffentlichen
+        if: env.MOSMIX_RELEASE_COMPLETE != 'true'
         shell: bash
         run: |
           set -euo pipefail
