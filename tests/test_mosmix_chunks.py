@@ -29,7 +29,12 @@ class MOSMIXChunkTests(unittest.TestCase):
                              "RRdc":[16.0]*48,"FX1":[42.0]*48,
                              "FX3":[56.0]*48,"FXh":[70.0]*48,
                              "N":[90.0]*48,"Neff":[85.0]*48,
-                             "Nl":[75.0]*48,"Nm":[40.0]*48,"Nh":[25.0]*48}}
+                             "Nl":[75.0]*48,"Nm":[40.0]*48,"Nh":[25.0]*48,
+                             "VV":[0.8]*48,"VV10":[65.0]*48,"wwM":[85.0]*48,
+                             "wwM6":[92.0]*48,"RRS1c":[1.5]*48,
+                             "RRS3c":[4.5]*48,"wwS":[90.0]*48,
+                             "wwT":[12.0]*48,"wwT6":[19.0]*48,
+                             "wwC":[15.0]*48,"ww":[73]*48}}
         payload={"product":"DWD MOSMIX-L","issue_time":"2026-10-26T21:00:00Z",
                  "generated_at":"2026-10-26T21:05:00Z","timesteps":ts,
                  "station_count":150,"stations":[station(i) for i in range(150)]}
@@ -47,7 +52,10 @@ class MOSMIXChunkTests(unittest.TestCase):
             self.assertEqual(len(meta["modes"]["gustDay"]),2)
             for mode in ("rain1","rain3","rain6","rain12","rain24",
                          "gust1","gust3","gust12","cloudN","cloudNeff",
-                         "cloudNl","cloudNm","cloudNh"):
+                         "cloudNl","cloudNm","cloudNh",
+                         "visibility","lowVis","fog1","fog6",
+                         "snow1","snow3","snowProb",
+                         "thunder1","thunder6","conv1","weatherCode"):
                 self.assertEqual(len(meta["modes"][mode]),48,mode)
             def val(mode,index,station_index=1):
                 frame=meta["modes"][mode][index]
@@ -63,6 +71,11 @@ class MOSMIXChunkTests(unittest.TestCase):
             self.assertEqual(val("sun",0),12.0)
             self.assertEqual(val("rainDay",0),48.0)
             self.assertEqual(val("gustDay",0),42.0)
+            self.assertEqual(val("visibility",0),0.8)
+            self.assertEqual(val("fog1",0),85.0)
+            self.assertEqual(val("snow1",0),1.5)
+            self.assertEqual(val("thunder1",0),12.0)
+            self.assertEqual(val("weatherCode",0),73)
             self.assertIsNone(val("sun",0,0))
             self.assertEqual(json.loads((dest/"manifest.json").read_text())["schema"],2)
 
