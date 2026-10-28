@@ -109,7 +109,7 @@ done
 mkdir -p _site/data/mosmix
 mosmix_snapshot="_site/data/mosmix/mosmix_ttt.json"
 mosmix_source="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/mosmix_ttt.json"
-if curl -fsSL --connect-timeout 6 --max-time 35 --retry 1 --max-filesize 40000000 \
+if curl -fsSL --connect-timeout 6 --max-time 100 --retry 1 --max-filesize 120000000 \
   "$mosmix_source" -o "$mosmix_snapshot"; then
   if python - "$mosmix_snapshot" <<'PY'
 import json,sys
