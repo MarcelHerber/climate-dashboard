@@ -123,6 +123,7 @@
       ".mosmix-mode-button{appearance:none;border:0;border-right:1px solid #dbe2e8;background:#fff;color:#334155;padding:9px 12px;font-weight:750;cursor:pointer;white-space:nowrap}",
       ".mosmix-mode-button:last-child{border-right:0}",
       ".mosmix-mode-button.active{background:#10213d;color:#fff}",
+      ".mosmix-mode-button:disabled{opacity:.4;cursor:not-allowed;background:#edf2f5}",
       ".mosmix-map-variant{display:flex;gap:8px;align-items:center;color:#475569;font-size:12px;font-weight:700}",
       ".mosmix-map-variant select{padding:8px;border:1px solid #cbd5df;background:#fff;color:#172033;border-radius:7px}",
       ".mosmix-map-variant[hidden]{display:none!important}",
@@ -1448,6 +1449,19 @@
     return found>=0 ? found : extremaFrames.length-1;
   }
 
+  function updateMapAvailability(){
+    if(!data)return;
+    document.querySelectorAll("[data-mosmix-mode]").forEach(function(button){
+      const mode=button.dataset.mosmixMode;
+      const group=MAP_VARIANTS[mode];
+      const modes=group?group.map(entry=>entry[0]):[mode];
+      const available=data._split?modes.some(key=>data.modes?.[key]?.length):
+        ["hourly","tmax","tmin","sun"].includes(mode);
+      button.disabled=!available;
+      button.title=available?"":"Keine ausreichenden Originalwerte für diese Kartenart im aktuellen MOSMIX-Lauf";
+    });
+  }
+
   function setMapMode(mode) {
     mapMode=["hourly","tmax","tmin","sun","rain","gust","cloud","fog","snow","thunder","weather"].includes(mode) ? mode : "hourly";
     if(!data?._split && MAP_VARIANTS[mapMode])mapMode="hourly";
@@ -1456,9 +1470,12 @@
     const select=document.getElementById("mosmixMapVariant");
     if(variantWrap)variantWrap.hidden=!variants;
     if(variants&&select){
-      if(!variants.some(row=>row[0]===mapVariant))mapVariant=variants[0][0];
+      const usable=variants.filter(row=>data?._split && data.modes?.[row[0]]?.length);
+      if(!variants.some(row=>row[0]===mapVariant)||!data?.modes?.[mapVariant]?.length)
+        mapVariant=(usable[0]||variants[0])[0];
       select.innerHTML=variants.map(row=>
-        '<option value="'+row[0]+'">'+row[1]+'</option>').join("");
+        '<option value="'+row[0]+'"'+(data?._split&&!data.modes?.[row[0]]?.length?' disabled':'')+
+        '>'+row[1]+'</option>').join("");
       select.value=mapVariant;
     }
     renderLegend();
@@ -1846,6 +1863,7 @@
       selectedStation=null;
       populateStationSearch();
       updateIssueDisplay();
+      updateMapAvailability();
       setMapMode(mapMode);
       currentDetail = null;
       comparePreviousRun=false;
@@ -1927,6 +1945,7 @@
         }
       });
       populateStationSearch();
+      updateMapAvailability();
       map.on("zoomend moveend", renderCurrentMap);
 
       updateIssueDisplay();
