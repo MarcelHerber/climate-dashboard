@@ -58,23 +58,23 @@ jobs:
           if git show FETCH_HEAD:data/mosmix/manifest.json >/tmp/mosmix-existing-manifest.json 2>/dev/null &&
              git show FETCH_HEAD:data/mosmix/quality_status.json >/tmp/mosmix-existing-quality.json 2>/dev/null; then
             python - <<'PY'
-import json,os
-from pathlib import Path
-raw=json.loads(Path("/tmp/mosmix-repair/data/mosmix/mosmix_ttt.json").read_text())
-manifest=json.loads(Path("/tmp/mosmix-existing-manifest.json").read_text())
-quality=json.loads(Path("/tmp/mosmix-existing-quality.json").read_text())
-healthy=(manifest.get("schema")==2 and manifest.get("issue_time")==raw.get("issue_time")
-         and quality.get("issue_time")==raw.get("issue_time")
-         and quality.get("quality")=="passed"
-         and len(manifest.get("modes",{}).get("hourly",[]))>40
-         and len(manifest.get("modes",{}).get("sun",[]))>=2)
-if healthy:
-    with open(os.environ["GITHUB_ENV"],"a") as env:
-        env.write("MOSMIX_RELEASE_COMPLETE=true\n")
-    print("MOSMIX Release ist vollständig: keine Reparatur erforderlich.")
-else:
-    print("MOSMIX Release ist unvollständig: Reparatur wird ausgeführt.")
-PY
+          import json,os
+          from pathlib import Path
+          raw=json.loads(Path("/tmp/mosmix-repair/data/mosmix/mosmix_ttt.json").read_text())
+          manifest=json.loads(Path("/tmp/mosmix-existing-manifest.json").read_text())
+          quality=json.loads(Path("/tmp/mosmix-existing-quality.json").read_text())
+          healthy=(manifest.get("schema")==2 and manifest.get("issue_time")==raw.get("issue_time")
+                   and quality.get("issue_time")==raw.get("issue_time")
+                   and quality.get("quality")=="passed"
+                   and len(manifest.get("modes",{}).get("hourly",[]))>40
+                   and len(manifest.get("modes",{}).get("sun",[]))>=2)
+          if healthy:
+              with open(os.environ["GITHUB_ENV"],"a") as env:
+                  env.write("MOSMIX_RELEASE_COMPLETE=true\n")
+              print("MOSMIX Release ist vollständig: keine Reparatur erforderlich.")
+          else:
+              print("MOSMIX Release ist unvollständig: Reparatur wird ausgeführt.")
+          PY
           fi
 
       - name: Karten nach Parametern und Tagen generieren
