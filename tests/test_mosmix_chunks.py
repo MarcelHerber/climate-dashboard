@@ -10,6 +10,9 @@ ROOT=Path(__file__).resolve().parents[1]
 SPEC=importlib.util.spec_from_file_location("mosmix_chunks",ROOT/"scripts/build_mosmix_chunks.py")
 mod=importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
+AUDIT_SPEC=importlib.util.spec_from_file_location("mosmix_audit",ROOT/"scripts/audit_mosmix_release.py")
+auditmod=importlib.util.module_from_spec(AUDIT_SPEC)
+AUDIT_SPEC.loader.exec_module(auditmod)
 
 
 class MOSMIXChunkTests(unittest.TestCase):
@@ -78,6 +81,15 @@ class MOSMIXChunkTests(unittest.TestCase):
             self.assertEqual(val("weatherCode",0),73)
             self.assertIsNone(val("sun",0,0))
             self.assertEqual(json.loads((dest/"manifest.json").read_text())["schema"],2)
+            checked=auditmod.audit(dest,input)
+            self.assertGreater(len(checked),10)
+            # A wrong model run must never pass the release gate.
+            f=dest/"maps"/"rain1"/"2026-10-27.json"
+            tampered=json.loads(f.read_text(encoding="utf-8"))
+            tampered["issue_time"]="2026-10-25T00:00:00Z"
+            f.write_text(json.dumps(tampered),encoding="utf-8")
+            with self.assertRaises(AssertionError):
+                auditmod.audit(dest,input)
 
     def test_daylight_saving_day_lengths(self):
         z=timezone.utc
