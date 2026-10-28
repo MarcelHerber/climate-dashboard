@@ -132,7 +132,10 @@ print("MOSMIX-Deutschlanddatei in Pages eingebunden:",p.stat().st_size,
       "Bytes; komprimiert:",packed.stat().st_size,"Bytes")
 PY
   then
-    echo "MOSMIX-Deutschlandkarte wird direkt von Pages geladen."
+    # Manifest zuerst, dann nur die jeweils benötigte Karte pro Tag laden.
+    python scripts/build_mosmix_chunks.py "$mosmix_snapshot" _site/data/mosmix
+    test -s _site/data/mosmix/manifest.json
+    echo "MOSMIX-Deutschlandkarte mit geteilten Tages-/Parameterdateien veröffentlicht."
   else
     rm -f "$mosmix_snapshot" "$mosmix_snapshot.gz"
     echo "WARNUNG: Ungültige MOSMIX-Datei. Frontend nutzt Ersatzquellen."
