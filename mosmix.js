@@ -291,7 +291,7 @@
     const status=document.getElementById("mosmixSectionStatus");
     // A few hundred KB of metadata, followed by just the chosen day's layer.
     // The data branch is the fallback if Pages has not yet been redeployed.
-    for(const source of [MANIFEST_URL,MANIFEST_BACKUP_URL]){
+    for(const source of (forceRefresh?[MANIFEST_BACKUP_URL,MANIFEST_URL]:[MANIFEST_URL,MANIFEST_BACKUP_URL])){
       const remote=source===MANIFEST_BACKUP_URL;
       const controller=new AbortController();
       const timer=setTimeout(()=>controller.abort(),9000);
@@ -1085,6 +1085,8 @@
     });
     if (!response.ok) throw new Error("Meteogramm-Daten HTTP " + response.status);
     const detail = await response.json();
+    if(detail.issue_time!==data.issue_time)
+      throw new Error("Stationsdatei und Kartenkatalog stammen aus verschiedenen MOSMIX-Läufen. Bitte „Neuen Lauf laden“ verwenden.");
     detailCache.set(station.key, detail);
     return detail;
   }
