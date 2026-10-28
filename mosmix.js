@@ -40,7 +40,11 @@
   const MAP_VARIANTS = {
     rain:[["rain1","1 Stunde"],["rain3","3 Stunden"],["rain6","6 Stunden"],["rain12","12 Stunden"],["rain24","24 Stunden (gleitend)"],["rainDay","Kalendertag (Summe RR1c)"]],
     gust:[["gust1","1 Stunde"],["gust3","3 Stunden"],["gust12","12 Stunden"],["gustDay","Kalendertag (Maximum FX1)"]],
-    cloud:[["cloudN","Gesamt"],["cloudNeff","Effektiv"],["cloudNl","Tief"],["cloudNm","Mittel"],["cloudNh","Hoch"]]
+    cloud:[["cloudN","Gesamt"],["cloudNeff","Effektiv"],["cloudNl","Tief"],["cloudNm","Mittel"],["cloudNh","Hoch"]],
+    fog:[["visibility","Sichtweite (km)"],["lowVis","P(Sicht < 1 km)"],["fog1","P(Nebel) 1 h"],["fog6","P(Nebel) 6 h"]],
+    snow:[["snow1","Schnee-Wasseräquivalent 1 h"],["snow3","Schnee-Wasseräquivalent 3 h"],["snowProb","P(fester Niederschlag) 1 h"]],
+    thunder:[["thunder1","P(Gewitter) 1 h"],["thunder6","P(Gewitter) 6 h"],["conv1","P(Konvektion) 1 h"]],
+    weather:[["weatherCode","Signifikantes Wetter (ww)"]]
   };
   let mapVariant = "rain1";
   let mapRequestSequence = 0;
@@ -177,7 +181,7 @@
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button><button class="mosmix-mode-button" data-mosmix-mode="rain" type="button">Niederschlag</button><button class="mosmix-mode-button" data-mosmix-mode="gust" type="button">Böen</button><button class="mosmix-mode-button" data-mosmix-mode="cloud" type="button">Wolken</button></div><label class="mosmix-map-variant" id="mosmixMapVariantWrap" hidden>Zeitraum / Höhe <select id="mosmixMapVariant"></select></label>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button><button class="mosmix-mode-button" data-mosmix-mode="rain" type="button">Niederschlag</button><button class="mosmix-mode-button" data-mosmix-mode="gust" type="button">Böen</button><button class="mosmix-mode-button" data-mosmix-mode="cloud" type="button">Wolken</button><button class="mosmix-mode-button" data-mosmix-mode="fog" type="button">Sicht / Nebel</button><button class="mosmix-mode-button" data-mosmix-mode="snow" type="button">Schnee</button><button class="mosmix-mode-button" data-mosmix-mode="thunder" type="button">Gewitter</button><button class="mosmix-mode-button" data-mosmix-mode="weather" type="button">Wettercode</button></div><label class="mosmix-map-variant" id="mosmixMapVariantWrap" hidden>Zeitraum / Höhe <select id="mosmixMapVariant"></select></label>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
@@ -469,6 +473,10 @@
     if(mapMode==="rain")return "mm";
     if(mapMode==="gust")return "km/h";
     if(mapMode==="cloud")return "%";
+    if(mapMode==="fog")return mapVariant==="visibility"?"km":"%";
+    if(mapMode==="snow")return mapVariant==="snowProb"?"%":"mm";
+    if(mapMode==="thunder")return "%";
+    if(mapMode==="weather")return "Code";
     return "°C";
   }
   function colorForMap(value){
@@ -479,6 +487,14 @@
     }
     if(mapMode==="gust")return thresholdColor(value,[[0,"#b8d9cb"],[20,"#9dd5ae"],[40,"#f3e18e"],[60,"#edab46"],[80,"#eb6d31"],[100,"#c52d37"],[120,"#8a32a0"],[150,"#512566"]]);
     if(mapMode==="cloud")return thresholdColor(value,[[0,"#fcfcfd"],[10,"#eff1f4"],[25,"#d4d9df"],[50,"#a3acb6"],[75,"#687485"],[90,"#414d60"],[100,"#263244"]]);
+    if(mapMode==="fog"&&mapVariant==="visibility")
+      return thresholdColor(value,[[0,"#8f2332"],[.2,"#bd4051"],[.5,"#e67e52"],[1,"#f1b65a"],[2,"#f6de8c"],[5,"#b3d9b6"],[10,"#70b8ca"],[20,"#4d91bc"]]);
+    if((mapMode==="fog")||(mapMode==="snow"&&mapVariant==="snowProb")||mapMode==="thunder")
+      return thresholdColor(value,[[0,"#eef2f7"],[1,"#d8e9f8"],[5,"#accdef"],[10,"#80b2e1"],[20,"#4d83c8"],[40,"#6055b0"],[60,"#943a9f"],[80,"#c62c69"],[100,"#9d1736"]]);
+    if(mapMode==="snow")
+      return thresholdColor(value,[[0,"#f5f7fb"],[.1,"#d9ebfa"],[.5,"#b0d5f0"],[1,"#78afe0"],[2,"#4b84c7"],[5,"#3459a8"],[10,"#6a3996"],[20,"#a12672"]]);
+    if(mapMode==="weather")
+      return thresholdColor(value,[[0,"#e1e5e9"],[40,"#bfc8ce"],[50,"#92c5e3"],[60,"#2979ad"],[70,"#8c9de0"],[80,"#279f9b"],[90,"#a64684"]]);
     return colorForTemp(value);
   }
   function thresholdColor(value,stops){
@@ -492,6 +508,10 @@
       mapMode==="rain"?[0,.1,1,3,8,15,30,60]:
       mapMode==="gust"?[0,20,40,60,80,100,120,150]:
       mapMode==="cloud"?[0,10,25,50,75,90,100]:
+      mapMode==="fog"&&mapVariant==="visibility"?[0,.2,.5,1,2,5,10,20]:
+      mapMode==="fog"||mapMode==="thunder"||mapMode==="snow"&&mapVariant==="snowProb"?[0,1,5,10,20,40,60,80,100]:
+      mapMode==="snow"?[0,.1,.5,1,2,5,10,20]:
+      mapMode==="weather"?[0,40,50,60,70,80,90]:
       [-15,-10,-5,0,5,10,15,20,25,30,35];
     const unit=mapUnit();
     document.getElementById("mosmixLegend").innerHTML = values.map(function(v) {
@@ -501,7 +521,11 @@
 
   function popupHtml(station, value, valid, kind) {
     const daily=MAP_VARIANTS[kind]&&mapVariant.endsWith("Day");
-    const label=kind==="rain" ? (daily?"Tagesniederschlag · Summe RR1c":"Niederschlag · Originalintervall") :
+    const label=kind==="fog"?(mapVariant==="visibility"?"Sichtweite":"Nebel-/Sichtwahrscheinlichkeit") :
+      kind==="snow"?(mapVariant==="snowProb"?"Wahrscheinlichkeit fester Niederschlag":"Schneeniederschlag (Wasseräquivalent)") :
+      kind==="thunder"?"Gewitter-/Konvektionswahrscheinlichkeit" :
+      kind==="weather"?"Signifikantes Wetter, DWD-Code" :
+      kind==="rain" ? (daily?"Tagesniederschlag · Summe RR1c":"Niederschlag · Originalintervall") :
       kind==="gust" ? (daily?"Tagesmaximalböe · Maximum FX1":"Maximalböe · Originalintervall") :
       kind==="cloud" ? "Bedeckungsgrad · Modellzeitpunkt" :
       kind==="tmax" ? "TX · Maximum der letzten 12 h" :
@@ -509,7 +533,7 @@
       kind==="sun" ? "SunD1 · Sonnenscheindauer am Kalendertag" : "TTT · Temperatur 2 m";
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
-      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' '+esc(kind==="rain"?"mm":kind==="gust"?"km/h":kind==="cloud"?"%":kind==="sun"?"h":"°C")+'</strong><br>' +
+      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' '+esc(kind==="rain"?"mm":kind==="gust"?"km/h":kind==="cloud"?"%":kind==="fog"?(mapVariant==="visibility"?"km":"%"):kind==="snow"?(mapVariant==="snowProb"?"%":"mm"):kind==="thunder"?"%":kind==="weather"?"Code":kind==="sun"?"h":"°C")+'</strong><br>' +
       (kind==="sun"||daily ? 'Kalendertag: '+esc(valid) : 'Gültig: '+esc(fmtTime(valid)));
   }
 
@@ -1352,7 +1376,7 @@
   }
 
   function setMapMode(mode) {
-    mapMode=["hourly","tmax","tmin","sun","rain","gust","cloud"].includes(mode) ? mode : "hourly";
+    mapMode=["hourly","tmax","tmin","sun","rain","gust","cloud","fog","snow","thunder","weather"].includes(mode) ? mode : "hourly";
     if(!data?._split && MAP_VARIANTS[mapMode])mapMode="hourly";
     const variants=MAP_VARIANTS[mapMode];
     const variantWrap=document.getElementById("mosmixMapVariantWrap");
@@ -1382,7 +1406,11 @@
       title.textContent=mapMode==="sun"?"Sonnenscheindauer · Kalendertag":
         mapMode==="rain"?(mapVariant==="rainDay"?"Niederschlag · voller Kalendertag":"Niederschlag · DWD-Originalintervall"):
         mapMode==="gust"?(mapVariant==="gustDay"?"Maximalböe · voller Kalendertag":"Windböen · DWD-Originalintervall"):
-        mapMode==="cloud"?"Bewölkung · Prognosetermin":"Vorhersagezeitpunkt";
+        mapMode==="cloud"?"Bewölkung · Prognosetermin":
+        mapMode==="fog"?"Sicht / Nebel · Prognosetermin":
+        mapMode==="snow"?"Schnee · Prognosetermin":
+        mapMode==="thunder"?"Gewitter · Prognosetermin":
+        mapMode==="weather"?"Signifikantes Wetter · Prognosetermin":"Vorhersagezeitpunkt";
       nowButton.textContent=mapMode==="hourly"?"Nächster Termin":"Aktueller Tag / Termin";
       slider.value=String(sliderIndex);
       if(!extremaFrames.length){
@@ -1571,6 +1599,10 @@
         mapMode==="rain" ? "DWD MOSMIX-L · Niederschlag · "+intervalName :
         mapMode==="gust" ? "DWD MOSMIX-L · Windböe · "+intervalName :
         mapMode==="cloud" ? "DWD MOSMIX-L · Wolken "+mapVariant.slice(5) :
+        mapMode==="fog" ? "DWD MOSMIX-L · Sicht / Nebel · "+intervalName :
+        mapMode==="snow" ? "DWD MOSMIX-L · Schnee · "+intervalName :
+        mapMode==="thunder" ? "DWD MOSMIX-L · Gewitter · "+intervalName :
+        mapMode==="weather" ? "DWD MOSMIX-L · signifikantes Wetter (ww)" :
         "DWD MOSMIX-L · 2-m-Temperatur";
       ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
       ctx.font="600 18px Arial";ctx.fillText(label,margin.left,80);
@@ -1581,6 +1613,10 @@
         mapMode==="rain"?[0,.1,1,3,8,15,30,60]:
         mapMode==="gust"?[0,20,40,60,80,100,120,150]:
         mapMode==="cloud"?[0,10,25,50,75,90,100]:
+        mapMode==="fog"&&mapVariant==="visibility"?[0,.2,.5,1,2,5,10,20]:
+        mapMode==="fog"||mapMode==="thunder"||mapMode==="snow"&&mapVariant==="snowProb"?[0,1,5,10,20,40,60,80,100]:
+        mapMode==="snow"?[0,.1,.5,1,2,5,10,20]:
+        mapMode==="weather"?[0,40,50,60,70,80,90]:
         [-15,-10,-5,0,5,10,15,20,25,30,35];
       const legendY=height-94,boxW=74;
       legendValues.forEach(function(v,index) {
