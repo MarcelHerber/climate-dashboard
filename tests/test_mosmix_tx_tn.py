@@ -66,6 +66,11 @@ class MOSMIXExtremaTests(unittest.TestCase):
         self.assertEqual(mos.convert_values("RRdc",[6.789]),[6.79])
         self.assertEqual(mos.convert_values("SunD1",[0,600,3600,None]),[0.0,10.0,60.0,None])
         self.assertEqual(mos.convert_values("Rad1h",[950.7,None]),[950.7,None])
+        self.assertEqual(mos.convert_values("VV",[550,12000,None]),[0.55,12.0,None])
+        self.assertEqual(mos.convert_values("wwM",[0,10.5,101]),[0.0,10.5,None])
+        self.assertEqual(mos.convert_values("wwT6",[13,100,-1]),[13.0,100.0,None])
+        self.assertEqual(mos.convert_values("RRS1c",[1.25,None]),[1.25,None])
+        self.assertEqual(mos.convert_values("ww",[0,45,95,100,30.2]),[0,45,95,None,None])
 
     def test_daily_extrema_use_only_dwd_standard_synop_times(self):
         with tempfile.TemporaryDirectory() as folder:
