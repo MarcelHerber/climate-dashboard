@@ -23,6 +23,7 @@
   let markerLayer = null;
   let sliderIndex = 0;
   let playTimer = null;
+  let sliderDebounceTimer = null;
   let loaded = false;
   let mapMode = "hourly";
   let extremaFrames = [];
@@ -1709,10 +1710,13 @@
       'DWD MOSMIX-L · Lauf <strong>' + esc(fmtTime(data.issue_time)) + '</strong> · ' +
       data.station_count + ' Punkte · ' + data.timesteps.length + ' Zeitschritte' +
       (data._mosmixSource?' · Quelle: '+esc(data._mosmixSource):'');
+    const ageHours=(Date.now()-Date.parse(data.issue_time))/3600000;
+    const ageText=Number.isFinite(ageHours)&&ageHours>12?
+      " · Achtung: Prognoselauf "+Math.round(ageHours)+" Stunden alt":"";
     document.getElementById("mosmixSectionStatus").textContent =
       'MOSMIX-L: TTT stündlich · TX 12 h bis 18 UTC · TN 12 h bis 06 UTC · Lauf '+
       fmtTime(data.issue_time)+(data._mosmixFallback?
-      ' · Ersatzquelle (Laufdatum beachten)':'');
+      ' · Ersatzquelle (Laufdatum beachten)':'')+ageText;
   }
 
   async function refreshForecast(){
@@ -1763,7 +1767,15 @@
 
       const slider = document.getElementById("mosmixSlider");
       slider.max = String(data.timesteps.length - 1);
-      slider.addEventListener("input", function(){ setIndex(slider.value); });
+      slider.addEventListener("input", function(){
+        if(!data?._split){setIndex(slider.value);return;}
+        clearTimeout(sliderDebounceTimer);
+        sliderDebounceTimer=setTimeout(function(){setIndex(slider.value);},140);
+      });
+      slider.addEventListener("change",function(){
+        clearTimeout(sliderDebounceTimer);
+        setIndex(slider.value);
+      });
       document.querySelectorAll("[data-mosmix-mode]").forEach(function(button){
         button.addEventListener("click",function(){ setMapMode(button.dataset.mosmixMode); });
       });
