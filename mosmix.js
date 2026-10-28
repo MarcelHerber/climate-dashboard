@@ -10,6 +10,8 @@
   // leaving the MOSMIX section in an endless loading state.
   const DATA_BACKUP_URL = "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@mosmix-data/data/mosmix/mosmix_ttt.json";
   const DATA_TIMEOUT_MS = 15000;
+  const MANIFEST_URL = "./data/mosmix/manifest.json";
+  const MAP_BASE = "./data/mosmix/";
   const DETAIL_BASE = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/mosmix-data/data/mosmix/stations/";
   const STATES_URL = "https://raw.githubusercontent.com/isellsoap/deutschlandGeoJSON/main/2_bundeslaender/4_niedrig.geo.json";
   const TAB_ID = "mosmix";
@@ -31,6 +33,14 @@
   let gustPeriod = "1";
   const RAIN_PERIODS = {"1":"RR1c","3":"RR3c","6":"RR6c","12":"RRhc","24":"RRdc"};
   const GUST_PERIODS = {"1":"FX1","3":"FX3","12":"FXh"};
+  const MAP_VARIANTS = {
+    rain:[["rain1","1 Stunde"],["rain3","3 Stunden"],["rain6","6 Stunden"],["rain12","12 Stunden"],["rain24","24 Stunden"]],
+    gust:[["gust1","1 Stunde"],["gust3","3 Stunden"],["gust12","12 Stunden"]],
+    cloud:[["cloudN","Gesamt"],["cloudNeff","Effektiv"],["cloudNl","Tief"],["cloudNm","Mittel"],["cloudNh","Hoch"]]
+  };
+  let mapVariant = "rain1";
+  let mapRequestSequence = 0;
+  const mapChunkCache = new Map();
   const detailCache = new Map();
 
   function esc(value) {
@@ -103,6 +113,8 @@
       ".mosmix-mode-button{appearance:none;border:0;border-right:1px solid #dbe2e8;background:#fff;color:#334155;padding:9px 12px;font-weight:750;cursor:pointer;white-space:nowrap}",
       ".mosmix-mode-button:last-child{border-right:0}",
       ".mosmix-mode-button.active{background:#10213d;color:#fff}",
+      ".mosmix-map-variant{display:flex;gap:8px;align-items:center;color:#475569;font-size:12px;font-weight:700}",
+      ".mosmix-map-variant select{padding:8px;border:1px solid #cbd5df;background:#fff;color:#172033;border-radius:7px}",
       ".mosmix-download-button{background:#10213d;color:#fff;border-color:#10213d}",
       ".mosmix-slider-wrap label{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:700;color:#334155;margin-bottom:7px}",
       ".mosmix-slider{width:100%}",
@@ -157,7 +169,7 @@
       '<div class="mosmix-card">',
       '<div class="mosmix-topline"><div class="mosmix-status" id="mosmixRunInfo">MOSMIX-L wird geladen …</div><div class="mosmix-topline-actions"><div class="mosmix-status" id="mosmixValidInfo"></div><button class="mosmix-button" id="mosmixReload" type="button" title="Aktuellsten DWD MOSMIX-L Lauf vom Datenserver laden">Neuen Lauf laden ↻</button></div></div>',
       '<div class="mosmix-controls">',
-      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button></div>',
+      '<div class="mosmix-mode-group"><button class="mosmix-mode-button active" data-mosmix-mode="hourly" type="button">Stündlich</button><button class="mosmix-mode-button" data-mosmix-mode="tmax" type="button" title="MOSMIX TX: Maximum der letzten 12 Stunden bis 18 UTC">Tmax (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="tmin" type="button" title="MOSMIX TN: Minimum der letzten 12 Stunden bis 06 UTC">Tmin (12 h)</button><button class="mosmix-mode-button" data-mosmix-mode="sun" type="button" title="SunD1-Summe pro vollständigem Kalendertag (Ortszeit Deutschland)">Sonne (Tag)</button><button class="mosmix-mode-button" data-mosmix-mode="rain" type="button">Niederschlag</button><button class="mosmix-mode-button" data-mosmix-mode="gust" type="button">Böen</button><button class="mosmix-mode-button" data-mosmix-mode="cloud" type="button">Wolken</button></div><label class="mosmix-map-variant" id="mosmixMapVariantWrap" hidden>Zeitraum / Höhe <select id="mosmixMapVariant"></select></label>',
       '<div class="mosmix-slider-wrap"><label><span id="mosmixSliderTitle">Vorhersagezeitpunkt</span><strong id="mosmixSliderLabel">–</strong></label><input id="mosmixSlider" class="mosmix-slider" type="range" min="0" max="0" step="1" value="0"></div>',
       '<button id="mosmixPlay" class="mosmix-button" type="button">▶ Animation</button>',
       '<button id="mosmixNow" class="mosmix-button" type="button">Nächster Termin</button>',
@@ -269,6 +281,27 @@
 
   async function loadData(forceRefresh) {
     const status=document.getElementById("mosmixSectionStatus");
+    // The tiny station manifest replaces 2,800 full 247-step station vectors.
+    // The legacy archive is kept only for older / incomplete deployments.
+    try {
+      if(status)status.textContent="Lade kompakten MOSMIX-Stationskatalog …";
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),10000);
+      try {
+        const response=await fetch(MANIFEST_URL,{cache:forceRefresh?"no-store":"default",signal:controller.signal});
+        if(response.ok){
+          const manifest=await response.json();
+          if(manifest.schema===2&&Array.isArray(manifest.stations)&&manifest.stations.length>100&&
+             Array.isArray(manifest.timesteps)&&manifest.modes?.hourly?.length){
+            manifest._split=true;
+            manifest._mosmixSource="Website (Tagespakete)";
+            return manifest;
+          }
+        }
+      } finally { clearTimeout(timer); }
+    } catch(error){
+      console.warn("MOSMIX Tagespakete nicht erreichbar, verwende bisherige Quelle:",error);
+    }
     const endpoints=forceRefresh ? [DATA_URL,DATA_BACKUP_URL,DATA_COMPRESSED_URL,DATA_LOCAL_URL] :
       [DATA_COMPRESSED_URL,DATA_LOCAL_URL,DATA_URL,DATA_BACKUP_URL];
     const errors=[];
@@ -415,22 +448,54 @@
     return best;
   }
 
+  function mapKey(){
+    return MAP_VARIANTS[mapMode] ? mapVariant : mapMode;
+  }
+  function mapUnit(){
+    if(mapMode==="sun")return "h";
+    if(mapMode==="rain")return "mm";
+    if(mapMode==="gust")return "km/h";
+    if(mapMode==="cloud")return "%";
+    return "°C";
+  }
+  function colorForMap(value){
+    if(mapMode==="sun")return colorForSun(value);
+    if(mapMode==="rain"){
+      const stops=[[0,"#e7edf3"],[0.1,"#b8e2f7"],[1,"#64b2e3"],[3,"#247bbf"],[8,"#135095"],[15,"#6937a7"],[30,"#a3276e"],[60,"#e83345"]];
+      return thresholdColor(value,stops);
+    }
+    if(mapMode==="gust")return thresholdColor(value,[[0,"#b8d9cb"],[20,"#9dd5ae"],[40,"#f3e18e"],[60,"#edab46"],[80,"#eb6d31"],[100,"#c52d37"],[120,"#8a32a0"],[150,"#512566"]]);
+    if(mapMode==="cloud")return thresholdColor(value,[[0,"#fcfcfd"],[10,"#eff1f4"],[25,"#d4d9df"],[50,"#a3acb6"],[75,"#687485"],[90,"#414d60"],[100,"#263244"]]);
+    return colorForTemp(value);
+  }
+  function thresholdColor(value,stops){
+    if(!Number.isFinite(value))return "#9ca3af";
+    let color=stops[0][1];
+    for(const [limit,next] of stops){if(value>=limit)color=next;else break;}
+    return color;
+  }
   function renderLegend() {
-    const isSun=mapMode==="sun";
-    const values = isSun?[0,1,2,4,6,8,10,12,16,24]:[-15,-10,-5,0,5,10,15,20,25,30,35];
+    const values=mapMode==="sun"?[0,1,2,4,6,8,10,12,16,24]:
+      mapMode==="rain"?[0,.1,1,3,8,15,30,60]:
+      mapMode==="gust"?[0,20,40,60,80,100,120,150]:
+      mapMode==="cloud"?[0,10,25,50,75,90,100]:
+      [-15,-10,-5,0,5,10,15,20,25,30,35];
+    const unit=mapUnit();
     document.getElementById("mosmixLegend").innerHTML = values.map(function(v) {
-      const color=isSun?colorForSun(v):colorForTemp(v);
-      return '<span><i style="background:' + color + '"></i>' + v + (isSun?' h':'°') + '</span>';
+      return '<span><i style="background:' + colorForMap(v) + '"></i>' + v + (unit==="°C"?"°":" "+unit) + '</span>';
     }).join("");
   }
 
   function popupHtml(station, value, valid, kind) {
-    const label=kind==="tmax" ? "TX · Maximum der letzten 12 h" :
+    const label=kind==="rain" ? "Niederschlag · Originalintervall" :
+      kind==="gust" ? "Maximalböe · Originalintervall" :
+      kind==="cloud" ? "Bedeckungsgrad · Modellzeitpunkt" :
+      kind==="tmax" ? "TX · Maximum der letzten 12 h" :
       kind==="tmin" ? "TN · Minimum der letzten 12 h" :
       kind==="sun" ? "SunD1 · Sonnenscheindauer am Kalendertag" : "TTT · Temperatur 2 m";
     return '<strong>' + esc(station.name) + '</strong><br>' +
       'MOSMIX-ID: ' + esc(station.id) + '<br>' +
-      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + (kind==="sun"?' h':' °C')+'</strong><br>' +
+      esc(label)+': <strong>' + value.toFixed(1).replace(".", ",") + ' '+esc(kind==="rain"?"mm":kind==="gust"?"km/h":kind==="cloud"?"%":kind==="sun"?"h":"°C")+'</strong><br>' +
       (kind==="sun" ? 'Kalendertag: '+esc(valid) : 'Gültig: '+esc(fmtTime(valid)));
   }
 
