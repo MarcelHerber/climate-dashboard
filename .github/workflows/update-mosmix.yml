@@ -44,8 +44,9 @@ jobs:
         run: python -m unittest discover -s tests -p test_mosmix_tx_tn.py -v
 
       - name: MOSMIX-Tagespakete und Zeitumstellung testen
-        run: python -m unittest discover -s tests -p test_mosmix_chunks.py -v
-        python -m unittest discover -s tests -p test_mosmix_run_compare.py -v
+        run: |
+          python -m unittest discover -s tests -p test_mosmix_chunks.py -v
+          python -m unittest discover -s tests -p test_mosmix_run_compare.py -v
 
       - name: MOSMIX-Oberfläche auf Syntax prüfen
         run: |
