@@ -88,8 +88,23 @@ def audit(directory, original):
                             source_values=original["stations"][i].get("map_extra",{}).get(source_key,[])
                             expect=source_values[index] if index<len(source_values) else None
                             actual=arr[i]
+                            # Optional DWD parameters can be present but invalid
+                            # (e.g., visibility beyond supported range or a
+                            # missing categorical code). Match the converter's
+                            # documented domain instead of failing publication
+                            # for values the map intentionally masks out.
                             if isinstance(expect,(int,float)) and math.isfinite(expect):
-                                assert actual==expect,(mode,frame["valid"],i,actual,expect)
+                                if mode in CLOUD+WEATHER_PROB and not 0<=expect<=100:
+                                    expect=None
+                                elif mode=="visibility" and not 0<=expect<=100:
+                                    expect=None
+                                elif mode=="weatherCode" and not (0<=expect<=99 and expect==int(expect)):
+                                    expect=None
+                                elif mode in RAINS+GUSTS and expect<0:
+                                    expect=None
+                            else:
+                                expect=None
+                            assert actual==expect,(mode,frame["valid"],i,actual,expect)
         counts[mode]=len(frames)
     print("MOSMIX Qualität bestanden:",manifest["issue_time"],
           "| Stationen",n,"| Modi",len(counts),
