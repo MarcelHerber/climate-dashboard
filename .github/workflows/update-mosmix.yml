@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/update-mosmix.yml"
       - "scripts/update_mosmix.py"
+      - "scripts/merge_mosmix_previous.py"
       - "tests/test_mosmix_tx_tn.py"
       - "tests/test_mosmix_world.mjs"
       - "tests/test_mosmix_sun_daily.mjs"
@@ -55,6 +56,19 @@ jobs:
           rm -rf /tmp/mosmix-public
           mkdir -p /tmp/mosmix-public/data/mosmix
           python scripts/update_mosmix.py --output /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+
+      - name: Vorherigen echten MOSMIX-Lauf für Meteogrammvergleich sichern
+        shell: bash
+        run: |
+          if git fetch --quiet --no-tags --depth=1 origin refs/heads/mosmix-data:refs/remotes/origin/mosmix-data; then
+            if git show refs/remotes/origin/mosmix-data:data/mosmix/mosmix_ttt.json > /tmp/mosmix-previous.json; then
+              python scripts/merge_mosmix_previous.py /tmp/mosmix-previous.json /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+            else
+              echo "MOSMIX-Laufvergleich noch ohne gespeicherten Vorlauf."
+            fi
+          else
+            echo "Noch kein alter MOSMIX-Datenbranch verfügbar."
+          fi
 
       - name: Originale TX und TN auf dem Datenbranch prüfen
         run: |
