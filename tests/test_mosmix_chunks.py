@@ -43,6 +43,8 @@ class MOSMIXChunkTests(unittest.TestCase):
             self.assertEqual(len(meta["modes"]["hourly"]),48)
             self.assertEqual(len(meta["modes"]["tmax"]),2)
             self.assertEqual(len(meta["modes"]["sun"]),2)
+            self.assertEqual(len(meta["modes"]["rainDay"]),2)
+            self.assertEqual(len(meta["modes"]["gustDay"]),2)
             for mode in ("rain1","rain3","rain6","rain12","rain24",
                          "gust1","gust3","gust12","cloudN","cloudNeff",
                          "cloudNl","cloudNm","cloudNh"):
@@ -59,6 +61,8 @@ class MOSMIXChunkTests(unittest.TestCase):
             self.assertEqual(val("cloudNl",0),75.0)
             self.assertEqual(val("tmax",0),19.0)
             self.assertEqual(val("sun",0),12.0)
+            self.assertEqual(val("rainDay",0),48.0)
+            self.assertEqual(val("gustDay",0),42.0)
             self.assertIsNone(val("sun",0,0))
             self.assertEqual(json.loads((dest/"manifest.json").read_text())["schema"],2)
 
