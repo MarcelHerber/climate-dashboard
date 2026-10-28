@@ -108,13 +108,14 @@
     style.textContent = [
       ".mosmix-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}",
       ".mosmix-card{background:#fff;border:1px solid var(--border);border-radius:9px;box-shadow:var(--shadow);padding:16px}",
-      ".mosmix-controls{display:grid;grid-template-columns:auto minmax(260px,1fr) auto auto auto;gap:12px;align-items:end}",
-      ".mosmix-mode-group{display:flex;border:1px solid #cbd5df;border-radius:8px;overflow:hidden;background:#fff}",
+      ".mosmix-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}.mosmix-mode-group{flex:0 0 auto}.mosmix-slider-wrap{flex:1 1 260px}",
+      ".mosmix-mode-group{display:flex;flex-wrap:wrap;border:1px solid #cbd5df;border-radius:8px;overflow:hidden;background:#fff}",
       ".mosmix-mode-button{appearance:none;border:0;border-right:1px solid #dbe2e8;background:#fff;color:#334155;padding:9px 12px;font-weight:750;cursor:pointer;white-space:nowrap}",
       ".mosmix-mode-button:last-child{border-right:0}",
       ".mosmix-mode-button.active{background:#10213d;color:#fff}",
       ".mosmix-map-variant{display:flex;gap:8px;align-items:center;color:#475569;font-size:12px;font-weight:700}",
       ".mosmix-map-variant select{padding:8px;border:1px solid #cbd5df;background:#fff;color:#172033;border-radius:7px}",
+      ".mosmix-map-variant[hidden]{display:none!important}",
       ".mosmix-download-button{background:#10213d;color:#fff;border-color:#10213d}",
       ".mosmix-slider-wrap label{display:flex;justify-content:space-between;gap:12px;font-size:13px;font-weight:700;color:#334155;margin-bottom:7px}",
       ".mosmix-slider{width:100%}",
@@ -1431,20 +1432,29 @@
 
       let label="";
       let points=[];
-      if (mapMode==="hourly") {
+      if(data._split){
+        const frame=extremaFrames[sliderIndex];
+        if(!frame)throw Error("Keine Karte gewählt.");
+        const chunk=await loadSplitFrame(frame);
+        const values=splitFrameValues(chunk,frame);
+        label=frame.label;
+        data.stations.forEach(function(station,i){
+          const value=values[i];
+          if(Number.isFinite(value))points.push({lat:station.lat,lon:station.lon,value});
+        });
+      } else if (mapMode==="hourly") {
         const index=sliderIndex;
         label=fmtTime(data.timesteps[index]);
         data.stations.forEach(function(station) {
-          const source=station.values;
-          const value=source&&source[index];
-          if (Number.isFinite(value)) points.push({lat:station.lat,lon:station.lon,value:value});
+          const value=station.values&&station.values[index];
+          if(Number.isFinite(value))points.push({lat:station.lat,lon:station.lon,value});
         });
       } else {
         const frame=extremaFrames[sliderIndex];
         label=frame ? frame.label : "";
         data.stations.forEach(function(station) {
           const hit=frame ? extremaHit(station,frame) : null;
-          if (hit) points.push({lat:station.lat,lon:station.lon,value:hit.value});
+          if(hit)points.push({lat:station.lat,lon:station.lon,value:hit.value});
         });
       }
       if (points.length<100) throw new Error("Zu wenige MOSMIX-Punkte.");
@@ -1477,7 +1487,7 @@
           const ll=unproject(x+cell/2,y+cell/2);
           const value=interpolatedValue(ll.lon,ll.lat,bins,binSize);
           if (!Number.isFinite(value)) continue;
-          ctx.fillStyle=mapMode==="sun"?colorForSun(value):colorForTemp(value);
+          ctx.fillStyle=colorForMap(value);
           ctx.fillRect(x,y,cell+1,cell+1);
         }
       }
@@ -1492,19 +1502,26 @@
       const title=mapMode==="tmax" ? "DWD MOSMIX-L · Tagesmaximum" :
         mapMode==="tmin" ? "DWD MOSMIX-L · Nachtminimum" :
         mapMode==="sun" ? "DWD MOSMIX-L · Sonnenscheindauer pro Kalendertag" :
+        mapMode==="rain" ? "DWD MOSMIX-L · Niederschlag "+mapVariant.slice(4)+" h" :
+        mapMode==="gust" ? "DWD MOSMIX-L · Windböe "+mapVariant.slice(4)+" h" :
+        mapMode==="cloud" ? "DWD MOSMIX-L · Wolken "+mapVariant.slice(5) :
         "DWD MOSMIX-L · 2-m-Temperatur";
       ctx.fillStyle="#0f172a";ctx.font="700 30px Arial";ctx.fillText(title,margin.left,48);
       ctx.font="600 18px Arial";ctx.fillText(label,margin.left,80);
       ctx.fillStyle="#64748b";ctx.font="14px Arial";
       ctx.fillText("Lauf: "+fmtTime(data.issue_time)+" · "+points.length+" MOSMIX-Punkte",margin.left,106);
 
-      const legendValues=mapMode==="sun"?[0,1,2,4,6,8,10,12,16,24]:[-15,-10,-5,0,5,10,15,20,25,30,35];
+      const legendValues=mapMode==="sun"?[0,1,2,4,6,8,10,12,16,24]:
+        mapMode==="rain"?[0,.1,1,3,8,15,30,60]:
+        mapMode==="gust"?[0,20,40,60,80,100,120,150]:
+        mapMode==="cloud"?[0,10,25,50,75,90,100]:
+        [-15,-10,-5,0,5,10,15,20,25,30,35];
       const legendY=height-94,boxW=74;
       legendValues.forEach(function(v,index) {
         const x=margin.left+index*boxW;
-        ctx.fillStyle=mapMode==="sun"?colorForSun(v):colorForTemp(v);ctx.fillRect(x,legendY,boxW,18);
+        ctx.fillStyle=colorForMap(v);ctx.fillRect(x,legendY,boxW,18);
         ctx.strokeStyle="rgba(0,0,0,.15)";ctx.strokeRect(x,legendY,boxW,18);
-        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+(mapMode==="sun"?" h":"°"),x+2,legendY+35);
+        ctx.fillStyle="#334155";ctx.font="12px Arial";ctx.fillText(v+" "+mapUnit(),x+2,legendY+35);
       });
       ctx.fillStyle="#64748b";ctx.font="12px Arial";
       ctx.fillText("Interpoliert aus DWD-MOSMIX-L-Punktprognosen · keine amtliche DWD-Rasterkarte",margin.left,height-28);
