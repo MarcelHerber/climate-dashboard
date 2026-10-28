@@ -192,6 +192,7 @@
       '<div class="mosmix-card">',
       '<div id="mosmixMap" class="mosmix-map"></div>',
       '<div id="mosmixLegend" class="mosmix-legend"></div>',
+      '<p class="mosmix-note">Sichtweite (VV) wird in km gezeigt. Nebel und Gewitter sind Eintrittswahrscheinlichkeiten, Schneeniederschlag ist das Wasseräquivalent in mm – keine Schneehöhe. Signifikantes Wetter (ww) wird als kategorischer Code gezeigt (nicht interpoliert); Codes unter 40 sind nur eingeschränkt meteorologisch interpretierbar. Nicht vorhandene DWD-Originalwerte werden ausgeblendet.</p>',
       '<p class="mosmix-note">Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L. Stündlich = TTT (2 m), Tmax = originales TX der letzten 12 Stunden bis 18 UTC, Tmin = originales TN bis 06 UTC. Regen- und Böenintervalle sind eigenständige Originalparameter (RR1c, RR3c usw.); der Kalendertag ist ausdrücklich eine abgeleitete Summe der RR1c-Stundenwerte beziehungsweise ein Maximum der FX1-Stundenwerte. Sonne (Tag) addiert SunD1 für vollständig abgedeckte lokale Kalendertage (Europe/Berlin). Unvollständige Tage und fehlende Werte bleiben ausgeblendet. DWD weist auf Ungenauigkeiten von SunD1 nahe Sonnenauf- und -untergang hin. Flächenkarten werden interpoliert und sind keine amtlichen DWD-Rasterkarten.</p>',
       '</div>',
       '<div class="mosmix-card mosmix-meteogram-card">',
@@ -799,6 +800,13 @@
     const ds = chart.data.datasets[kind === "rain" ? 0 : 1];
     ds.data = currentDetail.parameters[fields[hours]];
     ds.label = kind === "rain" ? hours+"-h-Niederschlagssumme" : hours+"-h-Maximalböe";
+    if(secondaryDetail){
+      const second=chart.data.datasets.find(item=>item.label?.startsWith(secondaryStation.name+" · "));
+      if(second){
+        second.data=secondaryDetail.parameters?.[fields[hours]]||[];
+        second.label=secondaryStation.name+" · "+hours+" h "+(kind==="rain"?"Regen":"Böen");
+      }
+    }
     chart.update("none");
   }
 
@@ -1546,7 +1554,7 @@
     return bins;
   }
 
-  function interpolatedValue(lon,lat,bins,binSize) {
+  function interpolatedValue(lon,lat,bins,binSize,nearestOnly) {
     const bx=Math.floor(lon/binSize);
     const by=Math.floor(lat/binSize);
     let candidates=[];
@@ -1565,7 +1573,7 @@
       const dy=p.lat-lat;
       return {p:p,d2:dx*dx+dy*dy};
     }).sort(function(a,b){ return a.d2-b.d2; }).slice(0,8);
-    if (nearest[0].d2<1e-10) return nearest[0].p.value;
+    if (nearestOnly||nearest[0].d2<1e-10) return nearest[0].p.value;
     let num=0,den=0;
     nearest.forEach(function(item) {
       const w=1/Math.pow(item.d2,1.15);
@@ -1642,7 +1650,8 @@
       for (let y=margin.top;y<margin.top+mapH;y+=cell) {
         for (let x=margin.left;x<margin.left+mapW;x+=cell) {
           const ll=unproject(x+cell/2,y+cell/2);
-          const value=interpolatedValue(ll.lon,ll.lat,bins,binSize);
+          // ww is categorical. Never interpolate its code numerically.
+          const value=interpolatedValue(ll.lon,ll.lat,bins,binSize,mapMode==="weather");
           if (!Number.isFinite(value)) continue;
           ctx.fillStyle=colorForMap(value);
           ctx.fillRect(x,y,cell+1,cell+1);
