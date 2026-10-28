@@ -97,7 +97,7 @@ def convert_values(parameter: str, values: list[float | None]) -> list[float | N
             converted.append(round(value / 1000.0, 2))
         elif parameter == "ww":
             # WMO-like code is categorical, not a probability.
-            converted.append(int(value) if 0 <= value <= 99 and value.is_integer() else None)
+            converted.append(int(value) if 0 <= value <= 99 and int(value) == value else None)
         elif parameter in {"VV10", "wwM", "wwM6", "wwT", "wwT6",
                            "wwC", "wwS"}:
             converted.append(round(value, 1) if 0 <= value <= 100 else None)
