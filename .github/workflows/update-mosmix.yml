@@ -8,6 +8,7 @@ on:
       - ".github/workflows/update-mosmix.yml"
       - "scripts/update_mosmix.py"
       - "scripts/merge_mosmix_previous.py"
+      - "scripts/build_mosmix_chunks.py"
       - "tests/test_mosmix_tx_tn.py"
       - "tests/test_mosmix_world.mjs"
       - "tests/test_mosmix_sun_daily.mjs"
@@ -56,6 +57,24 @@ jobs:
           rm -rf /tmp/mosmix-public
           mkdir -p /tmp/mosmix-public/data/mosmix
           python scripts/update_mosmix.py --output /tmp/mosmix-public/data/mosmix/mosmix_ttt.json
+
+      - name: Geteilte Kartenpakete für schnelles Online-MOSMIX erzeugen
+        run: |
+          python scripts/build_mosmix_chunks.py /tmp/mosmix-public/data/mosmix/mosmix_ttt.json /tmp/mosmix-public/data/mosmix
+          python - <<'PY'
+          import json,pathlib
+          d=pathlib.Path("/tmp/mosmix-public/data/mosmix")
+          manifest=json.loads((d/"manifest.json").read_text(encoding="utf-8"))
+          assert manifest.get("schema")==2
+          assert len(manifest["modes"]["hourly"])>40
+          assert len(manifest["modes"]["sun"])>=2
+          assert len(manifest["modes"]["tmax"])>=2
+          assert len(manifest["modes"]["tmin"])>=2
+          for mode,frames in manifest["modes"].items():
+            for frame in frames:
+              assert (d/frame["path"]).is_file(),(mode,frame["path"])
+          print("MOSMIX-Kartenpakete vollständig:",len(manifest["modes"]))
+          PY
 
       - name: Vorherigen echten MOSMIX-Lauf für Meteogrammvergleich sichern
         shell: bash
