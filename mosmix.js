@@ -1177,7 +1177,103 @@
     document.getElementById("mosmixValidInfo").innerHTML=info;
   }
 
+  async function loadSplitFrame(frame){
+    if(!frame)throw Error("Kein MOSMIX-Zeitpunkt vorhanden.");
+    if(mapChunkCache.has(frame.path)){
+      const cached=mapChunkCache.get(frame.path);
+      mapChunkCache.delete(frame.path);
+      mapChunkCache.set(frame.path,cached);
+      return cached;
+    }
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    let promise=fetch(MAP_BASE+frame.path,{cache:"default",signal:controller.signal})
+      .then(async function(response){
+        if(!response.ok)throw Error("Kartendatei HTTP "+response.status);
+        const chunk=await response.json();
+        if(chunk.issue_time!==data.issue_time||!Array.isArray(chunk.values))
+          throw Error("Kartendatei gehört nicht zum aktuellen MOSMIX-Lauf.");
+        return chunk;
+      }).finally(()=>clearTimeout(timer));
+    mapChunkCache.set(frame.path,promise);
+    try {
+      const result=await promise;
+      if(mapChunkCache.size>6)mapChunkCache.delete(mapChunkCache.keys().next().value);
+      return result;
+    } catch(error){
+      mapChunkCache.delete(frame.path);
+      throw error;
+    }
+  }
+
+  function splitFrameValues(chunk,frame){
+    const vals=chunk?.values?.[frame.slot];
+    if(!Array.isArray(vals)||vals.length!==data.stations.length)
+      throw Error("Unvollständiges MOSMIX-Datenpaket.");
+    return vals;
+  }
+
+  async function renderSplitMap(){
+    if(!data?._split||!map||!markerLayer)return;
+    const request=++mapRequestSequence;
+    const frame=extremaFrames[sliderIndex];
+    if(!frame)return;
+    const info=document.getElementById("mosmixValidInfo");
+    if(info)info.textContent="Lade "+frame.label+" · "+mapKey()+" …";
+    try {
+      const chunk=await loadSplitFrame(frame);
+      if(request!==mapRequestSequence)return;
+      const values=splitFrameValues(chunk,frame);
+      markerLayer.clearLayers();
+      const zoom=map.getZoom(),useLabels=zoom>=8;
+      const bounds=map.getBounds().pad(.08);
+      const occupied=new Set(),labelCell=zoom>=10?38:(zoom>=9?46:56);
+      const nums=[];
+      let shown=0,labelled=0;
+      const unit=mapUnit();
+      data.stations.forEach(function(station,index){
+        const value=values[index];
+        if(!Number.isFinite(value))return;
+        nums.push(value);
+        shown++;
+        const latlng=L.latLng(station.lat,station.lon);
+        if(!bounds.contains(latlng))return;
+        const color=colorForMap(value);
+        let marker=null;
+        if(useLabels){
+          const p=map.latLngToContainerPoint(latlng);
+          const key=Math.floor(p.x/labelCell)+":"+Math.floor(p.y/labelCell);
+          if(!occupied.has(key)){
+            occupied.add(key);labelled++;
+            marker=L.marker(latlng,{icon:L.divIcon({
+              className:"mosmix-point-label",
+              html:'<div style="background:'+color+';color:'+textColor(color)+'">'+value.toFixed(1).replace(".",",")+'</div>',
+              iconSize:[38,22],iconAnchor:[19,11]
+            })});
+          }
+        }
+        if(!marker)marker=L.circleMarker(latlng,{radius:zoom>=8?3.3:4.5,
+          color:"#fff",weight:.8,fillColor:color,fillOpacity:.9});
+        marker.bindPopup(popupHtml(station,value,frame.valid,mapMode))
+          .on("click",function(){void selectStation(station);}).addTo(markerLayer);
+      });
+      document.getElementById("mosmixSliderLabel").textContent=frame.label;
+      let message="Auswahl: "+frame.label+" · "+shown+" Originalwerte";
+      if(useLabels)message+=" · "+labelled+" beschriftet";
+      if(nums.length)message+=" · "+Math.min(...nums).toFixed(1).replace(".",",")+" bis "+
+        Math.max(...nums).toFixed(1).replace(".",",")+" "+unit;
+      if(info)info.textContent=message;
+    }catch(error){
+      if(request!==mapRequestSequence)return;
+      markerLayer.clearLayers();
+      if(info)info.textContent="Karte nicht geladen: "+error.message+
+        " · Anderen Termin wählen oder Seite neu laden.";
+      console.warn("MOSMIX-Kartendatei:",error);
+    }
+  }
+
   function renderCurrentMap() {
+    if(data?._split){void renderSplitMap();return;}
     if (mapMode==="hourly") render();
     else renderExtrema();
   }
@@ -1191,7 +1287,18 @@
   }
 
   function setMapMode(mode) {
-    mapMode=["hourly","tmax","tmin","sun"].includes(mode) ? mode : "hourly";
+    mapMode=["hourly","tmax","tmin","sun","rain","gust","cloud"].includes(mode) ? mode : "hourly";
+    if(!data?._split && MAP_VARIANTS[mapMode])mapMode="hourly";
+    const variants=MAP_VARIANTS[mapMode];
+    const variantWrap=document.getElementById("mosmixMapVariantWrap");
+    const select=document.getElementById("mosmixMapVariant");
+    if(variantWrap)variantWrap.hidden=!variants;
+    if(variants&&select){
+      if(!variants.some(row=>row[0]===mapVariant))mapVariant=variants[0][0];
+      select.innerHTML=variants.map(row=>
+        '<option value="'+row[0]+'">'+row[1]+'</option>').join("");
+      select.value=mapVariant;
+    }
     renderLegend();
     document.querySelectorAll("[data-mosmix-mode]").forEach(function(button) {
       button.classList.toggle("active",button.dataset.mosmixMode===mapMode);
@@ -1200,6 +1307,29 @@
     const slider=document.getElementById("mosmixSlider");
     const title=document.getElementById("mosmixSliderTitle");
     const nowButton=document.getElementById("mosmixNow");
+
+    if(data?._split){
+      extremaFrames=data.modes?.[mapKey()]||[];
+      slider.max=String(Math.max(0,extremaFrames.length-1));
+      sliderIndex=mapMode==="hourly" ? Math.max(0,extremaFrames.findIndex(frame=>
+        Date.parse(frame.valid)>=Date.now())) : chooseExtremaIndex();
+      if(sliderIndex<0||sliderIndex>=extremaFrames.length)sliderIndex=0;
+      title.textContent=mapMode==="sun"?"Sonnenscheindauer · Kalendertag":
+        mapMode==="rain"?"Niederschlag · DWD-Originalintervall":
+        mapMode==="gust"?"Windböen · DWD-Originalintervall":
+        mapMode==="cloud"?"Bewölkung · Prognosetermin":"Vorhersagezeitpunkt";
+      nowButton.textContent=mapMode==="hourly"?"Nächster Termin":"Aktueller Tag / Termin";
+      slider.value=String(sliderIndex);
+      if(!extremaFrames.length){
+        markerLayer?.clearLayers();
+        document.getElementById("mosmixSliderLabel").textContent="Keine Originalwerte vorhanden";
+        document.getElementById("mosmixValidInfo").textContent=
+          "Dieser MOSMIX-Lauf enthält für die gewählte Kartenart noch keine Originaldaten.";
+        return;
+      }
+      renderCurrentMap();
+      return;
+    }
 
     if (mapMode==="hourly") {
       extremaFrames=[];
@@ -1469,7 +1599,8 @@
   }
 
   function setIndex(index) {
-    const maxIndex=mapMode==="hourly" ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
+    const maxIndex=data?._split ? Math.max(0,extremaFrames.length-1) :
+      mapMode==="hourly" ? data.timesteps.length-1 : Math.max(0,extremaFrames.length-1);
     sliderIndex=Math.max(0,Math.min(maxIndex,Number(index)||0));
     document.getElementById("mosmixSlider").value=String(sliderIndex);
     renderCurrentMap();
@@ -1485,7 +1616,8 @@
     }
     button.textContent = "❚❚ Pause";
     playTimer = setInterval(function() {
-      const total=mapMode==="hourly" ? data.timesteps.length : Math.max(1,extremaFrames.length);
+      const total=data?._split?Math.max(1,extremaFrames.length):
+        mapMode==="hourly" ? data.timesteps.length : Math.max(1,extremaFrames.length);
       setIndex((sliderIndex + 1) % total);
     }, 650);
   }
@@ -1508,6 +1640,8 @@
     try{
       const updated=await loadData(true);
       data=updated;
+      mapChunkCache.clear();
+      mapRequestSequence++;
       detailCache.clear();
       selectedStationKey=null;
       selectedStation=null;
@@ -1552,7 +1686,11 @@
       });
       document.getElementById("mosmixPlay").addEventListener("click", togglePlay);
       document.getElementById("mosmixNow").addEventListener("click", function(){
-        setIndex(mapMode==="hourly" ? chooseInitialIndex() : chooseExtremaIndex());
+        setIndex(data?._split?chooseExtremaIndex():mapMode==="hourly"?chooseInitialIndex():chooseExtremaIndex());
+      });
+      document.getElementById("mosmixMapVariant").addEventListener("change",function(event){
+        mapVariant=event.target.value;
+        setMapMode(mapMode);
       });
       document.getElementById("mosmixAreaDownload").addEventListener("click", downloadAreaMap);
       document.getElementById("mosmixReload").addEventListener("click", refreshForecast);
@@ -1575,8 +1713,7 @@
 
       updateIssueDisplay();
 
-      renderLegend();
-      setIndex(chooseInitialIndex());
+      setMapMode(mapMode);
 
       // Load individual meteograms only after a station is selected.
       // Avoid extra network requests on the first map paint.
