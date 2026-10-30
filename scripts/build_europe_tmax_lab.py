@@ -295,6 +295,14 @@ def daily_mos_values(kmz,dates,include_catalog=False):
     return (issue_time,selected,stations) if include_catalog else (issue_time,selected)
 
 
+def tx_city_coverage(stations, date):
+    """Return real MOSMIX TX city coverage; missing locations remain missing."""
+    available = [s["city"] for s in stations if s["tx"].get(date) is not None]
+    missing = [s["city"] for s in stations if s["tx"].get(date) is None]
+    return {"valid": len(available), "missing": len(missing),
+            "missing_cities": missing}
+
+
 def build(out,workers):
     out.mkdir(parents=True,exist_ok=True)
     now=datetime.now(timezone.utc)
@@ -306,6 +314,18 @@ def build(out,workers):
     mos_age=now-datetime.fromisoformat(issue.replace("Z","+00:00"))
     if not timedelta(0)<=mos_age<=timedelta(hours=30):
         raise RuntimeError(f"MOSMIX-L-Ausgabe veraltet: {issue}")
+    # Check all five actual 12-hour TX forecasts BEFORE downloading 15 GRIB
+    # files. A previous ICON cycle may be available although MOSMIX no longer
+    # includes its expired first day. Never fake or splice its measurements.
+    city_coverage = {day: tx_city_coverage(stations, day) for day in dates}
+    underfilled = {day: info["valid"] for day, info in city_coverage.items()
+                   if info["valid"] < 25}
+    if underfilled:
+        raise RuntimeError(
+            "MOSMIX-TX enthält nicht für jeden ICON-Tag mindestens 25 echte "
+            f"Stadtwerte: {underfilled}. Vorhandene veröffentlichte Karten "
+            "bleiben unverändert, bis ein gemeinsamer Lauf verfügbar ist."
+        )
     # Compact, real MOSMIX-TX catalogue for private editing/search.
     # The user interface may place a label at any coordinate, but only these
     # actual DWD station forecasts are eligible as temperature sources.
@@ -337,11 +357,12 @@ def build(out,workers):
             # Reference cities without native MOSMIX TX are kept with null.
             points.append({k:s[k] for k in ("city","lon","lat","station_id","station_name",
                                            "station_lon","station_lat","distance_km")}|{"tmax_c":s["tx"].get(date)})
-        if sum(point["tmax_c"] is not None for point in points)<15:
-            raise RuntimeError(f"Nur {len(points)} aktuelle MOSMIX-TX-Städte für {date}")
+        info = city_coverage[date]
         days.append({"date":date,"icon_png":image,
                      "icon_raw_png":rawimage,"icon_hours":hours,
-                     "coverage":coverage,"stations":points})
+                     "coverage":coverage, "stations":points,
+                     "valid_station_cities":info["valid"],
+                     "missing_station_cities":info["missing_cities"]})
     manifest={
         "schema":2,"product":"Europa Tmax · MOSMIX-L + ICON-EU",
         "icon_cycle":cycle.strftime("%Y%m%d%H"),"mos_issue_utc":issue,
