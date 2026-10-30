@@ -287,7 +287,9 @@ def update_year(client, year, *, current=False, max_chunks=3):
             if processed>=max_chunks:
                 break
             stamp=[f"{year}-{month:02d}-{day:02d}" for day in days]
-            if all(all(f"u60_{lev}" in by_date.get(day,{}) for lev in (10,30,50,100))
+            if all(all(isinstance(by_date.get(day,{}).get(f"u60_{lev}"), (int,float))
+                           and np.isfinite(by_date[day][f"u60_{lev}"])
+                           for lev in (10,30,50,100))
                    for day in stamp):
                 continue
             try:
@@ -313,7 +315,15 @@ def choose_backfill_year():
     cutoff = last_available_date().year
     priority = list(range(1991,2021)) + list(range(1940,1991)) + list(range(2021,cutoff))
     for year in priority:
-        if len(read_rows(year)) != (366 if calendar.isleap(year) else 365):
+        # Temperature-only rows are not a complete wind archive. Verify all
+        # actual dates and four finite 60 N winds before advancing to the next year.
+        rows = {row["date"]:row for row in read_rows(year)}
+        expected = {date(year,1,1) + timedelta(days=i) for i in
+                    range(366 if calendar.isleap(year) else 365)}
+        if any((stamp.isoformat() not in rows or
+                any(not isinstance(rows[stamp.isoformat()].get(f"u60_{level}"),(int,float))
+                    or not np.isfinite(rows[stamp.isoformat()][f"u60_{level}"])
+                    for level in (10,30,50,100))) for stamp in expected):
             return year
     return None
 
@@ -404,11 +414,15 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--current",action="store_true",help="update recent daily ERA5, starting in 2026")
     parser.add_argument("--backfill-one",action="store_true",help="archive one historical year, prioritizing 1991–2020")
+    parser.add_argument("--backfill-chunks",type=int,default=1,
+                        help="max number of genuine 5-day wind chunks in the historical year (1..24)")
     parser.add_argument("--self-test",action="store_true")
     args=parser.parse_args()
     if args.self_test:
         self_test()
         return
+    if not 1 <= args.backfill_chunks <= 24:
+        parser.error("--backfill-chunks must be between 1 and 24")
     if not (args.current or args.backfill_one):
         parser.error("Select --current and/or --backfill-one")
     import cdsapi
@@ -420,7 +434,7 @@ def main():
         year=choose_backfill_year()
         if year is not None:
             print(f"Backfilling historical ERA5 year {year}",flush=True)
-            update_year(client,year,max_chunks=1)
+            update_year(client,year,max_chunks=args.backfill_chunks)
         else:
             print("Historical ERA5 years completed")
     rebuild_index()
