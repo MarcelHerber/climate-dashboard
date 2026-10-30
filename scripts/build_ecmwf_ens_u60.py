@@ -21,6 +21,7 @@ STEPS = list(range(0, 361, 24))
 MEMBERS = ["c00"] + [f"p{i:02d}" for i in range(1, 51)]
 EXPECTED_LONS = 1440
 MAX_AGE_HOURS = 72
+MAX_ARCHIVE_AGE_HOURS = 168
 
 
 def mean_u60(lat, lon, wind):
@@ -75,7 +76,7 @@ def decode_step(path, cycle, lead, perturbed):
     return found
 
 
-def validate(payload, now=None):
+def validate(payload, now=None, max_age_hours=MAX_AGE_HOURS):
     now = now or datetime.now(timezone.utc)
     try:
         if payload.get("schema_version") != 1 or payload.get("provider") != "ECMWF IFS ENS":
@@ -86,7 +87,7 @@ def validate(payload, now=None):
             return False
         cycle = datetime.fromisoformat(payload["cycle_utc"].replace("Z", "+00:00"))
         age = now - cycle
-        if cycle.hour not in (0, 12) or cycle.minute != 0 or cycle.tzinfo is None or payload.get("valid_hour_utc") != cycle.hour or not timedelta(0) <= age <= timedelta(hours=MAX_AGE_HOURS):
+        if cycle.hour not in (0, 12) or cycle.minute != 0 or cycle.tzinfo is None or payload.get("valid_hour_utc") != cycle.hour or not timedelta(0) <= age <= timedelta(hours=max_age_hours):
             return False
         expected_dates = [(cycle + timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
         if payload.get("valid_dates") != expected_dates:
@@ -172,7 +173,7 @@ def build(output, now=None):
         try: previous=json.loads(output.read_text(encoding="utf-8"))
         except (OSError,ValueError): pass
     def archive_run(run):
-        if not run or not validate(run,now) or run.get("cycle_utc")>payload["cycle_utc"]:
+        if not run or not validate(run,now,max_age_hours=MAX_ARCHIVE_AGE_HOURS) or run.get("cycle_utc")>payload["cycle_utc"]:
             return
         stamp=run["cycle_utc"].replace("-","").replace(":","").replace("T","_").replace("Z","")
         file=archive/(stamp+".json")
@@ -186,7 +187,7 @@ def build(output, now=None):
     for file in archive.glob("*.json"):
         try:
             run=json.loads(file.read_text(encoding="utf-8"))
-            if validate(run,now):
+            if validate(run,now,max_age_hours=MAX_ARCHIVE_AGE_HOURS):
                 records.append({"cycle_utc":run["cycle_utc"],"path":"runs/"+file.name,
                                 "forecast_horizon_days":run["forecast_horizon_days"]})
         except (ValueError,OSError,KeyError):pass
