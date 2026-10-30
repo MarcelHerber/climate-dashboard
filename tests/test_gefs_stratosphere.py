@@ -45,6 +45,50 @@ class GefsWindTests(unittest.TestCase):
         self.assertNotIn(840,leads)
         self.assertIn(384,leads)
 
+    def test_archiving_newer_gefs_and_delayed_35day_old_cycle(self):
+        import tempfile, json
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            old=datetime(2026,10,28,0,tzinfo=timezone.utc)
+            new=datetime(2026,10,28,6,tzinfo=timezone.utc)
+            def field(run,member,lead):
+                # The U wind in the long extension must match the same 00 cycle,
+                # never get mixed into the 06 UTC 16-day product.
+                return member,lead,10.0+(run.hour/6)+lead/1000
+            with patch.object(mod,"fetch_wind",side_effect=field):
+                mod.build_cycle(root,2,old,16)
+                mod.build_cycle(root,2,new,16)
+                mod.build_cycle(root,2,old,35)
+            index=json.loads((root/"gefs_index.json").read_text())
+            current=json.loads((root/"gefs_current.json").read_text())
+            assert current["cycle_utc"]==new.isoformat().replace("+00:00","Z")
+            assert current["forecast_horizon_days"]==16
+            assert len(index["runs"])==2
+            assert index["runs"][0]["cycle_utc"]==current["cycle_utc"]
+            archived=json.loads((root/"runs"/"20261028_000000.json").read_text())
+            assert archived["forecast_horizon_days"]==35
+            assert len(archived["members"]["p30"])==36
+            assert archived["members"]["p30"][16]==26.384
+            assert archived["members"]["p30"][35]==26.840
+            assert mod.verified(archived)
+            assert mod.verified(current)
+            assert mod.publish(root,current)["runs"][1]["forecast_horizon_days"]==35
+
+    def test_incomplete_gefs_cannot_replace_current_archive(self):
+        import tempfile,json
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            cycle=datetime(2026,10,28,12,tzinfo=timezone.utc)
+            def partial(run,member,lead):
+                if member=="p17" and lead==48:
+                    raise RuntimeError("missing original field")
+                return member,lead,10.0
+            with patch.object(mod,"fetch_wind",side_effect=partial):
+                with self.assertRaises(RuntimeError):
+                    mod.build_cycle(root,2,cycle,16)
+            assert not (root/"gefs_current.json").exists()
+            assert not (root/"gefs_index.json").exists()
+
     def test_all_real_members(self):
         self.assertEqual(len(mod.MEMBERS),31)
         self.assertEqual(mod.MEMBERS[0],"c00")
