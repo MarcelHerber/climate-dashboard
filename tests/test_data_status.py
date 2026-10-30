@@ -62,8 +62,9 @@ class DataStatusTests(unittest.TestCase):
             rows = {row["id"]: row for row in archive["datasets"]}
             self.assertEqual(rows["dwd_monthly"]["status"], "current")
             self.assertEqual(rows["era5_strat"]["status"], "incomplete")
-            self.assertEqual(rows["era5_strat"]["coverage"],
-                             "Referenz 1991–2020: 0/30 Jahre vollständig")
+            self.assertIn("Temperatur: 0/366 Klimatologietage",
+                          rows["era5_strat"]["coverage"])
+            self.assertIn("Zonalwind: 0/366", rows["era5_strat"]["coverage"])
 
 
     def test_sst_region_completeness_excludes_partial_days(self):
@@ -78,6 +79,30 @@ class DataStatusTests(unittest.TestCase):
         self.assertEqual(latest, today.isoformat())
         self.assertEqual(count, 2)
         self.assertEqual(recent, 2)
+
+    def test_era5_stratosphere_climatology_days_count_only_real_full_samples(self):
+        today = datetime.now(timezone.utc).date().isoformat()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "era5_stratosphere"
+            path.mkdir()
+            (path / "index.json").write_text(json.dumps({
+                "ready": True, "data_through": today,
+                "reference_years_completed": 0,
+                "reference_wind_years_completed": 0,
+                "reference": {
+                    **{f"tcap_{lev}": {"01-01": {"mean": -55}}
+                       for lev in (10,30,50,100)},
+                    **{f"u60_{lev}": {"01-01": {"mean": 20}}
+                       for lev in (10,30,50,100)}
+                }
+            }), encoding="utf-8")
+            with patch.object(status, "ROOT", root):
+                entry = next(x for x in status.build()["datasets"]
+                             if x["id"] == "era5_strat")
+            self.assertEqual(entry["status"], "incomplete")
+            self.assertIn("Temperatur: 1/366", entry["coverage"])
+            self.assertIn("Zonalwind: 1/366", entry["coverage"])
 
     def test_forecasts_do_not_use_valid_end_as_last_observation(self):
         now = datetime.now(timezone.utc)
