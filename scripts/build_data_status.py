@@ -382,11 +382,26 @@ def build(remote=None):
     estrat = read_json("era5_stratosphere/index.json")
     if estrat:
         complete = estrat.get("reference_years_completed", 0)
+        reference = estrat.get("reference") or {}
+        # A climate-calendar day qualifies only with ALL 30 actual yearly
+        # samples (8 on 29 February); partial values never become a normal.
+        temp_fields = tuple(f"tcap_{level}" for level in (10,30,50,100))
+        wind_fields = tuple(f"u60_{level}" for level in (10,30,50,100))
+        def complete_days(fields):
+            return len(set.intersection(*(
+                set(reference.get(field) or {}) for field in fields)))
+        tdays = complete_days(temp_fields)
+        udays = complete_days(wind_fields)
+        wind_years = estrat.get("reference_wind_years_completed")
+        wind_years_label = f"{wind_years}/30" if isinstance(wind_years,int) else "noch nicht ermittelt"
         items.append(result("era5_strat", "ERA5 Stratosphäre", "Atmosphäre",
             estrat.get("data_through"), estrat.get("generated_at"),
-            f'Referenz 1991–2020: {complete}/30 Jahre vollständig',
-            "Historische Referenz unvollständig" if complete < 30 else "Historische Referenz vollständig",
-            allowed_delay=14, incomplete=complete < 30))
+            f"1991–2020 · Temperatur: {tdays}/366 Klimatologietage · "
+            f"Zonalwind: {udays}/366 · Vollständige Temperaturjahre: {complete}/30",
+            f"Windjahre: {wind_years_label} · "
+            + ("Historische Referenz unvollständig" if complete < 30 or tdays < 366 or udays < 366
+               else "Temperatur- und Zonalwindreferenz vollständig"),
+            allowed_delay=14, incomplete=complete < 30 or tdays < 366 or udays < 366))
 
     ice = read_json("sea_ice/index.json")
     if ice:
