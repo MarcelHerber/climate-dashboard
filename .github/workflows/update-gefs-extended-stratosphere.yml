@@ -1,0 +1,102 @@
+name: GEFS 35-Tage-Nachlieferung · 60N / 10hPa · 00UTC
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 1 * * *"
+    - cron: "20 4 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_gefs_60n_10hpa_ensemble.py"
+      - "tests/test_gefs_stratosphere.py"
+      - ".github/workflows/update-gefs-extended-stratosphere.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stratosphere-gefs-ensemble
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: GRIB-Werkzeuge einrichten
+        run: python -m pip install --disable-pip-version-check "numpy>=2,<3" "eccodes>=2,<3"
+      - name: Wissenschaftliche Geometrie- und URL-Tests
+        run: |
+          python -m py_compile scripts/build_gefs_60n_10hpa_ensemble.py
+          python -m unittest discover -s tests -p 'test_gefs_stratosphere.py' -v
+      - name: Eigenständigen Stratosphärenensemble-Datenbranch laden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ensemble-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch stratosphere-ensemble-data "$remote" /tmp/strato-gefs
+          else
+            mkdir -p /tmp/strato-gefs
+            git -C /tmp/strato-gefs init -q -b stratosphere-ensemble-data
+            git -C /tmp/strato-gefs remote add origin "$remote"
+          fi
+      - name: Nach mindestens 25 Stunden 35-Tage-GEFS von 00 UTC laden
+        run: python scripts/build_gefs_60n_10hpa_ensemble.py --out /tmp/strato-gefs/data/stratosphere/ensemble --max-workers 2 --mode extended
+      - name: Vor Veröffentlichung alle Mitglieder und Prognosedaten prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime,timedelta,timezone
+          data=json.loads(Path("/tmp/strato-gefs/data/stratosphere/ensemble/gefs_current.json").read_text())
+          assert data["provider"]=="NOAA GEFS" and data["schema_version"]==1
+          assert data["units"]=="m/s" and data["level_hpa"]==10 and data["latitude_deg"]==60
+          assert len(data["members"])==31 and data["member_count"]==31
+          assert "c00" in data["members"] and all(f"p{i:02d}" in data["members"] for i in range(1,31))
+          assert data["forecast_horizon_days"] in (16,35)
+          
+          days=data["valid_dates"]
+          assert len(days)==data["forecast_horizon_days"]+1
+          run=datetime.fromisoformat(data["cycle_utc"].replace("Z","+00:00"))
+          assert run.hour in (0,6,12,18)
+          assert (run.hour==0 or data["forecast_horizon_days"]==16)
+          extended=datetime.now(timezone.utc)-timedelta(days=1)
+          archived=Path("/tmp/strato-gefs/data/stratosphere/ensemble/runs")/(extended.strftime("%Y%m%d")+"_000000.json")
+          assert archived.is_file()
+          long=json.loads(archived.read_text())
+          assert long["forecast_horizon_days"]==35 and long["cycle_utc"].endswith("T00:00:00Z")
+          assert data["cycle_utc"]>=long["cycle_utc"],"Older 35-day run replaced current"
+          assert all(date==(run+timedelta(days=i)).strftime("%Y-%m-%d") for i,date in enumerate(days))
+          index=json.loads(Path("/tmp/strato-gefs/data/stratosphere/ensemble/gefs_index.json").read_text())
+          assert index["runs"][0]["cycle_utc"] == data["cycle_utc"]
+          assert all(Path("/tmp/strato-gefs/data/stratosphere/ensemble",r["path"]).is_file() for r in index["runs"])
+          assert all(len(v)==len(days) and all(-150<x<170 for x in v) for v in data["members"].values())
+          for key in ("mean","p05","p25","p75","p95"):
+            assert len(data["quantiles"][key])==len(days)
+          for i in range(len(days)):
+            qs=[data["quantiles"][key][i] for key in ("p05","p25","p75","p95")]
+            assert qs==sorted(qs)
+          assert datetime.now(timezone.utc)-run<timedelta(days=4)
+          print("Verifiziert:",len(data["members"]),"echte Ensemblemitglieder;",len(days),"Vorhersagetage")
+          PY
+      - name: Nur vollständig validierte GEFS-Prognose veröffentlichen
+        run: |
+          set -euo pipefail
+          cd /tmp/strato-gefs
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/stratosphere/ensemble .nojekyll
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "GEFS 00UTC Nachlieferung: echte 31 Member über 35 Tage"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ensemble-data >/dev/null 2>&1; then
+            git pull --rebase origin stratosphere-ensemble-data
+          fi
+          git push origin HEAD:refs/heads/stratosphere-ensemble-data
