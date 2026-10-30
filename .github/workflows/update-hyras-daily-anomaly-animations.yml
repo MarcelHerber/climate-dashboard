@@ -19,10 +19,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  check:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.plan.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Prüfen, ob sich der Sommer-Datenstand geändert hat
+        id: plan
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          git fetch origin hyras-data hyras-animations --depth=1
+          git worktree add --detach /tmp/hyras-animation-source-check origin/hyras-data
+          git worktree add --detach /tmp/hyras-animation-published-check origin/hyras-animations
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from pathlib import Path
+          source=Path("/tmp/hyras-animation-source-check")
+          published=Path("/tmp/hyras-animation-published-check/manifest.json")
+          old=json.loads(published.read_text()) if published.exists() else {}
+          needed=os.environ["EVENT_NAME"] != "workflow_run"
+          for p in ("tmean","tmax","tmin"):
+              current=json.loads((source/p/"regions"/"daily_anomaly_maps.json").read_text())
+              previous=(old.get("parameters") or {}).get(p) or {}
+              if current["data_through"] != previous.get("data_through"):
+                  needed=True
+              if any(ref not in previous.get("references",{}) for ref in current["references"]):
+                  needed=True
+          print("needed="+str(needed).lower())
+          PY
+
+  build:
+    needs: check
+    if: needs.check.outputs.needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
