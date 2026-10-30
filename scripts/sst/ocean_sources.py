@@ -22,6 +22,12 @@ NOAA_OISST_DAILY_NCEI = (
 )
 # Separate NOAA-ERDDAP-Instanz für die tägliche Klimatologie 1991–2020;
 # keine wiederholten OPeNDAP-Abfragen gegen den überlasteten PSL-Server.
+# Verified NOAA/PSL 0.25-degree 1991-2020 daily climatology (365 days).
+# The old NEFSC ERDDAP dataset ID now responds HTTP 404.
+NOAA_NORMALS_OPENDAP = (
+    "https://psl.noaa.gov/thredds/dodsC/Datasets/"
+    "noaa.oisst.v2.highres/sst.day.mean.ltm.1991-2020.nc"
+)
 NOAA_NORMALS_ERDDAP = (
     "https://comet.nefsc.noaa.gov/erddap/griddap/"
     "noaa_psl_4e02_3713_6583.nc?sst"
@@ -215,26 +221,20 @@ def download_oisst_normal_subset(
     lon_indices = np.flatnonzero((longitudes >= west) & (longitudes <= east))
     if not len(lat_indices) or not len(lon_indices):
         raise RuntimeError("NOAA-OISST-Klimamittel: Region liegt außerhalb des Gitters.")
-    query = (
-        f"{NOAA_NORMALS_ERDDAP}"
-        f"[{time_start}:1:{time_stop}]"
-        f"[{int(lat_indices[0])}:1:{int(lat_indices[-1])}]"
-        f"[{int(lon_indices[0])}:1:{int(lon_indices[-1])}]"
-    )
-
+    # Ask the server for only the required cells/time via OPeNDAP, not
+    # the full ~1.4 GB NOAA climate archive. NetCDF4 supports DAP slicing.
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="oisst-ocean-normal-", dir=destination.parent) as tmp:
         path = Path(tmp) / "normal.nc"
-        response = _get_with_retry(session, query, stream=True, timeout=180)
-        try:
-            _write_response_atomic(response, path)
-        finally:
-            close = getattr(response, "close", None)
-            if callable(close):
-                close()
-
-        with xr.open_dataset(path, decode_times=False) as raw:
-            standardized = _standardize_subset(raw.load())
+        with xr.open_dataset(NOAA_NORMALS_OPENDAP, engine="netcdf4",
+                             decode_times=False) as remote:
+            # DAP fetches only this small region and at most two days.
+            selected = remote[["sst"]].isel(
+                time=slice(time_start, time_stop + 1),
+                lat=slice(int(lat_indices[0]), int(lat_indices[-1]) + 1),
+                lon=slice(int(lon_indices[0]), int(lon_indices[-1]) + 1),
+            ).load()
+        standardized = _standardize_subset(selected)
         field = standardized["sst"]
         if int(field.sizes.get("time", 1)) == 2:
             field = field.mean("time", skipna=True, keep_attrs=True)
