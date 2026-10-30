@@ -12,6 +12,8 @@ required_root_files=(
   dashboard_cleanup.css
   dashboard_theme.css
   dashboard_theme.js
+  mobile_navigation.css
+  mobile_navigation.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -105,6 +107,25 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Ein einziges Handymenü auf allen veröffentlichten HTML-Seiten.
+# Desktop bleibt unverändert; keine individuellen Seiteninhalte werden verändert.
+python scripts/inject_mobile_navigation.py _site
+node --check _site/mobile_navigation.js
+node --test tests/test_mobile_navigation.cjs
+python -m unittest discover -s tests -p test_mobile_navigation_build.py -v
+test -s _site/mobile_navigation.css
+test -s _site/mobile_navigation.js
+python - <<'PY'
+from pathlib import Path
+pages=sorted(Path("_site").glob("*.html"))
+assert len(pages)>=20, f"Zu wenige veröffentlichte HTML-Seiten: {len(pages)}"
+for p in pages:
+    text=p.read_text(encoding="utf-8")
+    assert text.count('mobile_navigation.css')==1,(p,'mobile CSS missing/duplicate')
+    assert text.count('mobile_navigation.js')==1,(p,'mobile JS missing/duplicate')
+print(f"Mobile Kategoriennavigation: alle {len(pages)} HTML-Seiten geprüft.")
+PY
 
 # MOSMIX Deutschlandkarte: einen verifizierten, aktuellen Daten-Snapshot direkt
 # mit Pages bereitstellen. Damit muss der Browser beim Öffnen keine große
