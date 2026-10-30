@@ -397,6 +397,22 @@ def main() -> int:
             raw = request(BASE_URL + name).content
             payload = json.loads(gzip.decompress(raw).decode("utf-8", errors="replace"))
             features = iter_features(payload)
+            # Diagnostic of the provider schema, bounded to one feature and
+            # key names only (no whole, potentially huge observation dump).
+            if i == 1 or (not raw_observations and i == len(files)):
+                example = features[0] if features else {}
+                flat = {}
+                flatten_values(example.get("properties", example), flat)
+                geometry = example.get("geometry") or {}
+                print(
+                    "SYNOP schema:", "features=", len(features),
+                    "root_type=", type(payload).__name__,
+                    "root_keys=", sorted(payload.keys())[:16] if isinstance(payload, dict) else [],
+                    "property_keys=", sorted(flat)[:45],
+                    "geometry_type=", geometry.get("type") if isinstance(geometry, dict) else None,
+                    "coordinates=", geometry.get("coordinates") if isinstance(geometry, dict) else None,
+                    flush=True,
+                )
             for feature in features:
                 obs = parse_feature(feature, stamp)
                 if obs:
