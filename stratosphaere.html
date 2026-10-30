@@ -11,6 +11,7 @@
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
 <script defer src="stratosphere_ecmwf_runs.js?v=20261030-diagnostics"></script>
 <script defer src="stratosphere_ecmwf_ens.js?v=20261030-eps-50plus1"></script>
+<script defer src="stratosphere_run_trends.js?v=20261030-runtrends-v1"></script>
 <script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
 <script defer src="stratosphere_gefs_probability.js?v=20261030-reversal"></script>
 <style>
@@ -174,6 +175,24 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 .strato-model-diagnostics table{border-collapse:collapse;width:100%;max-width:650px;margin-top:8px}
 .strato-model-diagnostics th,.strato-model-diagnostics td{padding:6px 9px;text-align:left;border-bottom:1px solid #dce6ee}
 @media(max-width:750px){.strato-prob-kpis{grid-template-columns:1fr}.strato-prob-chart{height:230px}}
+
+/* Verified GEFS/ECMWF ENS run-to-run probability diagnostics. */
+.strato-trend{border-top:1px solid var(--line);padding-top:19px;margin-top:22px}
+.strato-trend h3{font-size:19px;margin:0 0 9px}
+.strato-trend p{font-size:13px;color:var(--muted);line-height:1.55}
+.strato-trend-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px 16px;margin:15px 0 12px}
+.strato-trend-controls label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#415a72}
+.strato-trend-controls select{min-width:135px;max-width:230px;padding:8px;border:1px solid #b8c7d5;border-radius:7px;background:var(--card);color:var(--ink)}
+.strato-trend-controls button{align-self:end}
+.strato-trend-chart{height:min(53vh,450px);min-height:315px;margin:12px 0}
+.strato-trend-chart canvas{width:100%!important;height:100%!important}
+.strato-trend-summary{font-size:13px;line-height:1.6;color:var(--muted);margin:12px 0}
+.strato-trend-table-scroll{overflow-x:auto;max-height:310px;border:1px solid var(--line);border-radius:9px;margin-top:11px}
+.strato-trend table{border-collapse:collapse;width:100%;min-width:630px;font-size:12px}
+.strato-trend th,.strato-trend td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.strato-trend thead th{position:sticky;top:0;background:var(--card);color:var(--ink)}
+.strato-trend .strato-prob-actions{margin-top:12px}
+@media(max-width:750px){.strato-trend-chart{height:310px;min-height:275px}.strato-trend-controls{gap:8px}.strato-trend-controls label{flex:1 1 130px}}
 </style>
 </head>
 <body class="strato-forecast-only">
@@ -314,6 +333,50 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <div class="chart strato-compare-chart"><canvas id="stratoCompareCanvas" aria-label="Tägliche Wahrscheinlichkeit des negativen Zonalwindes für GEFS und ECMWF ENS bei 00 UTC"></canvas></div>
   <p id="stratoCompareRuns" class="legendnotes">Prüfe Modelllaufzeiten …</p>
   <div class="strato-prob-actions"><span id="stratoCompareStatus" role="status" aria-live="polite">Warte auf überprüfte Ensembleprognosen …</span><button class="btn" id="stratoCompareCsv" type="button" disabled>Vergleich als CSV</button></div>
+ </div>
+
+ <div class="strato-trend" id="stratoRunTrends">
+  <h3>Modelllaufentwicklung · GEFS und ECMWF ENS</h3>
+  <p>Wie hat sich die Vorhersage einer <strong>Windumkehr (U &lt; 0 m/s)</strong> zwischen aufeinanderfolgenden Ensembleläufen verändert?
+  Jede Linie steht für einen <strong>echten archivierten Modelllauf</strong>. Die Änderung in Prozentpunkten wird nur für identische UTC-Gültigkeitstermine berechnet.
+  Fehlende Modellläufe und Vorhersagewerte werden nicht ergänzt. Eine Windumkehr auf 10 hPa ist nicht automatisch eine Major SSW.</p>
+  <div class="strato-trend-controls">
+   <label>Ensemblemodell
+    <select id="stratoTrendModel"><option value="gefs" selected>NOAA GEFS · 31 Mitglieder</option><option value="eps">ECMWF ENS · 51 Mitglieder</option></select>
+   </label>
+   <label>Gültigkeitszeit
+    <select id="stratoTrendHour"><option value="00">00 UTC</option></select>
+   </label>
+   <label>Archivierte Modellläufe
+    <select id="stratoTrendCount"><option value="3">Bis zu 3 Läufe</option><option value="5" selected>Bis zu 5 Läufe</option><option value="10">Bis zu 10 Läufe</option></select>
+   </label>
+   <label>Prognosehorizont
+    <select id="stratoTrendHorizon"><option value="7">7 Tage</option><option value="15" selected>15 Tage</option><option value="35">35 Tage (sofern vorhanden)</option></select>
+   </label>
+   <label>Darstellung
+    <select id="stratoTrendMode"><option value="probability" selected>Anteil U &lt; 0 m/s</option><option value="delta">Änderung zum Vorlauf (pp)</option></select>
+   </label>
+   <button id="stratoTrendReload" type="button" class="btn">Laufarchiv aktualisieren</button>
+  </div>
+  <div class="info"><span role="status" aria-live="polite" id="stratoTrendStatus">Prüfe GEFS- und ECMWF-Laufarchive …</span></div>
+  <div class="chart strato-trend-chart"><canvas id="stratoTrendCanvas" role="img" aria-label="Verlauf der Ensemble-Windumkehrwahrscheinlichkeit über echte archivierte Modellläufe"></canvas></div>
+  <div id="stratoTrendMeta" class="strato-trend-summary">Verifizierte Modelllaufentwicklung wird geladen.</div>
+  <div class="strato-trend-controls">
+   <label>Vergleich für einzelnen Gültigkeitstermin
+    <select id="stratoTrendValid" aria-label="Gültigkeitstermin zur tabellarischen Laufvergleichs-Auswertung"></select>
+   </label>
+  </div>
+  <div class="strato-trend-table-scroll">
+   <table aria-label="Modellläufe und Windumkehrwahrscheinlichkeiten für einen identischen Prognosetermin">
+    <thead><tr><th>Modelllauf (UTC)</th><th>U &lt; 0 m/s</th><th>Änderung zum Vorlauf</th><th>Ensemble-Mittel</th></tr></thead>
+    <tbody id="stratoTrendTableBody"></tbody>
+   </table>
+  </div>
+  <div class="strato-prob-actions">
+   <span>Prozentpunkte (pp) = Differenz zweier Mitgliederanteile in %. Alle Vergleiche beziehen sich auf dasselbe Modell und dieselbe Gültigkeitszeit.</span>
+   <button class="btn" id="stratoTrendPng" type="button" disabled>PNG speichern</button>
+   <button class="btn" id="stratoTrendCsv" type="button" disabled>CSV exportieren</button>
+  </div>
  </div>
 </section>
 <section class="card" id="stratoHistoryCard">
