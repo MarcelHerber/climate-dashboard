@@ -54,6 +54,40 @@ def audit(root: Path) -> dict:
         months = (historic.get("reference_files_by_period") or {}).get(reference, {})
         if set(months) != {str(m) for m in range(1, 13)}:
             errors.append(f"Niederschlagshistorie: Monatsreferenzen {reference} unvollständig")
+    # Verify that the 1-km precipitation map archive actually has every month.
+    missing_precip = [
+        f"{year}-{month:02d}"
+        for year in years
+        for month in range(1, 13)
+        if not (root / "historical_1km" / str(year) / f"month_{month:02d}.png").is_file()
+    ]
+    if missing_precip:
+        errors.append(
+            "Niederschlag: historische Monatsraster fehlen "
+            + ", ".join(missing_precip[:12])
+            + (f" … insgesamt {len(missing_precip)}" if len(missing_precip) > 12 else "")
+        )
+    summary["precipitation_monthly_maps"] = len(years) * 12 - len(missing_precip)
+
+    for reference, monthly in (historic.get("reference_files_by_period") or {}).items():
+        for month, rel in monthly.items():
+            if not (root / rel).is_file():
+                errors.append(f"Niederschlag: Klimamittel {reference}/{month} fehlt: {rel}")
+
+    series = read("click_series_5km/manifest.json")
+    if series.get("years") != years or series.get("factor") != 5:
+        errors.append("Niederschlags-Zeitreihe: Jahresabdeckung oder Rasterfaktor weicht ab")
+    expected_pack = len(years) * int(series.get("width", 0)) * int(series.get("height", 0)) * 2
+    for month in range(1, 13):
+        path = root / "click_series_5km" / f"month_{month:02d}.u16.gz"
+        if not path.is_file():
+            errors.append(f"Niederschlags-Zeitreihe: Monatsdatei {month:02d} fehlt")
+            continue
+        with path.open("rb") as stream:
+            stream.seek(-4, 2)
+            unpacked = int.from_bytes(stream.read(4), "little")
+        if unpacked != expected_pack:
+            errors.append(f"Niederschlags-Zeitreihe: falsche entpackte Größe bei Monat {month:02d}")
     summary["precipitation_years"] = len(years)
     summary["precipitation_data_through"] = str(live_day) if live_day else None
 
@@ -128,6 +162,21 @@ def audit(root: Path) -> dict:
                 warnings.append(f"{parameter}: Sommer-Anomaliekarten bei {days[-1]} stehen geblieben")
         else:
             warnings.append(f"{parameter}: keine Tagesanomaliekarten im Index")
+    # Full historical temperature map index is separate from the daily archive.
+    sprite_path = root / "historical_temperature_maps_1km" / "index.json"
+    if sprite_path.is_file():
+        try:
+            sprite_index = json.loads(sprite_path.read_text(encoding="utf-8"))
+            for parameter in PARAMETERS:
+                yrs = (sprite_index.get("parameters") or {}).get(parameter, {})
+                expected = {str(y) for y in range(1951, 2026)}
+                if not expected.issubset(yrs):
+                    errors.append(f"{parameter}: historische Temperatur-Kartenjahre fehlen")
+        except (OSError, ValueError) as exc:
+            errors.append(f"Temperatur-Kartensprites: Index beschädigt ({exc})")
+    else:
+        errors.append("Temperatur-Kartensprites: historischer 1-km-Index fehlt")
+
     if len(signatures) > 1:
         errors.append("Temperatur-Archiv: unterschiedliche Rasterkennungen")
     if archive.get("archive_entries") != sum(archive_years.values()):
