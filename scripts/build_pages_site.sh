@@ -194,6 +194,9 @@ test -s _site/synoptic_panel_logic.js
 test -s _site/ssw_catalog.js
 grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
 grep -q 'id="stratoEnsembleCard"' _site/stratosphaere.html
+grep -q 'id="stratoWinterStatsCard"' _site/stratosphaere.html
+grep -q 'id="stratoProbCanvas"' _site/stratosphaere.html
+grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
 # Das Layout der Stratosphären-Seite muss trotz ausgeblendeter Heatmap
