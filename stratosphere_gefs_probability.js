@@ -18,7 +18,9 @@ function render(){
  if(members.some(arr=>arr.some(v=>typeof v!=="number"||!Number.isFinite(v)||v<=-160||v>=170))){
    $("stratoProbStatus").textContent="Ungültige GEFS-Einzelwerte; keine Wahrscheinlichkeit berechnet.";return;
  }
- const crossed=members.filter(arr=>arr.some(v=>v<0)).length;
+ // A new reversal requires a signed transition across zero.
+ // A member already in easterlies at step 0 is NOT a newly forecast reversal.
+ const crossed=members.filter(arr=>arr.some((v,i)=>i>0&&arr[i-1]>=0&&v<0)).length;
  rows=data.valid_dates.map((date,i)=>{
    const count=members.filter(arr=>arr[i]<0).length;
    const first=members.filter(arr=>arr[i]<0&&arr.slice(0,i).every(v=>v>=0)).length;
@@ -29,7 +31,7 @@ function render(){
  $("stratoProbPeak").textContent=pct(peak.count)+" · "+peak.date;
  $("stratoProbCycle").textContent=lastCycle.slice(0,16).replace("T"," ")+" UTC";
  $("stratoProbStatus").textContent="Täglich "+rows.length+" gültige Prognosetermine, "+members.length+" echte Mitglieder. "+
-   "Eine Windumkehr zählt bei mindestens einem Tageswert U < 0 m/s. Lauf: "+lastCycle+
+   "Eine neue Windumkehr zählt nur beim Übergang von U ≥ 0 auf U < 0 m/s. Tagesbalken zeigen den Anteil mit Ostwind. Lauf: "+lastCycle+
    " · Prognose bis "+rows.at(-1).date+".";
  if(chart)chart.destroy();
  chart=new Chart($("stratoProbCanvas"),{
