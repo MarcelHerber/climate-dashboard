@@ -104,8 +104,8 @@ async function cycles(){
   if(response.ok){
    const json=await response.json();
    if(json.provider==="NOAA GEFS"&&Array.isArray(json.runs)){
-    entries=json.runs.filter(x=>/^\\d{4}-\\d\\d-\\d\\dT(?:00|06|12|18):00:00Z$/.test(x.cycle_utc||"")&&
-      /^runs\\/\\d{8}_\\d{6}\\.json$/.test(x.path||"")&&
+    entries=json.runs.filter(x=>/^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(x.cycle_utc||"")&&
+      /^runs\/\d{8}_\d{6}\.json$/.test(x.path||"")&&
       Date.now()-Date.parse(x.cycle_utc)<72*3600000&&Date.parse(x.cycle_utc)<=Date.now());
    }
   }
