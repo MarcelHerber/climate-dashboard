@@ -348,12 +348,31 @@ def coverage_summary():
         days=366 if calendar.isleap(year) else 365
         good=sum(1 for r in rows.values()
                  if all(isinstance(r.get(field),(int,float))
-                        for field in TEMPERATURE_FIELDS))
-        ref_by_year[str(year)]={"complete_days":good,"total_days":days}
-        if good==days:
+                        and np.isfinite(r[field]) for field in TEMPERATURE_FIELDS))
+        wind_fields=tuple(f"u60_{level}" for level in TEMPERATURE_LEVELS)
+        wind_good=sum(1 for r in rows.values()
+                      if all(isinstance(r.get(field),(int,float))
+                             and np.isfinite(r[field]) for field in wind_fields))
+        ref_by_year[str(year)]={"complete_days":good,"wind_complete_days":wind_good,
+                               "total_days":days}
+        if base.full_year_coverage(year,list(rows.values()),TEMPERATURE_FIELDS):
             reference_complete+=1
+    # Only calendar days backed by all 30 years (8 for leap day) qualify.
+    reference = base.reference_climatology({
+        y:list(all_years.get(y,{}).values()) for y in range(1991,2021)
+    })
+    def complete_calendar_days(prefix):
+        return len(set.intersection(*(
+            set(reference.get(f"{prefix}_{level}",{}))
+            for level in TEMPERATURE_LEVELS)))
+    wind_years=sum(base.full_year_coverage(year,base.read_rows(year),
+                    tuple(f"u60_{level}" for level in TEMPERATURE_LEVELS))
+                   for year in range(1991,2021))
     return {"priority_seasons":seasons,"reference_1991_2020":{
         "years_complete_four_temperatures":reference_complete,
+        "years_complete_four_winds":wind_years,
+        "complete_temperature_calendar_days":complete_calendar_days("tcap"),
+        "complete_wind_calendar_days":complete_calendar_days("u60"),
         "years":ref_by_year}}
 
 
