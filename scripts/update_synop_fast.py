@@ -112,6 +112,11 @@ def flatten_values(node: Any, flat: dict[str, list[Any]]) -> None:
         for key, value in node.items():
             if isinstance(value, dict) and "value" in value:
                 add_flat(flat, key, value.get("value"))
+                # DWD BUFR GeoJSON uses data_000/data_001/... wrappers.
+                # The physical parameter identifier is the nested shortname,
+                # not the numbered wrapper. Keep units/raw values unchanged.
+                if value.get("shortname"):
+                    add_flat(flat, value["shortname"], value.get("value"))
             elif not isinstance(value, (dict, list)):
                 add_flat(flat, key, value)
             if isinstance(value, (dict, list)):
