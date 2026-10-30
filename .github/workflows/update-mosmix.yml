@@ -157,13 +157,23 @@ jobs:
           # Keinen veralteten Orphan-Stand mit --force über den Datenbranch
           # schreiben. Auf dem aktuellen mosmix-data Commit aufsetzen und
           # ohne Force pushen; bei zwischenzeitlichen Änderungen sicher stoppen.
+          # Publish from an isolated worktree: Python test __pycache__ files
+          # in the main checkout must never block switching to the data branch.
           git fetch --quiet --no-tags --depth=1 origin mosmix-data
-          git switch --detach FETCH_HEAD
+          rm -rf /tmp/mosmix-publish
+          git worktree add --detach /tmp/mosmix-publish FETCH_HEAD
+          cd /tmp/mosmix-publish
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -rf --ignore-unmatch data/mosmix >/dev/null 2>&1 || true
           mkdir -p data/mosmix
           cp -a /tmp/mosmix-public/data/mosmix/. data/mosmix/
           touch .nojekyll
           git add -A data/mosmix .nojekyll
+          if git diff --cached --quiet; then
+            echo "MOSMIX-Daten unverändert; kein Commit erforderlich."
+            exit 0
+          fi
           git commit -m "DWD MOSMIX-L Deutschland und Wetterkarten aktualisiert"
           git push origin HEAD:refs/heads/mosmix-data
 
