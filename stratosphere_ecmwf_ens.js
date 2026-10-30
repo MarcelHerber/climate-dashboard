@@ -5,8 +5,11 @@
 const $=id=>document.getElementById(id);
 const epsTab=$("stratoEpsTab"),epsView=$("stratoEpsView"),compareCanvas=$("stratoCompareCanvas");
 if(!epsTab||!epsView||!compareCanvas)return;
-const URL_EPS="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ecmwf-ens-data/data/stratosphere/ecmwf/ens_current.json";
-let eps=null,epsChart=null,compareChart=null,epsRows=[],compareRows=[],errorMessage="";
+const EPS_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ecmwf-ens-data/data/stratosphere/ecmwf/";
+const URL_EPS=EPS_BASE+"ens_current.json", EPS_INDEX=EPS_BASE+"ens_index.json";
+const GEFS_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ensemble-data/data/stratosphere/ensemble/";
+const GEFS_INDEX=GEFS_BASE+"gefs_index.json";
+let eps=null,epsChart=null,compareChart=null,epsRows=[],compareRows=[],errorMessage="",epsCycles=[],compareGefs=null,compareEps=null;
 const valid=v=>typeof v==="number"&&Number.isFinite(v)&&v>-160&&v<170;
 const mean=values=>values.reduce((a,b)=>a+b,0)/values.length;
 function pct(x){return Math.round(x)+" %";}
@@ -18,9 +21,9 @@ function validData(data){
  if(!data||data.schema_version!==1||data.provider!=="ECMWF IFS ENS"||
     data.latitude_deg!==60||data.level_hpa!==10||data.units!=="m/s"||
     data.stream_ensemble!=="enfo/ef"||data.stream_control!=="oper/fc"||
-    data.member_count!==51||data.perturbed_count!==50||data.valid_hour_utc!==0)
+    data.member_count!==51||data.perturbed_count!==50||![0,12].includes(data.valid_hour_utc))
    throw Error("Unbekanntes EPS-Datenformat");
- if(!/^\d{4}-\d\d-\d\dT00:00:00Z$/.test(data.cycle_utc||"")||
+ if(!/^\d{4}-\d\d-\d\dT(?:00|12):00:00Z$/.test(data.cycle_utc||"")||
     Date.now()-Date.parse(data.cycle_utc)>72*3600000||
     Date.now()<Date.parse(data.cycle_utc))throw Error("ECMWF ENS: kein Lauf aus den letzten 72 Stunden");
  const expected=["c00",...Array.from({length:50},(_,i)=>"p"+String(i+1).padStart(2,"0"))];
@@ -29,7 +32,7 @@ function validData(data){
     data.forecast_step_hours.some((h,i)=>h!==i*24)||
     Object.keys(data.members||{}).length!==51||
     expected.some(k=>!Object.hasOwn(data.members,k)))throw Error("EPS: nicht alle 50+1 Mitglieder oder 16 Prognosetage vorhanden");
- if(data.valid_dates.some((date,i)=>date!==new Date(Date.parse(data.cycle_utc)+i*86400000).toISOString().slice(0,10)))
+ if(Number(data.cycle_utc.slice(11,13))!==data.valid_hour_utc||data.valid_dates.some((date,i)=>date!==new Date(Date.parse(data.cycle_utc)+i*86400000).toISOString().slice(0,10)))
    throw Error("EPS: ungültige 00-UTC-Zeitachse");
  for(const id of expected){
   const values=data.members[id];
@@ -95,30 +98,95 @@ function drawEPS(){
       !item.dataset.label.startsWith("_")&&Number.isFinite(item.parsed.y),
      callbacks:{label:item=>item.dataset.label+": "+item.parsed.y.toFixed(1)+" m/s"}}},
    scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0},grid:{display:false},
-        title:{display:true,text:"Datum · 00 UTC"}},
+        title:{display:true,text:"Datum · "+String(eps.valid_hour_utc).padStart(2,"0")+" UTC"}},
      y:{title:{display:true,text:"Zonal gemittelter U-Wind (m/s)"}}}
   }
  });
  const s=compute(eps),peak=s.rows.reduce((a,b)=>b.p>a.p?b:a);
  $("stratoEpsSummary").textContent="ECMWF IFS ENS · "+eps.cycle_utc+
-  " · 50 perturbierte Mitglieder + 1 IFS-Kontrolllauf · +0 bis +360 h / 00 UTC · max. Tagesanteil mit U < 0 m/s: "+
+  " · 50 perturbierte Mitglieder + 1 IFS-Kontrolllauf · +0 bis +360 h / "+String(eps.valid_hour_utc).padStart(2,"0")+" UTC · max. Tagesanteil mit U < 0 m/s: "+
   pct(peak.p)+" am "+peak.date+" ("+peak.count+"/51).";
  $("stratoEpsPng").disabled=false;
  $("stratoEpsCsv").disabled=false;
 }
-function goodGefs(){
- const data=window.stratoGefsEnsemble;
+function goodGefs(candidate){
+ const data=candidate||window.stratoGefsEnsemble;
  if(data?.provider!=="NOAA GEFS"||data.member_count!==31||
     !Array.isArray(data.valid_dates)||!data.valid_dates.length||
     !data.members||Object.keys(data.members).length!==31||
-    !/^\d{4}-\d\d-\d\dT00:00:00Z$/.test(data.cycle_utc||"")||
+    !/^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(data.cycle_utc||"")||
     Date.now()-Date.parse(data.cycle_utc)>72*3600000||
     !Object.values(data.members).every(arr=>Array.isArray(arr)&&arr.length===data.valid_dates.length&&arr.every(valid)))
    return null;
  return data;
 }
+async function indexRuns(url,provider,hours){
+ try{
+  const response=await fetch(url+"?t="+Date.now(),{cache:"no-store"});
+  if(!response.ok)return [];
+  const index=await response.json();
+  if(index.provider!==provider||!Array.isArray(index.runs))return [];
+  return index.runs.filter(x=>{
+   const cycle=x.cycle_utc||"",path=x.path||"";
+   return /^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(cycle)&&
+    /^runs\/\d{8}_\d{6}\.json$/.test(path)&&
+    hours.includes(Number(cycle.slice(11,13)))&&Date.parse(cycle)<=Date.now()&&
+    Date.now()-Date.parse(cycle)<72*3600000;
+  }).sort((a,b)=>b.cycle_utc.localeCompare(a.cycle_utc));
+ }catch(error){console.info("Ensemble-Laufindex nicht verfügbar",error);return [];}
+}
+async function updateEpsCycles(){
+ const select=$("stratoEpsCycle"),old=select.value;
+ epsCycles=await indexRuns(EPS_INDEX,"ECMWF IFS ENS",[0,12]);
+ select.replaceChildren();
+ if(!epsCycles.length){
+  const o=document.createElement("option");o.value="current";
+  o.textContent="Neuester verfügbarer ECMWF-Lauf";select.add(o);
+ }else{
+  for(const x of epsCycles){
+   const o=document.createElement("option");o.value=x.cycle_utc;
+   o.textContent=x.cycle_utc.slice(0,16).replace("T"," ")+" UTC · +360 h";
+   select.add(o);
+  }
+  select.value=epsCycles.some(x=>x.cycle_utc===old)?old:epsCycles[0].cycle_utc;
+ }
+}
+async function getEps(){
+ const selection=$("stratoEpsCycle").value,run=epsCycles.find(x=>x.cycle_utc===selection);
+ const response=await fetch((run?EPS_BASE+run.path:URL_EPS)+"?t="+Date.now(),{cache:"no-store"});
+ if(!response.ok)throw Error("Noch kein veröffentlichtes ECMWF-ENS-Archiv (HTTP "+response.status+")");
+ const found=validData(await response.json());
+ if(run&&found.cycle_utc!==run.cycle_utc)throw Error("ECMWF-ENS-Daten und Laufindex widersprechen sich");
+ return found;
+}
+async function compareData(model,hour){
+ const isG=model==="gefs",indexUrl=isG?GEFS_INDEX:EPS_INDEX;
+ const base=isG?GEFS_BASE:EPS_BASE,provider=isG?"NOAA GEFS":"ECMWF IFS ENS";
+ const runs=await indexRuns(indexUrl,provider,[hour]);
+ const latestUrl=isG?GEFS_BASE+"gefs_current.json":URL_EPS;
+ const url=runs.length?base+runs[0].path:latestUrl;
+ try{
+  const response=await fetch(url+"?t="+Date.now(),{cache:"no-store"});
+  if(!response.ok)return null;
+  const raw=await response.json();
+  const data=isG?goodGefs(raw):validData(raw);
+  if(!data||Number(data.cycle_utc.slice(11,13))!==hour||
+    runs.length&&data.cycle_utc!==runs[0].cycle_utc)return null;
+  return data;
+ }catch(error){console.info(provider+" Vergleich nicht verfügbar",error);return null;}
+}
+async function refreshComparison(){
+ const hour=Number($("stratoCompareHour").value);
+ $("stratoCompareStatus").textContent="Lade GEFS und ECMWF ENS mit übereinstimmenden "+String(hour).padStart(2,"0")+"-UTC-Zeitpunkten …";
+ const result=await Promise.allSettled([compareData("gefs",hour),compareData("eps",hour)]);
+ // Prevent stale network results from replacing a newly chosen comparison hour.
+ if(Number($("stratoCompareHour").value)!==hour)return;
+ compareGefs=result[0].status==="fulfilled"?result[0].value:null;
+ compareEps=result[1].status==="fulfilled"?result[1].value:null;
+ renderComparison();
+}
 function renderComparison(){
- const gefs=compute(goodGefs()),ecmwf=compute(eps);
+ const gefs=compute(compareGefs),ecmwf=compute(compareEps);
  const sG=$("stratoCompareGefs"),sE=$("stratoCompareEps");
  sG.textContent=gefs?pct(gefs.crossed/gefs.total*100)+" ("+gefs.crossed+"/"+gefs.total+")":"–";
  sE.textContent=ecmwf?pct(ecmwf.crossed/ecmwf.total*100)+" ("+ecmwf.crossed+"/"+ecmwf.total+")":"–";
@@ -132,8 +200,9 @@ function renderComparison(){
   gc:gmap.get(date)?.count??null,e:emap.get(date)?.p??null,
   ec:emap.get(date)?.count??null}));
  const overlap=compareRows.filter(r=>r.g!==null&&r.e!==null).length;
+ const utc=String($("stratoCompareHour").value).padStart(2,"0");
  $("stratoCompareStatus").textContent=gefs||ecmwf?
-   "Täglicher Anteil mit U < 0 m/s (00 UTC). GEFS: 31 inklusive Kontrolle; ECMWF ENS: 50 Störmitglieder inklusive separatem Kontrolllauf = 51. "+
+   "Täglicher Anteil mit U < 0 m/s ("+utc+" UTC). GEFS: 31 inklusive Kontrolle; ECMWF ENS: 50 Störmitglieder inklusive separatem Kontrolllauf = 51. "+
    overlap+" gemeinsame Gültigkeitstage. Das ist keine Major-SSW-Wahrscheinlichkeit."+
    (errorMessage?" EPS: "+errorMessage:""):
    "Noch keine verifizierten Ensembleläufe. "+(errorMessage||"");
@@ -156,21 +225,20 @@ function renderComparison(){
        (isG?row.gc+"/31":row.ec+"/51")+")";
     }}}},
    scales:{x:{ticks:{maxTicksLimit:12,maxRotation:0},grid:{display:false},
-       title:{display:true,text:"Gültigkeitsdatum · 00 UTC"}},
+       title:{display:true,text:"Gültigkeitsdatum · "+utc+" UTC"}},
     y:{min:0,max:100,ticks:{callback:v=>v+" %"},
        title:{display:true,text:"Mitglieder mit U < 0 m/s (%)"}}}
   }
  });
 }
-async function load(){
+async function load(refreshIndex=true){
  $("stratoEpsStatus").textContent="Lade originale 50 ECMWF-Störmitglieder und den IFS-Kontrolllauf …";
  $("stratoEpsReload").disabled=true;
+ if(refreshIndex)await updateEpsCycles();
  try{
-  const response=await fetch(URL_EPS+"?t="+Date.now(),{cache:"no-store"});
-  if(!response.ok)throw Error("Noch kein veröffentlichtes ECMWF-ENS-Archiv (HTTP "+response.status+")");
-  eps=validData(await response.json());errorMessage="";
+  eps=await getEps();errorMessage="";
   $("stratoEpsStatus").textContent="51/51 vollständige Original-Prognosen · ECMWF "+eps.cycle_utc+
-    " · 60°N / 10 hPa · 00 UTC · CC BY 4.0";
+    " · 60°N / 10 hPa · "+String(eps.valid_hour_utc).padStart(2,"0")+" UTC · CC BY 4.0";
   drawEPS();
  }catch(error){
   eps=null;errorMessage=error.message||String(error);
@@ -181,7 +249,7 @@ async function load(){
   if(epsChart){epsChart.destroy();epsChart=null;}
  }
  $("stratoEpsReload").disabled=false;
- renderComparison();
+ void refreshComparison();
 }
 function file(name,content,type){
  const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -204,7 +272,9 @@ epsTab.addEventListener("click",()=>activate("eps"));
 for(const id of ["stratoGefsTab","stratoEcmwfTab"]){
  $(id).addEventListener("click",()=>activate("other"));
 }
-$("stratoEpsReload").addEventListener("click",load);
+$("stratoEpsReload").addEventListener("click",()=>load(true));
+$("stratoEpsCycle").addEventListener("change",()=>load(false));
+$("stratoCompareHour").addEventListener("change",refreshComparison);
 for(const id of ["stratoEpsHorizon","stratoEpsMembers","stratoEpsBands"]){
  $(id).addEventListener("change",drawEPS);
 }
@@ -228,6 +298,6 @@ $("stratoCompareCsv").addEventListener("click",()=>{
   r.ec??"",r.e===null?"":51,r.e??""].join(";"))];
  file("Stratosphaere_GEFS_ECMWF_ENS_Windumkehr_00UTC.csv","\ufeff"+rows.join("\r\n"),"text/csv;charset=utf-8");
 });
-window.addEventListener("stratosphere:gefs-loaded",renderComparison);
+window.addEventListener("stratosphere:gefs-loaded",()=>{});
 void load();
 })();
