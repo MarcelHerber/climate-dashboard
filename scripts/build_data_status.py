@@ -70,7 +70,10 @@ def external_archives():
     """
     base = "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/"
     sources = {
-        "mosmix": "mosmix-data/data/mosmix/mosmix_ttt.json",
+        "mosmix": "mosmix-data/data/mosmix/manifest.json",
+        "mosmix_quality": "mosmix-data/data/mosmix/quality_status.json",
+        "europe_tmax": "europe-tmax-lab-data/data/europe-tmax-lab/current.json",
+        "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
         "icon": "icon-hazards-data/data/icon-hazards/current.json",
         "sst": "sst-archive/manifest.json",
         "ssw": "stratosphere-data/data/stratosphere/ssw_catalog.json",
@@ -132,14 +135,67 @@ def add_external(items, remote):
         count = mos.get("station_count", 0)
         count = count if isinstance(count, int) else 0
         good = mos.get("product") == "DWD MOSMIX-L" and count >= 100 and len(steps) >= 24
+        quality = remote.get("mosmix_quality") or {}
+        quality_ok = (quality.get("quality") == "passed"
+                      and quality.get("issue_time") == mos.get("issue_time"))
+        note = ("Letzter Modelllauf · DWD MOSMIX-L · "
+                + ("Qualitätsprüfung bestätigt" if quality_ok else
+                   "Qualitätsnachweis nicht aktuell oder nicht erreichbar"))
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen",
             mos.get("issue_time"), mos.get("generated_at"),
             f"{count} Prognosepunkte · {len(steps)} Zeitschritte",
-            "Letzter Modelllauf (keine Beobachtung) · DWD MOSMIX-L",
-            allowed_delay=2, incomplete=not good))
+            note, allowed_delay=2, incomplete=not (good and quality_ok)))
     else:
         items.append(result("mosmix", "MOSMIX-L", "Vorhersagen", None, None,
             "Laufmetadaten fehlen", "Datenzweig vorübergehend nicht prüfbar"))
+
+    # Separate real (not simulated) station and raster checks for the private
+    # five-day experiment. A valid ICON field does not imply every city has TN/TX.
+    for mode, title, value_key in (
+        ("tmax", "Europa Tmax · MOSMIX/ICON-EU", "tmax_c"),
+        ("tmin", "Europa Tmin · MOSMIX/ICON-EU", "tmin_c"),
+    ):
+        archive = remote.get("europe_" + mode)
+        if not isinstance(archive, dict):
+            items.append(result("europe_" + mode, title, "Vorhersagen", None, None,
+                "Labor-Prognosemanifest nicht erreichbar",
+                "Die gesonderte fünftägige Modell- und Stationsprüfung ist nicht möglich"))
+            continue
+        days = archive.get("days") or []
+        valid_counts = [
+            sum(s.get(value_key) is not None for s in day.get("stations", [])
+                if isinstance(s, dict))
+            for day in days if isinstance(day, dict)
+        ]
+        raster_ok = all(isinstance(day, dict) and
+                        isinstance(day.get("coverage"), (float, int)) and
+                        day["coverage"] >= .80 and
+                        day.get("icon_png") and day.get("icon_raw_png")
+                        for day in days)
+        good = (archive.get("schema") == 2 and len(days) == 5
+                and len(valid_counts) == 5 and min(valid_counts, default=0) >= 25
+                and raster_ok and archive.get("stations_catalog_count", 0) >= 1000)
+        cycle = archive.get("icon_cycle")
+        try:
+            cycle_date = datetime.strptime(cycle, "%Y%m%d%H").date().isoformat()
+        except (TypeError, ValueError):
+            cycle_date = None
+        missing = sorted({
+            s.get("city") for day in days if isinstance(day, dict)
+            for s in day.get("stations", [])
+            if isinstance(s, dict) and s.get(value_key) is None and s.get("city")
+        })
+        first = days[0].get("date") if days and isinstance(days[0], dict) else "–"
+        last = days[-1].get("date") if days and isinstance(days[-1], dict) else "–"
+        missing_note = (f" · Fehlende Stadtwerte: {', '.join(missing[:5])}" +
+                        (" …" if len(missing) > 5 else "")) if missing else ""
+        items.append(result("europe_" + mode, title, "Vorhersagen",
+            cycle_date, archive.get("built_utc"),
+            f"{len(days)}/5 Tage · {min(valid_counts, default=0)}–{max(valid_counts, default=0)}/31 Städte · "
+            f"Raster mindestens {min((round(day.get('coverage', 0)*100) for day in days if isinstance(day, dict)), default=0)} %",
+            f"ICON-Modelllauf {cycle or '–'} · Prognosen {first} bis {last}{missing_note} · "
+            "Datenbranch-Manifest, kein Browser-Bildtest",
+            allowed_delay=2, incomplete=not good))
 
     icon = remote.get("icon")
     if icon:
@@ -348,10 +404,12 @@ def build(remote=None):
     if original and original.get("ready") is True and original.get("charts"):
         charts=original["charts"]
         latest=max(x.get("valid_utc","") for x in charts)
+        # Forecast valid times may be in the future; freshness belongs to the
+        # published chart index, not the last forecast's target date.
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
-            latest, original.get("generated_utc"),
+            original.get("generated_utc"), original.get("generated_utc"),
             f"{len(charts)} Originalkarten · {len(set(x.get('publisher_id') or x['source_id'] for x in charts))} unabhängige Wetterdienste",
-            "DWD, AEMET, NOAA OPC und ggf. ČHMÚ; UTC-Gültigkeit aus Originalquellen geprüft",
+            f"Letzte Prognosegültigkeit {latest} · Erstellungszeit statt Zukunftsdatum für Aktualitätsprüfung",
             allowed_delay=3))
     else:
         items.append(result("synoptic_original", "Isobaren & Fronten · Originalkarten", "Europa",
