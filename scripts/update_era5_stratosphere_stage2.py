@@ -345,6 +345,7 @@ def coverage_summary():
         rows=all_years.get(year)
         if rows is None:
             rows={r["date"]:r for r in base.read_rows(year)}
+            all_years[year] = rows
         days=366 if calendar.isleap(year) else 365
         good=sum(1 for r in rows.values()
                  if all(isinstance(r.get(field),(int,float))
