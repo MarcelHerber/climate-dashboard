@@ -10,6 +10,8 @@ on:
       - "stratosphere_ensemble.js"
       - "stratosphere_ecmwf_runs.js"
       - "stratosphere_ecmwf_ens.js"
+      - "stratosphere_run_trends.js"
+      - "tests/test_stratosphere_run_trends.cjs"
       - "scripts/build_ecmwf_ens_u60.py"
       - "tests/test_ecmwf_ens_u60.py"
       - "tests/test_stratosphere_eps_probability.cjs"
@@ -51,6 +53,8 @@ jobs:
           node --check stratosphere_ensemble.js
           node --check stratosphere_ecmwf_runs.js
           node --check stratosphere_ecmwf_ens.js
+          node --check stratosphere_run_trends.js
+          node --test tests/test_stratosphere_run_trends.cjs
           node --check stratosphere_winter_stats.js
           node --check stratosphere_gefs_probability.js
           node --test tests/test_stratosphere_rank_probability.cjs
@@ -77,6 +81,12 @@ jobs:
           assert 'id="stratoGefsCycle"' in page
           assert 'id="stratoEpsCycle"' in page
           assert 'id="stratoCompareHour"' in page
+          assert 'id="stratoTrendCanvas"' in page
+          assert 'id="stratoTrendModel"' in page
+          assert 'id="stratoTrendHour"' in page
+          assert 'id="stratoTrendValid"' in page
+          assert 'id="stratoTrendCsv"' in page
+          assert "stratosphere_run_trends.js" in page
           assert "stratosphere_winter_stats.js" in page
           assert "stratosphere_gefs_probability.js" in page
           assert 'id="stratoWinterStatsCard"' in page
