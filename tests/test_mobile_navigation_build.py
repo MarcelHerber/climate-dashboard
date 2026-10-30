@@ -17,17 +17,17 @@ class MobileNavigationBuildTests(unittest.TestCase):
         first=MODULE.inject(raw)
         second=MODULE.inject(first)
         self.assertEqual(first,second)
-        self.assertEqual(first.count("mobile_navigation.css"),1)
-        self.assertEqual(first.count("mobile_navigation.js"),1)
-        self.assertLess(first.index("mobile_navigation.css"),first.index("</head>"))
-        self.assertLess(first.index("mobile_navigation.js"),first.index("</body>"))
+        for asset in ("mobile_navigation.css","mobile_navigation.js","mobile_content.css","mobile_content.js"):
+            self.assertEqual(first.count(asset),1,asset)
+            closing="</head>" if asset.endswith(".css") else "</body>"
+            self.assertLess(first.index(asset),first.index(closing))
         self.assertIn("<main><h1>Klima</h1></main>",first)
 
     def test_case_insensitive_html_and_missing_tags_rejected(self):
         page='<HTML><HEAD><title>Test</title></HEAD><BODY><p>Test</p></BODY></HTML>'
         result=MODULE.inject(page)
-        self.assertEqual(result.count("mobile_navigation.css"),1)
-        self.assertEqual(result.count("mobile_navigation.js"),1)
+        for asset in ("mobile_navigation.css","mobile_navigation.js","mobile_content.css","mobile_content.js"):
+            self.assertEqual(result.count(asset),1,asset)
         for broken in ("<html><body>no head</body></html>","<html><head></head><body>no close"):
             with self.assertRaises(ValueError):MODULE.inject(broken)
 
@@ -36,6 +36,8 @@ class MobileNavigationBuildTests(unittest.TestCase):
             base=Path(folder)
             (base/"mobile_navigation.js").write_text("/* asset */",encoding="utf-8")
             (base/"mobile_navigation.css").write_text("/* asset */",encoding="utf-8")
+            (base/"mobile_content.js").write_text("/* asset */",encoding="utf-8")
+            (base/"mobile_content.css").write_text("/* asset */",encoding="utf-8")
             original='<html><head></head><body><header>Navigation</header><main>Data</main></body></html>'
             for name in ("index.html","stratosphaere.html","weltweite_isobaren.html"):
                 (base/name).write_text(original,encoding="utf-8")
@@ -44,6 +46,7 @@ class MobileNavigationBuildTests(unittest.TestCase):
             result=MODULE.deploy(base)
             self.assertEqual(result,sorted(["index.html","stratosphaere.html","weltweite_isobaren.html"]))
             self.assertIn("mobile_navigation.js",(base/"stratosphaere.html").read_text(encoding="utf-8"))
+            self.assertIn("mobile_content.js",(base/"stratosphaere.html").read_text(encoding="utf-8"))
             self.assertNotIn("mobile_navigation.js",(nested/"internal.html").read_text(encoding="utf-8"))
             self.assertEqual(MODULE.deploy(base),result)
 
