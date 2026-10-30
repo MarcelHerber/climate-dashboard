@@ -110,6 +110,32 @@ test("first-onset histogram counts independent members once and never calls it M
  assert.equal(a.firstCrossingHistogram[4],0);
  assert.ok(script.includes("keine Major-SSW-Wahrscheinlichkeit"));
 });
+test("initial negative spell remains observable even if a second later crossing occurs",()=>{
+ const {f}=isolated(),d=fixture();
+ d.members.c00=[-3,-4,-6,2,3,-2,1,...Array(10).fill(10)];
+ const r=f.analyze(f.verify(d,"gefs"));
+ const initial=r.members[0];
+ assert.equal(initial.startedNegative,true);
+ assert.equal(initial.firstCrossing,5);
+ assert.equal(initial.onsetIndex,0);
+ assert.equal(initial.consecutiveNegative,3);
+ assert.equal(initial.maxNegativeRun,3);
+ assert.equal(initial.recoveryIndex,3);
+ assert.equal(r.newCrossings,1);
+ assert.equal(r.baseline,1);
+ assert.equal(r.long3,1);
+});
+test("a later longer reversal also contributes to 3+ persistence KPI",()=>{
+ const {f}=isolated(),d=fixture();
+ d.members.p01=[2,-1,3,2,-2,-3,-4,-5,3,...Array(8).fill(10)];
+ const r=f.analyze(f.verify(d,"gefs"));
+ const member=r.members.find(m=>m.name==="p01");
+ assert.equal(member.firstCrossing,1);
+ assert.equal(member.consecutiveNegative,1);
+ assert.equal(member.maxNegativeRun,4);
+ assert.equal(member.anyCrossings,2);
+ assert.equal(r.long3,1);
+});
 test("all non-negative members: no fabricated episodes or transitions",()=>{
  const {f}=isolated(),d=fixture();
  const a=f.analyze(f.verify(d,"gefs"));
