@@ -84,7 +84,7 @@ const STATUS={
 const pages={
  dwd_monthly:"index.html",dwd_daily:"index.html",station_records:"index.html",
  station_precip:"index.html",station_climate_days:"index.html",station_heatwaves:"index.html",
- snow:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
+ snow:"index.html",fast_live:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
  ssw_catalog:"stratosphaere.html",
  polar_vortex:"stratosphaere.html",
  blocking:"blocking.html",
@@ -118,7 +118,7 @@ function render(){
   a.textContent=entry.label;a.className="name";name.append(a);
   name.append(document.createElement("br"));const area=document.createElement("span");area.className="small";area.textContent=entry.group;name.append(area);
   const last=entry.latest||"–";
-  const lag=entry.lag==null?"":entry.cadence==="monthly"?entry.lag+" Monat(e) seit Datenmonat":entry.lag+" Tag(e) zurück";
+  const lag=entry.lag==null?"":entry.cadence==="monthly"?entry.lag+" Monat(e) seit Datenmonat":entry.cadence==="hourly"?entry.lag+" Stunde(n) zurück":entry.lag+" Tag(e) zurück";
   const c=textCell(tr,last);const sub=document.createElement("div");sub.className="small";sub.textContent=lag;c.append(sub);
   textCell(tr,formatted(entry.updated));
   const coverage=textCell(tr,entry.coverage);
