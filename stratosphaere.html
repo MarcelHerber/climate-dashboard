@@ -208,6 +208,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  </div>
  <div id="stratoGefsView">
  <div class="forecast-main-controls">
+  <label class="forecast-horizon">GEFS-Modelllauf<select id="stratoGefsCycle" aria-label="GEFS Modellzyklus 00 06 12 18 UTC"><option value="current">Neuester verfügbarer Lauf</option></select></label>
   <label class="forecast-horizon" for="stratoEnsembleSpan">Prognosezeitraum
    <select id="stratoEnsembleSpan">
     <option value="all" selected>Gesamter Modelllauf</option>
@@ -259,8 +260,9 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  </div>
 
  <div id="stratoEpsView" hidden>
-  <p><strong>ECMWF IFS ENS</strong> · alle 50 unabhängigen gestörten Vorhersagemitglieder sowie der separat aus <em>oper/fc</em> geladene IFS-Kontrolllauf. Echte zonale U-Windmittel aus den vollständigen 60°-N-Breitenkreisen bei 10 hPa, gültig täglich um 00 UTC. Kein Laufvergleich.</p>
+  <p><strong>ECMWF IFS ENS</strong> · alle 50 unabhängigen gestörten Vorhersagemitglieder sowie der separat aus <em>oper/fc</em> geladene IFS-Kontrolllauf. Echte zonale U-Windmittel aus den vollständigen 60°-N-Breitenkreisen bei 10 hPa, gültig täglich zur Initialisierungszeit um 00 oder 12 UTC. Kein Laufvergleich.</p>
   <div class="forecast-main-controls">
+   <label>ECMWF-ENS-Lauf<select id="stratoEpsCycle" aria-label="ECMWF Ensemblezyklus 00 oder 12 UTC"><option value="current">Neuester verfügbarer Lauf</option></select></label>
    <label>Zeitraum<select id="stratoEpsHorizon"><option value="all" selected>Gesamte +360 h (15 Tage)</option><option value="7">Erste 7 Tage</option></select></label>
    <label><input type="checkbox" id="stratoEpsMembers" checked> 50 Einzelmitglieder</label>
    <label><input type="checkbox" id="stratoEpsBands" checked> 50-%-/90-%-Bereiche</label>
@@ -299,7 +301,12 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  </div>
  <div class="strato-prob-panel" id="stratoComparePanel">
   <h3>Windumkehr · GEFS gegenüber ECMWF ENS</h3>
-  <p>Gegenüberstellung der <strong>Ensembleanteile mit U &lt; 0 m/s</strong> bei 60°N / 10 hPa für übereinstimmende Gültigkeitstage (00 UTC). Fehlende Prognosetage bleiben offen. Keine automatische Major-SSW-Wahrscheinlichkeit.</p>
+  <p>Gegenüberstellung der <strong>Ensembleanteile mit U &lt; 0 m/s</strong> bei 60°N / 10 hPa für übereinstimmende Gültigkeitszeiten (00 oder 12 UTC). Fehlende Prognosetage bleiben offen. Keine automatische Major-SSW-Wahrscheinlichkeit.</p>
+  <div class="forecast-main-controls">
+   <label for="stratoCompareHour">Vergleich der Gültigkeit um
+    <select id="stratoCompareHour"><option value="00" selected>00 UTC</option><option value="12">12 UTC</option></select>
+   </label>
+  </div>
   <div class="strato-compare-kpis">
    <div><small>GEFS · mindestens ein Übergang von U ≥ 0 auf U &lt; 0 m/s</small><strong id="stratoCompareGefs">–</strong></div>
    <div><small>ECMWF ENS · mindestens ein Übergang von U ≥ 0 auf U &lt; 0 m/s</small><strong id="stratoCompareEps">–</strong></div>
