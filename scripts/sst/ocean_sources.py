@@ -11,7 +11,7 @@ import numpy as np
 import requests
 import xarray as xr
 
-from .config import OCEAN_REGIONS
+from .config import OCEAN_REGIONS, NOAA_NORMALS_NCSS
 
 # Kleine, einzeln archivierte OISST-v2.1-Tagesdateien direkt von NOAA NCEI.
 # Entlastet den PSL-THREDDS/NCSS-Server, der bei zwei parallelen
@@ -221,20 +221,32 @@ def download_oisst_normal_subset(
     lon_indices = np.flatnonzero((longitudes >= west) & (longitudes <= east))
     if not len(lat_indices) or not len(lon_indices):
         raise RuntimeError("NOAA-OISST-Klimamittel: Region liegt außerhalb des Gitters.")
-    # Ask the server for only the required cells/time via OPeNDAP, not
-    # the full ~1.4 GB NOAA climate archive. NetCDF4 supports DAP slicing.
+    # NOAA PSL also exposes the original 0.25-degree 1991-2020
+    # climatology via THREDDS NetCDF Subset Service (NCSS). Avoid the retired
+    # ERDDAP ID (404) and remote DAP access (-77) on GitHub runners.
+    from datetime import timedelta
+    base_date = date(1, 1, 1)
+    params = {
+        "var": "sst",
+        "north": north, "south": south, "west": west, "east": east,
+        "time_start": (base_date + timedelta(days=time_start)).isoformat() + "T00:00:00Z",
+        "time_end": (base_date + timedelta(days=time_stop)).isoformat() + "T00:00:00Z",
+        "timeStride": 1,
+        "accept": "netcdf4",
+    }
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="oisst-ocean-normal-", dir=destination.parent) as tmp:
         path = Path(tmp) / "normal.nc"
-        with xr.open_dataset(NOAA_NORMALS_OPENDAP, engine="netcdf4",
-                             decode_times=False) as remote:
-            # DAP fetches only this small region and at most two days.
-            selected = remote[["sst"]].isel(
-                time=slice(time_start, time_stop + 1),
-                lat=slice(int(lat_indices[0]), int(lat_indices[-1]) + 1),
-                lon=slice(int(lon_indices[0]), int(lon_indices[-1]) + 1),
-            ).load()
-        standardized = _standardize_subset(selected)
+        response = _get_with_retry(session, NOAA_NORMALS_NCSS, params=params,
+                                   stream=True, timeout=180)
+        try:
+            _write_response_atomic(response, path)
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+        with xr.open_dataset(path, decode_times=False) as raw:
+            standardized = _standardize_subset(raw.load())
         field = standardized["sst"]
         if int(field.sizes.get("time", 1)) == 2:
             field = field.mean("time", skipna=True, keep_attrs=True)
