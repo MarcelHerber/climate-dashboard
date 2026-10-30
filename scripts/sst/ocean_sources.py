@@ -110,7 +110,8 @@ def _ncei_daily_url(day: date, *, preliminary: bool = False) -> str:
         yearmonth=f"{day:%Y%m}",
         day=f"{day:%Y%m%d}",
     )
-    return url.replace(".nc", "_preliminary.nc") if preliminary else url
+    # Replace only the filename suffix: replacing every ".nc" also corrupts www.ncei.noaa.gov.
+    return url[:-3] + "_preliminary.nc" if preliminary else url
 
 
 def _ncei_daily_response(day: date, session=requests, *, timeout: int = 90):
