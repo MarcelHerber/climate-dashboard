@@ -12868,6 +12868,7 @@ function hyrasDailyAnomalyPanelHtml(parameter){
       <input id="hyrasDailyAnomalyRange" type="range" min="0" max="0" value="0" step="1" aria-label="Tag auswählen">
       <button class="action" type="button" id="hyrasDailyAnomalyNext" aria-label="Nächster Tag">▶</button>
       <div class="hyras-daily-anomaly-date" id="hyrasDailyAnomalyDate">–</div>
+      <label class="hyras-daily-anomaly-calendar">Datum direkt wählen <input id="hyrasDailyAnomalyCalendar" type="date" aria-label="HYRAS-Tageskarte für Datum auswählen"></label>
     </div>
     <a class="hyras-daily-anomaly-link" id="hyrasDailyAnomalyLink" target="_blank" rel="noopener">
       <img id="hyrasDailyAnomalyImage" alt="HYRAS tägliche Temperaturabweichung" loading="eager">
@@ -12897,15 +12898,12 @@ function hyrasDailyAnomalyDateLabel(iso){
   return `${d}.${m}.${y}`;
 }
 function hyrasDailyAnomalyRowsDates(rows,manifest){
-  if(!rows?.length)return [];
-  const first=rows[0]?.date;
-  const last=rows[rows.length-1]?.date;
-  return (manifest?.available_dates||[]).filter(date=>
-    (!first||date>=first)&&(!last||date<=last)
-  );
+  // Die Tageskarten sind unabhängig von der oben gewählten Monats-/Gebietsauswertung.
+  return Array.isArray(manifest?.available_dates)?manifest.available_dates:[];
 }
 function hyrasDailyAnomalySetDate(parameter,manifest,dates,index){
   const range=document.getElementById("hyrasDailyAnomalyRange");
+  const calendar=document.getElementById("hyrasDailyAnomalyCalendar");
   const prev=document.getElementById("hyrasDailyAnomalyPrev");
   const next=document.getElementById("hyrasDailyAnomalyNext");
   const dateEl=document.getElementById("hyrasDailyAnomalyDate");
@@ -12919,6 +12917,7 @@ function hyrasDailyAnomalySetDate(parameter,manifest,dates,index){
   const iso=dates[clamped];
   hyrasDailyAnomalySelectedDate=iso||null;
   range.value=String(clamped);
+  if(calendar&&iso)calendar.value=iso;
   if(prev)prev.disabled=clamped<=0;
   if(next)next.disabled=clamped>=dates.length-1;
   dateEl.textContent=iso?hyrasDailyAnomalyDateLabel(iso):"–";
@@ -13029,14 +13028,16 @@ async function hyrasDailyAnomalyMount(parameter,rows){
     await hyrasDailyAnomalyConfigureAnimationDownload(parameter,manifest,panel);
     const dates=hyrasDailyAnomalyRowsDates(rows,manifest);
     const range=panel.querySelector("#hyrasDailyAnomalyRange");
+    const calendar=panel.querySelector("#hyrasDailyAnomalyCalendar");
     const prev=panel.querySelector("#hyrasDailyAnomalyPrev");
     const next=panel.querySelector("#hyrasDailyAnomalyNext");
     if(!dates.length){
       if(image)image.removeAttribute("src");
       if(status)status.textContent="Für den gewählten Zeitraum liegen noch keine täglichen Anomaliekarten vor.";
       const meta=panel.querySelector("#hyrasDailyAnomalyMeta");
-      if(meta)meta.textContent="Tageskarten sind derzeit für den Sommerzeitraum verfügbar.";
+      if(meta)meta.textContent="Tageskarten werden für das vollständige Kalenderjahr aufgebaut.";
       if(range)range.disabled=true;
+      if(calendar)calendar.disabled=true;
       if(prev)prev.disabled=true;
       if(next)next.disabled=true;
       return;
@@ -13053,6 +13054,17 @@ async function hyrasDailyAnomalyMount(parameter,rows){
       range.oninput=()=>hyrasDailyAnomalySetDate(
         parameter,manifest,dates,Number(range.value)
       );
+    }
+    if(calendar){
+      calendar.disabled=false;
+      calendar.min=dates[0];
+      calendar.max=dates[dates.length-1];
+      calendar.onchange=()=>{
+        const wanted=calendar.value;
+        const exact=dates.indexOf(wanted);
+        const near=dates.findIndex(day=>day>=wanted);
+        hyrasDailyAnomalySetDate(parameter,manifest,dates,exact>=0?exact:Math.max(0,near));
+      };
     }
     if(prev)prev.onclick=()=>{
       const current=Number(range?.value||0);
