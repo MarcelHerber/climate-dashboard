@@ -28,6 +28,18 @@ Das Menü besitzt eine textbasierte Suche ohne Serveraufrufe, eine Liste der let
 
 Mobile Navigation wird nur bei <=800 px angezeigt. Ohne JavaScript bleibt auf der Hauptseite das bisherige mobile Dropdown erhalten; auf den Unterseiten bleiben die ursprünglichen Kopfzeilen und Links bestehen.
 
+## Mobile Detaildarstellung (Iteration 2)
+
+- `mobile_content.css` verbessert für Bildschirmbreiten von 320 bis 600 px die Platzierung von Diagrammen, Legenden, Buttons, Formularen, Kartenbildern und wissenschaftlichen Tabellen.
+- `mobile_content.js` registriert ein optionales Chart.js-Darstellungsplugin: Bei höchstens 430 px werden maximal fünf Zeitachsenmarkierungen angezeigt, Beschriftungen bleiben waagerecht und Chart-Legenden nutzen kompaktere Beschriftungsfelder. **Datenreihen, Ensemblemitglieder, UTC-Zeiten, Einheiten, Achsen-Minima/Maxima und Prognosehorizonte bleiben unverändert.** Beim Vergrößern werden die ursprünglichen Darstellungseinstellungen wiederhergestellt.
+- Breite Tabellen mit horizontalem Überlauf erhalten auf schmalen Geräten einen Hinweis „Seitlich wischen“, ohne Zeilen oder Spalten aus den Originaldaten zu entfernen.
+- Auswahllisten erhalten eine 16-px-Schriftgröße gegen iOS-Safari-Fokuszoom. Exportaktionen bleiben vollständig benannt und können bei 320 px umbrechen.
+- Mobile Startseiten-Direkteinstiege stehen zweispaltig; Inhaltsbilder werden maximal bildschirmbreit gezeigt. Keine Animationen oder Transformationen an meteorologischen Rasterbildern.
+- `tests/test_mobile_content.cjs` überprüft insbesondere, dass kompaktere Chart-Achsen nach dem Wechsel auf Desktop die ursprüngliche Darstellung zurückbekommen und keine Messwerte verändert werden.
+- Der universelle Pages-Injektor veröffentlicht alle vier neuen Mobile-Assets auf allen Root-Unterseiten.
+
+Hinweis zu Exporten: Die Funktionalität von PNG/PDF/CSV wird nicht ersetzt oder verändert. Auf einem schmalen Gerät kann ein Canvas-PNG die reduzierten Bildschirm-Achsenticks abbilden; die Messdaten bleiben vollständig. Eine komplett unabhängige Print-/Export-Diagrammgestaltung wäre ein zusätzlicher Ausbauschritt.
+
 ## Akzeptanzkriterien und Geräteabnahme
 
 Vor einer finalen Live-Freigabe im Browser unter 320, 360, 390, 428, 768 und 800 px prüfen:
