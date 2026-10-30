@@ -40,6 +40,28 @@ Mobile Navigation wird nur bei <=800 px angezeigt. Ohne JavaScript bleibt auf de
 
 Hinweis zu Exporten: Die Funktionalität von PNG/PDF/CSV wird nicht ersetzt oder verändert. Auf einem schmalen Gerät kann ein Canvas-PNG die reduzierten Bildschirm-Achsenticks abbilden; die Messdaten bleiben vollständig. Eine komplett unabhängige Print-/Export-Diagrammgestaltung wäre ein zusätzlicher Ausbauschritt.
 
+## Reproduzierbare Chromium-Viewportprüfung
+
+Der Workflow \`.github/workflows/audit-mobile-viewports.yml\` erzeugt für fünf konkrete Ansichten
+(Startseite, Ensemble-T850, MOSMIX, Stratosphäre, Europa-Isobaren) bei **320, 360, 390 und 430 px**
+insgesamt 20 Layoutmessungen und Screenshots. Zusätzlich werden vier Handy-Menüs samt Suche
+nach Stratosphäre fotografiert.
+
+Die Ergebnissammlung heißt \`climate-mobile-320-360-390-430-px\` und enthält
+\`README.md\`, \`audit.json\` sowie 24 PNG-Dateien. Die Ergebnisse werden auch in der
+GitHub-Actions-Zusammenfassung aufgeführt.
+
+Der Test nutzt die tatsächlichen HTML- und CSS-Dateien. Das via JavaScript generierte
+MOSMIX-Layout wird ohne Wetterdaten aus der Original-Quellvorlage übernommen.
+Es prüft Menügröße, Funktion der Suche, Schließen mit Escape und unerwünschtes horizontales
+Seitenscrolling. Umfangreiche externe Wetterdatenabrufe und nicht-deterministische
+Chart-Renderings bleiben bewusst ausgeschaltet.
+
+**Einschränkung:** Chromium-Screenshots sind keine echte Safari-/Android-Geräteabnahme;
+der Test belegt auch keine Live-Datenverfügbarkeit oder korrekte Grafikexporte.
+Ein grüner Workflow belegt die getesteten statischen Layoutbedingungen, nicht
+alle dynamischen Kartenfunktionen.
+
 ## Akzeptanzkriterien und Geräteabnahme
 
 Vor einer finalen Live-Freigabe im Browser unter 320, 360, 390, 428, 768 und 800 px prüfen:
