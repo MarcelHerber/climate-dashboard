@@ -233,7 +233,7 @@ function drawHeatmap(){
    if(point){
     const button=document.createElement("button");button.type="button";
     button.className="strato-heat-cell strato-heat-bin-"+heatmapBucket(point.prob);
-    button.textContent=String(Math.round(point.prob));
+    button.textContent=String(Math.round(point.prob))+"%";
     button.title=stamp(matrix.rows[row].cycle)+" · gültig "+stamp(matrix.dates[col])+
       " · "+point.count+"/"+point.total+" mit U < 0 m/s = "+fixed(point.prob)+" %";
     button.setAttribute("aria-label",button.title);
@@ -316,7 +316,7 @@ function heatmapPng(matrix){
    ctx.fillRect(x+1,y+2,wCell-3,hCell-4);
    ctx.fillStyle=bucket===5?"#ffffff":"#16334c";
    ctx.font="bold 12px sans-serif";
-   ctx.fillText(value?String(Math.round(value.prob)):"–",x+11,y+24);
+   ctx.fillText(value?String(Math.round(value.prob))+"%":"–",x+7,y+24);
   });
  });
  const legendY=top+matrix.rows.length*hCell+25;
