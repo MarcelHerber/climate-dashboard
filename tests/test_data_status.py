@@ -26,6 +26,18 @@ class DataStatusTests(unittest.TestCase):
         self.assertEqual(late["status"], "delayed")
         self.assertEqual(status.result("c", "C", "T", None, None, "none")["status"], "unknown")
 
+    def test_live_observations_use_hourly_freshness(self):
+        now = datetime.now(timezone.utc)
+        recent = status.result("live", "SYNOP", "Stationen",
+                               (now - timedelta(minutes=15)).isoformat(), None,
+                               "measured", cadence="hourly", allowed_delay=3)
+        late = status.result("live", "SYNOP", "Stationen",
+                             (now - timedelta(hours=10)).isoformat(), None,
+                             "measured", cadence="hourly", allowed_delay=3)
+        self.assertEqual(recent["status"], "current")
+        self.assertEqual(late["status"], "delayed")
+        self.assertGreaterEqual(late["lag"], 9)
+
     def test_known_missing_backfill_is_visible(self):
         today = datetime.now(timezone.utc).date()
         incomplete = status.result("a", "A", "T", today.isoformat(), None,
