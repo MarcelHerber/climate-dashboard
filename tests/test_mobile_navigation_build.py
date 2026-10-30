@@ -55,6 +55,8 @@ class MobileNavigationBuildTests(unittest.TestCase):
             base=Path(folder)
             (base/"mobile_navigation.js").write_text("x",encoding="utf-8")
             (base/"mobile_navigation.css").write_text("x",encoding="utf-8")
+            (base/"mobile_content.js").write_text("x",encoding="utf-8")
+            (base/"mobile_content.css").write_text("x",encoding="utf-8")
             good="<html><head></head><body>OK</body></html>"
             (base/"index.html").write_text(good,encoding="utf-8")
             (base/"broken.html").write_text("<body>broken",encoding="utf-8")
