@@ -74,6 +74,7 @@ class DataStatusTests(unittest.TestCase):
             "mosmix": {"product": "DWD MOSMIX-L", "issue_time": run_date + "T06:00:00Z",
                        "generated_at": now.isoformat(), "station_count": 120,
                        "timesteps": [run_date] * 60},
+            "mosmix_quality": {"quality": "passed", "issue_time": run_date + "T06:00:00Z"},
             "icon": {"schema": 1, "run_utc": run_date + "T06:00:00Z",
                      "generated_utc": now.isoformat(), "grid": {"rows": 90},
                      "periods": [{"start_h": i, "end_h": i + 24}
@@ -85,6 +86,43 @@ class DataStatusTests(unittest.TestCase):
         self.assertEqual(rows["mosmix"]["status"], "current")
         self.assertEqual(rows["icon_hazards"]["status"], "current")
         self.assertEqual(rows["ensembles"]["status"], "unknown")
+
+    def test_real_tmin_tmax_manifests_and_missing_city(self):
+        from datetime import datetime
+        now = datetime.now(timezone.utc)
+        cycle = now.strftime("%Y%m%d%H")
+        days = []
+        for i in range(5):
+            label = (now.date() + timedelta(days=i)).isoformat()
+            points = [{"city": str(k), "tmax_c": float(k), "tmin_c": float(k)}
+                      for k in range(29)]
+            points.append({"city": "Missing", "tmax_c": None, "tmin_c": None})
+            days.append({"date": label, "coverage": .84, "icon_png": label + ".png",
+                         "icon_raw_png": label + "_raw.png", "stations": points})
+        archive = {"schema": 2, "icon_cycle": cycle, "built_utc": now.isoformat(),
+                   "stations_catalog_count": 4400, "days": days}
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(status, "ROOT", Path(tmp)):
+                rows = {x["id"]: x for x in status.build({
+                    "europe_tmax": archive, "europe_tmin": archive})["datasets"]}
+        for mode in ("europe_tmax", "europe_tmin"):
+            self.assertEqual(rows[mode]["status"], "current")
+            self.assertIn("29–29/31", rows[mode]["coverage"])
+            self.assertIn("Missing", rows[mode]["note"])
+
+    def test_chart_future_validity_is_not_a_future_data_date(self):
+        today = datetime.now(timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "data/synoptic_charts"
+            folder.mkdir(parents=True)
+            (folder / "index.json").write_text(json.dumps({
+                "ready": True, "generated_utc": today.isoformat(),
+                "charts": [{"valid_utc": (today + timedelta(days=3)).isoformat(),
+                            "source_id": "dwd"}]}), encoding="utf-8")
+            with patch.object(status, "ROOT", root):
+                rows = {r["id"]: r for r in status.build()["datasets"]}
+        self.assertEqual(rows["synoptic_original"]["status"], "current")
 
     def test_noaa_index_freshness_uses_older_subproduct(self):
         with tempfile.TemporaryDirectory() as tmp:
