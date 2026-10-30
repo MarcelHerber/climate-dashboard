@@ -1,0 +1,32 @@
+name: Mobile Navigation · Funktion und Vollständigkeit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mobile_navigation.js
+      - mobile_navigation.css
+      - scripts/inject_mobile_navigation.py
+      - scripts/build_pages_site.sh
+      - tests/test_mobile_navigation.cjs
+      - tests/test_mobile_navigation_build.py
+      - .github/workflows/test-mobile-navigation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v6
+      - name: Syntaktische Prüfung
+        run: |
+          node --check mobile_navigation.js
+          python -m py_compile scripts/inject_mobile_navigation.py
+      - name: Interne Tabs, externe Unterseiten und mobiles Menü prüfen
+        run: node --test tests/test_mobile_navigation.cjs
+      - name: Vollständige und idempotente HTML-Integration prüfen
+        run: python -m unittest discover -s tests -p test_mobile_navigation_build.py -v
