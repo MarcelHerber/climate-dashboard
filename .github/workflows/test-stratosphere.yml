@@ -74,6 +74,9 @@ jobs:
           assert "stratosphere_ecmwf_ens.js" in page
           assert 'id="stratoEpsTab"' in page
           assert 'id="stratoCompareCanvas"' in page
+          assert 'id="stratoGefsCycle"' in page
+          assert 'id="stratoEpsCycle"' in page
+          assert 'id="stratoCompareHour"' in page
           assert "stratosphere_winter_stats.js" in page
           assert "stratosphere_gefs_probability.js" in page
           assert 'id="stratoWinterStatsCard"' in page
