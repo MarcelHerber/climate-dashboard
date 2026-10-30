@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             scripts
+            tests
             era5_stratosphere
       - uses: actions/setup-python@v6
         with:
@@ -40,8 +41,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf pandas
-      - name: Verify daily diagnostic algorithms
-        run: python scripts/update_era5_stratosphere.py --self-test
+      - name: Verify daily diagnostic algorithms and strict reference completion
+        run: |
+          python scripts/update_era5_stratosphere.py --self-test
+          python -m unittest discover -s tests -p test_era5_stratosphere_reference.py -v
       - name: Configure Copernicus Climate Data Store
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -64,14 +67,14 @@ jobs:
       - name: Fetch stage-1 ERA5 60N winds and historical chunk
         id: stage1
         continue-on-error: true
-        run: python scripts/update_era5_stratosphere.py --current --backfill-one
+        run: python scripts/update_era5_stratosphere.py --current --backfill-one --backfill-chunks 10
       - name: Verify stage-2 polar-cap calculations
         run: python scripts/update_era5_stratosphere_stage2.py --self-test
       - name: Fetch current polar-cap diagnostics and priority SSW temperatures
         run: |
           python scripts/update_era5_stratosphere_stage2.py \
             --current --priority-backfill --priority-chunks 6 \
-            --climatology-backfill --climatology-chunks 2 --backfill-one
+            --climatology-backfill --climatology-chunks 10
       - name: Validate published data
         run: |
           python - <<'PY'
@@ -94,6 +97,15 @@ jobs:
             counts={name:sum(isinstance(r.get(name),(float,int)) for r in sub) for name in levels}
             print("Priority SSW temperature coverage",start,end,counts)
           assert all(k in payload["metrics"] for k in levels), "Four temperature diagnostics missing"
+          assert 0<=payload["reference_years_completed"]<=30
+          assert 0<=payload["reference_wind_years_completed"]<=30
+          assert 0<=payload["reference_temperature_calendar_days_complete"]<=366
+          assert 0<=payload["reference_wind_calendar_days_complete"]<=366
+          assert payload["reference_temperature_calendar_days_complete"] == len(
+            set.intersection(*(set(payload["reference"].get(k,{})) for k in levels)))
+          assert payload["reference_wind_calendar_days_complete"] == len(
+            set.intersection(*(set(payload["reference"].get(f"u60_{level}",{}))
+                               for level in (10,30,50,100))))
           print("Validated real ERA5 daily diagnostics:",len(days),"days",days[-1])
           status_file=Path("era5_stratosphere/backfill_status.json")
           assert status_file.exists(), "Backfill progress report missing"
@@ -122,6 +134,9 @@ jobs:
                 f"{entry['all_four_days']}/{entry['days_total']} Tage (4 Temperaturhöhen)")
             ref=data["reference_1991_2020"]
             lines.append(f"- 1991–2020: {ref['years_complete_four_temperatures']}/30 Temperaturjahre vollständig")
+            lines.append(f"- Referenztage Temperatur: {ref['complete_temperature_calendar_days']}/366 (alle 30 Jahre)")
+            lines.append(f"- Referenztage Zonalwind: {ref['complete_wind_calendar_days']}/366 (alle 30 Jahre)")
+            lines.append(f"- Historische Windjahre: {ref['years_complete_four_winds']}/30")
             lines.append(f"- Letzter Lauf: {data['last_run']}")
           else:
             lines.append("- Noch kein Backfill-Bericht erzeugt.")
