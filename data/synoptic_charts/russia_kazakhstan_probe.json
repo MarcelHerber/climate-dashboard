@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-30T14:27:17+00:00",
+  "generated_utc": "2026-10-30T23:04:36+00:00",
   "russia": {
     "source_page": "https://meteoinfo.ru/mapsynop",
     "copyright": "© Hydrometcenter Russia; reuse not verified",
@@ -45,50 +45,23 @@
       {
         "slot_utc": "18",
         "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz18h.png",
-        "state": "unverified",
+        "state": "current_within_40h",
         "image_reuse_permitted": false,
         "dimensions": [
           1556,
           1024
         ],
-        "footer_excerpt": "_ yt Oe a BOD Гуа 41 ДЕ 28\" aah 10 Г os PEAY %) ae д `Н м 030 А NO 5132186 700 can 5-45 у 7% 5487 AST, es < т - 4 ‹ > у я at „#47 5 А a <7 A у zai Гидрометцентр России 220-454 ЧМ” зе: | 00| АНАЛИЗ ПРИЗЕМНЫЙ [5525 pe? ей [i in 9 = от 29.10.2026 184 BCB — f0. 08",
-        "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
+        "footer_excerpt": "„>. РАТЬ, *0,4 70 “4 Ча 246) 248135 ¥ a = =? ф ii a {5 : a fy 0” S 162 и ., 2. 1% 164 9 — ~~ у 10 56 60 №03 / 203 PRRs : 2%) ESET oa Ги 406 / 60.>12/ <: 88| Гидрометцентр России | {57 ie 2 9 АНАЛИЗ ПРИЗЕМНЫЙ [3203 чи а Э от 30.10.2026 18ч ВСВ — 0007 и 102 ; 19",
+        "printed_valid_utc": "2026-10-30T18:00+00:00"
       }
     ]
   },
   "kazakhstan": {
-    "state": "viewer_html_inspected",
+    "state": "unverified",
     "page": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
     "chart_image_utc_verified": false,
     "image_reuse_permitted": false,
-    "same_host_image_reference_count": 9,
-    "same_host_script_reference_count": 3,
-    "script_urls": [
-      "https://www.kazhydromet.kz/js/synoptic-maps.js?ver=1",
-      "https://www.kazhydromet.kz/libs/fancybox/jquery.fancybox.min.js",
-      "https://www.kazhydromet.kz/js/scripts.min.js"
-    ],
-    "javascript_clues": [
-      "nds\":\"sec\",\"timeZone\":\"UTC\",\"previous\":\"Previous\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\"",
-      "us\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published",
-      "ing synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"",
-      "ilable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"dateAria\":\"Select a map date\",\"termAria\":\"Select a UTC t",
-      "elect a map date\",\"termAria\":\"Select a UTC time\",\"timelineAria\":\"Synoptic map time\",\"playAria\":\"Start automatic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript ",
-      "tic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript is required to control the maps.\"}"
-    ],
-    "embedded_full_utc_candidates": [],
-    "script_inspection_hints": [
-      " var copyNode = root.querySelector('[data-synoptic-copy]'); var copy = {}; try { copy = JSON.parse(copyNode ? c",
-      "ot.querySelector('[data-map-title]'), mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector(",
-      " mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector('[data-map-stage]'), imageLo",
-      "e = 'button'; button.className = 'synoptic-term'; button.textContent = map.time; button.setAttribute",
-      " + (copy.timeZone || 'СГВ'); elements.mapFilename.textContent = map.filename; elements.previousButton.disabled = state.mapI",
-      " elements.image.alt = (copy.imageAlt || 'Synoptic map') + ': ' + date.date + ', ' + map.time + ' ' + (copy.timeZone || 'СГВ'); ",
-      " elements.catalogStatus.classList.toggle('synoptic-status--error', Boolean(isError)); elements.catalogMessage.textContent = mess",
-      " spinner = elements.catalogStatus.querySelector('.synoptic-spinner'); if (spinner) { spinner.hidden = true; ",
-      " showCatalogueError(copy.unavailable || 'Synoptic maps are temporarily unavailable.', true); }); } function initialise",
-      "ype.forEach.call(document.querySelectorAll('[data-synoptic-viewer]'), initialiseViewer); } if (document.readyState === 'loading') { "
-    ]
+    "reason": "TimeoutError: The read operation timed out"
   },
   "no_images_persisted": true,
   "ready_for_automatic_image_reuse": false,
