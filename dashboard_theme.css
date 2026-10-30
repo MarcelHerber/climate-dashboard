@@ -302,3 +302,45 @@ html[data-theme="dark"] #hyras .hyras-map-frame{background:#101c2c}
 @media(max-width:390px){
   #hyras .controls{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* HYRAS: Jahres-Tageskarten, barrierearme Monats-/Tagesnavigation und Mobilansicht. */
+#hyras .hyras-daily-anomaly-controls{
+  grid-template-columns:minmax(44px,auto) minmax(0,1fr) minmax(44px,auto);
+  gap:10px;
+}
+#hyras .hyras-daily-anomaly-controls button{
+  min-width:44px;min-height:44px;touch-action:manipulation
+}
+#hyras .hyras-daily-anomaly-controls input[type="range"]{min-width:0;max-width:100%}
+#hyras .hyras-daily-anomaly-calendar{
+  display:flex;grid-column:1/-1;gap:10px;align-items:center;
+  justify-content:center;flex-wrap:wrap;
+  color:var(--text);font-size:12px;font-weight:600
+}
+#hyras .hyras-daily-anomaly-calendar input{
+  min-height:38px;min-width:0;max-width:100%;padding:5px 9px;
+  border:1px solid var(--border);border-radius:7px;
+  background:var(--card);color:var(--text);font:inherit
+}
+#hyras .hyras-daily-anomaly-head{
+  background:var(--card);border-color:var(--border)
+}
+#hyras .hyras-daily-anomaly-panel{
+  background:var(--card);border-color:var(--border)
+}
+#hyras .hyras-daily-anomaly-controls{
+  background:var(--card);border-color:var(--border)
+}
+#hyras .hyras-daily-anomaly-date{color:var(--text)}
+#hyras .hyras-daily-anomaly-link{background:#fff}
+#hyras .hyras-daily-anomaly-link img{max-width:100%;height:auto}
+@media(max-width:600px){
+  #hyras .hyras-daily-anomaly-head{flex-direction:column;align-items:stretch}
+  #hyras .hyras-daily-anomaly-head .hyras-tmean-download{
+    display:block;max-width:100%;text-align:center;
+  }
+  #hyras .hyras-daily-anomaly-controls{padding:10px 8px;gap:7px}
+  #hyras .hyras-daily-anomaly-link{padding:4px}
+  #hyras .hyras-daily-anomaly-calendar{justify-content:space-between}
+}
