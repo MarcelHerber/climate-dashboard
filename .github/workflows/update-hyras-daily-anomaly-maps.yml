@@ -9,6 +9,8 @@ on:
     paths:
       - "scripts/build_hyras_daily_anomaly_reference.py"
       - "scripts/build_hyras_daily_anomaly_maps.py"
+      - "scripts/hyras_anomaly_schedule.py"
+      - "tests/test_hyras_anomaly_schedule.py"
       - ".github/workflows/update-hyras-daily-anomaly-maps.yml"
 
 permissions:
