@@ -2,6 +2,9 @@ name: HYRAS tägliche Temperaturabweichungen
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["HYRAS Flächenkarten aktualisieren"]
+    types: [completed]
   push:
     paths:
       - "scripts/build_hyras_daily_anomaly_reference.py"
@@ -17,14 +20,19 @@ concurrency:
 
 jobs:
   prepare:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       target_date: ${{ steps.target.outputs.target_date }}
+      needed: ${{ steps.target.outputs.needed }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+
+      - name: HYRAS-Anomalie-Zeitfenster testen
+        run: python -m unittest discover -s tests -p 'test_hyras_anomaly_schedule.py'
 
       - name: Gemeinsamen HYRAS-Datenstand bestimmen
         id: target
@@ -34,20 +42,11 @@ jobs:
           rm -rf /tmp/hyras-daily-anomaly-meta
           git fetch origin hyras-data --depth=1
           git worktree add --detach /tmp/hyras-daily-anomaly-meta origin/hyras-data
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          from pathlib import Path
-          root=Path("/tmp/hyras-daily-anomaly-meta")
-          dates=[]
-          for parameter in ("tmean","tmax","tmin"):
-              path=root/parameter/"regions"/"index.json"
-              data=json.loads(path.read_text(encoding="utf-8"))
-              dates.append(str(data["data_through"]))
-          print("target_date="+min(dates))
-          PY
+          python scripts/hyras_anomaly_schedule.py --data-root /tmp/hyras-daily-anomaly-meta >> "$GITHUB_OUTPUT"
 
   reference:
     needs: prepare
+    if: needs.prepare.outputs.needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -88,7 +87,15 @@ jobs:
           path: /tmp/hyras-temperature-rank-history/${{ matrix.parameter }}/factor1
           key: hyras-temperature-rank-v2-factor1-${{ matrix.parameter }}-${{ matrix.shard }}
 
+      - name: Berechneten Sommer-Referenzshard cachen
+        id: ref-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/hyras-daily-anomaly-reference/daily_anomaly_ref_${{ matrix.parameter }}_*.npz
+          key: hyras-daily-anomaly-reference-v1-factor5-${{ matrix.parameter }}-${{ matrix.shard }}
+
       - name: Referenzbeitrag berechnen
+        if: steps.ref-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -113,6 +120,7 @@ jobs:
 
   render:
     needs: [prepare, reference]
+    if: needs.prepare.outputs.needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 240
     strategy:
@@ -176,6 +184,7 @@ jobs:
 
   publish:
     needs: [prepare, render]
+    if: needs.prepare.outputs.needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
