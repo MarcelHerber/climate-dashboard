@@ -74,6 +74,38 @@ function selectedRuns(){
  const limit=$("stratoEcmwfCount").value;
  return limit==="all"?archive.runs:archive.runs.slice(0,Math.max(1,Number(limit)));
 }
+function renderModelDiagnostics(){
+ if(!archive)return;
+ const el=$("stratoModelDiagnostics");el.replaceChildren();
+ const heading=document.createElement("strong");heading.textContent="IFS-Laufstabilität und GEFS-Vergleich · 60°N / 10 hPa";el.append(heading);
+ const p=document.createElement("p");p.textContent="IFS bei 12 UTC, GEFS bei 00 UTC: unterschiedliche Gültigkeitszeiten (12 Stunden). Die Laufänderung vergleicht ausschließlich IFS-Prognosen für denselben 12-UTC-Termin; GEFS wird nur daneben angezeigt.";el.append(p);
+ const newest=archive.runs[0],older=archive.runs[1];
+ const current=valuePoints(newest),previous=older?valuePoints(older):new Map();
+ const gefs=window.stratoGefsEnsemble;
+ const good=gefs?.provider==="NOAA GEFS"&&gefs.member_count===31&&
+  Array.isArray(gefs.valid_dates)&&Array.isArray(gefs.quantiles?.mean);
+ const lookup=new Map(good?gefs.valid_dates.map((date,i)=>[date,i]):[]);
+ const table=document.createElement("table"),head=document.createElement("tr");
+ for(const label of ["Gültigkeit","IFS aktuell · 12 UTC","IFS vorher · 12 UTC","IFS Änderung","GEFS-Mittel · 00 UTC"]){
+  const cell=document.createElement("th");cell.textContent=label;head.append(cell);
+ }table.append(head);
+ const fmt=v=>Number.isFinite(v)?v.toFixed(1)+" m/s":"–";
+ for(const step of [72,168,240]){
+  let time=dateOf(newest.cycle_utc,step);
+  if(time.getUTCHours()!==12)time=dateOf(newest.cycle_utc,step+12);
+  const date=dateKey(time),n=current.get(date),o=previous.get(date);
+  const gi=lookup.get(date),g=Number.isInteger(gi)?gefs.quantiles.mean[gi]:null;
+  const tr=document.createElement("tr");
+  for(const value of [date,fmt(n),fmt(o),fmt(Number.isFinite(n)&&Number.isFinite(o)?n-o:null),fmt(g)]){
+    const cell=document.createElement("td");cell.textContent=value;tr.append(cell);
+  }table.append(tr);
+ }
+ el.append(table);
+ const note=document.createElement("p");note.className="legendnotes";
+ note.textContent="IFS aktuell "+newest.cycle_utc+(older?" · voriger IFS "+older.cycle_utc:"")+
+  (good?" · GEFS "+gefs.cycle_utc:" · GEFS derzeit nicht geladen")+
+  ". Kein direkter 12-UTC-/00-UTC-Modellfehlervergleich.";el.append(note);
+}
 function render(){
  if(!archive || typeof Chart!=="function")return;
  const newest=archive.runs[0];
@@ -136,6 +168,7 @@ function render(){
    " archivierte echte 00/12-UTC-Modellläufe (keine EPS-Mitglieder) · neuester "+first+
    " · ältester "+last+" · Prognose bis +360 h";
  lastData=runs;
+ renderModelDiagnostics();
  $("stratoEcmwfPng").disabled=false;
  $("stratoEcmwfCsv").disabled=false;
 }
@@ -197,6 +230,7 @@ function choose(which){
   else render();
  }else window.dispatchEvent(new CustomEvent("stratosphere:view-changed"));
 }
+window.addEventListener("stratosphere:gefs-loaded",()=>{if(archive)renderModelDiagnostics();});
 tabEcmwf.addEventListener("click",()=>choose("ecmwf"));
 tabGefs.addEventListener("click",()=>choose("gefs"));
 })();
