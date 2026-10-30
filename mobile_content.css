@@ -102,3 +102,55 @@
 @media(max-width:600px){
  html[data-theme="dark"] body.cd-mobile-ready .cdm-scroll-hint{color:#b2c5db}
 }
+
+
+/* MOSMIX controls are created dynamically from mosmix.js. At 320px the
+   forecast-mode strip, location search and chart filters must not require
+   a horizontal document pan. Keep all modes and scientific chart panels. */
+@media(max-width:430px){
+ body.cd-mobile-ready .mosmix-controls{
+   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+   gap:9px;align-items:stretch;
+ }
+ body.cd-mobile-ready .mosmix-controls .mosmix-mode-group{
+   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+   grid-column:1/-1;width:100%;min-width:0;
+ }
+ body.cd-mobile-ready .mosmix-mode-button{
+   min-width:0;min-height:44px;padding:9px 6px;
+   white-space:normal;overflow-wrap:anywhere;text-align:center;
+   border-right:1px solid #dbe2e8;border-bottom:1px solid #dbe2e8;
+ }
+ body.cd-mobile-ready .mosmix-controls :is(.mosmix-map-variant,.mosmix-slider-wrap){
+   grid-column:1/-1;min-width:0;
+ }
+ body.cd-mobile-ready .mosmix-controls .mosmix-download-button{
+   grid-column:1/-1;min-height:44px;
+ }
+ body.cd-mobile-ready .mosmix-controls :is(.mosmix-button,.mosmix-download-button){
+   min-width:0;white-space:normal;overflow-wrap:anywhere;
+ }
+ body.cd-mobile-ready .mosmix-station-search{
+   display:flex;width:100%;min-width:0;gap:8px;
+ }
+ body.cd-mobile-ready .mosmix-station-search input{
+   flex:1 1 100%;width:100%;min-width:0;
+ }
+ body.cd-mobile-ready .mosmix-station-search button{flex:1 1 135px;min-height:44px}
+ body.cd-mobile-ready .mosmix-chart-toolbar{
+   width:100%;min-width:0;align-items:stretch;gap:9px;
+ }
+ body.cd-mobile-ready .mosmix-chart-toolbar label{
+   display:flex;flex-wrap:wrap;min-width:0;max-width:100%;
+ }
+ body.cd-mobile-ready .mosmix-chart-toolbar :is(select,input[type="search"]){
+   min-width:0;max-width:100%;
+ }
+ body.cd-mobile-ready .mosmix-chart-grid{grid-template-columns:1fr}
+ body.cd-mobile-ready .mosmix-chart-card{min-width:0;max-width:100%;padding:10px}
+ body.cd-mobile-ready .mosmix-chart-wrap{min-width:0;height:270px}
+ body.cd-mobile-ready .mosmix-chart-wrap.mosmix-chart-short{height:220px}
+ body.cd-mobile-ready .mosmix-meteogram-actions button{
+   flex:1 1 125px;min-height:44px;white-space:normal;
+ }
+}
