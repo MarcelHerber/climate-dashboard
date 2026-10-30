@@ -45,6 +45,16 @@ def result(id, label, group, date_value, updated, coverage, note="", cadence="da
     elif latest > today:
         status, lag = "unknown", None
         note = (note + " · Zukunftsdatum im Archiv").strip(" ·")
+    elif cadence == "hourly":
+        try:
+            timestamp = datetime.fromisoformat(str(date_value).replace("Z", "+00:00"))
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            delta = (datetime.now(timezone.utc) - timestamp).total_seconds() / 3600
+            lag = round(max(0, delta), 1)
+            status = "unknown" if delta < -1 else ("delayed" if lag > allowed_delay else "current")
+        except ValueError:
+            lag, status = None, "unknown"
     elif cadence == "monthly":
         lag = (today.year - latest.year)*12 + today.month - latest.month
         status = "delayed" if lag > allowed_delay else "current"
@@ -72,6 +82,7 @@ def external_archives():
     sources = {
         "mosmix": "mosmix-data/data/mosmix/manifest.json",
         "mosmix_quality": "mosmix-data/data/mosmix/quality_status.json",
+        "fast_live": "fast-live/fast_state.json",
         "europe_tmax": "europe-tmax-lab-data/data/europe-tmax-lab/current.json",
         "europe_tmin": "europe-tmin-lab-data/data/europe-tmin-lab/current.json",
         "icon": "icon-hazards-data/data/icon-hazards/current.json",
@@ -196,6 +207,19 @@ def add_external(items, remote):
             f"ICON-Modelllauf {cycle or '–'} · Prognosen {first} bis {last}{missing_note} · "
             "Datenbranch-Manifest, kein Browser-Bildtest",
             allowed_delay=2, incomplete=not good))
+
+    fast = remote.get("fast_live")
+    if isinstance(fast, dict) and fast.get("station_count", 0) > 0:
+        items.append(result("fast_live", "DWD SYNOP Fast Live", "Stationen",
+            fast.get("latest_measurement_utc"), fast.get("generated_at_utc"),
+            f"{fast.get('station_count')} SYNOP/CDC-zugeordnete Stationen · "
+            f"{fast.get('source_file_count', 0)} DWD-Dateien",
+            "Ergänzung zu den DWD-10-Minuten-Messungen · aktuelle SYNOP-Veröffentlichung",
+            cadence="hourly", allowed_delay=3))
+    else:
+        items.append(result("fast_live", "DWD SYNOP Fast Live", "Stationen",
+            None, None, "Fast-Live-Datenbranch ohne prüfbaren Stationsbestand",
+            "SYNOP-Import nicht verfügbar; DWD-CDC-10-Minuten-Daten getrennt betrachten"))
 
     icon = remote.get("icon")
     if icon:
