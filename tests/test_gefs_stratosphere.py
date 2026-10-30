@@ -25,6 +25,26 @@ class GefsWindTests(unittest.TestCase):
         self.assertEqual(control["bottomlat"],["59.5"])
         self.assertIn("/gefs.20261021/00/atmos/pgrb2ap5",control["dir"][0])
 
+    def test_each_6hour_cycle_uses_its_own_noaa_filename_and_directory(self):
+        cycle=datetime(2026,10,30,12,tzinfo=timezone.utc)
+        url=urlparse(mod.url_for(cycle,"p01",384))
+        query=parse_qs(url.query)
+        self.assertEqual(query["file"],["gep01.t12z.pgrb2a.0p50.f384"])
+        self.assertIn("/gefs.20261030/12/atmos/pgrb2ap5",query["dir"][0])
+        self.assertEqual([x.hour for x in mod.candidates(datetime(2026,10,30,17,35,tzinfo=timezone.utc))[:4]],[12,6,0,18])
+
+    def test_06z_never_requests_35day_horizon(self):
+        cycle=datetime(2026,10,30,6,tzinfo=timezone.utc)
+        leads=[]
+        def fake_fetch(c,m,h):
+            leads.append(h)
+            return m,h,12.
+        with patch.object(mod,"candidates",return_value=[cycle]), \
+             patch.object(mod,"fetch_wind",side_effect=fake_fetch):
+            self.assertEqual(mod.choose_cycle(),(cycle,16))
+        self.assertNotIn(840,leads)
+        self.assertIn(384,leads)
+
     def test_all_real_members(self):
         self.assertEqual(len(mod.MEMBERS),31)
         self.assertEqual(mod.MEMBERS[0],"c00")
