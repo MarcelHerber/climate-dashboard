@@ -46,6 +46,20 @@ class ENSU60Tests(unittest.TestCase):
         self.assertEqual([x["time"] for x in client.calls],[12,12])
         self.assertEqual([x["stream"] for x in client.calls],["enfo","oper"])
 
+    def test_old_ifs_ens_cycle_is_archivable_but_not_current(self):
+        cycle=datetime(2026,10,24,12,tzinfo=timezone.utc)
+        now=cycle+timedelta(days=5)
+        dates=[(cycle+timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
+        run={"schema_version":1,"provider":"ECMWF IFS ENS",
+             "level_hpa":10,"latitude_deg":60,"units":"m/s",
+             "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,
+             "valid_hour_utc":12,"cycle_utc":cycle.strftime("%Y-%m-%dT%H:00:00Z"),
+             "valid_dates":dates,
+             "members":{k:[3.]*len(dates) for k in MEMBERS}}
+        self.assertFalse(validate(run,now))
+        self.assertTrue(validate(run,now,max_age_hours=168))
+        self.assertFalse(validate({**run,"valid_hour_utc":0},now,max_age_hours=168))
+
     def test_post_50r1_sources(self):
         class Mock:
             def __init__(self):self.calls=[]
