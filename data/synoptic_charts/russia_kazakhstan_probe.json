@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-30T07:24:07+00:00",
+  "generated_utc": "2026-10-30T14:27:17+00:00",
   "russia": {
     "source_page": "https://meteoinfo.ru/mapsynop",
     "copyright": "© Hydrometcenter Russia; reuse not verified",
@@ -33,14 +33,14 @@
       {
         "slot_utc": "12",
         "url": "https://meteoinfo.ru/hmc-input/mapsynop/Analiz12h.png",
-        "state": "current_within_40h",
+        "state": "unverified",
         "image_reuse_permitted": false,
         "dimensions": [
           1556,
           1024
         ],
-        "footer_excerpt": "8 eX 609-43) 207170 =} \\ oan aS AD KO = aos ae 18 \\ 1255 ae №. “i er Ба < H 5} | 060 г \\ 1 SS. \"У ~ i 993 { ое Г омет Р p35 789 22, дов fo 789 ZN идр центр России 5... Te оо 0-124, 20| АНАЛИЗ ПРИЗЕМНЫЙ 5 ~ ™* О AD, | Я КРАЕ 2 108 от 29.10.2026 12ч ВСВ xf ia | ",
-        "printed_valid_utc": "2026-10-29T12:00+00:00"
+        "footer_excerpt": "1 ae дот ыы ИСД Ава 73-582 =) 3-160\" и * У ee А: 10 58 в SA. < iy he о \\ \" > к ка вы aN идрометцентр России — y al EO D9 0 АНАЛИЗ ПРИЗЕМНЫЙ |550 “ ae СБ g@00 ^ oe or 30.10.2026 124 BCB — fo@- 78) _4ag / 15145 и Meteoinfo.ru 23 — 219 тр = is ete . > Pry 5 Ay ot",
+        "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
       },
       {
         "slot_utc": "18",
