@@ -78,15 +78,16 @@ function renderModelDiagnostics(){
  if(!archive)return;
  const el=$("stratoModelDiagnostics");el.replaceChildren();
  const heading=document.createElement("strong");heading.textContent="IFS-Laufstabilität und GEFS-Vergleich · 60°N / 10 hPa";el.append(heading);
- const p=document.createElement("p");p.textContent="IFS bei 12 UTC, GEFS bei 00 UTC: unterschiedliche Gültigkeitszeiten (12 Stunden). Die Laufänderung vergleicht ausschließlich IFS-Prognosen für denselben 12-UTC-Termin; GEFS wird nur daneben angezeigt.";el.append(p);
+ const p=document.createElement("p");p.textContent="IFS bei 12 UTC; der gewählte GEFS-Lauf gilt täglich um "+gefsHour+" UTC. Die Laufänderung vergleicht ausschließlich IFS-Prognosen für denselben 12-UTC-Termin. GEFS-Werte sind nur bei 12-UTC-Läufen zeitgleich vergleichbar.";el.append(p);
  const newest=archive.runs[0],older=archive.runs[1];
  const current=valuePoints(newest),previous=older?valuePoints(older):new Map();
  const gefs=window.stratoGefsEnsemble;
+ const gefsHour=gefs?.cycle_utc?.slice(11,13)||"–";
  const good=gefs?.provider==="NOAA GEFS"&&gefs.member_count===31&&
   Array.isArray(gefs.valid_dates)&&Array.isArray(gefs.quantiles?.mean);
  const lookup=new Map(good?gefs.valid_dates.map((date,i)=>[date,i]):[]);
  const table=document.createElement("table"),head=document.createElement("tr");
- for(const label of ["Gültigkeit","IFS aktuell · 12 UTC","IFS vorher · 12 UTC","IFS Änderung","GEFS-Mittel · 00 UTC"]){
+ for(const label of ["Gültigkeit","IFS aktuell · 12 UTC","IFS vorher · 12 UTC","IFS Änderung","GEFS-Mittel · "+gefsHour+" UTC"]){
   const cell=document.createElement("th");cell.textContent=label;head.append(cell);
  }table.append(head);
  const fmt=v=>Number.isFinite(v)?v.toFixed(1)+" m/s":"–";
@@ -104,7 +105,7 @@ function renderModelDiagnostics(){
  const note=document.createElement("p");note.className="legendnotes";
  note.textContent="IFS aktuell "+newest.cycle_utc+(older?" · voriger IFS "+older.cycle_utc:"")+
   (good?" · GEFS "+gefs.cycle_utc:" · GEFS derzeit nicht geladen")+
-  ". Kein direkter 12-UTC-/00-UTC-Modellfehlervergleich.";el.append(note);
+  ". IFS-Laufänderung nur bei identischer Gültigkeit; bei GEFS "+gefsHour+" UTC unterschiedliche Tageszeiten beachten.";el.append(note);
 }
 function render(){
  if(!archive || typeof Chart!=="function")return;
