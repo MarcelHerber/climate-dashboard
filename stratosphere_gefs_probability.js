@@ -47,7 +47,7 @@ function render(){
      label:ctx=>pct(rows[ctx.dataIndex].count)+" ("+rows[ctx.dataIndex].count+"/31 Mitglieder)"
    }}},
    scales:{
-    x:{ticks:{maxTicksLimit:14,maxRotation:0},title:{display:true,text:"Gültigkeitsdatum (00 UTC)"}},
+    x:{ticks:{maxTicksLimit:14,maxRotation:0},title:{display:true,text:"Gültigkeitsdatum ("+lastCycle.slice(11,13)+" UTC)"}},
     y:{min:0,max:100,title:{display:true,text:"GEFS-Mitglieder mit U < 0 m/s (%)"},ticks:{callback:v=>v+" %"}}
    }
   }
@@ -58,7 +58,7 @@ $("stratoProbCsv").addEventListener("click",()=>{
  const out=["valid_date_00UTC;members_negative;members_total;probability_percent;first_negative_members",
   ...rows.map(r=>[r.date,r.count,31,r.p.toFixed(2),r.first].join(";"))].join("\r\n");
  const blob=new Blob(["\ufeff"+out],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob);
- const a=document.createElement("a");a.href=url;a.download="Stratosphaere_GEFS_Windumkehrwahrscheinlichkeit.csv";
+ const a=document.createElement("a");a.href=url;a.download="Stratosphaere_GEFS_Windumkehrwahrscheinlichkeit_"+lastCycle.slice(0,13).replace("T","_")+"UTC.csv";
  a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);
 });
 window.addEventListener("stratosphere:gefs-loaded",render);
