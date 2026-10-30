@@ -14,7 +14,7 @@ const MODELS={
    index:"ens_index.json",current:"ens_current.json",hours:[0,12],total:51,perturbed:50}
 };
 const palette=["#d32f2f","#1875bc","#007f76","#a45d1d","#6d529c","#777b83","#bc4d8c","#647b34","#825a52","#34676e"];
-let indexes={gefs:[],eps:[]},runs=[],chart=null,displayRows=[],viewKey=0,loadState="initial",loadFailures=0;
+let indexes={gefs:[],eps:[]},runs=[],chart=null,displayRows=[],viewKey=0,loadState="initial",loadFailures=0,lastModel="";
 const valid=value=>typeof value==="number"&&Number.isFinite(value)&&value>-160&&value<170;
 const isoCycle=cycle=>typeof cycle==="string"&&/^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(cycle)&&
  Number.isFinite(Date.parse(cycle))&&Date.parse(cycle)<=Date.now()&&Date.now()-Date.parse(cycle)<10*86400000;
@@ -104,9 +104,12 @@ function modelChoices(){
   hour.add(option);
  }
  const possible=m.hours.find(n=>source.some(r=>Number(r.cycle_utc.slice(11,13))===n));
- hour.value=m.hours.map(n=>String(n).padStart(2,"0")).includes(old)?old:String(possible??m.hours[0]).padStart(2,"0");
- if(!source.some(r=>r.cycle_utc.slice(11,13)===hour.value)&&possible!==undefined)
-  hour.value=String(possible).padStart(2,"0");
+ const supported=m.hours.map(n=>String(n).padStart(2,"0"));
+ // Keep a deliberate "not yet archived" hour selection; on model switches,
+ // prefer an actually available initialization time.
+ hour.value=lastModel===model&&supported.includes(old)?old:
+    String(possible??m.hours[0]).padStart(2,"0");
+ lastModel=model;
 }
 function validTimeSelection(){
  const selected=$("stratoTrendValid").value;
@@ -240,6 +243,10 @@ function draw(){
 async function refresh(force=false){
  const token=++viewKey,model=$("stratoTrendModel").value;
  loadState="loading";status("Prüfe archivierte Original-Ensembles …");
+ runs=[];displayRows=[];clearChart();
+ $("stratoTrendTableBody").replaceChildren();
+ $("stratoTrendMeta").textContent="Prüfe die Originaldaten des gewählten Modellzyklus …";
+ $("stratoTrendCsv").disabled=true;
  $("stratoTrendReload").disabled=true;
  if(force||!indexes[model].length)indexes[model]=await loadIndex(model);
  if(token!==viewKey)return;
