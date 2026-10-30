@@ -110,7 +110,12 @@ function render(){
  if(!visible.length){const tr=tbody.insertRow();const td=textCell(tr,"Keine passenden Datensätze");td.colSpan=5;return;}
  for(const entry of visible){
   const tr=tbody.insertRow(),name=tr.insertCell();
-  const a=document.createElement("a");a.href=pages[entry.id]||"index.html";a.textContent=entry.label;a.className="name";name.append(a);
+  const destination=pages[entry.id];
+  // Some datasets (e.g. the private Europe Tmax/Tmin lab) have no public page.
+  // Do not link those status rows to an unrelated homepage.
+  const a=document.createElement(destination?"a":"span");
+  if(destination)a.href=destination;
+  a.textContent=entry.label;a.className="name";name.append(a);
   name.append(document.createElement("br"));const area=document.createElement("span");area.className="small";area.textContent=entry.group;name.append(area);
   const last=entry.latest||"–";
   const lag=entry.lag==null?"":entry.cadence==="monthly"?entry.lag+" Monat(e) seit Datenmonat":entry.lag+" Tag(e) zurück";
