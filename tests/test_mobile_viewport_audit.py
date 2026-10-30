@@ -40,7 +40,7 @@ class MobileViewportPreparationTests(unittest.TestCase):
 
     def test_explanatory_limitations_always_reported(self):
         code=(ROOT/"tests/audit_mobile_viewports.py").read_text(encoding="utf-8")
-        self.assertIn("Dynamic",code)
+        self.assertIn("dynamic",code.lower())
         self.assertIn("not physical",code.lower())
 
 
