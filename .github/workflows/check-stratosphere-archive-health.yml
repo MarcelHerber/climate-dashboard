@@ -1,0 +1,38 @@
+name: Stratosphäre · Ensemble-Datenstatus und Live-Veröffentlichung
+
+on:
+  workflow_dispatch:
+  schedule:
+    # After the main 00/06/12/18 GEFS / 00/12 ENS ingest slots.
+    - cron: "17 3,9,15,21 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check_stratosphere_archive_health.py"
+      - "tests/test_stratosphere_archive_health.py"
+      - "stratosphere_reversal_diagnostics.js"
+      - "stratosphaere.html"
+      - ".github/workflows/check-stratosphere-archive-health.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stratosphere-published-health
+  cancel-in-progress: true
+
+jobs:
+  check-published-archives:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate checker before network requests
+        run: |
+          python -m py_compile scripts/check_stratosphere_archive_health.py
+          python -m unittest discover -s tests -p test_stratosphere_archive_health.py -v
+      - name: Verify authentic model cycles, 31/51 members and live heatmap/diagnostics page
+        run: python scripts/check_stratosphere_archive_health.py
