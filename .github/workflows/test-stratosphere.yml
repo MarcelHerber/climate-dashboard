@@ -9,6 +9,9 @@ on:
       - "stratosphere_temperature.js"
       - "stratosphere_ensemble.js"
       - "stratosphere_ecmwf_runs.js"
+      - "stratosphere_winter_stats.js"
+      - "stratosphere_gefs_probability.js"
+      - "tests/test_stratosphere_rank_probability.cjs"
       - "scripts/build_ecmwf_ifs_u60_run_archive.py"
       - "tests/test_ecmwf_ifs_u60_run_archive.py"
       - "tests/test_stratosphere_ensemble_members.cjs"
@@ -43,6 +46,9 @@ jobs:
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
           node --check stratosphere_ecmwf_runs.js
+          node --check stratosphere_winter_stats.js
+          node --check stratosphere_gefs_probability.js
+          node --test tests/test_stratosphere_rank_probability.cjs
           node --test tests/test_stratosphere_ensemble_members.cjs
           node --test tests/test_stratosphere_forecast_focus.cjs
           node --check stratosphere_ssw_comparison.js
@@ -59,6 +65,10 @@ jobs:
                   subprocess.run(["node","--check",str(path)],check=True)
           assert "stratosphere_ensemble.js" in page
           assert "stratosphere_ecmwf_runs.js" in page
+          assert "stratosphere_winter_stats.js" in page
+          assert "stratosphere_gefs_probability.js" in page
+          assert 'id="stratoWinterStatsCard"' in page
+          assert 'id="stratoProbCanvas"' in page
           assert 'id="stratoEcmwfView"' in page
           assert 'id="stratoEnsembleCard"' in page
           assert 'id="windCustomDates"' in page
