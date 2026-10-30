@@ -5,14 +5,16 @@ from __future__ import annotations
 import argparse
 from datetime import date, timedelta
 from pathlib import Path
+import hashlib
+import json
 
 import numpy as np
-import xarray as xr
+import requests
 
 try:
-    from build_hyras_temperature_rank_shard import _source_module, _unpack_prepared
+    from hyras_temperature_rank import dequantize_temperature
 except ModuleNotFoundError:
-    from scripts.build_hyras_temperature_rank_shard import _source_module, _unpack_prepared
+    from scripts.hyras_temperature_rank import dequantize_temperature
 
 REFERENCES = (("1961-1990", 1961, 1990), ("1991-2020", 1991, 2020))
 
@@ -44,8 +46,20 @@ def build_contribution(*, parameter: str, start_year: int, end_year: int,
                        output: Path) -> None:
     if display_factor < 1:
         raise ValueError("display_factor must be positive")
-    module = _source_module(parameter)
-    all_files = module.latest_daily_files(module.daily_listing())
+    # Re-use published, checksummed native 1-km daily archives instead of
+    # transferring the larger DWD source NetCDF files for all 60 reference years.
+    index_file = cache_root / "daily_archive_index.json"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    if not index_file.exists():
+        index_url = (
+            "https://raw.githubusercontent.com/MarcelHerber/"
+            "climate-dashboard/hyras-data/daily_archive_1km/index.json"
+        )
+        response = requests.get(index_url, timeout=120)
+        response.raise_for_status()
+        index_file.write_bytes(response.content)
+    index = json.loads(index_file.read_text(encoding="utf-8"))
+    archives = index["parameters"][parameter]
     codes = calendar_codes()
     lookup = {int(code): i for i, code in enumerate(codes)}
     ref_x = ref_y = sums = counts = None
@@ -53,52 +67,62 @@ def build_contribution(*, parameter: str, start_year: int, end_year: int,
 
     for year in range(start_year, end_year + 1):
         which = reference_index(year)
-        filename = all_files.get(year)
-        if not filename:
-            raise RuntimeError(f"HYRAS {parameter} {year}: annual NetCDF not available")
+        meta = archives.get(str(year))
+        if not meta or not meta.get("complete_year"):
+            raise RuntimeError(f"HYRAS {parameter} {year}: complete release archive missing")
         work.mkdir(parents=True, exist_ok=True)
-        nc_file = work / filename
-        if not nc_file.exists():
-            module.download(f"{module.DAILY_BASE}/{filename}", nc_file)
+        archive = work / meta["archive_file"]
+        if not archive.exists():
+            response = requests.get(meta["release_asset_url"], stream=True, timeout=(30, 480))
+            response.raise_for_status()
+            with archive.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        handle.write(chunk)
+        digest = hashlib.sha256()
+        with archive.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != meta["archive_sha256"]:
+            raise RuntimeError(f"HYRAS {parameter} {year}: archive SHA-256 mismatch")
         try:
-            with xr.open_dataset(nc_file, decode_times=True) as dataset:
-                da, td, ydim, xdim, x, y = _unpack_prepared(module, dataset)
-                times = np.asarray(da[td].values).astype("datetime64[D]")
-                first = np.datetime64(f"{year}-01-01")
-                last = np.datetime64(f"{year + 1}-01-01")
-                indices = np.flatnonzero((times >= first) & (times < last))
-                expected = np.arange(first, last, dtype="datetime64[D]")
-                if not np.array_equal(times[indices], expected):
-                    raise RuntimeError(f"HYRAS {parameter} {year}: missing or duplicate daily data")
-                small = da.isel({
-                    td: indices,
-                    ydim: slice(None, None, display_factor),
-                    xdim: slice(None, None, display_factor),
-                })
-                values = np.asarray(small.values, dtype=np.float32)
-                values[~np.isfinite(values)] = np.nan
-                sx = np.asarray(x[::display_factor], dtype=np.float64)
-                sy = np.asarray(y[::display_factor], dtype=np.float64)
-                dates = day_codes(times[indices])
-                if sums is None:
-                    ref_x, ref_y = sx, sy
-                    shape = (2, len(codes), len(sy), len(sx))
-                    sums = np.zeros(shape, dtype=np.float64)
-                    counts = np.zeros(shape, dtype=np.uint8)
-                elif (sx.shape != ref_x.shape or sy.shape != ref_y.shape
-                      or not np.allclose(sx, ref_x) or not np.allclose(sy, ref_y)):
-                    raise RuntimeError(f"HYRAS {parameter} {year}: grid changed")
-                for i, code in enumerate(dates):
-                    pos = lookup[int(code)]
-                    layer = values[i]
-                    valid = np.isfinite(layer)
-                    sums[which, pos] += np.where(valid, layer, 0.0)
-                    counts[which, pos] += valid.astype(np.uint8)
+            with np.load(archive, allow_pickle=False) as data:
+                days = np.asarray(data["date_codes"], dtype=np.uint16)
+                x = np.asarray(data["x"], dtype=np.float64)
+                y = np.asarray(data["y"], dtype=np.float64)
+                # Crop after decompression. The file is 1 km; output uses 5 km.
+                packed = np.asarray(
+                    data["values"][:, ::display_factor, ::display_factor],
+                    dtype=np.int16,
+                )
+                values = dequantize_temperature(packed)
+            start = np.datetime64(f"{year}-01-01")
+            stop = np.datetime64(f"{year + 1}-01-01")
+            expected = day_codes(np.arange(start, stop, dtype="datetime64[D]"))
+            if not np.array_equal(days, expected):
+                raise RuntimeError(f"HYRAS {parameter} {year}: missing or duplicate days")
+            sx = x[::display_factor]
+            sy = y[::display_factor]
+            if values.shape != (len(days), len(sy), len(sx)):
+                raise RuntimeError(f"HYRAS {parameter} {year}: invalid archive raster shape")
+            if sums is None:
+                ref_x, ref_y = sx, sy
+                shape = (2, len(codes), len(sy), len(sx))
+                sums = np.zeros(shape, dtype=np.float64)
+                counts = np.zeros(shape, dtype=np.uint8)
+            elif (sx.shape != ref_x.shape or sy.shape != ref_y.shape
+                  or not np.allclose(sx, ref_x) or not np.allclose(sy, ref_y)):
+                raise RuntimeError(f"HYRAS {parameter} {year}: grid changed")
+            for i, code in enumerate(days):
+                layer = values[i]
+                valid = np.isfinite(layer)
+                pos = lookup[int(code)]
+                sums[which, pos] += np.where(valid, layer, 0.0)
+                counts[which, pos] += valid.astype(np.uint8)
             used_years.append(year)
         finally:
-            # Source files are large. The compact shard is cached separately.
-            nc_file.unlink(missing_ok=True)
-        print(f"{parameter}: calendar climatology {year} done", flush=True)
+            archive.unlink(missing_ok=True)
+        print(f"{parameter}: checked release climatology {year}", flush=True)
 
     if sums is None or counts is None or ref_x is None or ref_y is None:
         raise RuntimeError("Empty daily reference shard")
