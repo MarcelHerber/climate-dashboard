@@ -32,10 +32,21 @@ jobs:
         run: |
           git fetch origin hyras-data --depth=1
           git worktree add --detach /tmp/hyras-audit origin/hyras-data
+      - name: GitHub-Release-Assets abrufen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/hyras-daily-archive-1km" --jq '.id')"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | [.name, (.size|tostring)] | @tsv' > /tmp/hyras-assets.tsv
+
       - name: Jahresabdeckung, Gitter, Referenzperioden und Datenstände prüfen
         run: |
           python scripts/check_hyras_integrity.py \
             --data-root /tmp/hyras-audit \
+            --assets-tsv /tmp/hyras-assets.tsv \
             --report /tmp/hyras-integrity-report.json
       - name: Prüfprotokoll sichern
         if: always()
