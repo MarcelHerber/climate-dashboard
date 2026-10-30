@@ -85,6 +85,14 @@ class EuropeTmaxTests(unittest.TestCase):
         self.assertIsNone(island["station_id"])
         self.assertEqual(island["tx"],{})
 
+    def test_real_city_coverage_allows_individual_missing_values(self):
+        records = [{"city": "Frankfurt", "tx": {"2026-10-30": 12.3}},
+                   {"city": "Reykjavík", "tx": {}}]
+        status = app.tx_city_coverage(records, "2026-10-30")
+        self.assertEqual(status["valid"], 1)
+        self.assertEqual(status["missing"], 1)
+        self.assertEqual(status["missing_cities"], ["Reykjavík"])
+
     def test_temperature_colours_and_explicit_output_grid(self):
         self.assertEqual(app.STOPS[0][0],-35)
         self.assertEqual(app.STOPS[-1][0],45)
