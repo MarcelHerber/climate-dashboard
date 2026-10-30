@@ -28,6 +28,24 @@ class ENSU60Tests(unittest.TestCase):
         self.assertFalse(validate({**good,"members":{**good["members"],"p01":[None]*len(dates)}},now))
         self.assertFalse(validate({**good,"cycle_utc":"2026-10-20T00:00:00Z"},now))
 
+    def test_12z_cycle_is_equivalent_but_kept_separate(self):
+        cycle=datetime(2026,10,29,12,tzinfo=timezone.utc)
+        dates=[(cycle+timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
+        payload={"schema_version":1,"provider":"ECMWF IFS ENS",
+          "level_hpa":10,"latitude_deg":60,"units":"m/s",
+          "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,
+          "cycle_utc":"2026-10-29T12:00:00Z","valid_dates":dates,
+          "members":{k:[3.]*len(dates) for k in MEMBERS}}
+        self.assertTrue(validate(payload,cycle+timedelta(hours=12)))
+        class Mock:
+            def __init__(self):self.calls=[]
+            def retrieve(self,**kwargs):self.calls.append(kwargs)
+        client=Mock()
+        request(client,cycle,168,"/tmp/eps.grib2",True)
+        request(client,cycle,168,"/tmp/control.grib2",False)
+        self.assertEqual([x["time"] for x in client.calls],[12,12])
+        self.assertEqual([x["stream"] for x in client.calls],["enfo","oper"])
+
     def test_post_50r1_sources(self):
         class Mock:
             def __init__(self):self.calls=[]
