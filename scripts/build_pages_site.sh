@@ -212,6 +212,10 @@ grep -q 'id="stratoTrendCanvas"' _site/stratosphaere.html
 grep -q 'id="stratoTrendModel"' _site/stratosphaere.html
 grep -q 'id="stratoTrendValid"' _site/stratosphaere.html
 grep -q 'id="stratoTrendCsv"' _site/stratosphaere.html
+grep -q 'id="stratoHeatmap"' _site/stratosphaere.html
+grep -q 'id="stratoHeatTable"' _site/stratosphaere.html
+grep -q 'id="stratoHeatPng"' _site/stratosphaere.html
+grep -q 'id="stratoHeatCsv"' _site/stratosphaere.html
 grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
