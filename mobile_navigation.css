@@ -134,6 +134,24 @@
   body.cd-mobile-ready :is(.controls,.toolbar,.sg-toolbar,.strato-trend-controls,
     .strato-diagnostic-controls) label{max-width:100%}
 }
+/* The homepage's previous one-column quicklinks produced a very long
+   vertical list. Keep them as compact, readable two-column shortcuts. */
+@media(max-width:520px){
+  body.cd-mobile-home .overview-quicklink-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  body.cd-mobile-home .overview-quicklink,
+  body.cd-mobile-home .overview-quicklink:nth-child(n){
+    min-height:86px;padding:12px 10px;gap:7px;flex-direction:column;
+    border-right:1px solid #e6eaed;border-bottom:1px solid #e6eaed;
+  }
+  body.cd-mobile-home .overview-quicklink:nth-child(2n){border-right:0}
+  body.cd-mobile-home .overview-link-copy{display:none}
+  body.cd-mobile-home .overview-link-icon{width:23px;height:23px;flex-basis:23px}
+  body.cd-mobile-home .overview-link-icon svg{width:21px;height:21px}
+  body.cd-mobile-home .overview-link-title{font-size:12px;line-height:1.35}
+  body.cd-mobile-home .overview-quicklink span{min-width:0}
+}
 @media(max-width:480px){
   body.cd-mobile-ready :is(.sg-toolbar,.strato-trend-controls,
     .strato-diagnostic-controls) label{flex-basis:100%;min-width:0}
