@@ -1,0 +1,104 @@
+/* Mobile-readable meteorological charts, controls and export actions.
+   Scientific data/colors are not transformed; scoped to phones only. */
+.cdm-scroll-hint{display:none}
+@media(max-width:600px){
+ body.cd-mobile-ready :is(.dashboard-main,main,.panel,.card,.controls,
+   .t850-grid,.t850-model-card,.t850-comparison-card,
+   .strato-diagnostic-charts,.strato-diagnostic-chart){min-width:0}
+ body.cd-mobile-ready .cdm-scroll-hint{
+   display:block;margin:6px 0 3px;padding:3px 2px;
+   color:#4d6378;font:650 11px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;
+ }
+ body.cd-mobile-ready :is(.table-wrap,.table-scroll,.regional-ranking-table-wrap,
+  .profile-table-scroll,.profile-daily-table,.station-precip-monthly-wrap,
+  .strato-trend-table-scroll,.strato-heat-scroll,.strato-diagnostic-table,
+  .current-ranking-table-wrap,.current-table-wrap){
+   max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+ }
+ body.cd-mobile-ready :is(.chart-container,.chart-box,.t850-chart-shell,
+  .strato-diagnostic-chart,.strato-trend-chart,.ensemble-chart,.ecmwf-chart){
+   min-width:0;max-width:100%;
+ }
+ body.cd-mobile-ready :is(.t850-legend-note,.strato-heat-legend,
+  .current-map-legend,.regional-map-legends,.sg-links,.chart-legend,.legend,
+  .periods,.durations,.toolbar,.t850-export,.strato-diagnostic-actions,
+  .strato-heat-actions){
+   max-width:100%;flex-wrap:wrap;
+ }
+ body.cd-mobile-ready :is(.t850-controls,.strato-diagnostic-controls,
+  .strato-trend-controls,.controls,.toolbar,.sg-toolbar){
+   max-width:100%;min-width:0;
+ }
+ body.cd-mobile-ready :is(.t850-controls label,.strato-diagnostic-controls label,
+  .strato-trend-controls label,.controls label,.sg-toolbar label){
+   max-width:100%;min-width:0;
+ }
+ body.cd-mobile-ready :is(.t850-export button,.strato-heat-actions button,
+  .strato-diagnostic-actions button,.toolbar button,.periods button,.durations button){
+   min-height:44px;white-space:normal;overflow-wrap:anywhere;line-height:1.3;
+ }
+ body.cd-mobile-ready :is(.t850-export,.strato-heat-actions,.strato-diagnostic-actions){
+   display:flex;flex-wrap:wrap;gap:8px;
+ }
+ body.cd-mobile-ready :is(.t850-export,.strato-heat-actions,.strato-diagnostic-actions)>button{
+   flex:1 1 135px;max-width:100%;
+ }
+ body.cd-mobile-ready :is(input:not([type="checkbox"]):not([type="radio"]),
+   select,textarea){
+   min-height:42px;max-width:100%;box-sizing:border-box;
+ }
+ /* 16px inputs prevent Safari's unwanted zoom on focus at 320–430px. */
+ body.cd-mobile-ready :is(input:not([type="checkbox"]):not([type="radio"]),
+   select,textarea){font-size:max(16px,1em)}
+ body.cd-mobile-ready :is(.sg-grid,.df-grid,.map-layout,.strato-diagnostic-charts){
+   min-width:0;max-width:100%;
+ }
+ body.cd-mobile-ready :is(.sg-image,.chart-body img,.era5-europe-image,
+  .hyras-rank-image-wrap img,.polar-map-preview img){
+   max-width:100%;height:auto;object-fit:contain;
+ }
+}
+@media(max-width:430px){
+ body.cd-mobile-ready :is(main,.dashboard-main){
+   padding-left:clamp(9px,3vw,13px);padding-right:clamp(9px,3vw,13px)
+ }
+ body.cd-mobile-ready :is(.panel,.card,.overview-card,.t850-model-card,
+   .t850-comparison-card,.sg-panel){
+   max-width:100%;min-width:0;
+ }
+ body.cd-mobile-ready :is(.t850-chart-shell,.t850-comparison-card .t850-chart-shell,
+   .strato-trend-chart,.strato-diagnostic-chart,.strato-prob-chart){
+   height:clamp(300px,95vw,370px);min-height:0;
+ }
+ body.cd-mobile-ready .t850-grid.single-model .t850-chart-shell{
+   height:clamp(340px,110vw,440px);
+ }
+ body.cd-mobile-ready :is(.t850-model-head,.t850-comparison-head){
+   flex-wrap:wrap;row-gap:8px;
+ }
+ body.cd-mobile-ready :is(.t850-model-axis,.t850-axis-field){min-width:0}
+ body.cd-mobile-ready .strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.cd-mobile-ready .strato-heat-table td{min-width:40px}
+ body.cd-mobile-ready .strato-heat-table .strato-heat-sticky{min-width:106px}
+ body.cd-mobile-ready :is(.strato-trend-controls label,.strato-diagnostic-controls label,
+    .t850-controls .t850-place-control,.t850-controls .t850-view-control,
+    .t850-controls .t850-axis-control,.t850-controls .t850-param-control,
+    .sg-toolbar label){
+    flex:1 1 100%;min-width:0;width:100%;
+ }
+ body.cd-mobile-ready :is(.strato-trend-controls select,.strato-diagnostic-controls select,
+   .sg-toolbar select,.t850-controls select){width:100%;max-width:100%}
+ body.cd-mobile-ready .sg-panel .sg-toolbar button{flex:1 1 140px;min-height:44px}
+ body.cd-mobile-ready .periods{overflow-x:auto;flex-wrap:nowrap}
+ body.cd-mobile-ready .periods button{flex:0 0 auto;min-width:44px}
+}
+@media(max-width:360px){
+ body.cd-mobile-ready .strato-diagnostic-stats{grid-template-columns:1fr}
+ body.cd-mobile-ready .strato-diagnostic-stats>div{padding:10px}
+ body.cd-mobile-ready :is(.strato-heat-actions,.strato-diagnostic-actions)>button{
+    flex-basis:100%;
+ }
+}
+@media(max-width:600px){
+ html[data-theme="dark"] body.cd-mobile-ready .cdm-scroll-hint{color:#b2c5db}
+}
