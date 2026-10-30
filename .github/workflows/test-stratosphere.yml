@@ -86,6 +86,10 @@ jobs:
           assert 'id="stratoTrendHour"' in page
           assert 'id="stratoTrendValid"' in page
           assert 'id="stratoTrendCsv"' in page
+          assert 'id="stratoHeatmap"' in page
+          assert 'id="stratoHeatTable"' in page
+          assert 'id="stratoHeatPng"' in page
+          assert 'id="stratoHeatCsv"' in page
           assert "stratosphere_run_trends.js" in page
           assert "stratosphere_winter_stats.js" in page
           assert "stratosphere_gefs_probability.js" in page
