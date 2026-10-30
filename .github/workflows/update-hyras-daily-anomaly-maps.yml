@@ -34,6 +34,13 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: HYRAS-Abhängigkeiten für Referenztests installieren
+        run: pip install -r requirements-hyras.txt
+
       - name: HYRAS-Anomalie-Zeitfenster testen
         run: |
           python -m unittest discover -s tests -p 'test_hyras_anomaly_schedule.py'
