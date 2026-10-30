@@ -161,6 +161,7 @@ function draw(){
  displayRows=comparisons();
  const selected=$("stratoTrendValid").value;
  const latest=runs[0],previous=runs[1];
+ const gapDays=previous?Math.round((Date.parse(latest.cycle)-Date.parse(previous.cycle))/86400000):0;
  const mode=$("stratoTrendMode").value;
  const availableDelta=previous&&displayRows.some(r=>r.delta!==null);
  const table=$("stratoTrendTableBody");table.replaceChildren();
@@ -183,7 +184,7 @@ function draw(){
  $("stratoTrendMeta").textContent=config($("stratoTrendModel").value).name+
     " · "+String($("stratoTrendHour").value).padStart(2,"0")+" UTC · "+
     runs.length+" vollständig verifizierte Läufe · neuester Lauf "+stamp(latest.cycle)+
-    (previous?" · vorheriger "+stamp(previous.cycle):" · Vorlauf fehlt")+
+    (previous?" · vorheriger archivierter "+stamp(previous.cycle)+(gapDays>1?" · "+gapDays+" Tage Abstand":""):" · Vergleichslauf fehlt")+
     " · gewählter Termin: "+(selected?selected.slice(0,16).replace("T"," ")+" UTC":"–")+
     " · Änderung: "+deltaText+".";
  $("stratoTrendCsv").disabled=false;
@@ -195,7 +196,7 @@ function draw(){
  if(typeof Chart!=="function"){status("Chart.js ist nicht verfügbar; die tabellarischen Originaldaten bleiben sichtbar.");return;}
  const labels=displayRows.map(r=>r.date),datasets=[];
  if(mode==="delta"){
-  datasets.push({type:"bar",label:"Änderung zum vorherigen Modelllauf (Prozentpunkte)",
+  datasets.push({type:"bar",label:"Änderung zum vorherigen Archivlauf (Prozentpunkte)",
     data:displayRows.map(r=>r.delta),
     backgroundColor:displayRows.map(r=>r.delta===null?"transparent":r.delta>=0?"rgba(190,63,49,.72)":"rgba(28,108,169,.72)"),
     borderWidth:0,barPercentage:.85,categoryPercentage:.8});
@@ -238,7 +239,7 @@ function draw(){
  $("stratoTrendPng").disabled=false;
  status("Originalprognosen: "+runs.length+" Läufe; "+displayRows.length+
   " überprüfte Gültigkeitszeitpunkte."+(loadFailures?" "+loadFailures+" Archivrufe nicht verfügbar.":"")+
-  (previous?" Differenzen ausschließlich für exakt übereinstimmende Termine.":" Für die Laufänderung wird ein zweiter Lauf benötigt."));
+  (previous?" Differenzen ausschließlich für exakt übereinstimmende Termine.":" Für die Laufänderung wird ein zweiter verfügbarer Archivlauf benötigt."));
 }
 async function refresh(force=false){
  const token=++viewKey,model=$("stratoTrendModel").value;
@@ -295,7 +296,7 @@ $("stratoTrendPng").addEventListener("click",()=>{
 });
 $("stratoTrendCsv").addEventListener("click",()=>{
  if(!displayRows.length)return;
- const header=["Gueltig_UTC","Modell","Modelllaeufe_UTC","Member","U_negativ_Anzahl","U_negativ_Prozent","Mittelwind_m_s","Delta_zum_Vorlauf_pp"];
+ const header=["Gueltig_UTC","Modell","Modelllaeufe_UTC","Member","U_negativ_Anzahl","U_negativ_Prozent","Mittelwind_m_s","Delta_zum_vorherigen_Archivlauf_pp"];
  const records=[header.join(";")];
  for(const row of displayRows){
   runs.forEach((run,i)=>{
