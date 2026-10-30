@@ -78,16 +78,32 @@ def validate_manifest(name, index, current, now=None):
     names = {"c00"} | {f"p{i:02d}" for i in range(1, cfg["count"])}
     dates = current.get("valid_dates")
     horizon = current.get("forecast_horizon_days")
-    if (not isinstance(members, dict) or set(members) != names or
-        current.get("member_count") != cfg["count"] or
-        not isinstance(horizon, int) or (name == "GEFS" and horizon not in (16, 35)) or
-        (name == "ECMWF ENS" and horizon != 15) or
-        not isinstance(dates, list) or len(dates) != horizon + 1 if isinstance(horizon, int) else True):
+    metadata_ok = (
+        isinstance(members, dict) and set(members) == names and
+        current.get("member_count") == cfg["count"] and
+        isinstance(horizon, int) and
+        (horizon in (16, 35) if name == "GEFS" else horizon == 15) and
+        isinstance(dates, list) and len(dates) == horizon + 1
+    )
+    if not metadata_ok:
         errors.append("Incomplete member/forecast horizon metadata")
     elif any(not isinstance(v, list) or len(v) != len(dates) or
              any(not isinstance(x, (int, float)) or not -160 < x < 170 for x in v)
              for v in members.values()):
         errors.append("Unverified or incomplete original member values")
+    else:
+        try:
+            init = timestamp(current["cycle_utc"])
+            expected = [(init + timedelta(days=i)).strftime("%Y-%m-%d")
+                        for i in range(horizon+1)]
+            if dates != expected:
+                errors.append("Incorrect forecast validity dates")
+            if name == "GEFS" and horizon == 35 and init.hour != 0:
+                errors.append("35-day GEFS should only be a 00 UTC cycle")
+            if name == "ECMWF ENS" and current.get("valid_hour_utc") != init.hour:
+                errors.append("ECMWF ENS output validity hour mismatches initialization")
+        except (ValueError, KeyError) as exc:
+            errors.append(f"Invalid forecast start: {exc}")
     records = index.get("runs")
     cycles = []
     if not isinstance(records, list) or not records:
