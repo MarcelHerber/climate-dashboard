@@ -55,8 +55,14 @@ function analyzeMember(values,cycle,name){
  }
  // Use first newly observed reversal; if negative already at f0, that
  // baseline episode is left-censored and cannot count as a NEW crossing.
- const onsetIndex=firstCrossing>=0?firstCrossing:startedNegative?0:-1;
+ // The first visible baseline-negative episode is left-censored.
+ const onsetIndex=startedNegative?0:firstCrossing;
  let consecutiveNegative=0,recoveryIndex=-1,rightCensored=false;
+ let maxNegativeRun=0,currentNegativeRun=0;
+ for(const u of values){
+  currentNegativeRun=u<0?currentNegativeRun+1:0;
+  maxNegativeRun=Math.max(maxNegativeRun,currentNegativeRun);
+ }
  let episodeMinimum=null;
  if(onsetIndex>=0){
   let end=onsetIndex;
@@ -70,7 +76,7 @@ function analyzeMember(values,cycle,name){
  const time=i=>i<0?null:new Date(start+i*86400000).toISOString();
  return {name,startedNegative,firstCrossing,anyCrossings,
    onsetIndex,onsetTime:time(onsetIndex),newCrossTime:time(firstCrossing),
-   consecutiveNegative,recoveryIndex,recoveryTime:time(recoveryIndex),
+   consecutiveNegative,maxNegativeRun,recoveryIndex,recoveryTime:time(recoveryIndex),
    rightCensored,episodeMinimum,absoluteMinimum,
    absoluteMinimumIndex,absoluteMinimumTime:time(absoluteMinimumIndex)};
 }
@@ -88,8 +94,8 @@ function analyze(data){
  });
  const newCrossings=members.filter(m=>m.firstCrossing>=0).length;
  const baseline=members.filter(m=>m.startedNegative).length;
- const long3=members.filter(m=>m.consecutiveNegative>=3).length;
- const long5=members.filter(m=>m.consecutiveNegative>=5).length;
+ const long3=members.filter(m=>m.maxNegativeRun>=3).length;
+ const long5=members.filter(m=>m.maxNegativeRun>=5).length;
  const recovery=members.filter(m=>m.firstCrossing>=0&&m.recoveryIndex>=0).length;
  const unresolved=members.filter(m=>m.firstCrossing>=0&&m.rightCensored).length;
  const worst=members.reduce((a,b)=>a.absoluteMinimum<=b.absoluteMinimum?a:b);
@@ -181,8 +187,8 @@ function draw(){
  const label=x=>x?x.slice(0,10)+" "+x.slice(11,13)+" UTC":"–";
  for(const m of a.members){
   const tr=document.createElement("tr");
-  const category=m.firstCrossing>=0?"Neue Windumkehr":
-     m.startedNegative?"Bereits zu Beginn negativ":"Keine neue Windumkehr";
+  const category=m.startedNegative?"Bereits zu Beginn negativ":
+     m.firstCrossing>=0?"Neue Windumkehr":"Keine neue Windumkehr";
   const values=[m.name,category,label(m.onsetTime),
      m.onsetIndex>=0?m.consecutiveNegative+" Tageswerte"+(m.rightCensored?" · ≥":""):"–",
      label(m.recoveryTime),fmt(m.absoluteMinimum)+" m/s",
@@ -207,7 +213,7 @@ function draw(){
    }}}},
    scales:{y:{beginAtZero:true,max:100,title:{display:true,text:"Erste Windumkehr je Tag (%)"}},
            x:{ticks:{maxTicksLimit:11,maxRotation:0},title:{display:true,text:"Nur neue Übergänge zwischen zwei aufeinanderfolgenden 24h-Terminen"}}}}});
-  const end=Math.min(max+1,a.durationRecovered.length-1);
+  const end=Math.min(max,a.durationRecovered.length-1);
   const dLabels=Array.from({length:end},(_,i)=>String(i+1));
   durationChart=new Chart($("stratoDiagDuration"),{type:"bar",data:{labels:dLabels,datasets:[
    {label:"Rückkehr zum Westwind beobachtet",data:dLabels.map((_,i)=>a.durationRecovered[i+1]),
@@ -227,18 +233,18 @@ function draw(){
  info("Neue Windumkehr: "+a.newCrossings+"/"+den+
   " Mitglieder; erste Übergänge an aufeinanderfolgenden Tageswerten. "+
   a.baseline+" Mitglieder sind bereits zum Start negativ (kein neu prognostizierter Übergang). "+
-  a.long3+" Mitglieder haben mindestens drei aufeinanderfolgende negative Tageswerte; "+
+  a.long3+" Mitglieder haben mindestens drei aufeinanderfolgende negative Tageswerte in mindestens einer Episode; "+
   a.long5+" mindestens fünf. Die aufgeführte Dauer ist keine stundengenaue Dauer. "+
   "Bei am letzten Tag anhaltendem Ostwind ist sie rechtszensiert (Mindestdauer). "+
   "Das Windminimum ist jeweils das Minimum aller Tageswerte des gewählten Laufs.");
 }
 function csv(){
  if(!analyses)return "";
- const rows=["Modell;Lauf_UTC;Mitglied;Start_schon_negativ;Erster_neuer_Uebergang_UTC;Anzahl_Uebergaenge;Negative_Tageswerte_in_Episode;Rueckkehr_UTC;Am_Ende_negativ;Minimum_U_m_s;Minimum_gueltig_UTC"];
+ const rows=["Modell;Lauf_UTC;Mitglied;Start_schon_negativ;Erster_neuer_Uebergang_UTC;Anzahl_Uebergaenge;Negative_Tageswerte_in_erster_Episode;Max_negative_Tageswerte_in_einer_Episode;Rueckkehr_UTC;Am_Ende_negativ;Minimum_U_m_s;Minimum_gueltig_UTC"];
  const model=$("stratoDiagModel").value;
  for(const m of analyses.members){
   rows.push([model,analyses.cycle,m.name,m.startedNegative?"ja":"nein",m.newCrossTime||"",
-   m.anyCrossings,m.consecutiveNegative,m.recoveryTime||"",m.rightCensored?"ja":"nein",
+   m.anyCrossings,m.consecutiveNegative,m.maxNegativeRun,m.recoveryTime||"",m.rightCensored?"ja":"nein",
    m.absoluteMinimum.toFixed(3),m.absoluteMinimumTime].join(";"));
  }
  return "\ufeff"+rows.join("\r\n");
