@@ -47,6 +47,7 @@ required_root_files=(
   stratosphere_ensemble.js
   stratosphere_ecmwf_runs.js
   stratosphere_ecmwf_ens.js
+  stratosphere_run_trends.js
   stratosphere_winter_stats.js
   stratosphere_gefs_probability.js
   stratosphere_ssw_comparison.js
@@ -173,6 +174,8 @@ node --check ssw_catalog.js
 node --check stratosphere_ensemble.js
 node --check stratosphere_ecmwf_runs.js
 node --check stratosphere_ecmwf_ens.js
+node --check stratosphere_run_trends.js
+node --test tests/test_stratosphere_run_trends.cjs
 node --check stratosphere_winter_stats.js
 node --check stratosphere_gefs_probability.js
 node --check synoptic_panel_logic.js
@@ -203,6 +206,12 @@ grep -q 'id="stratoCompareCanvas"' _site/stratosphaere.html
 grep -q 'id="stratoGefsCycle"' _site/stratosphaere.html
 grep -q 'id="stratoEpsCycle"' _site/stratosphaere.html
 grep -q 'id="stratoCompareHour"' _site/stratosphaere.html
+test -s _site/stratosphere_run_trends.js
+grep -q 'stratosphere_run_trends.js' _site/stratosphaere.html
+grep -q 'id="stratoTrendCanvas"' _site/stratosphaere.html
+grep -q 'id="stratoTrendModel"' _site/stratosphaere.html
+grep -q 'id="stratoTrendValid"' _site/stratosphaere.html
+grep -q 'id="stratoTrendCsv"' _site/stratosphaere.html
 grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
