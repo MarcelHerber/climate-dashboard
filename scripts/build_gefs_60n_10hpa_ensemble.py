@@ -39,12 +39,12 @@ LEVEL_HPA=10
 
 def url_for(run, member, lead):
     prefix="gec00" if member=="c00" else "ge"+member
-    filename=f"{prefix}.t00z.pgrb2a.0p50.f{lead:03d}"
+    filename=f"{prefix}.t{run.hour:02d}z.pgrb2a.0p50.f{lead:03d}"
     query={
       "file":filename,"lev_10_mb":"on","var_UGRD":"on",
       "subregion":"","leftlon":"0","rightlon":"359.5",
       "toplat":"60.5","bottomlat":"59.5",
-      "dir":f"/gefs.{run:%Y%m%d}/00/atmos/pgrb2ap5",
+      "dir":f"/gefs.{run:%Y%m%d}/{run.hour:02d}/atmos/pgrb2ap5",
     }
     return URL+"?"+urlencode(query)
 
@@ -121,10 +121,12 @@ def fetch_wind(run,member,lead):
     return member,lead,wind
 
 
-def candidates():
-    now=datetime.now(timezone.utc)
-    now=datetime(now.year,now.month,now.day,tzinfo=timezone.utc)
-    return [now-timedelta(days=n) for n in range(3)]
+def candidates(now=None):
+    """Newly published cycles first, respecting typical release delay."""
+    now=now or datetime.now(timezone.utc)
+    ready=now-timedelta(hours=5)
+    latest=ready.replace(hour=(ready.hour//6)*6,minute=0,second=0,microsecond=0)
+    return [latest-timedelta(hours=6*i) for i in range(12)]
 
 
 def choose_cycle():
@@ -133,7 +135,7 @@ def choose_cycle():
     # forecast even when a current, fully available 16-day run existed.
     # Never mix members/validity dates from different model cycles.
     for candidate in candidates():
-        for days in (35,16):
+        for days in ((35,16) if candidate.hour==0 else (16,)):
             last=days*24
             try:
                 fetch_wind(candidate,"c00",last)
@@ -151,6 +153,8 @@ def build(output,workers):
     run,days=choose_cycle()
     hours=tuple(range(0,days*24+1,24))
     manifest_path=output/"gefs_current.json"
+    history_dir=output/"runs"
+    history_dir.mkdir(parents=True,exist_ok=True)
     if manifest_path.is_file():
         try:
             existing=json.loads(manifest_path.read_text())
@@ -201,9 +205,40 @@ def build(output,workers):
     }
     if len(data["valid_dates"])<17 or len(data["members"])!=31:
         raise RuntimeError("GEFS publication blocked by incomplete dataset")
+    # Keep a small rolling archive; never combine values from distinct cycles.
+    previous=None
+    if manifest_path.is_file():
+        try: previous=json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError,ValueError): pass
+    if previous and previous.get("cycle_utc") and previous["cycle_utc"]>data["cycle_utc"]:
+        LOG.warning("Skipping outdated fallback %s, newer %s is already published",
+                    data["cycle_utc"],previous["cycle_utc"])
+        return
+    if previous and previous.get("cycle_utc") and len(previous.get("members",{}))==31:
+        oldkey=previous["cycle_utc"].replace("-","").replace(":","").replace("T","_").replace("Z","")
+        oldfile=history_dir/(oldkey+".json")
+        if not oldfile.exists():
+            oldfile.write_text(json.dumps(previous,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
+    newkey=run.strftime("%Y%m%d_%H%M%S")
+    archived=history_dir/(newkey+".json")
+    archived.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
     target=manifest_path.with_suffix(".json.tmp")
-    target.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n")
+    target.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
     target.replace(manifest_path)
+    records=[]
+    for item in history_dir.glob("*.json"):
+        try:
+            payload=json.loads(item.read_text(encoding="utf-8"))
+            if payload.get("provider")=="NOAA GEFS" and len(payload.get("members",{}))==31:
+                records.append(dict(cycle_utc=payload["cycle_utc"],
+                    path="runs/"+item.name,forecast_horizon_days=payload["forecast_horizon_days"]))
+        except (ValueError,OSError,KeyError):continue
+    records.sort(key=lambda obj:obj["cycle_utc"],reverse=True)
+    for stale in records[12:]:
+        (history_dir/Path(stale["path"]).name).unlink(missing_ok=True)
+    index={"schema_version":1,"provider":"NOAA GEFS","runs":records[:12],
+           "latest_cycle_utc":records[0]["cycle_utc"]}
+    (output/"gefs_index.json").write_text(json.dumps(index,separators=(",",":"))+"\n",encoding="utf-8")
     LOG.info("PUBLISHED real GEFS ensemble %s, %d members, %d days",run,len(MEMBERS),days)
 
 
