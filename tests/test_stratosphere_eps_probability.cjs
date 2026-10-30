@@ -52,8 +52,10 @@ test("EPS accepts exactly 50 perturbations and 1 control, not IFS run history",(
 test("12UTC ECMWF ENS from the independent cycle is accepted",()=>{
  const {f}=isolated(),d=fixture();
  const initial=new Date(d.cycle_utc);
+ initial.setUTCDate(initial.getUTCDate()-1);
  initial.setUTCHours(12);
  d.cycle_utc=initial.toISOString().slice(0,13)+":00:00Z";
+ d.valid_dates=Array.from({length:16},(_,i)=>new Date(+initial+i*86400000).toISOString().slice(0,10));
  d.valid_hour_utc=12;
  assert.equal(f.validData(d),d);
  assert.throws(()=>f.validData({...d,valid_hour_utc:0}));
