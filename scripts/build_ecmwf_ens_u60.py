@@ -190,7 +190,12 @@ def build(output, now=None):
             if validate(run,now,max_age_hours=MAX_ARCHIVE_AGE_HOURS):
                 records.append({"cycle_utc":run["cycle_utc"],"path":"runs/"+file.name,
                                 "forecast_horizon_days":run["forecast_horizon_days"]})
-        except (ValueError,OSError,KeyError):pass
+            else:
+                LOG.warning("Removing incomplete/stale ECMWF archived run %s",file.name)
+                file.unlink(missing_ok=True)
+        except (ValueError,OSError,KeyError):
+            LOG.warning("Removing unreadable ECMWF archived run %s",file.name)
+            file.unlink(missing_ok=True)
     records.sort(key=lambda row:row["cycle_utc"],reverse=True)
     for item in records[10:]:
         (archive/Path(item["path"]).name).unlink(missing_ok=True)
