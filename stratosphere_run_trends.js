@@ -14,7 +14,7 @@ const MODELS={
    index:"ens_index.json",current:"ens_current.json",hours:[0,12],total:51,perturbed:50}
 };
 const palette=["#d32f2f","#1875bc","#007f76","#a45d1d","#6d529c","#777b83","#bc4d8c","#647b34","#825a52","#34676e"];
-let indexes={gefs:[],eps:[]},runs=[],chart=null,displayRows=[],viewKey=0,loadState="initial",loadFailures=0,lastModel="";
+let indexes={gefs:[],eps:[]},runs=[],chart=null,displayRows=[],viewKey=0,loadState="initial",loadFailures=0,lastModel="",heatmapState=null,heatmapSelection=null;
 const valid=value=>typeof value==="number"&&Number.isFinite(value)&&value>-160&&value<170;
 const isoCycle=cycle=>typeof cycle==="string"&&/^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(cycle)&&
  Number.isFinite(Date.parse(cycle))&&Date.parse(cycle)<=Date.now()&&Date.now()-Date.parse(cycle)<10*86400000;
@@ -141,6 +141,196 @@ function comparisons(){
           newest,previous};
  });
 }
+/* Color bins are fixed at 0/20/40/60/80/100% for comparability between cycles. */
+function heatmapBucket(p){
+ if(p===0)return 0;
+ if(p<=20)return 1;
+ if(p<=40)return 2;
+ if(p<=60)return 3;
+ if(p<=80)return 4;
+ return 5;
+}
+function heatmapMatrix(modelRuns,days){
+ if(!modelRuns.length)return {dates:[],rows:[],total:0,missing:0};
+ const cycle=modelRuns[0].cycle;
+ const init=Date.parse(cycle),hour=cycle.slice(11,13);
+ if(!Number.isInteger(days)||days<1||days>35||!Number.isFinite(init))
+   throw Error("Invalid heatmap validity interval");
+ const dates=Array.from({length:days+1},(_,i)=>new Date(init+i*86400000).toISOString());
+ const rows=modelRuns.map(run=>{
+  if(run.cycle.slice(11,13)!==hour)throw Error("Different UTC hours cannot share a heatmap grid");
+  const byTime=new Map(run.rows.map(v=>[v.key,v]));
+  return {cycle:run.cycle,cells:dates.map(key=>byTime.get(key)??null)};
+ });
+ const total=rows.length*dates.length;
+ const missing=rows.reduce((sum,r)=>sum+r.cells.filter(v=>v===null).length,0);
+ return {dates,rows,total,missing};
+}
+function heatmapDetail(matrix,rowIndex,colIndex){
+ const row=matrix.rows[rowIndex],cell=row?.cells[colIndex],date=matrix.dates[colIndex];
+ if(!row||!cell||!date)return null;
+ const older=matrix.rows[rowIndex+1]?.cells[colIndex]??null;
+ const pp=older?cell.prob-older.prob:null;
+ return {cycle:row.cycle,key:date,count:cell.count,total:cell.total,
+         probability:cell.prob,mean:cell.mean,change:pp,
+         olderCycle:older?matrix.rows[rowIndex+1].cycle:null};
+}
+function heatmapStatus(text){$("stratoHeatStatus").textContent=text;}
+function heatmapSummary(detail){
+ if(!detail){
+  $("stratoHeatDetail").textContent="Zelle anklicken, um Originalwerte, Ensemble-Mittel und gegebenenfalls die Änderung zum vorigen Archivlauf zu sehen.";
+  return;
+ }
+ const model=config($("stratoTrendModel").value).name;
+ const diff=detail.change===null?"Kein unmittelbar vorheriger Archivlauf mit identischem Gültigkeitstermin.":
+  "Änderung zum Archivlauf "+stamp(detail.olderCycle)+": "+
+    (detail.change>=0?"+":"")+fixed(detail.change)+" Prozentpunkte.";
+ $("stratoHeatDetail").textContent=model+" · Lauf "+stamp(detail.cycle)+
+  " · gültig "+stamp(detail.key)+" · U < 0 m/s: "+
+  detail.count+"/"+detail.total+" = "+fixed(detail.probability)+" % · Ensemble-Mittel: "+
+  fixed(detail.mean,2)+" m/s. "+diff;
+}
+function drawHeatmap(){
+ const table=$("stratoHeatTable");
+ if(!table)return;
+ table.replaceChildren();
+ const exportReady=Boolean(runs.length);
+ $("stratoHeatCsv").disabled=!exportReady;
+ $("stratoHeatPng").disabled=!exportReady;
+ if(!exportReady){
+  heatmapState=null;
+  heatmapSummary(null);
+  heatmapStatus(loadState==="loading"?"Lade die verifizierten Modellläufe …":
+    "Noch keine archivierten Original-Ensembles für diese Auswahl. Fehlende Läufe werden nicht ergänzt.");
+  return;
+ }
+ const days=Number($("stratoTrendHorizon").value);
+ const matrix=heatmapMatrix(runs,days);
+ heatmapState=matrix;
+ const head=document.createElement("thead"),top=document.createElement("tr");
+ const label=document.createElement("th");label.textContent="Modelllauf · UTC";
+ label.className="strato-heat-sticky";
+ label.scope="col";top.appendChild(label);
+ for(const date of matrix.dates){
+  const th=document.createElement("th");th.scope="col";
+  th.textContent=date.slice(8,10)+"."+date.slice(5,7)+".";
+  th.title=date.slice(0,16).replace("T"," ")+" UTC";
+  top.appendChild(th);
+ }
+ head.appendChild(top);table.appendChild(head);
+ const body=document.createElement("tbody");
+ let matched=false;
+ for(let row=0;row<matrix.rows.length;row++){
+  const tr=document.createElement("tr");
+  const header=document.createElement("th");header.scope="row";
+  header.className="strato-heat-sticky";
+  header.textContent=matrix.rows[row].cycle.slice(5,10)+" "+
+                     matrix.rows[row].cycle.slice(11,13)+" UTC";
+  header.title=stamp(matrix.rows[row].cycle);
+  tr.appendChild(header);
+  for(let col=0;col<matrix.dates.length;col++){
+   const td=document.createElement("td"),point=matrix.rows[row].cells[col];
+   if(point){
+    const button=document.createElement("button");button.type="button";
+    button.className="strato-heat-cell strato-heat-bin-"+heatmapBucket(point.prob);
+    button.textContent=String(Math.round(point.prob));
+    button.title=stamp(matrix.rows[row].cycle)+" · gültig "+stamp(matrix.dates[col])+
+      " · "+point.count+"/"+point.total+" mit U < 0 m/s = "+fixed(point.prob)+" %";
+    button.setAttribute("aria-label",button.title);
+    const selected=heatmapSelection?.cycle===matrix.rows[row].cycle&&
+      heatmapSelection?.key===matrix.dates[col];
+    if(selected){button.classList.add("is-selected");matched=true;}
+    button.addEventListener("click",()=>{
+     heatmapSelection={cycle:matrix.rows[row].cycle,key:matrix.dates[col]};
+     drawHeatmap();
+    });
+    td.appendChild(button);
+   }else{
+    const span=document.createElement("span");span.className="strato-heat-empty";
+    span.textContent="–";span.title="Kein Original-Prognosewert für diese Gültigkeitszeit";
+    td.appendChild(span);
+   }
+   tr.appendChild(td);
+  }
+  body.appendChild(tr);
+ }
+ table.appendChild(body);
+ if(!matched){
+  const r=matrix.rows[0],col=r.cells.findIndex(v=>v!==null);
+  heatmapSelection=col<0?null:{cycle:r.cycle,key:matrix.dates[col]};
+  if(col>=0){
+   const selected=body.children[0]?.children[col+1]?.firstChild;
+   if(selected?.classList)selected.classList.add("is-selected");
+  }
+ }
+ const rindex=matrix.rows.findIndex(r=>r.cycle===heatmapSelection?.cycle);
+ const cindex=matrix.dates.indexOf(heatmapSelection?.key);
+ heatmapSummary(heatmapDetail(matrix,rindex,cindex));
+ const available=matrix.total-matrix.missing;
+ heatmapStatus(config($("stratoTrendModel").value).name+" · "+
+  matrix.rows.length+" echte Modellläufe · "+matrix.dates.length+
+  " feste "+$("stratoTrendHour").value+"-UTC-Gültigkeitszeiten · "+
+  available+"/"+matrix.total+" belegte Felder; "+matrix.missing+
+  " ohne Originalwert. Farben stets 0–100 %."+
+  (matrix.rows.length<2?" Für eine zeitliche Laufentwicklung fehlt noch mindestens ein weiterer Lauf.":""));
+}
+function heatmapCSV(matrix){
+ const model=$("stratoTrendModel").value;
+ const rows=["Modell;Modelllauf_UTC;Gueltig_UTC;Originaldaten_vorhanden;U_negativ_n;Mitglieder_n;U_negativ_Prozent;Ensemble_Mittel_m_s;Delta_zum_vorherigen_Archivlauf_pp"];
+ matrix.rows.forEach((r,i)=>r.cells.forEach((value,j)=>{
+  const older=matrix.rows[i+1]?.cells[j];
+  rows.push([model,r.cycle,matrix.dates[j],value?"ja":"nein",
+    value?.count??"",value?.total??"",value?value.prob.toFixed(4):"",
+    value?value.mean.toFixed(4):"",value&&older?(value.prob-older.prob).toFixed(4):""].join(";"));
+ }));
+ return "\ufeff"+rows.join("\r\n");
+}
+function heatmapPng(matrix){
+ if(!matrix.rows.length||!matrix.dates.length)return null;
+ const wCell=54,hCell=35,left=168,top=104,bottom=106,pad=20,scale=2;
+ const width=left+wCell*matrix.dates.length+pad,height=top+hCell*matrix.rows.length+bottom;
+ const element=document.createElement("canvas");element.width=width*scale;element.height=height*scale;
+ const ctx=element.getContext("2d");
+ if(!ctx)return null;
+ ctx.scale(scale,scale);
+ ctx.fillStyle="#ffffff";ctx.fillRect(0,0,width,height);
+ ctx.fillStyle="#1a354b";ctx.font="bold 16px sans-serif";
+ ctx.fillText(config($("stratoTrendModel").value).name+
+  " · Windumkehrwahrscheinlichkeit U < 0 m/s",17,29);
+ ctx.font="12px sans-serif";
+ ctx.fillText("60°N / 10 hPa · 31 GEFS / 51 ECMWF ENS Originalmitglieder · "+$("stratoTrendHour").value+" UTC",17,49);
+ ctx.fillText("Feste Gültigkeitstermine, fehlende Originalwerte bleiben grau",17,66);
+ for(let j=0;j<matrix.dates.length;j++){
+  ctx.fillStyle="#435d73";ctx.font="11px sans-serif";
+  ctx.fillText(matrix.dates[j].slice(8,10)+"."+matrix.dates[j].slice(5,7),
+               left+j*wCell+5,top-12);
+ }
+ matrix.rows.forEach((r,i)=>{
+  const y=top+i*hCell;
+  ctx.fillStyle="#24455f";ctx.font="bold 12px sans-serif";
+  ctx.fillText(r.cycle.slice(5,10)+" "+r.cycle.slice(11,13)+" UTC",18,y+24);
+  r.cells.forEach((value,j)=>{
+   const x=left+j*wCell,bucket=value?heatmapBucket(value.prob):-1;
+   const colors=["#edf3f8","#c5def1","#85bbdd","#e9d476","#ed9859","#b92d3e"];
+   ctx.fillStyle=bucket<0?"#e9eaed":colors[bucket];
+   ctx.fillRect(x+1,y+2,wCell-3,hCell-4);
+   ctx.fillStyle=bucket===5?"#ffffff":"#16334c";
+   ctx.font="bold 12px sans-serif";
+   ctx.fillText(value?String(Math.round(value.prob)):"–",x+11,y+24);
+  });
+ });
+ const legendY=top+matrix.rows.length*hCell+25;
+ const legend=["0 %","0–20 %","20–40 %","40–60 %","60–80 %","80–100 %","kein Wert"];
+ const colors=["#edf3f8","#c5def1","#85bbdd","#e9d476","#ed9859","#b92d3e","#e9eaed"];
+ legend.forEach((label,i)=>{
+  const x=18+i*110;ctx.fillStyle=colors[i];ctx.fillRect(x,legendY,14,13);
+  ctx.fillStyle="#40586d";ctx.font="11px sans-serif";ctx.fillText(label,x+19,legendY+11);
+ });
+ ctx.fillStyle="#536c80";ctx.font="11px sans-serif";
+ ctx.fillText("Quelle: NOAA GEFS / ECMWF IFS ENS Original-Archiv · Climate Dashboard · keine Major-SSW-Wahrscheinlichkeit",18,height-21);
+ return element.toDataURL("image/png");
+}
+
 function status(message){
  $("stratoTrendStatus").textContent=message;
 }
@@ -149,6 +339,7 @@ function clearChart(){
  $("stratoTrendPng").disabled=true;
 }
 function draw(){
+ drawHeatmap();
  if(!runs.length){
   clearChart();displayRows=[];$("stratoTrendValid").replaceChildren();
   $("stratoTrendCsv").disabled=true;
@@ -244,7 +435,7 @@ function draw(){
 async function refresh(force=false){
  const token=++viewKey,model=$("stratoTrendModel").value;
  loadState="loading";status("Prüfe archivierte Original-Ensembles …");
- runs=[];displayRows=[];clearChart();
+ runs=[];displayRows=[];clearChart();drawHeatmap();
  $("stratoTrendTableBody").replaceChildren();
  $("stratoTrendMeta").textContent="Prüfe die Originaldaten des gewählten Modellzyklus …";
  $("stratoTrendCsv").disabled=true;
@@ -281,6 +472,19 @@ function download(name,text,type){
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),3500);
 }
+$("stratoHeatCsv").addEventListener("click",()=>{
+ if(!heatmapState)return;
+ download("Stratosphaere_Windumkehr_Heatmap_"+$("stratoTrendModel").value+"_"+
+  $("stratoTrendHour").value+"UTC.csv",heatmapCSV(heatmapState),"text/csv;charset=utf-8");
+});
+$("stratoHeatPng").addEventListener("click",()=>{
+ if(!heatmapState)return;
+ const dataUrl=heatmapPng(heatmapState);if(!dataUrl)return;
+ const link=document.createElement("a");
+ link.href=dataUrl;link.download="Stratosphaere_Windumkehr_Heatmap_"+
+  $("stratoTrendModel").value+"_"+$("stratoTrendHour").value+"UTC.png";
+ link.click();
+});
 $("stratoTrendModel").addEventListener("change",()=>{indexes[$("stratoTrendModel").value]=[];void refresh(true);});
 $("stratoTrendHour").addEventListener("change",()=>void refresh(false));
 $("stratoTrendCount").addEventListener("change",()=>void refresh(false));
