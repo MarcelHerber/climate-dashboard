@@ -17,7 +17,7 @@ def expected_days(first: str, last: str) -> int:
     return (date.fromisoformat(last) - date.fromisoformat(first)).days + 1
 
 
-def audit(root: Path) -> dict:
+def audit(root: Path, release_assets: dict[str, int] | None = None) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
     summary: dict = {}
@@ -145,6 +145,8 @@ def audit(root: Path) -> dict:
                     errors.append(f"{prefix}: SHA-256-Metadatum ungültig")
                 if not meta["release_asset_url"].endswith("/" + meta["archive_file"]):
                     errors.append(f"{prefix}: Release-Asset-Verknüpfung ungültig")
+                if release_assets is not None and release_assets.get(meta["archive_file"]) != meta["archive_bytes"]:
+                    errors.append(f"{prefix}: Release-Asset fehlt oder Dateigröße stimmt nicht")
             except (KeyError, ValueError, TypeError) as exc:
                 errors.append(f"{prefix}: unvollständige Metadaten ({exc})")
 
@@ -183,6 +185,7 @@ def audit(root: Path) -> dict:
         errors.append("Temperatur-Archiv: archive_entries stimmt nicht mit den Jahreslisten überein")
     summary["temperature_archive_years"] = archive_years
     summary["temperature_archive_entries"] = sum(archive_years.values())
+    summary["release_assets_checked"] = len(release_assets) if release_assets is not None else None
     summary["temperature_grid_signatures"] = sorted(signatures)
     summary["temperature_data_through"] = {key: str(val) for key, val in live_by_parameter.items()}
     return {"ok": not errors, "errors": errors, "warnings": warnings, "summary": summary}
@@ -192,8 +195,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--assets-tsv", type=Path)
     args = parser.parse_args()
-    result = audit(args.data_root)
+    assets = None
+    if args.assets_tsv is not None:
+        assets = {}
+        for line in args.assets_tsv.read_text(encoding="utf-8").splitlines():
+            name, size = line.split("\t")
+            assets[name] = int(size)
+    result = audit(args.data_root, assets)
     report = json.dumps(result, ensure_ascii=False, indent=2)
     print(report)
     if args.report:
