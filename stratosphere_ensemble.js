@@ -5,10 +5,12 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const root=$("stratoEnsembleCard");if(!root)return;
-const WIND_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ensemble-data/data/stratosphere/ensemble/gefs_current.json";
+const WIND_BASE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-ensemble-data/data/stratosphere/ensemble/";
+const WIND_SOURCE=WIND_BASE+"gefs_current.json";
+const WIND_INDEX=WIND_BASE+"gefs_index.json";
 const NASA_SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/stratosphere-data/data/stratosphere/";
 const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-let chart=null,forecast=null,climo=null,observed=new Map(),lastRows=[],lastForecastAt=null,nasaLoaded=false;
+let chart=null,forecast=null,climo=null,observed=new Map(),lastRows=[],lastForecastAt=null,nasaLoaded=false,cycleRows=[];
 
 function day(date){return date.toISOString().slice(0,10);}
 function dt(date){return new Date(date+"T00:00:00Z");}
@@ -94,16 +96,53 @@ async function fetchNasa(){
  }catch(e){console.info("NASA Klimatologie vorübergehend nicht erreichbar",e);}
  nasaLoaded=true;
 }
-async function reload(){
+async function cycles(){
+ const select=$("stratoGefsCycle");
+ let entries=[];
+ try{
+  const response=await fetch(WIND_INDEX+"?d="+Date.now(),{cache:"no-store"});
+  if(response.ok){
+   const json=await response.json();
+   if(json.provider==="NOAA GEFS"&&Array.isArray(json.runs)){
+    entries=json.runs.filter(x=>/^\\d{4}-\\d\\d-\\d\\dT(?:00|06|12|18):00:00Z$/.test(x.cycle_utc||"")&&
+      /^runs\\/\\d{8}_\\d{6}\\.json$/.test(x.path||"")&&
+      Date.now()-Date.parse(x.cycle_utc)<72*3600000&&Date.parse(x.cycle_utc)<=Date.now());
+   }
+  }
+ }catch(error){console.info("GEFS-Laufindex nicht verfügbar",error);}
+ const selected=select.value;
+ cycleRows=entries.sort((a,b)=>b.cycle_utc.localeCompare(a.cycle_utc));
+ select.replaceChildren();
+ if(!cycleRows.length){
+  const opt=document.createElement("option");opt.value="current";
+  opt.textContent="Neuester verfügbarer GEFS-Lauf";select.add(opt);
+ }else{
+  for(const x of cycleRows){
+   const option=document.createElement("option");option.value=x.cycle_utc;
+   option.textContent=x.cycle_utc.slice(0,16).replace("T"," ")+" UTC · "+x.forecast_horizon_days+" Tage";
+   select.add(option);
+  }
+  select.value=cycleRows.some(x=>x.cycle_utc===selected)?selected:cycleRows[0].cycle_utc;
+ }
+}
+async function getWind(){
+ const choice=$("stratoGefsCycle").value;
+ const item=cycleRows.find(x=>x.cycle_utc===choice);
+ const url=item?WIND_BASE+item.path:WIND_SOURCE;
+ const response=await fetch(url+"?d="+Date.now(),{cache:"no-store"});
+ if(!response.ok)throw Error("NOAA-GEFS-Daten noch nicht veröffentlicht (HTTP "+response.status+")");
+ const result=validateForecast(await response.json());
+ if(item&&result.cycle_utc!==item.cycle_utc)throw Error("Modelllauf und Index stimmen nicht überein");
+ return result;
+}
+async function reload(refreshIndex=true){
  note("Prüfe echte GEFS-Ensemblemitglieder und NASA-Analysen …");
  $("stratoEnsembleReload").disabled=true;
+ if(refreshIndex)await cycles();
  const needsNasa=$("stratoClimo").checked||$("stratoShowAnalysis").checked;
  const result=await Promise.allSettled([
-  fetch(WIND_SOURCE+"?d="+Date.now(),{cache:"no-store"}).then(r=>{
-   if(!r.ok)throw Error("NOAA-GEFS-Archiv noch nicht veröffentlicht (HTTP "+r.status+")");
-   return r.json();
-  }).then(validateForecast),
-  needsNasa?fetchNasa():Promise.resolve()
+  getWind(),
+  needsNasa&&!nasaLoaded?fetchNasa():Promise.resolve()
  ]);
  forecast=result[0].status==="fulfilled"?result[0].value:null;
  // Share precisely the same validated 31 original GEFS members with the
@@ -228,7 +267,8 @@ for(const id of ["stratoClimo","stratoShowAnalysis"]){
   }else draw();
  });
 }
-$("stratoEnsembleReload").addEventListener("click",reload);
+$("stratoEnsembleReload").addEventListener("click",()=>reload(true));
+$("stratoGefsCycle").addEventListener("change",()=>reload(false));
 $("stratoEnsembleReset").addEventListener("click",()=>{
  $("stratoEnsembleSpan").value="all";applyForecastHorizon();
 });
