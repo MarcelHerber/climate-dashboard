@@ -3,6 +3,7 @@
 App scripts/data fetches are excluded: visual layout verification, not live science."""
 from __future__ import annotations
 import argparse
+import ast
 from datetime import datetime, timezone
 from html import escape
 import json
@@ -25,8 +26,32 @@ TARGETS=(
 SCRIPTS=re.compile(r"<script\b[^>]*>[\s\S]*?</script\s*>",re.I)
 LINKS=re.compile(r"<link\b[^>]*>",re.I)
 
+def mosmix_original_layout(root:Path)->tuple[str,str]:
+ """Extract actual MOSMIX controls/cards/styles from its source JS, no fake data."""
+ source=(root/"mosmix.js").read_text(encoding="utf-8")
+ def extract(after:str)->list[str]:
+  idx=source.index(after)+len(after)
+  begin=source.index("[",idx)
+  end=source.index('].join("");',begin)+1
+  values=ast.literal_eval(source[begin:end])
+  if not isinstance(values,list) or not all(isinstance(v,str) for v in values):
+   raise ValueError("MOSMIX UI templates malformed")
+  return values
+ css="".join(extract("style.textContent ="))
+ layout="".join(extract("function sectionHtml()"))
+ assert 'id="mosmixMap"' in layout and 'id="mosmixTempChart"' in layout
+ return css,layout
+
 def static_document(root:Path,name:str)->str:
  text=SCRIPTS.sub("",inject((root/name).read_text(encoding="utf-8")))
+ if name=="mosmix.html":
+  mos_css,mos_markup=mosmix_original_layout(root)
+  text=re.sub(r"(</head\s*>)",lambda match:"<style>\n"+mos_css+"\n</style>\n"+match.group(0),text,count=1,flags=re.I)
+  text=re.sub(r'(<main\b[^>]*id="mosmix-standalone"[^>]*>)(</main>)',
+      lambda m:m.group(1)+mos_markup+m.group(2),text,count=1,flags=re.I)
+  # The standalone page normally mounts this tab through its own JS.
+  text=text.replace('id="mosmix" class="tab-content"','id="mosmix" class="tab-content active"')
+
  def replace(match):
   tag=match.group()
   if not re.search(r"\brel\s*=\s*['\x22]stylesheet['\x22]",tag,re.I):
