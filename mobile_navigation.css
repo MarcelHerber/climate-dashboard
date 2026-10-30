@@ -1,0 +1,146 @@
+/* Climate Dashboard Deutschland · unified mobile-only navigation.
+   The desktop website is intentionally untouched above 800px. */
+.cdm-root,.cdm-overlay,.cdm-trigger{display:none}
+.cdm-overlay[hidden],.cdm-results[hidden],.cdm-recent[hidden],.cdm-sections[hidden]{display:none!important}
+@media(max-width:800px){
+  html.cdm-modal-open,body.cdm-modal-open{overflow:hidden}
+  body.cd-mobile-ready{min-width:0}
+  body.cd-mobile-ready .mobile-tab-navigation{display:none!important}
+  body.cd-mobile-ready:not(.cd-mobile-home)>header{display:none!important}
+  .cdm-root{display:block}
+  .cdm-mobile-bar{
+    box-sizing:border-box;position:sticky;top:0;z-index:3500;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    min-height:58px;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));
+    background:#f9fbfd;color:#152b42;border-bottom:1px solid #dbe4ec;
+    box-shadow:0 1px 8px rgba(15,33,55,.08);
+  }
+  .cdm-brand{
+    display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    font:750 16px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:inherit;text-decoration:none;white-space:nowrap;
+  }
+  .cdm-trigger{
+    box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;
+    gap:8px;flex:0 0 auto;min-width:64px;min-height:44px;
+    padding:8px 10px;border:1px solid #bdcede;border-radius:9px;
+    color:#14314b;background:#fff;cursor:pointer;
+    font:700 13px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  .cdm-trigger:focus-visible,.cdm-close:focus-visible,.cdm-item:focus-visible,
+  .cdm-category-summary:focus-visible,.cdm-search:focus-visible{
+    outline:3px solid #3183c3;outline-offset:2px;
+  }
+  .cdm-menu-bars{display:block;width:17px;height:13px;flex:0 0 17px;
+    border-top:2px solid currentColor;border-bottom:2px solid currentColor;position:relative}
+  .cdm-menu-bars::after{content:"";position:absolute;top:5px;left:0;right:0;border-top:2px solid currentColor}
+  body.cd-mobile-home .dashboard-header{position:sticky;top:0;z-index:1200}
+  body.cd-mobile-home .dashboard-header-inner{gap:7px;padding-inline:12px}
+  body.cd-mobile-home .dashboard-brand-title{font-size:clamp(14px,4vw,17px);
+    line-height:1.22;white-space:normal;max-width:185px}
+  body.cd-mobile-home .dashboard-header .header-actions{gap:4px}
+  body.cd-mobile-home .dashboard-header .header-actions > .header-action:not(.dashboard-theme-toggle),
+  body.cd-mobile-home .dashboard-header .header-status-wrap{display:none!important}
+  body.cd-mobile-home .dashboard-theme-toggle{min-width:42px;min-height:44px;padding:8px}
+  body.cd-mobile-home .dashboard-header .cdm-trigger{font-size:12px;min-width:59px}
+  .cdm-overlay{
+    box-sizing:border-box;display:flex;position:fixed;inset:0;z-index:99990;
+    align-items:stretch;justify-content:flex-end;
+    padding-top:env(safe-area-inset-top);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    isolation:isolate;
+  }
+  .cdm-backdrop{
+    position:absolute;inset:0;display:block;background:rgba(8,19,35,.62);
+    border:0;cursor:pointer;padding:0;width:100%;height:100%;
+  }
+  .cdm-drawer{
+    box-sizing:border-box;position:relative;z-index:1;width:min(420px,92vw);
+    max-height:100%;height:100%;display:flex;flex-direction:column;
+    background:#fff;color:#142a41;box-shadow:-8px 0 30px rgba(10,26,46,.23);
+    border-radius:14px 0 0 14px;overflow:hidden;
+  }
+  .cdm-drawer-head{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    flex:0 0 auto;padding:16px 16px 13px;border-bottom:1px solid #e0e8ef;
+  }
+  .cdm-drawer-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .cdm-drawer-title strong{font-size:17px;color:#142a41}
+  .cdm-drawer-title small{font-size:12px;color:#5b7185}
+  .cdm-close{
+    min-width:44px;min-height:44px;border:1px solid #d0dce6;border-radius:9px;
+    background:#f6f9fc;color:#15344f;cursor:pointer;font-size:20px;
+  }
+  .cdm-drawer-scroll{
+    flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
+    padding:16px 13px 20px;padding-bottom:max(20px,env(safe-area-inset-bottom));
+  }
+  .cdm-search-label{display:flex;flex-direction:column;gap:6px;
+    margin-bottom:15px;color:#415a72;font-size:12px;font-weight:750}
+  .cdm-search{
+    box-sizing:border-box;display:block;width:100%;min-width:0;min-height:46px;
+    border:1px solid #b9cad8;border-radius:9px;padding:10px 13px;
+    background:#fff;color:#172e43;font-size:16px;font-family:inherit;
+  }
+  .cdm-search::placeholder{color:#718496}
+  .cdm-item{
+    box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;
+    align-items:flex-start;gap:3px;text-align:left;
+    width:100%;min-height:44px;margin:0;padding:10px 12px;
+    font:600 14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
+    border:0;border-bottom:1px solid #edf1f5;background:#fff;color:#193650;
+    border-radius:5px;cursor:pointer;
+  }
+  .cdm-item:hover,.cdm-item:focus-visible{background:#edf5fb}
+  .cdm-item[aria-current="page"]{
+    color:#075e9a;background:#e5f1fb;font-weight:800;border-left:3px solid #1779bd;
+  }
+  .cdm-home-link{font-weight:800;background:#f3f8fc;margin-bottom:8px}
+  .cdm-category{margin:0;border-bottom:1px solid #e2eaf0}
+  .cdm-category-summary{
+    box-sizing:border-box;list-style:none;cursor:pointer;min-height:52px;
+    padding:11px 13px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    color:#153852;font-size:15px;font-weight:800;
+    border-radius:8px;
+  }
+  .cdm-category-summary::-webkit-details-marker{display:none}
+  .cdm-category-summary:hover{background:#f0f6fa}
+  .cdm-category-summary::after{content:"⌄";font-size:20px;color:#49647d;margin-left:auto}
+  .cdm-category[open] .cdm-category-summary::after{content:"⌃"}
+  .cdm-category-count{
+    font-size:11px;font-weight:650;color:#697d90;
+    background:#eaf0f5;padding:3px 6px;border-radius:8px;
+  }
+  .cdm-category-links{padding:0 3px 11px 10px}
+  .cdm-section-title{
+    font:800 12px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:#60778c;text-transform:uppercase;letter-spacing:.06em;margin:17px 7px 6px;
+  }
+  .cdm-recent-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .cdm-recent-item{border:1px solid #dce6ed;background:#f7fafd;border-radius:8px;
+    min-height:48px;font-size:12px}
+  .cdm-results .cdm-search-item{border-bottom:1px solid #e4ebf2}
+  .cdm-search-group{font-size:11px;color:#647b8f;font-weight:400}
+  .cdm-empty{margin:16px 8px;font-size:13px;color:#587187}
+  body.cd-mobile-ready :is(main,.dashboard-main){min-width:0}
+  body.cd-mobile-ready :is(.table-scroll,.table-wrap,.current-table-wrap,.regional-ranking-table-wrap,
+    .strato-diagnostic-table,.strato-heat-scroll,.strato-trend-table-scroll){
+    max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  }
+  body.cd-mobile-ready :is(input,select,textarea){max-width:100%;box-sizing:border-box}
+  body.cd-mobile-ready :is(.controls,.toolbar,.sg-toolbar,.strato-trend-controls,
+    .strato-diagnostic-controls){min-width:0}
+  body.cd-mobile-ready :is(.controls,.toolbar,.sg-toolbar,.strato-trend-controls,
+    .strato-diagnostic-controls) label{max-width:100%}
+}
+@media(max-width:480px){
+  body.cd-mobile-ready :is(.sg-toolbar,.strato-trend-controls,
+    .strato-diagnostic-controls) label{flex-basis:100%;min-width:0}
+  body.cd-mobile-ready .strato-heat-scroll{max-height:400px}
+  body.cd-mobile-ready .strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.cd-mobile-home .dashboard-brand-title{max-width:150px}
+  .cdm-drawer{width:min(400px,95vw);border-radius:10px 0 0 10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .cdm-trigger,.cdm-item,.cdm-drawer{transition:none!important}
+}
+/* Keep scientific raster colors and all desktop UI styles unchanged. */
