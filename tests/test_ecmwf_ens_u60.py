@@ -18,7 +18,7 @@ class ENSU60Tests(unittest.TestCase):
         cycle=datetime(2026,10,29,tzinfo=timezone.utc)
         dates=[(cycle+timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
         good={"schema_version":1,"provider":"ECMWF IFS ENS","level_hpa":10,"latitude_deg":60,"units":"m/s",
-              "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,
+              "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,"valid_hour_utc":0,
               "cycle_utc":"2026-10-29T00:00:00Z","valid_dates":dates,
               "members":{k:[3.]*len(dates) for k in MEMBERS}}
         now=cycle+timedelta(hours=12)
@@ -33,7 +33,7 @@ class ENSU60Tests(unittest.TestCase):
         dates=[(cycle+timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
         payload={"schema_version":1,"provider":"ECMWF IFS ENS",
           "level_hpa":10,"latitude_deg":60,"units":"m/s",
-          "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,
+          "forecast_step_hours":STEPS,"member_count":51,"perturbed_count":50,"valid_hour_utc":12,
           "cycle_utc":"2026-10-29T12:00:00Z","valid_dates":dates,
           "members":{k:[3.]*len(dates) for k in MEMBERS}}
         self.assertTrue(validate(payload,cycle+timedelta(hours=12)))
