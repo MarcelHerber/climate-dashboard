@@ -28,7 +28,7 @@ function context(){
     Promise,console,fetch:()=>new Promise(()=>{}),
     URL,Blob:class {},Chart:class {}};
  const patched=script.replace(/\}\)\(\);\s*$/,
-   "window.__trendsTest={verify,extract,parseIndex,comparisons,setRuns:r=>runs=r,setModel:m=>document.getElementById('stratoTrendModel').value=m};})();");
+   "window.__trendsTest={verify,extract,parseIndex,comparisons,heatmapMatrix,heatmapBucket,heatmapDetail,heatmapCSV,drawHeatmap,setRuns:r=>runs=r,setModel:m=>document.getElementById('stratoTrendModel').value=m};})();");
  assert.notEqual(patched,script,"Must instrument exactly one IIFE");
  vm.runInNewContext(patched,sandbox,{timeout:2500});
  return {methods:window.__trendsTest,els};
@@ -59,6 +59,77 @@ test("run comparison UI and dedicated asset exist",()=>{
  }
  assert.match(html,/stratosphere_run_trends\.js/);
  assert.match(script,/Promise\.allSettled/);
+});
+test("heatmap HTML controls and fixed 0–100 percent color-scale",()=>{
+ for(const id of ["stratoHeatmap","stratoHeatTable","stratoHeatStatus",
+  "stratoHeatDetail","stratoHeatPng","stratoHeatCsv"]){
+  assert.ok(html.includes('id="'+id+'"'),id);
+ }
+ const {methods:f}=context();
+ assert.equal(f.heatmapBucket(0),0);
+ assert.equal(f.heatmapBucket(.01),1);
+ assert.equal(f.heatmapBucket(20),1);
+ assert.equal(f.heatmapBucket(20.01),2);
+ assert.equal(f.heatmapBucket(40.01),3);
+ assert.equal(f.heatmapBucket(60.01),4);
+ assert.equal(f.heatmapBucket(80.01),5);
+ assert.equal(f.heatmapBucket(100),5);
+ assert.match(html,/Grau bedeutet: kein Originalwert/);
+});
+test("heatmap columns are fixed valid UTC times, not different model lead times",()=>{
+ const {methods:f}=context(),a=fixture("gefs",0,16,1),b=fixture("gefs",0,16,2);
+ a.members.c00[1]=-1;a.members.p01[1]=-4;
+ b.members.c00[2]=-1;
+ const matrix=f.heatmapMatrix([
+  {cycle:a.cycle_utc,rows:f.extract(f.verify(a,"gefs"))},
+  {cycle:b.cycle_utc,rows:f.extract(f.verify(b,"gefs"))}
+ ],15);
+ assert.equal(matrix.dates.length,16);
+ assert.equal(matrix.rows.length,2);
+ assert.equal(matrix.rows[0].cells[1].count,2);
+ assert.equal(matrix.rows[1].cells[1].count,1);
+ assert.equal(matrix.rows[0].cells[1].key,matrix.rows[1].cells[1].key);
+ const detail=f.heatmapDetail(matrix,0,1);
+ assert.equal(detail.count,2);
+ assert.equal(detail.total,31);
+ assert.ok(Math.abs(detail.change-100/31)<1e-9);
+ assert.equal(detail.olderCycle,b.cycle_utc);
+ const csv=f.heatmapCSV(matrix);
+ assert.ok(csv.includes("Originaldaten_vorhanden"));
+ assert.ok(csv.includes(a.cycle_utc));
+ assert.ok(csv.includes(b.cycle_utc));
+});
+test("heatmap retains empty cells rather than extending the original forecast",()=>{
+ const {methods:f}=context(),a=fixture("gefs",0,16,1),b=fixture("gefs",0,16,2);
+ const matrix=f.heatmapMatrix([
+  {cycle:a.cycle_utc,rows:f.extract(f.verify(a,"gefs"))},
+  {cycle:b.cycle_utc,rows:f.extract(f.verify(b,"gefs"))}
+ ],35);
+ assert.equal(matrix.dates.length,36);
+ assert.equal(matrix.total,72);
+ assert.ok(matrix.missing>0);
+ assert.equal(matrix.rows[0].cells[35],null);
+ assert.equal(matrix.rows[1].cells[35],null);
+ assert.equal(f.heatmapDetail(matrix,0,35),null);
+ const lastDay=matrix.dates[35];
+ const lastRow=f.heatmapCSV(matrix).split("\r\n").find(row=>row.includes(a.cycle_utc)&&row.includes(lastDay));
+ assert.ok(lastRow);
+ assert.ok(lastRow.includes(";nein;"));
+ assert.ok(!lastRow.includes("NaN"));
+});
+test("heatmap only allows same UTC validity hours and preserves 51-member EPS denominator",()=>{
+ const {methods:f}=context(),g0=fixture("gefs",0),g6=fixture("gefs",6);
+ assert.throws(()=>f.heatmapMatrix([
+   {cycle:g0.cycle_utc,rows:f.extract(g0)},
+   {cycle:g6.cycle_utc,rows:f.extract(g6)}],15),/Different UTC hours/);
+ const e=fixture("eps",12,15);
+ e.members.c00[3]=-4;
+ for(let i=1;i<=9;i++)e.members["p"+String(i).padStart(2,"0")][3]=-2;
+ const matrix=f.heatmapMatrix([{cycle:e.cycle_utc,rows:f.extract(f.verify(e,"eps"))}],15);
+ assert.equal(matrix.rows[0].cells[3].count,10);
+ assert.equal(matrix.rows[0].cells[3].total,51);
+ assert.ok(Math.abs(matrix.rows[0].cells[3].prob-1000/51)<1e-9);
+ assert.equal(f.heatmapDetail(matrix,0,3).change,null);
 });
 test("GEFS archive accepts 31 original members on 00/06/12/18UTC only",()=>{
  const {methods:f}=context();
