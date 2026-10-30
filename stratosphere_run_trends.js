@@ -288,7 +288,7 @@ function heatmapCSV(matrix){
 function heatmapPng(matrix){
  if(!matrix.rows.length||!matrix.dates.length)return null;
  const wCell=54,hCell=35,left=168,top=104,bottom=106,pad=20,scale=2;
- const width=left+wCell*matrix.dates.length+pad,height=top+hCell*matrix.rows.length+bottom;
+ const width=Math.max(830,left+wCell*matrix.dates.length+pad),height=top+hCell*matrix.rows.length+bottom;
  const element=document.createElement("canvas");element.width=width*scale;element.height=height*scale;
  const ctx=element.getContext("2d");
  if(!ctx)return null;
