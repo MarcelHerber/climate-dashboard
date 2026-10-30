@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "30 9,21 * * *"
+    - cron: "30 11,23 * * *"
   push:
     branches: [main]
     paths:
@@ -42,7 +43,7 @@ jobs:
             git -C /tmp/strato-ens init -q -b stratosphere-ecmwf-ens-data
             git -C /tmp/strato-ens remote add origin "$remote"
           fi
-      - name: Ingest all 50 real perturbed EPS members and IFS control at 10hPa
+      - name: Ingest 00/12 UTC ECMWF ENS 50 perturbations + control at 10 hPa
         run: python scripts/build_ecmwf_ens_u60.py --output /tmp/strato-ens/data/stratosphere/ecmwf/ens_current.json
       - name: Verify original model and 51-member completeness
         run: |
@@ -53,6 +54,10 @@ jobs:
           j=json.loads(Path("/tmp/strato-ens/data/stratosphere/ecmwf/ens_current.json").read_text())
           assert validate(j) and j["member_count"]==51 and j["perturbed_count"]==50
           assert j["stream_ensemble"]=="enfo/ef" and j["stream_control"]=="oper/fc"
+          assert j["valid_hour_utc"] in (0,12)
+          idx=json.loads(Path("/tmp/strato-ens/data/stratosphere/ecmwf/ens_index.json").read_text())
+          assert idx["runs"][0]["cycle_utc"]==j["cycle_utc"]
+          assert all(Path("/tmp/strato-ens/data/stratosphere/ecmwf",r["path"]).is_file() for r in idx["runs"])
           print("Fully verified EPS:",j["cycle_utc"],len(j["valid_dates"]),"dates")
           PY
       - name: Publish only complete, fresh ECMWF ENS
@@ -62,7 +67,7 @@ jobs:
           touch .nojekyll
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/stratosphere/ecmwf/ens_current.json .nojekyll
+          git add -A data/stratosphere/ecmwf .nojekyll
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Verified ECMWF ENS 50 perturbed members plus IFS control at 60N/10hPa"
           if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-ens-data >/dev/null 2>&1; then
