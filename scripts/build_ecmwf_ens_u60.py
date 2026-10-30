@@ -86,7 +86,7 @@ def validate(payload, now=None):
             return False
         cycle = datetime.fromisoformat(payload["cycle_utc"].replace("Z", "+00:00"))
         age = now - cycle
-        if cycle.hour not in (0, 12) or cycle.minute != 0 or cycle.tzinfo is None or not timedelta(0) <= age <= timedelta(hours=MAX_AGE_HOURS):
+        if cycle.hour not in (0, 12) or cycle.minute != 0 or cycle.tzinfo is None or payload.get("valid_hour_utc") != cycle.hour or not timedelta(0) <= age <= timedelta(hours=MAX_AGE_HOURS):
             return False
         expected_dates = [(cycle + timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
         if payload.get("valid_dates") != expected_dates:
