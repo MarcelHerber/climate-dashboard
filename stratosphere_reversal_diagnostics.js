@@ -73,11 +73,19 @@ function analyzeMember(values,cycle,name){
   if(end<n)recoveryIndex=end;
   else rightCensored=true;
  }
+ let recoveryAfterNewIndex=-1,newCrossRightCensored=false;
+ if(firstCrossing>=0){
+  let end=firstCrossing;
+  while(end<n&&values[end]<0)end++;
+  recoveryAfterNewIndex=end<n?end:-1;
+  newCrossRightCensored=end===n;
+ }
  const time=i=>i<0?null:new Date(start+i*86400000).toISOString();
  return {name,startedNegative,firstCrossing,anyCrossings,
    onsetIndex,onsetTime:time(onsetIndex),newCrossTime:time(firstCrossing),
    consecutiveNegative,maxNegativeRun,recoveryIndex,recoveryTime:time(recoveryIndex),
-   rightCensored,episodeMinimum,absoluteMinimum,
+   recoveryAfterNewIndex,recoveryAfterNewTime:time(recoveryAfterNewIndex),
+   newCrossRightCensored,rightCensored,episodeMinimum,absoluteMinimum,
    absoluteMinimumIndex,absoluteMinimumTime:time(absoluteMinimumIndex)};
 }
 function analyze(data){
@@ -96,8 +104,8 @@ function analyze(data){
  const baseline=members.filter(m=>m.startedNegative).length;
  const long3=members.filter(m=>m.maxNegativeRun>=3).length;
  const long5=members.filter(m=>m.maxNegativeRun>=5).length;
- const recovery=members.filter(m=>m.firstCrossing>=0&&m.recoveryIndex>=0).length;
- const unresolved=members.filter(m=>m.firstCrossing>=0&&m.rightCensored).length;
+ const recovery=members.filter(m=>m.firstCrossing>=0&&m.recoveryAfterNewIndex>=0).length;
+ const unresolved=members.filter(m=>m.firstCrossing>=0&&m.newCrossRightCensored).length;
  const worst=members.reduce((a,b)=>a.absoluteMinimum<=b.absoluteMinimum?a:b);
  const onsetDate=Array.from({length:days},(_,i)=>
    new Date(Date.parse(data.cycle_utc)+i*86400000).toISOString());
@@ -240,11 +248,11 @@ function draw(){
 }
 function csv(){
  if(!analyses)return "";
- const rows=["Modell;Lauf_UTC;Mitglied;Start_schon_negativ;Erster_neuer_Uebergang_UTC;Anzahl_Uebergaenge;Negative_Tageswerte_in_erster_Episode;Max_negative_Tageswerte_in_einer_Episode;Rueckkehr_UTC;Am_Ende_negativ;Minimum_U_m_s;Minimum_gueltig_UTC"];
+ const rows=["Modell;Lauf_UTC;Mitglied;Start_schon_negativ;Erster_neuer_Uebergang_UTC;Anzahl_Uebergaenge;Negative_Tageswerte_in_erster_Episode;Max_negative_Tageswerte_in_einer_Episode;Rueckkehr_erste_Episode_UTC;Erholung_nach_neuer_Windumkehr_UTC;Neue_Windumkehr_am_Ende_ohne_Erholung;Minimum_U_m_s;Minimum_gueltig_UTC"];
  const model=$("stratoDiagModel").value;
  for(const m of analyses.members){
   rows.push([model,analyses.cycle,m.name,m.startedNegative?"ja":"nein",m.newCrossTime||"",
-   m.anyCrossings,m.consecutiveNegative,m.maxNegativeRun,m.recoveryTime||"",m.rightCensored?"ja":"nein",
+   m.anyCrossings,m.consecutiveNegative,m.maxNegativeRun,m.recoveryTime||"",m.recoveryAfterNewTime||"",m.newCrossRightCensored?"ja":"nein",
    m.absoluteMinimum.toFixed(3),m.absoluteMinimumTime].join(";"));
  }
  return "\ufeff"+rows.join("\r\n");
