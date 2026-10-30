@@ -350,6 +350,21 @@ def reference_climatology(all_years):
             reference[metric] = eligible
     return reference
 
+def full_year_coverage(year, rows, fields):
+    """Count only a complete calendar year of genuine finite daily diagnostics."""
+    by_date = {row.get("date"): row for row in rows}
+    expected = 366 if calendar.isleap(year) else 365
+    if len(by_date) != expected:
+        return False
+    for offset in range(expected):
+        key = (date(year, 1, 1) + timedelta(days=offset)).isoformat()
+        row = by_date.get(key)
+        if not row or not all(isinstance(row.get(field), (float, int))
+                              and np.isfinite(row[field]) for field in fields):
+            return False
+    return True
+
+
 def rebuild_index():
     OUTPUT.mkdir(parents=True,exist_ok=True)
     years = sorted(int(path.stem) for path in HISTORY.glob("????.json"))
@@ -367,19 +382,22 @@ def rebuild_index():
         # Do not call a year complete unless all four real temperature levels
         # exist on every calendar date. Row coverage alone can be only zonal wind.
         "reference_years_completed":sum(
-            len(rows_by_year.get(y,[]))==(366 if calendar.isleap(y) else 365)
-            and all(all(isinstance(row.get(f"tcap_{level}"),(int,float))
-                        and np.isfinite(row[f"tcap_{level}"])
-                        for level in (10,30,50,100))
-                    for row in rows_by_year.get(y,[]))
-            for y in range(1991,2021)),
+            full_year_coverage(y, rows_by_year.get(y, []),
+                               tuple(f"tcap_{level}" for level in (10, 30, 50, 100)))
+            for y in range(1991, 2021)),
         "reference_temperature_years_completed_by_level":{
             str(level):sum(
-                len(rows_by_year.get(y,[]))==(366 if calendar.isleap(y) else 365)
-                and all(isinstance(row.get(f"tcap_{level}"),(int,float))
-                        and np.isfinite(row[f"tcap_{level}"])
-                        for row in rows_by_year.get(y,[]))
-                for y in range(1991,2021))
+                full_year_coverage(y, rows_by_year.get(y, []), (f"tcap_{level}",))
+                for y in range(1991, 2021))
+            for level in (10,30,50,100)},
+        "reference_wind_years_completed":sum(
+            full_year_coverage(y, rows_by_year.get(y, []),
+                               tuple(f"u60_{level}" for level in (10,30,50,100)))
+            for y in range(1991, 2021)),
+        "reference_wind_years_completed_by_level":{
+            str(level):sum(
+                full_year_coverage(y, rows_by_year.get(y, []), (f"u60_{level}",))
+                for y in range(1991, 2021))
             for level in (10,30,50,100)},
         "generated_at":datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "data_through":max(row["date"] for row in rows),
@@ -387,6 +405,16 @@ def rebuild_index():
         "series":rows,
         "reference":reference_climatology(rows_by_year),
     }
+    # 366 is a leap-calendar maximum; only full 30-year samples count.
+    payload["reference_calendar_days_by_metric"] = {
+        metric: len(values) for metric, values in payload["reference"].items()
+    }
+    payload["reference_temperature_calendar_days_complete"] = len(set.intersection(
+        *(set(payload["reference"].get(f"tcap_{level}", {}))
+          for level in (10,30,50,100))))
+    payload["reference_wind_calendar_days_complete"] = len(set.intersection(
+        *(set(payload["reference"].get(f"u60_{level}", {}))
+          for level in (10,30,50,100))))
     (OUTPUT / "index.json").write_text(
         json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
     print(f"Published index: {len(rows)} genuine days, reference years {payload['reference_years_completed']}/30",flush=True)
