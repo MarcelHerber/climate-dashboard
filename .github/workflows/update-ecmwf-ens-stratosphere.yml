@@ -1,0 +1,71 @@
+name: ECMWF ENS 60N 10hPa · 50 Mitglieder + Kontrolllauf
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 9,21 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_ecmwf_ens_u60.py"
+      - "tests/test_ecmwf_ens_u60.py"
+      - ".github/workflows/update-ecmwf-ens-stratosphere.yml"
+permissions:
+  contents: write
+concurrency:
+  group: ecmwf-ens-u60
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install GRIB decoder and ECMWF downloader
+        run: python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "eccodes>=2,<3" "ecmwf-opendata>=0.3.28,<1"
+      - name: Scientific offline tests
+        run: |
+          python -m py_compile scripts/build_ecmwf_ens_u60.py
+          python -m unittest discover -s tests -p test_ecmwf_ens_u60.py -v
+      - name: Load separate EPS data branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-ens-data >/dev/null 2>&1; then
+            git clone --quiet --single-branch --depth 1 --branch stratosphere-ecmwf-ens-data "$remote" /tmp/strato-ens
+          else
+            mkdir -p /tmp/strato-ens
+            git -C /tmp/strato-ens init -q -b stratosphere-ecmwf-ens-data
+            git -C /tmp/strato-ens remote add origin "$remote"
+          fi
+      - name: Ingest all 50 real perturbed EPS members and IFS control at 10hPa
+        run: python scripts/build_ecmwf_ens_u60.py --output /tmp/strato-ens/data/stratosphere/ecmwf/ens_current.json
+      - name: Verify original model and 51-member completeness
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.build_ecmwf_ens_u60 import validate
+          j=json.loads(Path("/tmp/strato-ens/data/stratosphere/ecmwf/ens_current.json").read_text())
+          assert validate(j) and j["member_count"]==51 and j["perturbed_count"]==50
+          assert j["stream_ensemble"]=="enfo/ef" and j["stream_control"]=="oper/fc"
+          print("Fully verified EPS:",j["cycle_utc"],len(j["valid_dates"]),"dates")
+          PY
+      - name: Publish only complete, fresh ECMWF ENS
+        run: |
+          set -euo pipefail
+          cd /tmp/strato-ens
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/stratosphere/ecmwf/ens_current.json .nojekyll
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Verified ECMWF ENS 50 perturbed members plus IFS control at 60N/10hPa"
+          if git ls-remote --exit-code origin refs/heads/stratosphere-ecmwf-ens-data >/dev/null 2>&1; then
+            git pull --rebase origin stratosphere-ecmwf-ens-data
+          fi
+          git push origin HEAD:refs/heads/stratosphere-ecmwf-ens-data
