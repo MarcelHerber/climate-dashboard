@@ -200,6 +200,9 @@ grep -q 'id="stratoWinterStatsCard"' _site/stratosphaere.html
 grep -q 'id="stratoProbCanvas"' _site/stratosphaere.html
 grep -q 'id="stratoEpsTab"' _site/stratosphaere.html
 grep -q 'id="stratoCompareCanvas"' _site/stratosphaere.html
+grep -q 'id="stratoGefsCycle"' _site/stratosphaere.html
+grep -q 'id="stratoEpsCycle"' _site/stratosphaere.html
+grep -q 'id="stratoCompareHour"' _site/stratosphaere.html
 grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
