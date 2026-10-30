@@ -14,6 +14,8 @@ required_root_files=(
   dashboard_theme.js
   mobile_navigation.css
   mobile_navigation.js
+  mobile_content.css
+  mobile_content.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -113,9 +115,13 @@ done
 python scripts/inject_mobile_navigation.py _site
 node --check _site/mobile_navigation.js
 node --test tests/test_mobile_navigation.cjs
+node --check _site/mobile_content.js
+node --test tests/test_mobile_content.cjs
 python -m unittest discover -s tests -p test_mobile_navigation_build.py -v
 test -s _site/mobile_navigation.css
 test -s _site/mobile_navigation.js
+test -s _site/mobile_content.css
+test -s _site/mobile_content.js
 python - <<'PY'
 from pathlib import Path
 pages=sorted(Path("_site").glob("*.html"))
@@ -124,6 +130,8 @@ for p in pages:
     text=p.read_text(encoding="utf-8")
     assert text.count('mobile_navigation.css')==1,(p,'mobile CSS missing/duplicate')
     assert text.count('mobile_navigation.js')==1,(p,'mobile JS missing/duplicate')
+    assert text.count('mobile_content.css')==1,(p,'mobile chart CSS missing/duplicate')
+    assert text.count('mobile_content.js')==1,(p,'mobile chart JS missing/duplicate')
 print(f"Mobile Kategoriennavigation: alle {len(pages)} HTML-Seiten geprüft.")
 PY
 
