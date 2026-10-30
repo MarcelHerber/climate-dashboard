@@ -17,14 +17,14 @@ function percentile(values,p){
  const arr=[...values].sort((a,b)=>a-b),pos=(arr.length-1)*p,lo=Math.floor(pos);
  return arr[lo]+(arr[Math.min(arr.length-1,lo+1)]-arr[lo])*(pos-lo);
 }
-function validData(data){
+function validData(data,maxAgeHours=72){
  if(!data||data.schema_version!==1||data.provider!=="ECMWF IFS ENS"||
     data.latitude_deg!==60||data.level_hpa!==10||data.units!=="m/s"||
     data.stream_ensemble!=="enfo/ef"||data.stream_control!=="oper/fc"||
     data.member_count!==51||data.perturbed_count!==50||![0,12].includes(data.valid_hour_utc))
    throw Error("Unbekanntes EPS-Datenformat");
  if(!/^\d{4}-\d\d-\d\dT(?:00|12):00:00Z$/.test(data.cycle_utc||"")||
-    Date.now()-Date.parse(data.cycle_utc)>72*3600000||
+    Date.now()-Date.parse(data.cycle_utc)>maxAgeHours*3600000||
     Date.now()<Date.parse(data.cycle_utc))throw Error("ECMWF ENS: kein Lauf aus den letzten 72 Stunden");
  const expected=["c00",...Array.from({length:50},(_,i)=>"p"+String(i+1).padStart(2,"0"))];
  if(!Array.isArray(data.valid_dates)||data.valid_dates.length!==16||
@@ -131,7 +131,7 @@ async function indexRuns(url,provider,hours){
    return /^\d{4}-\d\d-\d\dT(?:00|06|12|18):00:00Z$/.test(cycle)&&
     /^runs\/\d{8}_\d{6}\.json$/.test(path)&&
     hours.includes(Number(cycle.slice(11,13)))&&Date.parse(cycle)<=Date.now()&&
-    Date.now()-Date.parse(cycle)<72*3600000;
+    Date.now()-Date.parse(cycle)<(provider==="ECMWF IFS ENS"?168:72)*3600000;
   }).sort((a,b)=>b.cycle_utc.localeCompare(a.cycle_utc));
  }catch(error){console.info("Ensemble-Laufindex nicht verfügbar",error);return [];}
 }
@@ -155,7 +155,7 @@ async function getEps(){
  const selection=$("stratoEpsCycle").value,run=epsCycles.find(x=>x.cycle_utc===selection);
  const response=await fetch((run?EPS_BASE+run.path:URL_EPS)+"?t="+Date.now(),{cache:"no-store"});
  if(!response.ok)throw Error("Noch kein veröffentlichtes ECMWF-ENS-Archiv (HTTP "+response.status+")");
- const found=validData(await response.json());
+ const found=validData(await response.json(),run?168:72);
  if(run&&found.cycle_utc!==run.cycle_utc)throw Error("ECMWF-ENS-Daten und Laufindex widersprechen sich");
  return found;
 }
@@ -169,7 +169,7 @@ async function compareData(model,hour){
   const response=await fetch(url+"?t="+Date.now(),{cache:"no-store"});
   if(!response.ok)return null;
   const raw=await response.json();
-  const data=isG?goodGefs(raw):validData(raw);
+  const data=isG?goodGefs(raw):validData(raw,168);
   if(!data||Number(data.cycle_utc.slice(11,13))!==hour||
     runs.length&&data.cycle_utc!==runs[0].cycle_utc)return null;
   return data;
