@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   update:
-    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[run-sst-ocean-daily]') }}
+    # Path-filtered pushes may validate and repair the daily ocean archive immediately.
     runs-on: ubuntu-latest
     timeout-minutes: 120
     concurrency:
