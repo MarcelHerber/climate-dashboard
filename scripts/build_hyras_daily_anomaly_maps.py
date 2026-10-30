@@ -70,6 +70,8 @@ def _load_reference_fields(shard_dir: Path, parameter: str):
             part_counts = np.asarray(data["counts"], dtype=np.uint8)
             years = np.asarray(data["years"], dtype=int).tolist()
             factor = int(np.asarray(data["display_factor"]).item())
+            if int(np.asarray(data["calendar_version"]).item()) != 2:
+                raise RuntimeError(f"{path}: reference shard does not cover the calendar year")
 
         if sums is None:
             refs_ref = refs
@@ -98,6 +100,8 @@ def _load_reference_fields(shard_dir: Path, parameter: str):
         counts += part_counts
         all_years.extend(years)
 
+    if codes_ref.size != 366 or 229 not in codes_ref:
+        raise RuntimeError("HYRAS: vollständige 366-Tage-Klimareferenz fehlt")
     expected = list(range(1961, 2021))
     if sorted(all_years) != expected:
         raise RuntimeError(
@@ -136,11 +140,12 @@ def _load_current(parameter: str, target: date, factor: int, work: Path):
     with xr.open_dataset(nc_path, decode_times=True) as ds:
         da, td, ydim, xdim, x, y = _unpack_prepared(module, ds)
         times = np.asarray(da[td].values).astype("datetime64[D]")
-        start = np.datetime64(f"{target.year:04d}-06-01")
+        start = np.datetime64(f"{target.year:04d}-01-01")
         stop = np.datetime64(target.isoformat())
         keep = np.flatnonzero((times >= start) & (times <= stop))
-        if keep.size == 0:
-            raise RuntimeError(f"HYRAS-{parameter}: keine Sommertage bis {target}")
+        expected_dates = np.arange(start, stop + np.timedelta64(1,"D"), dtype="datetime64[D]")
+        if not np.array_equal(times[keep], expected_dates):
+            raise RuntimeError(f"HYRAS-{parameter}: fehlende oder doppelte Kalendertage bis {target}")
         sampled = da.isel({
             td: keep,
             ydim: slice(None, None, factor),
@@ -326,7 +331,10 @@ def build_maps(
         except Exception:
             previous = {}
 
-    result_dates = dict(previous.get("dates") or {})
+    result_dates = {
+        day: refs for day, refs in (previous.get("dates") or {}).items()
+        if day.startswith(f"{target.year:04d}-")
+    }
     rendered = 0
 
     for current_index, target_text in enumerate(dates):
@@ -350,7 +358,7 @@ def build_maps(
                 / f"{target_text}.png"
             )
             output = out_root / rel
-            if not output.exists():
+            if not output.is_file() or output.stat().st_size == 0:
                 _render(
                     anomaly,
                     rx,
@@ -376,8 +384,20 @@ def build_maps(
         for value, refs in result_dates.items()
         if all(ref in refs for ref in REFERENCES)
     )
+    expected_dates = np.arange(
+        np.datetime64(f"{target.year}-01-01"),
+        np.datetime64(target.isoformat()) + np.timedelta64(1, "D"),
+        dtype="datetime64[D]",
+    ).astype(str).tolist()
+    if available_dates != expected_dates:
+        raise RuntimeError(
+            f"HYRAS-{parameter}: Tageskartenlücke, erwartet {len(expected_dates)} Tage, "
+            f"vorhanden {len(available_dates)}"
+        )
     manifest = {
         "schema_version": 1,
+        "calendar_version": 2,
+        "start_date": f"{target.year}-01-01",
         "parameter": parameter,
         "data_through": target.isoformat(),
         "references": list(REFERENCES),
