@@ -7,9 +7,11 @@
   body.cd-mobile-ready{min-width:0}
   body.cd-mobile-ready .mobile-tab-navigation{display:none!important}
   body.cd-mobile-ready:not(.cd-mobile-home)>header{display:none!important}
-  .cdm-root{display:block}
+  /* The wrapper must be sticky (not its child), otherwise it cannot
+     stick beyond its own 58px container while scrolling standalone pages. */
+  .cdm-root{display:block;position:sticky;top:0;z-index:3500}
   .cdm-mobile-bar{
-    box-sizing:border-box;position:sticky;top:0;z-index:3500;
+    box-sizing:border-box;position:relative;z-index:3500;
     display:flex;align-items:center;justify-content:space-between;gap:12px;
     min-height:58px;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));
     background:#f9fbfd;color:#152b42;border-bottom:1px solid #dbe4ec;
@@ -139,6 +141,38 @@
   body.cd-mobile-ready .strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   body.cd-mobile-home .dashboard-brand-title{max-width:150px}
   .cdm-drawer{width:min(400px,95vw);border-radius:10px 0 0 10px}
+}
+@media(max-width:800px){
+  html[data-theme="dark"] .cdm-mobile-bar,
+  html[data-theme="dark"] .cdm-drawer{
+    background:#172438;color:#eaf1fa;border-color:#35465b;
+  }
+  html[data-theme="dark"] .cdm-brand,
+  html[data-theme="dark"] .cdm-category-summary,
+  html[data-theme="dark"] .cdm-drawer-title strong{
+    color:#eaf1fa;
+  }
+  html[data-theme="dark"] .cdm-trigger,
+  html[data-theme="dark"] .cdm-close,
+  html[data-theme="dark"] .cdm-item,
+  html[data-theme="dark"] .cdm-search,
+  html[data-theme="dark"] .cdm-category-count{
+    background:#233b57;color:#eaf1fa;border-color:#435a73;
+  }
+  html[data-theme="dark"] .cdm-item:hover,
+  html[data-theme="dark"] .cdm-item[aria-current="page"],
+  html[data-theme="dark"] .cdm-category-summary:hover{
+    background:#315478;color:#ffffff;
+  }
+  html[data-theme="dark"] .cdm-drawer-head,
+  html[data-theme="dark"] .cdm-category{
+    border-color:#35465b;
+  }
+  html[data-theme="dark"] .cdm-drawer-title small,
+  html[data-theme="dark"] .cdm-search-label,
+  html[data-theme="dark"] .cdm-section-title,
+  html[data-theme="dark"] .cdm-category-count,
+  html[data-theme="dark"] .cdm-search-group{color:#afc5d8}
 }
 @media(prefers-reduced-motion:reduce){
   .cdm-trigger,.cdm-item,.cdm-drawer{transition:none!important}
