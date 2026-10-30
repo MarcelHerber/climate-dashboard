@@ -11,6 +11,8 @@ on:
       - "stratosphere_ecmwf_runs.js"
       - "stratosphere_ecmwf_ens.js"
       - "stratosphere_run_trends.js"
+      - "stratosphere_reversal_diagnostics.js"
+      - "tests/test_stratosphere_reversal_diagnostics.cjs"
       - "tests/test_stratosphere_run_trends.cjs"
       - "scripts/build_ecmwf_ens_u60.py"
       - "tests/test_ecmwf_ens_u60.py"
@@ -55,6 +57,8 @@ jobs:
           node --check stratosphere_ecmwf_ens.js
           node --check stratosphere_run_trends.js
           node --test tests/test_stratosphere_run_trends.cjs
+          node --check stratosphere_reversal_diagnostics.js
+          node --test tests/test_stratosphere_reversal_diagnostics.cjs
           node --check stratosphere_winter_stats.js
           node --check stratosphere_gefs_probability.js
           node --test tests/test_stratosphere_rank_probability.cjs
@@ -90,6 +94,11 @@ jobs:
           assert 'id="stratoHeatTable"' in page
           assert 'id="stratoHeatPng"' in page
           assert 'id="stratoHeatCsv"' in page
+          assert "stratosphere_reversal_diagnostics.js" in page
+          assert 'id="stratoReversalDiagnostics"' in page
+          assert 'id="stratoDiagOnset"' in page
+          assert 'id="stratoDiagDuration"' in page
+          assert 'id="stratoDiagCsv"' in page
           assert "stratosphere_run_trends.js" in page
           assert "stratosphere_winter_stats.js" in page
           assert "stratosphere_gefs_probability.js" in page
