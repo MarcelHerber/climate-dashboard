@@ -9,27 +9,30 @@ import argparse
 from pathlib import Path
 import re
 
-VERSION="20261030-mobile-categories-v1"
+VERSION="20261030-mobile-categories-v2"
 STYLE=f'<link rel="stylesheet" href="mobile_navigation.css?v={VERSION}">'
+CONTENT_STYLE=f'<link rel="stylesheet" href="mobile_content.css?v={VERSION}">'
 SCRIPT=f'<script defer src="mobile_navigation.js?v={VERSION}"></script>'
+CONTENT_SCRIPT=f'<script defer src="mobile_content.js?v={VERSION}"></script>'
 
 
 def inject(content: str) -> str:
-    """Idempotent layout-only injection, fail closed on malformed HTML."""
-    if "mobile_navigation.css" not in content:
-        if not re.search(r"</head\s*>",content,re.I):
-            raise ValueError("HTML closing head tag missing")
-        content=re.sub(r"</head\s*>",lambda match:STYLE+"\n"+match.group(0),
-                       content,count=1,flags=re.I)
-    if "mobile_navigation.js" not in content:
-        if not re.search(r"</body\s*>",content,re.I):
-            raise ValueError("HTML closing body tag missing")
-        content=re.sub(r"</body\s*>",lambda match:SCRIPT+"\n"+match.group(0),
-                       content,count=1,flags=re.I)
-    if content.count("mobile_navigation.css")!=1 or content.count("mobile_navigation.js")!=1:
-        raise ValueError("Duplicate mobile navigation asset reference")
+    """Idempotent injection of navigation and mobile-only visual improvements."""
+    assets = (
+        ("mobile_navigation.css", STYLE, r"</head\s*>"),
+        ("mobile_content.css", CONTENT_STYLE, r"</head\s*>"),
+        ("mobile_navigation.js", SCRIPT, r"</body\s*>"),
+        ("mobile_content.js", CONTENT_SCRIPT, r"</body\s*>"),
+    )
+    for name, tag, closing in assets:
+        if name not in content:
+            if not re.search(closing, content, re.I):
+                raise ValueError(f"HTML closing tag missing for {name}")
+            content=re.sub(closing,lambda match:tag+"\n"+match.group(0),
+                           content,count=1,flags=re.I)
+        if content.count(name)!=1:
+            raise ValueError(f"Missing or duplicate mobile asset: {name}")
     return content
-
 
 def deploy(output: Path) -> list[str]:
     if not output.is_dir():
@@ -38,6 +41,9 @@ def deploy(output: Path) -> list[str]:
         raise FileNotFoundError(output/"mobile_navigation.js")
     if not (output/"mobile_navigation.css").is_file():
         raise FileNotFoundError(output/"mobile_navigation.css")
+    for asset in ("mobile_content.js", "mobile_content.css"):
+        if not (output/asset).is_file():
+            raise FileNotFoundError(output/asset)
     pages=sorted(output.glob("*.html"))
     if not pages or not (output/"index.html").exists():
         raise RuntimeError("Pages output missing index.html")
