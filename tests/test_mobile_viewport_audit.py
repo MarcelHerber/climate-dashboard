@@ -35,6 +35,9 @@ class MobileViewportPreparationTests(unittest.TestCase):
         self.assertIn('id="mobileTabSelect"',index)
         mosmix=M.static_document(ROOT,"mosmix.html")
         self.assertIn('data-mosmix-standalone="1"',mosmix)
+        self.assertIn('id="mosmixMap"',mosmix)
+        self.assertIn('id="mosmixTempChart"',mosmix)
+        self.assertIn('.mosmix-controls',mosmix)
         strato=M.static_document(ROOT,"stratosphaere.html")
         self.assertIn('id="stratoHeatmap"',strato)
 
