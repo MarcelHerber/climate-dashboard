@@ -33,6 +33,23 @@ def check(page, label):
     assert result["sectionWidth"] > 250, f"{label}: HYRAS section width too small"
     assert not result["overflowing"], f"{label}: HYRAS spills horizontally"
 
+    # Also exercise the dynamically mounted daily calendar panel directly.
+    page.evaluate("""() => {
+      if (!document.getElementById('hyrasDailyAnomalyPanel')) {
+        if (typeof hyrasDailyAnomalyPanelHtml !== 'function')
+          throw new Error('Daily panel template missing');
+        document.querySelector('#hyras').insertAdjacentHTML(
+          'beforeend', hyrasDailyAnomalyPanelHtml('tmean')
+        );
+      }
+    }""")
+    panel = page.locator("#hyrasDailyAnomalyPanel")
+    panel.scroll_into_view_if_needed()
+    panel.screenshot(path=str(OUT / f"{label}-daily-panel.png"))
+    assert page.locator("#hyrasDailyAnomalyCalendar").count() == 1
+    overflow = panel.evaluate("(el) => el.scrollWidth > el.clientWidth + 5")
+    assert not overflow, f"{label}: Daily calendar panel spills horizontally"
+
 
 def main():
     with sync_playwright() as pw:
