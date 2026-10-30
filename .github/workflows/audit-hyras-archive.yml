@@ -1,0 +1,47 @@
+name: HYRAS-Archive und Metadaten prüfen
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/check_hyras_integrity.py"
+      - "tests/test_hyras_integrity.py"
+      - ".github/workflows/audit-hyras-archive.yml"
+  schedule:
+    - cron: "15 7 * * 0"
+  workflow_run:
+    workflows: ["HYRAS 1-km-Tagesarchiv bauen"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Audit-Tests
+        run: python -m unittest discover -s tests -p 'test_hyras_integrity.py'
+      - name: Veröffentlichte HYRAS-Indizes abrufen
+        run: |
+          git fetch origin hyras-data --depth=1
+          git worktree add --detach /tmp/hyras-audit origin/hyras-data
+      - name: Jahresabdeckung, Gitter, Referenzperioden und Datenstände prüfen
+        run: |
+          python scripts/check_hyras_integrity.py \
+            --data-root /tmp/hyras-audit \
+            --report /tmp/hyras-integrity-report.json
+      - name: Prüfprotokoll sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-integrity-report
+          path: /tmp/hyras-integrity-report.json
+          if-no-files-found: warn
+          retention-days: 30
