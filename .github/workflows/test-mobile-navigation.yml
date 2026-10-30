@@ -6,9 +6,12 @@ on:
     paths:
       - mobile_navigation.js
       - mobile_navigation.css
+      - mobile_content.js
+      - mobile_content.css
       - scripts/inject_mobile_navigation.py
       - scripts/build_pages_site.sh
       - tests/test_mobile_navigation.cjs
+      - tests/test_mobile_content.cjs
       - tests/test_mobile_navigation_build.py
       - .github/workflows/test-mobile-navigation.yml
   workflow_dispatch:
@@ -25,8 +28,11 @@ jobs:
       - name: Syntaktische Prüfung
         run: |
           node --check mobile_navigation.js
+          node --check mobile_content.js
           python -m py_compile scripts/inject_mobile_navigation.py
       - name: Interne Tabs, externe Unterseiten und mobiles Menü prüfen
-        run: node --test tests/test_mobile_navigation.cjs
+        run: |
+          node --test tests/test_mobile_navigation.cjs
+          node --test tests/test_mobile_content.cjs
       - name: Vollständige und idempotente HTML-Integration prüfen
         run: python -m unittest discover -s tests -p test_mobile_navigation_build.py -v
