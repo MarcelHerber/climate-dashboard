@@ -234,3 +234,71 @@ html[data-theme="dark"] :is(
 html[data-theme="dark"] :is(.sg-image-link,.sst-europe-map-shell,.era5-atmos-image-wrap){
   background:#1d2d43;border-color:var(--border)
 }
+
+
+/* HYRAS: konsistente Steuerung, Kartenrahmen und historische 1-km-Karten. */
+#hyras .controls{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));
+  gap:12px;
+  align-items:end
+}
+#hyras .controls .control-group{min-width:0}
+#hyras .controls :is(select,input){width:100%;max-width:100%}
+#hyras .hyras-custom-range{
+  border-radius:10px;
+  background:var(--card,#fff);
+  border-color:var(--border,#dce3e8);
+  gap:12px 16px
+}
+#hyras .hyras-custom-range .control-group{min-width:min(100%,160px)}
+#hyras .hyras-map-card{
+  background:var(--card,#fff);
+  border-color:var(--border,#dce3e8);
+  box-shadow:0 1px 5px rgba(17,24,39,.06)
+}
+#hyras .hyras-map-frame{
+  width:100%;
+  min-height:clamp(320px,55vh,620px);
+  padding:clamp(5px,1.2vw,14px);
+  background:var(--page,#f6f8fa);
+  border-color:var(--border,#dce3e8);
+  box-sizing:border-box
+}
+#hyras .hyras-map-frame > img{width:100%;max-height:900px;object-fit:contain}
+#hyras .hyras-hist1km-wrap{
+  box-sizing:border-box;
+  border-radius:8px;
+  padding:clamp(8px,1.5vw,18px);
+  background:var(--card,#fff);
+  color:var(--text,#1f2937)
+}
+#hyras .hyras-hist1km-title{
+  font-size:clamp(16px,1.5vw,21px);
+  line-height:1.35;
+  color:var(--text,#1f2937)
+}
+#hyras :is(.hyras-hist1km-subtitle,.hyras-hist1km-note,.hyras-hist1km-legend){
+  color:var(--muted,#536173)
+}
+#hyras .hyras-hist1km-map{
+  max-width:100%;
+  box-sizing:border-box;
+  background-color:#fff; /* Raster- und Kartenfarben nicht durch Dark Mode verändern */
+}
+#hyras .hyras-map-actions{justify-content:flex-end}
+#hyras .hyras-status{line-height:1.5}
+html[data-theme="dark"] #hyras .hyras-map-actions a{
+  background:#233650;color:var(--text);border-color:var(--border)
+}
+html[data-theme="dark"] #hyras .hyras-map-frame{background:#101c2c}
+@media(max-width:640px){
+  #hyras .controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #hyras .hyras-map-card{padding:8px}
+  #hyras .hyras-map-frame{min-height:260px;padding:4px}
+  #hyras .hyras-custom-range{padding:10px}
+  #hyras .hyras-map-actions{justify-content:center}
+}
+@media(max-width:390px){
+  #hyras .controls{grid-template-columns:minmax(0,1fr)}
+}
