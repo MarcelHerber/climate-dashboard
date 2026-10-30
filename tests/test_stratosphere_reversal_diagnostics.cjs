@@ -121,6 +121,9 @@ test("initial negative spell remains observable even if a second later crossing 
  assert.equal(initial.consecutiveNegative,3);
  assert.equal(initial.maxNegativeRun,3);
  assert.equal(initial.recoveryIndex,3);
+ assert.equal(initial.recoveryAfterNewIndex,6);
+ assert.equal(initial.newCrossRightCensored,false);
+ assert.equal(r.recovery,1);
  assert.equal(r.newCrossings,1);
  assert.equal(r.baseline,1);
  assert.equal(r.long3,1);
