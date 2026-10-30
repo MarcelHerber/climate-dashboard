@@ -409,6 +409,9 @@ def main() -> int:
                     "root_type=", type(payload).__name__,
                     "root_keys=", sorted(payload.keys())[:16] if isinstance(payload, dict) else [],
                     "property_keys=", sorted(flat)[:45],
+                    "other_keys=", sorted(k for k in flat if not k.startswith("data"))[:30],
+                    "data_samples=", [(k, repr(v)[:200]) for k, v in
+                                     list((example.get("properties") or {}).items())[:7]],
                     "geometry_type=", geometry.get("type") if isinstance(geometry, dict) else None,
                     "coordinates=", geometry.get("coordinates") if isinstance(geometry, dict) else None,
                     flush=True,
