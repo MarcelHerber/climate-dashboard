@@ -8,7 +8,6 @@ const CHART_ID="climateMobileLegibilityV1";
 const charts=new WeakMap();
 let chartCtor=null;
 let resizePending=false;
-let resizeQueued=false;
 const match=query=>typeof window.matchMedia==="function"&&window.matchMedia(query).matches;
 function isSmall(){return match(MQ)}
 function parseFontSize(value){return Number.isFinite(value)?value:null}
