@@ -124,6 +124,15 @@ def build(output, now=None):
             if old.get("cycle_utc", "")>cycle.strftime("%Y-%m-%dT%H:00:00Z"):
                 raise RuntimeError("Never overwrite a newer published ECMWF ENS run")
         except (OSError,ValueError): pass
+    if output.is_file():
+        try:
+            previous=json.loads(output.read_text(encoding="utf-8"))
+            if (previous.get("cycle_utc")==cycle.strftime("%Y-%m-%dT%H:00:00Z")
+                    and validate(previous,now)
+                    and (output.parent/"ens_index.json").is_file()):
+                LOG.info("Already published complete ECMWF ENS %s; skipping duplicate downloads",previous["cycle_utc"])
+                return previous
+        except (OSError,ValueError): pass
     client = Client(source="ecmwf", model="ifs", resol="0p25")
     members = {key: [] for key in MEMBERS}
     with tempfile.TemporaryDirectory(prefix="ecmwf-ens-") as td:
