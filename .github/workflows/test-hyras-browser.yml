@@ -1,0 +1,42 @@
+name: HYRAS responsive Browser-Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "index.html"
+      - "dashboard_theme.css"
+      - "tests/test_hyras_browser.py"
+      - ".github/workflows/test-hyras-browser.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser-Test vorbereiten
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Lokale Dashboard-Seite starten
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 >/tmp/hyras-server.log 2>&1 &
+          sleep 2
+          curl --fail http://127.0.0.1:8765/index.html -o /dev/null
+      - name: Desktop- und Smartphone-Ansichten prüfen
+        run: python tests/test_hyras_browser.py
+      - name: Screenshots bereitstellen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyras-responsive-browser-screenshots
+          path: hyras-browser-snapshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
