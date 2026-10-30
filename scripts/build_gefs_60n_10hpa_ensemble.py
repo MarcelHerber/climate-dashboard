@@ -148,108 +148,187 @@ def choose_cycle():
     raise RuntimeError("No verifiable NOAA GEFS 10 hPa cycle reaching 16 days")
 
 
-def build(output,workers):
+def verified(data):
+    """Check every original member, date and quantile before reusing archived bytes."""
+    try:
+        if (data.get("provider")!="NOAA GEFS" or data.get("level_hpa")!=10 or
+            data.get("latitude_deg")!=60 or data.get("units")!="m/s"):
+            return False
+        run=datetime.fromisoformat(data["cycle_utc"].replace("Z","+00:00"))
+        if run.hour not in (0,6,12,18) or run.minute:
+            return False
+        horizon=data["forecast_horizon_days"]
+        if horizon not in (16,35) or (horizon==35 and run.hour!=0):
+            return False
+        dates=data["valid_dates"]
+        expected=[(run+timedelta(days=i)).strftime("%Y-%m-%d") for i in range(horizon+1)]
+        if dates!=expected or data.get("member_count")!=31:
+            return False
+        members=data["members"]
+        if set(members)!=set(MEMBERS):
+            return False
+        if not all(isinstance(v,list) and len(v)==len(dates) and
+                   all(isinstance(x,(int,float)) and np.isfinite(x) and -150<x<170 for x in v)
+                   for v in members.values()):
+            return False
+        expected_quantiles=("mean","p05","p25","p75","p95")
+        if any(len(data.get("quantiles",{}).get(k,[]))!=len(dates) for k in expected_quantiles):
+            return False
+        return True
+    except (TypeError,KeyError,ValueError,OverflowError):
+        return False
+
+
+def load_valid(path):
+    if path.is_file():
+        try:
+            data=json.loads(path.read_text(encoding="utf-8"))
+            if verified(data):
+                return data
+        except (OSError,ValueError): pass
+    return None
+
+
+def archive_name(cycle):
+    return cycle.strftime("%Y%m%d_%H%M%S")+".json"
+
+
+def publish(output,data):
+    """Atomic publication; an older 35-day enhancement never replaces today's forecast."""
+    if not verified(data):
+        raise RuntimeError("Refusing incomplete GEFS ensemble")
     output.mkdir(parents=True,exist_ok=True)
-    run,days=choose_cycle()
-    hours=tuple(range(0,days*24+1,24))
-    manifest_path=output/"gefs_current.json"
     history_dir=output/"runs"
     history_dir.mkdir(parents=True,exist_ok=True)
-    if manifest_path.is_file():
-        try:
-            existing=json.loads(manifest_path.read_text())
-            if existing.get("cycle_utc")==run.isoformat().replace("+00:00","Z") and existing.get("forecast_horizon_days",0)>=days:
-                if len(existing.get("valid_dates",[]))==existing["forecast_horizon_days"]+1 and len(existing.get("members",{}))==31:
-                    LOG.info("Already published complete 60N GEFS ensemble");return
-        except (OSError,ValueError,KeyError):
-            pass
+    current=output/"gefs_current.json"
+    old=load_valid(current)
+    if old and old["cycle_utc"]!=data["cycle_utc"]:
+        previous=history_dir/archive_name(datetime.fromisoformat(old["cycle_utc"].replace("Z","+00:00")))
+        if not previous.is_file():
+            previous.write_text(json.dumps(old,ensure_ascii=False,allow_nan=False,separators=(",",":"))+"\n",encoding="utf-8")
+    cycle=datetime.fromisoformat(data["cycle_utc"].replace("Z","+00:00"))
+    target=history_dir/archive_name(cycle)
+    staged=target.with_suffix(".tmp")
+    staged.write_text(json.dumps(data,ensure_ascii=False,allow_nan=False,separators=(",",":"))+"\n",encoding="utf-8")
+    staged.replace(target)
+    if old is None or data["cycle_utc"]>=old["cycle_utc"]:
+        staged=current.with_suffix(".tmp")
+        staged.write_text(json.dumps(data,ensure_ascii=False,allow_nan=False,separators=(",",":"))+"\n",encoding="utf-8")
+        staged.replace(current)
+    records=[]
+    for file in history_dir.glob("*.json"):
+        saved=load_valid(file)
+        if saved:
+            records.append({"cycle_utc":saved["cycle_utc"],"path":"runs/"+file.name,
+                            "forecast_horizon_days":saved["forecast_horizon_days"]})
+    records.sort(key=lambda r:r["cycle_utc"],reverse=True)
+    for item in records[12:]:
+        (history_dir/Path(item["path"]).name).unlink(missing_ok=True)
+    if not records:
+        raise RuntimeError("GEFS archive was not published")
+    manifest={"schema_version":1,"provider":"NOAA GEFS",
+              "latest_cycle_utc":load_valid(current)["cycle_utc"],"runs":records[:12]}
+    idx=output/"gefs_index.json"
+    tmp=idx.with_suffix(".tmp")
+    tmp.write_text(json.dumps(manifest,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
+    tmp.replace(idx)
+    LOG.info("GEFS archive %d verified runs; newest=%s; current=%s",
+             len(records),records[0]["cycle_utc"],manifest["latest_cycle_utc"])
+    return manifest
+
+
+def build_cycle(output,workers,run,days):
+    output.mkdir(parents=True,exist_ok=True)
+    hours=tuple(range(0,days*24+1,24))
+    history=output/"runs"/archive_name(run)
+    stored=load_valid(history)
+    latest=load_valid(output/"gefs_current.json")
+    if not stored and latest and latest["cycle_utc"]==run.isoformat().replace("+00:00","Z"):
+        stored=latest
+    if stored and stored["forecast_horizon_days"]>=days:
+        LOG.info("Complete %d-day GEFS run already archived: %s",days,run)
+        return publish(output,stored)
+    # When the slow 35-day extension becomes available, reuse the exact
+    # already verified same-cycle 16-day original member values.
+    old_days=stored["forecast_horizon_days"] if stored else -1
+    required=hours if not stored else tuple(h for h in hours if h>old_days*24)
     results={member:{} for member in MEMBERS}
-    tasks=[(member,lead) for lead in hours for member in MEMBERS]
-    # Limit parallel calls to respect NOAA NOMADS fair-use expectations.
+    if stored:
+        for member in MEMBERS:
+            for i,value in enumerate(stored["members"][member]):
+                results[member][i*24]=value
+    LOG.info("GEFS %s: %d new genuine GRIB downloads (existing %d days reused)",
+             run,len(required)*len(MEMBERS),max(0,old_days))
+    tasks=[(member,lead) for lead in required for member in MEMBERS]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures={pool.submit(fetch_wind,run,member,lead):(member,lead)
-                 for member,lead in tasks}
+        futures={pool.submit(fetch_wind,run,member,lead):(member,lead) for lead in required for member in MEMBERS}
         for completed,future in enumerate(as_completed(futures),start=1):
             member,lead,value=future.result()
             results[member][lead]=value
             if completed%31==0 or completed==len(tasks):
-                LOG.info("GEFS 60N/10hPa: %d/%d genuine members×days downloaded",completed,len(tasks))
+                LOG.info("GEFS %s: %d/%d member×day original fields",run,completed,len(tasks))
     for member in MEMBERS:
         if set(results[member])!=set(hours):
-            raise RuntimeError(f"GEFS member {member} incomplete: cannot publish")
-    daily={member:[results[member][lead] for lead in hours] for member in MEMBERS}
-    dates=[(run+timedelta(hours=h)).strftime("%Y-%m-%d") for h in hours]
-    # Real member-derived quantiles; no smooth synthetic traces.
-    values=np.array([daily[member] for member in MEMBERS],dtype=np.float64)
-    mean=np.mean(values,axis=0)
+            raise RuntimeError(f"Incomplete GEFS member {member}: refusing publish")
+    daily={member:[results[member][h] for h in hours] for member in MEMBERS}
+    values=np.array([daily[key] for key in MEMBERS],dtype=np.float64)
     percentiles=np.percentile(values,[5,25,75,95],axis=0)
     data={
-        "schema_version":1,
-        "provider":"NOAA GEFS","model":"GEFS 0.5°","level_hpa":LEVEL_HPA,
-        "latitude_deg":LATITUDE,"parameter":"zonal_mean_u_wind",
-        "units":"m/s","native_resolution_degrees":0.5,
+        "schema_version":1,"provider":"NOAA GEFS","model":"GEFS 0.5°",
+        "level_hpa":LEVEL_HPA,"latitude_deg":LATITUDE,
+        "parameter":"zonal_mean_u_wind","units":"m/s",
+        "native_resolution_degrees":0.5,
         "cycle_utc":run.isoformat().replace("+00:00","Z"),
         "generated_utc":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
         "forecast_horizon_days":days,"forecast_interval_hours":24,
-        "valid_dates":dates,"members":daily,"member_count":len(MEMBERS),
+        "valid_dates":[(run+timedelta(hours=h)).strftime("%Y-%m-%d") for h in hours],
+        "members":daily,"member_count":len(MEMBERS),
         "quantiles":{
-            "mean":np.round(mean,3).tolist(),
-            "p05":np.round(percentiles[0],3).tolist(),
-            "p25":np.round(percentiles[1],3).tolist(),
-            "p75":np.round(percentiles[2],3).tolist(),
-            "p95":np.round(percentiles[3],3).tolist(),
+          "mean":np.round(np.mean(values,axis=0),3).tolist(),
+          "p05":np.round(percentiles[0],3).tolist(),
+          "p25":np.round(percentiles[1],3).tolist(),
+          "p75":np.round(percentiles[2],3).tolist(),
+          "p95":np.round(percentiles[3],3).tolist(),
         },
-        "method":"Arithmetic mean of the zonal U wind component at 60.0°N, 10 hPa over 720 longitudes (0.5°). Not wind speed.",
-        "source":"NOAA NOMADS GEFS 0.5-degree pgrb2a, UGRD 10mb, c00 and p01-p30",
-        "climatology_source":"NASA Ozone Watch 1991-2020, separately retrieved by client",
+        "method":"Arithmetic mean of signed U component on 60N / 10hPa, all 720 longitudes",
+        "source":"NOAA NOMADS GEFS 0.5 degree pgrb2a UGRD 10mb c00,p01-p30",
+        "climatology_source":"NASA Ozone Watch 1991-2020"
     }
-    if len(data["valid_dates"])<17 or len(data["members"])!=31:
-        raise RuntimeError("GEFS publication blocked by incomplete dataset")
-    # Keep a small rolling archive; never combine values from distinct cycles.
-    previous=None
-    if manifest_path.is_file():
-        try: previous=json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError,ValueError): pass
-    if previous and previous.get("cycle_utc") and previous["cycle_utc"]>data["cycle_utc"]:
-        LOG.warning("Skipping outdated fallback %s, newer %s is already published",
-                    data["cycle_utc"],previous["cycle_utc"])
-        return
-    if previous and previous.get("cycle_utc") and len(previous.get("members",{}))==31:
-        oldkey=previous["cycle_utc"].replace("-","").replace(":","").replace("T","_").replace("Z","")
-        oldfile=history_dir/(oldkey+".json")
-        if not oldfile.exists():
-            oldfile.write_text(json.dumps(previous,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
-    newkey=run.strftime("%Y%m%d_%H%M%S")
-    archived=history_dir/(newkey+".json")
-    archived.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
-    target=manifest_path.with_suffix(".json.tmp")
-    target.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
-    target.replace(manifest_path)
-    records=[]
-    for item in history_dir.glob("*.json"):
-        try:
-            payload=json.loads(item.read_text(encoding="utf-8"))
-            if payload.get("provider")=="NOAA GEFS" and len(payload.get("members",{}))==31:
-                records.append(dict(cycle_utc=payload["cycle_utc"],
-                    path="runs/"+item.name,forecast_horizon_days=payload["forecast_horizon_days"]))
-        except (ValueError,OSError,KeyError):continue
-    records.sort(key=lambda obj:obj["cycle_utc"],reverse=True)
-    for stale in records[12:]:
-        (history_dir/Path(stale["path"]).name).unlink(missing_ok=True)
-    index={"schema_version":1,"provider":"NOAA GEFS","runs":records[:12],
-           "latest_cycle_utc":records[0]["cycle_utc"]}
-    (output/"gefs_index.json").write_text(json.dumps(index,separators=(",",":"))+"\n",encoding="utf-8")
-    LOG.info("PUBLISHED real GEFS ensemble %s, %d members, %d days",run,len(MEMBERS),days)
+    if not verified(data):
+        raise RuntimeError("Inconsistent GEFS 31-member forecast, not publishing")
+    return publish(output,data)
+
+
+def extended_cycle(now=None):
+    """The 00z f840 product may need 21+ hours beyond f384 (NOAA SCN20-75).
+    Use the most recently completed *previous-day* 00z cycle for stability.
+    """
+    now=now or datetime.now(timezone.utc)
+    return (now-timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
+
+
+def build(output,workers,mode="current"):
+    if mode=="extended":
+        run=extended_cycle()
+        # Early test avoids creating partial archived member files.
+        fetch_wind(run,"c00",840)
+        fetch_wind(run,"p30",840)
+        return build_cycle(output,workers,run,35)
+    if mode!="current":
+        raise ValueError("Unrecognized GEFS build mode")
+    run,days=choose_cycle()
+    return build_cycle(output,workers,run,days)
 
 
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--max-workers",type=int,default=2)
+    p.add_argument("--mode",choices=("current","extended"),default="current")
     a=p.parse_args()
     if not 1<=a.max_workers<=3:raise SystemExit("--max-workers must be between 1 and 3")
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
-    build(a.out,a.max_workers)
+    build(a.out,a.max_workers,a.mode)
 
 
 if __name__=="__main__":
