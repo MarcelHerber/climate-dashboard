@@ -9,6 +9,9 @@ on:
       - "stratosphere_temperature.js"
       - "stratosphere_ensemble.js"
       - "stratosphere_ecmwf_runs.js"
+      - "stratosphere_ecmwf_ens.js"
+      - "scripts/build_ecmwf_ens_u60.py"
+      - "tests/test_ecmwf_ens_u60.py"
       - "stratosphere_winter_stats.js"
       - "stratosphere_gefs_probability.js"
       - "tests/test_stratosphere_rank_probability.cjs"
@@ -40,12 +43,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Validate Python syntax
-        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py scripts/build_gefs_60n_10hpa_ensemble.py scripts/build_ecmwf_ifs_u60_run_archive.py
+        run: python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py scripts/build_gefs_60n_10hpa_ensemble.py scripts/build_ecmwf_ifs_u60_run_archive.py scripts/build_ecmwf_ens_u60.py
       - name: Validate JavaScript syntax
         run: |
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
           node --check stratosphere_ecmwf_runs.js
+          node --check stratosphere_ecmwf_ens.js
           node --check stratosphere_winter_stats.js
           node --check stratosphere_gefs_probability.js
           node --test tests/test_stratosphere_rank_probability.cjs
@@ -65,6 +69,9 @@ jobs:
                   subprocess.run(["node","--check",str(path)],check=True)
           assert "stratosphere_ensemble.js" in page
           assert "stratosphere_ecmwf_runs.js" in page
+          assert "stratosphere_ecmwf_ens.js" in page
+          assert 'id="stratoEpsTab"' in page
+          assert 'id="stratoCompareCanvas"' in page
           assert "stratosphere_winter_stats.js" in page
           assert "stratosphere_gefs_probability.js" in page
           assert 'id="stratoWinterStatsCard"' in page
@@ -81,5 +88,6 @@ jobs:
       - name: Check ERA5 science, four temperature levels and SSW backfill scheduling
         run: |
           python -m unittest discover -s tests -p test_ecmwf_ifs_u60_run_archive.py -v
+          python -m unittest discover -s tests -p test_ecmwf_ens_u60.py -v
           python scripts/update_era5_stratosphere.py --self-test
           python scripts/update_era5_stratosphere_stage2.py --self-test
