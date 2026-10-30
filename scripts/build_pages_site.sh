@@ -48,6 +48,7 @@ required_root_files=(
   stratosphere_ecmwf_runs.js
   stratosphere_ecmwf_ens.js
   stratosphere_run_trends.js
+  stratosphere_reversal_diagnostics.js
   stratosphere_winter_stats.js
   stratosphere_gefs_probability.js
   stratosphere_ssw_comparison.js
@@ -176,6 +177,8 @@ node --check stratosphere_ecmwf_runs.js
 node --check stratosphere_ecmwf_ens.js
 node --check stratosphere_run_trends.js
 node --test tests/test_stratosphere_run_trends.cjs
+node --check stratosphere_reversal_diagnostics.js
+node --test tests/test_stratosphere_reversal_diagnostics.cjs
 node --check stratosphere_winter_stats.js
 node --check stratosphere_gefs_probability.js
 node --check synoptic_panel_logic.js
@@ -218,6 +221,12 @@ grep -q 'id="stratoHeatStatus"' _site/stratosphaere.html
 grep -q 'id="stratoHeatDetail"' _site/stratosphaere.html
 grep -q 'id="stratoHeatPng"' _site/stratosphaere.html
 grep -q 'id="stratoHeatCsv"' _site/stratosphaere.html
+test -s _site/stratosphere_reversal_diagnostics.js
+grep -q 'stratosphere_reversal_diagnostics.js' _site/stratosphaere.html
+grep -q 'id="stratoReversalDiagnostics"' _site/stratosphaere.html
+grep -q 'id="stratoDiagOnset"' _site/stratosphaere.html
+grep -q 'id="stratoDiagDuration"' _site/stratosphaere.html
+grep -q 'id="stratoDiagCsv"' _site/stratosphaere.html
 grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
