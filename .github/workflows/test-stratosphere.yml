@@ -12,6 +12,7 @@ on:
       - "stratosphere_ecmwf_ens.js"
       - "scripts/build_ecmwf_ens_u60.py"
       - "tests/test_ecmwf_ens_u60.py"
+      - "tests/test_stratosphere_eps_probability.cjs"
       - "stratosphere_winter_stats.js"
       - "stratosphere_gefs_probability.js"
       - "tests/test_stratosphere_rank_probability.cjs"
@@ -53,6 +54,7 @@ jobs:
           node --check stratosphere_winter_stats.js
           node --check stratosphere_gefs_probability.js
           node --test tests/test_stratosphere_rank_probability.cjs
+          node --test tests/test_stratosphere_eps_probability.cjs
           node --test tests/test_stratosphere_ensemble_members.cjs
           node --test tests/test_stratosphere_forecast_focus.cjs
           node --check stratosphere_ssw_comparison.js
