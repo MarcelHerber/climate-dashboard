@@ -11,7 +11,7 @@
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
 <script defer src="stratosphere_ecmwf_runs.js?v=20261030-diagnostics"></script>
 <script defer src="stratosphere_ecmwf_ens.js?v=20261030-eps-50plus1"></script>
-<script defer src="stratosphere_run_trends.js?v=20261030-runtrends-v1"></script>
+<script defer src="stratosphere_run_trends.js?v=20261030-runtrends-heatmap-v2"></script>
 <script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
 <script defer src="stratosphere_gefs_probability.js?v=20261030-reversal"></script>
 <style>
@@ -193,6 +193,34 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 .strato-trend thead th{position:sticky;top:0;background:var(--card);color:var(--ink)}
 .strato-trend .strato-prob-actions{margin-top:12px}
 @media(max-width:750px){.strato-trend-chart{height:310px;min-height:275px}.strato-trend-controls{gap:8px}.strato-trend-controls label{flex:1 1 130px}}
+
+/* Same-valid-time GEFS and ECMWF ENS ensemble reversal heatmap (no interpolated values). */
+.strato-heatmap{border-top:1px solid var(--line);margin:22px 0 2px;padding-top:19px}
+.strato-heatmap h3{font-size:19px;margin:0 0 9px;color:var(--ink)}
+.strato-heatmap p{font-size:13px;line-height:1.6;color:var(--muted)}
+.strato-heat-scroll{overflow:auto;max-height:620px;position:relative;border:1px solid var(--line);border-radius:10px;margin:13px 0;scrollbar-gutter:stable}
+.strato-heat-table{border-collapse:separate;border-spacing:3px;width:max-content;min-width:100%;font-variant-numeric:tabular-nums}
+.strato-heat-table th{font-size:11px;font-weight:700;white-space:nowrap;text-align:center;min-width:39px;max-width:50px;color:var(--muted)}
+.strato-heat-table thead th{position:sticky;top:0;background:var(--card);height:37px;z-index:2}
+.strato-heat-table .strato-heat-sticky{position:sticky;left:0;min-width:117px;max-width:130px;padding:0 8px;text-align:left;background:var(--card);z-index:3}
+.strato-heat-table thead .strato-heat-sticky{z-index:4}
+.strato-heat-table td{padding:0;text-align:center;min-width:39px;width:44px;height:35px}
+.strato-heat-cell{display:block;border:2px solid transparent;border-radius:5px;width:100%;height:34px;cursor:pointer;font-weight:750;font-size:12px;transition:box-shadow .12s,border-color .12s}
+.strato-heat-cell:hover{border-color:#31475a;box-shadow:0 0 0 1px #ffffff80}
+.strato-heat-cell:focus-visible,.strato-heat-cell.is-selected{outline:2px solid #172d42;outline-offset:1px}
+.strato-heat-bin-0{background:#edf3f8;color:#18364d}
+.strato-heat-bin-1{background:#c5def1;color:#18364d}
+.strato-heat-bin-2{background:#85bbdd;color:#173b56}
+.strato-heat-bin-3{background:#e9d476;color:#513f18}
+.strato-heat-bin-4{background:#ed9859;color:#4f2f19}
+.strato-heat-bin-5{background:#b92d3e;color:#ffffff}
+.strato-heat-empty{display:flex;align-items:center;justify-content:center;border-radius:5px;background:#e9eaed;color:#687788;height:34px;font-size:15px}
+.strato-heat-legend{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:9px 0;font-size:12px;color:var(--muted)}
+.strato-heat-legend span{display:inline-flex;align-items:center;gap:5px}
+.strato-heat-legend i{display:inline-block;width:19px;height:13px;border:1px solid #71829955;border-radius:3px}
+.strato-heat-detail{padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:13px;color:var(--ink);line-height:1.6}
+.strato-heat-actions{display:flex;gap:9px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:11px}
+@media(max-width:750px){.strato-heat-table .strato-heat-sticky{min-width:108px}.strato-heat-scroll{max-height:460px}}
 </style>
 </head>
 <body class="strato-forecast-only">
@@ -378,6 +406,34 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
    <button class="btn" id="stratoTrendCsv" type="button" disabled>CSV exportieren</button>
   </div>
  </div>
+
+  <section class="strato-heatmap" id="stratoHeatmap" aria-label="Windumkehrwahrscheinlichkeit als Modelllauf-Heatmap">
+   <h3>Heatmap · Windumkehr von Modelllauf zu Modelllauf</h3>
+   <p><strong>Y-Achse:</strong> echte archivierte Modellläufe, neuester zuerst.
+    <strong>X-Achse:</strong> festes Gültigkeitsdatum in UTC.
+    <strong>Farbe und Zellzahl:</strong> Anteil aller 31 GEFS- bzw. 51 ECMWF-ENS-Mitglieder mit zonalem U-Wind unter 0 m/s bei 60°N / 10 hPa.
+    Die Auswahl für Ensemblemodell, UTC-Laufzeit, Laufanzahl und Prognosehorizont erfolgt über die Steuerelemente direkt oberhalb der Laufentwicklung.
+    Nur gleiche UTC-Gültigkeitsstunden werden gemeinsam angezeigt. Grau bedeutet: kein Originalwert.</p>
+   <div class="strato-heat-legend" aria-label="Feste Farbskala der Wahrscheinlichkeit">
+    <span><i class="strato-heat-bin-0"></i>0 %</span>
+    <span><i class="strato-heat-bin-1"></i>&gt;0–20 %</span>
+    <span><i class="strato-heat-bin-2"></i>&gt;20–40 %</span>
+    <span><i class="strato-heat-bin-3"></i>&gt;40–60 %</span>
+    <span><i class="strato-heat-bin-4"></i>&gt;60–80 %</span>
+    <span><i class="strato-heat-bin-5"></i>&gt;80–100 %</span>
+    <span><i style="background:#e9eaed"></i>Fehlende Daten</span>
+   </div>
+   <div class="info"><span id="stratoHeatStatus" role="status" aria-live="polite">Prüfe Original-Ensembleläufe für die Heatmap …</span></div>
+   <div class="strato-heat-scroll" tabindex="0" aria-label="Heatmap horizontal und vertikal scrollbar">
+    <table id="stratoHeatTable" class="strato-heat-table" aria-label="Originaler Anteil der Ensemblemitglieder mit U kleiner als null je Modelllauf und Gültigkeitszeit"></table>
+   </div>
+   <p id="stratoHeatDetail" class="strato-heat-detail" aria-live="polite">Zelle anklicken, um Originalwerte und Laufänderungen anzuzeigen.</p>
+   <div class="strato-heat-actions">
+    <button class="btn" id="stratoHeatPng" type="button" disabled>Heatmap als PNG</button>
+    <button class="btn" id="stratoHeatCsv" type="button" disabled>Heatmap als CSV</button>
+   </div>
+   <p class="legendnotes">Die Farbskala ist über alle Modelle und Läufe fest bei 0–100 %. Fehlende Prognosen werden weder interpoliert noch durch einen anderen Modelllauf ersetzt. Eine Umkehr des zonalen Windes ist kein eigenständiger Nachweis einer Major SSW.</p>
+  </section>
 </section>
 <section class="card" id="stratoHistoryCard">
 <h2>Verlauf des zonal gemittelten zonalen Windes</h2>
