@@ -68,6 +68,26 @@ def audit(root: Path, release_assets: dict[str, int] | None = None) -> dict:
             + (f" … insgesamt {len(missing_precip)}" if len(missing_precip) > 12 else "")
         )
     summary["precipitation_monthly_maps"] = len(years) * 12 - len(missing_precip)
+    # Read the 24-byte PNG header instead of decompressing 1,140 large rasters.
+    checked_png = 0
+    for year in years:
+        for month in range(1, 13):
+            path = root / "historical_1km" / str(year) / f"month_{month:02d}.png"
+            if not path.is_file():
+                continue
+            with path.open("rb") as image:
+                header = image.read(24)
+            if (
+                len(header) != 24
+                or header[:8] != bytes.fromhex("89504e470d0a1a0a")
+                or header[12:16] != b"IHDR"
+                or int.from_bytes(header[16:20], "big") != 665
+                or int.from_bytes(header[20:24], "big") != 890
+            ):
+                errors.append(f"Niederschlag {year}-{month:02d}: defekter PNG-Header oder falsche 1-km-Größe")
+            else:
+                checked_png += 1
+    summary["precipitation_png_headers_checked"] = checked_png
 
     for reference, monthly in (historic.get("reference_files_by_period") or {}).items():
         for month, rel in monthly.items():
