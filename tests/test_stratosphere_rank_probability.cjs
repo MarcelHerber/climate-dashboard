@@ -59,7 +59,7 @@ test("historical statistics: 151-day and 152-day winters, no invented missing va
  assert.equal(analyze(2023,incomplete).complete,false);
  const lines=[
    "2023-11-01 -2 0 0 0 0 0 0 0",
-   "2023-11-02 5 0 0 0 0 0 0 12",
+   "2023-11-02 5 0 0 0 0 0 0 0 12",
    "2023-11-03 -3 0 0 0 0 0 0 0",
    "2024-05-01 99 0 0 0 0 0 0 0"
  ];
