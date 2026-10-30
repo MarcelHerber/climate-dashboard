@@ -34,7 +34,7 @@ const dataMock=(fetchImpl)=>{
   const manifest={schema:2,issue_time:"2026-10-28T09:00:00Z",
     timesteps:["2026-10-28T12:00:00Z"],
     stations:Array.from({length:150},(_,i)=>({id:String(i),name:"S"+i})),
-    modes:{hourly:[{path:"maps/hourly/2026-10-28.json",slot:0,valid:"2026-10-28T12:00:00Z"}]}}};
+    modes:{hourly:[{path:"maps/hourly/2026-10-28.json",slot:0,valid:"2026-10-28T12:00:00Z"}]}};
   const {load}=dataMock(async(url)=>{
     calls.push(url);
     if(url=== "./data/mosmix/manifest.json")return {ok:true,json:async()=>manifest};
