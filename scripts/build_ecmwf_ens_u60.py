@@ -53,7 +53,7 @@ def decode_step(path, cycle, lead, perturbed):
                     raise ValueError("Unexpected field: not U wind")
                 if str(eccodes.codes_get(handle, "typeOfLevel")) != "isobaricInhPa" or int(eccodes.codes_get(handle, "level")) != 10:
                     raise ValueError("Unexpected ECMWF pressure level")
-                if int(eccodes.codes_get(handle, "dataDate")) != int(cycle.strftime("%Y%m%d")) or int(eccodes.codes_get(handle, "dataTime")) != 0:
+                if int(eccodes.codes_get(handle, "dataDate")) != int(cycle.strftime("%Y%m%d")) or int(eccodes.codes_get(handle, "dataTime")) != cycle.hour * 100:
                     raise ValueError("Unexpected ECMWF initialization")
                 if int(eccodes.codes_get(handle, "endStep")) != lead:
                     raise ValueError("Unexpected ECMWF lead hour")
@@ -86,7 +86,7 @@ def validate(payload, now=None):
             return False
         cycle = datetime.fromisoformat(payload["cycle_utc"].replace("Z", "+00:00"))
         age = now - cycle
-        if cycle.hour != 0 or cycle.minute != 0 or cycle.tzinfo is None or not timedelta(0) <= age <= timedelta(hours=MAX_AGE_HOURS):
+        if cycle.hour not in (0, 12) or cycle.minute != 0 or cycle.tzinfo is None or not timedelta(0) <= age <= timedelta(hours=MAX_AGE_HOURS):
             return False
         expected_dates = [(cycle + timedelta(hours=h)).strftime("%Y-%m-%d") for h in STEPS]
         if payload.get("valid_dates") != expected_dates:
@@ -102,7 +102,7 @@ def validate(payload, now=None):
 
 
 def request(client, cycle, lead, target, perturbed):
-    options = dict(date=cycle.strftime("%Y%m%d"), time=0, stream="enfo" if perturbed else "oper",
+    options = dict(date=cycle.strftime("%Y%m%d"), time=cycle.hour, stream="enfo" if perturbed else "oper",
                    type="ef" if perturbed else "fc", levtype="pl", levelist=10,
                    param="u", step=lead, target=str(target))
     if perturbed:
@@ -113,10 +113,17 @@ def request(client, cycle, lead, target, perturbed):
 def build(output, now=None):
     from ecmwf.opendata import Client
     now = now or datetime.now(timezone.utc)
-    cycle = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    # Do not try unannounced cycles; 00 UTC complete GRIB fields need time to publish.
-    if now - cycle < timedelta(hours=8):
-        cycle -= timedelta(days=1)
+    # All full-horizon IFS ENS runs: 00 and 12 UTC (06/18 reach only +144h).
+    # Allow processing time for complete 360h data on the public server.
+    ready = now - timedelta(hours=8)
+    cycle = ready.replace(hour=12 if ready.hour>=12 else 0,
+                          minute=0,second=0,microsecond=0)
+    if output.exists():
+        try:
+            old=json.loads(output.read_text(encoding="utf-8"))
+            if old.get("cycle_utc", "")>cycle.strftime("%Y-%m-%dT%H:00:00Z"):
+                raise RuntimeError("Never overwrite a newer published ECMWF ENS run")
+        except (OSError,ValueError): pass
     client = Client(source="ecmwf", model="ifs", resol="0p25")
     members = {key: [] for key in MEMBERS}
     with tempfile.TemporaryDirectory(prefix="ecmwf-ens-") as td:
@@ -138,9 +145,9 @@ def build(output, now=None):
         stream_control="oper/fc", resolution_degrees=0.25, parameter="u",
         level_hpa=10, latitude_deg=60, units="m/s",
         statistic="signed zonal average of the complete 1440-longitude 60N ring",
-        cycle_utc=cycle.strftime("%Y-%m-%dT00:00:00Z"),
+        cycle_utc=cycle.strftime("%Y-%m-%dT%H:00:00Z"),
         generated_utc=now.isoformat(), forecast_step_hours=STEPS,
-        forecast_horizon_days=15, valid_hour_utc=0,
+        forecast_horizon_days=15, valid_hour_utc=cycle.hour,
         valid_dates=[(cycle + timedelta(hours=lead)).strftime("%Y-%m-%d") for lead in STEPS],
         member_count=51, perturbed_count=50, members=members,
         probability_denominator=51, license="CC BY 4.0",
@@ -149,9 +156,37 @@ def build(output, now=None):
     if not validate(payload, now):
         raise ValueError("Refusing incomplete, stale or invalid IFS ENS product")
     output.parent.mkdir(parents=True, exist_ok=True)
-    stage = output.with_suffix(".tmp")
-    stage.write_text(json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    archive = output.parent / "runs"
+    archive.mkdir(parents=True, exist_ok=True)
+    previous = None
+    if output.is_file():
+        try: previous=json.loads(output.read_text(encoding="utf-8"))
+        except (OSError,ValueError): pass
+    def archive_run(run):
+        if not run or not validate(run,now) or run.get("cycle_utc")>payload["cycle_utc"]:
+            return
+        stamp=run["cycle_utc"].replace("-","").replace(":","").replace("T","_").replace("Z","")
+        file=archive/(stamp+".json")
+        file.write_text(json.dumps(run,ensure_ascii=False,allow_nan=False,separators=(",",":"))+"\n",encoding="utf-8")
+    archive_run(previous)
+    archive_run(payload)
+    stage=output.with_suffix(".tmp")
+    stage.write_text(json.dumps(payload,ensure_ascii=False,allow_nan=False,separators=(",",":"))+"\n",encoding="utf-8")
     stage.replace(output)
+    records=[]
+    for file in archive.glob("*.json"):
+        try:
+            run=json.loads(file.read_text(encoding="utf-8"))
+            if validate(run,now):
+                records.append({"cycle_utc":run["cycle_utc"],"path":"runs/"+file.name,
+                                "forecast_horizon_days":run["forecast_horizon_days"]})
+        except (ValueError,OSError,KeyError):pass
+    records.sort(key=lambda row:row["cycle_utc"],reverse=True)
+    for item in records[10:]:
+        (archive/Path(item["path"]).name).unlink(missing_ok=True)
+    index={"schema_version":1,"provider":"ECMWF IFS ENS",
+           "latest_cycle_utc":records[0]["cycle_utc"],"runs":records[:10]}
+    (output.parent/"ens_index.json").write_text(json.dumps(index,separators=(",",":"))+"\n",encoding="utf-8")
     LOG.info("Validated EPS %s, 50+1 real members x %s dates", payload["cycle_utc"], len(STEPS))
     return payload
 
