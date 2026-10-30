@@ -180,8 +180,12 @@ def audit(root: Path, release_assets: dict[str, int] | None = None) -> dict:
                 errors.append(f"{parameter}: Anomaliekarte liegt nach Live-Datenstand")
             if set(anomaly.get("references", [])) != REFERENCES:
                 errors.append(f"{parameter}: tägliche Anomalie-Referenzen fehlen")
-            if anomaly.get("data_through", "") < min(end, date(end.year, 8, 31)).isoformat() and end.month >= 6:
-                warnings.append(f"{parameter}: Sommer-Anomaliekarten bei {days[-1]} stehen geblieben")
+            if anomaly.get("calendar_version") != 2:
+                warnings.append(f"{parameter}: alte Sommer-Anomaliekarten, noch nicht ganzjährig")
+            elif days[0] != f"{end.year}-01-01" or len(days) != (end-date(end.year,1,1)).days + 1:
+                warnings.append(f"{parameter}: Tagesanomalie-Archiv unvollständig ({len(days)} Tage)")
+            if anomaly.get("data_through", "") < end.isoformat():
+                warnings.append(f"{parameter}: Tagesanomaliekarten bis {days[-1]}, Live-Daten bis {end}")
         else:
             warnings.append(f"{parameter}: keine Tagesanomaliekarten im Index")
     # Full historical temperature map index is separate from the daily archive.
