@@ -1,0 +1,53 @@
+name: Mobile Viewport Audit · Chromium Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "mobile_navigation.css"
+      - "mobile_navigation.js"
+      - "mobile_content.css"
+      - "mobile_content.js"
+      - "scripts/inject_mobile_navigation.py"
+      - "tests/audit_mobile_viewports.py"
+      - "tests/test_mobile_viewport_audit.py"
+      - ".github/workflows/audit-mobile-viewports.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  viewport-320-430:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Chromium Playwright install
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Verify source-only page preparation
+        run: python -m unittest discover -s tests -p test_mobile_viewport_audit.py -v
+      - name: Capture real HTML/CSS at 320, 360, 390 and 430 px
+        run: python tests/audit_mobile_viewports.py --output mobile_viewport_reports
+      - name: Attach viewport report to Actions summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f mobile_viewport_reports/README.md ]; then
+            cat mobile_viewport_reports/README.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Viewport screenshots unavailable: audit stopped before report generation." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save screenshots and overflow diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: climate-mobile-320-360-390-430-px
+          path: mobile_viewport_reports/
+          if-no-files-found: warn
+          retention-days: 14
