@@ -9,7 +9,9 @@
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
-<script defer src="stratosphere_ecmwf_runs.js?v=20261023-runs"></script>
+<script defer src="stratosphere_ecmwf_runs.js?v=20261030-diagnostics"></script>
+<script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
+<script defer src="stratosphere_gefs_probability.js?v=20261030-prob"></script>
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--ink:#16253c;--muted:#536478;--line:#dce3eb;--blue:#145ea3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Arial,Helvetica,sans-serif}
@@ -141,6 +143,26 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  .strato-view-switch .view-hint{flex-basis:100%;margin:0}
  #stratoEnsembleCard .forecast-main-controls{gap:10px}
 }
+.strato-ranking-scroll{overflow:auto;max-height:460px;margin:12px 0;border:1px solid var(--line);border-radius:8px}
+.strato-ranking-table{border-collapse:collapse;width:100%;min-width:780px;font-size:12px}
+.strato-ranking-table td,.strato-ranking-table th{padding:9px 10px;text-align:left;border-bottom:1px solid #e4eaf0;white-space:nowrap}
+.strato-ranking-table thead th{position:sticky;top:0;background:#eaf1f7}
+.strato-ranking-table tr.selected{background:#eaf6fe}
+.rank-winter-link{border:0;background:none;text-decoration:underline;color:#176296;padding:0;font-weight:700;cursor:pointer}
+#stratoComparisons select{min-width:132px;max-width:165px;padding:8px;font-size:13px}
+.strato-prob-panel{border-top:1px solid #dce3eb;margin-top:21px;padding-top:19px}
+.strato-prob-panel h3{font-size:18px;margin:0 0 8px}
+.strato-prob-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.strato-prob-kpis>div{border:1px solid var(--line);background:#fafcfe;border-radius:9px;padding:12px}
+.strato-prob-kpis small{display:block;color:#62758a;font-size:12px}
+.strato-prob-kpis strong{font-size:19px;display:block;margin-top:6px;color:#193a56}
+.strato-prob-chart{height:255px;position:relative;margin:12px 0}
+.strato-prob-chart canvas{width:100%!important;height:100%!important}
+.strato-prob-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#536478;font-size:12px}
+.strato-model-diagnostics{border:1px solid var(--line);background:#f8fbff;padding:12px;margin-top:15px;border-radius:9px;font-size:13px;color:#35495d}
+.strato-model-diagnostics table{border-collapse:collapse;width:100%;max-width:650px;margin-top:8px}
+.strato-model-diagnostics th,.strato-model-diagnostics td{padding:6px 9px;text-align:left;border-bottom:1px solid #dce6ee}
+@media(max-width:750px){.strato-prob-kpis{grid-template-columns:1fr}.strato-prob-chart{height:230px}}
 </style>
 </head>
 <body class="strato-forecast-only">
@@ -209,6 +231,17 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  </details>
  <div class="info"><span id="stratoEnsembleStatus" role="status" aria-live="polite">Prüfe originale Ensemble-Prognosedaten …</span></div>
  <div class="chart ensemble-chart"><canvas id="stratoEnsembleCanvas" role="img" aria-label="Zonales Windensemble 10 hPa 60 Grad Nord mit Einzelmitgliedern und Wahrscheinlichkeitsbändern"></canvas></div>
+ <div class="strato-prob-panel">
+  <h3>GEFS · Windumkehrwahrscheinlichkeit</h3>
+  <p>Verteilung der 31 Ensemblemitglieder mit zonalem U-Wind unter 0 m/s bei 60°N/10 hPa. <strong>Keine automatische Major-SSW-Wahrscheinlichkeit.</strong></p>
+  <div class="strato-prob-kpis">
+    <div><small>Mindestens eine Windumkehr</small><strong id="stratoProbAny">–</strong></div>
+    <div><small>Höchster Tagesanteil mit Ostwind</small><strong id="stratoProbPeak">–</strong></div>
+    <div><small>GEFS-Lauf</small><strong id="stratoProbCycle">–</strong></div>
+  </div>
+  <div class="strato-prob-chart"><canvas id="stratoProbCanvas" aria-label="Anteil der GEFS-Mitglieder unter 0 m/s nach Prognosetag"></canvas></div>
+  <div class="strato-prob-actions"><span id="stratoProbStatus" role="status" aria-live="polite">Warte auf gültige GEFS-Member.</span><button type="button" class="btn" id="stratoProbCsv">Wahrscheinlichkeit als CSV</button></div>
+ </div>
  <p class="legendnotes">NOAA GEFS · zonal gemittelte U-Windkomponente auf 10 hPa bei 60° N in m/s. Positive Werte: Westwind, negative: Ostwind. <a href="https://www.ecmwf.int/en/forecasts/datasets/mean-zonal-wind-10-hpa-sub-seasonal-range-forecast" target="_blank" rel="noopener noreferrer">ECMWF-46-Tage-Ensemble (separate externe Quelle)</a>.</p>
 
  </div>
@@ -227,6 +260,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <div class="info"><span id="stratoEcmwfStatus" role="status" aria-live="polite">Prüfe originale ECMWF-IFS-Prognosen …</span></div>
   <div class="chart ecmwf-chart"><canvas id="stratoEcmwfCanvas" aria-label="ECMWF IFS HRES Polarwirbel zonaler Wind 60 Nord 10 hPa über mehrere Vorhersageläufe"></canvas></div>
   <div class="ecmwf-meta" id="stratoEcmwfSummary">Prüfe verfügbare Läufe.</div>
+<div class="strato-model-diagnostics" id="stratoModelDiagnostics" aria-live="polite">Modellvergleich folgt. ECMWF-Gültigkeit 12 UTC, GEFS-Tageswerte 00 UTC.</div>
   <p class="legendnotes">ECMWF IFS Open Data · CC BY 4.0 · 0,25°-Datenraster · Prognose bis +360 h (15 Tage). Ein 30-Tage-Laufvergleich entsteht erst durch unser fortlaufendes Archiv; nicht vorhandene Läufe werden nicht rekonstruiert. Der IFS-Laufvergleich ist <strong>kein EPS-Ensemble</strong>. 0 m/s bedeutet Windumkehr am Messniveau, nicht automatisch ein bestätigtes Major SSW. Quelle: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener noreferrer">ECMWF Open Data</a>.</p>
  </div>
 </section>
@@ -235,6 +269,8 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 <div class="controls">
 <label for="level">Druckniveau<select id="level"><option value="10">10 hPa · ~30 km</option><option value="30">30 hPa · ~24 km</option><option value="50">50 hPa · ~21 km</option><option value="70">70 hPa · ~18 km</option><option value="100">100 hPa · ~16 km</option></select></label>
 <label for="season">Winter / Saison<select id="season"></select></label>
+<button class="btn" id="stratoPreviousWinter" type="button" aria-label="Vorheriger Winter">← Vorheriger</button>
+<button class="btn" id="stratoNextWinter" type="button" aria-label="Nächster Winter">Nächster →</button>
 <label for="view">Zeitraum<select id="view"><option value="winter">September – Mai</option><option value="full">Juli – Juni</option><option value="ssw">November – März</option><option value="autumn" selected>September – November</option><option value="custom">Eigener Zeitraum</option></select></label>
 <label for="mode">Darstellung<select id="mode"><option value="absolute">Absolutwerte (m/s)</option><option value="anomaly">Abweichung zu 1991–2020</option></select></label>
 <button class="btn primary" id="reload" type="button">Daten laden</button>
@@ -246,12 +282,13 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
  <label for="windTo">Bis<input id="windTo" type="date" aria-label="Ende der angezeigten Zeitachse"></label>
  <span class="legendnotes" id="windRangeNote">Beide Daten innerhalb der gewählten Saison (Juli bis Juni) auswählen.</span>
 </div>
-<div class="comparison" aria-label="Historische Vergleichswinter">
+<div class="comparison" id="stratoComparisons" aria-label="Bis zu fünf historische Vergleichswinter">
 <strong>Zusätzlich vergleichen:</strong>
-<label><input type="checkbox" value="2017">2017/18</label>
-<label><input type="checkbox" value="2009">2009/10</label>
-<label><input type="checkbox" value="2025">2025/26</label>
-<label><input type="checkbox" value="2018">2018/19</label>
+<select aria-label="Vergleichswinter 1" class="strato-comparison-season"><option value="">Kein Vergleich</option></select>
+<select aria-label="Vergleichswinter 2" class="strato-comparison-season"><option value="">Kein Vergleich</option></select>
+<select aria-label="Vergleichswinter 3" class="strato-comparison-season"><option value="">Kein Vergleich</option></select>
+<select aria-label="Vergleichswinter 4" class="strato-comparison-season"><option value="">Kein Vergleich</option></select>
+<select aria-label="Vergleichswinter 5" class="strato-comparison-season"><option value="">Kein Vergleich</option></select>
 </div>
 <div class="comparison" id="windEnsembleOptions">
 <strong>Ensemble im Hauptdiagramm:</strong>
@@ -268,7 +305,29 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 <div class="kpi"><div class="name">Tage mit Ostwind</div><div class="value" id="easterlies">–</div><div class="detail">Analysewerte &lt; 0 m/s, Nov–März</div></div>
 </div>
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
-<div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+<div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Fehlende Analysewerte bleiben sichtbare Lücken, insbesondere an historischen Schalttagen. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+</section>
+<section class="card" id="stratoWinterStatsCard">
+  <h2>Historische Winterstatistik · 60° N / 10 hPa</h2>
+  <p>Ranglisten anhand echter NASA-Tagesanalysen vom 1. November bis 31. März. Nicht vollständig dokumentierte Winter erhalten keinen Rang.</p>
+  <div class="controls">
+    <button id="stratoWinterStatsLoad" class="btn primary" type="button">Historische Winter auswerten</button>
+    <label>Sortierung<select id="stratoWinterRankSort"><option value="winter">Neueste Winter zuerst</option><option value="mean">Schwächstes Wintermittel</option><option value="min">Niedrigstes Minimum</option><option value="easterlies">Meiste Ostwindtage</option></select></label>
+    <button id="stratoWinterRankingCsv" class="btn" type="button">Rangliste als CSV</button>
+  </div>
+  <p id="stratoWinterStatsStatus" class="legendnotes" role="status" aria-live="polite">Für die vollständige Rangliste die NASA-Daten der 47 Winter laden.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="name">Wintermittel</div><div id="stratoRankMean" class="value">–</div><div id="stratoRankMeanNote" class="detail">–</div></div>
+    <div class="kpi"><div class="name">Schwächstes Tagesmittel</div><div id="stratoRankMin" class="value">–</div><div id="stratoRankMinNote" class="detail">–</div></div>
+    <div class="kpi"><div class="name">Ostwindtage</div><div id="stratoRankEasterly" class="value">–</div><div id="stratoRankEasterlyNote" class="detail">–</div></div>
+    <div class="kpi"><div class="name">Längste Westwindphase</div><div id="stratoRankWest" class="value">–</div><div id="stratoRankWestNote" class="detail">–</div></div>
+  </div>
+  <p class="legendnotes" id="stratoWinterAnalogues">Ähnliche Winter werden anhand täglicher Windwerte bestimmt.</p>
+  <div class="strato-ranking-scroll"><table class="strato-ranking-table">
+  <thead><tr><th>Winter</th><th>Mittel m/s</th><th>Min m/s</th><th>Max m/s</th><th>Ostwindtage</th><th>Längste Westwindphase</th><th>Rang (Mittel)</th></tr></thead>
+  <tbody id="stratoWinterRankingRows"><tr><td colspan="7">Noch nicht geladen.</td></tr></tbody>
+  </table></div>
+  <p class="legendnotes">Nur vollständig dokumentierte Winter (maximal zwei fehlende Tage) werden miteinander verglichen; fehlende Werte werden nicht interpoliert. Ein Tagesmittel unter 0 m/s ist nicht automatisch ein Major SSW. 1990/91–2019/20 wird als saisonales 30-Winter-Referenzmittel verwendet.</p>
 </section>
 <section class="card" id="levelsCard">
   <div class="levels-heading">
@@ -436,7 +495,7 @@ async function getClimo(level){
   try{return await request;}catch(error){climoCache.delete(level);throw error;}
 }
 function line(label,data,color,width=2,more={}){
-  return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.12,spanGaps:true,fill:false,...more};
+  return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.08,spanGaps:false,fill:false,...more};
 }
 function band(low,high,label,color){
   return [
@@ -452,7 +511,30 @@ function chooseSeasonOptions(){
   }
   $("season").value=String(currentYear);
 }
-function seasonsSelected(){return Array.from(document.querySelectorAll(".comparison input:checked")).map(x=>+x.value).filter(x=>x!==+$("season").value);}
+function seasonsSelected(){
+  const selected=[...document.querySelectorAll(".strato-comparison-season")].map(el=>Number(el.value));
+  return [...new Set(selected)].filter(y=>Number.isInteger(y)&&y>=1978&&y<=currentYear&&y!==Number($("season").value));
+}
+function populateComparisons(){
+ const years=Array.from($("season").options).map(option=>({value:option.value,label:option.textContent}));
+ document.querySelectorAll(".strato-comparison-season").forEach((select,index)=>{
+   const initial=["2017","2009","2025","2018",""][index];
+   for(const year of years)select.append(new Option(year.label,year.value));
+   select.value=years.some(y=>y.value===initial)?initial:"";
+ });
+}
+function moveWinter(delta){
+ const next=Number($("season").value)+delta;
+ const candidate=[...$("season").options].find(option=>Number(option.value)===next);
+ if(!candidate)return;
+ $("season").value=candidate.value;
+ $("season").dispatchEvent(new Event("change",{bubbles:true}));
+}
+function updateSeasonButtons(){
+ const year=Number($("season").value);
+ $("stratoPreviousWinter").disabled=![...$("season").options].some(x=>Number(x.value)===year-1);
+ $("stratoNextWinter").disabled=![...$("season").options].some(x=>Number(x.value)===year+1);
+}
 function arraysFor(series,field){
   return dates.map(d=>{const value=series.get(d.key);return value&&(!field||field(value))?value.value:null;});
 }
@@ -1193,7 +1275,7 @@ window.addEventListener("stratosphere:gefs-loaded",()=>{
  }
 });
 $("level").addEventListener("change",render);
-$("season").addEventListener("change",()=>{resetSeasonRange();render();});
+$("season").addEventListener("change",()=>{resetSeasonRange();updateSeasonButtons();render();});
 $("heatmapCanvas").addEventListener("pointermove",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerdown",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerleave",()=>{$("heatmapTooltip").hidden=true;});
@@ -1255,16 +1337,18 @@ for(const id of ["windFrom","windTo"]){
  $(id).addEventListener("change",()=>{if($("view").value==="custom")refreshCharts();});
 }
 $("mode").addEventListener("change",refreshCharts);
-document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
+document.querySelectorAll(".strato-comparison-season").forEach(x=>x.addEventListener("change",render));
+$("stratoPreviousWinter").addEventListener("click",()=>moveWinter(-1));
+$("stratoNextWinter").addEventListener("click",()=>moveWinter(1));
 (async()=>{
-  chooseSeasonOptions();resetSeasonRange();
+  chooseSeasonOptions();populateComparisons();resetSeasonRange();updateSeasonButtons();
   try{
     const res=await fetch(BASE+"manifest.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
     if(res.ok){
       const m=await res.json();
       $("updated").textContent="Archiv aktualisiert: "+new Date(m.updated_utc).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short",timeZone:"UTC"})+" UTC";
       if(m.winter_start_year && m.winter_start_year>currentYear){
-        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);resetSeasonRange();
+        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);resetSeasonRange();updateSeasonButtons();
       }
     }
   }catch(e){$("updated").textContent="Archiv-Metadaten aktuell nicht erreichbar";}
