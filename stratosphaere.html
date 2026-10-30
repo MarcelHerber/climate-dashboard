@@ -12,6 +12,7 @@
 <script defer src="stratosphere_ecmwf_runs.js?v=20261030-diagnostics"></script>
 <script defer src="stratosphere_ecmwf_ens.js?v=20261030-eps-50plus1"></script>
 <script defer src="stratosphere_run_trends.js?v=20261030-runtrends-heatmap-v2"></script>
+<script defer src="stratosphere_reversal_diagnostics.js?v=20261030-reversal-diagnostics-v1"></script>
 <script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
 <script defer src="stratosphere_gefs_probability.js?v=20261030-reversal"></script>
 <style>
@@ -221,6 +222,28 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 .strato-heat-detail{padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:13px;color:var(--ink);line-height:1.6}
 .strato-heat-actions{display:flex;gap:9px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin-top:11px}
 @media(max-width:750px){.strato-heat-table .strato-heat-sticky{min-width:108px}.strato-heat-scroll{max-height:460px}}
+
+/* Member-level wind reversal diagnostics; original 24h sampling, not inferred hours. */
+.strato-diagnostic{border-top:1px solid var(--line);margin:24px 0 0;padding-top:20px}
+.strato-diagnostic h3{font-size:19px;color:var(--ink);margin:0 0 8px}
+.strato-diagnostic p{font-size:13px;line-height:1.6;color:var(--muted)}
+.strato-diagnostic-controls{display:flex;align-items:end;gap:11px 16px;flex-wrap:wrap;margin:14px 0}
+.strato-diagnostic-controls label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;font-weight:700}
+.strato-diagnostic-controls select{min-width:155px;max-width:315px}
+.strato-diagnostic-stats{display:grid;grid-template-columns:repeat(5,minmax(135px,1fr));gap:10px;margin:15px 0}
+.strato-diagnostic-stats>div{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px}
+.strato-diagnostic-stats small{display:block;line-height:1.45;font-size:12px;color:var(--muted)}
+.strato-diagnostic-stats strong{display:block;margin-top:7px;font-size:18px;color:var(--ink)}
+.strato-diagnostic-charts{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.strato-diagnostic-chart{height:300px;min-height:260px;position:relative;width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--card)}
+.strato-diagnostic-chart canvas{width:100%!important;height:100%!important}
+.strato-diagnostic-table{overflow:auto;max-height:440px;margin:12px 0;border:1px solid var(--line);border-radius:9px}
+.strato-diagnostic-table table{border-collapse:collapse;width:100%;min-width:1060px;font-size:12px}
+.strato-diagnostic-table td,.strato-diagnostic-table th{text-align:left;border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap}
+.strato-diagnostic-table thead th{position:sticky;top:0;background:var(--card);z-index:1}
+.strato-diagnostic-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1000px){.strato-diagnostic-stats{grid-template-columns:repeat(3,minmax(145px,1fr))}}
+@media(max-width:750px){.strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(125px,1fr))}.strato-diagnostic-charts{grid-template-columns:1fr}.strato-diagnostic-chart{height:275px}}
 </style>
 </head>
 <body class="strato-forecast-only">
@@ -434,6 +457,61 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
    </div>
    <p class="legendnotes">Die Farbskala ist über alle Modelle und Läufe fest bei 0–100 %. Fehlende Prognosen werden weder interpoliert noch durch einen anderen Modelllauf ersetzt. Eine Umkehr des zonalen Windes ist kein eigenständiger Nachweis einer Major SSW.</p>
   </section>
+
+ <section class="strato-diagnostic" id="stratoReversalDiagnostics" aria-label="Detaillierte Ensemble-Windumkehrdiagnostik">
+  <h3>Windumkehr-Diagnostik · GEFS / ECMWF ENS</h3>
+  <p>Für <strong>jedes originale Ensemblemitglied</strong> untersuchen wir den ersten neuen Übergang von zonalem Westwind (U ≥ 0) zu Ostwind (U &lt; 0 m/s),
+   die Zahl aufeinanderfolgender negativer <strong>24-Stunden-Prognosewerte</strong>, das tiefste prognostizierte U-Windminimum
+   und eine beobachtbare Rückkehr zu U ≥ 0. Bereits bei Prognosebeginn negativer Wind wird separat erfasst.
+   Aus Tageswerten wird ausdrücklich <strong>keine stundengenaue Windumkehrdauer</strong> abgeleitet.</p>
+  <div class="strato-diagnostic-controls">
+   <label>Ensemblemodell
+    <select id="stratoDiagModel"><option value="gefs" selected>NOAA GEFS · 31 Mitglieder</option><option value="eps">ECMWF ENS · 51 Mitglieder</option></select>
+   </label>
+   <label>Originaler Modelllauf
+    <select id="stratoDiagCycle" aria-label="Modelllauf für Windumkehrdiagnostik"></select>
+   </label>
+   <label>Zeitraum der Histogramme
+    <select id="stratoDiagDays"><option value="7">Bis Tag 7</option><option value="15" selected>Bis Tag 15</option><option value="35">Bis Tag 35 (wenn verfügbar)</option></select>
+   </label>
+   <button class="btn" id="stratoDiagReload" type="button">Originaldaten prüfen</button>
+  </div>
+  <div class="info"><span id="stratoDiagStatus" role="status" aria-live="polite">Prüfe die archivierten Ensemblemitglieder …</span></div>
+  <div class="strato-diagnostic-stats">
+   <div><small>Mindestens eine <strong>neue</strong> Windumkehr (U ≥ 0 → U &lt; 0)</small><strong id="stratoDiagCross">–</strong></div>
+   <div><small>Bereits bei +0 Stunden mit U &lt; 0</small><strong id="stratoDiagBaseline">–</strong></div>
+   <div><small>Mindestens 3 aufeinanderfolgende negative Tageswerte</small><strong id="stratoDiagLong">–</strong></div>
+   <div><small>Negativstes Windminimum aller Mitglieder</small><strong id="stratoDiagMin">–</strong></div>
+   <div><small>Neue Umkehr: Rückkehr / noch negativ am Ende</small><strong id="stratoDiagReturn">–</strong></div>
+  </div>
+  <div class="strato-diagnostic-charts">
+   <div>
+    <p><strong>Erster neuer Übergang zu Ostwind</strong> · Anteil aller Ensemblemitglieder, die erstmals zwischen zwei benachbarten Prognoseterminen unter 0 m/s fallen.</p>
+    <div class="strato-diagnostic-chart"><canvas id="stratoDiagOnset" role="img" aria-label="Histogramm erstmalige Windumkehr je Prognosetag"></canvas></div>
+   </div>
+   <div>
+    <p><strong>Aufeinanderfolgende negative Tageswerte</strong> · inklusive separat markierter Episoden, die am letzten verfügbaren Termin noch nicht beendet sind.</p>
+    <div class="strato-diagnostic-chart"><canvas id="stratoDiagDuration" role="img" aria-label="Histogramm der Anzahl negativer Prognosetageswerte und noch andauernder Episoden"></canvas></div>
+   </div>
+  </div>
+  <p id="stratoDiagInfo" aria-live="polite">Für die Diagnose werden nur vollständig überprüfte Originaldaten verwendet.</p>
+  <details class="ensemble-more">
+   <summary>Alle Ensemblemitglieder · Windumkehr, Erholung und Windminimum</summary>
+   <div class="strato-diagnostic-table">
+    <table aria-label="Windumkehrkennzahlen jedes einzelnen Ensemblemitglieds">
+     <thead><tr><th>Mitglied</th><th>Status</th><th>Erster Übergang / anfänglich negativ</th><th>Negative Tageswerte</th><th>Rückkehr U ≥ 0</th><th>Windminimum</th><th>Minimum gültig</th><th>Neue Übergänge</th></tr></thead>
+     <tbody id="stratoDiagTableBody"></tbody>
+    </table>
+   </div>
+  </details>
+  <div class="strato-diagnostic-actions">
+   <button class="btn" type="button" id="stratoDiagPng" disabled>Diagnose als PNG</button>
+   <button class="btn" type="button" id="stratoDiagCsv" disabled>Mitglieder als CSV</button>
+  </div>
+  <p class="legendnotes">Als „Dauer“ zählt ausschließlich die Anzahl an aufeinanderfolgenden negativen Prognosetageswerten; Zwischenstunden sind unbekannt.
+  Vor Prognosebeginn gestartete und über das Prognoseende hinausreichende Episoden sind links- bzw. rechtszensiert.
+  Eine Windumkehr bei 60°N / 10 hPa erfüllt alleine nicht alle Kriterien einer bestätigten Major SSW.</p>
+ </section>
 </section>
 <section class="card" id="stratoHistoryCard">
 <h2>Verlauf des zonal gemittelten zonalen Windes</h2>
