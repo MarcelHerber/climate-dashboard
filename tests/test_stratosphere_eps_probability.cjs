@@ -49,6 +49,18 @@ test("EPS accepts exactly 50 perturbations and 1 control, not IFS run history",(
  assert.throws(()=>f.validData({...data,member_count:50}));
  assert.throws(()=>f.validData({...data,forecast_step_hours:[0,6]}));
 });
+test("12UTC ECMWF ENS from the independent cycle is accepted",()=>{
+ const {f}=isolated(),d=fixture();
+ const initial=new Date(d.cycle_utc);
+ initial.setUTCHours(12);
+ d.cycle_utc=initial.toISOString().slice(0,13)+":00:00Z";
+ d.valid_hour_utc=12;
+ assert.equal(f.validData(d),d);
+ assert.throws(()=>f.validData({...d,valid_hour_utc:0}));
+ assert.ok(html.includes('id="stratoCompareHour"'));
+ assert.ok(html.includes('id="stratoGefsCycle"'));
+ assert.ok(html.includes('id="stratoEpsCycle"'));
+});
 test("daily subzero fraction uses all 51 members and counts new crossings",()=>{
  const {f}=isolated(),data=fixture();
  const result=f.compute(data);
