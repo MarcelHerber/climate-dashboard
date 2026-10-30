@@ -305,7 +305,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 <div class="kpi"><div class="name">Tage mit Ostwind</div><div class="value" id="easterlies">–</div><div class="detail">Analysewerte &lt; 0 m/s, Nov–März</div></div>
 </div>
 <div class="chart"><canvas id="windChart" role="img" aria-label="Zonal gemittelter zonaler Wind bei 60 Grad Nord"></canvas></div>
-<div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
+<div class="legendnotes" id="windNotes">Positive Werte: Westwind · negative Werte: Ostwind. Fehlende Analysewerte bleiben sichtbare Lücken, insbesondere an historischen Schalttagen. Die Nulllinie macht Windumkehrungen sichtbar. Dreiecke: Übergang von West- zu Ostwind in den Analysedaten (November–März). Schattierung: 10.–90. und 30.–70. Perzentil der 30-jährigen Referenz; dünne Linien: historische Minimal- und Maximalwerte. Gestrichelte Linie: Vorhersage, nicht beobachtet.</div>
 </section>
 <section class="card" id="stratoWinterStatsCard">
   <h2>Historische Winterstatistik · 60° N / 10 hPa</h2>
@@ -495,7 +495,7 @@ async function getClimo(level){
   try{return await request;}catch(error){climoCache.delete(level);throw error;}
 }
 function line(label,data,color,width=2,more={}){
-  return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.12,spanGaps:true,fill:false,...more};
+  return {label,data,borderColor:color,borderWidth:width,pointRadius:0,pointHoverRadius:4,tension:0.08,spanGaps:false,fill:false,...more};
 }
 function band(low,high,label,color){
   return [
@@ -511,7 +511,30 @@ function chooseSeasonOptions(){
   }
   $("season").value=String(currentYear);
 }
-function seasonsSelected(){return Array.from(document.querySelectorAll(".comparison input:checked")).map(x=>+x.value).filter(x=>x!==+$("season").value);}
+function seasonsSelected(){
+  const selected=[...document.querySelectorAll(".strato-comparison-season")].map(el=>Number(el.value));
+  return [...new Set(selected)].filter(y=>Number.isInteger(y)&&y>=1978&&y<=currentYear&&y!==Number($("season").value));
+}
+function populateComparisons(){
+ const years=Array.from($("season").options).map(option=>({value:option.value,label:option.textContent}));
+ document.querySelectorAll(".strato-comparison-season").forEach((select,index)=>{
+   const initial=["2017","2009","2025","2018",""][index];
+   for(const year of years)select.append(new Option(year.label,year.value));
+   select.value=years.some(y=>y.value===initial)?initial:"";
+ });
+}
+function moveWinter(delta){
+ const next=Number($("season").value)+delta;
+ const candidate=[...$("season").options].find(option=>Number(option.value)===next);
+ if(!candidate)return;
+ $("season").value=candidate.value;
+ $("season").dispatchEvent(new Event("change",{bubbles:true}));
+}
+function updateSeasonButtons(){
+ const year=Number($("season").value);
+ $("stratoPreviousWinter").disabled=![...$("season").options].some(x=>Number(x.value)===year-1);
+ $("stratoNextWinter").disabled=![...$("season").options].some(x=>Number(x.value)===year+1);
+}
 function arraysFor(series,field){
   return dates.map(d=>{const value=series.get(d.key);return value&&(!field||field(value))?value.value:null;});
 }
@@ -1252,7 +1275,7 @@ window.addEventListener("stratosphere:gefs-loaded",()=>{
  }
 });
 $("level").addEventListener("change",render);
-$("season").addEventListener("change",()=>{resetSeasonRange();render();});
+$("season").addEventListener("change",()=>{resetSeasonRange();updateSeasonButtons();render();});
 $("heatmapCanvas").addEventListener("pointermove",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerdown",heatmapHover);
 $("heatmapCanvas").addEventListener("pointerleave",()=>{$("heatmapTooltip").hidden=true;});
@@ -1314,16 +1337,18 @@ for(const id of ["windFrom","windTo"]){
  $(id).addEventListener("change",()=>{if($("view").value==="custom")refreshCharts();});
 }
 $("mode").addEventListener("change",refreshCharts);
-document.querySelectorAll(".comparison input").forEach(x=>x.addEventListener("change",render));
+document.querySelectorAll(".strato-comparison-season").forEach(x=>x.addEventListener("change",render));
+$("stratoPreviousWinter").addEventListener("click",()=>moveWinter(-1));
+$("stratoNextWinter").addEventListener("click",()=>moveWinter(1));
 (async()=>{
-  chooseSeasonOptions();resetSeasonRange();
+  chooseSeasonOptions();populateComparisons();resetSeasonRange();updateSeasonButtons();
   try{
     const res=await fetch(BASE+"manifest.json?v="+Math.floor(Date.now()/3600000),{cache:"no-store"});
     if(res.ok){
       const m=await res.json();
       $("updated").textContent="Archiv aktualisiert: "+new Date(m.updated_utc).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short",timeZone:"UTC"})+" UTC";
       if(m.winter_start_year && m.winter_start_year>currentYear){
-        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);resetSeasonRange();
+        const opt=document.createElement("option");opt.value=m.winter_start_year;opt.textContent=seasonLabel(m.winter_start_year);$("season").prepend(opt);$("season").value=String(m.winter_start_year);resetSeasonRange();updateSeasonButtons();
       }
     }
   }catch(e){$("updated").textContent="Archiv-Metadaten aktuell nicht erreichbar";}
