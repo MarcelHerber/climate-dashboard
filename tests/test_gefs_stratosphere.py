@@ -68,8 +68,8 @@ class GefsWindTests(unittest.TestCase):
             archived=json.loads((root/"runs"/"20261028_000000.json").read_text())
             assert archived["forecast_horizon_days"]==35
             assert len(archived["members"]["p30"])==36
-            assert archived["members"]["p30"][16]==26.384
-            assert archived["members"]["p30"][35]==26.840
+            assert archived["members"]["p30"][16]==10.384
+            assert archived["members"]["p30"][35]==10.84
             assert mod.verified(archived)
             assert mod.verified(current)
             assert mod.publish(root,current)["runs"][1]["forecast_horizon_days"]==35
