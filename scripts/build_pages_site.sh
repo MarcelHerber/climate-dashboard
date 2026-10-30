@@ -46,6 +46,7 @@ required_root_files=(
   stratosphere_temperature.js
   stratosphere_ensemble.js
   stratosphere_ecmwf_runs.js
+  stratosphere_ecmwf_ens.js
   stratosphere_winter_stats.js
   stratosphere_gefs_probability.js
   stratosphere_ssw_comparison.js
@@ -171,6 +172,7 @@ python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
 node --check stratosphere_ensemble.js
 node --check stratosphere_ecmwf_runs.js
+node --check stratosphere_ecmwf_ens.js
 node --check stratosphere_winter_stats.js
 node --check stratosphere_gefs_probability.js
 node --check synoptic_panel_logic.js
@@ -196,6 +198,8 @@ grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
 grep -q 'id="stratoEnsembleCard"' _site/stratosphaere.html
 grep -q 'id="stratoWinterStatsCard"' _site/stratosphaere.html
 grep -q 'id="stratoProbCanvas"' _site/stratosphaere.html
+grep -q 'id="stratoEpsTab"' _site/stratosphaere.html
+grep -q 'id="stratoCompareCanvas"' _site/stratosphaere.html
 grep -q 'id="stratoModelDiagnostics"' _site/stratosphaere.html
 grep -q 'id="windCustomDates"' _site/stratosphaere.html
 
