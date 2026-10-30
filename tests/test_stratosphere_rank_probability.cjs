@@ -91,6 +91,13 @@ test("GEFS wind reversal: 31 independently counted members",()=>{
  assert.equal(chart.length,4);
  assert.equal(chart[0],0);
  assert.ok(Math.abs(chart[1]-1000/31)<1e-9);
+ // Already easterly at initialization does not constitute a NEW reversal.
+ const allAlreadyEast=Object.fromEntries(Object.entries(members).map(([k])=>[k,[-3,-4,-5,-6]]));
+ context.window.stratoGefsEnsemble={provider:"NOAA GEFS",level_hpa:10,latitude_deg:60,
+   cycle_utc:"2026-10-29T00:00:00Z",valid_dates:dates,members:allAlreadyEast,member_count:31};
+ handler();
+ assert.equal(context.elements.get("stratoProbAny").textContent,"0 %");
+ assert.match(context.elements.get("stratoProbPeak").textContent,/100 %/);
  context.window.stratoGefsEnsemble={provider:"NOAA GEFS",level_hpa:10,latitude_deg:60,valid_dates:dates,members:{c00:members.c00}};
  handler();
  assert.equal(context.elements.get("stratoProbAny").textContent,"–");
