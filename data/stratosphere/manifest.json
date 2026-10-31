@@ -1,8 +1,8 @@
 {
-  "updated_utc": "2026-10-30T15:57:55Z",
+  "updated_utc": "2026-10-31T15:21:38Z",
   "source": "NASA Ozone Watch MERRA-2 / GEOS FP",
   "winter_start_year": 2026,
-  "available_files": 245,
+  "available_files": 235,
   "expected_files": 245,
   "climatology_1991_2020": {
     "10": true,
@@ -11,6 +11,57 @@
     "70": true,
     "100": true
   },
-  "missing_count": 0,
-  "missing_examples": []
+  "missing_count": 10,
+  "missing_examples": [
+    {
+      "level": 10,
+      "year": 2025,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 10,
+      "year": 2026,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 30,
+      "year": 2025,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 30,
+      "year": 2026,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 50,
+      "year": 2025,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 50,
+      "year": 2026,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 70,
+      "year": 2025,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 70,
+      "year": 2026,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 100,
+      "year": 2025,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    },
+    {
+      "level": 100,
+      "year": 2026,
+      "error": "<urlopen error [Errno 101] Network is unreachable>"
+    }
+  ]
 }
