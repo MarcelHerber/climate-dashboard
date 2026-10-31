@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_utc": "2026-10-30T23:04:36+00:00",
+  "generated_utc": "2026-10-31T07:12:37+00:00",
   "russia": {
     "source_page": "https://meteoinfo.ru/mapsynop",
     "copyright": "© Hydrometcenter Russia; reuse not verified",
@@ -15,7 +15,7 @@
           1556,
           1024
         ],
-        "footer_excerpt": "— —ыСъС- ‘ ол оби 2 50 MAO 8 13 130 ST = / a ars con't ee yer 000 45 ВУ 60 -04\\, “sp \\ bon = D es: зуд а Гидрометцентр России . м eo 58 eG 1 АНАЛИЗ ПРИЗЕМНЫЙ 555 А АО or 30.10.2026 004 BCB OOO б05е 48 BK) к У Meteoinfo.ru № Ади AS a] an",
+        "footer_excerpt": "42 в 03 oo 00.9, - Е Tee. 12847612958) к т 555 ИЕ 4 5 гр ЗАВ и „д 649% о . ky, 65 182 Res | 605 -04\\, 98 ‹ ``. ue | ДЕ 120 cf} | - р 7 603559 VT 2a¢( Taaqpomernentp России № 2 < В У 5e 96 405 АНАЛИЗ ПРИЗЕМНЫЙ [5404 / dp Th, C85 @00 Мвй8ЕР от 31.10.2026 004 ВСВ",
         "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
       },
       {
@@ -27,7 +27,7 @@
           1556,
           1024
         ],
-        "footer_excerpt": "‘“ бий ‘ 5 wo г“ к ча: 44 Bae 173 86 129 > R | in) pal ac ak LR ‚А oF | < / aS ry soo : ie os ‘ 22 — pe? A eaten) & ae Гидрометцентр России Ss пу от : = 7 р BOBS | ; АНАЛИЗ ПРИЗЕМНЫИ 11; ia ©8447 ei Sire oT 30.10.2026 064 BCB — 148 , S0/180 4 Pp о, ate сти О п",
+        "footer_excerpt": "$15 X 60 gd о еб ^ 61-82 о Ys 189, Nae ANS Se Spats 340 58 pe f &01\\ ae\" BS _ д“, Sans BR W- Lege Гидрометцентр России 1152197 90| АНАЛИЗ ПРИЗЕМНЫЙ [95 1 | TORBEN T Poe 4a 07 31.10.2026 064 ВСВ 0 @08 > oa, / 14431 3 Sen №44 297 av 0-08 Meteoinfo.ru 60 баны fh ",
         "reason": "ValueError: Complete printed DD.MM.YYYY HH UTC not found in chart footer"
       },
       {
@@ -51,17 +51,44 @@
           1556,
           1024
         ],
-        "footer_excerpt": "„>. РАТЬ, *0,4 70 “4 Ча 246) 248135 ¥ a = =? ф ii a {5 : a fy 0” S 162 и ., 2. 1% 164 9 — ~~ у 10 56 60 №03 / 203 PRRs : 2%) ESET oa Ги 406 / 60.>12/ <: 88| Гидрометцентр России | {57 ie 2 9 АНАЛИЗ ПРИЗЕМНЫЙ [3203 чи а Э от 30.10.2026 18ч ВСВ — 0007 и 102 ; 19",
+        "footer_excerpt": "246 248135 , ТУ СРЕМЕЕ 1157. 0 128 ab va My IA UR — ч 220 \\.162 / =, $164 ae ae a 567 ONG 203 RS, 24 155 168 Se) 2067” ‘ lie crn Гидрометцентр России . f “Gs / 60>12/ <: 9 АНАЛИЗ ПРИЗЕМНЫЙ [3203 +3212 184 се B 2 0т30.10.2026 18чВСВ 000 A; у 82 2 . — ts К 0-06 ",
         "printed_valid_utc": "2026-10-30T18:00+00:00"
       }
     ]
   },
   "kazakhstan": {
-    "state": "unverified",
+    "state": "viewer_html_inspected",
     "page": "https://www.kazhydromet.kz/en/weather/sinopticheskie-karty-pogody",
     "chart_image_utc_verified": false,
     "image_reuse_permitted": false,
-    "reason": "TimeoutError: The read operation timed out"
+    "same_host_image_reference_count": 9,
+    "same_host_script_reference_count": 3,
+    "script_urls": [
+      "https://www.kazhydromet.kz/js/synoptic-maps.js?ver=1",
+      "https://www.kazhydromet.kz/libs/fancybox/jquery.fancybox.min.js",
+      "https://www.kazhydromet.kz/js/scripts.min.js"
+    ],
+    "javascript_clues": [
+      "nds\":\"sec\",\"timeZone\":\"UTC\",\"previous\":\"Previous\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\"",
+      "us\",\"next\":\"Next\",\"sourceFile\":\"Source file:\",\"loading\":\"Loading synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published",
+      "ing synoptic maps…\",\"imageLoading\":\"Loading map…\",\"unavailable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"",
+      "ilable\":\"Synoptic maps are temporarily unavailable.\",\"empty\":\"No synoptic maps have been published yet.\",\"imageError\":\"The selected map could not be loaded.\",\"dateAria\":\"Select a map date\",\"termAria\":\"Select a UTC t",
+      "elect a map date\",\"termAria\":\"Select a UTC time\",\"timelineAria\":\"Synoptic map time\",\"playAria\":\"Start automatic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript ",
+      "tic playback\",\"pauseAria\":\"Pause automatic playback\",\"imageAlt\":\"Synoptic ring map\",\"noScript\":\"JavaScript is required to control the maps.\"}"
+    ],
+    "embedded_full_utc_candidates": [],
+    "script_inspection_hints": [
+      " var copyNode = root.querySelector('[data-synoptic-copy]'); var copy = {}; try { copy = JSON.parse(copyNode ? c",
+      "ot.querySelector('[data-map-title]'), mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector(",
+      " mapFilename: root.querySelector('[data-map-filename]'), mapStage: root.querySelector('[data-map-stage]'), imageLo",
+      "e = 'button'; button.className = 'synoptic-term'; button.textContent = map.time; button.setAttribute",
+      " + (copy.timeZone || 'СГВ'); elements.mapFilename.textContent = map.filename; elements.previousButton.disabled = state.mapI",
+      " elements.image.alt = (copy.imageAlt || 'Synoptic map') + ': ' + date.date + ', ' + map.time + ' ' + (copy.timeZone || 'СГВ'); ",
+      " elements.catalogStatus.classList.toggle('synoptic-status--error', Boolean(isError)); elements.catalogMessage.textContent = mess",
+      " spinner = elements.catalogStatus.querySelector('.synoptic-spinner'); if (spinner) { spinner.hidden = true; ",
+      " showCatalogueError(copy.unavailable || 'Synoptic maps are temporarily unavailable.', true); }); } function initialise",
+      "ype.forEach.call(document.querySelectorAll('[data-synoptic-viewer]'), initialiseViewer); } if (document.readyState === 'loading') { "
+    ]
   },
   "no_images_persisted": true,
   "ready_for_automatic_image_reuse": false,
