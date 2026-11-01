@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_utc": "2026-11-01T07:44:45+00:00",
+  "checked_utc": "2026-11-01T18:29:13+00:00",
   "publisher": "Icelandic Meteorological Office (IMO)",
   "provider_terms": "https://en.vedur.is/about-imo/the-web/conditions/",
   "product": "ECMWF-based North Atlantic pressure/isobar forecast, no analysed fronts",
@@ -219,22 +219,6 @@
     }
   ],
   "forecast_filename_candidates": [
-    {
-      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_3.png",
-      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
-      "run_utc": "2026-10-31T12:00+00:00",
-      "forecast_hours": 3,
-      "calculated_valid_utc": "2026-10-31T15:00+00:00",
-      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
-    },
-    {
-      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_6.png",
-      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
-      "run_utc": "2026-10-31T12:00+00:00",
-      "forecast_hours": 6,
-      "calculated_valid_utc": "2026-10-31T18:00+00:00",
-      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
-    },
     {
       "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_9.png",
       "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
@@ -474,13 +458,29 @@
       "forecast_hours": 132,
       "calculated_valid_utc": "2026-11-06T00:00+00:00",
       "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
+    },
+    {
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_138.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "run_utc": "2026-10-31T12:00+00:00",
+      "forecast_hours": 138,
+      "calculated_valid_utc": "2026-11-06T06:00+00:00",
+      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
+    },
+    {
+      "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_144.png",
+      "source_page": "https://en.vedur.is/weather/shipping/atlantic/",
+      "run_utc": "2026-10-31T12:00+00:00",
+      "forecast_hours": 144,
+      "calculated_valid_utc": "2026-11-06T12:00+00:00",
+      "validity_method": "Provider filename: YYMMDD_HHMM + forecast lead; printed map validation still required"
     }
   ],
   "sample_forecast_image": {
-    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_21.png",
-    "expected_valid_utc": "2026-11-01T09:00+00:00",
-    "forecast_hours": 21,
-    "printed_caption_ocr": "g Wey eNO” | Bo 7 Sun. 1. nov. kl. 09:00 «@ Vedurstofa istands\nae jg 37 5 Be? , ae Rika >. >\n\n"
+    "url": "https://en.vedur.is/photos/sjo_atlant_spa/261031_1200_30.png",
+    "expected_valid_utc": "2026-11-01T18:00+00:00",
+    "forecast_hours": 30,
+    "printed_caption_ocr": "3 Ne Rn ays is ” Sun. 1. nov. kl. 18:00 alr Vedurstofa islands\nVa A XA ay LER Fe\ncs ars iA f, : 75, . oo 3 nae - J Pe\n\n"
   },
   "sample_error": null,
   "matching_metadata_candidates": 0,
