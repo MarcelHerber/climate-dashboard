@@ -258,6 +258,8 @@ jobs:
           git config user.name "climate-dashboard-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           year="$(echo "$TARGET_DATE" | cut -c1-4)"
+          # Spätere Monatskarten und die Manifeste bleiben beim Monats-Commit
+          # bewusst ungestaged; AutoStash schützt sie beim Rebase.
           # Per-month commits keep backfills manageable.
           for month in $(seq -w 1 12); do
             for parameter in tmean tmax tmin; do
@@ -270,7 +272,7 @@ jobs:
             if ! git diff --cached --quiet; then
               git commit -m "HYRAS daily anomalies ${year}-${month}"
               git fetch origin hyras-data
-              git rebase origin/hyras-data
+              git -c rebase.autoStash=true rebase origin/hyras-data
               git push origin HEAD:hyras-data
             fi
           done
@@ -282,6 +284,6 @@ jobs:
           else
             git commit -m "HYRAS year-round daily anomaly manifests updated"
             git fetch origin hyras-data
-            git rebase origin/hyras-data
+            git -c rebase.autoStash=true rebase origin/hyras-data
             git push origin HEAD:hyras-data
           fi
