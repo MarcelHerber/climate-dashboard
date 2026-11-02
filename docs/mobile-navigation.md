@@ -40,6 +40,28 @@ Mobile Navigation wird nur bei <=800 px angezeigt. Ohne JavaScript bleibt auf de
 
 Hinweis zu Exporten: Die Funktionalität von PNG/PDF/CSV wird nicht ersetzt oder verändert. Auf einem schmalen Gerät kann ein Canvas-PNG die reduzierten Bildschirm-Achsenticks abbilden; die Messdaten bleiben vollständig. Eine komplett unabhängige Print-/Export-Diagrammgestaltung wäre ein zusätzlicher Ausbauschritt.
 
+## Echtdaten- und Touch-End-to-End-Test (2. November 2026)
+
+Der neue Workflow `.github/workflows/audit-mobile-live.yml` öffnet die **veröffentlichte**
+Website im Chromium-Handymodus und lädt die echten öffentlichen DWD-, GEFS-, ECMWF-
+und Synoptikdaten. Er verwendet weder Daten-Dummies noch Request-Mocks. Die mobile
+Navigation wird durch `tap()` ausgelöst; für MOSMIX-Regler kommt echtes
+`touchscreen.tap()` zum Einsatz.
+
+Geprüft werden der Modellwechsel GEFS → ECMWF ENS mit echten Mitgliedskurven,
+MOSMIX-Stationsmeteogramm und Zeitregler, ein Isobaren-Vierer-Panel mit tatsächlich
+geladenen Bildern, ein GEFS-Ortsensemble sowie der Parameterwechsel
+HYRAS-Niederschlag ↔ Tmean. Bei HYRAS verhindert ein Guard, dass ein älterer
+asynchroner Niederschlags-Render eine später gewählte Temperaturdarstellung
+überschreibt. Auf MOSMIX-Unterseiten wird die mobile Chart.js-Erweiterung nun auch
+nach dynamischem Nachladen registriert. Zur Nachprüfung gibt es Screenshots,
+Datenabruf-Antworten, Skriptfehler und den Bericht im Artifact `climate-mobile-live-touch`.
+
+**Grenzen:** Test mit Chromium und emuliertem Touch, kein physisches
+iOS-/Android-Gerät. Bei den vier Modellen des Ortsensemblepanels wird zunächst das
+tatsächlich verfügbare GEFS gezeichnet; andere Modelle werden asynchron ergänzt.
+Vollständige Export- und Multitouch-Pinch-Tests sind separate Prüfschritte.
+
 ## Reproduzierbare Chromium-Viewportprüfung
 
 Der Workflow \`.github/workflows/audit-mobile-viewports.yml\` erzeugt für fünf konkrete Ansichten
