@@ -1,0 +1,39 @@
+name: ERA5 Stratosphäre · Referenz-Backfill Schnelltest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_era5_stratosphere.py"
+      - "scripts/update_era5_stratosphere_stage2.py"
+      - "tests/test_era5_stratosphere_reference.py"
+      - "tests/test_era5_stratosphere_backfill_budget.py"
+      - ".github/workflows/update-era5-stratosphere.yml"
+      - ".github/workflows/test-era5-stratosphere-reference.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: era5-reference-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install offline ERA5 test dependencies
+        run: python -m pip install --disable-pip-version-check numpy xarray pandas
+      - name: Validate scripts, science and bounded backfill logic
+        run: |
+          python -m py_compile scripts/update_era5_stratosphere.py scripts/update_era5_stratosphere_stage2.py
+          python scripts/update_era5_stratosphere.py --self-test
+          python scripts/update_era5_stratosphere_stage2.py --self-test
+          python -m unittest discover -s tests -p test_era5_stratosphere_reference.py -v
+          python -m unittest discover -s tests -p test_era5_stratosphere_backfill_budget.py -v
