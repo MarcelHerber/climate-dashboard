@@ -12200,6 +12200,9 @@ async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geo
   rctx.putImageData(img,0,0);
   const scale=(Number(state.resolutionKm||1)<=1)?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
   if(boundaryOverlay){try{const response=await fetch(`${HYRAS_DATA_BASE}/${boundaryOverlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Grenzen:",error);}}
+  // Do not let a previous precipitation raster render overwrite a newly
+  // selected temperature view after its boundary overlay finished loading.
+  if(hyrasParameter()!=="precipitation")return;
   const frame=document.getElementById("hyrasMapFrame");frame.innerHTML="";const wrap=document.createElement("div");wrap.className="hyras-dynamic-wrap";wrap.innerHTML=`<div class="hyras-dynamic-title">${title}</div><div class="hyras-dynamic-subtitle">${subtitle} · ${hyrasMetricConfig(metric).label}</div>`;const stage=document.createElement("div");stage.className="hyras-canvas-stage";stage.appendChild(canvas);wrap.appendChild(stage);const legend=document.createElement("div");legend.className="hyras-dynamic-legend";legend.innerHTML=hyrasDynamicLegend(metric);wrap.appendChild(legend);frame.appendChild(wrap);hyrasAttachMouseover(canvas,wrap,state,geoLookup);hyrasInstallClickAnalysis(canvas,stage,wrap,state,geoLookup,raster,metric);
   const link=document.getElementById("hyrasOpenImage");if(link){link.textContent="PNG herunterladen";link.target="";link.download=downloadName||`hyras_${metric}.png`;link.href=canvas.toDataURL("image/png");link.style.display="inline-block";}
 }
@@ -12369,6 +12372,7 @@ function updateHyrasMetricAvailability(period){
   if((select.value==="percent"&&!hasPercent)||(select.value==="anomaly"&&!hasAnomaly)) select.value="sum";
 }
 function hyrasRenderPresetFallback(period,cfg,file){
+  if(hyrasParameter()!=="precipitation")return;
   const frame=document.getElementById("hyrasMapFrame"),link=document.getElementById("hyrasOpenImage");
   if(!file){frame.innerHTML='<div class="hyras-loading">Für diese Darstellung wurde keine Karte erzeugt.</div>';if(link)link.style.display="none";return;}
   const url=`${HYRAS_DATA_BASE}/${file}?t=${Date.now()}`;if(link){link.textContent="Karte groß öffnen";link.target="_blank";link.removeAttribute("download");}
@@ -13884,7 +13888,7 @@ async function renderHyrasTmean(){
     hyrasTmaxRegionChart=null;
   }
   try{
-    await hyrasTmeanRegionsEnsureLoaded();await hyrasTmeanEnsureClimateReference();const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
+    await hyrasTmeanRegionsEnsureLoaded();await hyrasTmeanEnsureClimateReference();if(hyrasParameter()!=="tmean")return;const region=hyrasTmeanRegionName(),period=hyrasTmeanCurvePeriod();if(!period)return;
     const rows=hyrasTmeanCurveRows(region,period);hyrasTmeanSetCurveKpis(region,period,rows);hyrasTmeanRenderCurveChart(region,period,rows);
   }catch(error){console.error("HYRAS Tmean Gebietskurven:",error);const frame=document.getElementById("hyrasMapFrame");if(frame)frame.innerHTML=`<div class="hyras-loading">${error.message}</div>`;}
 }
@@ -13894,6 +13898,12 @@ async function hyrasSwitchParameter(){
   const temperatureParameter=hyrasParameter();
   const isTmean=temperatureParameter==="tmean";
   const isTmax=temperatureParameter==="tmax";
+  // Clear the old raster immediately: otherwise slow Tmean/Tmax requests
+  // leave a precipitation map on screen under a temperature selection.
+  if(isTmean||isTmax){
+    const frame=document.getElementById("hyrasMapFrame");
+    if(frame)frame.innerHTML='<div class="hyras-loading">Temperaturdaten und Diagramm werden geladen …</div>';
+  }
   const custom=document.getElementById("hyrasCustomApply")?.parentElement;
   const historical=document.getElementById("hyrasHistoricalApply")?.parentElement;
   const panel=document.getElementById("hyrasPointAnalysis");
@@ -13909,6 +13919,7 @@ async function hyrasSwitchParameter(){
     if(isTmean){
       if(status)status.textContent="HYRAS Tmean Gebietskurven werden geladen …";
       await hyrasTmeanRegionsEnsureLoaded();
+      if(hyrasParameter()!=="tmean")return;
       hyrasTmeanPopulateRegions();
       hyrasTmeanPopulateCurvePeriods();
       if(status)status.textContent=`Tmean · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmeanRegionsIndex.data_through)} · Referenz ${hyrasReferenceDisplay()}`;
@@ -13916,6 +13927,7 @@ async function hyrasSwitchParameter(){
     }else{
       if(status)status.textContent="HYRAS Tmax Gebietskurven werden geladen …";
       await hyrasTmaxRegionsEnsureLoaded();
+      if(hyrasParameter()!=="tmax")return;
       hyrasTmaxPopulateRegions();
       hyrasTmaxPopulateCurvePeriods();
       if(status)status.textContent=`Tmax · Deutschland + 16 Bundesländer · Daten bis ${hyrasDate(hyrasTmaxRegionsIndex.data_through)} · Referenz ${hyrasReferenceDisplay()}`;
