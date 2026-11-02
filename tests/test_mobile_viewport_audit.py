@@ -44,6 +44,9 @@ class MobileViewportPreparationTests(unittest.TestCase):
     def test_explanatory_limitations_always_reported(self):
         code=(ROOT/"tests/audit_mobile_viewports.py").read_text(encoding="utf-8")
         self.assertIn("dynamic",code.lower())
+        self.assertIn('page.goto(url,wait_until="load"',code)
+        self.assertIn('mobile-audit.invalid/climate-dashboard/',code)
+        self.assertNotIn('page.set_content(',code)
         self.assertIn("not physical",code.lower())
 
 
