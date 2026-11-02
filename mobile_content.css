@@ -154,3 +154,29 @@
    flex:1 1 125px;min-height:44px;white-space:normal;
  }
 }
+
+
+/* At 320px the "Datenquellen" overview table had 18px of intrinsic
+   overflow. Keep all table cells and status labels visible by letting them
+   wrap inside fixed-width columns rather than broadening the document. */
+@media(max-width:430px){
+ body.cd-mobile-home .overview-sources{min-width:0;max-width:100%}
+ body.cd-mobile-home .overview-source-table{
+   table-layout:fixed;
+   width:calc(100% - 20px);
+   min-width:0;
+   max-width:calc(100% - 20px);
+   margin:0 10px 12px;
+   overflow-wrap:anywhere;
+ }
+ body.cd-mobile-home .overview-source-table :is(th,td){
+   min-width:0;padding:8px 5px;
+   overflow-wrap:anywhere;word-break:normal;
+ }
+ body.cd-mobile-home .overview-source-status{
+   min-width:0;white-space:normal;flex-wrap:wrap;
+ }
+ body.cd-mobile-home .overview-source-table :is(a,span){
+   max-width:100%;overflow-wrap:anywhere;
+ }
+}
