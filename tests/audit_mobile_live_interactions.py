@@ -111,6 +111,7 @@ def test_mosmix(page,folder):
     assert active,"Touch did not activate Tmax mode"
     slider=page.locator("#mosmixSlider")
     initial=slider.input_value()
+    slider.scroll_into_view_if_needed()
     box=slider.bounding_box()
     if box:
         page.touchscreen.tap(box["x"]+box["width"]*.73,box["y"]+box["height"]*.50)
@@ -118,6 +119,9 @@ def test_mosmix(page,folder):
     changed=slider.input_value()
     tmax_range=slider.evaluate("(el)=>({min:el.min,max:el.max,step:el.step,disabled:el.disabled})")
     tmax_label=get(page,"#mosmixSliderLabel")
+    # Touch must move the time slider without synthesizing change events.
+    if int(tmax_range["max"])>1:
+        assert changed!=initial,"Tmax-Slider reagiert nicht auf Fingertipp"
     # Hourly MOSMIX should have ~247 original forecast times; verify that a
     # *real touchscreen tap* advances its native range input.
     page.locator('[data-mosmix-mode="hourly"]').tap()
@@ -130,6 +134,7 @@ def test_mosmix(page,folder):
         page.touchscreen.tap(box["x"]+box["width"]*.78,box["y"]+box["height"]*.5)
     page.wait_for_timeout(450)
     hourly_after=slider.input_value()
+    assert int(hourly_range["max"])>20 and hourly_after!=hourly_before, "Stündlicher MOSMIX-Regler lässt sich per Touch nicht bewegen"
     # Station detail must come from current DWD manifest, not test fixture.
     page.locator("#mosmixStationSearch").fill("Frankfurt")
     page.locator("#mosmixStationButton").tap()
@@ -160,8 +165,10 @@ def test_isobaren(page,folder):
     cards=page.locator(".sg-panel").count()
     image_count=page.evaluate("""() => [...document.querySelectorAll("img")].filter(
       x=>x.complete&&x.naturalWidth>50&&x.getBoundingClientRect().width>5).length""")
+    page.locator("#chartGrid").scroll_into_view_if_needed()
     shot(page,folder,"isobaren_four")
     assert options>1,"Actual synoptic catalog contains no selectable valid times"
+    assert image_count>0,"No genuinely loaded synoptic map images"
     assert page.locator("#chartMode").input_value()=="four","Panel change did not persist"
     return {"real_valid_times":options,"four_panel":True,"source_filter":"DWD",
             "visible_loaded_images":image_count,"gallery_panels":cards}
@@ -207,7 +214,9 @@ def test_hyras(page,folder):
     # HYRAS Tmean uses an original daily-region Chart.js + anomaly preview,
     # not necessarily an <img> in the parent frame.
     page.locator("#hyrasParameterSelect").select_option("tmean")
-    page.wait_for_timeout(2600)
+    wait_until(page,"""() => !!document.querySelector("#hyrasTmeanRegionCanvas") ||
+      !!document.querySelector("#hyrasMapFrame .hyras-loading") &&
+      /nicht veröffentlicht|Fehler|HTTP/i.test(document.querySelector("#hyrasMapFrame")?.textContent||"")""",45000)
     contents=page.locator("#hyrasMapFrame").evaluate("""e=>({
        childTags:[...e.children].map(c=>c.tagName+"."+c.className).slice(0,10),
        canvas:e.querySelectorAll("canvas").length,
@@ -218,6 +227,8 @@ def test_hyras(page,folder):
     page.locator("#hyrasMapFrame").scroll_into_view_if_needed()
     shot(page,folder,"hyras_tmean")
     assert period_count>1,"HYRAS period list not loaded: "+before
+    assert page.locator("#hyrasTmeanRegionCanvas").count()>0, "HYRAS Tmean chart did not replace old precipitation map"
+    assert "HYRAS-Niederschlag" not in contents["text"],"Stale precipitation raster still shown in Tmean view"
     return {"status":before,"periods":period_count,"images_before":image_count,
             "map_frame":contents,
             "parameter_selected":page.locator("#hyrasParameterSelect").input_value()}
