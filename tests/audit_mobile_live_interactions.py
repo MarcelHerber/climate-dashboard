@@ -109,7 +109,17 @@ def finger_chart_point(page,canvas_id):
             tooltip:ch?.tooltip?.getActiveElements?.().length||0};
         }""",canvas_id)
         cdp.send("Input.dispatchTouchEvent",{"type":"touchEnd","touchPoints":[]})
-        return {"performed":True,**active}
+        geometry=page.evaluate("""(arg)=>{
+          const c=document.getElementById(arg.id),r=c.getBoundingClientRect();
+          const hit=document.elementFromPoint(arg.x,arg.y);
+          return {canvasRect:{x:r.x,y:r.y,w:r.width,h:r.height},
+                  isVisible:c.offsetParent!==null,
+                  computedTouchAction:getComputedStyle(c).touchAction,
+                  targetAtPoint:hit?.tagName+"#"+(hit?.id||""),
+                  chartEvents:window.Chart?.getChart?.(c)?.options?.events||null,
+                  viewport:{w:innerWidth,h:innerHeight}};
+        }""",{"id":canvas_id,"x":xyp["x"],"y":xyp["y"]})
+        return {"performed":True,**active,"point":xyp,"geometry":geometry}
     finally:
         cdp.detach()
 
