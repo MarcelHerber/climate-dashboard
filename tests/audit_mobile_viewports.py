@@ -116,7 +116,14 @@ def audit(root:Path,output:Path,chromium:str|None=None)->dict:
     for label,path,tab in TARGETS:
      page=ctx.new_page()
      try:
-      page.set_content(docs[path],wait_until="load",timeout=30000)
+      # Preserve a realistic /climate-dashboard/index.html URL. Using
+      # set_content() leaves the page at about:blank and breaks isHome()
+      # in the shared mobile navigation, producing misleading screenshots.
+      url="https://mobile-audit.invalid/climate-dashboard/"+path
+      page.route("**/*",lambda route: route.fulfill(
+        status=200,content_type="text/html; charset=utf-8",body=docs[path])
+        if route.request.resource_type=="document" else route.abort())
+      page.goto(url,wait_until="load",timeout=30000)
       if tab:
        page.evaluate("""tab=>{
         document.querySelectorAll(".tab-content").forEach(e=>e.classList.remove("active"));
