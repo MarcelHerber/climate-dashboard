@@ -64,6 +64,55 @@ def shot(page,folder,name):
     folder.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(folder/(name+".png")),full_page=False,animations="disabled",timeout=14000)
 
+def finger_chart_point(page,canvas_id):
+    """Send an actual touchStart to an original plotted Chart.js data point."""
+    point=page.evaluate("""id=>{
+      const c=document.getElementById(id),ch=c&&window.Chart?.getChart?.(c);
+      if(!ch)return null;
+      const area=ch.chartArea;
+      for(const meta of ch.getSortedVisibleDatasetMetas()){
+        for(const el of meta.data){
+          if(Number.isFinite(el.x)&&Number.isFinite(el.y)&&
+             el.x>area.left+6&&el.x<area.right-6&&
+             el.y>area.top+6&&el.y<area.bottom-6){
+            const rect=c.getBoundingClientRect();
+            return {x:rect.x+el.x,y:rect.y+el.y,dataset:meta.index};
+          }
+        }
+      }
+      return null;
+    }""",canvas_id)
+    if not point:return {"performed":False,"active":0,"reason":"no visible data pixel"}
+    page.locator("#"+canvas_id).scroll_into_view_if_needed()
+    # Recalculate the point after scrolling because rect coordinates changed.
+    xyp=page.evaluate("""id=>{
+      const c=document.getElementById(id),ch=window.Chart.getChart(c);
+      const area=ch.chartArea;
+      const meta=ch.getSortedVisibleDatasetMetas().find(m=>m.data.some(
+        e=>Number.isFinite(e.x)&&Number.isFinite(e.y)&&e.x>area.left+6&&
+         e.x<area.right-6&&e.y>area.top+6&&e.y<area.bottom-6));
+      if(!meta)return null;
+      const e=meta.data.find(e=>Number.isFinite(e.x)&&Number.isFinite(e.y)&&
+        e.x>area.left+6&&e.x<area.right-6&&e.y>area.top+6&&e.y<area.bottom-6);
+      const r=c.getBoundingClientRect();
+      return {x:r.x+e.x,y:r.y+e.y};
+    }""",canvas_id)
+    if not xyp:return {"performed":False,"active":0,"reason":"point scrolled out"}
+    cdp=page.context.new_cdp_session(page)
+    try:
+        cdp.send("Input.dispatchTouchEvent",{"type":"touchStart",
+                 "touchPoints":[{"x":xyp["x"],"y":xyp["y"],"id":0}]})
+        page.wait_for_timeout(110)
+        active=page.evaluate("""id=>{
+          const c=document.getElementById(id),ch=window.Chart?.getChart?.(c);
+          return {active:ch?.getActiveElements?.().length||0,
+            tooltip:ch?.tooltip?.getActiveElements?.().length||0};
+        }""",canvas_id)
+        cdp.send("Input.dispatchTouchEvent",{"type":"touchEnd","touchPoints":[]})
+        return {"performed":True,**active}
+    finally:
+        cdp.detach()
+
 def finger_pan(page,selector):
     """Actual Chromium touchStart/touchMove/touchEnd; no DOM mouse-click shim."""
     node=page.locator(selector).first
@@ -130,6 +179,7 @@ def test_mosmix(page,folder):
     shot(page,folder,"mosmix_map")
     assert map_alive,"Real MOSMIX data/map failed: "+status
     pan=finger_pan(page,"#mosmixMap")
+    assert pan["performed"] and pan["moved"],"Leaflet MOSMIX map did not move after touch drag"
     shot(page,folder,"mosmix_map_touch_pan")
     mode=page.locator('[data-mosmix-mode="tmax"]')
     mode.tap()
@@ -171,7 +221,8 @@ def test_mosmix(page,folder):
     chart=page.evaluate(js_chart("mosmixTempChart"),"mosmixTempChart")
     shot(page,folder,"mosmix_meteogram")
     assert chart.get("samples",0)>5,"Real station meteogram failed: "+station_status
-    return {"status":status,"map_live":map_alive,"map_finger_pan":pan,"tmax_touch":active,
+    chart_touch=finger_chart_point(page,"mosmixTempChart")
+    return {"chart_point_touch":chart_touch,"status":status,"map_live":map_alive,"map_finger_pan":pan,"tmax_touch":active,
             "slider_before":initial,"slider_after":changed,
             "tmax_slider":tmax_range,"tmax_time_label":tmax_label,
             "hourly_slider":hourly_range,"hourly_before":hourly_before,
@@ -223,9 +274,10 @@ def test_ensembles(page,folder):
     }))""")
     shot(page,folder,"ensembles_berlin")
     assert any(x["pts"]>5 for x in allcharts),"Ensemble charts have no original forecast points: "+status
+    chart_touch=finger_chart_point(page,"t850ChartGefs")
     page.locator("#t850PanelSelect").select_option("four")
     page.wait_for_timeout(500)
-    return {"status":status,"charts":allcharts,"four_panel_change":page.locator("#t850PanelSelect").input_value()=="four"}
+    return {"status":status,"charts":allcharts,"chart_point_touch":chart_touch,"four_panel_change":page.locator("#t850PanelSelect").input_value()=="four"}
 
 def test_hyras(page,folder):
     page_open(page,"index.html")
@@ -263,6 +315,7 @@ def test_hyras(page,folder):
        /Fehler|nicht geladen|keine Karte/i.test(document.getElementById("hyrasMapFrame")?.innerText||"")""",40000)
     raster=page.locator("#hyrasMapFrame canvas").first
     raster_visible=raster.count()>0
+    assert raster_visible,"HYRAS precipitation raster did not return on parameter switch"
     if raster_visible:
         raster.scroll_into_view_if_needed()
         box=raster.bounding_box()
