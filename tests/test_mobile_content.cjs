@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const SOURCE=fs.readFileSync("mobile_content.js","utf8");
 const CSS=fs.readFileSync("mobile_content.css","utf8");
 
-function harness(){
+function harness(withChart=true){
  const listeners={},windowListeners={},added=[];
  let narrow=true;
  let hintsCreated=0;
@@ -37,7 +37,7 @@ function harness(){
   update(){this.calls++;for(const p of plugins)p.beforeUpdate(this)}
  };
  const window={
-  Chart:{register(p){plugins.push(p)},instances:{"1":chart}},
+  Chart:withChart?{register(p){plugins.push(p)},instances:{"1":chart}}:null,
   matchMedia(query){return {matches:query.includes("430")?narrow:true}},
   addEventListener(type,fn){windowListeners[type]=fn},
   requestAnimationFrame(fn){fn()},
@@ -46,8 +46,10 @@ function harness(){
  vm.runInNewContext(SOURCE,{window,document:doc,WeakMap,console:{info(){}},
    Number,Object,Array,Math}, {timeout:2000});
  listeners.DOMContentLoaded();
- return {chart,scrollNode,plugins,windowListeners,doc,get narrow(){return narrow},
-   setNarrow(value){narrow=value},get hintsCreated(){return hintsCreated}};
+ return {chart,scrollNode,plugins,windowListeners,doc,
+   installChart(){window.Chart={register(p){plugins.push(p)},instances:{"1":chart}};},
+   loadDynamicChartScript(){listeners.load({target:{tagName:"SCRIPT"}})},
+   get narrow(){return narrow},setNarrow(value){narrow=value},get hintsCreated(){return hintsCreated}};
 }
 
 test("mobile axes cap tick count but retain scientific values and units",()=>{
@@ -87,6 +89,18 @@ test("never override explicitly unsuppressed labels or hidden axis",()=>{
  chart.options.scales.x.ticks.display=false;
  h.plugins[0].beforeUpdate(chart);
  assert.equal(chart.options.scales.x.ticks.maxTicksLimit,25);
+});
+test("Chart.js loaded after DOMContentLoaded gets mobile scaling via script-load event",()=>{
+ const h=harness(false);
+ assert.equal(h.plugins.length,0);
+ h.installChart();
+ h.loadDynamicChartScript();
+ assert.equal(h.plugins.length,1);
+ assert.equal(h.chart.options.scales.x.ticks.maxTicksLimit,5);
+ assert.equal(h.chart.calls>0,true);
+ // Additional dynamically loaded libraries must not register the plugin twice.
+ h.loadDynamicChartScript();
+ assert.equal(h.plugins.length,1);
 });
 test("scroll hint added once to wide table and is keyboard accessible",()=>{
  const h=harness(),n=h.scrollNode;
