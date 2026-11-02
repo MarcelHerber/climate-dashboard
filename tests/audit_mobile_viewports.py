@@ -81,7 +81,20 @@ METRICS="""targetWidth => {
  }).slice(0,12).map(e=>({tag:e.tagName,id:e.id||"",
    cls:typeof e.className==="string"?e.className.slice(0,70):"",
    right:Math.round(e.getBoundingClientRect().right)}));
- return {viewport:width,layoutViewport:window.innerWidth,visualViewport:window.visualViewport?.width,scrollWidth:root.scrollWidth,
+ const table=document.querySelector(".overview-source-table");
+ const tableStyle=table?getComputedStyle(table):null;
+ const tableRect=table?.getBoundingClientRect();
+ const cardRect=document.getElementById("overviewSources")?.getBoundingClientRect();
+ return {viewport:width,layoutViewport:window.innerWidth,visualViewport:window.visualViewport?.width,
+   viewportCssWidth:document.documentElement.clientWidth,
+   media350:matchMedia("(max-width:350px)").matches,
+   bodyClass:document.body.className,
+   tableDebug:table?{x:tableRect.x,right:tableRect.right,rectWidth:tableRect.width,
+       styleWidth:tableStyle.width,minWidth:tableStyle.minWidth,maxWidth:tableStyle.maxWidth,
+       display:tableStyle.display,overflowX:tableStyle.overflowX,
+       scrollWidth:table.scrollWidth,clientWidth:table.clientWidth,
+       cardRight:cardRect?.right,cardWidth:cardRect?.width}:null,
+   scrollWidth:root.scrollWidth,
    overflow:Math.max(0,root.scrollWidth-width),
    menuVisible:!!(rect&&rect.width>0&&rect.height>0),
    menuHeight:Math.round(rect?.height||0),offenders:seen};
