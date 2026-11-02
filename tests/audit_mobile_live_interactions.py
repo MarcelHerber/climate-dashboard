@@ -64,6 +64,31 @@ def shot(page,folder,name):
     folder.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(folder/(name+".png")),full_page=False,animations="disabled",timeout=14000)
 
+def finger_pan(page,selector):
+    """Actual Chromium touchStart/touchMove/touchEnd; no DOM mouse-click shim."""
+    node=page.locator(selector).first
+    node.scroll_into_view_if_needed(timeout=15000)
+    box=node.bounding_box()
+    if not box:
+        return {"performed":False,"reason":"Target has no bounding box"}
+    x=box["x"]+box["width"]*.5
+    y=box["y"]+min(box["height"]*.5,250)
+    before=node.evaluate("""e=>e.querySelector(".leaflet-map-pane")?.style.transform||"" """)
+    cdp=page.context.new_cdp_session(page)
+    try:
+        cdp.send("Input.dispatchTouchEvent",{"type":"touchStart",
+             "touchPoints":[{"x":x,"y":y,"id":0}]})
+        for i in range(1,7):
+            cdp.send("Input.dispatchTouchEvent",{"type":"touchMove",
+               "touchPoints":[{"x":x+7*i,"y":y+4*i,"id":0}]})
+            page.wait_for_timeout(25)
+        cdp.send("Input.dispatchTouchEvent",{"type":"touchEnd","touchPoints":[]})
+        page.wait_for_timeout(350)
+        after=node.evaluate("""e=>e.querySelector(".leaflet-map-pane")?.style.transform||"" """)
+        return {"performed":True,"before":before,"after":after,"moved":before!=after}
+    finally:
+        cdp.detach()
+
 def page_open(page,filename):
     page.goto(BASE+filename,wait_until="domcontentloaded",timeout=45000)
     page.wait_for_timeout(500)
@@ -104,6 +129,8 @@ def test_mosmix(page,folder):
     map_alive=page.locator("#mosmixMap.leaflet-container").count()>0
     shot(page,folder,"mosmix_map")
     assert map_alive,"Real MOSMIX data/map failed: "+status
+    pan=finger_pan(page,"#mosmixMap")
+    shot(page,folder,"mosmix_map_touch_pan")
     mode=page.locator('[data-mosmix-mode="tmax"]')
     mode.tap()
     page.wait_for_timeout(1000)
@@ -144,7 +171,7 @@ def test_mosmix(page,folder):
     chart=page.evaluate(js_chart("mosmixTempChart"),"mosmixTempChart")
     shot(page,folder,"mosmix_meteogram")
     assert chart.get("samples",0)>5,"Real station meteogram failed: "+station_status
-    return {"status":status,"map_live":map_alive,"tmax_touch":active,
+    return {"status":status,"map_live":map_alive,"map_finger_pan":pan,"tmax_touch":active,
             "slider_before":initial,"slider_after":changed,
             "tmax_slider":tmax_range,"tmax_time_label":tmax_label,
             "hourly_slider":hourly_range,"hourly_before":hourly_before,
@@ -229,7 +256,23 @@ def test_hyras(page,folder):
     assert period_count>1,"HYRAS period list not loaded: "+before
     assert page.locator("#hyrasTmeanRegionCanvas").count()>0, "HYRAS Tmean chart did not replace old precipitation map"
     assert "HYRAS-Niederschlag" not in contents["text"],"Stale precipitation raster still shown in Tmean view"
+    # Return to original 1-km precipitation raster and tap the actual
+    # canvas with a finger, not an artificial click event.
+    page.locator("#hyrasParameterSelect").select_option("precipitation")
+    wait_until(page,"""() => !!document.querySelector("#hyrasMapFrame canvas") ||
+       /Fehler|nicht geladen|keine Karte/i.test(document.getElementById("hyrasMapFrame")?.innerText||"")""",40000)
+    raster=page.locator("#hyrasMapFrame canvas").first
+    raster_visible=raster.count()>0
+    if raster_visible:
+        raster.scroll_into_view_if_needed()
+        box=raster.bounding_box()
+        if box:
+            page.touchscreen.tap(box["x"]+box["width"]*.5,box["y"]+box["height"]*.5)
+        page.wait_for_timeout(400)
+        shot(page,folder,"hyras_precip_touch")
     return {"status":before,"periods":period_count,"images_before":image_count,
+            "precipitation_raster_visible":raster_visible,
+            "after_raster_touch":get(page,"#hyrasStatus"),
             "map_frame":contents,
             "parameter_selected":page.locator("#hyrasParameterSelect").input_value()}
 
