@@ -9,7 +9,8 @@ on:
       - "era5_stratosphere.js"
       - ".github/workflows/update-era5-stratosphere.yml"
   # Four scheduled starts/day; GitHub may delay cron jobs.
-  # Existing concurrency lock keeps CDS requests sequential, not parallel.
+  # Keep one CDS downloader at a time to respect queue and user limits.
+  # Each run now stops new historical requests before its six-hour job limit.
   schedule:
     - cron: "45 5,11,17,23 * * *"
   workflow_dispatch:
@@ -45,6 +46,7 @@ jobs:
         run: |
           python scripts/update_era5_stratosphere.py --self-test
           python -m unittest discover -s tests -p test_era5_stratosphere_reference.py -v
+          python -m unittest discover -s tests -p test_era5_stratosphere_backfill_budget.py -v
       - name: Configure Copernicus Climate Data Store
         env:
           CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
@@ -67,14 +69,18 @@ jobs:
       - name: Fetch stage-1 ERA5 60N winds and historical chunk
         id: stage1
         continue-on-error: true
-        run: python scripts/update_era5_stratosphere.py --current --backfill-one --backfill-chunks 10
+        run: |
+          python scripts/update_era5_stratosphere.py \
+            --current --backfill-one --backfill-chunks 60 \
+            --backfill-budget-minutes 85
       - name: Verify stage-2 polar-cap calculations
         run: python scripts/update_era5_stratosphere_stage2.py --self-test
       - name: Fetch current polar-cap diagnostics and priority SSW temperatures
         run: |
           python scripts/update_era5_stratosphere_stage2.py \
             --current --priority-backfill --priority-chunks 6 \
-            --climatology-backfill --climatology-chunks 10
+            --climatology-backfill --climatology-chunks 90 \
+            --climatology-budget-minutes 160
       - name: Validate published data
         run: |
           python - <<'PY'
