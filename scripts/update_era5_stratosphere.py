@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import json
+import time
 import tempfile
 import zipfile
 from datetime import date, datetime, timedelta, timezone
@@ -265,8 +266,13 @@ def last_available_date():
     # CDS daily ERA5 has about a six-day delay; avoid incomplete most recent days.
     return datetime.now(timezone.utc).date() - timedelta(days=8)
 
-def update_year(client, year, *, current=False, max_chunks=3):
-    """Incrementally publish authentic Stage-1 zonal-wind data, newest first."""
+def update_year(client, year, *, current=False, max_chunks=3, max_minutes=None):
+    """Incrementally publish authentic Stage-1 zonal-wind data, newest first.
+
+    The backfill stops between CDS requests, leaving enough time to publish
+    all already verified data. Never discard successful partial chunks.
+    """
+    started = time.monotonic()
     cutoff = last_available_date() if current else date(year,12,31)
     by_date={row["date"]:row for row in read_rows(year)}
     months=range(12,0,-1) if current else range(1,13)
@@ -286,6 +292,10 @@ def update_year(client, year, *, current=False, max_chunks=3):
         for days in chunks:
             if processed>=max_chunks:
                 break
+            if max_minutes is not None and time.monotonic() - started >= 60 * max_minutes:
+                print(f"ERA5 historical wind time budget reached after {processed} chunks; "
+                      "preserving verified days for publication.", flush=True)
+                return len(by_date)
             stamp=[f"{year}-{month:02d}-{day:02d}" for day in days]
             if all(all(isinstance(by_date.get(day,{}).get(f"u60_{lev}"), (int,float))
                            and np.isfinite(by_date[day][f"u60_{lev}"])
@@ -443,14 +453,18 @@ def main():
     parser.add_argument("--current",action="store_true",help="update recent daily ERA5, starting in 2026")
     parser.add_argument("--backfill-one",action="store_true",help="archive one historical year, prioritizing 1991–2020")
     parser.add_argument("--backfill-chunks",type=int,default=1,
-                        help="max number of genuine 5-day wind chunks in the historical year (1..24)")
+                        help="max number of genuine 5-day wind chunks in the historical year (1..120)")
+    parser.add_argument("--backfill-budget-minutes", type=int, default=0,
+                        help="stop historical CDS requests after this many minutes (0=unlimited)")
     parser.add_argument("--self-test",action="store_true")
     args=parser.parse_args()
     if args.self_test:
         self_test()
         return
-    if not 1 <= args.backfill_chunks <= 24:
-        parser.error("--backfill-chunks must be between 1 and 24")
+    if not 1 <= args.backfill_chunks <= 120:
+        parser.error("--backfill-chunks must be between 1 and 120")
+    if not 0 <= args.backfill_budget_minutes <= 240:
+        parser.error("--backfill-budget-minutes must be 0..240")
     if not (args.current or args.backfill_one):
         parser.error("Select --current and/or --backfill-one")
     import cdsapi
@@ -462,7 +476,8 @@ def main():
         year=choose_backfill_year()
         if year is not None:
             print(f"Backfilling historical ERA5 year {year}",flush=True)
-            update_year(client,year,max_chunks=args.backfill_chunks)
+            update_year(client,year,max_chunks=args.backfill_chunks,
+                        max_minutes=args.backfill_budget_minutes or None)
         else:
             print("Historical ERA5 years completed")
     rebuild_index()
