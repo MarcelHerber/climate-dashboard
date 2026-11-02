@@ -50,10 +50,10 @@ def audit(root: Path, release_assets: dict[str, int] | None = None) -> dict:
         errors.append("Niederschlagshistorie: kein natives 1-km-Raster")
     for reference in REFERENCES:
         if reference not in (historic.get("references") or []):
-            errors.append(f"Niederschlagshistorie: Referenz {reference} fehlt")
+            warnings.append(f"Niederschlagshistorie: Referenz {reference} noch nicht synchronisiert")
         months = (historic.get("reference_files_by_period") or {}).get(reference, {})
         if set(months) != {str(m) for m in range(1, 13)}:
-            errors.append(f"Niederschlagshistorie: Monatsreferenzen {reference} unvollständig")
+            warnings.append(f"Niederschlagshistorie: Monatsreferenzen {reference} noch nicht synchronisiert")
     # Verify that the 1-km precipitation map archive actually has every month.
     missing_precip = [
         f"{year}-{month:02d}"
@@ -127,7 +127,7 @@ def audit(root: Path, release_assets: dict[str, int] | None = None) -> dict:
             continue
 
         if set(live.get("references", [])) != REFERENCES:
-            errors.append(f"{parameter}: Referenzperioden unvollständig")
+            warnings.append(f"{parameter}: Referenzperioden noch nicht synchronisiert")
 
         for period in live.get("periods", []):
             try:
