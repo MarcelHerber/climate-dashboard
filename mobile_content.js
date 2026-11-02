@@ -121,6 +121,16 @@ function scheduleRefresh(){
 }
 function init(){
  bindCharts();
+ // MOSMIX loads Chart.js only after a user selects a station. The ordinary
+ // page load event has already fired by then, so listen for the actual
+ // dynamically added chart-library <script> load and register the
+ // mobile-only tick/legend plugin before the first meteogram is created.
+ document.addEventListener("load",event=>{
+  if(event.target?.tagName==="SCRIPT"&&window.Chart&&chartCtor!==window.Chart){
+   bindCharts();
+   scheduleRefresh();
+  }
+ },true);
  showScrollHints();
  window.addEventListener("resize",scheduleRefresh,{passive:true});
  window.addEventListener("orientationchange",scheduleRefresh,{passive:true});
