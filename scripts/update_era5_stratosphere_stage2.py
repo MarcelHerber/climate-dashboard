@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import json
+import time
 from datetime import date, datetime, timezone
 
 import numpy as np
@@ -290,13 +291,22 @@ def climatology_work_plan(rows_by_year, max_chunks):
     return requests
 
 
-def backfill_reference_temperatures(client, *, max_chunks=2):
-    """Fills four true polar-cap T levels in 1991–2020, without guessing means."""
+def backfill_reference_temperatures(client, *, max_chunks=2, max_minutes=None):
+    """Fill true 1991–2020 T levels until quota or time budget is reached.
+
+    The time budget is checked before every network request so that the job
+    retains enough time to write its index and publish the verified archive.
+    """
+    started = time.monotonic()
     years = range(1991,2021)
     by_year = {y:{row["date"]:row for row in base.read_rows(y)} for y in years}
     plan = climatology_work_plan(by_year,max_chunks)
     done,failed = 0,0
     for year,month,days,levels in plan:
+        if max_minutes is not None and time.monotonic()-started >= 60*max_minutes:
+            print(f"ERA5 temperature reference time budget reached after {done} chunks; "
+                  "preserving verified days for publication.", flush=True)
+            break
         try:
             result=retrieve_chunk(client,year,month,days,("temperature",levels,"t"))
         except Exception as error:
@@ -440,6 +450,8 @@ def main():
                         help="also fill 1991–2020 temperature baseline in shared calendar windows")
     parser.add_argument("--climatology-chunks",type=int,default=2,
                         help="max real 5-day requests for climatology per run")
+    parser.add_argument("--climatology-budget-minutes",type=int,default=0,
+                        help="stop historical temperature requests after this many minutes (0=unlimited)")
     parser.add_argument("--self-test",action="store_true")
     args=parser.parse_args()
     if args.self_test:
@@ -453,8 +465,10 @@ def main():
         return
     if not any((args.current, args.backfill_one, args.priority_backfill, args.climatology_backfill)):
         parser.error("Select --current, --priority-backfill or --backfill-one")
-    if not 1 <= args.priority_chunks <= 30 or not 1 <= args.climatology_chunks <= 12:
-        parser.error("Priority chunks must be 1..30; climatology chunks 1..12")
+    if not 1 <= args.priority_chunks <= 30 or not 1 <= args.climatology_chunks <= 120:
+        parser.error("Priority chunks must be 1..30; climatology chunks 1..120")
+    if not 0 <= args.climatology_budget_minutes <= 240:
+        parser.error("--climatology-budget-minutes must be 0..240")
     import cdsapi
     client=cdsapi.Client(quiet=False,progress=False)
     run_stats={"current":bool(args.current),"priority_chunks_completed":0,
@@ -487,7 +501,8 @@ def main():
     if args.climatology_backfill:
         try:
             c_done,c_finished,c_failed=backfill_reference_temperatures(
-                client,max_chunks=args.climatology_chunks)
+                client,max_chunks=args.climatology_chunks,
+                max_minutes=args.climatology_budget_minutes or None)
             run_stats["climatology_chunks_completed"]=c_done
             run_stats["climatology_errors"]=c_failed
             run_stats["climatology_complete"]=c_finished
