@@ -67,8 +67,8 @@ def static_document(root:Path,name:str)->str:
                   for file in ("mobile_navigation.js","mobile_content.js"))
  return re.sub(r"</body\s*>",lambda m:scripts+"\n"+m.group(0),text,count=1,flags=re.I)
 
-METRICS="""() => {
- const width=innerWidth, root=document.documentElement;
+METRICS="""targetWidth => {
+ const width=targetWidth, root=document.documentElement;
  const trigger=document.getElementById("cdMobileMenuButton");
  const rect=trigger?.getBoundingClientRect();
  const seen=[...document.body.querySelectorAll("*")].filter(e=>{
@@ -81,7 +81,7 @@ METRICS="""() => {
  }).slice(0,12).map(e=>({tag:e.tagName,id:e.id||"",
    cls:typeof e.className==="string"?e.className.slice(0,70):"",
    right:Math.round(e.getBoundingClientRect().right)}));
- return {viewport:width,scrollWidth:root.scrollWidth,
+ return {viewport:width,layoutViewport:window.innerWidth,visualViewport:window.visualViewport?.width,scrollWidth:root.scrollWidth,
    overflow:Math.max(0,root.scrollWidth-width),
    menuVisible:!!(rect&&rect.width>0&&rect.height>0),
    menuHeight:Math.round(rect?.height||0),offenders:seen};
@@ -111,7 +111,7 @@ def audit(root:Path,output:Path,chromium:str|None=None)->dict:
         if(panel)panel.classList.add("active");
        }""",tab)
       page.wait_for_timeout(90)
-      measured=page.evaluate(METRICS)
+      measured=page.evaluate(METRICS,width)
       measured["page"]=label
       png=f"{label}_{width}px.png"
       page.screenshot(path=str(output/png),full_page=False,animations="disabled")
