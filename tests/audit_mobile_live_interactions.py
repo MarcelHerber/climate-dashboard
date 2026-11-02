@@ -232,6 +232,7 @@ def test_mosmix(page,folder):
     shot(page,folder,"mosmix_meteogram")
     assert chart.get("samples",0)>5,"Real station meteogram failed: "+station_status
     chart_touch=finger_chart_point(page,"mosmixTempChart")
+    assert chart_touch.get("active",0)>0 or chart_touch.get("tooltip",0)>0, "MOSMIX tooltip did not open by finger"
     return {"chart_point_touch":chart_touch,"status":status,"map_live":map_alive,"map_finger_pan":pan,"tmax_touch":active,
             "slider_before":initial,"slider_after":changed,
             "tmax_slider":tmax_range,"tmax_time_label":tmax_label,
@@ -285,6 +286,10 @@ def test_ensembles(page,folder):
     shot(page,folder,"ensembles_berlin")
     assert any(x["pts"]>5 for x in allcharts),"Ensemble charts have no original forecast points: "+status
     chart_touch=finger_chart_point(page,"t850ChartGefs")
+    if chart_touch.get("active",0)==0:
+        page.wait_for_timeout(700)
+        chart_touch=finger_chart_point(page,"t850ChartGefs")
+    assert chart_touch.get("active",0)>0 or chart_touch.get("tooltip",0)>0, "GEFS chart tooltip did not open by finger"
     page.locator("#t850PanelSelect").select_option("four")
     page.wait_for_timeout(500)
     return {"status":status,"charts":allcharts,"chart_point_touch":chart_touch,"four_panel_change":page.locator("#t850PanelSelect").input_value()=="four"}
@@ -326,13 +331,24 @@ def test_hyras(page,folder):
     raster=page.locator("#hyrasMapFrame canvas").first
     raster_visible=raster.count()>0
     assert raster_visible,"HYRAS precipitation raster did not return on parameter switch"
-    if raster_visible:
-        raster.scroll_into_view_if_needed()
-        box=raster.bounding_box()
-        if box:
+    # HYRAS may replace its canvas while fetching the next 1-km boundary
+    # overlay. Re-resolve the element if it detaches between wait and scroll.
+    touched=False
+    for attempt in range(7):
+        try:
+            raster=page.locator("#hyrasMapFrame canvas").first
+            raster.wait_for(state="visible",timeout=10000)
+            raster.scroll_into_view_if_needed(timeout=4000)
+            box=raster.bounding_box()
+            if not box:raise AssertionError("Raster canvas not measurable")
             page.touchscreen.tap(box["x"]+box["width"]*.5,box["y"]+box["height"]*.5)
-        page.wait_for_timeout(400)
-        shot(page,folder,"hyras_precip_touch")
+            touched=True
+            break
+        except Exception:
+            page.wait_for_timeout(500)
+    assert touched,"HYRAS raster touch could not be completed after re-render"
+    page.wait_for_timeout(400)
+    shot(page,folder,"hyras_precip_touch")
     return {"status":before,"periods":period_count,"images_before":image_count,
             "precipitation_raster_visible":raster_visible,
             "after_raster_touch":get(page,"#hyrasStatus"),
