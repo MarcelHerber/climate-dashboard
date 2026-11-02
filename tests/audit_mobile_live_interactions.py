@@ -116,6 +116,20 @@ def test_mosmix(page,folder):
         page.touchscreen.tap(box["x"]+box["width"]*.73,box["y"]+box["height"]*.50)
     page.wait_for_timeout(400)
     changed=slider.input_value()
+    tmax_range=slider.evaluate("(el)=>({min:el.min,max:el.max,step:el.step,disabled:el.disabled})")
+    tmax_label=get(page,"#mosmixSliderLabel")
+    # Hourly MOSMIX should have ~247 original forecast times; verify that a
+    # *real touchscreen tap* advances its native range input.
+    page.locator('[data-mosmix-mode="hourly"]').tap()
+    page.wait_for_timeout(250)
+    hourly_before=slider.input_value()
+    hourly_range=slider.evaluate("(el)=>({max:el.max,min:el.min,width:el.getBoundingClientRect().width})")
+    slider.scroll_into_view_if_needed()
+    box=slider.bounding_box()
+    if box:
+        page.touchscreen.tap(box["x"]+box["width"]*.78,box["y"]+box["height"]*.5)
+    page.wait_for_timeout(450)
+    hourly_after=slider.input_value()
     # Station detail must come from current DWD manifest, not test fixture.
     page.locator("#mosmixStationSearch").fill("Frankfurt")
     page.locator("#mosmixStationButton").tap()
@@ -127,6 +141,9 @@ def test_mosmix(page,folder):
     assert chart.get("samples",0)>5,"Real station meteogram failed: "+station_status
     return {"status":status,"map_live":map_alive,"tmax_touch":active,
             "slider_before":initial,"slider_after":changed,
+            "tmax_slider":tmax_range,"tmax_time_label":tmax_label,
+            "hourly_slider":hourly_range,"hourly_before":hourly_before,
+            "hourly_after":hourly_after,
             "meteogram":chart,"station_status":station_status}
 
 def test_isobaren(page,folder):
@@ -187,12 +204,22 @@ def test_hyras(page,folder):
     period_count=page.locator("#hyrasPeriodSelect option").count()
     image_count=page.evaluate("""() => [...document.querySelectorAll("#hyrasMapFrame img")].filter(
       img=>img.complete&&img.naturalWidth>20).length""")
-    # Touch-friendly parameter select and calendar step.
+    # HYRAS Tmean uses an original daily-region Chart.js + anomaly preview,
+    # not necessarily an <img> in the parent frame.
     page.locator("#hyrasParameterSelect").select_option("tmean")
-    page.wait_for_timeout(1100)
+    page.wait_for_timeout(2600)
+    contents=page.locator("#hyrasMapFrame").evaluate("""e=>({
+       childTags:[...e.children].map(c=>c.tagName+"."+c.className).slice(0,10),
+       canvas:e.querySelectorAll("canvas").length,
+       images:[...e.querySelectorAll("img")].map(i=>({complete:i.complete,
+           naturalWidth:i.naturalWidth,src:i.currentSrc.slice(0,150)})),
+       text:e.textContent.slice(0,260)
+    })""")
+    page.locator("#hyrasMapFrame").scroll_into_view_if_needed()
     shot(page,folder,"hyras_tmean")
     assert period_count>1,"HYRAS period list not loaded: "+before
-    return {"status":before,"periods":period_count,"images":image_count,
+    return {"status":before,"periods":period_count,"images_before":image_count,
+            "map_frame":contents,
             "parameter_selected":page.locator("#hyrasParameterSelect").input_value()}
 
 TESTS={"stratosphaere":test_stratosphaere,"mosmix":test_mosmix,
