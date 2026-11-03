@@ -16,11 +16,11 @@
     return media?.matches?"dark":"light";
   }
   function isDark(){return root.dataset.theme==="dark";}
-  function chartTheme(){
-    const dark=isDark()&&!exportingLight;
+  function chartTheme(chart){
+    const dark=isDark()&&!exportingLight&&!chart?.canvas?.closest(".monthly-frequency-exporting");
     return dark
-      ? {text:"#dce8f7",grid:"rgba(161,185,213,.17)",border:"rgba(161,185,213,.38)"}
-      : {text:"#666666",grid:"rgba(0,0,0,.10)",border:"rgba(0,0,0,.18)"};
+      ? {dark,text:"#dce8f7",grid:"rgba(161,185,213,.17)",border:"rgba(161,185,213,.38)"}
+      : {dark,text:"#666666",grid:"rgba(0,0,0,.10)",border:"rgba(0,0,0,.18)"};
   }
   function setChartDefaults(){
     if(!window.Chart)return;
@@ -29,7 +29,7 @@
     Chart.defaults.borderColor=theme.grid;
   }
   function chartColors(chart){
-    const mode=chartTheme();
+    const mode=chartTheme(chart);
     const options=chart.options;
     if(!options)return;
     if(!textColors.has(chart)){
@@ -51,7 +51,7 @@
       textColors.set(chart,original);
     }
     const first=textColors.get(chart);
-    const dark=isDark()&&!exportingLight;
+    const dark=mode.dark;
     const inheritedDark=new Set(["#dce8f7","rgba(161,185,213,.17)","rgba(161,185,213,.38)"]);
     const target=(saved,fallback)=>dark?fallback:
       (typeof saved==="string"&&inheritedDark.has(saved)?fallback:(saved??fallback));

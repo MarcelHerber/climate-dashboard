@@ -309,9 +309,14 @@
     if(typeof html2canvas!=="function")throw new Error("html2canvas ist nicht geladen.");
     node.classList.add("monthly-frequency-exporting");
     try{
+      // Redraw chart labels for the white export surface before capturing it.
+      chart?.update("none");
       await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       return await html2canvas(node,{backgroundColor:"#ffffff",scale:2,useCORS:true,logging:false});
-    }finally{node.classList.remove("monthly-frequency-exporting");}
+    }finally{
+      node.classList.remove("monthly-frequency-exporting");
+      chart?.update("none");
+    }
   }
   function triggerDownload(href,filename){
     const link=document.createElement("a");link.href=href;link.download=filename;link.style.display="none";
@@ -547,3 +552,4 @@
 
 /* DWD_DAILY_MAP_LOADER_V1 */
 (()=>{if(typeof document==="undefined")return;if(document.querySelector('script[data-dwd-daily-map]'))return;const s=document.createElement("script");s.src="dwd_station_daily_map.js?v=20261014-freshness1";s.dataset.dwdDailyMap="1";document.body.appendChild(s)})();
+
