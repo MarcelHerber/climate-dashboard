@@ -12198,7 +12198,10 @@ async function hyrasDrawInteractiveMap({state,title,subtitle,boundaryOverlay,geo
   const raw=document.createElement("canvas");raw.width=state.width;raw.height=state.height;const rctx=raw.getContext("2d"),img=rctx.createImageData(state.width,state.height);
   for(let i=0,j=0;i<n;i++,j+=4){if(!raster.valid[i]||!Number.isFinite(raster.values[i])){img.data[j+3]=0;continue;}const [rr,gg,bb]=hyrasHexRgb(hyrasColorForValue(raster.values[i],cfg));img.data[j]=rr;img.data[j+1]=gg;img.data[j+2]=bb;img.data[j+3]=255;}
   rctx.putImageData(img,0,0);
-  const scale=(Number(state.resolutionKm||1)<=1)?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
+  const scale=(Number(state.resolutionKm||1)<=1)?2:4,canvas=document.createElement("canvas");canvas.width=state.width*scale;canvas.height=state.height*scale;const ctx=canvas.getContext("2d");
+  // Bake the white background into the PNG; CSS backgrounds are not exported.
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(raw,0,0,canvas.width,canvas.height);
   if(boundaryOverlay){try{const response=await fetch(`${HYRAS_DATA_BASE}/${boundaryOverlay}?t=${Date.now()}`);if(response.ok){const bmp=await createImageBitmap(await response.blob());ctx.imageSmoothingEnabled=true;ctx.drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close?.();}}catch(error){console.warn("HYRAS-Grenzen:",error);}}
   // Do not let a previous precipitation raster render overwrite a newly
   // selected temperature view after its boundary overlay finished loading.
@@ -12793,6 +12796,8 @@ async function hyrasTmeanDrawMap(raster,{title,subtitle,mode,resolutionKm}){
     canvas.height=raw.height*displayScale;
   }
   const ctx=canvas.getContext("2d",{alpha:true});
+  // Keep downloaded maps white in image viewers, independently of their theme.
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(raw,0,0,canvas.width,canvas.height);
 
