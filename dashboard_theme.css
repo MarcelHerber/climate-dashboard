@@ -11,6 +11,11 @@ html[data-theme="dark"]{
   --navy:#eaf1fa;
   --blue:#72b7ff;
   --blue-soft:#213b58;
+  --theme-surface-raised:#21344c;
+  --theme-hover:#2b4563;
+  --theme-warm:#ff9292;
+  --theme-cool:#8bc5ff;
+  --theme-sun:#f5cc6b;
 }
 html[data-theme="dark"] body{background:var(--page);color:var(--text)}
 html[data-theme="dark"] .dashboard-header{
@@ -236,6 +241,116 @@ html[data-theme="dark"] :is(.sg-image-link,.sst-europe-map-shell,.era5-atmos-ima
 }
 
 
+/* Explizite Textfarben der hellen Module brauchen eigene Kontraste.
+   Nur UI-Flächen ändern; farbcodierte Datenzellen und Karten bleiben erhalten. */
+@media screen{
+  html[data-theme="dark"] :is(
+    .overview-kpi-label,.overview-mini-label,.overview-link-title,
+    .europe-hub-statvalue,.profile-data-status strong,
+    .era5-atmos-kpi-value,.regional-detail-chart-title,
+    .regional-ranking-extreme .value,.regional-history-card .value,
+    .regional-report-kpi .value,
+    .era5-europe-kpi .value,.era5-running-rank-kpi .value,
+    .era5-point-kpi .value,.era5-ranking-kpi .value
+  ){color:var(--text)}
+  html[data-theme="dark"] :is(
+    .overview-kpi-reference,.overview-kpi-detail,.overview-mini-detail,
+    .overview-map-subtitle,.overview-map-legend,.overview-link-copy,
+    .overview-stat-name,.overview-stat-foot,.europe-hub-statlabel,
+    .europe-hub-note,.europe-hub-card ul,.profile-data-status,
+    .current-map-legend,.current-map-legend-stale,.current-map-title-overlay span,
+    .hyras-rank-timeline-date,.hyras-maxima-strip,.regional-map-legend,
+    .regional-map-legend-title,.regional-map-tooltip .muted,
+    .regional-history-text,.regional-report-text,
+    .era5-running-rank-timeline-date,.era5-atmos-kpi-label,
+    .regional-report-kpi .label,.regional-history-card .label,
+    .era5-europe-kpi .label,.era5-running-rank-kpi .label,
+    .era5-point-kpi .label,.era5-ranking-kpi .label
+  ){color:var(--muted)}
+  html[data-theme="dark"] :is(.overview-link-icon,.overview-source-link){color:var(--blue)}
+  html[data-theme="dark"] :is(
+    .overview-kpi-value.temp,.overview-value-hot,
+    .regional-report-positive,.regional-history-record
+  ){color:var(--theme-warm)}
+  html[data-theme="dark"] :is(
+    .overview-kpi-value.rain,.overview-value-wet,
+    .regional-report-negative,.regional-history-low
+  ){color:var(--theme-cool)}
+  html[data-theme="dark"] .overview-value-sun{color:var(--theme-sun)}
+  html[data-theme="dark"] .profile-kicker{color:#74d7bd}
+  html[data-theme="dark"] .profile-event-value{
+    color:var(--text);
+    color:color-mix(in srgb,var(--metric,#555) 40%,#fff 60%)
+  }
+
+  html[data-theme="dark"] :is(
+    .station-climate-panel,.station-climate-summary,.profile-placeholder,
+    .current-live-banner,.hyras-historical-range,.hyras-rank-timeline,
+    .hyras-rank-status,.hyras-rank-panel,.hyras-point-stat,
+    .regional-map-panel,.regional-report-kpi,.regional-detail-empty,
+    .era5-running-rank-timeline,.era5-running-rank-kpi,
+    .era5-point-kpi,.era5-ranking-kpi,.era5-atmos-kpi,
+    .era5-europe-info > div
+  ){
+    background:var(--card);color:var(--text);border-color:var(--border)
+  }
+  html[data-theme="dark"] :is(
+    .section-status,.europe-hub-pill,.regional-detail-area-badge,
+    .regional-report-rank,.era5-ranking-pos
+  ){
+    background:var(--theme-surface-raised);color:var(--text);
+    border-color:var(--border)
+  }
+  html[data-theme="dark"] :is(
+    .profile-quicklinks button,.era5-ranking-item
+  ){
+    background:var(--theme-surface-raised);color:var(--text);
+    border-color:var(--border)
+  }
+  html[data-theme="dark"] :is(
+    .overview-quicklink,.profile-nearby button,.profile-quicklinks button,
+    .era5-ranking-item
+  ):hover{background:var(--theme-hover)}
+  html[data-theme="dark"] :is(
+    .overview-map-button.active,.era5-running-rank-tab.active,
+    .monthly-section-link.active,.europe-hub-action.primary
+  ){
+    background:#345a80;color:#fff;border-color:#8bc5ff
+  }
+  html[data-theme="dark"] :is(
+    .overview-current-main,.overview-kpi + .overview-kpi,
+    .overview-quicklink-grid,.overview-stat-row,.europe-hub-statrow,
+    .profile-event-row,.profile-event-cell,
+    .era5-europe-map-head,.era5-running-rank-head,.era5-running-rank-foot,
+    .regional-ranking,.regional-report,.regional-history,.regional-detail
+  ){border-color:var(--border)}
+  html[data-theme="dark"] :is(
+    .profile-current-row,.profile-extreme-card tr.current-year,
+    .profile-daily-table tr.latest,.current-ranking-table tr.selected
+  ){
+    background:#23433f
+  }
+  html[data-theme="dark"] :is(
+    .anomaly-table td.no-value,.station-precip-monthly-table td.no-value
+  ){background:#21344c;color:var(--muted)}
+  html[data-theme="dark"] .station-climate-values-table th[data-climate-period]:hover{
+    background:var(--theme-hover)
+  }
+  html[data-theme="dark"] .leaflet-control-attribution{
+    background:rgba(16,28,44,.94);color:var(--muted)
+  }
+  html[data-theme="dark"] :is(.leaflet-popup-content-wrapper,.leaflet-popup-tip){
+    background:var(--card);color:var(--text)
+  }
+  html[data-theme="dark"] :is(.map-popup-meta,.leaflet-popup-close-button){
+    color:var(--muted)
+  }
+  /* Statusmeldungen werden im Modul auch direkt eingefärbt. */
+  html[data-theme="dark"] .era5-running-rank-status{
+    color:var(--muted)!important
+  }
+}
+
 /* HYRAS: konsistente Steuerung, Kartenrahmen und historische 1-km-Karten. */
 #hyras .controls{
   display:grid;
@@ -344,3 +459,4 @@ html[data-theme="dark"] #hyras .hyras-map-frame{background:#101c2c}
   #hyras .hyras-daily-anomaly-link{padding:4px}
   #hyras .hyras-daily-anomaly-calendar{justify-content:space-between}
 }
+
