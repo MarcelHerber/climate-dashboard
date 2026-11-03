@@ -349,6 +349,46 @@ html[data-theme="dark"] :is(.sg-image-link,.sst-europe-map-shell,.era5-atmos-ima
   html[data-theme="dark"] .era5-running-rank-status{
     color:var(--muted)!important
   }
+  /* Diese Elemente werden erst nach dem Laden des Theme-Styles erzeugt. */
+  html[data-theme="dark"] #monthly :is(
+    .monthly-section-link,.monthly-frequency-switch,
+    .monthly-frequency-switch button
+  ){
+    background:var(--theme-surface-raised);color:var(--text);
+    border-color:var(--border)
+  }
+  html[data-theme="dark"] #monthly :is(
+    .monthly-section-link,.monthly-frequency-switch button
+  ):hover{background:var(--theme-hover)}
+  html[data-theme="dark"] #monthly .monthly-frequency-switch button.active{
+    background:#345a80;color:#fff;box-shadow:inset 0 -2px #8bc5ff
+  }
+  html[data-theme="dark"] #monthly .monthly-frequency-card:not(.monthly-frequency-exporting) :is(
+    .monthly-frequency-period,.monthly-frequency-scale,
+    .monthly-frequency-chart-wrap,.monthly-frequency-stat
+  ){
+    background:var(--card);color:var(--text);border-color:var(--border)
+  }
+  html[data-theme="dark"] #monthly .monthly-frequency-card:not(.monthly-frequency-exporting) :is(
+    .monthly-frequency-badge,.monthly-frequency-export-btn
+  ){
+    background:var(--theme-surface-raised);color:var(--text);
+    border-color:var(--border)
+  }
+  html[data-theme="dark"] #monthly .monthly-frequency-card:not(.monthly-frequency-exporting) :is(
+    .monthly-frequency-stat .label,.monthly-frequency-stat .detail,
+    .monthly-frequency-period label,.monthly-frequency-scale label
+  ){color:var(--muted)}
+  html[data-theme="dark"] #monthly .monthly-frequency-card:not(.monthly-frequency-exporting) .period-a .value{
+    color:var(--theme-cool)
+  }
+  html[data-theme="dark"] #monthly .monthly-frequency-card:not(.monthly-frequency-exporting) .period-b .value{
+    color:var(--theme-warm)
+  }
+  html[data-theme="dark"] .monthly-frequency-exporting{
+    --card:#fff;--text:#0f172a;--muted:#536173;--border:#dce3e8;
+    color:#0f172a
+  }
 }
 
 /* HYRAS: konsistente Steuerung, Kartenrahmen und historische 1-km-Karten. */
