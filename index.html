@@ -3880,8 +3880,8 @@ button.action:hover{background:#1f2937}
   </div>
 </div>
 
-<script src="state_monthly_ensemble.js?v=20261011-3"></script>
-<script src="t850_ensembles.js?v=20261012-exportmeta1"></script>
+<script src="state_monthly_ensemble.js?v=20261103-white-export-v2"></script>
+<script src="t850_ensembles.js?v=20261103-white-export-v2"></script>
 <script src="sst_europe.js"></script>
 <script>
 Chart.register(ChartDataLabels);
@@ -5510,7 +5510,7 @@ async function downloadRegionalMapPanel(mapName){
     const mapObj=mapName==="A"?regionalMap:mapName==="B"?regionalMapB:regionalMapDiff;
     mapObj?.invalidateSize(false);
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    const canvas=await html2canvas(panel,{scale:3,backgroundColor:"#fbfcfd",useCORS:true,logging:false});
+    const canvas=await window.captureDashboardWithWhiteBackground(panel,{scale:3,backgroundColor:"#fbfcfd",useCORS:true,logging:false});
     const link=document.createElement("a");link.download=filename;link.href=canvas.toDataURL("image/png",1);document.body.appendChild(link);link.click();link.remove();
   }catch(error){console.error("Kartenexport:",error);alert(`Karte konnte nicht exportiert werden: ${error.message}`);}
   finally{panel.classList.remove("regional-map-exporting");if(button){button.disabled=false;button.textContent="PNG ↓";}}
@@ -7751,7 +7751,7 @@ async function exportStationProfileClimateValues(format){
       link.href=url;link.download=safeExportFilename(title,"csv");document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
     }
     const area=document.getElementById("stationProfileClimateValuesExportArea");if(!area||typeof html2canvas!=="function")throw new Error("Exportbibliothek konnte nicht geladen werden.");
-    const canvas=await html2canvas(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    const canvas=await window.captureDashboardWithWhiteBackground(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
     if(format==="png"){triggerDataUrlDownload(canvas.toDataURL("image/png",1),safeExportFilename(title,"png"));return;}
     const {jsPDF}=window.jspdf||{};if(!jsPDF)throw new Error("PDF-Bibliothek konnte nicht geladen werden.");
     const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true}),w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight(),margin=8;
@@ -9676,7 +9676,7 @@ async function downloadNationalStreakMap(){
     controls.forEach(node=>{node.style.display="none";});
     nationalStreakMap?.invalidateSize();
     await new Promise(resolve=>setTimeout(resolve,180));
-    const canvas=await html2canvas(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    const canvas=await window.captureDashboardWithWhiteBackground(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
     const link=document.createElement("a");
     link.download=`kenntage_serienrekorde_${metricId}_deutschland.png`;
     link.href=canvas.toDataURL("image/png");
@@ -13249,7 +13249,8 @@ async function hyrasTmeanExportCurvePdf(event,region,period){
     if(!ctx)throw new Error("PDF-Canvas konnte nicht erzeugt werden.");
     ctx.fillStyle="#ffffff";
     ctx.fillRect(0,0,exportCanvas.width,exportCanvas.height);
-    ctx.drawImage(canvas,0,0);
+    const exportChart=window.Chart?.getChart(canvas);
+    ctx.drawImage(exportChart?chartCanvasWithWhiteBackground(exportChart):canvas,0,0);
 
     const image=exportCanvas.toDataURL("image/png",1.0);
     const pdf=new JsPdf({orientation:"landscape",unit:"mm",format:"a4",compress:true});
@@ -13571,7 +13572,8 @@ async function hyrasTmaxExportCurvePdf(event,region,period){
 
     context.fillStyle="#ffffff";
     context.fillRect(0,0,exportCanvas.width,exportCanvas.height);
-    context.drawImage(canvas,0,0);
+    const exportChart=window.Chart?.getChart(canvas);
+    context.drawImage(exportChart?chartCanvasWithWhiteBackground(exportChart):canvas,0,0);
 
     const image=exportCanvas.toDataURL("image/png",1.0);
     const pdf=new JsPdf({
@@ -15043,7 +15045,7 @@ async function currentMapCaptureCanvas(){
   if(typeof html2canvas!=='function') throw new Error('Exportbibliothek konnte nicht geladen werden.');
   mapElement.classList.add('current-map-exporting');
   try{
-    return await html2canvas(mapElement,{scale:3,backgroundColor:'#f8fafb',useCORS:true,logging:false});
+    return await window.captureDashboardWithWhiteBackground(mapElement,{scale:3,backgroundColor:'#f8fafb',useCORS:true,logging:false});
   }finally{mapElement.classList.remove('current-map-exporting');}
 }
 async function currentMapExport(format){
@@ -15768,6 +15770,7 @@ async function era5RunningRankBlobToPngDataUrl(blob){
     canvas.height=image.naturalHeight||image.height;
     const ctx=canvas.getContext("2d");
     if(!ctx)throw new Error("PNG-Canvas konnte nicht erstellt werden.");
+    ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(image,0,0);
     return canvas.toDataURL("image/png");
   }finally{
@@ -16220,7 +16223,7 @@ async function downloadEra5EuropeMap(){
   const historicalYear=era5EuropeMapYear();
   if(Number.isFinite(historicalYear)){
     const stage=document.getElementById("era5EuropeImageStage"),button=document.getElementById("era5EuropeDownload"),original=button?.textContent;if(!stage)return;if(button){button.disabled=true;button.textContent="…";}
-    try{const canvas=await html2canvas(stage,{backgroundColor:"#ffffff",scale:2,useCORS:true});const link=document.createElement("a");const parameter=document.getElementById("era5EuropeParameter")?.value||"parameter",periodId=document.getElementById("era5EuropePeriod")?.value||"period",view=document.getElementById("era5EuropeView")?.value||"view";link.href=canvas.toDataURL("image/png");link.download=`era5_land_europa_${parameter}_${historicalYear}_${periodId}_${view}_0p1deg.png`;link.click();}catch(error){console.error(error);alert(`PNG-Download nicht möglich: ${error.message}`);}finally{if(button){button.disabled=false;button.textContent=original;}}return;
+    try{const canvas=await window.captureDashboardWithWhiteBackground(stage,{backgroundColor:"#ffffff",scale:2,useCORS:true});const link=document.createElement("a");const parameter=document.getElementById("era5EuropeParameter")?.value||"parameter",periodId=document.getElementById("era5EuropePeriod")?.value||"period",view=document.getElementById("era5EuropeView")?.value||"view";link.href=canvas.toDataURL("image/png");link.download=`era5_land_europa_${parameter}_${historicalYear}_${periodId}_${view}_0p1deg.png`;link.click();}catch(error){console.error(error);alert(`PNG-Download nicht möglich: ${error.message}`);}finally{if(button){button.disabled=false;button.textContent=original;}}return;
   }
   const parameter=document.getElementById("era5EuropeParameter")?.value||"temperature";const soilLayer=document.getElementById("era5EuropeSoilLayer")?.value||"layer1";const periodId=document.getElementById("era5EuropePeriod")?.value||"latest_month";const view=document.getElementById("era5EuropeView")?.value||"absolute";
   let parameterData=era5EuropeIndex.periods?.[periodId]?.[parameter];if(parameter==="soil_moisture")parameterData=parameterData?.layers?.[soilLayer]||(soilLayer==="layer1"?parameterData:null);const mapInfo=parameterData?.[view];if(!mapInfo)return;
@@ -16957,7 +16960,8 @@ async function hyrasTminExportCurvePdf(event,region,period){
 
     context.fillStyle="#ffffff";
     context.fillRect(0,0,exportCanvas.width,exportCanvas.height);
-    context.drawImage(canvas,0,0);
+    const exportChart=window.Chart?.getChart(canvas);
+    context.drawImage(exportChart?chartCanvasWithWhiteBackground(exportChart):canvas,0,0);
 
     const image=exportCanvas.toDataURL("image/png",1.0);
     const pdf=new JsPdf({
@@ -17334,10 +17338,10 @@ hyrasSwitchParameter=async function(){
 <script src="monthly_frequency.js?v=20261103-dark-export-v1"></script>
 <script src="hyras_historical_temperature_1km.js?v=4"></script>
 <script src="mosmix.js?v=20261028-mosmix-foursteps-v1"></script>
-<script src="station_thresholds.js?v=20261014-season-edge-buffer-v5"></script>
+<script src="station_thresholds.js?v=20261103-white-export-v2"></script>
 <script src="era5_europe.js?v=20261014-era5-sync-fix"></script>
 <script src="era5_synoptic.js?v=20261014-synoptic-v1"></script>
 <script src="monthly_layout.js?v=20261014-gebietsmittel2"></script>
-<script src="dashboard_theme.js?v=20261103-dark-export-v1"></script>
+<script src="dashboard_theme.js?v=20261103-white-export-v2"></script>
 </body>
 </html>

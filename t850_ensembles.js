@@ -605,7 +605,7 @@ function withExportHeader(source){
 }
 async function exportCanvas(){
   if(!window.html2canvas)throw new Error("html2canvas ist nicht geladen.");
-  const captured=await window.html2canvas(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
+  const captured=await window.captureDashboardWithWhiteBackground(el("t850ExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});
   return withExportHeader(captured);
 }
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},1000);}

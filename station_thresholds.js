@@ -553,7 +553,7 @@
   }
   function exportPng(){
     if(!lastAnalysis||!chart)return;
-    const source=chart.canvas;
+    const source=chartCanvasWithWhiteBackground(chart);
     const width=1420;
     const height=Math.round(width*source.height/source.width);
     // Die Exportseite wird an die Grafik angepasst, statt mit fixer
@@ -584,7 +584,7 @@
     pdf.setFontSize(9);
     pdf.text(exportAnalysisSubtitle().replace(/[≤≥]/g,function(ch){return ch==="≤"?"<=":">=";}),12,31);
     const width=186, height=Math.min(111,width*chart.canvas.height/chart.canvas.width);
-    pdf.addImage(chart.canvas.toDataURL("image/png"),"PNG",12,40,width,height);
+    pdf.addImage(chartCanvasWithWhiteBackground(chart).toDataURL("image/png"),"PNG",12,40,width,height);
     const footerY=40+height+9;
     pdf.setFontSize(8);
     pdf.text("Quelle: DWD CDC Tageswerte; fehlende Werte unterbrechen Serien.",12,footerY);

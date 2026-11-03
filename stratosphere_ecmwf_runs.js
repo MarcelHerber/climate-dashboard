@@ -217,7 +217,12 @@ $("stratoEcmwfCsv").addEventListener("click",()=>{
 });
 $("stratoEcmwfPng").addEventListener("click",()=>{
  if(!chart)return;
- const img=document.createElement("a");img.href=chart.toBase64Image("image/png",1);
+ const source=chart.canvas,canvas=document.createElement("canvas");
+ canvas.width=source.width;canvas.height=source.height;
+ const ctx=canvas.getContext("2d");if(!ctx)return;
+ ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+ ctx.drawImage(source,0,0);
+ const img=document.createElement("a");img.href=canvas.toDataURL("image/png",1);
  img.download="ECMWF_IFS_Polarwirbel_U60_10hPa_Runs.png";img.click();
 });
 function choose(which){

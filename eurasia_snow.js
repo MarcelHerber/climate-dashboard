@@ -282,7 +282,12 @@
   $("png").addEventListener("click",()=>{
     if(!doc||!chart)return;
     const a=document.createElement("a");
-    a.href=chart.toBase64Image("image/png",1);
+    const source=chart.canvas,canvas=document.createElement("canvas");
+    canvas.width=source.width;canvas.height=source.height;
+    const ctx=canvas.getContext("2d");if(!ctx)return;
+    ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(source,0,0);
+    a.href=canvas.toDataURL("image/png",1);
     a.download="Eurasien_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".png";
     a.click();
   });

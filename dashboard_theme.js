@@ -7,6 +7,7 @@
   const media=window.matchMedia?.("(prefers-color-scheme: dark)");
   let exportingLight=false;
   const textColors=new WeakMap();
+  const lightCaptureCharts=new WeakMap();
 
   function preference(){
     try {
@@ -17,7 +18,7 @@
   }
   function isDark(){return root.dataset.theme==="dark";}
   function chartTheme(chart){
-    const dark=isDark()&&!exportingLight&&!chart?.canvas?.closest(".monthly-frequency-exporting");
+    const dark=isDark()&&!exportingLight&&!lightCaptureCharts.has(chart)&&!chart?.canvas?.closest(".monthly-frequency-exporting");
     return dark
       ? {dark,text:"#dce8f7",grid:"rgba(161,185,213,.17)",border:"rgba(161,185,213,.38)"}
       : {dark,text:"#666666",grid:"rgba(0,0,0,.10)",border:"rgba(0,0,0,.18)"};
@@ -119,6 +120,37 @@
     });
     setChartDefaults();
   }
+  /* Capture a light clone without changing the selected website theme.
+     Reference counts keep overlapping exports of one chart light until both finish. */
+  window.captureDashboardWithWhiteBackground=async function(node,options={}){
+    if(!node)throw new Error("Exportbereich nicht gefunden.");
+    if(typeof window.html2canvas!=="function")throw new Error("html2canvas ist nicht geladen.");
+    const charts=Object.values(window.Chart?.instances||{}).filter(chart=>
+      chart.canvas&&node.contains(chart.canvas));
+    for(const chart of charts)lightCaptureCharts.set(chart,(lightCaptureCharts.get(chart)||0)+1);
+    try{
+      for(const chart of charts)chart.update("none");
+      const onclone=options.onclone;
+      return await window.html2canvas(node,{
+        ...options,backgroundColor:"#ffffff",
+        async onclone(clone,...args){
+          if(onclone)await onclone(clone,...args);
+          clone.documentElement.dataset.theme="light";
+        }
+      });
+    }finally{
+      for(const chart of charts){
+        const remaining=lightCaptureCharts.get(chart)-1;
+        if(remaining)lightCaptureCharts.set(chart,remaining);
+        else lightCaptureCharts.delete(chart);
+      }
+      for(const chart of charts){
+        if(!chart.canvas)continue;
+        try{chart.update("none");}
+        catch(error){console.warn("Export: Diagramm konnte nicht wiederhergestellt werden:",error);}
+      }
+    }
+  };
   /* Main dashboard exports call this synchronous helper. Redraw the axes and
      legend temporarily in dark-on-white, copy to the white export canvas,
      then immediately restore the on-screen dark version. */
