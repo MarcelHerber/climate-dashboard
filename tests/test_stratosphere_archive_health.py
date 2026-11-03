@@ -14,9 +14,8 @@ def record(now,hour,age=12):
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def fixture(name,now):
+def fixture(name,now,hour=0):
     cfg=m.SOURCES[name]
-    hour=0
     cycle=(now-timedelta(hours=12)).replace(hour=hour,minute=0,second=0,microsecond=0)
     iso=cycle.strftime("%Y-%m-%dT%H:%M:%SZ")
     dates=[(cycle+timedelta(days=i)).strftime("%Y-%m-%d") for i in range(17 if name=="GEFS" else 16)]
@@ -24,6 +23,8 @@ def fixture(name,now):
     run={"schema_version":1,"provider":cfg["provider"],"cycle_utc":iso,"member_count":cfg["count"],
          "level_hpa":10,"latitude_deg":60,"units":"m/s",
          "forecast_horizon_days":len(dates)-1,"valid_dates":dates,"members":members}
+    if name=="ECMWF ENS":
+        run["valid_hour_utc"]=cycle.hour
     idx={"schema_version":1,"provider":cfg["provider"],"latest_cycle_utc":iso,
          "runs":[{"cycle_utc":iso,"path":f"runs/{cycle:%Y%m%d_%H%M%S}.json"}]}
     return idx,run
@@ -42,6 +43,16 @@ class ArchiveHealthTests(unittest.TestCase):
                 self.assertEqual(data["members"],m.SOURCES[name]["count"])
                 self.assertEqual(data["archive_runs"],1)
                 self.assertTrue(warnings)
+
+    def test_eps_validity_hour_matches_initialization(self):
+        for hour in (0,12):
+            with self.subTest(hour=hour):
+                idx,run=fixture("ECMWF ENS",self.now,hour=hour)
+                _,errors,_=m.validate_manifest("ECMWF ENS",idx,run,self.now)
+                self.assertFalse(errors,errors)
+                run["valid_hour_utc"]=(hour+12)%24
+                _,errors,_=m.validate_manifest("ECMWF ENS",idx,run,self.now)
+                self.assertTrue(any("validity hour" in error for error in errors),errors)
 
     def test_stale_current_cycle_fails(self):
         idx,run=fixture("GEFS",self.now)
@@ -78,3 +89,4 @@ class ArchiveHealthTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+
