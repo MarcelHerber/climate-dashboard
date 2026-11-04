@@ -1197,6 +1197,9 @@ button.action:hover{background:#1f2937}
 .snow-cum-table th,.snow-cum-table td{text-align:left;padding:8px}
 .snow-cum-method{font-size:12px;line-height:1.6;margin:13px 0 0}
 @media(max-width:640px){.snow-cum-panel{padding:12px}.snow-cum-chart-wrap{height:330px}.snow-cum-controls .control-group{flex-basis:130px}}
+.station-snow-quality-filter{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border,#ced4dc);border-radius:8px;font-weight:650;cursor:pointer;max-width:100%;line-height:1.4;min-height:36px}
+.station-snow-quality-filter input{width:17px;height:17px;flex:none;accent-color:#24799c}
+.station-snow-filter-status{font-size:12px;width:100%;margin:0 0 6px;line-height:1.5;color:var(--muted,#555)}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
@@ -3417,6 +3420,11 @@ button.action:hover{background:#1f2937}
         <label for="stationSnowStationSelect">Schneestation</label>
         <select id="stationSnowStationSelect"></select>
       </div>
+      <label class="station-snow-quality-filter" for="stationSnowLongSeriesOnly">
+        <input type="checkbox" id="stationSnowLongSeriesOnly">
+        Nur Stationen mit mindestens 30 vollständigen Messjahren
+      </label>
+      <p id="stationSnowFilterStatus" class="station-snow-filter-status" role="status" aria-live="polite"></p>
 
       <div class="control-group">
         <label for="stationSnowPeriodSelect">Anzeige</label>
@@ -9847,22 +9855,42 @@ async function ensureStationSnowLoaded(){
     dashboardFetch("station_snow_height_current_index.json",{cache:"no-store"}).then(response=>{
       if(!response.ok) throw new Error(`Aktueller Schneehöhenindex: HTTP ${response.status}`);
       return response.json();
-    })
-  ]).then(([historyIndex,currentIndex])=>{
+    }),
+    dashboardFetch("station_snow_height_additional_index.json",{cache:"no-store"})
+      .then(response=>response.ok?response.json():null)
+      .catch(error=>{console.warn("Erweiterte Schneestationen noch nicht verfügbar:",error);return null;})
+  ]).then(([historyIndex,currentIndex,additionalIndex])=>{
     if(!historyIndex.ready) throw new Error("Die historischen Schneehöhenprofile sind noch nicht bereit.");
     if(!currentIndex.ready) throw new Error("Die aktuelle Schneehöhensaison ist noch nicht bereit.");
 
-    stationSnowIndex=historyIndex;
-    stationSnowCurrentIndex=currentIndex;
+    // Original KL stations win on overlapping DWD station IDs.
+    // The extended RR/KL catalogue contains only stations with measured snow
+    // depths, and is optional while its independent data workflow catches up.
+    const baseIds=new Set((historyIndex.stations||[]).map(s=>s.id));
+    const extraStations=additionalIndex?.ready===true
+      ?(additionalIndex.stations||[]).filter(s=>!baseIds.has(s.id)): [];
+    const merged=[...(historyIndex.stations||[]),...extraStations].sort(
+      (a,b)=>(a.state||"").localeCompare(b.state||"","de")||
+        (a.name||"").localeCompare(b.name||"","de"));
+    stationSnowIndex={...historyIndex,stations:merged,station_count:merged.length};
+    const currentExtra=extraStations.map(s=>({
+      id:s.id,current_available:!!s.current_available,
+      file:s.current_file||null,last_observation:s.last_observation||null,
+      last_value_cm:s.last_value_cm??null,max_cm:s.current_max_cm??null
+    }));
+    stationSnowCurrentIndex={...currentIndex,stations:[
+      ...(currentIndex.stations||[]),...currentExtra]};
     initializeStationSnowControls();
 
     loading.hidden=true;
     document.getElementById("stationSnowContent").hidden=false;
 
     document.getElementById("stationSnowSourceNote").textContent=
-      `${historyIndex.source_note||"Quelle: DWD Climate Data Center, SHK_TAG."} `+
-      `Hydrologisches Jahr ${currentIndex.hydrological_year}: ${currentIndex.period_start} bis ${currentIndex.period_end}. `+
-      `Aktueller Netz-Datenstand: ${currentIndex.data_through?stationSnowGermanDate(currentIndex.data_through):"–"}.`;
+      `Quelle: DWD CDC tägliche KL (SHK_TAG) und ergänzend RR (SH_TAG). `+
+      `${stationSnowIndex.station_count} Stationen mit nachgewiesenen Tageswerten, davon `+
+      `${stationSnowIndex.stations.filter(s=>stationSnowQualifiesForLongSeries(s)).length} mit mindestens 30 vollständigen Jahren. `+
+      `Aktuelle Saison ${currentIndex.hydrological_year}: ${currentIndex.data_through?stationSnowGermanDate(currentIndex.data_through):"–"}. `+
+      `Unvollständige Messreihen bleiben auswählbar; fehlende Werte sind keine 0 cm.`;
 
     return updateStationSnow().then(()=>historyIndex);
   }).catch(error=>{
@@ -9897,6 +9925,10 @@ function initializeStationSnowControls(){
     populateStationSnowStations();
     updateStationSnow();
   });
+  document.getElementById("stationSnowLongSeriesOnly").addEventListener("change",()=>{
+    populateStationSnowStations();
+    updateStationSnow();
+  });
 
   document.getElementById("stationSnowStationSelect").addEventListener("change",updateStationSnow);
   document.getElementById("stationSnowPeriodSelect").addEventListener("change",updateStationSnow);
@@ -9922,12 +9954,18 @@ function initializeStationSnowControls(){
   populateStationSnowStations(true);
 }
 
+function stationSnowQualifiesForLongSeries(station){
+  // Keep the old scientific criterion: >=30 separate hydrological years,
+  // each having >=98% real daily SHK_TAG or SH_TAG observations.
+  return Number(station.accepted_history_years||0)>=30;
+}
 function filteredStationSnowStations(){
   const state=document.getElementById("stationSnowStateSelect").value;
   const search=document.getElementById("stationSnowSearch").value.trim().toLocaleLowerCase("de-DE");
-
+  const longOnly=Boolean(document.getElementById("stationSnowLongSeriesOnly")?.checked);
   return (stationSnowIndex.stations||[]).filter(station=>{
     if(state!=="Deutschland" && station.state!==state) return false;
+    if(longOnly && !stationSnowQualifiesForLongSeries(station))return false;
     if(!search) return true;
     return `${station.name} ${station.id}`.toLocaleLowerCase("de-DE").includes(search);
   });
@@ -9937,13 +9975,18 @@ function populateStationSnowStations(firstLoad=false){
   const select=document.getElementById("stationSnowStationSelect");
   const previous=select.value;
   const stations=filteredStationSnowStations();
+  const all=stationSnowIndex?.stations||[];
+  const qualified=all.filter(stationSnowQualifiesForLongSeries).length;
+  const status=document.getElementById("stationSnowFilterStatus");
+  if(status)status.textContent=`${stations.length} Stationen im Filter · ${all.length} insgesamt · ${qualified} mit ≥30 vollständigen Messjahren (mind. 98 % Tagesabdeckung je Jahr).`;
 
   select.innerHTML="";
   stations.forEach(station=>{
     const option=document.createElement("option");
     option.value=station.id;
-    const currentMeta=(stationSnowCurrentIndex?.stations||[]).find(item=>item.id===station.id);
-    option.textContent=`${station.name} (${station.id})${currentMeta && !currentMeta.current_available?" · keine Saisonwerte":""}`;
+    const currentMeta=stationSnowCurrentMeta(station.id);
+    const years=Number(station.accepted_history_years||0);
+    option.textContent=`${station.name} (${station.id}) · ${years} vollständige Jahre · ${station.source?.includes("RR")?"RR":"KL"}${currentMeta && !currentMeta.current_available?" · keine Saisonwerte":""}`;
     select.appendChild(option);
   });
 
@@ -10088,6 +10131,7 @@ async function updateStationSnow(){
 
   const stationId=document.getElementById("stationSnowStationSelect")?.value;
   if(!stationId){
+    ++stationSnowRequestId;
     document.getElementById("stationSnowSummary").textContent="Keine Station für den gewählten Filter gefunden.";
     return;
   }
@@ -10266,9 +10310,9 @@ async function updateStationSnow(){
 
     document.getElementById("stationSnowHistoryStat").textContent=`${historyYears} Jahre`;
     document.getElementById("stationSnowHistoryDetail").textContent=
-      quality.history_start_year && quality.history_end_year
-        ?`Hydrologische Jahre ${quality.history_start_year}–${quality.history_end_year}`
-        :"akzeptierte historische hydrologische Jahre";
+      `${Number(quality.observed_history_years||historyYears)} Jahre mit Tageswerten, ${historyYears} davon ≥98 % vollständig`+
+      (quality.history_start_year&&quality.history_end_year
+        ?` · ${quality.history_start_year}–${quality.history_end_year}`:"");
 
     if(summary){
       document.getElementById("stationSnowLatestStat").textContent=
@@ -10304,8 +10348,10 @@ async function updateStationSnow(){
       document.getElementById("stationSnowCoverDaysStat").textContent="–";
       document.getElementById("stationSnowSummary").innerHTML=
         `<strong>${station.name} (${station.id})${height}:</strong> `+
-        `Für das hydrologische Jahr ${hydroYear} liegen derzeit keine SHK_TAG-Saisonwerte vor. `+
-        `Die historische Klimatologie bleibt verfügbar. Referenzbasis: ${refYears}/30 Qualitätsjahre 1991–2020 (${referenceStatus}).`;
+        `Für das hydrologische Jahr ${hydroYear} liegen derzeit keine aktuellen Schneehöhenmessungen vor. `+
+        (refYears>=10
+          ?`Referenzbasis: ${refYears}/30 Qualitätsjahre 1991–2020 (${referenceStatus}).`
+          :"Für eine belastbare Referenz 1991–2020 liegen noch keine zehn vollständigen Messjahre vor. Die beobachteten Einzeljahre sind trotzdem verfügbar.");
     }
 
   }catch(error){
