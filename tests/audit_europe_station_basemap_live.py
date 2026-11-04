@@ -23,7 +23,9 @@ def run_case(browser,width,block_tiles):
         reduced_motion="reduce")
     page=context.new_page()
     failed=[]
+    carto_requests=[]
     page.on("pageerror",lambda e:failed.append(str(e)[:280]))
+    page.on("request",lambda req:carto_requests.append(req.url) if "cartocdn.com" in req.url else None)
     if block_tiles:
         page.route(re.compile(r"^https://(?:[abcd]\.)?basemaps\.cartocdn\.com/|^https://tile\.openstreetmap\.org/"),
                    lambda route:route.abort())
@@ -57,6 +59,8 @@ def run_case(browser,width,block_tiles):
             vectorCanvasCount:m.getPane('europeStationGeographyPane')?.querySelectorAll('canvas').length||0,
             vectorCountryCount:vector?.getLayers?.().length||0,
             actualGeographyPaneClass:m.getPane('europeStationGeographyPane')?.className,
+            vectorPaneZIndex:Number(m.getPane('europeStationGeographyPane')?.style.zIndex||0),
+            vectorFillOpacity:vector?.getLayers?.()[0]?.options?.fillOpacity,
             stationMarkers:europeStationMarkerById.size,
             shownLabel:document.getElementById('europeStationShown')?.textContent,
             tileImages:map?.querySelectorAll('img.leaflet-tile')?.length||0,
@@ -68,6 +72,8 @@ def run_case(browser,width,block_tiles):
         record.update(state)
         assert state["leafletVisible"],"Leaflet map has zero dimensions"
         assert state["vectorSvgPaths"]>=10,"Natural Earth fallback outlines missing"
+        assert 200<state["vectorPaneZIndex"]<400,"Local borders hidden behind raster image tilePane"
+        assert not carto_requests,"CARTO API-key-required raster images were still requested"
         assert state["stationMarkers"]>0,"Original station record markers missing"
         if block_tiles:
             assert state["loadedTiles"]==0,"External tiles unexpectedly loaded during offline test"
@@ -83,6 +89,7 @@ def run_case(browser,width,block_tiles):
             page.screenshot(path=str(OUT/f"FAILED_europa_stations_{width}_{int(block_tiles)}.png"),
                            full_page=False,timeout=12000)
         except Exception:pass
+    record["carto_requests"]=carto_requests[:8]
     record["js_errors"]=failed[-8:]
     results.append(record)
     page.close()
