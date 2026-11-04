@@ -2,6 +2,11 @@ name: Build DWD snow-height profiles
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_dwd_snow_height_profiles.py"
+      - ".github/workflows/build-dwd-snow-height-profiles.yml"
 
 permissions:
   contents: write
@@ -41,6 +46,16 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/build_dwd_snow_height_profiles.py
+          test -s station_snow_height_years/05792.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc=json.loads(Path('station_snow_height_years/05792.json').read_text())
+          assert doc['version']==1 and doc['station_id']=='05792'
+          assert len(doc['month_days'])==366 and len(doc['years'])>=30
+          assert all(len(row['values'])==366 for row in doc['years'])
+          print('Historische Jahreskurven für die Zugspitze geprüft.')
+          PY
 
       - name: Profile versionieren
         shell: bash
@@ -52,7 +67,8 @@ jobs:
 
           git add \
             station_snow_height_index.json \
-            station_snow_height_profiles
+            station_snow_height_profiles \
+            station_snow_height_years
 
           if git diff --cached --quiet; then
             echo "Keine Änderungen an den Schneehöhen-Profilen."
