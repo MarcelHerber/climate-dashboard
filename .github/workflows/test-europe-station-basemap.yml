@@ -1,0 +1,64 @@
+name: Europa-Stationsrekorde · Kartenhintergrund
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "europe_station_basemap.js"
+      - "tests/test_europe_station_basemap.cjs"
+      - "tests/audit_europe_station_basemap_live.py"
+      - "scripts/build_pages_site.sh"
+      - ".github/workflows/test-europe-station-basemap.yml"
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: europe-station-basemap-tests
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+      - name: Kartenquelle und Fallback prüfen
+        run: |
+          node --check europe_station_basemap.js
+          node --test tests/test_europe_station_basemap.cjs
+
+  live-browser:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Playwright installieren
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Kartenhintergrund live mit und ohne externen Kachelserver prüfen
+        run: python -u tests/audit_europe_station_basemap_live.py
+      - name: Testübersicht
+        if: always()
+        run: |
+          if [ -f europe_station_map_audit/README.md ]; then
+            cat europe_station_map_audit/README.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Screenshots und Diagnosen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: europa-stationsrekorde-hintergrund
+          path: europe_station_map_audit/
+          if-no-files-found: warn
+          retention-days: 14
