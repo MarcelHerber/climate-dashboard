@@ -316,7 +316,16 @@ def self_test() -> None:
     cp=current_payload("00042",fake,empty_profile(fake,"00042"),parsed,date(2026,11,4))
     assert cp["summary"]["last_value_cm"]==7
     assert cp["rows"][0][1]==7
-    assert not cp["summary"]["last_anomaly_cm"]
+    assert cp["summary"]["last_anomaly_cm"] is None
+    # Without 30 complete history years the station is still published,
+    # but statistical reference values must remain unavailable.
+    short,diag=profile_from_cache({
+        "station_id":"00042","name":"Teststation","state":"Hessen",
+        "rows":[["2025-11-01",15.],["2025-11-02",0.]]
+    })
+    assert short is not None
+    assert short["quality"]["accepted_history_years"]==0
+    assert short["daily"][0][2] is None
     print("DWD snow additional network self-test OK")
 
 def main() -> int:
@@ -337,6 +346,9 @@ def main() -> int:
     (rr_hist,rr_recent,kl_hist,kl_recent)=inventory()
     all_candidates=ordered_candidates(rr_hist,rr_recent,kl_hist,kl_recent,base_ids)
     candidates=[sid for sid in all_candidates if sid not in processed][:batch_size]
+    if not candidates and old.get("complete") and INDEX_PATH.exists():
+        print("All currently catalogued DWD snow station IDs checked; no repeat bulk download.",flush=True)
+        return 0
     # Reuse existing index so each run appends data rather than replacing
     # a previously processed subset. Shared IDs are excluded by the KL index.
     prev=read_json(INDEX_PATH,{"stations":[]})
