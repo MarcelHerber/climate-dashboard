@@ -51,6 +51,7 @@ required_root_files=(
   stratosphere_temperature.js
   stratosphere_ensemble.js
   stratosphere_chart_visibility.js
+  stratosphere_chart_export.js
   stratosphere_chart_visibility.css
   stratosphere_ecmwf_runs.js
   stratosphere_ecmwf_ens.js
@@ -206,6 +207,7 @@ python -m unittest discover -s tests -p test_ssw_catalog.py -v
 node --check ssw_catalog.js
 node --check stratosphere_ensemble.js
 node --check stratosphere_chart_visibility.js
+node --check stratosphere_chart_export.js
 node --test tests/test_stratosphere_chart_visibility.cjs
 node --check stratosphere_ecmwf_runs.js
 node --check stratosphere_ecmwf_ens.js
@@ -237,8 +239,10 @@ test -s _site/ssw_catalog.js
 grep -q 'id="sswArchiveCard"' _site/stratosphaere.html
 grep -q 'id="stratoEnsembleCard"' _site/stratosphaere.html
 test -s _site/stratosphere_chart_visibility.js
+test -s _site/stratosphere_chart_export.js
 test -s _site/stratosphere_chart_visibility.css
 grep -q 'stratosphere_chart_visibility.js' _site/stratosphaere.html
+grep -q 'stratosphere_chart_export.js' _site/stratosphaere.html
 grep -q 'id="stratoWinterStatsCard"' _site/stratosphaere.html
 grep -q 'id="stratoProbCanvas"' _site/stratosphaere.html
 grep -q 'id="stratoEpsTab"' _site/stratosphaere.html
