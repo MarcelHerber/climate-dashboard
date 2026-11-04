@@ -31,6 +31,7 @@ def exercise(browser, width, height, label):
         page.add_style_tag(path="stratosphere_chart_visibility.css")
         page.add_script_tag(url="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js")
         page.add_script_tag(path="stratosphere_chart_visibility.js")
+        page.add_script_tag(path="stratosphere_chart_export.js")
         page.evaluate("""() => {
           const source = [
             {label:'_P10–P90 Untergrenze',data:[2,1,3],borderColor:'transparent',borderWidth:0},
@@ -73,6 +74,36 @@ def exercise(browser, width, height, label):
         assert page.evaluate("[demo.isDatasetVisible(3),demo.isDatasetVisible(4)]") == [True,True]
         panel.locator("button[data-action='all-on']").click()
         assert page.evaluate("demo.isDatasetVisible(2)") is True
+
+        # PNG always contains a title, source and a colored legend of *visible* data.
+        export_state = page.evaluate("""() => {
+          const visible = window.stratoChartExport.visibleEntries(window.demo).map(e => e.label);
+          const output = window.stratoChartExport.fromChart(window.demo, {
+            title: 'Zonaler Wind 60° N / 10 hPa',
+            subtitle: 'Testlauf · 00 UTC',
+            source: 'Quelle: Originaldaten der jeweiligen Modelle'
+          });
+          const ctx = output.getContext('2d');
+          const first = ctx.getImageData(0,0,1,1).data;
+          const png = output.toDataURL('image/png');
+          window.exportPreview = document.createElement('img');
+          window.exportPreview.alt = 'Beschrifteter Diagrammexport';
+          window.exportPreview.style.maxWidth='100%';
+          window.exportPreview.src=png;
+          document.querySelector('main').appendChild(window.exportPreview);
+          return {visible,width:output.width,height:output.height,
+            chartHeight:demo.canvas.height,firstPixel:Array.from(first),
+            validPng:png.startsWith('data:image/png;base64,')};
+        }""")
+        assert export_state["visible"] == ["P10–P90","Mittelwert","EPS p01","EPS p02"], export_state
+        assert export_state["height"] > export_state["chartHeight"] + 100, export_state
+        assert export_state["firstPixel"] == [255,255,255,255], export_state
+        assert export_state["validPng"], export_state
+        # Previously hidden series must be absent from PNG legend metadata.
+        panel.locator("button[data-action='toggle']").filter(has_text="Mittelwert").click()
+        without_mean = page.evaluate("""() =>
+          window.stratoChartExport.visibleEntries(window.demo).map(e => e.label)""")
+        assert "Mittelwert" not in without_mean
 
         geometry = page.evaluate("""() => ({
           viewport: innerWidth, documentWidth: document.documentElement.scrollWidth,
