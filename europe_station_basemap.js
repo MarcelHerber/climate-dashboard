@@ -99,6 +99,10 @@
         const layer = window.L.geoJSON({
           type: "FeatureCollection", features
         }, {
+          // The stations map uses preferCanvas:true for thousands of markers.
+          // Force its basemap countries into a separate SVG renderer; otherwise
+          // the vector fallback shares a canvas and may disappear behind tiles.
+          renderer: window.L.svg({ pane: paneName, padding: .15 }),
           pane: paneName,
           interactive: false,
           style: {
