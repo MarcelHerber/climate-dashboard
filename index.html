@@ -14,7 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script defer src="europe_station_basemap.js?v=20261104-2"></script>
+<script defer src="europe_station_basemap.js?v=20261104-3"></script>
 
 <!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
 <script>
@@ -16280,7 +16280,7 @@ function initEuropeStationMap(){
   if(!target||europeStationMap||!window.L)return;
   europeStationMap=L.map(target,{preferCanvas:true,zoomControl:true,minZoom:3,maxZoom:13,worldCopyJump:false,attributionControl:true});
   if(typeof window.attachEuropeStationBasemap==="function")window.attachEuropeStationBasemap(europeStationMap);
-  else L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:19,attribution:'&copy; OpenStreetMap-Mitwirkende &copy; CARTO'}).addTo(europeStationMap);
+  else L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; OpenStreetMap-Mitwirkende'}).addTo(europeStationMap);
   europeStationMap.fitBounds([[34,-25],[72,45]],{padding:[8,8]});
   europeStationRenderer=L.canvas({padding:.55});
   europeStationLayer=L.layerGroup().addTo(europeStationMap);
