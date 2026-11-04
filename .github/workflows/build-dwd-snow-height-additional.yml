@@ -8,13 +8,14 @@ on:
       - "scripts/build_dwd_snow_height_additional.py"
       - ".github/workflows/build-dwd-snow-height-additional.yml"
   schedule:
-    # Idempotent batches of official RR and remaining KL stations.
-    - cron: "17 */2 * * *"
+    # 3 checked batches per run. Spread runs across GitHub Actions' UTC clock.
+    - cron: "7,37 * * * *"
 
 permissions:
   contents: write
 
 concurrency:
+  # Never let two jobs overwrite each other's incremental station catalogue.
   group: dwd-snow-additional-coverage
   cancel-in-progress: false
 
@@ -37,53 +38,69 @@ jobs:
       - name: SH_TAG, Nullwerte und Hydrologie prüfen
         run: python scripts/build_dwd_snow_height_additional.py --self-test
 
-      - name: Echte tägliche DWD-Messreihen schrittweise importieren
+      - name: Bis zu 1050 weitere Stationskandidaten prüfen und sicher versionieren
         shell: bash
         run: |
           set -euo pipefail
-          python -u scripts/build_dwd_snow_height_additional.py --batch-size 350
-          python - <<'PY'
+          # The importer already downloads 14 station ZIP sets in parallel.
+          # Reuse the same safe worker count, but remove idle 2-hour gaps.
+          # Each 350-station batch has its OWN commit/checkpoint: if a later
+          # batch fails, successfully processed data is never lost.
+          for BATCH in 1 2 3; do
+            echo "=== DWD Schnee · Paket $BATCH von 3 ==="
+            python -u scripts/build_dwd_snow_height_additional.py --batch-size 350
+            python - <<'PY'
           import json
           from pathlib import Path
           base=json.loads(Path("station_snow_height_index.json").read_text())
           extra=json.loads(Path("station_snow_height_additional_index.json").read_text())
           assert base["ready"] and extra["ready"]
-          assert extra["station_count"] == len(extra["stations"])
-          ids={s["id"] for s in base["stations"]}
-          assert not any(s["id"] in ids for s in extra["stations"])
-          for row in extra["stations"][-3:]:
-              p=Path(row["file"]); y=Path(row["year_file"])
-              assert p.exists() and y.exists(),(p,y)
+          assert extra["station_count"]==len(extra["stations"])
+          base_ids={s["id"] for s in base["stations"]}
+          assert len(base_ids)==len(base["stations"])
+          assert not any(s["id"] in base_ids for s in extra["stations"])
+          for row in extra["stations"][-4:]:
+              p=Path(row["file"]);y=Path(row["year_file"])
+              assert p.exists() and y.exists(), (p,y)
               profile=json.loads(p.read_text())
-              assert len(profile["daily"])==366
               archive=json.loads(y.read_text())
+              assert len(profile["daily"])==366
               assert len(archive["month_days"])==366
-          print("Base: ",len(ids)," Additional:",extra["station_count"],
-                " Unchecked:",extra["pending_candidate_count"])
+              assert archive["station_id"]==row["id"]
+          print("Base:",len(base_ids),"Extra:",extra["station_count"],
+                "Offen:",extra["pending_candidate_count"])
           PY
-
-      - name: Neue belegte Stationsdateien committen
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "climate-dashboard-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            data/snow_additional_import_progress.json \
-            station_snow_height_additional_index.json \
-            station_snow_height_additional_profiles \
-            station_snow_height_additional_years \
-            station_snow_height_additional_current
-          if git diff --cached --quiet; then
-            echo "Keine neuen Messstationen zu versionieren."
-            exit 0
-          fi
-          git commit -m "DWD Schneehöhe: zusätzliches Tagesmessnetz [skip ci]"
-          for ATTEMPT in 1 2 3 4; do
-            git fetch origin main
-            git rebase origin/main
-            if git push origin HEAD:main; then exit 0; fi
-            sleep $((ATTEMPT * 5))
+            git config user.name "climate-dashboard-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add               data/snow_additional_import_progress.json               station_snow_height_additional_index.json               station_snow_height_additional_profiles               station_snow_height_additional_years               station_snow_height_additional_current
+            if git diff --cached --quiet; then
+              echo "Keine neuen Stationsdaten: Import abgeschlossen oder Daten unverändert."
+              break
+            fi
+            git commit -m "DWD Schnee: weiteres Messnetz Paket $BATCH [skip ci]"
+            PUSH_OK=0
+            for ATTEMPT in 1 2 3 4; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                PUSH_OK=1
+                break
+              fi
+              sleep $((ATTEMPT * 5))
+            done
+            if [ "$PUSH_OK" -ne 1 ]; then
+              echo "FEHLER: Paket $BATCH konnte nicht veröffentlicht werden."
+              exit 1
+            fi
+            echo "Paket $BATCH erfolgreich veröffentlicht."
+            if python - <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=json.loads(Path("data/snow_additional_import_progress.json").read_text())
+          sys.exit(0 if p.get("complete") else 1)
+          PY
+            then
+              echo "Alle verzeichneten Kandidaten erfolgreich abgeschlossen."
+              break
+            fi
           done
-          echo "FEHLER: Neuer Schneestationsindex konnte nicht gepusht werden."
-          exit 1
