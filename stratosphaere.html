@@ -7,6 +7,7 @@
 <meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script defer src="stratosphere_chart_visibility.js?v=20261104-controls1"></script>
+<script defer src="stratosphere_chart_export.js?v=20261104-labeled1"></script>
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
@@ -1425,7 +1426,9 @@ $("png").addEventListener("click",()=>{if(!chart||!last)return;
   ctx.beginPath();ctx.moveTo(pad,height-6*pixelScale);ctx.lineTo(source.width-pad,height-6*pixelScale);ctx.stroke();
   ctx.drawImage(source,0,height);
   const a=document.createElement("a");
-  a.href=exportCanvas.toDataURL("image/png");
+  a.href=window.stratoChartExport.append(exportCanvas,chart,{
+    source:"Quelle: NASA Ozone Watch · MERRA-2 / GEOS-FP · GEFS-Ensemble: NOAA"
+  }).toDataURL("image/png");
   a.download="Stratosphaere_60N_"+last.level+"hPa_"+seasonLabel(last.year).replace("/","-")+
     ($("mode").value==="anomaly"?"_Anomalie":"")+".png";
   document.body.appendChild(a);
@@ -1470,7 +1473,9 @@ $("levelsPng").addEventListener("click",()=>{
   ctx.moveTo(pad,header-5*scale);ctx.lineTo(output.width-pad,header-5*scale);ctx.stroke();
   ctx.drawImage(source,0,header);
   const a=document.createElement("a");
-  a.href=output.toDataURL("image/png");a.download=levelExportName("png");
+  a.href=window.stratoChartExport.append(output,levelsChart,{
+    source:"Quelle: NASA Ozone Watch · MERRA-2 / GEOS-FP · 1991–2020"
+  }).toDataURL("image/png");a.download=levelExportName("png");
   document.body.appendChild(a);a.click();a.remove();
 });
 $("levelsCsv").addEventListener("click",()=>{
