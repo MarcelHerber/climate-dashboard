@@ -280,12 +280,12 @@ for(const id of ["stratoEpsHorizon","stratoEpsMembers","stratoEpsBands"]){
 }
 $("stratoEpsPng").addEventListener("click",()=>{
  if(!epsChart)return;
- const source=epsChart.canvas,canvas=document.createElement("canvas");
- canvas.width=source.width;canvas.height=source.height;
- const ctx=canvas.getContext("2d");if(!ctx)return;
- ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.drawImage(source,0,0);
- const a=document.createElement("a");a.href=canvas.toDataURL("image/png",1);
+ const labeled=window.stratoChartExport.fromChart(epsChart,{
+  title:"ECMWF IFS ENS · 60° N / 10 hPa · Zonalwind",
+  subtitle:"Lauf "+(eps?.cycle_utc||"–")+" · 50 Ensemblemitglieder + Kontrolllauf",
+  source:"Quelle: ECMWF IFS ENS Open Data · Prognosetermine in UTC"
+ });
+ const a=document.createElement("a");a.href=labeled.toDataURL("image/png");
  a.download="ECMWF_ENS_60N_10hPa_50plusKontrolle.png";a.click();
 });
 $("stratoEpsCsv").addEventListener("click",()=>{
