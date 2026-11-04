@@ -17,6 +17,7 @@ required_root_files=(
   mobile_content.css
   mobile_content.js
   europe_station_basemap.js
+  station_snow_years.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -299,6 +300,7 @@ PY
 # Pages-Deploy garantiert, dass Index, Profile und aktuelle Saison zusammenpassen.
 required_snow_dirs=(
   station_snow_height_profiles
+  station_snow_height_years
   station_snow_height_current
 )
 
@@ -322,6 +324,7 @@ entries = [
     '  "station_snow_height_index.json",\n',
     '  "station_snow_height_current_index.json",\n',
     '  "station_snow_height_profiles/",\n',
+    '  "station_snow_height_years/",\n',
     '  "station_snow_height_current/",\n',
 ]
 for entry in entries:
@@ -398,6 +401,10 @@ test -s _site/wettergefahren_basemap.json || {
   echo "FEHLER: Lokaler Europa-Hintergrund wettergefahren_basemap.json fehlt"
   exit 1
 }
+node --check _site/station_snow_years.js
+node --test tests/test_station_snow_years.cjs
+grep -q 'stationSnowYearsList' _site/index.html
+grep -q 'station_snow_years.js' _site/index.html
 node --check _site/europe_station_basemap.js
 node --test tests/test_europe_station_basemap.cjs
 grep -q 'europe_station_basemap.js' _site/index.html
