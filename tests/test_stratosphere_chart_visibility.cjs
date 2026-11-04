@@ -87,7 +87,7 @@ test('every filled interval is one switch with both bound datasets',()=>{
   assert.ok(plugin);
   const {chart,panel}=fixture(datasets);
   const groups=api.groups(chart);
-  assert.deepEqual(groups.map(x=>x.label),[
+  assert.deepEqual(Array.from(groups, x=>x.label),[
     'Ensemble 5–95 %','Mittel','c00','c01','0 m/s'
   ]);
   assert.deepEqual([...groups[0].indexes],[0,1]);
