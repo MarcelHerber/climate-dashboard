@@ -3414,7 +3414,7 @@ button.action:hover{background:#1f2937}
       <p>Hydrologisches Jahr: 1. November bis 31. Oktober. Mehrere Jahre gleichzeitig im Diagramm vergleichen.</p>
       <div class="station-snow-year-actions">
         <button class="action" type="button" id="stationSnowSelectAllYears">Alle Jahre</button>
-        <button class="action" type="button" id="stationSnowResetYears">Nur aktuelle Saison</button>
+        <button class="action" type="button" id="stationSnowResetYears">Aktuelles / jüngstes Jahr</button>
       </div>
       <div id="stationSnowYearsList" class="station-snow-year-list" role="group" aria-label="Hydrologische Jahre auswählen"></div>
       <p id="stationSnowYearsStatus" class="station-snow-year-note" role="status" aria-live="polite">Jahresarchiv wird geladen …</p>
@@ -9846,8 +9846,8 @@ function initializeStationSnowControls(){
   });
   document.getElementById("stationSnowResetYears").addEventListener("click",()=>{
     stationSnowSelectedYears.clear();
-    const current=stationSnowAvailableYears.find(item=>item.isCurrent);
-    if(current)stationSnowSelectedYears.add(current.year);
+    const mostRecent=stationSnowAvailableYears.find(item=>item.isCurrent)||stationSnowAvailableYears[0];
+    if(mostRecent)stationSnowSelectedYears.add(mostRecent.year);
     updateStationSnow();
   });
 
