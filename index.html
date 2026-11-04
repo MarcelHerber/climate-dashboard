@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script defer src="europe_station_basemap.js?v=20261104-1"></script>
 
 <!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
 <script>
@@ -1055,7 +1056,9 @@ button.action:hover{background:#1f2937}
 /* Europa-Stationen · Stations-V5 */
 .europe-station-map-shell{position:relative;width:100%;height:calc(100vh - 175px);min-height:650px;border:1px solid #c7d0d7;border-radius:12px;overflow:hidden;background:#f7f8f8;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .europe-station-map{position:absolute;inset:0;width:100%;height:100%;background:#f7f8f8}
-.europe-station-map .leaflet-container{background:#f7f8f8}.europe-station-map .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.83)}
+.europe-station-map .leaflet-container{background:#dce8ed}.europe-station-map .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.83)}
+.europe-station-basemap-status{position:absolute;z-index:690;left:12px;bottom:50px;max-width:min(55%,430px);padding:6px 9px;background:rgba(255,252,242,.94);color:#6a4e1e;border:1px solid rgba(164,126,71,.34);border-radius:7px;pointer-events:none;font-size:11px;line-height:1.4}
+.europe-station-basemap-status[hidden]{display:none}
 .europe-station-panel{position:absolute;z-index:700;top:12px;left:12px;width:min(390px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:rgba(255,255,255,.96);backdrop-filter:blur(7px);border:1px solid rgba(111,124,133,.28);border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.13);padding:13px 14px}
 .europe-station-panel h2{margin:0;font-size:18px;line-height:1.15}.europe-station-panel .subtitle{margin:4px 0 11px;color:#66727a;font-size:10px;line-height:1.4}.europe-station-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.europe-station-panel .control-group{margin:0;min-width:0}.europe-station-panel label{font-size:9px;text-transform:uppercase;letter-spacing:.25px;color:#637079;font-weight:800}.europe-station-panel select,.europe-station-panel input{width:100%;min-width:0;padding:7px 8px;border:1px solid #cfd7dc;border-radius:7px;background:#fff;font-size:11px;color:#26343c}
 .europe-station-date-row,.europe-station-search-row{grid-column:1/-1}.europe-station-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:10px}.europe-station-stat{border:1px solid #dce3e7;border-radius:8px;background:#fafbfc;padding:7px 8px;min-width:0}.europe-station-stat .label{font-size:8px;text-transform:uppercase;letter-spacing:.25px;color:#748087;font-weight:800}.europe-station-stat .value{font-size:15px;font-weight:850;color:#202c33;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.europe-station-stat .detail{font-size:8px;color:#77828a;line-height:1.25;margin-top:1px}
@@ -1755,6 +1758,7 @@ button.action:hover{background:#1f2937}
 <div id="europeStations" class="tab-content">
   <div class="europe-station-map-shell">
     <div id="europeStationMap" class="europe-station-map" role="img" aria-label="Europakarte der Stationsrekorde"></div>
+    <div id="europeStationBasemapStatus" class="europe-station-basemap-status" role="status" aria-live="polite" hidden></div>
     <div class="europe-station-panel">
       <h2>Europa · Stationsrekorde</h2>
       <p class="subtitle">Europaweite Stationsrekorde · TMAX/TMIN · Top-20 &amp; Rekordjagd · Datenquellen je Land aus dem bestehenden Europa-Workflow</p>
@@ -16275,7 +16279,8 @@ function initEuropeStationMap(){
   const target=document.getElementById("europeStationMap");
   if(!target||europeStationMap||!window.L)return;
   europeStationMap=L.map(target,{preferCanvas:true,zoomControl:true,minZoom:3,maxZoom:13,worldCopyJump:false,attributionControl:true});
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:19,attribution:'&copy; OpenStreetMap-Mitwirkende &copy; CARTO'}).addTo(europeStationMap);
+  if(typeof window.attachEuropeStationBasemap==="function")window.attachEuropeStationBasemap(europeStationMap);
+  else L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:19,attribution:'&copy; OpenStreetMap-Mitwirkende &copy; CARTO'}).addTo(europeStationMap);
   europeStationMap.fitBounds([[34,-25],[72,45]],{padding:[8,8]});
   europeStationRenderer=L.canvas({padding:.55});
   europeStationLayer=L.layerGroup().addTo(europeStationMap);
@@ -16593,7 +16598,22 @@ async function preloadEuropeStationData(){
   return europeStationLoading;
 }
 async function ensureEuropeStationMap(){
-  initEuropeStationMap();window.setTimeout(()=>europeStationMap?.invalidateSize(),80);if(europeStationLoaded){renderEuropeStations();return;}if(europeStationLoading){await europeStationLoading;if(europeStationLoaded)await renderEuropeStations();return;}
+  try{
+    if(!window.L && typeof window.ensureEuropeStationLeaflet==="function")
+      await window.ensureEuropeStationLeaflet();
+  }catch(error){
+    console.warn("Europa-Stationskarte: Leaflet konnte nicht geladen werden",error);
+    setEuropeStationStatus("Kartenbibliothek derzeit nicht erreichbar. Karte erneut öffnen oder später erneut versuchen.","warn");
+    return;
+  }
+  initEuropeStationMap();
+  if(!europeStationMap){
+    setEuropeStationStatus("Kartenbibliothek noch nicht bereit. Bitte die Europa-Stationen erneut öffnen.","warn");
+    return;
+  }
+  window.setTimeout(()=>europeStationMap?.invalidateSize(),80);
+  if(europeStationLoaded){renderEuropeStations();return;}
+  if(europeStationLoading){await europeStationLoading;if(europeStationLoaded)await renderEuropeStations();return;}
   europeStationLoading=(async()=>{
     try{
       const response=await fetch(`${EUROPE_STATION_DATA_URL}?v=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();if(![1,2,3,4,5].includes(Number(payload?.payload_version)))console.warn("Unerwartete Stations-Payload-Version",payload?.payload_version);europeStationData=payload;populateEuropeStationCountries();initEuropeStationControls();europeStationLoaded=true;await renderEuropeStations();
