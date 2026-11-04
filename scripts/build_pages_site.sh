@@ -414,6 +414,7 @@ node --check _site/station_snow_years.js
 node --check _site/station_snow_accumulation.js
 node --test tests/test_station_snow_years.cjs
 node --test tests/test_station_snow_accumulation.cjs
+node --test tests/test_station_snow_coverage.cjs
 grep -q 'stationSnowCumChart' _site/index.html
 grep -q 'station_snow_accumulation.js' _site/index.html
 grep -q 'stationSnowYearsList' _site/index.html
