@@ -83,6 +83,17 @@ def run_case(browser,width):
         assert any("2025" in item["label"] and (item["last"] or 0)>0
                    for item in result["accumulation"]["series"])
         assert document_active_is_snow(page),"Snow accumulation period changed active tab"
+        # Switching stations preserves the custom period but loads the other
+        # station's authentic daily series and must not navigate to Europa.
+        page.locator("#stationSnowStationSelect").select_option("03668")
+        page.wait_for_function("""() =>
+          document.getElementById("stationSnowSummary")?.textContent.includes("Nürnberg") &&
+          window.stationSnowAccumulationChart?.options?.plugins?.title?.text?.includes("Nürnberg")
+        """,timeout=45000)
+        assert page.locator("#stationSnowCumStart").input_value()=="12-01"
+        assert page.locator("#stationSnowCumEnd").input_value()=="02-28"
+        assert document_active_is_snow(page),"Station change navigated away from snow accumulation"
+        result["range_persisted_after_station_switch"]=True
         result.update(page.evaluate("""() => ({
           activeTab:document.querySelector('.tab-content.active')?.id,
           plottedYears:stationSnowChart.data.datasets.filter(
