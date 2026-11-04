@@ -8,7 +8,7 @@ on:
       - "scripts/build_dwd_snow_height_additional.py"
       - ".github/workflows/build-dwd-snow-height-additional.yml"
   schedule:
-    # 3 checked batches per run. Spread runs across GitHub Actions' UTC clock.
+    # Backup: continue/resume unfinished imports even after the push-triggered bulk run.
     - cron: "7,37 * * * *"
 
 permissions:
@@ -38,16 +38,18 @@ jobs:
       - name: SH_TAG, Nullwerte und Hydrologie prüfen
         run: python scripts/build_dwd_snow_height_additional.py --self-test
 
-      - name: Bis zu 1050 weitere Stationskandidaten prüfen und sicher versionieren
+      - name: Alle verbleibenden Stationskandidaten in abgesicherten Paketen prüfen
         shell: bash
         run: |
           set -euo pipefail
           # The importer already downloads 14 station ZIP sets in parallel.
-          # Reuse the same safe worker count, but remove idle 2-hour gaps.
+          # Reuse the same safe 14-worker concurrency; avoid idle scheduled gaps.
           # Each 350-station batch has its OWN commit/checkpoint: if a later
           # batch fails, successfully processed data is never lost.
-          for BATCH in 1 2 3; do
-            echo "=== DWD Schnee · Paket $BATCH von 3 ==="
+          # At most 18 batches; stops early once all official IDs were checked.
+          # This file change also initiates a new push-triggered run immediately.
+          for BATCH in $(seq 1 18); do
+            echo "=== DWD Schnee · Importpaket $BATCH von maximal 18 ==="
             python -u scripts/build_dwd_snow_height_additional.py --batch-size 350
             python - <<'PY'
           import json
