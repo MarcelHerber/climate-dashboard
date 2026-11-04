@@ -442,7 +442,9 @@ def profile_from_cache(
         "raw_hydro_year_count": len(years),
     }
 
-    if len(accepted_year_numbers) < MIN_ACCEPTED_HISTORY_YEARS:
+    # Publish every station with genuine daily measurements. 30 accepted
+    # (>=98%-complete) hydrological years is a frontend filter, not a gate.
+    if not years:
         return None, diagnostic
 
     annual = [
@@ -483,8 +485,10 @@ def profile_from_cache(
         "quality": {
             "hydrological_year_min_coverage": QUALITY_THRESHOLD,
             "accepted_history_years": len(accepted_year_numbers),
-            "history_start_year": accepted_year_numbers[0],
-            "history_end_year": accepted_year_numbers[-1],
+            "history_start_year": min(years),
+            "history_end_year": max(years),
+            "observed_history_years": len(years),
+            "meets_30_year_filter": len(accepted_year_numbers) >= MIN_ACCEPTED_HISTORY_YEARS,
             "reference_years_available": reference_year_count,
             "reference_status": reference_status(reference_year_count),
         },
@@ -558,6 +562,7 @@ def main() -> int:
 
     stations = []
     skipped = []
+    below_30 = []
     reference_status_counts = Counter()
     total_annual_rows = 0
 
@@ -592,6 +597,8 @@ def main() -> int:
             )
 
             quality = profile["quality"]
+            if not quality["meets_30_year_filter"]:
+                below_30.append(station_id)
             reference_status_counts[quality["reference_status"]] += 1
             total_annual_rows += len(profile["annual"])
 
@@ -608,6 +615,9 @@ def main() -> int:
                     "accepted_history_years": quality[
                         "accepted_history_years"
                     ],
+                    "observed_history_years": quality["observed_history_years"],
+                    "meets_30_year_filter": quality["meets_30_year_filter"],
+                    "source": "DWD-KL · SHK_TAG",
                     "reference_years_available": quality[
                         "reference_years_available"
                     ],
@@ -624,7 +634,7 @@ def main() -> int:
             log(
                 f"  verarbeitet {index:,}/{len(cache_files):,} | "
                 f"Profile {len(stations):,} | "
-                f"<30 Qualitätsjahre {len(skipped):,}"
+                f"<30 Qualitätsjahre {len(below_30):,}"
             )
 
     valid_ids = {station["id"] for station in stations}
@@ -633,10 +643,10 @@ def main() -> int:
             if old.stem not in valid_ids:
                 old.unlink()
 
-    if not 250 <= len(stations) <= 280:
+    if not 290 <= len(stations) <= 330:
         raise RuntimeError(
             f"Profilzahl unplausibel: {len(stations)} "
-            "(aus dem Qualitätslog wurden etwa 267 erwartet)."
+            "(vollständiger historischer KL-Kandidaten-Cache erwartet)."
         )
 
     stations.sort(
@@ -697,7 +707,9 @@ def main() -> int:
             "historical_max_cm",
         ],
         "station_count": len(stations),
-        "skipped_below_30_quality_years": len(skipped),
+        "stations_below_30_quality_years": len(below_30),
+        "stations_meeting_30_year_filter": len(stations) - len(below_30),
+        "skipped_without_daily_observations": len(skipped),
         "states": [
             {
                 "name": state,
@@ -722,7 +734,7 @@ def main() -> int:
     log("SCHNEEHÖHEN-PROFILE FERTIG")
     log("=" * 92)
     log(f"Historische Profile: {len(stations):,}")
-    log(f"Unter 30 Qualitätsjahren ausgeschlossen: {len(skipped):,}")
+    log(f"Unter 30 Qualitätsjahren (jetzt enthalten): {len(below_30):,}")
     log(f"Jahresstatistik-Zeilen: {total_annual_rows:,}")
     log(f"Index: {OUTPUT_INDEX}")
     log(f"Profile: {OUTPUT_DIR}/")
@@ -837,6 +849,16 @@ def self_test() -> None:
     assert partial["years"][-1]["values"][0] == 6.0
     assert partial["years"][-1]["values"][1] is None
 
+    short = rows[:200]
+    short_profile, short_diag = profile_from_cache({
+        "station_id": "99998", "name": "Probe", "rows": short,
+    })
+    assert short_profile is not None
+    assert short_profile["quality"]["accepted_history_years"] == 0
+    assert short_profile["quality"]["meets_30_year_filter"] is False
+    assert short_profile["quality"]["history_start_year"] == 1991
+    assert short_profile["daily"][0][2] is None
+    assert len(short_profile["daily"]) == 366
     summary = annual_summary(2020, accepted[2020])
     assert summary["coverage"] == 1.0
     assert summary["valid_days"] == 366
