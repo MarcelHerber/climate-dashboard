@@ -1,0 +1,89 @@
+name: DWD snow-height · additional station coverage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_dwd_snow_height_additional.py"
+      - ".github/workflows/build-dwd-snow-height-additional.yml"
+  schedule:
+    # Idempotent batches of official RR and remaining KL stations.
+    - cron: "17 */2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-snow-additional-coverage
+  cancel-in-progress: false
+
+jobs:
+  expand:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - name: Main auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: SH_TAG, Nullwerte und Hydrologie prüfen
+        run: python scripts/build_dwd_snow_height_additional.py --self-test
+
+      - name: Echte tägliche DWD-Messreihen schrittweise importieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u scripts/build_dwd_snow_height_additional.py --batch-size 350
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=json.loads(Path("station_snow_height_index.json").read_text())
+          extra=json.loads(Path("station_snow_height_additional_index.json").read_text())
+          assert base["ready"] and extra["ready"]
+          assert extra["station_count"] == len(extra["stations"])
+          ids={s["id"] for s in base["stations"]}
+          assert not any(s["id"] in ids for s in extra["stations"])
+          for row in extra["stations"][-3:]:
+              p=Path(row["file"]); y=Path(row["year_file"])
+              assert p.exists() and y.exists(),(p,y)
+              profile=json.loads(p.read_text())
+              assert len(profile["daily"])==366
+              archive=json.loads(y.read_text())
+              assert len(archive["month_days"])==366
+          print("Base: ",len(ids)," Additional:",extra["station_count"],
+                " Unchecked:",extra["pending_candidate_count"])
+          PY
+
+      - name: Neue belegte Stationsdateien committen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            data/snow_additional_import_progress.json \
+            station_snow_height_additional_index.json \
+            station_snow_height_additional_profiles \
+            station_snow_height_additional_years \
+            station_snow_height_additional_current
+          if git diff --cached --quiet; then
+            echo "Keine neuen Messstationen zu versionieren."
+            exit 0
+          fi
+          git commit -m "DWD Schneehöhe: zusätzliches Tagesmessnetz [skip ci]"
+          for ATTEMPT in 1 2 3 4; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((ATTEMPT * 5))
+          done
+          echo "FEHLER: Neuer Schneestationsindex konnte nicht gepusht werden."
+          exit 1
