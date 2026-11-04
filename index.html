@@ -1188,6 +1188,8 @@ button.action:hover{background:#1f2937}
 .snow-cum-controls select{width:100%;min-height:35px;padding:7px;border-radius:6px;border:1px solid var(--border,#cbd4da);background:var(--card-bg,#fff);color:var(--text,#26323a)}
 .snow-cum-summary{font-size:14px;font-weight:750;margin:6px 0}
 .snow-cum-status{font-size:12px;line-height:1.45;margin:6px 0 12px}
+.snow-cum-downloads{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:6px 0 8px}
+.snow-cum-downloads .action{font-size:12px;padding:7px 10px}
 .snow-cum-chart-wrap{height:410px;position:relative}
 .snow-cum-chart-wrap canvas{width:100%!important;height:100%!important}
 .snow-cum-table-wrap{overflow:auto;margin-top:12px}
@@ -3478,6 +3480,11 @@ button.action:hover{background:#1f2937}
       <p id="stationSnowCumSummary" class="snow-cum-summary" role="status">Schneehöhensumme wird berechnet …</p>
       <p id="stationSnowCumStatus" class="snow-cum-status"></p>
       <p id="stationSnowCumEmpty" class="note" hidden>Für den gewählten Zeitraum sind keine Messwerte in den ausgewählten Jahren vorhanden.</p>
+      <div class="snow-cum-downloads" role="group" aria-label="Kumulierter Schneehöhenverlauf herunterladen">
+        <button class="action" type="button" id="stationSnowCumPng">PNG herunterladen</button>
+        <button class="action" type="button" id="stationSnowCumPdf">PDF herunterladen</button>
+        <button class="action" type="button" id="stationSnowCumCsv">CSV herunterladen</button>
+      </div>
       <div class="snow-cum-chart-wrap"><canvas id="stationSnowCumChart" aria-label="Kumulative Stationsschneehöhe nach hydrologischem Jahr"></canvas></div>
       <div class="snow-cum-table-wrap">
         <table class="snow-cum-table">
@@ -10323,6 +10330,7 @@ const CHART_EXPORT_FALLBACK_TITLES={
   stationPrecipDeviationChart:"Stationsniederschlag - Abweichung",
   stationSnowChart:"Stationsschneehöhe - hydrologisches Jahr",
   stationSnowDeviationChart:"Stationsschneehöhe - Abweichung",
+  stationSnowCumChart:"Stationsschneehöhe - Kumuliert (cm-Tage)",
   dailyChart:"Tageshöchstwerte",
   dailyDeviationChart:"Tageshöchstwerte - Abweichung",
   dailyAllYearsChart:"Tageshöchstwerte - Alle Jahre",
