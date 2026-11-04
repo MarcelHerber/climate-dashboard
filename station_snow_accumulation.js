@@ -113,7 +113,6 @@
     const start=byId("stationSnowCumStart"),end=byId("stationSnowCumEnd");
     const preset=byId("stationSnowCumPreset");
     if(!start||!end||!preset)return;
-    const axis=["11-01"];
     // Real axis arrives from the station archive; no synthetic calendar dates.
     const actual=last?.archive?.month_days||[];
     if(!actual.length)return;
@@ -136,6 +135,19 @@
       preset.value="custom";
       draw();
     });
+    const canvas=byId("stationSnowCumChart");
+    for(const [buttonId,kind] of [
+      ["stationSnowCumPng","png"],["stationSnowCumPdf","pdf"],["stationSnowCumCsv","csv"]
+    ]){
+      const button=byId(buttonId);
+      button?.addEventListener("click",()=>{
+        if(kind==="csv"){
+          if(typeof root.runChartCsvExport==="function")root.runChartCsvExport(button,canvas);
+        }else if(typeof root.runChartExport==="function"){
+          root.runChartExport(button,canvas,kind);
+        }
+      });
+    }
     initialized=true;
   }
 
@@ -155,6 +167,7 @@
     if(chart){chart.destroy();chart=null;root.stationSnowAccumulationChart=null;}
     if(data.error){
       status.textContent=data.error;summary.textContent="–";
+      byId("stationSnowCumEmpty").hidden=true;
       tbody.replaceChildren();return;
     }
     const {days,rows}=data,ref=data.reference;
