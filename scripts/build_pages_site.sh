@@ -16,6 +16,7 @@ required_root_files=(
   mobile_navigation.js
   mobile_content.css
   mobile_content.js
+  europe_station_basemap.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -390,6 +391,17 @@ if [[ -s era5_stratosphere/index.json ]]; then
 else
   echo "HINWEIS: ERA5-Stratosphäre Index fehlt, Frontend verwendet GitHub-Raw-Fallback."
 fi
+
+# Stationsrekord-Hintergrund: Das lokale, von Drittkachelservern unabhängige
+# Natural-Earth-Kartenmaterial muss im Pages-Artefakt verfügbar bleiben.
+test -s _site/wettergefahren_basemap.json || {
+  echo "FEHLER: Lokaler Europa-Hintergrund wettergefahren_basemap.json fehlt"
+  exit 1
+}
+node --check _site/europe_station_basemap.js
+node --test tests/test_europe_station_basemap.cjs
+grep -q 'europe_station_basemap.js' _site/index.html
+grep -q 'europeStationBasemapStatus' _site/index.html
 
 # Europa-Stationskarte: Der komplette veröffentlichte Datenordner wird benötigt.
 # index.html lädt europe_stations/index.json direkt beim Seitenstart; die
