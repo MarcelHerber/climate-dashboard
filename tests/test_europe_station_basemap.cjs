@@ -10,8 +10,10 @@ const NATURAL_EARTH=JSON.parse(fs.readFileSync("wettergefahren_basemap.json","ut
 function harness({offline=false}={}){
  const tiles=[],polygons=[],removed=[],timers=[];
  const stateEl={hidden:true,textContent:""};
+ const container={style:{}};
  const map={
   panes:new Map(),
+  getContainer(){return container},
   createPane(name){const pane={style:{}};this.panes.set(name,pane);return pane;},
   getPane(name){return this.panes.get(name);},
   removeLayer(layer){removed.push(layer)},
@@ -21,8 +23,13 @@ function harness({offline=false}={}){
   map(){return map;},
   svg(options){return {kind:"svg",options};},
   geoJSON(geo,options){
-   polygons.push({geo,options});
-   return {addTo(target){assert.equal(target,map);return this}};
+   const layer={
+    geo,options,styles:[],
+    addTo(target){assert.equal(target,map);return this;},
+    setStyle(style){this.styles.push(style);return this;}
+   };
+   polygons.push(layer);
+   return layer;
   },
   tileLayer(url,options){
    const layer={
@@ -48,73 +55,74 @@ function harness({offline=false}={}){
  const context={window,document,fetch,setTimeout,setInterval,clearInterval(){},
    clearTimeout(){},Promise,Date,console:{warn(){},info(){}}};
  vm.runInNewContext(SOURCE,context,{timeout:2000});
- return {window,map,tiles,polygons,removed,timers,stateEl};
+ return {window,map,container,tiles,polygons,removed,timers,stateEl};
 }
 
-test("ship actual public-domain Natural Earth Europe geography with the site",()=>{
+test("ship actual Natural Earth Europe geography with Pages",()=>{
  assert.ok(NATURAL_EARTH.source.includes("Natural Earth"));
  assert.ok(NATURAL_EARTH.countries.length>=60);
  assert.ok(Array.isArray(NATURAL_EARTH.countries[0].p));
  assert.ok(NATURAL_EARTH.countries[0].p[0][0][0].length===2);
 });
 
-test("fallback geography is rendered on separate pane underneath tiles and station overlays",async()=>{
+test("self-hosted SVG geography is above raster tiles and below station markers",async()=>{
  const h=harness();
  h.window.attachEuropeStationBasemap(h.map);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(h.polygons.length,1);
- const rendered=h.polygons[0];
- assert.equal(rendered.geo.type,"FeatureCollection");
- assert.equal(rendered.geo.features.length,NATURAL_EARTH.countries.length);
- assert.equal(rendered.geo.features[0].geometry.type,"MultiPolygon");
- assert.equal(rendered.options.interactive,false);
- assert.equal(rendered.options.pane,"europeStationGeographyPane");
- assert.equal(rendered.options.renderer.kind,"svg");
- assert.equal(rendered.options.renderer.options.pane,"europeStationGeographyPane");
- assert.equal(h.map.getPane("europeStationGeographyPane").style.zIndex,"195");
- assert.equal(h.tiles.length,1);
- assert.match(h.tiles[0].url,/cartocdn/);
- const geo=h.map.__europeStationGetBasemapState();
- assert.equal(geo.geographyLoaded,true);
+ const layer=h.polygons[0];
+ assert.equal(layer.geo.type,"FeatureCollection");
+ assert.equal(layer.geo.features.length,NATURAL_EARTH.countries.length);
+ assert.equal(layer.geo.features[0].geometry.type,"MultiPolygon");
+ assert.equal(layer.options.interactive,false);
+ assert.equal(layer.options.pane,"europeStationGeographyPane");
+ assert.equal(layer.options.renderer.kind,"svg");
+ assert.equal(layer.options.renderer.options.pane,"europeStationGeographyPane");
+ assert.equal(h.map.getPane("europeStationGeographyPane").style.zIndex,"350");
+ assert.equal(layer.options.style.fillOpacity,.94);
+ assert.equal(h.container.style.backgroundColor,"#dcebf2");
+ assert.equal(h.map.__europeStationGetBasemapState().geographyLoaded,true);
 });
 
-test("switch from failing CARTO tiles to alternate OpenStreetMap without removing local geography",async()=>{
+test("never request CARTO key-required imagery; optional OSM layer enhances local outlines",async()=>{
  const h=harness();
  h.window.attachEuropeStationBasemap(h.map);
  await new Promise(resolve=>setImmediate(resolve));
- const primary=h.tiles[0];
- primary.trigger("tileerror");
- primary.trigger("tileerror");
- assert.equal(h.tiles.length,2);
- assert.match(h.tiles[1].url,/tile.openstreetmap.org/);
- assert.equal(h.removed.length,1);
- assert.equal(h.removed[0],primary);
- assert.equal(h.map.__europeStationGetBasemapState().sourceIndex,1);
+ assert.equal(h.tiles.length,1);
+ assert.match(h.tiles[0].url,/^https:\/\/tile\.openstreetmap\.org\//);
+ assert.doesNotMatch(SOURCE,/cartocdn\.com/);
+ h.tiles[0].trigger("tileload");
+ assert.equal(h.polygons[0].styles.at(-1).fillOpacity,.12);
+ assert.equal(h.map.__europeStationGetBasemapState().sourceIndex,0);
  assert.equal(h.map.__europeStationGetBasemapState().geographyLoaded,true);
- h.tiles[1].trigger("tileload");
  assert.equal(h.stateEl.hidden,true);
 });
 
-test("both external tile services offline keep self-hosted geography and accessible status",async()=>{
+test("OSM failure removes broken raster images and keeps full local basemap",async()=>{
  const h=harness();
  h.window.attachEuropeStationBasemap(h.map);
  await new Promise(resolve=>setImmediate(resolve));
- h.tiles[0].trigger("tileerror");
- h.tiles[0].trigger("tileerror");
- h.tiles[1].trigger("tileerror");
- h.tiles[1].trigger("tileerror");
+ const original=h.tiles[0];
+ original.trigger("tileerror");
+ original.trigger("tileerror");
+ assert.equal(h.tiles.length,1);
+ assert.equal(h.removed.length,1);
+ assert.equal(h.removed[0],original);
+ assert.equal(h.map.__europeStationGetBasemapState().sourceIndex,-1);
+ assert.equal(h.map.__europeStationGetBasemapState().rasterDisabled,true);
  assert.equal(h.map.__europeStationGetBasemapState().geographyLoaded,true);
+ assert.equal(h.polygons[0].styles.at(-1).fillOpacity,.94);
  assert.equal(h.stateEl.hidden,false);
- assert.match(h.stateEl.textContent,/Länderumrisse/);
+ assert.match(h.stateEl.textContent,/Ländergrenzen/);
 });
 
-test("local outline unavailable reports problem without breaking tile rendering",async()=>{
+test("local outlines unavailable report error without stopping OSM",async()=>{
  const h=harness({offline:true});
  h.window.attachEuropeStationBasemap(h.map);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(h.tiles.length,1);
  assert.equal(h.polygons.length,0);
- assert.match(h.stateEl.textContent,/Kartenumrisse fehlen/);
+ assert.match(h.stateEl.textContent,/Ländergrenzen konnten nicht geladen/);
 });
 
 test("map integration uses shared basemap and waits for Leaflet on first open",()=>{
