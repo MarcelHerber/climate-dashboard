@@ -18,6 +18,7 @@ required_root_files=(
   mobile_content.js
   europe_station_basemap.js
   station_snow_years.js
+  station_snow_accumulation.js
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -410,7 +411,11 @@ test -s _site/wettergefahren_basemap.json || {
   exit 1
 }
 node --check _site/station_snow_years.js
+node --check _site/station_snow_accumulation.js
 node --test tests/test_station_snow_years.cjs
+node --test tests/test_station_snow_accumulation.cjs
+grep -q 'stationSnowCumChart' _site/index.html
+grep -q 'station_snow_accumulation.js' _site/index.html
 grep -q 'stationSnowYearsList' _site/index.html
 grep -q 'station_snow_years.js' _site/index.html
 node --check _site/europe_station_basemap.js
