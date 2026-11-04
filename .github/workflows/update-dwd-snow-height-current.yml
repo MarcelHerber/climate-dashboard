@@ -2,6 +2,15 @@ name: Update DWD snow-height current season
 
 on:
   workflow_dispatch:
+  # Refresh after re-publishing the wider KL archive; triggered by this workflow
+  # file's own update and by future successful historical profile builds.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-dwd-snow-height-current.yml"
+  workflow_run:
+    workflows: ["Build DWD snow-height profiles"]
+    types: [completed]
   schedule:
     - cron: "45 10 * * *"
 
@@ -14,6 +23,7 @@ concurrency:
 
 jobs:
   update:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
