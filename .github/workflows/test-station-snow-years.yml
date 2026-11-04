@@ -1,0 +1,58 @@
+name: Schneehöhen · Stationswechsel und Jahreskurven
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "station_snow_years.js"
+      - "tests/test_station_snow_years.cjs"
+      - "tests/audit_station_snow_years_live.py"
+      - ".github/workflows/test-station-snow-years.yml"
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snow-year-frontend-tests
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+      - name: Snow curve module and source integration
+        run: |
+          node --check station_snow_years.js
+          node --test tests/test_station_snow_years.cjs
+
+  live-browser:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Chromium Playwright
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Live Schneestation und historische Kurven prüfen
+        run: python -u tests/audit_station_snow_years_live.py
+      - name: Diagnose-Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snow-year-browser-audit
+          path: snow_year_browser_audit/
+          retention-days: 14
+          if-no-files-found: warn
