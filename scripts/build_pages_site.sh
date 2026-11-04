@@ -300,7 +300,6 @@ PY
 # Pages-Deploy garantiert, dass Index, Profile und aktuelle Saison zusammenpassen.
 required_snow_dirs=(
   station_snow_height_profiles
-  station_snow_height_years
   station_snow_height_current
 )
 
@@ -311,6 +310,15 @@ for dir in "${required_snow_dirs[@]}"; do
   fi
   cp -a "$dir" _site/
 done
+
+# The newly generated individual-year archive may not be committed yet.
+# Keep all existing snow visualizations deployable while its backfill runs.
+if [[ -d station_snow_height_years ]] && [[ -n "$(find station_snow_height_years -maxdepth 1 -type f -name '*.json' -print -quit)" ]]; then
+  cp -a station_snow_height_years _site/
+  echo "Schneehöhen-Jahreskurven in Pages-Artefakt übernommen."
+else
+  echo "HINWEIS: Schneehöhen-Jahreskurven noch nicht aufgebaut; aktuelle Saison und Klimamittel bleiben verfügbar."
+fi
 
 # index.html leitet große Stationsdateien normalerweise auf raw.githubusercontent
 # um. Für Schnee liegen die Dateien jetzt bewusst im Pages-Artefakt und werden
