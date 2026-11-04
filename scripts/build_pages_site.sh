@@ -41,6 +41,7 @@ required_root_files=(
   eurasia_snow.html
   eurasia_snow.js
   eurasia_snow.css
+  snow_maps.js
   ace.html
   ace.js
   ace_spatial.js
@@ -428,12 +429,37 @@ fi
 # from the main branch by the independent NOAA IMS page. No pretend values
 # are published if the first background ingestion has not succeeded.
 node --check eurasia_snow.js
+node --check snow_maps.js
+node --test tests/test_snow_maps.cjs
 if [[ -s eurasia_snow/index.json ]]; then
   mkdir -p _site/eurasia_snow
   cp eurasia_snow/index.json _site/eurasia_snow/index.json
   echo "NOAA IMS Eurasien-Schneebedeckung in Pages-Artefakt"
 else
   echo "HINWEIS: Erste verifizierte NOAA IMS-Tageswerte noch ausstehend"
+fi
+
+# Beide Schneekarten und ihre Gültigkeiten gehören in dasselbe Pages-Artefakt.
+if [[ -s eurasia_snow/maps/index.json ]]; then
+  python - <<'PY'
+import json, struct
+from pathlib import Path
+root = Path('eurasia_snow/maps')
+doc = json.loads((root / 'index.json').read_text())
+assert doc['schema'] == 1 and doc['reference_period'] == [2001, 2020]
+assert doc['maps']
+for row in doc['maps']:
+    for kind in ('cover', 'anomaly'):
+        assert row[kind] == f"images/{row['date']}_{kind}.png"
+        data = (root / row[kind]).read_bytes()
+        assert data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR'
+        width, height, depth, color = struct.unpack('>IIBB', data[16:26])
+        assert width >= 3000 and height >= 900 and depth == 8 and color == 2
+assert doc['latest'] == max(row['date'] for row in doc['maps'])
+print('IMS-Schneekarten: vollständige opake Kartenpaare geprüft')
+PY
+  mkdir -p _site/eurasia_snow
+  cp -a eurasia_snow/maps _site/eurasia_snow/
 fi
 
 # NSIDC daily sea ice v4: compact 1978-present extent and 1991–2020
@@ -675,3 +701,4 @@ echo "Europa-Stationsdaten: $(find _site/europe_stations -type f | wc -l) Dateie
 echo "ERA5-Atmosphäre: $(find _site/era5_europe -type f | wc -l) Dateien"
 echo "Dateien gesamt: $(find _site -type f | wc -l)"
 du -sh _site
+

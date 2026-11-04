@@ -33,3 +33,26 @@ h1{font-size:clamp(28px,3vw,40px);line-height:1.2;margin:5px 0 10px}h2{font-size
 /* Year and winter season selectors are mutually exclusive. */
 .controls [hidden]{display:none!important}
 #calendarYearControl select,#winterYearControl select{min-width:125px}
+
+/* Daily northern-hemisphere snow maps; scientific images stay on white. */
+.snow-map-heading{display:flex;align-items:start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.snow-map-heading h2{font-size:clamp(20px,2.3vw,29px);margin:5px 0 18px;line-height:1.25}
+.snow-map-skip,.snow-map-section .small a{color:#196393}
+.snow-map-skip{font-size:12px;font-weight:750;padding:6px 0}
+.snow-map-controls{align-items:end}.snow-map-navigation{display:flex;gap:8px}
+.snow-map-section button{min-height:44px;cursor:pointer}
+.snow-map-section button:disabled{cursor:default;opacity:.5}
+.snow-map-card{margin:22px 0 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.snow-map-card figcaption{display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px;padding:12px 16px;color:#233f56;background:#f6fafd}
+.snow-map-card h3{font-size:15px;margin:0}.snow-map-card figcaption span{font-size:12px;color:#526b80}
+.snow-map-image{background:#fff;min-height:100px;position:relative}
+.snow-map-image img{display:block;width:100%;height:auto;object-fit:contain;background:#fff;touch-action:pan-x pan-y pinch-zoom}
+.snow-map-image img[hidden]{display:none}
+.snow-map-section[data-loading="true"] .snow-map-image{opacity:.65}
+.snow-map-actions{display:flex;justify-content:flex-end;padding:8px 14px;background:#f6fafd}
+.snow-map-actions button{font:700 13px system-ui;color:#233f56;border:1px solid #b9cad8;border-radius:8px;padding:9px 13px;background:#fff}
+.snow-map-actions button:hover{background:#e6f3fb}
+.snow-map-actions button:focus-visible{outline:3px solid #e5aa43;outline-offset:2px}
+.snow-series-heading{margin:30px 0 12px;scroll-margin-top:24px}
+@media(max-width:580px){.snow-map-section .controls label{width:100%}.snow-map-section .controls select{min-width:0;width:100%}.snow-map-navigation{flex:1 1 100%}.snow-map-navigation button{flex:1}.snow-map-card figcaption{padding:10px}.snow-map-actions{padding:6px 10px}.snow-map-actions button{width:100%}.snow-map-heading{gap:0}.snow-map-card{margin-top:16px}}
+

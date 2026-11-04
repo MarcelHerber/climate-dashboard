@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Eurasien-Schneebedeckung: täglich beobachtete NOAA IMS Land-Schneefläche im gesamten Kalenderjahr Januar–Dezember sowie Winterhalbjahr Oktober–März, Klimatologie und Tagesextreme.">
 <title>Eurasien · Schneebedeckung im Jahresverlauf | Climate Dashboard Deutschland</title>
-<link rel="stylesheet" href="eurasia_snow.css?v=20261023-annual">
+<link rel="stylesheet" href="eurasia_snow.css?v=20261104-snow-maps">
+<script defer src="snow_maps.js?v=20261104-1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script defer src="eurasia_snow.js?v=20261103-white-export-v2"></script>
 </head>
@@ -19,6 +20,40 @@
   <h1>Eurasien: Schneebedeckung im Jahresverlauf</h1>
   <p class="intro">Wie entwickelt sich die Schneebedeckung Eurasiens über <strong>das gesamte Kalenderjahr von Januar bis Dezember</strong>? Zusätzlich bleiben die klassische Winterhalbjahresansicht Oktober–März und alle zwölf Einzelmonate wählbar. Gezeigt wird die beobachtete schneebedeckte Landfläche von 20–60° N und 10° W–180° O. Die Region umfasst Teile Europas und Asiens, aber nicht den hohen Norden. Klimamittel, historische Tagesextreme und Messwerte werden nur aus echten NOAA-IMS-Tageskarten berechnet.</p>
 
+  <section class="panel snow-map-section" id="snowMaps" aria-labelledby="snowMapsTitle">
+    <div class="snow-map-heading">
+      <div><div class="eyebrow">Nordhalbkugel · tägliche Beobachtung</div>
+        <h2 id="snowMapsTitle">Schneebedeckung und Abweichung vom Mittel</h2></div>
+      <a class="snow-map-skip" href="#snowTimeSeries">Zur Eurasien-Zeitreihe ↓</a>
+    </div>
+    <div class="controls snow-map-controls">
+      <label>Kartendatum · 00 UTC
+        <select id="snowMapDate" aria-label="Datum beider Schneekarten" disabled><option>Karten werden geladen …</option></select>
+      </label>
+      <div class="snow-map-navigation" role="group" aria-label="Schneekarten nach Datum durchblättern">
+        <button id="snowMapPrevious" type="button" aria-label="Vorheriger verfügbarer Kartentag" disabled>← Zurück</button>
+        <button id="snowMapNext" type="button" aria-label="Nächster verfügbarer Kartentag" disabled>Weiter →</button>
+      </div>
+      <button id="snowMapRefresh" type="button">Karten aktualisieren ↻</button>
+    </div>
+    <p class="status" id="snowMapStatus" role="status" aria-live="polite">Originaldaten der Schneekarten werden geladen …</p>
+    <p class="small" id="snowMapReference">Kartenreferenz: gleicher Kalendertag 2001–2020 · Nordhalbkugel nördlich 20° N.</p>
+
+    <figure class="snow-map-card">
+      <figcaption><h3>Beobachtete Schneebedeckung</h3><span>Blau: schneebedecktes Land · Grau: Meer- und Seeeis</span></figcaption>
+      <div class="snow-map-image"><img id="snowCoverImage" width="3520" height="1188" alt="Beobachtete Schneebedeckung der Nordhalbkugel" decoding="async" hidden></div>
+      <div class="snow-map-actions"><button id="snowCoverDownload" type="button" disabled>Schneebedeckung als PNG ↓</button></div>
+    </figure>
+    <figure class="snow-map-card">
+      <figcaption><h3>Abweichung von der mittleren Schneehäufigkeit</h3><span>Rot: weniger Schnee als üblich · Blau: mehr Schnee als üblich</span></figcaption>
+      <div class="snow-map-image"><img id="snowAnomalyImage" width="3520" height="1188" alt="Abweichung der Schneebedeckung vom Mittel 2001–2020" decoding="async" hidden></div>
+      <div class="snow-map-actions"><button id="snowAnomalyDownload" type="button" disabled>Abweichung als PNG ↓</button></div>
+    </figure>
+    <p class="small">Die Abweichung wird je Rasterzelle in <strong>Prozentpunkten</strong> berechnet: heutiger Schneeindikator (0 oder 100 %) minus Schneehäufigkeit an demselben Kalendertag 2001–2020. Mindestens 15 gültige historische Landbeobachtungen sind nötig; am 29. Februar vier der fünf Schaltjahre. Meereis wird ausgeschlossen. Die Karten zeigen Schneebedeckung, keine Schneehöhe.</p>
+    <p class="small">Quelle: <a href="https://nsidc.org/data/g02156/versions/1" target="_blank" rel="noopener">NOAA / USNIC IMS via NSIDC, G02156</a> · nominal 24 km · Grenzen: Natural Earth. Der Kartenvergleich 2001–2020 und die Referenz der folgenden Zeitreihe sind getrennt gekennzeichnet.</p>
+  </section>
+
+  <div id="snowTimeSeries" class="eyebrow snow-series-heading">Eurasien · Schneefläche im Jahresverlauf</div>
   <section class="panel">
     <div class="controls">
       <label>Zeitraum
@@ -80,3 +115,4 @@
 </main>
 </body>
 </html>
+

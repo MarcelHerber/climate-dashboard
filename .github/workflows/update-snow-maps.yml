@@ -1,0 +1,77 @@
+name: NOAA IMS Schneekarten Nordhalbkugel
+
+on:
+  schedule:
+    - cron: "18 6,14,22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_snow_maps.py"
+      - "tests/test_snow_maps.py"
+      - ".github/workflows/update-snow-maps.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: noaa-ims-snow-maps
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Kartenbibliotheken installieren
+        run: pip install "numpy>=1.26,<3" "matplotlib>=3.8,<4" "pillow>=10,<13"
+      - name: Originalraster aus dem Cache laden
+        uses: actions/cache@v4
+        with:
+          path: .cache/ims-snow-maps
+          key: ims-snow-maps-v2-${{ github.run_id }}
+          restore-keys: ims-snow-maps-v2-
+      - name: Masken, Referenz und Georeferenzierung prüfen
+        run: python -m unittest discover -s tests -p test_snow_maps.py -v
+      - name: Echte Schneebedeckung und Abweichung berechnen
+        run: python scripts/update_snow_maps.py --days 7
+      - name: Vollständige Schneekarten speichern
+        id: save
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add eurasia_snow/maps/
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "NOAA IMS: aktuelle Schneebedeckung und Abweichung 2001–2020"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git rebase --abort || true
+            sleep "$((attempt * 3))"
+          done
+          exit 1
+      - name: Neue Karten mit GitHub Pages veröffentlichen
+        if: steps.save.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy-pages-only.yml',
+              ref: 'main'
+            });
