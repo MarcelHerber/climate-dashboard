@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="europe_station_basemap.js?v=20261104-3"></script>
+<script defer src="station_snow_years.js?v=20261104-1"></script>
 
 <!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
 <script>
@@ -1162,6 +1163,20 @@ button.action:hover{background:#1f2937}
 .station-precip-monthly-table td.station-precip-monthly-max{background:#dff3df!important;color:#124d1f;font-weight:700}
 .station-precip-monthly-table td.station-precip-monthly-min{background:#f0dfcf!important;color:#6e3b00;font-weight:700}
 
+
+/* Snow-depth year selection */
+.station-snow-year-picker{margin:12px 0 16px;padding:12px 14px;border:1px solid var(--border,#cbd4da);border-radius:9px}
+.station-snow-year-picker summary{cursor:pointer;font-weight:750;font-size:14px}
+.station-snow-year-picker p{font-size:12px;margin:7px 0 10px}
+.station-snow-year-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.station-snow-year-actions button{padding:6px 10px}
+.station-snow-year-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:5px;max-height:230px;overflow:auto;padding:4px}
+.station-snow-year-choice{display:flex;gap:7px;align-items:center;border:1px solid var(--border,#dce3e7);border-radius:6px;padding:6px 8px;font-size:12px;cursor:pointer}
+.station-snow-year-choice input{flex:none}
+.station-snow-year-choice small{font-size:10px;opacity:.75}
+.station-snow-year-choice:has(input:checked){outline:1px solid #397eaa}
+.station-snow-year-note{font-size:12px;line-height:1.5;min-height:16px}
+@media(max-width:520px){.station-snow-year-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:210px}.station-snow-year-picker{padding:10px}}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
@@ -3394,6 +3409,17 @@ button.action:hover{background:#1f2937}
       <button class="action" onclick="resetStationSnowZoom()">Zoom zurücksetzen</button>
     </div>
 
+    <details id="stationSnowYearPicker" class="station-snow-year-picker" open>
+      <summary>Einzelne Jahre ein- und ausblenden</summary>
+      <p>Hydrologisches Jahr: 1. November bis 31. Oktober. Mehrere Jahre gleichzeitig im Diagramm vergleichen.</p>
+      <div class="station-snow-year-actions">
+        <button class="action" type="button" id="stationSnowSelectAllYears">Alle Jahre</button>
+        <button class="action" type="button" id="stationSnowResetYears">Nur aktuelle Saison</button>
+      </div>
+      <div id="stationSnowYearsList" class="station-snow-year-list" role="group" aria-label="Hydrologische Jahre auswählen"></div>
+      <p id="stationSnowYearsStatus" class="station-snow-year-note" role="status" aria-live="polite">Jahresarchiv wird geladen …</p>
+    </details>
+
     <div id="stationSnowSummary" class="summary-box">
       Schneehöhenprofil wird aufgebaut …
     </div>
@@ -4035,6 +4061,11 @@ let stationSnowCurrent=null;
 let stationSnowChart=null;
 let stationSnowDeviationChart=null;
 let stationSnowRequestId=0;
+let stationSnowYearsArchive=null;
+let stationSnowYearStationId=null;
+let stationSnowAvailableYears=[];
+const stationSnowSelectedYears=new Set();
+const stationSnowFileCache=new Map();
 let stationClimateDaysIndex=null;
 let stationClimateDaysLoading=null;
 let stationClimateDaysProfile=null;
@@ -16638,6 +16669,9 @@ function persistDashboardState(key,value){
 
 function restoreDashboardControls(){
   document.querySelectorAll("select[id], input[id]").forEach(control=>{
+    // Mobile navigation mirrors dashboardState.tab and must never restore
+    // a stale independent value when other station selects are populated.
+    if(control.id==="mobileTabSelect")return;
     const saved=dashboardState[control.id];
     if(saved===undefined) return;
     if(control.type==="checkbox"){
@@ -16781,6 +16815,7 @@ function initializeDashboardState(){
   document.addEventListener("change",event=>{
     const control=event.target;
     if(!(control instanceof HTMLSelectElement || control instanceof HTMLInputElement) || !control.id) return;
+    if(control.id==="mobileTabSelect")return; // persisted by switchTab only
     persistDashboardState(control.id,control.type==="checkbox"?control.checked:control.value);
   });
   const observer=new MutationObserver(()=>window.setTimeout(restoreDashboardControls,0));
