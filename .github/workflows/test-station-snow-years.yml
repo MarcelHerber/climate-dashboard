@@ -6,6 +6,8 @@ on:
     paths:
       - "index.html"
       - "station_snow_years.js"
+      - "station_snow_accumulation.js"
+      - "tests/test_station_snow_accumulation.cjs"
       - "tests/test_station_snow_years.cjs"
       - "tests/audit_station_snow_years_live.py"
       - ".github/workflows/test-station-snow-years.yml"
@@ -31,7 +33,9 @@ jobs:
       - name: Snow curve module and source integration
         run: |
           node --check station_snow_years.js
+          node --check station_snow_accumulation.js
           node --test tests/test_station_snow_years.cjs
+          node --test tests/test_station_snow_accumulation.cjs
 
   live-browser:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
