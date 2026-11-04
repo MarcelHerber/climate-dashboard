@@ -80,9 +80,6 @@ def request(url: str, tries: int = 3) -> bytes:
 def listing(base: str, period: str, kind: str) -> dict[str, list[str]]:
     html = request(base + period + "/").decode("utf-8", "replace")
     suffix = ("_akt.zip" if period == "recent" else "_hist.zip")
-    pattern = (rf"tageswerte_{kind}_(\d{{5}})_akt\.zip" if period == "recent" else
-               rf"tageswerte_{kind}_(\d{{5}})_\d{{8}}_\d{{8}}_hist\.zip")
-    matches = re.findall(pattern.replace("(\\d{5})", r"(\d{5})"), html, re.I)
     result: dict[str, list[str]] = defaultdict(list)
     # Use filename instead of fragile HTML position or untrusted hrefs.
     full_pattern = (rf"tageswerte_{kind}_\d{{5}}_akt\.zip" if period == "recent"
@@ -200,35 +197,37 @@ def current_payload(sid: str, meta: StationMeta, profile: dict[str, Any],
 def process_one(sid: str, rr_hist: dict[str,list[str]],rr_recent: dict[str,list[str]],
                 kl_hist: dict[str,list[str]],kl_recent: dict[str,list[str]],
                 metadata: dict[str,StationMeta],today: date) -> tuple[str,Any,str|None]:
-    # RR is first for extra stations; an existing qualified KL ID is excluded.
-    has_rr = sid in rr_hist or sid in rr_recent
-    kind = "RR" if has_rr else "KL"
-    hist = rr_hist if has_rr else kl_hist
-    recent = rr_recent if has_rr else kl_recent
-    url = RR_BASE if has_rr else KL_BASE
-    field = "SH_TAG" if has_rr else "SHK_TAG"
+    # RR and KL sometimes contain different intervals for the same ID.
+    # Read both, then let a valid RR SH_TAG value win on overlapping dates.
+    # This also keeps legitimate KL SHK_TAG measurements when RR has gaps.
     observations: dict[date,float] = {}
     good_files = 0
     failures = []
-    for fn in hist.get(sid, []):
-        try:
-            values = extract_snow_zip(request(url+"historical/"+fn),field,today)
-            observations.update(values)
-            good_files += 1
-        except (OSError,ValueError,RuntimeError,zipfile.BadZipFile) as exc:
-            failures.append(str(exc)[:160])
-    for fn in recent.get(sid, []):
-        try:
-            values = extract_snow_zip(request(url+"recent/"+fn),field,today)
-            observations.update(values)
-            good_files += 1
-        except (OSError,ValueError,RuntimeError,zipfile.BadZipFile) as exc:
-            failures.append(str(exc)[:160])
+    source_counts: dict[str,int] = {}
+    for kind,base,field,hist,recent in (
+        ("KL",KL_BASE,"SHK_TAG",kl_hist,kl_recent),
+        ("RR",RR_BASE,"SH_TAG",rr_hist,rr_recent),
+    ):
+        values_for_source: dict[date,float] = {}
+        for period,items in (("historical",hist.get(sid,[])),
+                             ("recent",recent.get(sid,[]))):
+            for fn in items:
+                try:
+                    values=extract_snow_zip(request(base+period+"/"+fn),field,today)
+                    values_for_source.update(values)
+                    good_files+=1
+                except (OSError,ValueError,RuntimeError,zipfile.BadZipFile) as exc:
+                    failures.append(str(exc)[:160])
+        if values_for_source:
+            source_counts[kind]=len(values_for_source)
+            observations.update(values_for_source)
     if not observations:
         if not good_files:
             return sid,None,"; ".join(failures[:2]) or "No readable products"
-        # Valid product file with no measured snow heights: not a snow station.
-        return sid,None,None
+        return sid,None,None  # no genuinely measured snow-depth days
+    kind = "RR+KL" if len(source_counts)>1 else next(iter(source_counts))
+    field = "SH_TAG/SHK_TAG" if len(source_counts)>1 else (
+        "SH_TAG" if "RR" in source_counts else "SHK_TAG")
 
     meta = metadata.get(sid) or StationMeta(
         station_id=sid,name="DWD-Station "+sid,state="Unbekannt",
