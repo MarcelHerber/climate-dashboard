@@ -4,18 +4,13 @@
 (function () {
   "use strict";
   const LOCAL_GEOGRAPHY = "wettergefahren_basemap.json"; // Published root asset, Natural Earth public domain.
-  const TILE_SERVERS = [
-    {
-      url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      opts: { subdomains: "abcd", maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende &copy; CARTO' }
-    },
-    {
-      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      opts: { maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende' }
-    }
-  ];
+  // OSM standard raster tiles do not require a CARTO API key.
+  // They are an OPTIONAL detail layer: self-hosted borders are the baseline.
+  const TILE_SERVERS = [{
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    opts: { maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende' }
+  }];
   let leafletLoadPromise = null;
 
   function setStatus(message) {
@@ -77,9 +72,10 @@
     if (!map.createPane || !window.L?.geoJSON) return Promise.resolve(false);
     const paneName = "europeStationGeographyPane";
     const pane = map.getPane(paneName) || map.createPane(paneName);
-    // The geographic vector layer sits *behind* fetched image tiles, while
-    // the original record symbols stay above both in Leaflet's overlayPane.
-    pane.style.zIndex = "195"; // tilePane = 200, overlayPane = 400
+    // The geographic borders MUST sit ABOVE raster image tiles. Previously
+    // z-index 195 hid them below CARTO's opaque "API KEY REQUIRED" images.
+    // Keep the borders BELOW the station canvas (overlayPane = 400).
+    pane.style.zIndex = "350"; // tilePane = 200, overlayPane = 400
     pane.style.pointerEvents = "none";
     return fetch(LOCAL_GEOGRAPHY, { cache: "force-cache" })
       .then(response => {
@@ -110,7 +106,7 @@
             opacity: .95,
             weight: 1.1,
             fillColor: "#e7ebea",
-            fillOpacity: 1
+            fillOpacity: .94
           }
         }).addTo(map);
         map.__europeStationGeographyLayer = layer;
@@ -125,13 +121,15 @@
   function attach(map) {
     if (!map || map.__europeStationBasemapAttached) return;
     map.__europeStationBasemapAttached = true;
+    const container = map.getContainer?.();
+    if (container) container.style.backgroundColor = "#dcebf2";
+    // The local Natural Earth SVG layer is always on and is above the raster.
+    // Raster tiles only provide additional roads and place labels when available.
     const geography = createCountryFallback(map);
-    // Do not wait for the outside tile provider before allowing station records
-    // to load; vector fallback and tiles are independent of station data.
-    let currentLayer = null;
-    let activeIndex = -1;
+    let tileLayer = null;
     let successCount = 0;
     let errorCount = 0;
+    let rasterDisabled = false;
     let watchdog = null;
 
     function clearWatchdog() {
@@ -140,54 +138,55 @@
         watchdog = null;
       }
     }
-    function select(index) {
-      if (index < 0 || index >= TILE_SERVERS.length) return;
-      if (activeIndex >= index) return;
-      clearWatchdog();
-      if (currentLayer) {
-        map.removeLayer(currentLayer);
-        currentLayer = null;
-      }
-      activeIndex = index;
-      successCount = 0;
-      errorCount = 0;
-      const source = TILE_SERVERS[index];
-      currentLayer = window.L.tileLayer(source.url, source.opts);
-      const expectedIndex = index;
-      currentLayer.on("tileload", () => {
-        if (activeIndex !== expectedIndex) return;
-        successCount++;
-        clearWatchdog();
-        setStatus("");
+    function updateLocalLayer() {
+      const vector = map.__europeStationGeographyLayer;
+      if (vector?.setStyle) vector.setStyle({
+        fillOpacity: rasterDisabled || !successCount ? .94 : .12
       });
-      currentLayer.on("tileerror", () => {
-        if (activeIndex !== expectedIndex) return;
-        errorCount++;
-        if (errorCount >= 2 && index + 1 < TILE_SERVERS.length)
-          select(index + 1);
-        else if (errorCount >= 2)
-          setStatus("Kartenserver nicht erreichbar · europäische Länderumrisse bleiben sichtbar");
-      });
-      currentLayer.addTo(map);
-      if (index > 0) setStatus("Kartenhintergrund: alternativer Kartenserver wird geprüft …");
-      watchdog = setTimeout(() => {
-        if (activeIndex !== expectedIndex || successCount) return;
-        if (index + 1 < TILE_SERVERS.length) select(index + 1);
-        else setStatus("Kartenserver antwortet nicht · europäische Länderumrisse bleiben sichtbar");
-      }, 7000);
     }
-    // Provide a geographic fallback before/independently from the tile load.
-    // The tile load watchdog is not allowed to remove that fallback layer.
+    function disableRaster(message) {
+      if (rasterDisabled) return;
+      rasterDisabled = true;
+      clearWatchdog();
+      if (tileLayer) {
+        map.removeLayer(tileLayer);
+        tileLayer = null;
+      }
+      updateLocalLayer();
+      setStatus(message || "Kartendetails nicht erreichbar · lokale Ländergrenzen bleiben sichtbar");
+    }
+
     geography.then(ok => {
-      if (!ok && !successCount)
-        setStatus("Kartenumrisse fehlen · prüfe den Hintergrundkarten-Dienst");
+      updateLocalLayer();
+      if (!ok) setStatus("Lokale Ländergrenzen konnten nicht geladen werden");
+      else if (!rasterDisabled && successCount > 0) setStatus("");
     });
-    select(0);
+    // Never request CARTO: their key-required placeholder is a valid image and
+    // therefore fooled tileload-based fallback detection.
+    const source = TILE_SERVERS[0];
+    tileLayer = window.L.tileLayer(source.url, source.opts);
+    tileLayer.on("tileload", () => {
+      if (rasterDisabled) return;
+      successCount++;
+      clearWatchdog();
+      updateLocalLayer();
+      if (map.__europeStationGeographyLayer) setStatus("");
+    });
+    tileLayer.on("tileerror", () => {
+      if (rasterDisabled) return;
+      errorCount++;
+      if (errorCount >= 2) disableRaster();
+    });
+    tileLayer.addTo(map);
+    watchdog = setTimeout(() => {
+      if (!successCount) disableRaster("Kartenserver antwortet nicht · lokale Ländergrenzen bleiben sichtbar");
+    }, 7000);
     map.on("unload", clearWatchdog);
     map.__europeStationGetBasemapState = () => ({
-      sourceIndex: activeIndex,
+      sourceIndex: rasterDisabled ? -1 : 0,
       successCount,
       errorCount,
+      rasterDisabled,
       geographyLoaded: !!map.__europeStationGeographyLayer
     });
   }
