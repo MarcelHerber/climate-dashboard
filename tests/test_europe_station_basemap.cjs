@@ -19,6 +19,7 @@ function harness({offline=false}={}){
  };
  const L={
   map(){return map;},
+  svg(options){return {kind:"svg",options};},
   geoJSON(geo,options){
    polygons.push({geo,options});
    return {addTo(target){assert.equal(target,map);return this}};
@@ -68,6 +69,8 @@ test("fallback geography is rendered on separate pane underneath tiles and stati
  assert.equal(rendered.geo.features[0].geometry.type,"MultiPolygon");
  assert.equal(rendered.options.interactive,false);
  assert.equal(rendered.options.pane,"europeStationGeographyPane");
+ assert.equal(rendered.options.renderer.kind,"svg");
+ assert.equal(rendered.options.renderer.options.pane,"europeStationGeographyPane");
  assert.equal(h.map.getPane("europeStationGeographyPane").style.zIndex,"195");
  assert.equal(h.tiles.length,1);
  assert.match(h.tiles[0].url,/cartocdn/);
