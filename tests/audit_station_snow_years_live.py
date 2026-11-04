@@ -14,6 +14,10 @@ OUT=Path("snow_year_browser_audit")
 OUT.mkdir(exist_ok=True)
 cases=[]
 
+
+def document_active_is_snow(page):
+    return page.locator(".tab-content.active").first.get_attribute("id")=="stationSnow"
+
 def run_case(browser,width):
     mobile=width<600
     context=browser.new_context(
@@ -55,6 +59,30 @@ def run_case(browser,width):
             item=>item.label==='Hydrologisches Jahr 2025' &&
             item.data?.some(value=>value!==null))
         """,timeout=30000)
+        # Accumulated snow-height comparison from real SHK_TAG series.
+        page.wait_for_function("""() => {
+          const d=window.stationSnowAccumulationChart?.data?.datasets;
+          return d?.some(item=>item.label?.includes("Hydrologisches Jahr 2025")
+            && item.data.some(value=>value!==null && value>0));
+        }""",timeout=30000)
+        page.locator("#stationSnowCumStart").select_option("12-01")
+        page.locator("#stationSnowCumEnd").select_option("02-28")
+        page.wait_for_function("""() =>
+          document.getElementById("stationSnowCumPreset")?.value==="custom" &&
+          window.stationSnowAccumulationChart?.data?.labels?.[0]==="01.12." &&
+          window.stationSnowAccumulationChart?.data?.labels?.at(-1)==="28.02."
+        """,timeout=30000)
+        result["accumulation"]=page.evaluate("""() => ({
+          start:document.getElementById("stationSnowCumStart").value,
+          end:document.getElementById("stationSnowCumEnd").value,
+          summary:document.getElementById("stationSnowCumSummary").textContent,
+          series:stationSnowAccumulationChart.data.datasets.map(item=>({
+            label:item.label,last:item.data.at(-1)
+          }))
+        })""")
+        assert any("2025" in item["label"] and (item["last"] or 0)>0
+                   for item in result["accumulation"]["series"])
+        assert document_active_is_snow(page),"Snow accumulation period changed active tab"
         result.update(page.evaluate("""() => ({
           activeTab:document.querySelector('.tab-content.active')?.id,
           plottedYears:stationSnowChart.data.datasets.filter(
