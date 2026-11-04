@@ -37,7 +37,7 @@ jobs:
           grep -Fq 'stratosphere_chart_visibility.js' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_chart_visibility.css' scripts/build_pages_site.sh
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 22
     steps:
       - uses: actions/checkout@v6
