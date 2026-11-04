@@ -78,11 +78,11 @@ function renderModelDiagnostics(){
  if(!archive)return;
  const el=$("stratoModelDiagnostics");el.replaceChildren();
  const heading=document.createElement("strong");heading.textContent="IFS-Laufstabilität und GEFS-Vergleich · 60°N / 10 hPa";el.append(heading);
+ const gefs=window.stratoGefsEnsemble;
+ const gefsHour=gefs?.cycle_utc?.slice(11,13)||"–";
  const p=document.createElement("p");p.textContent="IFS bei 12 UTC; der gewählte GEFS-Lauf gilt täglich um "+gefsHour+" UTC. Die Laufänderung vergleicht ausschließlich IFS-Prognosen für denselben 12-UTC-Termin. GEFS-Werte sind nur bei 12-UTC-Läufen zeitgleich vergleichbar.";el.append(p);
  const newest=archive.runs[0],older=archive.runs[1];
  const current=valuePoints(newest),previous=older?valuePoints(older):new Map();
- const gefs=window.stratoGefsEnsemble;
- const gefsHour=gefs?.cycle_utc?.slice(11,13)||"–";
  const good=gefs?.provider==="NOAA GEFS"&&gefs.member_count===31&&
   Array.isArray(gefs.valid_dates)&&Array.isArray(gefs.quantiles?.mean);
  const lookup=new Map(good?gefs.valid_dates.map((date,i)=>[date,i]):[]);

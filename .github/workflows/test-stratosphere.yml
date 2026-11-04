@@ -24,6 +24,7 @@ on:
       - "tests/test_stratosphere_rank_probability.cjs"
       - "scripts/build_ecmwf_ifs_u60_run_archive.py"
       - "tests/test_ecmwf_ifs_u60_run_archive.py"
+      - "tests/test_stratosphere_ecmwf_runs.cjs"
       - "tests/test_stratosphere_ensemble_members.cjs"
       - "tests/test_stratosphere_forecast_focus.cjs"
       - "tests/test_gefs_stratosphere.py"
@@ -56,6 +57,7 @@ jobs:
           node --check stratosphere_temperature.js
           node --check stratosphere_ensemble.js
           node --check stratosphere_ecmwf_runs.js
+          node --test tests/test_stratosphere_ecmwf_runs.cjs
           node --check stratosphere_ecmwf_ens.js
           node --check stratosphere_run_trends.js
           node --test tests/test_stratosphere_run_trends.cjs
