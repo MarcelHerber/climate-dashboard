@@ -46,6 +46,7 @@ CACHE_DIR = Path(".cache/dwd-snow-height/history_v1")
 CACHE_MANIFEST = Path(".cache/dwd-snow-height/history_manifest_v1.json")
 
 OUTPUT_DIR = Path("station_snow_height_profiles")
+OUTPUT_YEARS_DIR = Path("station_snow_height_years")
 OUTPUT_INDEX = Path("station_snow_height_index.json")
 
 PROFILE_VERSION = 2
@@ -199,6 +200,46 @@ def accepted_years(
             result[hydro_year] = values
 
     return result
+
+
+def build_year_archive(
+    station_id: str,
+    years: dict[int, dict[date, float]],
+) -> dict[str, Any]:
+    """Daily SHK_TAG values on the 366-day hydrological axis.
+
+    Incomplete observed historical years remain selectable, marked as partial.
+    Missing data, including ordinary-year Feb 29, stay null.
+    """
+    archive = []
+    for hydro_year in sorted(years, reverse=True):
+        if hydro_year > 2026:
+            continue
+        observed = years[hydro_year]
+        if not observed:
+            continue
+        by_month_day = {
+            day.strftime("%m-%d"): round_or_none(value)
+            for day, value in observed.items()
+        }
+        valid_days = len(observed)
+        required = expected_days(hydro_year)
+        archive.append({
+            "year": hydro_year,
+            "valid_days": valid_days,
+            "expected_days": required,
+            "coverage": round(valid_days / required, 4),
+            "accepted": hydro_year <= 2025
+                        and valid_days / required >= QUALITY_THRESHOLD,
+            "values": [by_month_day.get(month_day) for month_day in HYDRO_AXIS],
+        })
+    return {
+        "version": 1,
+        "station_id": station_id,
+        "year_label": "hydrological_year_ending",
+        "month_days": HYDRO_AXIS,
+        "years": archive,
+    }
 
 
 def longest_snow_cover_streak(
@@ -512,6 +553,8 @@ def main() -> int:
 
     output_dir = root / OUTPUT_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
+    years_dir = root / OUTPUT_YEARS_DIR
+    years_dir.mkdir(parents=True, exist_ok=True)
 
     stations = []
     skipped = []
@@ -540,6 +583,13 @@ def main() -> int:
                 output_dir / f"{station_id}.json",
                 profile,
             )
+            write_json_compact(
+                years_dir / f"{station_id}.json",
+                build_year_archive(
+                    station_id,
+                    build_year_maps(payload.get("rows") or []),
+                ),
+            )
 
             quality = profile["quality"]
             reference_status_counts[quality["reference_status"]] += 1
@@ -566,6 +616,7 @@ def main() -> int:
                         "max_snow_depth_cm"
                     ],
                     "file": f"{OUTPUT_DIR}/{station_id}.json",
+                    "year_file": f"{OUTPUT_YEARS_DIR}/{station_id}.json",
                 }
             )
 
@@ -577,9 +628,10 @@ def main() -> int:
             )
 
     valid_ids = {station["id"] for station in stations}
-    for old in output_dir.glob("*.json"):
-        if old.stem not in valid_ids:
-            old.unlink()
+    for directory in (output_dir, years_dir):
+        for old in directory.glob("*.json"):
+            if old.stem not in valid_ids:
+                old.unlink()
 
     if not 250 <= len(stations) <= 280:
         raise RuntimeError(
@@ -769,6 +821,21 @@ def self_test() -> None:
     assert sample[1] == 30
     assert sample[2] is not None
     assert sample[7] is not None
+
+    archive = build_year_archive("00001", years)
+    assert archive["month_days"][0] == "11-01"
+    assert len(archive["years"]) == 30
+    assert archive["years"][0]["year"] == 2020
+    assert len(archive["years"][0]["values"]) == 366
+    assert archive["years"][0]["accepted"] is True
+    assert archive["years"][1]["values"][120] is None  # non-leap Feb 29
+    incomplete = dict(years)
+    incomplete[1980] = {date(1979, 11, 1): 6.0}
+    partial = build_year_archive("00001", incomplete)
+    assert partial["years"][-1]["year"] == 1980
+    assert partial["years"][-1]["accepted"] is False
+    assert partial["years"][-1]["values"][0] == 6.0
+    assert partial["years"][-1]["values"][1] is None
 
     summary = annual_summary(2020, accepted[2020])
     assert summary["coverage"] == 1.0
