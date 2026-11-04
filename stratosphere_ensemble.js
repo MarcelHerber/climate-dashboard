@@ -298,7 +298,8 @@ $("stratoEnsemblePng").addEventListener("click",()=>{
    " bis "+$("stratoEnsembleTo").value,19*scale,47*scale);
  g.font=Math.round(12*scale)+"px Arial";g.fillText("Einzelmitglieder und Ensemblequantile nur aus echten Modellfeldern · NASA Analyse · Quelle: NOAA/NASA",19*scale,71*scale);
  g.drawImage(canvas,0,header);
- const a=document.createElement("a");a.href=output.toDataURL("image/png");
+ const labeled=window.stratoChartExport.append(output,chart,{source:"Quelle: NOAA GEFS · NASA Ozone Watch / MERRA-2 · Zonalwind 60° N / 10 hPa"});
+ const a=document.createElement("a");a.href=labeled.toDataURL("image/png");
  a.download="Stratosphaere_60N_10hPa_GEFS_Ensemble.png";
  document.body.appendChild(a);a.click();a.remove();
 });
