@@ -49,7 +49,7 @@ def exercise(browser, width, height, label):
         }""")
         panel = page.locator(".strato-series-panel")
         panel.wait_for(timeout=15000)
-        assert panel.locator("button[data-action='toggle']").count() == 5
+        assert panel.locator("button[data-action='toggle']").count() == 4
         assert page.evaluate("demo.options.plugins.legend.display") is False
 
         # Both source datasets of a filled interval are switched as a pair.
