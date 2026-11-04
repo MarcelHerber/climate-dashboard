@@ -10027,26 +10027,31 @@ async function updateStationSnow(){
   document.getElementById("stationSnowSummary").textContent="Schneehöhenprofil wird geladen …";
 
   try{
-    const {station,profile,current,currentMeta}=await loadStationSnowFiles(stationId);
+    const {station,profile,current,archive,currentMeta}=await loadStationSnowFiles(stationId);
     if(requestId!==stationSnowRequestId) return;
 
     stationSnowProfile=profile;
     stationSnowCurrent=current;
+    stationSnowYearsArchive=archive;
 
     const daily=stationSnowVisibleDaily(profile);
     const currentByMonthDay=stationSnowCurrentObjects(current);
 
     const labels=daily.map(row=>stationSnowMonthDayLabel(row.monthDay));
-    const currentValues=daily.map(row=>currentByMonthDay.get(row.monthDay)?.snow??null);
     const medianValues=daily.map(row=>row.median??null);
     const p16=daily.map(row=>row.p16??null);
     const p84=daily.map(row=>row.p84??null);
     const p2_5=daily.map(row=>row.p2_5??null);
     const p97_5=daily.map(row=>row.p97_5??null);
     const historicalMax=daily.map(row=>row.historicalMax??null);
-    const anomalies=daily.map(row=>currentByMonthDay.get(row.monthDay)?.anomaly??null);
 
     const hydroYear=stationSnowCurrentIndex.hydrological_year;
+    stationSnowPopulateYearPicker(station,archive,current,hydroYear);
+    const yearCurves=window.StationSnowYears?.curves({
+      archive,selectedYears:stationSnowSelectedYears,
+      monthDays:daily.map(row=>row.monthDay),
+      currentYear:hydroYear,currentByMonthDay,median:medianValues
+    })||[];
     const height=station.height===null||station.height===undefined?"":` · ${station.height} m`;
     const periodLabel=document.getElementById("stationSnowPeriodSelect").value==="hydro"
       ?"01.11.–31.10."
@@ -10082,18 +10087,18 @@ async function updateStationSnow(){
             fill:false,
             tension:.05
           },
-          {
-            label:`Hydrologisches Jahr ${hydroYear}`,
-            data:currentValues,
-            borderColor:"#d9342b",
-            backgroundColor:"#d9342b",
-            borderWidth:3,
+          ...yearCurves.map(curve=>({
+            label:curve.label,
+            data:curve.values,
+            borderColor:curve.color,
+            backgroundColor:curve.color,
+            borderWidth:curve.current?3:1.5,
             pointRadius:0,
             pointHoverRadius:4,
             fill:false,
             spanGaps:false,
-            tension:.08
-          }
+            tension:.06
+          }))
         ]
       },
       options:{
@@ -10132,27 +10137,17 @@ async function updateStationSnow(){
       type:"line",
       data:{
         labels,
-        datasets:[{
-          label:`Abweichung ${hydroYear} zum Median 1991–2020`,
-          data:anomalies,
-          borderWidth:1.6,
+        datasets:yearCurves.map(curve=>({
+          label:"Abweichung "+curve.label+" zum Median 1991–2020",
+          data:curve.deviations,
+          borderColor:curve.color,
+          backgroundColor:curve.current?"rgba(217,52,43,.12)":curve.color,
+          borderWidth:curve.current?2.4:1.5,
           pointRadius:0,
-          fill:"origin",
+          fill:curve.current?"origin":false,
           spanGaps:false,
-          tension:.05,
-          segment:{
-            borderColor:context=>{
-              const y0=context.p0.parsed.y??0;
-              const y1=context.p1.parsed.y??0;
-              return (y0+y1)/2>=0?"#2f6f9f":"#c0523d";
-            },
-            backgroundColor:context=>{
-              const y0=context.p0.parsed.y??0;
-              const y1=context.p1.parsed.y??0;
-              return (y0+y1)/2>=0?"rgba(47,111,159,.28)":"rgba(192,82,61,.24)";
-            }
-          }
-        }]
+          tension:.05
+        }))
       },
       options:{
         responsive:true,
