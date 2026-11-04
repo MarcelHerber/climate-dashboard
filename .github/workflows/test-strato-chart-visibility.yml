@@ -2,9 +2,10 @@ name: Stratosphäre · Kurven und Diagrammgröße testen
 
 on:
   push:
-    branches: [main, strato-chart-visibility-20261104]
+    branches: [main, strato-chart-visibility-20261104, strato-labeled-exports-20261104]
     paths:
       - "stratosphere_chart_visibility.js"
+      - "stratosphere_chart_export.js"
       - "stratosphere_chart_visibility.css"
       - "stratosphaere.html"
       - "scripts/build_pages_site.sh"
@@ -29,10 +30,13 @@ jobs:
       - name: JS-Parsing und echte Linien-/Flächen-Interaktionen
         run: |
           node --check stratosphere_chart_visibility.js
+          node --check stratosphere_chart_export.js
           node --test tests/test_stratosphere_chart_visibility.cjs
       - name: Veröffentlichungsreferenzen prüfen
         run: |
           grep -Fq 'stratosphere_chart_visibility.js' stratosphaere.html
+          grep -Fq 'stratosphere_chart_export.js' stratosphaere.html
+          grep -Fq 'stratosphere_chart_export.js' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_chart_visibility.css' stratosphaere.html
           grep -Fq 'stratosphere_chart_visibility.js' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_chart_visibility.css' scripts/build_pages_site.sh
