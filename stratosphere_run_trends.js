@@ -494,12 +494,13 @@ $("stratoTrendValid").addEventListener("change",draw);
 $("stratoTrendReload").addEventListener("click",()=>void refresh(true));
 $("stratoTrendPng").addEventListener("click",()=>{
  if(!chart)return;
- const source=chart.canvas,canvas=document.createElement("canvas");
- canvas.width=source.width;canvas.height=source.height;
- const ctx=canvas.getContext("2d");if(!ctx)return;
- ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.drawImage(source,0,0);
- const link=document.createElement("a");link.href=canvas.toDataURL("image/png",1);
+ const model=$( "stratoTrendModel" ).value,utc=$( "stratoTrendHour" ).value;
+ const labeled=window.stratoChartExport.fromChart(chart,{
+  title:"Polarwirbel · Laufentwicklung der Windumkehrwahrscheinlichkeit",
+  subtitle:(model==="gefs"?"NOAA GEFS":"ECMWF ENS")+" · 60° N / 10 hPa · "+utc+" UTC · "+$( "stratoTrendMode" ).selectedOptions[0]?.textContent,
+  source:"Quelle: NOAA GEFS / ECMWF IFS ENS · nur verifizierte Original-Modellläufe"
+ });
+ const link=document.createElement("a");link.href=labeled.toDataURL("image/png");
  link.download="Stratosphaere_Laufentwicklung_"+$("stratoTrendModel").value+"_"+$("stratoTrendHour").value+"UTC.png";
  link.click();
 });
