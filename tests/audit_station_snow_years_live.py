@@ -51,7 +51,7 @@ def run_case(browser,width):
         assert historic.count()==1,"Historical year 2025 not in the checklist"
         historic.check(force=True)
         page.wait_for_function("""()=>
-          window.stationSnowChart?.data?.datasets?.some(
+          typeof stationSnowChart!=="undefined" && stationSnowChart?.data?.datasets?.some(
             item=>item.label==='Hydrologisches Jahr 2025' &&
             item.data?.some(value=>value!==null))
         """,timeout=30000)
