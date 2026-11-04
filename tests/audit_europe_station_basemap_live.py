@@ -52,7 +52,11 @@ def run_case(browser,width,block_tiles):
           return {
             state:s,
             leafletVisible:!!map && map.getBoundingClientRect().width>100,
-            vectorSvgPaths:document.querySelectorAll('[class*="europeStationGeographyPane"] path').length,
+            vectorSvgPaths:m.getPane('europeStationGeographyPane')?.querySelectorAll('svg path').length||0,
+            vectorSvgCount:m.getPane('europeStationGeographyPane')?.querySelectorAll('svg').length||0,
+            vectorCanvasCount:m.getPane('europeStationGeographyPane')?.querySelectorAll('canvas').length||0,
+            vectorCountryCount:vector?.getLayers?.().length||0,
+            actualGeographyPaneClass:m.getPane('europeStationGeographyPane')?.className,
             stationMarkers:europeStationMarkerById.size,
             shownLabel:document.getElementById('europeStationShown')?.textContent,
             tileImages:map?.querySelectorAll('img.leaflet-tile')?.length||0,
