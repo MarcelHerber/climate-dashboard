@@ -284,7 +284,11 @@ $("stratoDiagPng").addEventListener("click",()=>{
  ctx.drawImage($("stratoDiagDuration"),28,570,1490,430);
  ctx.font="14px sans-serif";ctx.fillStyle="#4e6170";
  ctx.fillText("24h-Abtastung · rechts-/linkszensierte Ereignisse getrennt gekennzeichnet · keine Major-SSW-Wahrscheinlichkeit",38,1080);
- const link=document.createElement("a");link.href=canvas.toDataURL("image/png");
+ const labeled=window.stratoChartExport.append(canvas,[
+   {chart:onsetChart,title:"Erste Windumkehr"},
+   {chart:durationChart,title:"Dauer negativer Zonalwindwerte"}
+ ],{source:"Quelle: NOAA GEFS / ECMWF ENS · Windumkehr bei 60° N / 10 hPa"});
+ const link=document.createElement("a");link.href=labeled.toDataURL("image/png");
  link.download="Stratosphaere_Windumkehr_Diagnostik_"+$("stratoDiagModel").value+".png";link.click();
 });
 void refreshIndex();
