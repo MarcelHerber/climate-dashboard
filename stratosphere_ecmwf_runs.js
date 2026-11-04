@@ -217,12 +217,12 @@ $("stratoEcmwfCsv").addEventListener("click",()=>{
 });
 $("stratoEcmwfPng").addEventListener("click",()=>{
  if(!chart)return;
- const source=chart.canvas,canvas=document.createElement("canvas");
- canvas.width=source.width;canvas.height=source.height;
- const ctx=canvas.getContext("2d");if(!ctx)return;
- ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.drawImage(source,0,0);
- const img=document.createElement("a");img.href=canvas.toDataURL("image/png",1);
+ const labeled=window.stratoChartExport.fromChart(chart,{
+  title:"ECMWF IFS · Polarwirbel / zonaler Wind 60° N · 10 hPa",
+  subtitle:"Laufvergleich · neuester IFS-Lauf: "+(archive?.runs?.[0]?.cycle_utc||"–"),
+  source:"Quelle: ECMWF IFS Open Data · Modellläufe und NASA-Tagesanalyse"
+ });
+ const img=document.createElement("a");img.href=labeled.toDataURL("image/png");
  img.download="ECMWF_IFS_Polarwirbel_U60_10hPa_Runs.png";img.click();
 });
 function choose(which){
