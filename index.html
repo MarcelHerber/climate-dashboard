@@ -16,6 +16,7 @@
 <script async src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="europe_station_basemap.js?v=20261104-3"></script>
 <script src="station_snow_years.js?v=20261104-2"></script>
+<script src="station_snow_accumulation.js?v=20261104-1"></script>
 
 <!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
 <script>
@@ -1177,6 +1178,23 @@ button.action:hover{background:#1f2937}
 .station-snow-year-choice:has(input:checked){outline:1px solid #397eaa}
 .station-snow-year-note{font-size:12px;line-height:1.5;min-height:16px}
 @media(max-width:520px){.station-snow-year-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:210px}.station-snow-year-picker{padding:10px}}
+
+/* Measured accumulated snow depth — separate scientific panel */
+.snow-cum-panel{margin:18px 0 22px;padding:17px;border:1px solid var(--border,#d0d8de);border-radius:11px;background:var(--surface,transparent)}
+.snow-cum-panel h3{font-size:20px;margin:0 0 5px}
+.snow-cum-panel .snow-cum-intro{font-size:13px;line-height:1.55;margin:0 0 12px;color:var(--text,#26323a)}
+.snow-cum-controls{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.snow-cum-controls .control-group{min-width:145px;flex:1 1 155px}
+.snow-cum-controls select{width:100%;min-height:35px;padding:7px;border-radius:6px;border:1px solid var(--border,#cbd4da);background:var(--card-bg,#fff);color:var(--text,#26323a)}
+.snow-cum-summary{font-size:14px;font-weight:750;margin:6px 0}
+.snow-cum-status{font-size:12px;line-height:1.45;margin:6px 0 12px}
+.snow-cum-chart-wrap{height:410px;position:relative}
+.snow-cum-chart-wrap canvas{width:100%!important;height:100%!important}
+.snow-cum-table-wrap{overflow:auto;margin-top:12px}
+.snow-cum-table{margin:0;min-width:620px;width:100%;font-size:12px}
+.snow-cum-table th,.snow-cum-table td{text-align:left;padding:8px}
+.snow-cum-method{font-size:12px;line-height:1.6;margin:13px 0 0}
+@media(max-width:640px){.snow-cum-panel{padding:12px}.snow-cum-chart-wrap{height:330px}.snow-cum-controls .control-group{flex-basis:130px}}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
@@ -3432,6 +3450,49 @@ button.action:hover{background:#1f2937}
       <canvas id="stationSnowDeviationChart"></canvas>
     </div>
 
+    <section id="stationSnowAccumulation" class="snow-cum-panel" aria-labelledby="stationSnowCumHeading">
+      <h3 id="stationSnowCumHeading">Akkumulierte Schneehöhe</h3>
+      <p class="snow-cum-intro">Schneehöhensumme aus täglichen DWD-Messwerten (SHK_TAG) in <strong>cm·Tagen</strong>.
+        Beispiel: 10 cm Schneehöhe an fünf Tagen ergeben 50 cm·Tage. Das ist <strong>keine Neuschneesumme</strong>.
+        Die Linien verwenden die oben angeklickten Jahre.</p>
+      <div class="snow-cum-controls">
+        <div class="control-group">
+          <label for="stationSnowCumPreset">Zeitraum</label>
+          <select id="stationSnowCumPreset">
+            <option value="nov-mar" selected>November bis März</option>
+            <option value="winter">Dezember bis Februar</option>
+            <option value="nov-may">November bis Mai</option>
+            <option value="hydro">Hydrologisches Jahr</option>
+            <option value="custom">Eigener Zeitraum</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="stationSnowCumStart">Beginn (Tag/Monat)</label>
+          <select id="stationSnowCumStart" aria-label="Startdatum innerhalb des hydrologischen Jahres"></select>
+        </div>
+        <div class="control-group">
+          <label for="stationSnowCumEnd">Ende (Tag/Monat)</label>
+          <select id="stationSnowCumEnd" aria-label="Enddatum innerhalb des hydrologischen Jahres"></select>
+        </div>
+      </div>
+      <p id="stationSnowCumSummary" class="snow-cum-summary" role="status">Schneehöhensumme wird berechnet …</p>
+      <p id="stationSnowCumStatus" class="snow-cum-status"></p>
+      <p id="stationSnowCumEmpty" class="note" hidden>Für den gewählten Zeitraum sind keine Messwerte in den ausgewählten Jahren vorhanden.</p>
+      <div class="snow-cum-chart-wrap"><canvas id="stationSnowCumChart" aria-label="Kumulative Stationsschneehöhe nach hydrologischem Jahr"></canvas></div>
+      <div class="snow-cum-table-wrap">
+        <table class="snow-cum-table">
+          <thead><tr><th>Hydrologisches Jahr</th><th>Summe (cm·Tage)</th><th>Messabdeckung</th><th>Mittlere Schneehöhe (cm)</th><th>Datenstatus</th></tr></thead>
+          <tbody id="stationSnowCumTableBody"></tbody>
+        </table>
+      </div>
+      <p class="snow-cum-method">Methodik: Summe der an den Tagen des gewählten Zeitraums tatsächlich gemessenen
+        Schneehöhen; 0 cm zählt als Messwert, fehlende Tage nicht. Unvollständige Reihen sind als
+        Teilstand gekennzeichnet und nicht direkt mit vollständigen Jahren vergleichbar.
+        Die gestrichelte Referenz ist der Median der kumulierten Verläufe vollständiger hydrologischer
+        Jahre 1991–2020 für genau denselben Zeitraum; mindestens fünf vollständige Referenzjahre sind erforderlich.
+        Der 29. Februar wird nur in Schaltjahren mitgezählt.</p>
+    </section>
+
     <div class="chart-container auto">
       <div class="stat-grid">
         <div class="stat-card">
@@ -4247,7 +4308,7 @@ function switchTab(tab,{persist=true}={}){
     ensureStationStreaksLoaded();
   }
   window.setTimeout(()=>{
-    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationObservationsChart,stationPrecipChart,stationPrecipDeviationChart,stationSnowChart,stationSnowDeviationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
+    [monthlyChart,monthlyDeviationChart,climateIndexChart,accumulationChart,currentConditionsChart,stationObservationsChart,stationPrecipChart,stationPrecipDeviationChart,stationSnowChart,stationSnowDeviationChart,window.stationSnowAccumulationChart,stationClimateDaysCumulativeChart,stationClimateDaysBarChart,stationHeatwavesBubbleChart,stationHeatwavesBarChart,compareAreaChart,compareYearChart,compareStationChart,dailyChart,dailyDeviationChart,dailyAllYearsChart,extremeCumulativeChart,yearlyExtremeChart,yearlyMaxChart,heatmapChart]
       .filter(Boolean).forEach(chart=>chart.resize());
   },50);
 }
@@ -10179,6 +10240,11 @@ async function updateStationSnow(){
           y:{title:{display:true,text:"Abweichung (cm)"}}
         }
       }
+    });
+
+    window.StationSnowAccumulation?.render({
+      station,profile,archive,current,currentYear:hydroYear,
+      selectedYears:stationSnowSelectedYears
     });
 
     const quality=profile.quality||{};
