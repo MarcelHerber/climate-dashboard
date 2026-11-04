@@ -53,6 +53,9 @@ const context={
 };
 vm.runInNewContext(fs.readFileSync('stratosphere_chart_visibility.js','utf8'),context);
 api=context.window.stratoSeriesVisibility;
+vm.runInNewContext(fs.readFileSync('stratosphere_chart_export.js','utf8'),context);
+const png=context.window.stratoChartExport;
+
 
 function fixture(datasets,id='stratoTestCanvas') {
   const wrapper=new Element('div');
@@ -156,4 +159,34 @@ test('hidden helper lines and individually selectable EPS members are parsed',()
   assert.equal(groups[1].member,true);
   assert.equal(groups[2].member,true);
   assert.equal(groups[3].member,false);
+});
+
+
+test('download metadata lists exactly the visible series, with no hidden bands',()=>{
+  const {chart,panel}=fixture(datasets,'stratoExportLabelsTest');
+  const bands=api.groups(chart).find(g=>g.filled);
+  let entries=png.visibleEntries(chart);
+  assert.ok(entries.some(e=>e.label==='Ensemble 5–95 %'&&e.filled));
+  assert.ok(entries.some(e=>e.label==='c00'));
+  assert.ok(entries.some(e=>e.label==='Mittel'));
+  click(panel(),button(panel(),'toggle',bands.key));
+  entries=png.visibleEntries(chart);
+  assert.ok(!entries.some(e=>e.label==='Ensemble 5–95 %'));
+  assert.ok(entries.some(e=>e.label==='Mittel'));
+  const mean=api.groups(chart).find(g=>g.label==='Mittel');
+  click(panel(),button(panel(),'toggle',mean.key));
+  assert.ok(!png.visibleEntries(chart).some(e=>e.label==='Mittel'));
+  // No inactive field may silently appear in the exported legend.
+  assert.equal(png.visibleEntries(chart).length,3);
+});
+
+test('export honors hidden individual members, but shows other visible lines',()=>{
+  const {chart,panel}=fixture(datasets,'stratoExportMembersTest');
+  const entries=api.groups(chart);
+  const member=entries.find(g=>g.label==='c01');
+  click(panel(),button(panel(),'toggle',member.key));
+  const listed=png.visibleEntries(chart).map(x=>x.label);
+  assert.ok(listed.includes('c00'));
+  assert.ok(!listed.includes('c01'));
+  assert.ok(listed.includes('0 m/s'));
 });
