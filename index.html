@@ -10137,6 +10137,14 @@ async function updateStationSnow(){
   if(!stationId){
     ++stationSnowRequestId;
     document.getElementById("stationSnowSummary").textContent="Keine Station für den gewählten Filter gefunden.";
+    if(stationSnowChart){stationSnowChart.destroy();stationSnowChart=null;}
+    if(stationSnowDeviationChart){stationSnowDeviationChart.destroy();stationSnowDeviationChart=null;}
+    document.getElementById("stationSnowYearsList").replaceChildren();
+    document.getElementById("stationSnowYearsStatus").textContent="Keine Messreihe ausgewählt.";
+    window.StationSnowAccumulation?.render({
+      station:{name:"Keine Station"},archive:null,current:null,
+      currentYear:stationSnowCurrentIndex.hydrological_year,selectedYears:new Set()
+    });
     return;
   }
 
