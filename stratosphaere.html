@@ -6,6 +6,7 @@
 <title>Stratosphäre · 60° N zonaler Wind – Climate Dashboard</title>
 <meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="stratosphere_chart_visibility.js?v=20261104-controls1"></script>
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
@@ -245,6 +246,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 @media(max-width:1000px){.strato-diagnostic-stats{grid-template-columns:repeat(3,minmax(145px,1fr))}}
 @media(max-width:750px){.strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(125px,1fr))}.strato-diagnostic-charts{grid-template-columns:1fr}.strato-diagnostic-chart{height:275px}}
 </style>
+<link rel="stylesheet" href="stratosphere_chart_visibility.css?v=20261104-wide1">
 </head>
 <body class="strato-forecast-only">
 <header><nav class="nav" aria-label="Navigation">
