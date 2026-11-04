@@ -1,0 +1,60 @@
+name: Stratosphäre · Kurven und Diagrammgröße testen
+
+on:
+  push:
+    branches: [main, strato-chart-visibility-20261104]
+    paths:
+      - "stratosphere_chart_visibility.js"
+      - "stratosphere_chart_visibility.css"
+      - "stratosphaere.html"
+      - "scripts/build_pages_site.sh"
+      - "tests/test_stratosphere_chart_visibility.cjs"
+      - "tests/test_strato_visibility_browser.py"
+      - ".github/workflows/test-strato-chart-visibility.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strato-visibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - name: JS-Parsing und echte Linien-/Flächen-Interaktionen
+        run: |
+          node --check stratosphere_chart_visibility.js
+          node --test tests/test_stratosphere_chart_visibility.cjs
+      - name: Veröffentlichungsreferenzen prüfen
+        run: |
+          grep -Fq 'stratosphere_chart_visibility.js' stratosphaere.html
+          grep -Fq 'stratosphere_chart_visibility.css' stratosphaere.html
+          grep -Fq 'stratosphere_chart_visibility.js' scripts/build_pages_site.sh
+          grep -Fq 'stratosphere_chart_visibility.css' scripts/build_pages_site.sh
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Chromium und Playwright installieren
+        run: |
+          python -m pip install "playwright==1.57.0"
+          python -m playwright install --with-deps chromium
+      - name: Desktop, 390 px und 360 px mit echten Klicks testen
+        run: python -u tests/test_strato_visibility_browser.py
+      - name: Screenshots bereitstellen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stratosphere-chart-visibility-screenshots
+          path: strato-control-browser/*.png
+          if-no-files-found: warn
+          retention-days: 14
