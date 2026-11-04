@@ -9831,6 +9831,24 @@ function initializeStationSnowControls(){
 
   document.getElementById("stationSnowStationSelect").addEventListener("change",updateStationSnow);
   document.getElementById("stationSnowPeriodSelect").addEventListener("change",updateStationSnow);
+  document.getElementById("stationSnowYearsList").addEventListener("change",event=>{
+    const control=event.target;
+    if(!control.matches('input[type="checkbox"][data-snow-year]'))return;
+    const year=Number(control.dataset.snowYear);
+    if(control.checked)stationSnowSelectedYears.add(year);
+    else stationSnowSelectedYears.delete(year);
+    updateStationSnow();
+  });
+  document.getElementById("stationSnowSelectAllYears").addEventListener("click",()=>{
+    stationSnowAvailableYears.forEach(item=>stationSnowSelectedYears.add(item.year));
+    updateStationSnow();
+  });
+  document.getElementById("stationSnowResetYears").addEventListener("click",()=>{
+    stationSnowSelectedYears.clear();
+    const current=stationSnowAvailableYears.find(item=>item.isCurrent);
+    if(current)stationSnowSelectedYears.add(current.year);
+    updateStationSnow();
+  });
 
   populateStationSnowStations(true);
 }
@@ -9867,6 +9885,42 @@ function populateStationSnowStations(firstLoad=false){
   }else if(stations.length){
     select.value=stations[0].id;
   }
+}
+
+function stationSnowPopulateYearPicker(station,archive,current,currentYear){
+  const available=window.StationSnowYears?.yearList(archive,currentYear,Boolean(current?.rows?.length))||[];
+  const list=document.getElementById("stationSnowYearsList");
+  const status=document.getElementById("stationSnowYearsStatus");
+  if(stationSnowYearStationId!==station.id){
+    stationSnowYearStationId=station.id;
+    stationSnowSelectedYears.clear();
+    const recent=available.find(item=>item.isCurrent)||available[0];
+    if(recent)stationSnowSelectedYears.add(recent.year);
+  }
+  stationSnowAvailableYears=available;
+  for(const selected of [...stationSnowSelectedYears]){
+    if(!available.some(item=>item.year===selected))stationSnowSelectedYears.delete(selected);
+  }
+  list.replaceChildren();
+  const fragment=document.createDocumentFragment();
+  for(const entry of available){
+    const label=document.createElement("label");
+    label.className="station-snow-year-choice";
+    const checkbox=document.createElement("input");
+    checkbox.type="checkbox";
+    checkbox.dataset.snowYear=String(entry.year);
+    checkbox.checked=stationSnowSelectedYears.has(entry.year);
+    const title=document.createElement("span");
+    title.textContent=String(entry.year);
+    const detail=document.createElement("small");
+    detail.textContent=entry.isCurrent?" · aktuell":entry.accepted?" · vollständig":" · Teilreihe";
+    label.append(checkbox,title,detail);
+    fragment.appendChild(label);
+  }
+  list.appendChild(fragment);
+  status.textContent=!archive?.years?.length
+    ?"Historische Tageskurven werden noch aus den DWD-Messwerten aufgebaut; die laufende Saison bleibt verfügbar."
+    :available.length+" beobachtete hydrologische Jahre verfügbar. Fehlende Tage bleiben Datenlücken; Teilreihen sind gekennzeichnet.";
 }
 
 function stationSnowDailyObjects(profile){
@@ -9933,26 +9987,31 @@ function stationSnowCurrentMeta(stationId){
 }
 
 async function loadStationSnowFiles(stationId){
-  const station=(stationSnowIndex.stations||[]).find(item=>item.id===stationId);
-  if(!station) throw new Error("Station nicht gefunden.");
-
-  const currentMeta=stationSnowCurrentMeta(stationId);
-
-  const profilePromise=dashboardFetch(station.file||`station_snow_height_profiles/${stationId}.json`,{cache:"no-store"})
-    .then(response=>{
-      if(!response.ok) throw new Error(`Historisches Profil HTTP ${response.status}`);
-      return response.json();
-    });
-
-  const currentPromise=currentMeta?.current_available && currentMeta.file
-    ? dashboardFetch(currentMeta.file,{cache:"no-store"}).then(response=>{
-        if(!response.ok) throw new Error(`Aktuelle Saison HTTP ${response.status}`);
+  if(stationSnowFileCache.has(stationId))return stationSnowFileCache.get(stationId);
+  const request=(async()=>{
+    const station=(stationSnowIndex.stations||[]).find(item=>item.id===stationId);
+    if(!station)throw new Error("Station nicht gefunden.");
+    const currentMeta=stationSnowCurrentMeta(stationId);
+    const profilePromise=dashboardFetch(station.file||("station_snow_height_profiles/"+stationId+".json"),{cache:"no-store"})
+      .then(response=>{
+        if(!response.ok)throw new Error("Historisches Profil HTTP "+response.status);
         return response.json();
-      })
-    : Promise.resolve(null);
-
-  const [profile,current]=await Promise.all([profilePromise,currentPromise]);
-  return {station,profile,current,currentMeta};
+      });
+    const currentPromise=currentMeta?.current_available && currentMeta.file
+      ?dashboardFetch(currentMeta.file,{cache:"no-store"}).then(response=>{
+        if(!response.ok)throw new Error("Aktuelle Saison HTTP "+response.status);
+        return response.json();
+      }):Promise.resolve(null);
+    const yearPath=station.year_file||("station_snow_height_years/"+stationId+".json");
+    const archivePromise=dashboardFetch(yearPath,{cache:"no-store"})
+      .then(response=>response.ok?response.json():null)
+      .then(payload=>payload?.version===1 && String(payload.station_id)===String(stationId)?payload:null)
+      .catch(error=>{console.warn("Historisches Schneehöhen-Jahresarchiv fehlt noch",error);return null;});
+    const [profile,current,archive]=await Promise.all([profilePromise,currentPromise,archivePromise]);
+    return {station,profile,current,archive,currentMeta};
+  })().catch(error=>{stationSnowFileCache.delete(stationId);throw error;});
+  stationSnowFileCache.set(stationId,request);
+  return request;
 }
 
 async function updateStationSnow(){
