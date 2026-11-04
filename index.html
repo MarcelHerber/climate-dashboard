@@ -7751,7 +7751,14 @@ async function exportStationProfileClimateValues(format){
       link.href=url;link.download=safeExportFilename(title,"csv");document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);return;
     }
     const area=document.getElementById("stationProfileClimateValuesExportArea");if(!area||typeof html2canvas!=="function")throw new Error("Exportbibliothek konnte nicht geladen werden.");
-    const canvas=await window.captureDashboardWithWhiteBackground(area,{scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    const canvas=await window.captureDashboardWithWhiteBackground(area,{
+      scale:2.5,backgroundColor:"#ffffff",useCORS:true,logging:false,
+      onclone(clone){
+        const tableArea=clone.getElementById(area.id);if(!tableArea)return;
+        Object.assign(tableArea.style,{width:`${area.scrollWidth}px`,height:"auto",maxHeight:"none",maxWidth:"none",overflow:"visible"});
+        tableArea.scrollTop=0;tableArea.scrollLeft=0;
+      }
+    });
     if(format==="png"){triggerDataUrlDownload(canvas.toDataURL("image/png",1),safeExportFilename(title,"png"));return;}
     const {jsPDF}=window.jspdf||{};if(!jsPDF)throw new Error("PDF-Bibliothek konnte nicht geladen werden.");
     const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true}),w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight(),margin=8;
