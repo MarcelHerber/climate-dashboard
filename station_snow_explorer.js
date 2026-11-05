@@ -67,7 +67,7 @@
     const accepted=Number(station.accepted_history_years||0);
     const reference=Number(station.reference_years_available||0);
     const current=!!station.current_available;
-    const source=station.source?.includes("RR")?"RR · SH_TAG":"KL · SHK_TAG";
+    const source=station.source?.includes("RR+KL")?"RR + KL · SH_TAG / SHK_TAG":station.source?.includes("RR")?"RR · SH_TAG":"KL · SHK_TAG";
     return {
       name:station.name,
       secondary:[station.state||"ohne Bundesland",
