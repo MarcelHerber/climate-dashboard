@@ -71,7 +71,7 @@
     return {
       name:station.name,
       secondary:[station.state||"ohne Bundesland",
-        Number.isFinite(Number(station.height))?Math.round(Number(station.height))+" m":"Höhe unbekannt",
+        station.height!==null && station.height!==undefined && Number.isFinite(Number(station.height))?Math.round(Number(station.height))+" m":"Höhe unbekannt",
         station.id].join(" · "),
       detail:observed+" Jahre mit Tageswerten · "+accepted+" vollständig (≥98 %) · "+
         reference+"/30 Referenzjahre"+(current?" · aktuelle Saison":""),
