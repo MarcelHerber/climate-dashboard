@@ -9963,7 +9963,8 @@ function initializeStationSnowControls(){
     const before=document.getElementById("stationSnowStationSelect").value;
     populateStationSnowStations();
     if(document.getElementById("stationSnowStationSelect").value!==before)
-      updateStationSnow();
+      document.getElementById("stationSnowStationSelect")
+        .dispatchEvent(new Event("change",{bubbles:true}));
   }
   stateSelect.addEventListener("change",onFilterChange);
 
@@ -9993,9 +9994,9 @@ function initializeStationSnowControls(){
       if(select.value!==String(id)){
         select.value=String(id);
         window.StationSnowExplorer?.hideSuggestions();
-        window.StationSnowExplorer?.update(filteredStationSnowStations(),
-          String(id),stationSnowIndex.stations,stationSnowCurrentById);
-        updateStationSnow();
+        // Dispatch the same native event as a manual select: existing dashboard
+        // persistence must remember map/suggestion selections, too.
+        select.dispatchEvent(new Event("change",{bubbles:true}));
       }else window.StationSnowExplorer?.hideSuggestions();
       select.focus({preventScroll:true});
     }
