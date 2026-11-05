@@ -18,6 +18,14 @@ cases=[]
 def document_active_is_snow(page):
     return page.locator(".tab-content.active").first.get_attribute("id")=="stationSnow"
 
+def choose_snow_station(page, name, station_id):
+    """Use the bounded searchable dropdown; all ~5,600 stations are indexed."""
+    page.locator("#stationSnowSearch").fill(name)
+    button=page.locator(f'#stationSnowSuggestions button[data-station-id="{station_id}"]')
+    button.wait_for(state="visible",timeout=20000)
+    button.click(timeout=20000)
+    assert page.locator("#stationSnowStationSelect").input_value()==station_id
+
 def run_case(browser,width):
     mobile=width<600
     context=browser.new_context(
@@ -33,7 +41,7 @@ def run_case(browser,width):
           document.querySelector('#stationSnowStationSelect option') &&
           !document.querySelector('#stationSnowContent').hidden
         """,timeout=80000)
-        page.locator("#stationSnowStationSelect").select_option("03668")
+        choose_snow_station(page,"Nürnberg","03668")
         page.wait_for_function("""()=>
           document.querySelector('.tab-content.active')?.id==='stationSnow' &&
           document.querySelector('#stationSnowSummary')?.textContent.includes('Nürnberg')
@@ -42,7 +50,7 @@ def run_case(browser,width):
         active=page.locator(".tab-content.active").first.get_attribute("id")
         assert active=="stationSnow",f"Station selection changed to tab {active!r}"
         result["station_selected"]="03668"
-        page.locator("#stationSnowStationSelect").select_option("05792")
+        choose_snow_station(page,"Zugspitze","05792")
         page.wait_for_function("""()=>
           document.querySelector('#stationSnowSummary')?.textContent.includes('Zugspitze') &&
           document.querySelector('#stationSnowYearsList input[data-snow-year]')
@@ -85,7 +93,7 @@ def run_case(browser,width):
         assert document_active_is_snow(page),"Snow accumulation period changed active tab"
         # Switching stations preserves the custom period but loads the other
         # station's authentic daily series and must not navigate to Europa.
-        page.locator("#stationSnowStationSelect").select_option("03668")
+        choose_snow_station(page,"Nürnberg","03668")
         page.wait_for_function("""() =>
           document.getElementById("stationSnowSummary")?.textContent.includes("Nürnberg") &&
           window.stationSnowAccumulationChart?.options?.plugins?.title?.text?.includes("Nürnberg")
