@@ -8,7 +8,8 @@ const nav=fs.readFileSync("mobile_navigation.js","utf8");
 test("Saharastaub pages included in Pages build and mobile menu",()=>{
   for(const path of ["saharastaub.html","saharastaub.css","saharastaub.js"])assert.ok(builder.includes("  "+path+"\n"));
   assert.ok(nav.includes('["saharastaub.html","Saharastaub · ICON-ART"]'));
-  for(const id of ["dustMap","dustParameter","dustRegion","dustTime","dustLegend","dustPng"])assert.ok(page.includes('id="'+id+'"'));
+  assert.ok(builder.includes("  saharastaub_extended.js\\n".replace("\\\\n","\\n"));
+  for(const id of ["dustMap","dustParameter","dustRegion","dustTime","dustLegend","dustPng","dustView","dustSeries"])assert.ok(page.includes('id="'+id+'"'));
 });
 test("Palette thresholds constant across times and map regions",()=>{
   assert.ok(source.includes('breaks:[0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5]'));
