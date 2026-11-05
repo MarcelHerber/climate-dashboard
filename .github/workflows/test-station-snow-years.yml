@@ -7,6 +7,12 @@ on:
       - "index.html"
       - "station_snow_years.js"
       - "station_snow_accumulation.js"
+      - "station_snow_explorer.js"
+      - "station_snow_explorer.css"
+      - "tests/test_station_snow_explorer.cjs"
+      - "tests/test_station_snow_coverage.cjs"
+      - "tests/audit_station_snow_catalog.py"
+      - "tests/audit_station_snow_explorer_live.py"
       - "tests/test_station_snow_accumulation.cjs"
       - "tests/test_station_snow_years.cjs"
       - "tests/audit_station_snow_years_live.py"
@@ -27,20 +33,24 @@ jobs:
   unit-tests:
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v6
-      - name: Snow curve module and source integration
+      - name: Schneestation-Suche, Karte und Messreihen prüfen
         run: |
           node --check station_snow_years.js
           node --check station_snow_accumulation.js
+          node --check station_snow_explorer.js
           node --test tests/test_station_snow_years.cjs
           node --test tests/test_station_snow_accumulation.cjs
+          node --test tests/test_station_snow_coverage.cjs
+          node --test tests/test_station_snow_explorer.cjs
+          python tests/audit_station_snow_catalog.py
 
   live-browser:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
-    timeout-minutes: 14
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -50,13 +60,17 @@ jobs:
         run: |
           python -m pip install "playwright==1.57.0"
           python -m playwright install --with-deps chromium
-      - name: Live Schneestation und historische Kurven prüfen
+      - name: Historische Schneehöhenkurven mit echten DWD-Werten prüfen
         run: python -u tests/audit_station_snow_years_live.py
+      - name: Interaktive Deutschlandkarte, Suche, Touch und Exporte prüfen
+        run: python -u tests/audit_station_snow_explorer_live.py
       - name: Diagnose-Screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: snow-year-browser-audit
-          path: snow_year_browser_audit/
+          path: |
+            snow_year_browser_audit/
+            snow_explorer_browser_audit/
           retention-days: 14
           if-no-files-found: warn
