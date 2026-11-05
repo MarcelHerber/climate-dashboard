@@ -34,6 +34,7 @@ jobs:
           python -m py_compile scripts/update_saharastaub.py
           python -m unittest discover -s tests -p test_saharastaub.py -v
           node --check saharastaub.js
+          node --check saharastaub_extended.js
           node --test tests/test_saharastaub_ui.cjs
       - name: Neue ICON-ART-EU-Prognosen abrufen
         run: python scripts/update_saharastaub.py --output /tmp/saharastaub-current.json
