@@ -687,6 +687,7 @@ def build_index(
         "historical_band": "Minimum und Maximum aller vollständig vorliegenden Jahre",
         "complete_year_rule": "Jahr nur bei 365 gültigen Tageswerten; 29. Februar wird ausgelassen",
         "minimum_reference_years": MIN_REFERENCE_YEARS,
+        "current_only_rule": "Zusatzstationen nur mit echten RR-Tagesmessungen aus dem laufenden Jahr; ohne Klimamittel bei unzureichender Historie.",
         "source": "DWD CDC, tägliche Niederschlagsbeobachtungen des erweiterten RR-Netzes (RS)",
         "source_note": (
             "Verwendet werden DWD-Stationen und rechtlich sowie qualitativ gleichgestellte Partnernetze. "
@@ -716,11 +717,70 @@ def build_index(
         "status": {
             **current_status,
             "profile_count": len(profiles),
+            "current_only_stations": sum(p.reference_years == 0 for p in profiles),
             "historical_built_at": historical_state.get("built_at"),
         },
     }
     atomic_write_json(root / "station_precip_index.json", index)
     return index
+
+
+
+def add_current_snow_network_precip_stations(
+    root: Path,
+    profiles: list[StationProfile],
+    values_by_station: dict[str, dict[date, float]],
+    metadata: MetadataIndex,
+    current_year: int,
+) -> list[StationProfile]:
+    """Add only measured current-year RR stations from the expanded snow network.
+
+    These stations may lack enough historical rainfall observations to calculate
+    a legitimate 1991-2020 baseline. In that case the baseline remains absent.
+    """
+    known = {profile.station_id for profile in profiles}
+    snow_ids: set[str] = set()
+    for name in ("station_snow_height_additional_index.json", "station_snow_height_index.json"):
+        path = root / name
+        if path.exists():
+            index = read_json(path)
+            snow_ids.update(str(s["id"]).zfill(5) for s in index.get("stations", []))
+    added: list[StationProfile] = []
+    for sid in sorted(snow_ids - known):
+        values = values_by_station.get(sid, {})
+        if not any(day.year == current_year for day in values):
+            continue
+        segment = current_segment(metadata, sid)
+        profile = StationProfile(
+            station_id=sid, name=segment.name,
+            state=None if segment.state == "__Unbekannt__" else segment.state,
+            height=segment.height, latitude=segment.latitude,
+            longitude=segment.longitude, start_year=current_year,
+            end_year=current_year, reference_years=0, history_years=0,
+            file=f"station_precip_climate/{sid}.json",
+        )
+        # Null means unavailable: do not report an invented mean or record.
+        payload = {
+            "station_id": sid, "name": profile.name, "state": profile.state,
+            "height": profile.height, "latitude": profile.latitude,
+            "longitude": profile.longitude, "history_start_year": None,
+            "history_end_year": None, "history_years": 0,
+            "reference_period": "1991-2020", "reference_years": 0,
+            "reference_year_list": [], "monthly_history": [],
+            "climate_mean_cumulative": [None] * 365,
+            "historical_min_cumulative": [None] * 365,
+            "historical_max_cumulative": [None] * 365,
+            "historical_min_year": [None] * 365,
+            "historical_max_year": [None] * 365,
+            "historical_periods": {},
+            "current_only": True,
+        }
+        atomic_write_json_compact(root / profile.file, payload)
+        added.append(profile)
+    if added:
+        print(f"Stationsniederschlag: {len(added)} zusätzliche Schneenetz-Stationen "
+              "mit gemessenen RR-Tageswerten im laufenden Jahr.")
+    return profiles + added
 
 
 def update_station_precip(root: Path, max_workers: int = 8, force_full: bool = False) -> dict[str, Any]:
@@ -747,7 +807,15 @@ def update_station_precip(root: Path, max_workers: int = 8, force_full: bool = F
         )
 
     profile_ids = {profile.station_id for profile in profiles}
-    selected_recent = [filename for filename in recent_files if station_id_from_filename(filename) in profile_ids]
+    snow_ids: set[str] = set()
+    for name in ("station_snow_height_additional_index.json", "station_snow_height_index.json"):
+        path = root / name
+        if path.exists():
+            snow_ids.update(str(s["id"]).zfill(5) for s in read_json(path).get("stations", []))
+    selected_recent = [
+        filename for filename in recent_files
+        if station_id_from_filename(filename) in (profile_ids | snow_ids)
+    ]
     values_by_station: dict[str, dict[date, float]] = {}
     errors: list[str] = []
 
@@ -766,6 +834,17 @@ def update_station_precip(root: Path, max_workers: int = 8, force_full: bool = F
             if index % 50 == 0 or index == len(futures):
                 print(f"  aktuelle Niederschlagsstationen: {index}/{len(futures)}")
 
+    # The existence of a recent ZIP alone is not proof of active observations.
+    # Include snow-network additions only after valid 2026 RR observations were read.
+    profiles = add_current_snow_network_precip_stations(
+        root, profiles, values_by_station, metadata, current_year
+    )
+    profile_ids = {profile.station_id for profile in profiles}
+    # Also remove old climate-qualified entries with no valid measurements this year.
+    profiles = [profile for profile in profiles
+                if any(day.year == current_year
+                       for day in values_by_station.get(profile.station_id, {}))]
+    profile_ids = {profile.station_id for profile in profiles}
     data_through, current_status = accepted_data_through(values_by_station)
     current_files = write_current_month_files(
         root,
