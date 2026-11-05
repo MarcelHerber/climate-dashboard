@@ -58,5 +58,17 @@ city.addEventListener("change",()=>{
 for(const node of [lat,lon])node.addEventListener("change",()=>{city.value="custom";redraw();});
 document.addEventListener("sahara-data-ready",redraw);
 document.addEventListener("sahara-view-change",redraw);
+const satellite=$("dustEumetWms"),satelliteStatus=$("dustEumetStatus");
+if(satellite){
+ // WMS 1.1.1 uses lon/lat for EPSG:4326. Omit TIME rather than asserting a false timestamp.
+ const params=new URLSearchParams({
+  service:"WMS",version:"1.1.1",request:"GetMap",
+  layers:"mtg_fd:rgb_dust",styles:"",format:"image/png",transparent:"false",
+  srs:"EPSG:4326",bbox:"-28,25,60,74",width:"1000",height:"550"
+ });
+ satellite.addEventListener("load",()=>{satelliteStatus.textContent="EUMETSAT Dust-RGB-WMS geladen. Der serverseitige Bildzeitpunkt ist nicht verifiziert; kein synchroner ICON-ART-Vergleich.";});
+ satellite.addEventListener("error",()=>{satellite.hidden=true;satelliteStatus.textContent="Die WMS-Vorschau konnte nicht geladen werden. Der offizielle EUMETView-Link darunter bleibt verfügbar.";});
+ satellite.src="https://view.eumetsat.int/geoserver/wms?"+params.toString();
+}
 redraw();
 })();
