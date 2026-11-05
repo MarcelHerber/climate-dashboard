@@ -153,6 +153,33 @@ s=s.replace("</body>",'<script defer src="monthly_provisional.js?v=1"></script>\
 p.write_text(s,encoding="utf-8")
 PY
 
+# Optionalen vorläufigen HYRAS-Monatsstand für Same-Origin-Ladezeit einpacken.
+# Ein fehlender Datenbranch blockiert NICHT die historischen Diagramme.
+monthly_snapshot="_site/monthly_current_provisional.json"
+monthly_source="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/hyras-data/monthly_current_provisional.json"
+if curl -fsSL --connect-timeout 5 --max-time 40 --retry 1 "$monthly_source" -o "$monthly_snapshot"; then
+  if python - "$monthly_snapshot" <<'PY'
+import json,sys
+from datetime import datetime
+data=json.load(open(sys.argv[1],encoding="utf-8"))
+assert data["schema"]==1 and data["forecast"] is False
+assert len(data["areas"])>=17 and data["data_through"].startswith(data["month"])
+assert data["days_observed"]<=data["days_in_month"]
+assert all("temp" in data["areas"][k] and "rain" in data["areas"][k] for k in ["Deutschland","Hessen"])
+print("Vorläufiger HYRAS-Monat für Pages:",data["month"],data["data_through"])
+PY
+  then
+    echo "HYRAS-Vormonatsstatus für Gebietsmittel eingebunden."
+  else
+    rm -f "$monthly_snapshot"
+    echo "WARNUNG: Vorläufige HYRAS-Monatsdatei ungültig."
+  fi
+else
+  rm -f "$monthly_snapshot"
+  echo "HINWEIS: Vorläufige HYRAS-Monatsdatei noch nicht verfügbar."
+fi
+node --check _site/monthly_provisional.js
+
 # Saharastaub als zusätzlicher Desktop-Einstieg neben den Wettergefahren ergänzen.
 # Die gemeinsame mobile Kategoriennavigation wird im folgenden Schritt injiziert.
 python - <<'PY'
