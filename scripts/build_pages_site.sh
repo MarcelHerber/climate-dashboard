@@ -19,6 +19,8 @@ required_root_files=(
   europe_station_basemap.js
   station_snow_years.js
   station_snow_accumulation.js
+  station_snow_explorer.js
+  station_snow_explorer.css
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -412,6 +414,8 @@ test -s _site/wettergefahren_basemap.json || {
 }
 node --check _site/station_snow_years.js
 node --check _site/station_snow_accumulation.js
+node --check _site/station_snow_explorer.js
+node --test tests/test_station_snow_explorer.cjs
 node --test tests/test_station_snow_years.cjs
 node --test tests/test_station_snow_accumulation.cjs
 node --test tests/test_station_snow_coverage.cjs
@@ -419,6 +423,8 @@ grep -q 'stationSnowCumChart' _site/index.html
 grep -q 'station_snow_accumulation.js' _site/index.html
 grep -q 'stationSnowYearsList' _site/index.html
 grep -q 'station_snow_years.js' _site/index.html
+grep -q 'station_snow_explorer.js' _site/index.html
+grep -q 'station_snow_explorer.css' _site/index.html
 node --check _site/europe_station_basemap.js
 node --test tests/test_europe_station_basemap.cjs
 grep -q 'europe_station_basemap.js' _site/index.html
