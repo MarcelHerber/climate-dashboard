@@ -20,11 +20,12 @@ except ImportError:
 
 log = logging.getLogger("saharastaub")
 BASE = "https://opendata.dwd.de/weather/nwp/v1/m/icon-art-eu/p"
-PARAMS = {"taod": ("TAOD_DUST", 1.0), "column": ("DUST_TOTAL_MC_VI", 1e6)}
+PARAMS = {"taod": ("TAOD_DUST", 1.0), "column": ("DUST_TOTAL_MC_VI", 1e6), "surface": ("DUST_TOTAL_MC/lvt1/150/lv1/74", 1e9)}
 COLORS = ["#f2f4f7", "#e3e7eb", "#d8cfb3", "#efe08a", "#f7c65a", "#f39a3c", "#ea6b2d", "#d63f2f", "#9c2f5f", "#5a2875"]
 PALETTES = {
     "taod":{"breaks":[0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5],"colors":COLORS,"unit":"1"},
-    "column":{"breaks":[25,50,100,200,400,800,1600,2500,4000],"colors":COLORS,"unit":"mg/m2"}
+    "column":{"breaks":[25,50,100,200,400,800,1600,2500,4000],"colors":COLORS,"unit":"mg/m2"},
+    "surface":{"breaks":[1,2,5,10,20,40,80,150,300],"colors":COLORS,"unit":"µg/m3"}
 }
 GRID = {"lon_min":-28.0,"lat_min":25.0,"step":0.2,"cols":440,"rows":245,
         "encoding":"rle-u8-base64"}
@@ -190,7 +191,9 @@ def build(now):
                     log.warning("Unvollständiges GRIB %s",key)
             except Exception as exc:
                 log.warning("GRIB-Download %s: %s",key,exc)
-    hours=[h for h in HOURS if all((key,h) in blobs for key in PARAMS)]
+    # Surface is optional: an unavailable three-dimensional level must not suppress
+    # the reliable two-dimensional dust fields.
+    hours=[h for h in HOURS if all((key,h) in blobs for key in ("taod","column"))]
     if len(hours)<13 or hours[0]!=0 or hours[-1]<72:
         raise RuntimeError("Zu wenige vollständige gemeinsame Vorhersagezeiten")
     # Latitude and longitude are separate invariant GRIB2 fields on native grid #61.
@@ -200,6 +203,8 @@ def build(now):
     for h in hours:
         frame={"hour":h,"valid_utc":(run+dt.timedelta(hours=h)).isoformat().replace("+00:00","Z")}
         for key in PARAMS:
+            if (key,h) not in blobs:
+                continue
             field,kind=decode_grib(blobs[(key,h)])
             if len(field)!=len(lat):
                 raise RuntimeError("Vorhersagefeld passt nicht zu CLAT/CLON-Gitter #61")
@@ -211,7 +216,7 @@ def build(now):
     return {"schema":1,"source":"DWD ICON-ART-EU","run_utc":run.isoformat().replace("+00:00","Z"),
             "generated_utc":now.astimezone(dt.timezone.utc).isoformat().replace("+00:00","Z"),
             "grid":GRID,"palettes":PALETTES,"frames":frames,
-            "note":"Arithmetisches Zellmittel im 0.2-Grad-Raster; feste Farbklassen."}
+            "note":"Arithmetisches Zellmittel im 0.2-Grad-Raster; feste Farbklassen. Surface = unterstes ICON-Modellniveau 74, kein PM10."}
 
 def main():
     parser=argparse.ArgumentParser()
