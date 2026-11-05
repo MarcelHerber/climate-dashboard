@@ -149,7 +149,6 @@ else
   rm -f "$monthly_snapshot"
   echo "HINWEIS: Vorläufige HYRAS-Monatsdatei noch nicht verfügbar."
 fi
-node --check _site/monthly_provisional.js
 
 # Der HYRAS-Balken muss im historischen Chart selbst eingebaut sein.
 python - <<'PY'
@@ -188,10 +187,10 @@ if marker not in s:
         '<a href="saharastaub.html" style="font-weight:700;text-decoration:underline">'
         'Saharastaub-Monitor · ICON-ART-EU ↗</a></div>'
     )
-    if re.search(r'</header\\s*>',s,re.I):
-        s=re.sub(r'</header\\s*>',lambda m:m.group(0)+"\\n"+banner,s,count=1,flags=re.I)
+    if re.search(r'</header\s*>',s,re.I):
+        s=re.sub(r'</header\s*>',lambda m:m.group(0)+"\n"+banner,s,count=1,flags=re.I)
     else:
-        s=re.sub(r'<body\\b[^>]*>',lambda m:m.group(0)+"\\n"+banner,s,count=1,flags=re.I)
+        s=re.sub(r'<body\b[^>]*>',lambda m:m.group(0)+"\n"+banner,s,count=1,flags=re.I)
     if marker not in s:
         raise SystemExit("Saharastaub-Direkteinstieg konnte nicht eingefügt werden")
 p.write_text(s,encoding="utf-8")
