@@ -45,6 +45,7 @@ jobs:
           node --test tests/test_station_snow_accumulation.cjs
           node --test tests/test_station_snow_coverage.cjs
           node --test tests/test_station_snow_explorer.cjs
+          python -m py_compile tests/audit_station_snow_explorer_live.py tests/audit_station_snow_years_live.py tests/audit_station_snow_catalog.py
           python tests/audit_station_snow_catalog.py
 
   live-browser:
