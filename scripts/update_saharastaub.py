@@ -60,7 +60,7 @@ def choose_cycle(now:dt.datetime)->dt.datetime:
             continue
         # Only publish a run that has reached at least +72 h for both fields.
         if all(get(url_for(cycle,param,h),"HEAD",1) is not None
-               for param,_ in PARAMS.values() for h in (0,72)):
+               for param,_ in (PARAMS[k] for k in ("taod","column")) for h in (0,72)):
             return cycle
     raise RuntimeError("Kein vollständiger ICON-ART-EU-Lauf bis mindestens +72 h")
 
