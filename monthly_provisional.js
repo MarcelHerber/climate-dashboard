@@ -61,6 +61,55 @@
       : (param==="sun"?"Sonnenscheindauer: Stationsauswertung liegt noch nicht mit ausreichender Datenabdeckung vor.":"Für dieses Gebiet liegen noch keine vollständigen täglichen HYRAS-Werte vor."));
     shown.classList.toggle("missing",!numeric);
   }
+  // The standard monthly Chart.js graph excludes null years. Add the
+  // observation-only current year in memory, never modify data.json.
+  function hatchPattern(ctx){
+    const tile=document.createElement("canvas");tile.width=16;tile.height=16;
+    const pen=tile.getContext("2d");
+    pen.fillStyle="rgba(49,117,171,.27)";pen.fillRect(0,0,16,16);
+    pen.strokeStyle="rgba(28,91,139,.95)";pen.lineWidth=3;
+    pen.beginPath();pen.moveTo(-4,16);pen.lineTo(16,-4);
+    pen.moveTo(8,20);pen.lineTo(20,8);pen.stroke();
+    return ctx.createPattern(tile,"repeat")||"rgba(49,117,171,.55)";
+  }
+  function applyToChart(chart){
+    if(chart?.canvas?.id!=="monthlyChart"||!snapshot||!sameMonth()||!matchesMonth())return;
+    const key=parameter(),area=areaName(),val=snapshot.areas?.[area]?.[key];
+    if(!Number.isFinite(val))return;
+    const year=snapshot.month.slice(0,4);
+    // An already published official complete monthly value always wins.
+    if(chart.data.labels.some(item=>String(item)===year))return;
+    const bar=chart.data.datasets.find(item=>item.type==="bar"||!item.type);
+    if(!bar||!Array.isArray(bar.data))return;
+    const before=bar.data.length;
+    chart.data.labels.push(year);
+    bar.data.push(val);
+    if(Array.isArray(bar.backgroundColor))bar.backgroundColor.push(hatchPattern(chart.ctx));
+    else bar.backgroundColor=[...Array(before).fill(bar.backgroundColor),hatchPattern(chart.ctx)];
+    if(Array.isArray(bar.borderColor))bar.borderColor.push("#205b8c");
+    else bar.borderColor=[...Array(before).fill("rgba(0,0,0,0)"),"#205b8c"];
+    if(Array.isArray(bar.borderWidth))bar.borderWidth.push(2);
+    else bar.borderWidth=[...Array(before).fill(bar.borderWidth||0),2];
+    for(const dataset of chart.data.datasets){
+      if(dataset===bar||!Array.isArray(dataset.data))continue;
+      const baseline=dataset.type==="line"&&dataset.data.every(item=>item===dataset.data[0])?dataset.data[0]:null;
+      dataset.data.push(Number.isFinite(baseline)?baseline:null);
+    }
+    const tooltip=chart.options.plugins.tooltip||{};
+    const previous=tooltip.callbacks?.label;
+    const idx=chart.data.labels.length-1;
+    tooltip.callbacks={...(tooltip.callbacks||{}),label(context){
+      if(context.dataset===bar&&context.dataIndex===idx){
+        return "Vorläufig bis "+snapshot.data_through.split("-").reverse().join(".")+": "
+           +val.toLocaleString("de-DE",{maximumFractionDigits:1})+" "+units[key]+" (nur Beobachtungen)";
+      }
+      return typeof previous==="function"?previous(context):context.dataset.label+": "+context.formattedValue;
+    }};
+    chart.options.plugins.tooltip=tooltip;
+  }
+  if(typeof Chart!=="undefined"){
+    Chart.register({id:"monthlyObservedProvisional",beforeUpdate:applyToChart});
+  }
   async function load(){
     for(const url of DATA_URLS){
       try{
@@ -69,7 +118,9 @@
         const data=await response.json();
         if(data.schema!==1||data.forecast!==false||!/^\\d{4}-\\d{2}$/.test(data.month)
           ||!/^\\d{4}-\\d{2}-\\d{2}$/.test(data.data_through)||typeof data.areas!=="object")continue;
-        snapshot=data;draw();return;
+        snapshot=data;draw();
+        if(typeof Chart!=="undefined")Chart.getChart($("monthlyChart"))?.update("none");
+        return;
       }catch(error){console.warn("Vorläufige HYRAS-Gebietsmittel:",error);}
     }
     title("Aktueller Monat · Beobachtungen");
