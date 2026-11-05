@@ -139,6 +139,23 @@ if 'href="saharastaub.html"' not in s:
         s=re.sub(r'</nav\s*>',link+"\n</nav>",s,count=1,flags=re.I)
     else:
         s=s.replace('</header>',link+"\n</header>",1)
+# Zusätzlich ein gut sichtbarer Direkteinstieg unmittelbar nach dem Header.
+# So ist das Modul auch erreichbar, wenn einzelne Desktop-Menüs überlaufen.
+marker='id="saharastaub-quicklink"'
+if marker not in s:
+    banner=(
+        '<div id="saharastaub-quicklink" style="padding:9px 18px;'
+        'background:var(--card-bg,var(--surface,#edf3f7));'
+        'border-bottom:1px solid var(--border,#b8c8d2);text-align:center">'
+        '<a href="saharastaub.html" style="font-weight:700;text-decoration:underline">'
+        'Saharastaub-Monitor · ICON-ART-EU ↗</a></div>'
+    )
+    if re.search(r'</header\\s*>',s,re.I):
+        s=re.sub(r'</header\\s*>',lambda m:m.group(0)+"\\n"+banner,s,count=1,flags=re.I)
+    else:
+        s=re.sub(r'<body\\b[^>]*>',lambda m:m.group(0)+"\\n"+banner,s,count=1,flags=re.I)
+    if marker not in s:
+        raise SystemExit("Saharastaub-Direkteinstieg konnte nicht eingefügt werden")
 p.write_text(s,encoding="utf-8")
 PY
 
