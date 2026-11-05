@@ -202,6 +202,7 @@ PY
 python scripts/inject_mobile_navigation.py _site
 node --check _site/saharastaub.js
 node --test tests/test_saharastaub_ui.cjs
+node --test tests/test_monthly_observed_chart.cjs
 node --check _site/mobile_navigation.js
 node --test tests/test_mobile_navigation.cjs
 node --check _site/mobile_content.js
