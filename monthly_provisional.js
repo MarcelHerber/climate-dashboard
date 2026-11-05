@@ -92,9 +92,11 @@
     else bar.borderColor=[...Array(before).fill("rgba(0,0,0,0)"),"#205b8c"];
     if(Array.isArray(bar.borderWidth))bar.borderWidth.push(2);
     else bar.borderWidth=[...Array(before).fill(bar.borderWidth||0),2];
+    if(key==="temp"&&Number.isFinite(chart.options.scales?.y?.min)&&val<=chart.options.scales.y.min)
+      chart.options.scales.y.min=Math.floor((val-.6)*2)/2;
     for(const dataset of chart.data.datasets){
       if(dataset===bar||!Array.isArray(dataset.data))continue;
-      const baseline=dataset.type==="line"&&dataset.data.every(item=>item===dataset.data[0])?dataset.data[0]:null;
+      const baseline=dataset.type==="line"&&String(dataset.label||"").startsWith("Mittel ")?dataset.data[0]:null;
       dataset.data.push(Number.isFinite(baseline)?baseline:null);
     }
     const tooltip=chart.options.plugins.tooltip||{};
