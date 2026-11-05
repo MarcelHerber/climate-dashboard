@@ -52,14 +52,17 @@
 <section class="panel" aria-label="CAMS-Modellvergleich">
 <h2>CAMS-Modellvergleich</h2>
 <p>ICON-ART und Copernicus CAMS sind zwei unabhängige Prognosesysteme. Für den automatischen 2er-Panel-Vergleich müssen CAMS-Felder mit derselben Variable, Einheit und Gültigkeit bereitgestellt werden. Bis dahin erfolgt <strong>keine künstliche Gleichsetzung</strong> verschiedener Aerosolprodukte.</p>
-<p id="dustCamsStatus" class="minor">CAMS-Datenstatus: noch kein geprüfter Vergleichsdatensatz eingebunden.</p>
+<p id="dustCamsStatus" class="minor">CAMS-Datenstatus: Vergleich über offiziellen Viewer; keine automatische Angleichung von Modelllauf oder Farbskala.</p>
+<iframe title="Copernicus CAMS Aerosolvorhersagen (externer Viewer)" loading="lazy" referrerpolicy="no-referrer" src="https://atmosphere.copernicus.eu/charts/packages/cams/products/aerosol-forecasts" class="dust-external-frame"></iframe>
+<p class="minor">Falls der externe Anbieter die Einbettung blockiert, bitte den Link darunter verwenden. Angezeigter CAMS-Zeitpunkt kann vom ICON-ART-Lauf abweichen.</p>
 <a href="https://atmosphere.copernicus.eu/charts/packages/cams_air_quality/" target="_blank" rel="noopener">Aktuelle CAMS-Luftqualitätskarten bei Copernicus ansehen</a>
 </section>
 <section class="panel" aria-label="EUMETSAT Dust RGB">
 <h2>Satellitenbeobachtung · EUMETSAT Dust RGB</h2>
 <p>Infrarot-RGB zur Erkennung von Staubtransporten, auch nachts. Der Satellitenzeitpunkt muss mit der ICON-ART-Prognose abgeglichen werden; das RGB ist kein quantitativer Staubkonzentrationswert.</p>
+<div class="dust-satellite-wrap"><img id="dustEumetWms" alt="EUMETSAT Dust-RGB-Kartenbild aus dem offiziellen WMS, sofern verfügbar" loading="lazy"><p id="dustEumetStatus" class="minor">Versuche offizielle Dust-RGB-WMS-Karte zu laden. Aufnahmezeit noch nicht geprüft.</p></div>
 <a href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_dust" target="_blank" rel="noopener">EUMETView Dust RGB öffnen</a>
-<p class="minor">Externer offizieller Live-Viewer; eine synchronisierte WMS-Überlagerung ist noch nicht freigeschaltet.</p>
+<p class="minor">Das WMS-Bild verwendet den serverseitigen Standardzeitpunkt; eine exakte Synchronisierung und Überlagerung mit ICON-ART ist noch nicht gesichert.</p>
 </section>
 <section class="panel explanation">
 <h2>Was zeigen die Parameter?</h2>
