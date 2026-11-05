@@ -100,7 +100,7 @@ def build(root: Path, work: Path) -> dict:
         # Temperature: weight daily state means by valid HYRAS grid-cell counts.
         counts = np.array([masks[p].sum() for p in parts], dtype=float)
         if all(p in results and "temp" in results[p] for p in parts):
-            results[combined]["temp"] = round(float(np.average([results[p]["temp"] for p in parts], weights=counts)), 2)
+            results.setdefault(combined, {})["temp"] = round(float(np.average([results[p]["temp"] for p in parts], weights=counts)), 2)
     for name, target in ALIASES.items():
         if target in results:
             results[name] = dict(results[target])
