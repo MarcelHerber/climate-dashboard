@@ -7,10 +7,10 @@ const DATA_URLS=[
 ];
 const BASEMAP="./wettergefahren_basemap_50m.json";
 const PARAMS=Object.freeze({
-  taod:{name:"Staub-AOD",unit:"dimensionslos",breaks:[0.02,0.05,0.1,0.2,0.4,0.7,1,1.5,2.5]},
-  column:{name:"Staubmasse der Luftsäule",unit:"mg/m²",breaks:[1,10,25,50,100,200,400,800,1600]}
+  taod:{name:"Staub-AOD",unit:"dimensionslos",breaks:[0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5]},
+  column:{name:"Staubmasse der Luftsäule",unit:"mg/m²",breaks:[25,50,100,200,400,800,1600,2500,4000]}
 });
-const COLORS=Object.freeze(["#eef2f6","#fff3c9","#fddc8c","#ffc266","#fc9850","#f36b40","#df3e43","#b42854","#81256e","#491c6d"]);
+const COLORS=Object.freeze(["#f2f4f7","#e3e7eb","#d8cfb3","#efe08a","#f7c65a","#f39a3c","#ea6b2d","#d63f2f","#9c2f5f","#5a2875"]);
 const REGIONS=Object.freeze({
   europe:{name:"Europa und Nordafrika",west:-28,east:60,south:25,north:74},
   germany:{name:"Deutschland",west:5,east:16,south:47,north:56}
@@ -19,7 +19,7 @@ const $=id=>document.getElementById(id);
 const canvas=$("dustMap"),ctx=canvas.getContext("2d",{alpha:false});
 const controls={param:$("dustParameter"),region:$("dustRegion"),time:$("dustTime"),
   prev:$("dustPrevious"),next:$("dustNext"),play:$("dustPlay"),png:$("dustPng"),
-  refresh:$("dustRefresh")};
+  refresh:$("dustRefresh"),hide:$("dustHideBackground")};
 let forecast=null,basemap=null,index=0,playing=null,gridCache=new Map();
 function status(message,error=false){$("dustStatus").textContent=message;$("dustStatus").classList.toggle("error",error);}
 function formatUtc(date){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(date))+" UTC";}
@@ -68,7 +68,8 @@ function unpack(encoded,total){
   return out;
 }
 function imageFor(frame,key){
-  const cacheKey=frame.hour+"|"+key;
+  const hiddenBackground=controls.hide.checked;
+  const cacheKey=frame.hour+"|"+key+"|"+hiddenBackground;
   if(gridCache.has(cacheKey))return gridCache.get(cacheKey);
   const {rows,cols}=forecast.grid;
   const values=unpack(frame[key],rows*cols);
@@ -78,7 +79,8 @@ function imageFor(frame,key){
   const rgb=COLORS.map(hex=>[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]);
   for(let i=0;i<values.length;i++){
     const value=values[i],src=4*((rows-1-Math.floor(i/cols))*cols+i%cols);
-    if(value===255){img.data[src+3]=0;continue;}
+    // Optional display-only mask. The exported map keeps the identical fixed legend.
+    if(value===255 || (hiddenBackground && value<=1)){img.data[src+3]=0;continue;}
     const col=rgb[value];img.data[src]=col[0];img.data[src+1]=col[1];img.data[src+2]=col[2];img.data[src+3]=255;
   }
   c.putImageData(img,0,0);
@@ -124,6 +126,10 @@ function render(){
   }
   drawBorders(region,rect);
   ctx.strokeStyle="#a7b8c7";ctx.lineWidth=1.5;ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+  if(controls.hide.checked){
+    ctx.fillStyle="#47677b";ctx.font="15px system-ui";
+    ctx.fillText("Darstellung: schwacher Hintergrund unter "+param.breaks[1].toLocaleString("de-DE")+" ausgeblendet",82,720);
+  }
   ctx.fillStyle="#243c52";ctx.font="18px system-ui";ctx.fillText("Feste Farbskala · "+param.unit+" · kein automatisches Rescaling",82,735);
   const width=1100/COLORS.length;
   COLORS.forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(85+i*width,755,width,24);});
@@ -132,6 +138,9 @@ function render(){
   COLORS.forEach((c,i)=>ctx.fillText(boundsLabel(i,param.breaks),85+(i+.5)*width,804));ctx.textAlign="left";
   ctx.fillStyle="#576b7c";ctx.font="15px system-ui";
   ctx.fillText("DWD ICON-ART-EU · Modelllauf "+(forecast?formatUtc(forecast.run_utc):"–")+" · 0,2°-Kartenraster",84,835);
+  $("dustMapNote").textContent=controls.hide.checked
+    ? "Die festen Klassen bleiben unverändert. Die beiden untersten Klassen (< "+param.breaks[1].toLocaleString("de-DE")+" "+param.unit+") werden nur in der Karte ausgeblendet; der PNG-Export übernimmt diese Darstellung. Weiß bzw. graublau außerhalb der Datenregion kennzeichnet fehlende Daten."
+    : "Die Farbskala ist für jede Modellstunde und Region fest. Neutrale Grautöne kennzeichnen geringe Staubmengen; fehlende Daten außerhalb des Modellgebiets bleiben ungefärbt.";
   $("dustMapTitle").textContent=param.name+" · "+region.name;
   $("dustValid").textContent="Gültigkeit: "+(frame?formatUtc(frame.valid_utc):"–");
 }
@@ -172,6 +181,7 @@ async function load(){
 }
 controls.param.addEventListener("change",render);
 controls.region.addEventListener("change",render);
+controls.hide.addEventListener("change",()=>{gridCache.clear();render();});
 controls.time.addEventListener("change",()=>{stop();select(Number(controls.time.value));});
 controls.prev.addEventListener("click",()=>{stop();select(index-1);});
 controls.next.addEventListener("click",()=>{stop();select(index+1);});

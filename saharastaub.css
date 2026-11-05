@@ -9,6 +9,8 @@ h1{font-size:clamp(1.9rem,3.8vw,3.1rem);margin:8px 0 12px;line-height:1.15}h2{fo
 .lead{max-width:1100px;margin:0 0 23px;color:var(--dust-muted)}
 .panel{border:1px solid var(--dust-border);background:var(--dust-panel);border-radius:14px;padding:clamp(15px,2.2vw,26px);margin:0 0 20px;box-shadow:0 2px 10px rgba(17,41,70,.045)}
 .controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px}.controls label{display:grid;gap:5px;font-size:.85rem;font-weight:700;min-width:210px;flex:1}.controls select,.controls button{background:var(--dust-panel);color:var(--dust-text);border:1px solid var(--dust-border);border-radius:7px;padding:10px 12px;font:inherit}
+.controls label.dust-toggle{display:flex;align-items:center;gap:9px;min-width:230px;flex:none;padding:10px 2px;font-size:.87rem;line-height:1.35;cursor:pointer}
+.controls label.dust-toggle input{accent-color:#1467a5;width:17px;height:17px;margin:0;flex:none}
 .controls button{font-weight:650;cursor:pointer}.controls button:hover:not([disabled]){border-color:var(--dust-accent)}.controls button:disabled{opacity:.45;cursor:not-allowed}
 .buttons{display:flex;gap:7px;flex-wrap:wrap}.buttons button:nth-last-child(1){background:#1367a5;color:white}.buttons button:focus-visible,.controls select:focus-visible{outline:3px solid #63aeeb;outline-offset:2px}
 .status{padding:11px 13px;margin-top:16px;border-left:4px solid #3794cc;background:color-mix(in srgb,var(--dust-panel),#3794cc 9%);font-size:.94rem}

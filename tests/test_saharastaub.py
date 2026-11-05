@@ -11,18 +11,18 @@ spec.loader.exec_module(dust)
 class TestSaharastaub(unittest.TestCase):
     def test_scales(self):
         self.assertEqual(dust.PALETTES["taod"]["breaks"],
-                         [0.02,0.05,0.1,0.2,0.4,0.7,1,1.5,2.5])
+                         [0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5])
         self.assertEqual(dust.PALETTES["column"]["breaks"],
-                         [1,10,25,50,100,200,400,800,1600])
+                         [25,50,100,200,400,800,1600,2500,4000])
         self.assertEqual(len(dust.COLORS),10)
         self.assertEqual(dust.GRID["step"],0.2)
 
     def test_exact_thresholds(self):
         self.assertEqual(dust.quantize(
-            np.array([0,.019999,.02,.05,.1,2.5,5]),
+            np.array([0,.049999,.05,.1,.2,2.5,5]),
             dust.PALETTES["taod"]["breaks"]).tolist(),[0,0,1,2,3,9,9])
         self.assertEqual(dust.quantize(
-            np.array([0,.999999,1,10,1600]),
+            np.array([0,24.999999,25,50,4000]),
             dust.PALETTES["column"]["breaks"]).tolist(),[0,0,1,2,9])
 
     def test_rle_preserves_nodata_and_long_runs(self):

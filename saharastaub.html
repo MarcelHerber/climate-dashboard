@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Saharastaub-Prognosen aus DWD ICON-ART-EU: feste Farbskalen, Europa- und Deutschlandkarten, Vorhersagefilm und PNG-Download.">
 <title>Saharastaub · ICON-ART-EU | Climate Dashboard Deutschland</title>
-<link rel="stylesheet" href="saharastaub.css?v=1">
+<link rel="stylesheet" href="saharastaub.css?v=2">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
-<script defer src="saharastaub.js?v=1"></script>
+<script defer src="saharastaub.js?v=2"></script>
 </head>
 <body>
 <header class="dust-header">
@@ -23,6 +23,7 @@
 <label for="dustParameter">Parameter<select id="dustParameter"><option value="taod">Staub-AOD · optische Dicke</option><option value="column">Staubmasse der gesamten Luftsäule · mg/m²</option></select></label>
 <label for="dustRegion">Kartenausschnitt<select id="dustRegion"><option value="europe">Europa und Nordafrika</option><option value="germany">Deutschland</option></select></label>
 <label for="dustTime">Vorhersagezeit · UTC<select id="dustTime" disabled><option>Keine Vorhersage geladen</option></select></label>
+<label class="dust-toggle" for="dustHideBackground"><input type="checkbox" id="dustHideBackground"> Schwachen Hintergrund ausblenden</label>
 <div class="buttons"><button id="dustPrevious" type="button" disabled aria-label="Vorherige Prognosestunde">←</button><button id="dustNext" type="button" disabled aria-label="Nächste Prognosestunde">→</button><button id="dustPlay" type="button" disabled>▶ Film</button><button id="dustRefresh" type="button">↻ Aktualisieren</button><button id="dustPng" type="button" disabled>PNG ↓</button></div>
 </div>
 <div id="dustStatus" class="status" role="status" aria-live="polite">Prüfe die verfügbaren ICON-ART-Daten …</div>
@@ -33,12 +34,13 @@
 <div class="canvas-wrap"><canvas id="dustMap" width="1280" height="850" aria-label="Saharastaub-Vorhersagekarte mit festen Klassen und Ländernamen im Hintergrund" role="img"></canvas></div>
 <div class="legend-title"><h3 id="dustLegendHeading">Feste Legende · Staub-AOD (dimensionslos)</h3><span>Unverändert zwischen allen Kartenzeiten</span></div>
 <div id="dustLegend" class="legend" aria-label="Feste Farbskala für den gewählten Parameter"></div>
-<p id="dustMapNote" class="minor">Die Farbskala ist fest. Blassgrau kennzeichnet sehr geringe Konzentrationen, weiß nicht verfügbare Daten außerhalb des Modellgebiets.</p>
+<p id="dustMapNote" class="minor">Die Farbskala bleibt bei jedem Zeitpunkt fest. Grautöne stehen für geringe Hintergrundwerte, kräftige Farben für deutlichere Staubsignale. Über den Schalter können die untersten beiden Klassen ausgeblendet werden.</p>
 </section>
 <section class="panel explanation">
 <h2>Was zeigen die Parameter?</h2>
 <div class="cols"><div><h3>Staub-AOD</h3><p>Die optische Dicke durch Mineralstaub beschreibt die Abschwächung von Licht durch Staub in der gesamten Atmosphäre. Der Wert ist dimensionslos, nicht mit Feinstaub am Boden gleichzusetzen.</p></div>
 <div><h3>Staubmasse in der Luftsäule</h3><p>Die über alle Höhen aufsummierte Mineralstaubmasse wird von kg/m² in mg/m² umgerechnet. Auch sie beschreibt keine PM10-Messung in Bodennähe.</p></div></div>
+<p>Die neu abgestuften Farben sind <strong>Darstellungsklassen, keine amtlichen Warn- oder Gesundheitsgrenzwerte</strong>. Sehr geringe Hintergrundkonzentrationen bleiben grau, markantere Staubtransporte treten deutlicher hervor. Eine geringe Staub-AOD bedeutet nicht automatisch geringe Feinstaubwerte am Boden.</p>
 <p>Beide Karten nutzen <strong>fest definierte Schwellenwerte</strong> und zeigen die gleiche Modellregion beziehungsweise denselben Deutschlandausschnitt für alle gewählten Prognosezeiten. Aus technischen Gründen werden die nativen, unstrukturierten ICON-ART-EU-Gitterwerte für die Online-Karte in 0,2°-Rasterzellen gemittelt. Die Auflösung der Anzeige ist daher gröber als die native Modellauflösung.</p>
 <p>Quelle: <a href="https://opendata.dwd.de/weather/nwp/v1/m/icon-art-eu/p/" target="_blank" rel="noopener">DWD Open Data · ICON-ART-EU</a> · Modell, keine Beobachtung und keine Luftqualitätswarnung. Daten werden automatisch vorverarbeitet. Bleibt eine Aktualisierung aus, wird der tatsächliche letzte Modelllauf angezeigt, statt alte Daten als aktuell auszugeben.</p>
 </section>

@@ -21,11 +21,10 @@ except ImportError:
 log = logging.getLogger("saharastaub")
 BASE = "https://opendata.dwd.de/weather/nwp/v1/m/icon-art-eu/p"
 PARAMS = {"taod": ("TAOD_DUST", 1.0), "column": ("DUST_TOTAL_MC_VI", 1e6)}
-COLORS = ["#eef2f6","#fff3c9","#fddc8c","#ffc266","#fc9850",
-          "#f36b40","#df3e43","#b42854","#81256e","#491c6d"]
+COLORS = ["#f2f4f7", "#e3e7eb", "#d8cfb3", "#efe08a", "#f7c65a", "#f39a3c", "#ea6b2d", "#d63f2f", "#9c2f5f", "#5a2875"]
 PALETTES = {
-    "taod":{"breaks":[0.02,0.05,0.1,0.2,0.4,0.7,1,1.5,2.5],"colors":COLORS,"unit":"1"},
-    "column":{"breaks":[1,10,25,50,100,200,400,800,1600],"colors":COLORS,"unit":"mg/m2"}
+    "taod":{"breaks":[0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5],"colors":COLORS,"unit":"1"},
+    "column":{"breaks":[25,50,100,200,400,800,1600,2500,4000],"colors":COLORS,"unit":"mg/m2"}
 }
 GRID = {"lon_min":-28.0,"lat_min":25.0,"step":0.2,"cols":440,"rows":245,
         "encoding":"rle-u8-base64"}
