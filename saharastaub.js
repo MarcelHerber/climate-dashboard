@@ -8,7 +8,8 @@ const DATA_URLS=[
 const BASEMAP="./wettergefahren_basemap_50m.json";
 const PARAMS=Object.freeze({
   taod:{name:"Staub-AOD",unit:"dimensionslos",breaks:[0.05,0.1,0.2,0.35,0.5,0.75,1,1.5,2.5]},
-  column:{name:"Staubmasse der Luftsäule",unit:"mg/m²",breaks:[25,50,100,200,400,800,1600,2500,4000]}
+  column:{name:"Staubmasse der Luftsäule",unit:"mg/m²",breaks:[25,50,100,200,400,800,1600,2500,4000]},
+  surface:{name:"Bodennahe Staubkonzentration",unit:"µg/m³",breaks:[1,2,5,10,20,40,80,150,300]}
 });
 const COLORS=Object.freeze(["#f2f4f7","#e3e7eb","#d8cfb3","#efe08a","#f7c65a","#f39a3c","#ea6b2d","#d63f2f","#9c2f5f","#5a2875"]);
 const REGIONS=Object.freeze({
@@ -20,7 +21,7 @@ const canvas=$("dustMap"),ctx=canvas.getContext("2d",{alpha:false});
 const controls={param:$("dustParameter"),region:$("dustRegion"),time:$("dustTime"),
   prev:$("dustPrevious"),next:$("dustNext"),play:$("dustPlay"),png:$("dustPng"),
   refresh:$("dustRefresh"),hide:$("dustHideBackground")};
-let forecast=null,basemap=null,index=0,playing=null,gridCache=new Map();
+let forecast=null,basemap=null,index=0,playing=null,gridCache=new Map(),peakCache=new Map();
 function status(message,error=false){$("dustStatus").textContent=message;$("dustStatus").classList.toggle("error",error);}
 function formatUtc(date){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(date))+" UTC";}
 function boundsLabel(i,breaks){
@@ -46,6 +47,7 @@ function validate(data){
   if(g.encoding!=="rle-u8-base64"||!Number.isInteger(g.rows)||!Number.isInteger(g.cols)||g.rows<1||g.cols<1||g.rows*g.cols>500000)throw Error("Ungültige Kartengeometrie");
   for(const [key,param] of Object.entries(PARAMS)){
     const server=data.palettes?.[key];
+    if(key==="surface"&&!server)continue; // Older published data remain readable.
     if(!server||JSON.stringify(server.breaks)!==JSON.stringify(param.breaks)||JSON.stringify(server.colors)!==JSON.stringify(COLORS))throw Error("Farbskala von "+key+" weicht von der festgelegten Legende ab");
   }
   const hours=new Set();
@@ -72,6 +74,7 @@ function imageFor(frame,key){
   const cacheKey=frame.hour+"|"+key+"|"+hiddenBackground;
   if(gridCache.has(cacheKey))return gridCache.get(cacheKey);
   const {rows,cols}=forecast.grid;
+  if(typeof frame?.[key]!=="string")return null;
   const values=unpack(frame[key],rows*cols);
   const off=document.createElement("canvas");off.width=cols;off.height=rows;
   const c=off.getContext("2d");
@@ -105,24 +108,45 @@ function drawBorders(region,rect){
   }
   ctx.restore();
 }
+function encodeRuns(values){
+  const bytes=[];
+  for(let i=0;i<values.length;){let j=i+1;while(j<values.length&&j-i<65535&&values[j]===values[i])j++;
+    const n=j-i;bytes.push(values[i],n&255,n>>8);i=j;}
+  let binary="";for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.slice(i,i+16384));
+  return btoa(binary);
+}
+function peakFrame(key,hours){
+  const cacheKey=forecast.run_utc+"|"+key+"|"+hours;
+  if(peakCache.has(cacheKey))return peakCache.get(cacheKey);
+  const eligible=forecast.frames.filter(f=>f.hour<=hours&&typeof f[key]==="string");
+  if(!eligible.length)return null;
+  const length=forecast.grid.rows*forecast.grid.cols;
+  const combined=new Uint8Array(length).fill(255);
+  for(const frame of eligible){const values=unpack(frame[key],length);
+    for(let i=0;i<length;i++)if(values[i]!==255&&(combined[i]===255||values[i]>combined[i]))combined[i]=values[i];}
+  const result={hour:hours,valid_utc:eligible[eligible.length-1].valid_utc,[key]:encodeRuns(combined),peak:true};
+  peakCache.set(cacheKey,result);return result;
+}
 function render(){
   drawLegend();
   ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-  const region=REGIONS[controls.region.value],param=PARAMS[controls.param.value],frame=forecast?.frames[index];
+  const region=REGIONS[controls.region.value],param=PARAMS[controls.param.value];
+  const windowHours=Number($("dustView")?.value||0);
+  const frame=forecast?(windowHours?peakFrame(controls.param.value,windowHours):forecast.frames[index]):null;
   const plot={x:90,y:110,w:1100,h:580};
   // Fixed geographic aspect ratio (no distortion when switching to Germany).
   const ratio=(region.east-region.west)/(region.north-region.south),maxRatio=plot.w/plot.h;
   const rect=ratio>maxRatio?{x:plot.x,y:plot.y+(plot.h-plot.w/ratio)/2,w:plot.w,h:plot.w/ratio}:
     {x:plot.x+(plot.w-plot.h*ratio)/2,y:plot.y,w:plot.h*ratio,h:plot.h};
   ctx.fillStyle="#172b41";ctx.font="bold 28px system-ui";ctx.fillText("Saharastaub · "+param.name,80,45);
-  ctx.fillStyle="#516478";ctx.font="20px system-ui";ctx.fillText(region.name,80,78);
+  ctx.fillStyle="#516478";ctx.font="20px system-ui";ctx.fillText(region.name+(windowHours?" · Maximum 0–"+windowHours+" h (Farbklasse)":""),80,78);
   ctx.textAlign="right";ctx.fillText(frame?formatUtc(frame.valid_utc):"Keine Vorhersagedaten",1200,77);ctx.textAlign="left";
   ctx.fillStyle="#e9eef3";ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
   if(frame){
     const g=forecast.grid,img=imageFor(frame,controls.param.value);
-    const x=(region.west-g.lon_min)/g.step,y=(g.lat_min+g.rows*g.step-region.north)/g.step;
+    if(img){const x=(region.west-g.lon_min)/g.step,y=(g.lat_min+g.rows*g.step-region.north)/g.step;
     const w=(region.east-region.west)/g.step,h=(region.north-region.south)/g.step;
-    ctx.imageSmoothingEnabled=false;ctx.drawImage(img,x,y,w,h,rect.x,rect.y,rect.w,rect.h);
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(img,x,y,w,h,rect.x,rect.y,rect.w,rect.h);}
   }
   drawBorders(region,rect);
   ctx.strokeStyle="#a7b8c7";ctx.lineWidth=1.5;ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
@@ -142,7 +166,8 @@ function render(){
     ? "Die festen Klassen bleiben unverändert. Die beiden untersten Klassen (< "+param.breaks[1].toLocaleString("de-DE")+" "+param.unit+") werden nur in der Karte ausgeblendet; der PNG-Export übernimmt diese Darstellung. Weiß bzw. graublau außerhalb der Datenregion kennzeichnet fehlende Daten."
     : "Die Farbskala ist für jede Modellstunde und Region fest. Neutrale Grautöne kennzeichnen geringe Staubmengen; fehlende Daten außerhalb des Modellgebiets bleiben ungefärbt.";
   $("dustMapTitle").textContent=param.name+" · "+region.name;
-  $("dustValid").textContent="Gültigkeit: "+(frame?formatUtc(frame.valid_utc):"–");
+  $("dustValid").textContent=windowHours?"Maximalklasse aus +0 bis +"+windowHours+" h":"Gültigkeit: "+(frame?formatUtc(frame.valid_utc):"–");
+  if(forecast&&!frame)status("Für diesen Parameter und Zeitraum sind keine geprüften Daten vorhanden.",true);
 }
 function stop(){if(playing!==null)clearInterval(playing);playing=null;controls.play.textContent="▶ Film";}
 function select(indexNext){if(!forecast)return;index=Math.max(0,Math.min(forecast.frames.length-1,indexNext));controls.time.value=String(index);controls.prev.disabled=index===0;controls.next.disabled=index===forecast.frames.length-1;render();}
@@ -170,16 +195,19 @@ async function load(){
       }catch(e){errors.push(e.message);}
     }
     if(!data)throw Error("Noch kein gültiger ICON-ART-Datenlauf veröffentlicht ("+errors.join("; ")+")");
-    forecast=data;index=0;gridCache.clear();reloadOptions();
+    forecast=data;index=0;gridCache.clear();peakCache.clear();reloadOptions();
+    document.dispatchEvent(new CustomEvent("sahara-data-ready"));
   }catch(e){
-    forecast=null;gridCache.clear();
+    forecast=null;gridCache.clear();peakCache.clear();document.dispatchEvent(new CustomEvent("sahara-data-ready"));
     controls.time.disabled=true;controls.time.replaceChildren();
     controls.prev.disabled=true;controls.next.disabled=true;controls.play.disabled=true;controls.png.disabled=true;
     $("dustRun").textContent="Letzter Modelllauf: nicht verfügbar";
     status("Keine überprüften Saharastaub-Karten verfügbar: "+e.message,true);render();
   }finally{controls.refresh.disabled=false;}
 }
-controls.param.addEventListener("change",render);
+window.SaharaDustAPI={getForecast:()=>forecast,unpack,params:PARAMS};
+$("dustView")?.addEventListener("change",()=>{stop();render();document.dispatchEvent(new CustomEvent("sahara-view-change"));});
+controls.param.addEventListener("change",()=>{render();document.dispatchEvent(new CustomEvent("sahara-view-change"));});
 controls.region.addEventListener("change",render);
 controls.hide.addEventListener("change",()=>{gridCache.clear();render();});
 controls.time.addEventListener("change",()=>{stop();select(Number(controls.time.value));});
@@ -198,7 +226,7 @@ controls.png.addEventListener("click",()=>{
   canvas.toBlob(blob=>{
     if(!blob)return status("PNG-Export fehlgeschlagen",true);
     const url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download="saharastaub_"+controls.param.value+"_"+controls.region.value+"_"+forecast.run_utc.slice(0,10)+"_p"+forecast.frames[index].hour+".png";
+    a.href=url;a.download="saharastaub_"+controls.param.value+"_"+controls.region.value+"_"+forecast.run_utc.slice(0,10)+($("dustView").value==="instant"?"_p"+forecast.frames[index].hour:"_max"+$("dustView").value)+"h.png";
     document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   },"image/png");
 });
