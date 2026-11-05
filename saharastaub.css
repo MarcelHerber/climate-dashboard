@@ -25,3 +25,8 @@ h1{font-size:clamp(1.9rem,3.8vw,3.1rem);margin:8px 0 12px;line-height:1.15}h2{fo
 .explanation p{color:var(--dust-muted);margin:9px 0 13px}.explanation a{color:var(--dust-accent)}.cols{display:grid;grid-template-columns:1fr 1fr;gap:25px;margin-top:18px}
 footer{padding:18px;text-align:center;color:var(--dust-muted);font-size:.82rem}
 @media(max-width:720px){.dust-header{padding:13px 16px}.dust-header span{display:none}.dust-main{padding:17px 10px 40px}.panel{padding:13px}.controls{display:grid;grid-template-columns:1fr}.controls label{min-width:0}.buttons button{flex:1}.map-head{display:block}.legend-item{font-size:.75rem}.cols{grid-template-columns:1fr;gap:6px}.canvas-wrap{overflow:auto}}
+
+/* Saharan dust station and comparison views. */
+.dust-location input{background:var(--dust-panel);color:var(--dust-text);border:1px solid var(--dust-border);border-radius:7px;padding:10px 12px;font:inherit;max-width:100%}
+#dustSeries{width:100%;height:auto;display:block;margin-top:16px;border:1px solid var(--dust-border);border-radius:8px;background:#fff}
+.panel a{color:var(--dust-accent);font-weight:650}
