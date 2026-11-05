@@ -153,6 +153,25 @@ jobs:
             --reference-cache /tmp/hyras-temperature-reference-cache \
             --parameter all
 
+      - name: Vorläufige aktuelle Monats-Gebietsmittel aus echten Tageswerten bauen
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_monthly_provisional.py scripts/add_monthly_provisional_sun.py
+          python scripts/build_monthly_provisional.py --data-root /tmp/hyras-data --work /tmp/hyras-work
+          python scripts/add_monthly_provisional_sun.py --data-root /tmp/hyras-data --work /tmp/hyras-work
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('/tmp/hyras-data/monthly_current_provisional.json').read_text())
+          assert data['schema']==1 and data['forecast'] is False
+          assert data['days_observed']>=1
+          assert len(data['areas'])>=17
+          assert 'temp' in data['areas']['Deutschland']
+          assert 'rain' in data['areas']['Deutschland']
+          print('Vorläufige Monatsbalken:', data['month'], data['data_through'])
+          print('Sonnengebietsmittel:',data.get('sun_area_count',0))
+          PY
+
       - name: HYRAS-Datenstände und Live-Anomalien prüfen
         run: |
           set -euo pipefail
