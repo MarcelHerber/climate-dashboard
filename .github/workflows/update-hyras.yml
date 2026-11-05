@@ -157,6 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile scripts/build_monthly_provisional.py scripts/add_monthly_provisional_sun.py
+          python -m unittest discover -s tests -p test_monthly_provisional.py -v
           python scripts/build_monthly_provisional.py --data-root /tmp/hyras-data --work /tmp/hyras-work
           python scripts/add_monthly_provisional_sun.py --data-root /tmp/hyras-data --work /tmp/hyras-work
           python - <<'PY'
