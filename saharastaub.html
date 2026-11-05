@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Saharastaub-Prognosen aus DWD ICON-ART-EU: feste Farbskalen, Europa- und Deutschlandkarten, Vorhersagefilm und PNG-Download.">
 <title>Saharastaub · ICON-ART-EU | Climate Dashboard Deutschland</title>
-<link rel="stylesheet" href="saharastaub.css?v=2">
+<link rel="stylesheet" href="saharastaub.css?v=3">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
-<script defer src="saharastaub.js?v=2"></script>
+<script defer src="saharastaub.js?v=3"></script>
+<script defer src="saharastaub_extended.js?v=1"></script>
 </head>
 <body>
 <header class="dust-header">
@@ -20,8 +21,9 @@
 <p class="lead">Wie entwickelt sich der Transport von Mineralstaub aus Nordafrika? Die Karten zeigen echte ICON-ART-EU-Modellfelder. <strong>Die Farbgrenzen bleiben für jeden Parameter bei allen Vorhersagestunden und Kartenausschnitten identisch.</strong> Es findet keine automatische Anpassung an das jeweilige Kartenmaximum statt.</p>
 <section class="panel" aria-label="Saharastaub-Kartensteuerung">
 <div class="controls">
-<label for="dustParameter">Parameter<select id="dustParameter"><option value="taod">Staub-AOD · optische Dicke</option><option value="column">Staubmasse der gesamten Luftsäule · mg/m²</option></select></label>
+<label for="dustParameter">Parameter<select id="dustParameter"><option value="taod">Staub-AOD · optische Dicke</option><option value="column">Staubmasse der gesamten Luftsäule · mg/m²</option><option value="surface">Bodennahe Staubkonzentration · µg/m³</option></select></label>
 <label for="dustRegion">Kartenausschnitt<select id="dustRegion"><option value="europe">Europa und Nordafrika</option><option value="germany">Deutschland</option></select></label>
+<label for="dustView">Zeitraum / Auswertung<select id="dustView"><option value="instant">Einzeltermin</option><option value="24">Maximum 0–24 h</option><option value="48">Maximum 0–48 h</option><option value="72">Maximum 0–72 h</option></select></label>
 <label for="dustTime">Vorhersagezeit · UTC<select id="dustTime" disabled><option>Keine Vorhersage geladen</option></select></label>
 <label class="dust-toggle" for="dustHideBackground"><input type="checkbox" id="dustHideBackground"> Schwachen Hintergrund ausblenden</label>
 <div class="buttons"><button id="dustPrevious" type="button" disabled aria-label="Vorherige Prognosestunde">←</button><button id="dustNext" type="button" disabled aria-label="Nächste Prognosestunde">→</button><button id="dustPlay" type="button" disabled>▶ Film</button><button id="dustRefresh" type="button">↻ Aktualisieren</button><button id="dustPng" type="button" disabled>PNG ↓</button></div>
@@ -36,12 +38,35 @@
 <div id="dustLegend" class="legend" aria-label="Feste Farbskala für den gewählten Parameter"></div>
 <p id="dustMapNote" class="minor">Die Farbskala bleibt bei jedem Zeitpunkt fest. Grautöne stehen für geringe Hintergrundwerte, kräftige Farben für deutlichere Staubsignale. Über den Schalter können die untersten beiden Klassen ausgeblendet werden.</p>
 </section>
+<section class="panel" aria-label="Saharastaub-Orts-Zeitreihen">
+<h2>Orts-Zeitreihen · ICON-ART</h2>
+<p class="minor">Auswahl über vordefinierte Orte oder Koordinaten. Dargestellt werden feste Konzentrationsklassen des 0,2°-Gitters, keine exakten Rohwerte.</p>
+<div class="controls dust-location">
+<label for="dustCity">Ort<select id="dustCity"><option value="50.11,8.68">Frankfurt am Main</option><option value="52.52,13.405">Berlin</option><option value="48.14,11.58">München</option><option value="53.55,10.00">Hamburg</option><option value="48.86,2.35">Paris</option><option value="40.42,-3.70">Madrid</option><option value="41.9,12.5">Rom</option><option value="custom">Eigene Koordinaten</option></select></label>
+<label for="dustLat">Breitengrad<input id="dustLat" type="number" min="25" max="74" step="0.01" value="50.11"></label>
+<label for="dustLon">Längengrad<input id="dustLon" type="number" min="-28" max="60" step="0.01" value="8.68"></label>
+</div>
+<canvas id="dustSeries" width="1050" height="360" role="img" aria-label="Saharastaub-Klassenverlauf am gewählten Ort"></canvas>
+<p id="dustSeriesStatus" class="minor" aria-live="polite">Zeitreihe wird geladen …</p>
+</section>
+<section class="panel" aria-label="CAMS-Modellvergleich">
+<h2>CAMS-Modellvergleich</h2>
+<p>ICON-ART und Copernicus CAMS sind zwei unabhängige Prognosesysteme. Für den automatischen 2er-Panel-Vergleich müssen CAMS-Felder mit derselben Variable, Einheit und Gültigkeit bereitgestellt werden. Bis dahin erfolgt <strong>keine künstliche Gleichsetzung</strong> verschiedener Aerosolprodukte.</p>
+<p id="dustCamsStatus" class="minor">CAMS-Datenstatus: noch kein geprüfter Vergleichsdatensatz eingebunden.</p>
+<a href="https://atmosphere.copernicus.eu/charts/packages/cams_air_quality/" target="_blank" rel="noopener">Aktuelle CAMS-Luftqualitätskarten bei Copernicus ansehen</a>
+</section>
+<section class="panel" aria-label="EUMETSAT Dust RGB">
+<h2>Satellitenbeobachtung · EUMETSAT Dust RGB</h2>
+<p>Infrarot-RGB zur Erkennung von Staubtransporten, auch nachts. Der Satellitenzeitpunkt muss mit der ICON-ART-Prognose abgeglichen werden; das RGB ist kein quantitativer Staubkonzentrationswert.</p>
+<a href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_dust" target="_blank" rel="noopener">EUMETView Dust RGB öffnen</a>
+<p class="minor">Externer offizieller Live-Viewer; eine synchronisierte WMS-Überlagerung ist noch nicht freigeschaltet.</p>
+</section>
 <section class="panel explanation">
 <h2>Was zeigen die Parameter?</h2>
 <div class="cols"><div><h3>Staub-AOD</h3><p>Die optische Dicke durch Mineralstaub beschreibt die Abschwächung von Licht durch Staub in der gesamten Atmosphäre. Der Wert ist dimensionslos, nicht mit Feinstaub am Boden gleichzusetzen.</p></div>
 <div><h3>Staubmasse in der Luftsäule</h3><p>Die über alle Höhen aufsummierte Mineralstaubmasse wird von kg/m² in mg/m² umgerechnet. Auch sie beschreibt keine PM10-Messung in Bodennähe.</p></div></div>
 <p>Die neu abgestuften Farben sind <strong>Darstellungsklassen, keine amtlichen Warn- oder Gesundheitsgrenzwerte</strong>. Sehr geringe Hintergrundkonzentrationen bleiben grau, markantere Staubtransporte treten deutlicher hervor. Eine geringe Staub-AOD bedeutet nicht automatisch geringe Feinstaubwerte am Boden.</p>
-<p>Beide Karten nutzen <strong>fest definierte Schwellenwerte</strong> und zeigen die gleiche Modellregion beziehungsweise denselben Deutschlandausschnitt für alle gewählten Prognosezeiten. Aus technischen Gründen werden die nativen, unstrukturierten ICON-ART-EU-Gitterwerte für die Online-Karte in 0,2°-Rasterzellen gemittelt. Die Auflösung der Anzeige ist daher gröber als die native Modellauflösung.</p>
+<p>Die Karten nutzen <strong>fest definierte Schwellenwerte</strong> und zeigen die gleiche Modellregion beziehungsweise denselben Deutschlandausschnitt für alle gewählten Prognosezeiten. Aus technischen Gründen werden die nativen, unstrukturierten ICON-ART-EU-Gitterwerte für die Online-Karte in 0,2°-Rasterzellen gemittelt. Die Auflösung der Anzeige ist daher gröber als die native Modellauflösung.</p>
 <p>Quelle: <a href="https://opendata.dwd.de/weather/nwp/v1/m/icon-art-eu/p/" target="_blank" rel="noopener">DWD Open Data · ICON-ART-EU</a> · Modell, keine Beobachtung und keine Luftqualitätswarnung. Daten werden automatisch vorverarbeitet. Bleibt eine Aktualisierung aus, wird der tatsächliche letzte Modelllauf angezeigt, statt alte Daten als aktuell auszugeben.</p>
 </section>
 </main>
