@@ -1,6 +1,13 @@
 name: HYRAS Flächenkarten aktualisieren
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-hyras.yml"
+      - "scripts/build_monthly_provisional.py"
+      - "scripts/add_monthly_provisional_sun.py"
+      - "tests/test_monthly_provisional.py"
   workflow_dispatch:
   schedule:
     - cron: "45 10 * * *"
