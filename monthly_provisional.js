@@ -12,6 +12,8 @@
   const names={temp:"Temperaturmittel",rain:"Niederschlagssumme",sun:"Sonnenscheindauer"};
   const units={temp:"°C",rain:"mm",sun:"h"};
   let snapshot=null;
+  let monthManuallySelected=false;
+  $("monthSelect")?.addEventListener("change",()=>{monthManuallySelected=true;});
   function title(s){ROOT.querySelector(".monthly-provisional-title").textContent=s;}
   function status(s){ROOT.querySelector(".monthly-provisional-status").textContent=s;}
   function parameter(){
@@ -118,7 +120,15 @@
         const data=await response.json();
         if(data.schema!==1||data.forecast!==false||!/^\\d{4}-\\d{2}$/.test(data.month)
           ||!/^\\d{4}-\\d{2}-\\d{2}$/.test(data.data_through)||typeof data.areas!=="object")continue;
-        snapshot=data;draw();
+        snapshot=data;
+        // The old dashboard defaults to July. Select the current observed month
+        // only if the visitor has not already selected a different period.
+        const monthControl=$("monthSelect");
+        if(monthControl&&!monthManuallySelected&&monthControl.value==="07"){
+          const option=[...monthControl.options].find(o=>o.value===data.month.slice(5));
+          if(option){monthControl.value=option.value;monthControl.dispatchEvent(new Event("change",{bubbles:true}));}
+        }
+        draw();
         if(typeof Chart!=="undefined")Chart.getChart($("monthlyChart"))?.update("none");
         return;
       }catch(error){console.warn("Vorläufige HYRAS-Gebietsmittel:",error);}
