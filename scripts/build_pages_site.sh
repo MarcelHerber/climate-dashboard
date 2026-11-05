@@ -135,7 +135,7 @@ p=Path("_site/index.html")
 s=p.read_text(encoding="utf-8")
 marker='id="monthlyProvisionalPanel"'
 if marker not in s:
-    canvas=re.search(r'<canvas\\b[^>]*\\bid=["\\x27]monthlyChart["\\x27][^>]*>\\s*</canvas\\s*>',s,re.I|re.S)
+    canvas=re.search(r'<canvas\b[^>]*\bid=["\x27]monthlyChart["\x27][^>]*>\s*</canvas\s*>',s,re.I|re.S)
     if not canvas:
         raise SystemExit("FEHLER: Gebietsmittel-Balkendiagramm monthlyChart fehlt")
     panel='''<section id="monthlyProvisionalPanel" class="monthly-provisional" aria-label="Vorläufiges Monatsgebietsmittel aus Beobachtungen">
@@ -147,9 +147,9 @@ if marker not in s:
 <p class="monthly-provisional-date">Datenstand wird geladen …</p>
 <p class="monthly-provisional-status" role="status">Prüfe HYRAS-Beobachtungsdaten …</p>
 </section>'''
-    s=s[:canvas.end()]+"\\n"+panel+s[canvas.end():]
-s=s.replace("</head>",'<link rel="stylesheet" href="monthly_provisional.css?v=1">\\n</head>',1)
-s=s.replace("</body>",'<script defer src="monthly_provisional.js?v=1"></script>\\n</body>',1)
+    s=s[:canvas.end()]+"\n"+panel+s[canvas.end():]
+s=s.replace("</head>",'<link rel="stylesheet" href="monthly_provisional.css?v=1">\n</head>',1)
+s=s.replace("</body>",'<script defer src="monthly_provisional.js?v=1"></script>\n</body>',1)
 p.write_text(s,encoding="utf-8")
 PY
 
