@@ -17,6 +17,8 @@
 <script defer src="europe_station_basemap.js?v=20261104-3"></script>
 <script src="station_snow_years.js?v=20261104-2"></script>
 <script src="station_snow_accumulation.js?v=20261104-2"></script>
+<link rel="stylesheet" href="station_snow_explorer.css?v=20261105-1">
+<script src="station_snow_explorer.js?v=20261105-1"></script>
 
 <!-- Theme vor dem ersten Rendern setzen, damit kein heller Blitz entsteht. -->
 <script>
@@ -3410,15 +3412,36 @@ button.action:hover{background:#1f2937}
         <select id="stationSnowStateSelect"></select>
       </div>
 
-      <div class="control-group" style="min-width:260px">
+      <div class="control-group station-snow-search-group">
         <label for="stationSnowSearch">Station suchen</label>
-        <input id="stationSnowSearch" type="search" placeholder="Ort oder Stations-ID"
-               style="padding:9px 10px;border:1px solid #bbb;border-radius:6px">
+        <input id="stationSnowSearch" type="search" placeholder="Name oder DWD-Stations-ID"
+               autocomplete="off" aria-label="Schneehöhenstation suchen">
+        <div id="stationSnowSuggestions" class="station-snow-suggestions"
+             role="listbox" aria-label="Passende Schneestationen" hidden></div>
       </div>
 
       <div class="control-group" style="min-width:300px">
         <label for="stationSnowStationSelect">Schneestation</label>
         <select id="stationSnowStationSelect"></select>
+        <small class="station-snow-options-note">Kompakte Trefferliste. Alle Stationen sind über Suche und Karte erreichbar.</small>
+      </div>
+      <div class="control-group">
+        <label for="stationSnowAvailabilitySelect">Messdaten</label>
+        <select id="stationSnowAvailabilitySelect">
+          <option value="all">Alle Stationen</option>
+          <option value="current">Aktuelle Saison vorhanden</option>
+          <option value="historical">Keine Werte dieser Saison</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="stationSnowElevationSelect">Höhenlage</label>
+        <select id="stationSnowElevationSelect">
+          <option value="all">Alle Höhenlagen</option>
+          <option value="0-200">Unter 200 m</option>
+          <option value="200-500">200 bis unter 500 m</option>
+          <option value="500-1000">500 bis unter 1.000 m</option>
+          <option value="1000+">Ab 1.000 m</option>
+        </select>
       </div>
       <label class="station-snow-quality-filter" for="stationSnowLongSeriesOnly">
         <input type="checkbox" id="stationSnowLongSeriesOnly">
@@ -3437,6 +3460,18 @@ button.action:hover{background:#1f2937}
       <button class="action" onclick="resetStationSnowZoom()">Zoom zurücksetzen</button>
     </div>
 
+    <div id="stationSnowSelectedMeta" class="station-snow-selected-meta" aria-live="polite">
+      Ausgewählte Schneestation wird geladen …
+    </div>
+    <details id="stationSnowMapDetails" class="station-snow-map-details">
+      <summary>Deutschlandkarte · Schneehöhenstationen auswählen</summary>
+      <div class="station-snow-map-frame">
+        <div id="stationSnowMap" class="station-snow-map" aria-label="Interaktive Deutschlandkarte mit Schneehöhenstationen"></div>
+        <p id="stationSnowMapStatus" class="station-snow-map-status" role="status" aria-live="polite">
+          Karte wird bei Bedarf geladen. Cluster anklicken, um weitere Stationen einzublenden.
+        </p>
+      </div>
+    </details>
     <details id="stationSnowYearPicker" class="station-snow-year-picker" open>
       <summary>Einzelne Jahre ein- und ausblenden</summary>
       <p>Hydrologisches Jahr: 1. November bis 31. Oktober. Mehrere Jahre gleichzeitig im Diagramm vergleichen.</p>
@@ -4131,6 +4166,8 @@ let stationPrecipProfile=null;
 const stationPrecipMonthCache=new Map();
 let stationSnowIndex=null;
 let stationSnowCurrentIndex=null;
+let stationSnowCurrentById=new Map();
+let stationSnowStationById=new Map();
 let stationSnowLoading=null;
 let stationSnowProfile=null;
 let stationSnowCurrent=null;
@@ -9884,6 +9921,8 @@ async function ensureStationSnowLoaded(){
     }));
     stationSnowCurrentIndex={...currentIndex,stations:[
       ...(currentIndex.stations||[]),...currentExtra]};
+    stationSnowCurrentById=new Map(stationSnowCurrentIndex.stations.map(s=>[String(s.id),s]));
+    stationSnowStationById=new Map(merged.map(s=>[String(s.id),s]));
     initializeStationSnowControls();
 
     loading.hidden=true;
@@ -9920,18 +9959,44 @@ function initializeStationSnowControls(){
   });
   stateSelect.value="Deutschland";
 
-  stateSelect.addEventListener("change",()=>{
+  function onFilterChange(){
+    const before=document.getElementById("stationSnowStationSelect").value;
     populateStationSnowStations();
-    updateStationSnow();
-  });
+    if(document.getElementById("stationSnowStationSelect").value!==before)
+      updateStationSnow();
+  }
+  stateSelect.addEventListener("change",onFilterChange);
 
+  // Typing only recomputes an in-memory shortlist; NEVER fetch snow charts
+  // until a station is explicitly picked. Search input is debounced.
   document.getElementById("stationSnowSearch").addEventListener("input",()=>{
-    populateStationSnowStations();
-    updateStationSnow();
+    if(window.StationSnowExplorer)window.StationSnowExplorer.onSearchInput();
+    else populateStationSnowStations();
   });
-  document.getElementById("stationSnowLongSeriesOnly").addEventListener("change",()=>{
-    populateStationSnowStations();
-    updateStationSnow();
+  for(const controlId of ["stationSnowLongSeriesOnly",
+                          "stationSnowAvailabilitySelect",
+                          "stationSnowElevationSelect"]){
+    document.getElementById(controlId).addEventListener("change",onFilterChange);
+  }
+  window.StationSnowExplorer?.init({
+    onSearchChanged:()=>populateStationSnowStations(),
+    onSelect:id=>{
+      if(!stationSnowStationById.has(String(id)))return;
+      const select=document.getElementById("stationSnowStationSelect");
+      if(![...select.options].some(option=>option.value===String(id))){
+        const station=stationSnowStationById.get(String(id));
+        const option=document.createElement("option");
+        option.value=String(id);
+        option.textContent=station.name+" ("+id+") · ausgewählt";
+        select.appendChild(option);
+      }
+      if(select.value!==String(id)){
+        select.value=String(id);
+        window.StationSnowExplorer?.hideSuggestions();
+        updateStationSnow();
+      }else window.StationSnowExplorer?.hideSuggestions();
+      select.focus({preventScroll:true});
+    }
   });
 
   document.getElementById("stationSnowStationSelect").addEventListener("change",updateStationSnow);
@@ -9965,13 +10030,31 @@ function stationSnowQualifiesForLongSeries(station){
 }
 function filteredStationSnowStations(){
   const state=document.getElementById("stationSnowStateSelect").value;
-  const search=document.getElementById("stationSnowSearch").value.trim().toLocaleLowerCase("de-DE");
+  const query=document.getElementById("stationSnowSearch").value.trim();
+  const search=window.StationSnowExplorer?.normalize(query)||
+    query.toLocaleLowerCase("de-DE");
   const longOnly=Boolean(document.getElementById("stationSnowLongSeriesOnly")?.checked);
+  const availability=document.getElementById("stationSnowAvailabilitySelect")?.value||"all";
+  const elevation=document.getElementById("stationSnowElevationSelect")?.value||"all";
   return (stationSnowIndex.stations||[]).filter(station=>{
-    if(state!=="Deutschland" && station.state!==state) return false;
+    if(state!=="Deutschland" && station.state!==state)return false;
     if(longOnly && !stationSnowQualifiesForLongSeries(station))return false;
-    if(!search) return true;
-    return `${station.name} ${station.id}`.toLocaleLowerCase("de-DE").includes(search);
+    const current=stationSnowCurrentMeta(station.id)?.current_available===true;
+    if(availability==="current" && !current)return false;
+    if(availability==="historical" && current)return false;
+    if(elevation!=="all"){
+      const altitude=station.height===null||station.height===undefined?
+        NaN:Number(station.height);
+      if(!Number.isFinite(altitude))return false;
+      if(elevation==="0-200" && altitude>=200)return false;
+      if(elevation==="200-500" && (altitude<200||altitude>=500))return false;
+      if(elevation==="500-1000" && (altitude<500||altitude>=1000))return false;
+      if(elevation==="1000+" && altitude<1000)return false;
+    }
+    if(!search)return true;
+    const label=window.StationSnowExplorer?.normalize(station.name+" "+station.id)||
+      (station.name+" "+station.id).toLocaleLowerCase("de-DE");
+    return label.includes(search);
   });
 }
 
@@ -9982,25 +10065,32 @@ function populateStationSnowStations(firstLoad=false){
   const all=stationSnowIndex?.stations||[];
   const qualified=all.filter(stationSnowQualifiesForLongSeries).length;
   const status=document.getElementById("stationSnowFilterStatus");
-  if(status)status.textContent=`${stations.length} Stationen im Filter · ${all.length} insgesamt · ${qualified} mit ≥30 vollständigen Messjahren (mind. 98 % Tagesabdeckung je Jahr).`;
+  if(status)status.textContent=`${stations.length.toLocaleString("de-DE")} Stationen im Filter · ${all.length.toLocaleString("de-DE")} insgesamt · ${qualified.toLocaleString("de-DE")} mit ≥30 vollständigen Messjahren. Nur die gewählte Station lädt Tageswerte.`;
 
-  select.innerHTML="";
-  stations.forEach(station=>{
+  // A native 5,000-option select is slow and almost unusable on phones.
+  // Keep <=45 matched choices and pin any already selected station.
+  const chosen=firstLoad && stations.some(s=>s.id==="05792")?"05792":previous;
+  const top=stations.slice(0,45);
+  if(chosen && !top.some(s=>s.id===chosen)){
+    const pin=stationSnowStationById.get(String(chosen));
+    // During text entry the old selection must stay in place: do not fetch
+    // another profile or change the currently displayed chart.
+    if(pin && document.getElementById("stationSnowSearch").value.trim())top.unshift(pin);
+    else if(pin && stations.some(s=>s.id===chosen))top.unshift(pin);
+  }
+  select.replaceChildren();
+  for(const station of top){
     const option=document.createElement("option");
     option.value=station.id;
     const currentMeta=stationSnowCurrentMeta(station.id);
     const years=Number(station.accepted_history_years||0);
     option.textContent=`${station.name} (${station.id}) · ${years} vollständige Jahre · ${station.source?.includes("RR")?"RR":"KL"}${currentMeta && !currentMeta.current_available?" · keine Saisonwerte":""}`;
     select.appendChild(option);
-  });
-
-  if(stations.some(station=>station.id===previous)){
-    select.value=previous;
-  }else if(firstLoad && stations.some(station=>station.id==="05792")){
-    select.value="05792";
-  }else if(stations.length){
-    select.value=stations[0].id;
   }
+  if(chosen && top.some(s=>s.id===chosen))select.value=chosen;
+  else if(top.length)select.value=top[0].id;
+  window.StationSnowExplorer?.update(stations,select.value,
+    stationSnowIndex.stations,stationSnowCurrentById);
 }
 
 function stationSnowPopulateYearPicker(station,archive,current,currentYear){
@@ -10099,13 +10189,13 @@ function stationSnowBandDataset(label,data,backgroundColor,borderColor,helper=fa
 }
 
 function stationSnowCurrentMeta(stationId){
-  return (stationSnowCurrentIndex?.stations||[]).find(station=>station.id===stationId)||null;
+  return stationSnowCurrentById.get(String(stationId))||null;
 }
 
 async function loadStationSnowFiles(stationId){
   if(stationSnowFileCache.has(stationId))return stationSnowFileCache.get(stationId);
   const request=(async()=>{
-    const station=(stationSnowIndex.stations||[]).find(item=>item.id===stationId);
+    const station=stationSnowStationById.get(String(stationId));
     if(!station)throw new Error("Station nicht gefunden.");
     const currentMeta=stationSnowCurrentMeta(stationId);
     const profilePromise=dashboardFetch(station.file||("station_snow_height_profiles/"+stationId+".json"),{cache:"no-store"})
@@ -10127,6 +10217,10 @@ async function loadStationSnowFiles(stationId){
     return {station,profile,current,archive,currentMeta};
   })().catch(error=>{stationSnowFileCache.delete(stationId);throw error;});
   stationSnowFileCache.set(stationId,request);
+  // Keep only a few loaded stations in RAM, not thousands of archives.
+  while(stationSnowFileCache.size>8){
+    stationSnowFileCache.delete(stationSnowFileCache.keys().next().value);
+  }
   return request;
 }
 
