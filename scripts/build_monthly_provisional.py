@@ -21,7 +21,7 @@ from update_hyras_maps import grid_xy, pick_precip_var, time_dim
 COMBINED = {
     "Brandenburg/Berlin": ("Brandenburg", "Berlin"),
     "Niedersachsen/Hamburg/Bremen": ("Niedersachsen", "Hamburg", "Bremen"),
-    "Thueringen/Sachsen-Anhalt": ("Thüringen", "Sachsen-Anhalt"),
+    "Thüringen/Sachsen-Anhalt": ("Thüringen", "Sachsen-Anhalt"),
 }
 # The monthly DWD dataset contains separate and combined territorial series.
 ALIASES = {"Baden-Wuerttemberg": "Baden-Württemberg", "Thueringen": "Thüringen"}
