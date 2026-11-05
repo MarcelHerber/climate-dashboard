@@ -455,12 +455,21 @@ def render_period(core, period_id: str, label: str, start: date, end: date,
     }
 
 
+def probe_candidate_dates(today: date) -> list[date]:
+    """Newest completed UTC day first, then safely look back up to 14 days.
+
+    The prior implementation started at D-6 and could never detect D-5 or
+    fresher data even when both variables had already arrived at the CDS.
+    """
+    return [today - timedelta(days=lag) for lag in range(1, MAX_LOOKBACK_DAYS + 1)]
+
+
 def probe_available_day(client: cdsapi.Client, today: date, force: bool = False) -> date:
     probe_dir = CACHE_DIR / "probe"
     probe_area = [50.0, 10.0, 49.5, 10.5]
-    start = today - timedelta(days=6)
-    for offset in range(MAX_LOOKBACK_DAYS - 5):
-        candidate = start - timedelta(days=offset)
+    # Probe *availability*, not an assumed six-day provider delay.
+    # Precipitation for the UTC day D is stored in the D+1 00-UTC step.
+    for candidate in probe_candidate_dates(today):
         temp_file = probe_dir / f"temp_{candidate.isoformat()}.nc"
         precip_file = probe_dir / f"precip_{candidate.isoformat()}.nc"
         source = candidate + timedelta(days=1)

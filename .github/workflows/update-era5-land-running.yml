@@ -1,6 +1,16 @@
 name: ERA5-Land laufende T-P-Zeiträume
 
 on:
+  # Only the probe/workflow code can trigger a push run; generated data will not.
+  # This also lets a targeted bugfix start one immediate recalculation.
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_era5_land_europe_running.py"
+      - "scripts/build_era5_land_running_reference_shard.py"
+      - "tests/test_era5_running_probe.py"
+      - "tests/test_era5_running_freshness_guard.py"
+      - ".github/workflows/update-era5-land-running.yml"
   schedule:
     - cron: "7 13 * * *"
       timezone: "Europe/Berlin"
@@ -58,7 +68,10 @@ jobs:
       - name: Python-Pakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 matplotlib cartopy pytest
+
+      - name: Neueste vollständige UTC-Tage ohne starre Sechs-Tage-Verzögerung testen
+        run: python -m pytest -q tests/test_era5_running_probe.py tests/test_era5_running_freshness_guard.py
 
       - name: CDS API konfigurieren
         env:

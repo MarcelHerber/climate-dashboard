@@ -72,7 +72,13 @@ def test_daily_workflow_requires_exact_reference_cache_and_probe_validation():
     assert 'era5-land-running-0p1-reference-v1-${{ steps.probe.outputs.month_key }}' in workflow
     assert 'fail-on-cache-miss: true' in workflow
     assert '--expected "$EXPECTED_DATA_THROUGH"' in workflow
-    assert 'push:' not in workflow.split('jobs:', 1)[0]
+    header = workflow.split('jobs:', 1)[0]
+    # The data-heavy job is triggered only when its probe/workflow is edited,
+    # never by the many automatic data commits elsewhere in the repository.
+    assert 'push:' in header
+    assert 'branches: [main]' in header
+    assert 'scripts/update_era5_land_europe_running.py' in header
+    assert 'era5_land_europe/running/index.json' not in header
 
 
 def test_reference_workflow_prebuilds_calendar_month_and_dispatches_running_update():
