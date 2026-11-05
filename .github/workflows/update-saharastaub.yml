@@ -8,6 +8,9 @@ on:
     paths:
       - ".github/workflows/update-saharastaub.yml"
       - "scripts/update_saharastaub.py"
+      - "tests/test_saharastaub.py"
+      - "tests/test_saharastaub_ui.cjs"
+      - "saharastaub.js"
 permissions:
   contents: write
 concurrency:
