@@ -9993,13 +9993,21 @@ function initializeStationSnowControls(){
       if(select.value!==String(id)){
         select.value=String(id);
         window.StationSnowExplorer?.hideSuggestions();
+        window.StationSnowExplorer?.update(filteredStationSnowStations(),
+          String(id),stationSnowIndex.stations,stationSnowCurrentById);
         updateStationSnow();
       }else window.StationSnowExplorer?.hideSuggestions();
       select.focus({preventScroll:true});
     }
   });
 
-  document.getElementById("stationSnowStationSelect").addEventListener("change",updateStationSnow);
+  document.getElementById("stationSnowStationSelect").addEventListener("change",()=>{
+    window.StationSnowExplorer?.update(
+      filteredStationSnowStations(),
+      document.getElementById("stationSnowStationSelect").value,
+      stationSnowIndex.stations,stationSnowCurrentById);
+    updateStationSnow();
+  });
   document.getElementById("stationSnowPeriodSelect").addEventListener("change",updateStationSnow);
   document.getElementById("stationSnowYearsList").addEventListener("change",event=>{
     const control=event.target;
@@ -10031,7 +10039,7 @@ function stationSnowQualifiesForLongSeries(station){
 function filteredStationSnowStations(){
   const state=document.getElementById("stationSnowStateSelect").value;
   const query=document.getElementById("stationSnowSearch").value.trim();
-  const search=window.StationSnowExplorer?.normalize(query)||
+  const search=globalThis.StationSnowExplorer?.normalize(query)||
     query.toLocaleLowerCase("de-DE");
   const longOnly=Boolean(document.getElementById("stationSnowLongSeriesOnly")?.checked);
   const availability=document.getElementById("stationSnowAvailabilitySelect")?.value||"all";
@@ -10039,9 +10047,11 @@ function filteredStationSnowStations(){
   return (stationSnowIndex.stations||[]).filter(station=>{
     if(state!=="Deutschland" && station.state!==state)return false;
     if(longOnly && !stationSnowQualifiesForLongSeries(station))return false;
-    const current=stationSnowCurrentMeta(station.id)?.current_available===true;
-    if(availability==="current" && !current)return false;
-    if(availability==="historical" && current)return false;
+    if(availability!=="all"){
+      const current=stationSnowCurrentMeta(station.id)?.current_available===true;
+      if(availability==="current" && !current)return false;
+      if(availability==="historical" && current)return false;
+    }
     if(elevation!=="all"){
       const altitude=station.height===null||station.height===undefined?
         NaN:Number(station.height);
@@ -10052,7 +10062,7 @@ function filteredStationSnowStations(){
       if(elevation==="1000+" && altitude<1000)return false;
     }
     if(!search)return true;
-    const label=window.StationSnowExplorer?.normalize(station.name+" "+station.id)||
+    const label=globalThis.StationSnowExplorer?.normalize(station.name+" "+station.id)||
       (station.name+" "+station.id).toLocaleLowerCase("de-DE");
     return label.includes(search);
   });
