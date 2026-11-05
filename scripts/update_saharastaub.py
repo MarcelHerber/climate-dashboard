@@ -100,6 +100,7 @@ def rle_decode(encoded,expected):
     return array
 
 def decode_grib(raw):
+    """Unstructured ICON data do not embed latitudes/longitudes per cell."""
     if eccodes is None:
         raise RuntimeError("ecCodes ist nicht installiert")
     with tempfile.TemporaryFile() as file:
@@ -109,14 +110,38 @@ def decode_grib(raw):
             raise RuntimeError("Leere GRIB2-Datei")
         try:
             values=np.asarray(eccodes.codes_get_values(handle),dtype=np.float64)
-            lat=np.asarray(eccodes.codes_get_array(handle,"latitudes"),dtype=np.float64)
-            lon=np.asarray(eccodes.codes_get_array(handle,"longitudes"),dtype=np.float64)
             kind=str(eccodes.codes_get(handle,"gridType"))
-            if not (len(values)==len(lat)==len(lon) and len(values)>10000):
-                raise RuntimeError("GRIB-Koordinaten oder Feldlänge fehlerhaft")
-            return values,lat,lon,kind
+            grid_number=int(eccodes.codes_get(handle,"numberOfGridUsed"))
+            if len(values)<10000 or grid_number!=61:
+                raise RuntimeError(f"Unerwartetes ICON-ART-Gitter: {grid_number}, {len(values)} Werte")
+            return values,kind
         finally:
             eccodes.codes_release(handle)
+
+
+def download_coordinates(run):
+    """Official DWD native cell centers CLAT/CLON at forecast step +0 h."""
+    coords={}
+    for key in ("CLAT","CLON"):
+        url=url_for(run,key,0)
+        raw=get(url)
+        if not raw or not raw.startswith(b"GRIB"):
+            raise RuntimeError("ICON-ART-Geokoordinaten "+key+
+                               " fehlen im DWD-Lauf; veröffentliche keine falschen Karten")
+        values,kind=decode_grib(raw)
+        if kind!="unstructured_grid":
+            raise RuntimeError(f"Unerwartete Koordinatengeometrie: {kind}")
+        coords[key]=values
+    lat=coords["CLAT"];lon=coords["CLON"]
+    # DWD CLAT/CLON GRIB fields are in degrees, not the radians of ICON NetCDF.
+    if len(lat)!=len(lon) or len(lat)!=1013404:
+        raise RuntimeError("DWD-Koordinaten haben falsche Rasterlänge")
+    if not (np.nanmin(lat)>=-90 and np.nanmax(lat)<=90 and
+            np.nanmin(lon)>=-180 and np.nanmax(lon)<=360 and
+            np.nanmax(lat)>70 and np.nanmax(lon)>50):
+        raise RuntimeError("DWD-Koordinaten nicht in plausiblen Gradwerten")
+    log.info("Koordinaten geladen: %s Gitterzellen",len(lat))
+    return lat,lon
 
 class Aggregator:
     def __init__(self):
@@ -169,12 +194,16 @@ def build(now):
     hours=[h for h in HOURS if all((key,h) in blobs for key in PARAMS)]
     if len(hours)<13 or hours[0]!=0 or hours[-1]<72:
         raise RuntimeError("Zu wenige vollständige gemeinsame Vorhersagezeiten")
+    # Latitude and longitude are separate invariant GRIB2 fields on native grid #61.
+    lat,lon=download_coordinates(run)
     aggregator=Aggregator()
     frames=[]
     for h in hours:
         frame={"hour":h,"valid_utc":(run+dt.timedelta(hours=h)).isoformat().replace("+00:00","Z")}
         for key in PARAMS:
-            field,lat,lon,kind=decode_grib(blobs[(key,h)])
+            field,kind=decode_grib(blobs[(key,h)])
+            if len(field)!=len(lat):
+                raise RuntimeError("Vorhersagefeld passt nicht zu CLAT/CLON-Gitter #61")
             classes=aggregator.convert(field,lat,lon,kind,key)
             frame[key]=rle_encode(classes)
             if not np.array_equal(rle_decode(frame[key],len(classes)),classes):
