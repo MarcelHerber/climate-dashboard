@@ -21,7 +21,7 @@
       ["era5Europe","ERA5-Land Europa"],["era5Atmosphere","ERA5 Atmosphäre"],
       ["sst-europe","Meere / SST"],["t850-ensembles","Ensembleprognosen"],
       ["state-monthly-ensemble","Monatsausblick"],["saisonal_europa.html","Saisonale Prognose (SEAS5)"],
-      ["wettergefahren.html","ICON-EU Wettergefahren"],["stratosphaere.html","Stratosphäre"],
+      ["wettergefahren.html","ICON-EU Wettergefahren"],["saharastaub.html","Saharastaub · ICON-ART"],["stratosphaere.html","Stratosphäre"],
       ["mosmix.html","MOSMIX"]]},
     {id:"synoptic",name:"Synoptik & Karten",items:[
       ["isobaren_original.html","Europa-Isobaren & Fronten"],

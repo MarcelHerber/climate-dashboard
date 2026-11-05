@@ -72,6 +72,9 @@ required_root_files=(
   tiefdruck_cps_compare.js
   tiefdruck_tracker.js
   wettergefahren.html
+  saharastaub.html
+  saharastaub.css
+  saharastaub.js
   wettergefahren.js
   wettergefahren.css
   wettergefahren_export.js
@@ -119,9 +122,31 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+
+# Saharastaub als zusätzlicher Desktop-Einstieg neben den Wettergefahren ergänzen.
+# Die gemeinsame mobile Kategoriennavigation wird im folgenden Schritt injiziert.
+python - <<'PY'
+from pathlib import Path
+import re
+p=Path("_site/index.html")
+s=p.read_text(encoding="utf-8")
+if 'href="saharastaub.html"' not in s:
+    candidate=re.search(r'<a\b[^>]*href=["\x27](?:\./)?wettergefahren\.html["\x27][^>]*>.*?</a>',s,re.I|re.S)
+    link='<a href="saharastaub.html" class="nav-link">Saharastaub</a>'
+    if candidate:
+        s=s[:candidate.end()]+"\n"+link+s[candidate.end():]
+    elif re.search(r'</nav\s*>',s,re.I):
+        s=re.sub(r'</nav\s*>',link+"\n</nav>",s,count=1,flags=re.I)
+    else:
+        s=s.replace('</header>',link+"\n</header>",1)
+p.write_text(s,encoding="utf-8")
+PY
+
 # Ein einziges Handymenü auf allen veröffentlichten HTML-Seiten.
 # Desktop bleibt unverändert; keine individuellen Seiteninhalte werden verändert.
 python scripts/inject_mobile_navigation.py _site
+node --check _site/saharastaub.js
+node --test tests/test_saharastaub_ui.cjs
 node --check _site/mobile_navigation.js
 node --test tests/test_mobile_navigation.cjs
 node --check _site/mobile_content.js
