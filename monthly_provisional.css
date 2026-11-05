@@ -1,0 +1,13 @@
+/* Observations-only current-month bar; stripe means incomplete, not forecast. */
+.monthly-provisional{margin:16px 0 20px;padding:14px 18px;border:1px solid var(--border-color,#b8c8d5);border-radius:12px;background:var(--card-bg,transparent);color:inherit}
+.monthly-provisional[hidden]{display:none!important}
+.monthly-provisional-title{font-size:1rem;font-weight:700;margin:0 0 4px}
+.monthly-provisional-value{display:block;font-weight:700;font-size:1.05rem;margin:9px 0}
+.monthly-provisional-value.missing{font-weight:500;opacity:.8}
+.monthly-provisional-bar{min-height:30px;background:repeating-linear-gradient(135deg,#2f76ab 0,#2f76ab 9px,#7cafd1 9px,#7cafd1 16px);border:1px solid #397bb2;border-radius:5px}
+.monthly-provisional-bar-label{font-size:.76rem;margin:5px 0 0;color:inherit;opacity:.82}
+.monthly-provisional-progress{margin-top:10px;height:7px;background:rgba(120,140,150,.22);overflow:hidden;border-radius:5px}
+.monthly-provisional-coverage{height:100%;background:#2f76ab;width:0;transition:width .2s}
+.monthly-provisional-date,.monthly-provisional-status{font-size:.84rem;color:inherit;opacity:.85;margin:7px 0 0;line-height:1.4}
+html[data-theme="dark"] .monthly-provisional{border-color:#52687b}
+html[data-theme="dark"] .monthly-provisional-bar{background:repeating-linear-gradient(135deg,#255f85 0,#255f85 9px,#5487aa 9px,#5487aa 16px)}
