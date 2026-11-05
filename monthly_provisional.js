@@ -120,8 +120,8 @@
         const response=await fetch(url+(url.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/300000),{cache:"no-store"});
         if(!response.ok)continue;
         const data=await response.json();
-        if(data.schema!==1||data.forecast!==false||!/^\\d{4}-\\d{2}$/.test(data.month)
-          ||!/^\\d{4}-\\d{2}-\\d{2}$/.test(data.data_through)||typeof data.areas!=="object")continue;
+        if(data.schema!==1||data.forecast!==false||!/^\d{4}-\d{2}$/.test(data.month)
+          ||!/^\d{4}-\d{2}-\d{2}$/.test(data.data_through)||typeof data.areas!=="object")continue;
         snapshot=data;
         // The old dashboard defaults to July. Select the current observed month
         // only if the visitor has not already selected a different period.
