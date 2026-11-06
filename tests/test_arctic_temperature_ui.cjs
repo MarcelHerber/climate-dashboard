@@ -58,8 +58,9 @@ test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=
   assert.ok(site.includes("node --check _site/arktis_statistik.js"));
   assert.ok(page.includes('id="arcticRecords"'));
   assert.ok(page.includes('id="arcticSeasons"'));
-  assert.ok(page.includes('src="arktis_statistik.js?v=1"'));
+  assert.match(page,/src="arktis_statistik\\.js\\?v=\\d+"/);
   assert.doesNotThrow(()=>new Function(stats));
+  assert.ok(script.includes("arctic80:data-ready"),"Charts must notify statistics when shared data is ready");
   const window={},document={readyState:"loading",addEventListener(){}};
   vm.runInNewContext(stats,{window,document,console},{timeout:2500});
   const math=window.Arctic80StatsMath;
