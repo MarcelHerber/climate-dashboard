@@ -55,10 +55,11 @@ test("CSV has reproducible date-aligned temperatures and anomalies",()=>{
 test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=>{
   const stats=fs.readFileSync("arktis_statistik.js","utf8");
   assert.ok(site.includes("  arktis_statistik.js\\n"),"Missing Arctic statistics JS in build list");
-  assert.ok(site.includes("node --check _site/arktis_statistik.js"));
+  assert.ok(site.includes("node --check _site/arktis_temperatur.js"));
   assert.ok(page.includes('id="arcticRecords"'));
   assert.ok(page.includes('id="arcticSeasons"'));
-  assert.match(page,/src="arktis_statistik\\.js\\?v=\\d+"/,"Statistics must load as CSP-safe external JavaScript");
+  assert.ok(!page.includes("src=\\"arktis_statistik.js"),"No separately loaded statistics script");
+  assert.ok(script.includes("window.Arctic80StatsMath"),"Statistics must be merged into the working main module");
   assert.ok(!page.includes("window.Arctic80StatsMath"),"Avoid blocked inline statistics scripts");
   assert.doesNotThrow(()=>new Function(stats));
   assert.ok(script.includes("arctic80:data-ready"),"Charts must notify statistics when shared data is ready");
