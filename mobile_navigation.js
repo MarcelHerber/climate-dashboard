@@ -30,7 +30,7 @@
     {id:"climate",name:"Klima & Indizes",items:[
       ["zirkulation.html","NAO, AO & Zirkulationsmuster"],["blocking.html","Blocking-Monitor"],
       ["enso.html","ENSO"],["qbo.html","QBO"],["mjo.html","MJO"],
-      ["meereis.html","Meereis Arktis & Antarktis"],["eurasia_snow.html","Eurasien-Schnee"],
+      ["meereis.html","Meereis Arktis & Antarktis"],["arktis_temperatur.html","Arktische Temperaturen · DMI >80° N"],["eurasia_snow.html","Eurasien-Schnee"],
       ["ace.html","ACE · Tropische Wirbelstürme"]]},
     {id:"tools",name:"Sonstiges",items:[
       ["saharastaub.html","Saharastaub · ICON-ART"],
