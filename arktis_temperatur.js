@@ -206,7 +206,7 @@ async function load(){
       $("arcticUpdated").textContent=Object.keys(data.years).length+" Jahresreihen · DMI Originaldaten";
       ["arcticPngAnnual","arcticPngAnomaly","arcticPdf","arcticCsv"].forEach(id=>$(id).disabled=false);
       setStatus("Datenstand "+dateText(data.last_date)+" · "+Object.keys(data.years).length+" Jahresreihen · DMI-Analysen, keine Prognose.");
-      draw();return;
+      draw();$("arcticYear").dispatchEvent(new Event("change"));return;
     }catch(error){console.warn("DMI +80N:",path,error);}
   }
   $("arcticLastDay").textContent="Daten fehlen noch";
