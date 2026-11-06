@@ -171,7 +171,8 @@ def main():
         print(f"Vorläufige Sonnen-Gebietsmittel: {doc['sun_area_count']} Gebiete, {doc['sun_station_count']} DWD-Stationen")
     except Exception as exc:
         print(f"Hinweis: Stationssonnenschein nicht bereit; Temperatur und Niederschlag bleiben gültig. {exc}")
-    target.write_text(json.dumps(doc,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+    from build_monthly_provisional import persist_provisional
+    persist_provisional(args.data_root, doc)
 
 
 if __name__=="__main__":
