@@ -54,7 +54,7 @@ test("CSV has reproducible date-aligned temperatures and anomalies",()=>{
 
 test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=>{
   const stats=fs.readFileSync("arktis_statistik.js","utf8");
-  assert.ok(site.includes("  arktis_statistik.js\\n"),"Missing Arctic statistics JS in build list");
+  assert.ok(site.includes("  arktis_statistik.js"),"Missing Arctic statistics JS in build list");
   assert.ok(site.includes("node --check _site/arktis_temperatur.js"));
   assert.ok(page.includes('id="arcticRecords"'));
   assert.ok(page.includes('id="arcticSeasons"'));
