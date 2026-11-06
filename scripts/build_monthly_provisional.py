@@ -194,7 +194,7 @@ def persist_provisional(root: Path, payload: dict) -> None:
 
     # First preserve history. A partial failure must not destroy the old months.
     save_atomic(archive_path, archive)
-    save_atomic(current_path, payload)
+    save_atomic(current_path, months[-1])
 
 
 def main() -> None:
