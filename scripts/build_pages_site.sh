@@ -150,6 +150,33 @@ else
   echo "HINWEIS: Vorläufige HYRAS-Monatsdatei noch nicht verfügbar."
 fi
 
+# Zwei Monatsstände parallel halten: der gerade laufende Monat und der vorige,
+# bis alle dazugehörigen offiziellen DWD-Monatswerte vorliegen.
+monthly_history="_site/monthly_provisional_history.json"
+monthly_history_url="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/hyras-data/monthly_provisional_history.json"
+if curl -fsSL --connect-timeout 5 --max-time 40 --retry 1 "$monthly_history_url" -o "$monthly_history"; then
+  if python - "$monthly_history" <<'PY'
+import json,sys
+history=json.load(open(sys.argv[1],encoding="utf-8"))
+assert history["schema"]==1 and history["forecast"] is False
+assert isinstance(history["months"],list) and history["months"]
+for month in history["months"]:
+    assert month["schema"]==1 and month["forecast"] is False
+    assert month["month"]==month["data_through"][:7]
+    assert len(month["areas"])>=17
+print("HYRAS-Beobachtungsmonate:",[month["month"] for month in history["months"]])
+PY
+  then
+    echo "Vorläufige Monats-Historie für Pages eingebunden."
+  else
+    rm -f "$monthly_history"
+    echo "WARNUNG: Vorläufige Monats-Historie ungültig; Rohdaten-Fallback bleibt aktiv."
+  fi
+else
+  rm -f "$monthly_history"
+  echo "HINWEIS: Vorläufiges Monatsarchiv noch nicht erzeugt."
+fi
+
 # Der HYRAS-Balken muss im historischen Chart selbst eingebaut sein.
 python - <<'PY'
 from pathlib import Path
