@@ -5271,39 +5271,64 @@ initializeOverviewControls();
 
 // ================= VORLÄUFIGER LAUFENDER MONAT · HYRAS-BEOBACHTUNGEN =================
 // These observations are intentionally separate from the final DWD monthly series.
-let monthlyObservedLive=null;
+// Keep the last observed monthly snapshots until the published DWD monthly
+// regional averages arrive; the normal DWD series always takes precedence.
+let monthlyObservedHistory=[];
+function validObservedSnapshot(data){
+  return !!data && data.schema===1 && data.forecast===false
+    && /^\d{4}-\d{2}$/.test(data.month)
+    && /^\d{4}-\d{2}-\d{2}$/.test(data.data_through)
+    && data.month===data.data_through.slice(0,7)
+    && data.areas && typeof data.areas==="object";
+}
 async function loadMonthlyObservedLive(){
   const now=new Date();
   const currentMonth=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-  const urls=[
+  const files=[
+    "./monthly_provisional_history.json",
+    HYRAS_DATA_BASE+"/monthly_provisional_history.json",
     "./monthly_current_provisional.json",
     HYRAS_DATA_BASE+"/monthly_current_provisional.json"
   ];
-  for(const url of urls){
+  const snapshots=await Promise.all(files.map(async url=>{
     try{
       const response=await fetch(url+(url.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/300000),{cache:"no-store"});
-      if(!response.ok)continue;
-      const data=await response.json();
-      if(data.schema!==1||data.forecast!==false||data.month!==currentMonth
-          ||!(/^\d{4}-\d{2}-\d{2}$/.test(data.data_through))
-          ||data.data_through.slice(0,7)!==data.month||!data.areas
-          ||typeof data.areas!=="object")continue;
-      monthlyObservedLive=data;
-      // Redraw the actual historical chart. Never mutate monthlyData or data.json.
-      if(monthlyData.length)updateMonthly();
-      return;
-    }catch(error){console.warn("HYRAS Monats-Beobachtungen:",error);}
+      if(!response.ok)return [];
+      const payload=await response.json();
+      return Array.isArray(payload.months)?payload.months:[payload];
+    }catch(error){
+      console.warn("HYRAS-Monatsarchiv nicht geladen:",url,error);
+      return [];
+    }
+  }));
+  const byMonth=new Map();
+  for(const data of snapshots.flat()){
+    if(!validObservedSnapshot(data)||data.month>currentMonth)continue;
+    const previous=byMonth.get(data.month);
+    if(!previous || data.data_through>previous.data_through
+      || data.data_through===previous.data_through
+      && Object.values(data.areas).reduce((n,values)=>n+Object.keys(values||{}).length,0)
+       >Object.values(previous.areas).reduce((n,values)=>n+Object.keys(values||{}).length,0)){
+      byMonth.set(data.month,data);
+    }
   }
+  monthlyObservedHistory=[...byMonth.values()].sort((a,b)=>a.month.localeCompare(b.month));
+  // Only the historical Chart.js chart receives provisional values.
+  // Official DWD values in monthlyData are never overwritten.
+  if(monthlyData.length)updateMonthly();
 }
 function observedMonthlyBar(area,selection,param,historicalValues){
-  const data=monthlyObservedLive;
-  if(!data||selection!==data.month.slice(5))return null;
-  const record=data.areas?.[area];
-  const value=record?.[param];
-  if(typeof value!=="number"||!Number.isFinite(value))return null;
-  const year=Number(data.month.slice(0,4));
-  if(historicalValues.some(item=>item.year===year))return null;
-  return {year,value,through:data.data_through};
+  const matches=monthlyObservedHistory
+    .filter(data=>selection===data.month.slice(5) && typeof data.areas?.[area]?.[param]==="number")
+    .sort((a,b)=>b.month.localeCompare(a.month));
+  for(const data of matches){
+    const value=data.areas[area][param],year=Number(data.month.slice(0,4));
+    if(!Number.isFinite(value))continue;
+    // The official DWD value is authoritative as soon as its parameter exists.
+    if(historicalValues.some(item=>item.year===year))continue;
+    return {year,value,through:data.data_through};
+  }
+  return null;
 }
 function observedMonthlyHatch(ctx){
   const tile=document.createElement("canvas");
