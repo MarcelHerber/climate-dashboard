@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Arktische Temperaturen · nördlich 80° N | Climate Dashboard Deutschland</title>
+<meta name="description" content="Interaktiver DMI-Temperaturindex nördlich 80 Grad Nord: Jahresgänge seit 1958, historische Vergleiche, Tagesanomalien und 7-/30-Tage-Mittel.">
+<link rel="stylesheet" href="arktis_temperatur.css?v=1">
+<link rel="stylesheet" href="dashboard_theme.css">
+<script defer src="dashboard_theme.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script defer src="arktis_temperatur.js?v=1"></script>
+</head>
+<body>
+<header class="arctic-header">
+  <a class="arctic-brand" href="index.html"><span aria-hidden="true">◌</span> Climate Dashboard Deutschland</a>
+  <nav aria-label="Navigation">
+    <a href="index.html">Startseite</a>
+    <a href="meereis.html">Meereis</a>
+    <a href="arktis_temperatur.html" aria-current="page">Arktische Temperaturen</a>
+  </nav>
+</header>
+<main class="arctic-main">
+  <div class="arctic-eyebrow">DMI / ECMWF · Polarregion &gt;80° N</div>
+  <div class="arctic-intro">
+    <div>
+      <h1>Arktische Temperaturen</h1>
+      <p>Der tägliche <strong>2-m-Temperaturindex nördlich von 80° Nord</strong> – als Jahresgang mit historischen Vergleichsjahren und als Abweichung vom Tagesmittel 1958–2002.</p>
+    </div>
+    <div class="arctic-live">
+      <span class="arctic-live-label">Letzter Datenstand</span>
+      <strong id="arcticLastDay">Daten werden geladen …</strong>
+      <span id="arcticUpdated">DMI · Modellanalysen, keine Prognosen</span>
+    </div>
+  </div>
+  <div id="arcticStatus" class="arctic-status" role="status" aria-live="polite">Lade Originaldaten des Dänischen Meteorologischen Instituts …</div>
+
+  <section class="arctic-controls" aria-label="Diagrammsteuerung">
+    <label>Hervorgehobenes Jahr
+      <select id="arcticYear" disabled aria-label="Hervorgehobenes Jahr"><option>Lädt …</option></select>
+    </label>
+    <label>Direktvergleich
+      <select id="arcticCompare" disabled aria-label="Historisches Vergleichsjahr"><option value="">Kein zweites Jahr</option></select>
+    </label>
+    <label>Historische Hintergrundkurven
+      <select id="arcticHistoryMode" aria-label="Historische Kurven anzeigen">
+        <option value="all">Alle verfügbaren Jahre</option>
+        <option value="recent">Letzte 20 Jahre</option>
+        <option value="reference">1958–2002</option>
+        <option value="none">Ausblenden</option>
+      </select>
+    </label>
+    <label class="arctic-check"><input type="checkbox" id="arcticReference" checked> Klimamittel anzeigen</label>
+  </section>
+
+  <section class="arctic-kpis" aria-label="Aktuelle Werte">
+    <div class="arctic-kpi"><span>Temperatur am jüngsten Tag</span><strong id="arcticKpiTemp">–</strong><small id="arcticKpiTempNote">–</small></div>
+    <div class="arctic-kpi"><span>Abweichung vom Tagesmittel</span><strong id="arcticKpiAnomaly">–</strong><small>Referenz 1958–2002</small></div>
+    <div class="arctic-kpi"><span>7-Tage-Mittel der Anomalie</span><strong id="arcticKpi7">–</strong><small>gleitend, rückblickend</small></div>
+    <div class="arctic-kpi"><span>30-Tage-Mittel der Anomalie</span><strong id="arcticKpi30">–</strong><small>gleitend, rückblickend</small></div>
+  </section>
+
+  <section class="arctic-panel" aria-labelledby="arcticAnnualHeading">
+    <div class="arctic-panel-title">
+      <div><h2 id="arcticAnnualHeading">Jahresverlauf · 2-m-Temperatur</h2><p>Tageswerte, historische Jahre und DMI-Referenz 1958–2002 · °C</p></div>
+      <div class="arctic-buttons">
+        <button id="arcticPngAnnual" type="button" disabled>PNG</button>
+        <button id="arcticPdf" type="button" disabled>PDF (beide Diagramme)</button>
+        <button id="arcticCsv" type="button" disabled>CSV</button>
+      </div>
+    </div>
+    <div class="arctic-chart" id="arcticAnnualWrap"><canvas id="arcticAnnualChart" role="img" aria-label="Jährlicher Verlauf der gemittelten 2-Meter-Lufttemperatur nördlich von 80 Grad Nord"></canvas></div>
+    <div class="arctic-legend">
+      <span><i class="arctic-swatch arctic-primary"></i> Ausgewähltes Jahr</span>
+      <span><i class="arctic-swatch arctic-compare"></i> Vergleichsjahr</span>
+      <span><i class="arctic-swatch arctic-history"></i> Historische Jahre</span>
+      <span><i class="arctic-swatch arctic-reference"></i> Mittel 1958–2002</span>
+    </div>
+  </section>
+
+  <section class="arctic-panel" aria-labelledby="arcticAnomalyHeading">
+    <div class="arctic-panel-title">
+      <div><h2 id="arcticAnomalyHeading">Tägliche Temperaturabweichung</h2><p>Abweichung vom selben Kalendertag des Mittels 1958–2002 · Kelvin</p></div>
+      <div class="arctic-buttons">
+        <button id="arcticPngAnomaly" type="button" disabled>PNG</button>
+      </div>
+    </div>
+    <div class="arctic-smoothing">
+      <label><input id="arcticShow7" type="checkbox" checked> 7-Tage-Mittel anzeigen</label>
+      <label><input id="arcticShow30" type="checkbox" checked> 30-Tage-Mittel anzeigen</label>
+    </div>
+    <div class="arctic-chart arctic-chart-anomaly" id="arcticAnomalyWrap"><canvas id="arcticAnomalyChart" role="img" aria-label="Tagesanomalien und 7- und 30-Tage-Mittel"></canvas></div>
+    <div class="arctic-legend">
+      <span><i class="arctic-swatch arctic-warm"></i> Wärmer als Mittel</span>
+      <span><i class="arctic-swatch arctic-cold"></i> Kälter als Mittel</span>
+      <span><i class="arctic-swatch arctic-smooth7"></i> 7 Tage</span>
+      <span><i class="arctic-swatch arctic-smooth30"></i> 30 Tage</span>
+    </div>
+  </section>
+
+  <section class="arctic-panel arctic-method" aria-labelledby="arcticMethodHeading">
+    <h2 id="arcticMethodHeading">Datenquelle und Einordnung</h2>
+    <p>Die Temperaturwerte stammen vom <strong>Dänischen Meteorologischen Institut (DMI)</strong>, aus täglichen <strong>ECMWF-Analysen</strong> beziehungsweise für die ältere Referenz aus <strong>ERA-40</strong>. Die DMI-Temperaturreihe ist ein <strong>Index</strong> auf einem gleichmäßig verteilten geografischen Raster, <strong>kein flächengewichtetes Temperaturmittel</strong> der Hocharktis. Veränderungen im verwendeten Analysemodell können langfristige Vergleiche beeinflussen.</p>
+    <p>Die hier gezeigte Referenz 1958–2002 wird aus den verfügbaren historischen DMI-Tageswerten für jeden Kalendertag berechnet. Der 29. Februar wird nur mit Schaltjahren verglichen. Fehlende Tageswerte werden nicht interpoliert; gleitende Mittel nutzen ausschließlich zurückliegende Tage.</p>
+    <div class="arctic-method-links">
+      <a href="https://ocean.dmi.dk/arctic/meant80n.uk.php" target="_blank" rel="noopener">DMI-Originaldiagramm</a>
+      <a href="https://download.dmi.dk/pub/plus80N_temperatureindex/" target="_blank" rel="noopener">DMI-Datenverzeichnis</a>
+      <a href="https://ocean.dmi.dk/arctic/documentation/arctic_mean_temp_data_explanation_newest.pdf" target="_blank" rel="noopener">DMI-Methodik (PDF)</a>
+      <a href="meereis.html">Zum Meereis-Monitor</a>
+    </div>
+  </section>
+</main>
+<footer class="arctic-footer">Climate Dashboard Deutschland · DMI/ECMWF-Temperaturindex &gt;80° N · Eigene interaktive Darstellung</footer>
+</body>
+</html>
