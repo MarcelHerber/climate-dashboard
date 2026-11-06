@@ -1202,6 +1202,29 @@ button.action:hover{background:#1f2937}
 .station-snow-quality-filter{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border,#ced4dc);border-radius:8px;font-weight:650;cursor:pointer;max-width:100%;line-height:1.4;min-height:36px}
 .station-snow-quality-filter input{width:17px;height:17px;flex:none;accent-color:#24799c}
 .station-snow-filter-status{font-size:12px;width:100%;margin:0 0 6px;line-height:1.5;color:var(--muted,#555)}
+
+/* HYRAS temperature rankings: compact, accessible native disclosure. */
+details.hyras-rank-card{padding:0;overflow:hidden}
+details.hyras-rank-card > summary.hyras-rank-summary{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:16px 19px;cursor:pointer;list-style:none;
+  font-size:17px;font-weight:700;color:var(--text,#263746);
+}
+details.hyras-rank-card > summary.hyras-rank-summary::-webkit-details-marker{display:none}
+details.hyras-rank-card > summary.hyras-rank-summary::after{
+  content:"▾";flex-shrink:0;font-size:22px;line-height:1;
+  color:var(--muted,#667783);transition:transform .15s ease;
+}
+details.hyras-rank-card[open] > summary.hyras-rank-summary::after{transform:rotate(180deg)}
+details.hyras-rank-card > summary.hyras-rank-summary:hover{background:rgba(120,150,170,.09)}
+details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px solid #468ac7;outline-offset:-3px}
+.hyras-rank-summary small{font-size:12px;font-weight:500;color:var(--muted,#667783);text-align:right}
+.hyras-rank-expanded{padding:0 18px 18px}
+@media(max-width:700px){
+  details.hyras-rank-card > summary.hyras-rank-summary{padding:13px;flex-wrap:wrap;font-size:15px}
+  .hyras-rank-summary small{text-align:left}
+  .hyras-rank-expanded{padding:0 13px 13px}
+}
 </style>
 <link rel="stylesheet" href="sst_europe.css">
 <link rel="stylesheet" href="t850_ensembles.css?v=20261012-exportmeta1">
@@ -2467,10 +2490,15 @@ button.action:hover{background:#1f2937}
   </div>
   <p class="note" style="margin-top:10px"><strong>Kartenansichten:</strong> Parameter, Zeitraum, Referenzperiode und Darstellung oben auswählen. <strong>Interaktiv:</strong> Rasterwerte per Maus erkunden; für Niederschlag öffnet ein Kartenklick die Zeitreihe des nächstgelegenen 5-km-Punktes seit 1931. Die drei räumlich getrennten Kartenmaxima stehen direkt unter der Karte.</p>
 
-  <section id="hyrasTemperatureRanks" class="hyras-rank-card" aria-labelledby="hyrasRankHeading">
+  <details id="hyrasTemperatureRanks" class="hyras-rank-card" aria-labelledby="hyrasRankHeading">
+    <summary id="hyrasRankHeading" class="hyras-rank-summary">
+      <span>Temperatur-Rangkarten · Sommerarchiv 2026</span>
+      <small>Stand 31.08.2026 · Tmean / Tmax / Tmin · Aufklappen</small>
+    </summary>
+    <div class="hyras-rank-expanded">
     <div class="hyras-rank-head">
       <div>
-        <h3 id="hyrasRankHeading">Temperatur-Rangkarten 1951–heute</h3>
+        <h3>Temperatur-Rangkarten 1951–2026 · Sommer 2026</h3>
         <p>Rang des aktuellen HYRAS-Temperaturrasters im Vergleich mit allen Jahren seit 1951. Rang 1 ist am wärmsten, Rang 76 am kältesten (Stand 2026).</p>
       </div>
       <div class="control-group hyras-rank-control">
@@ -2548,7 +2576,8 @@ button.action:hover{background:#1f2937}
       <div class="hyras-rank-legend-item"><div class="hyras-rank-legend-swatch" style="background:#4B176D"></div><div class="hyras-rank-legend-label">76</div></div>
     </div>
     <p class="hyras-rank-foot">Vergleichsbasis: HYRAS-DE Temperatur ab 1951. Für 2026 umfasst das Ranking 75 historische Jahre (1951–2025) plus das aktuelle Jahr = 76 Rangpositionen.</p>
-  </section>
+      </div>
+  </details>
 
   <div id="hyrasPointAnalysis" class="hyras-point-analysis" hidden>
     <div class="hyras-point-analysis-head">
@@ -12481,7 +12510,7 @@ function populateHyrasPeriods(){
   periods.forEach(period=>{
     if(period.period_type==="month") groups.month.push(period);
     else if(period.period_type==="season") groups.season.push(period);
-    else if(["summer_live","ytd_live"].includes(period.period_type)) groups.current.push(period);
+    else if(["month_live","season_live","summer_live","ytd_live"].includes(period.period_type)) groups.current.push(period);
     else groups.summary.push(period);
   });
   const addGroup=(label,rows)=>{
@@ -12490,11 +12519,11 @@ function populateHyrasPeriods(){
     rows.forEach(period=>{const option=document.createElement("option");option.value=period.key;option.textContent=`${period.label} · ${period.date_label||""}`;group.appendChild(option);});
     select.appendChild(group);
   };
-  addGroup("Bisherige Zeiträume",groups.summary);
   addGroup("Aktuell bis zum jüngsten HYRAS-Tag",groups.current);
+  addGroup("Weitere Zeiträume",groups.summary);
   addGroup("Abgeschlossene Jahreszeiten",groups.season);
   addGroup("Abgeschlossene Monate",groups.month);
-  const target=["__custom__","__historical__"].includes(previous)?previous:((previous&&periods.some(p=>p.key===previous))?previous:(hyrasIndex.default_period||periods[0]?.key||""));
+  const target=["__custom__","__historical__"].includes(previous)?previous:((previous&&periods.some(p=>p.key===previous))?previous:(periods.find(p=>p.period_type==="month_live")?.key||hyrasIndex.default_period||periods[0]?.key||""));
   select.value=target;
 }
 async function hyrasLoadWebManifest(){
@@ -13088,7 +13117,7 @@ function hyrasRestorePrecipMetricOptions(){
 }
 function hyrasTmeanDefaultPeriod(){
   const periods=hyrasTmeanIndex?.periods||[];
-  return periods.find(p=>p.period_type==="season_live")||periods.find(p=>p.period_type==="month_live")||periods.find(p=>p.key===`${hyrasTmeanIndex?.year}_${String(hyrasTmeanIndex?.latest_complete_month||1).padStart(2,"0")}`)||periods[0]||null;
+  return periods.find(p=>p.period_type==="month_live")||periods.find(p=>p.period_type==="season_live")||periods.find(p=>p.key===`${hyrasTmeanIndex?.year}_${String(hyrasTmeanIndex?.latest_complete_month||1).padStart(2,"0")}`)||periods[0]||null;
 }
 function hyrasTmeanSelectedPeriod(){
   const key=document.getElementById("hyrasPeriodSelect")?.value;
@@ -13896,7 +13925,7 @@ function hyrasTmaxPopulateCurvePeriods(){
   select.innerHTML=periods
     .map(period=>`<option value="${period.key}">${period.label}</option>`)
     .join("");
-  const preferred=periods.find(period=>period.key==="summer")||periods[0];
+  const preferred=periods.filter(period=>period.key.startsWith("month_")).sort((a,b)=>String(b.end_date).localeCompare(String(a.end_date)))[0]||periods.find(period=>period.key==="summer")||periods[0];
   if(previous&&periods.some(period=>period.key===previous)){
     select.value=previous;
   }else if(preferred){
@@ -17309,7 +17338,7 @@ function hyrasTminPopulateCurvePeriods(){
   const previous=select.value;
   const periods=hyrasTminRegionsIndex.periods||[];
   select.innerHTML=periods.map(period=>`<option value="${period.key}">${period.label}</option>`).join("");
-  const preferred=periods.find(period=>period.key==="summer")||periods[0];
+  const preferred=periods.filter(period=>period.key.startsWith("month_")).sort((a,b)=>String(b.end_date).localeCompare(String(a.end_date)))[0]||periods.find(period=>period.key==="summer")||periods[0];
   if(previous&&periods.some(period=>period.key===previous))select.value=previous;
   else if(preferred)select.value=preferred.key;
 }
