@@ -51,3 +51,24 @@ test("CSV has reproducible date-aligned temperatures and anomalies",()=>{
   assert.ok(result.includes("01-01;1;0;1"));
   assert.ok(result.includes("01-03;;2;"));
 });
+
+test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=>{
+  const stats=fs.readFileSync("arktis_statistik.js","utf8");
+  assert.ok(site.includes("  arktis_statistik.js\\n"),"Missing Arctic statistics JS in build list");
+  assert.ok(site.includes("node --check _site/arktis_statistik.js"));
+  assert.ok(page.includes('id="arcticRecords"'));
+  assert.ok(page.includes('id="arcticSeasons"'));
+  assert.ok(page.includes('src="arktis_statistik.js?v=1"'));
+  assert.doesNotThrow(()=>new Function(stats));
+  const window={},document={readyState:"loading",addEventListener(){}};
+  vm.runInNewContext(stats,{window,document,console},{timeout:2500});
+  const math=window.Arctic80StatsMath;
+  assert.equal(math.periods.length,16);
+  const fake={days:["01-01","01-02"],years:{"2024":[2,4],"2025":[1,3]}};
+  const rows=math.daily(fake,0,2024);
+  assert.equal(rows.rank,1);
+  assert.equal(rows.min.value,1);
+  assert.equal(rows.max.value,2);
+  assert.equal(math.period(fake,2024,[[0,1]]),3);
+  assert.equal(math.period({...fake,years:{"2024":[2,null]}},2024,[[0,1]]),null);
+});
