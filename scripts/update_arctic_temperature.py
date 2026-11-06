@@ -26,7 +26,7 @@ REFERENCE_END = 2002
 PLOT_YEAR = 2024  # leap-year skeleton: 366 slots, day-by-calendar-date alignment
 UA = "ClimateDashboard/1.0 (https://github.com/MarcelHerber/climate-dashboard)"
 DATE_RE = re.compile(r"^\d{8}$")
-YEAR_FILE = re.compile(r"(?:meanT|temp_clim_plus80_)(\d{4})", re.I)
+YEAR_FILE = re.compile(r"(?:meanT|temp_clim_plus80_|tempT\d+_clim_plus80_)(\d{4})", re.I)
 
 
 def fetch(name: str, attempts: int = 3) -> bytes:
@@ -117,7 +117,6 @@ def archive_years(blob: bytes) -> dict[int, dict[str, float]]:
     choices: dict[int, tuple[int, dict[str, float]]] = {}
     candidates: list[tuple[str, int]] = []
     with tarfile.open(fileobj=io.BytesIO(blob), mode="r:*") as tar:
-        print("DMI TAR inventory:", [m.name for m in tar.getmembers() if m.isfile()][:110], flush=True)
         for entry in tar:
             if not entry.isfile() or entry.size > 200_000:
                 continue
