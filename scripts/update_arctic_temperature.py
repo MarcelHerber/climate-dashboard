@@ -75,7 +75,8 @@ def parse_daily(text: str, year: int) -> dict[str, float]:
     """
     found: dict[str, float] = {}
     for line in text.splitlines():
-        words = line.strip().split()
+        # DMI files vary: whitespace-delimited in most years, comma CSV in 2023.
+        words = line.strip().replace(",", " ").split()
         if not words or words[0].startswith(("#", "!")):
             continue
         stamp = _date(words[0], year)
