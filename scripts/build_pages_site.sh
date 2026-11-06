@@ -150,6 +150,7 @@ fi
 node --check _site/arktis_temperatur.js
 node --check _site/arktis_statistik.js
 node --check tests/test_arctic_temperature_ui.cjs
+grep -q 'window.Arctic80StatsMath' _site/arktis_temperatur.js
 node --test tests/test_arctic_temperature_ui.cjs
 # Fail fast when published HTML references a missing Arctic statistics asset.
 grep -q 'arktis_statistik.js' _site/arktis_temperatur.html
