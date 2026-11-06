@@ -56,6 +56,13 @@ class ArcticTemperatureTests(unittest.TestCase):
                                "20260103 3 250.000\n", 2026)
         self.assertEqual(list(vals), ["01-03"])
 
+    def test_intermediate_ecmwf_model_era_names(self):
+        for model, year in (("T511", 2003), ("T799", 2008), ("T1279", 2014)):
+            filename = f"temp{model}_clim_plus80_{year}.txt"
+            self.assertEqual(int(dmi.YEAR_FILE.search(filename).group(1)), year)
+            parsed = dmi.parse_daily(f"{year} 1 244.5 243.0\n", year)
+            self.assertAlmostEqual(parsed["01-01"], -28.65, places=2)
+
     def test_archive_and_reference(self):
         history = dmi.archive_years(archive())
         self.assertEqual(len(history), 45)
