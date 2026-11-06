@@ -25,8 +25,13 @@ def archive(first=1958, last=2002):
     buff = io.BytesIO()
     with tarfile.open(fileobj=buff, mode="w") as tar:
         for year in range(first, last + 1):
-            # Historical DMI archive may contain an extra fourth baseline column.
-            payload = lines(year).replace("248.15", "248.15").encode("utf-8")
+            # Actual DMI TAR layout: YEAR DOY TEMPERATURE_K CLIMATOLOGY_K.
+            start = date(year, 1, 1)
+            days = (date(year + 1, 1, 1) - start).days
+            payload = ("\n".join(
+                f"{year} {i+1} {248.15 + 5*math.sin(i/40):.6f} 243.8"
+                for i in range(days)
+            )+"\n").encode("utf-8")
             info = tarfile.TarInfo(f"temp_clim_plus80_{year}.txt")
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
@@ -39,6 +44,12 @@ class ArcticTemperatureTests(unittest.TestCase):
                                 "20260102 2 248.064682\n", 2026)
         self.assertAlmostEqual(value["01-01"], -23.830069, places=3)
         self.assertIn("01-02", value)
+
+    def test_historical_four_columns_use_temperature_not_climate(self):
+        vals = dmi.parse_daily("1958 1 235.748296 243.894301\n"
+                               "1958 2 234.456662 244.023126\n", 1958)
+        self.assertAlmostEqual(vals["01-01"], 235.748296-273.15, places=3)
+        self.assertNotAlmostEqual(vals["01-01"], 243.894301-273.15, places=2)
 
     def test_reject_wrong_day_number_and_outliers(self):
         vals = dmi.parse_daily("20260101 2 249\n20260102 2 999\n"
