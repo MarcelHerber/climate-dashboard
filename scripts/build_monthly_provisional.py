@@ -120,14 +120,90 @@ def build(root: Path, work: Path) -> dict:
     }
 
 
+def valid_snapshot(payload: object) -> bool:
+    """Accept only a coherent real-observation snapshot."""
+    if not isinstance(payload, dict):
+        return False
+    month = payload.get("month")
+    through = payload.get("data_through")
+    return (
+        payload.get("schema") == 1
+        and payload.get("forecast") is False
+        and isinstance(month, str) and len(month) == 7
+        and isinstance(through, str) and through[:7] == month
+        and isinstance(payload.get("areas"), dict)
+        and bool(payload["areas"])
+    )
+
+
+def persist_provisional(root: Path, payload: dict) -> None:
+    """Keep recent provisional months until DWD publishes their monthly values.
+
+    The HYRAS job starts each run by copying the existing hyras-data branch.
+    Read the old snapshot *before* replacing it, so the November/December
+    boundary never discards November's still-unpublished observations.
+    """
+    if not valid_snapshot(payload):
+        raise ValueError("Invalid current-month observation payload")
+
+    current_path = root / "monthly_current_provisional.json"
+    archive_path = root / "monthly_provisional_history.json"
+    records: list[dict] = []
+    if archive_path.exists():
+        try:
+            previous_archive = json.loads(archive_path.read_text(encoding="utf-8"))
+            if previous_archive.get("schema") == 1:
+                records.extend(previous_archive.get("months", []))
+        except (ValueError, TypeError, AttributeError):
+            pass
+    if current_path.exists():
+        try:
+            records.append(json.loads(current_path.read_text(encoding="utf-8")))
+        except (ValueError, TypeError):
+            pass
+    records.append(payload)
+
+    by_month: dict[str, dict] = {}
+    for item in records:
+        if not valid_snapshot(item):
+            continue
+        month = item["month"]
+        old = by_month.get(month)
+        # Prefer a later cutoff; at equal cutoff prefer snapshots enriched with
+        # station sunshine (the sunshine pipeline runs after the HYRAS builder).
+        if old is None or item["data_through"] > old["data_through"] or (
+            item["data_through"] == old["data_through"]
+            and sum(len(v) for v in item["areas"].values() if isinstance(v, dict))
+            >= sum(len(v) for v in old["areas"].values() if isinstance(v, dict))
+        ):
+            by_month[month] = item
+
+    # 24 months is ample for a delayed official data release, including January.
+    months = [by_month[k] for k in sorted(by_month)[-24:]]
+    archive = {
+        "schema": 1,
+        "forecast": False,
+        "source": "DWD HYRAS observations; final DWD monthly values take precedence",
+        "months": months,
+    }
+
+    def save_atomic(path: Path, data: dict) -> None:
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        tmp.replace(path)
+
+    # First preserve history. A partial failure must not destroy the old months.
+    save_atomic(archive_path, archive)
+    save_atomic(current_path, payload)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", type=Path, default=Path("/tmp/hyras-data"))
     parser.add_argument("--work", type=Path, default=Path("/tmp/hyras-work"))
     args = parser.parse_args()
     out = build(args.data_root, args.work)
-    target = args.data_root / "monthly_current_provisional.json"
-    target.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    persist_provisional(args.data_root, out)
     print("Vorläufige Monats-Gebietsmittel:", out["month"], out["data_through"], len(out["areas"]), "Gebiete")
 
 
