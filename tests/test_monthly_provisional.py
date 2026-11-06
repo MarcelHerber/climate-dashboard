@@ -61,5 +61,50 @@ class MonthlyProvisionalTests(unittest.TestCase):
             self.assertEqual(data["areas"]["Hessen"]["rain"],2.0)
 
 
+    def test_month_rollover_keeps_november_until_dwd_replacement(self):
+        def snapshot(month, last_day, temperature):
+            return {
+                "schema": 1, "month": month, "data_through": last_day,
+                "forecast": False,
+                "areas": {"Deutschland": {"temp": temperature, "rain": 4.0}},
+            }
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            november_early = snapshot("2026-11", "2026-11-04", 5.94)
+            november_late = snapshot("2026-11", "2026-11-30", 5.12)
+            december = snapshot("2026-12", "2026-12-02", 3.2)
+            provisional.persist_provisional(root, november_early)
+            provisional.persist_provisional(root, november_late)
+            provisional.persist_provisional(root, december)
+
+            history = json.loads((root / "monthly_provisional_history.json").read_text())
+            self.assertEqual([s["month"] for s in history["months"]],
+                             ["2026-11", "2026-12"])
+            self.assertEqual(history["months"][0]["data_through"], "2026-11-30")
+            self.assertEqual(history["months"][0]["areas"]["Deutschland"]["temp"], 5.12)
+            self.assertEqual(history["months"][1]["data_through"], "2026-12-02")
+
+            # A delayed older update must not overwrite a newer observation.
+            provisional.persist_provisional(root, november_early)
+            history = json.loads((root / "monthly_provisional_history.json").read_text())
+            self.assertEqual(history["months"][0]["data_through"], "2026-11-30")
+
+
+    def test_sunshine_enrichment_replaces_equal_day_not_previous_month(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ordinary = {
+                "schema": 1, "forecast": False, "month": "2026-12",
+                "data_through": "2026-12-01",
+                "areas": {"Deutschland": {"temp": 2.5, "rain": 0.3}},
+            }
+            provisional.persist_provisional(root, ordinary)
+            ordinary["areas"]["Deutschland"]["sun"] = 0.4
+            provisional.persist_provisional(root, ordinary)
+            history = json.loads((root / "monthly_provisional_history.json").read_text())
+            self.assertEqual(history["months"][0]["areas"]["Deutschland"]["sun"], 0.4)
+
+
 if __name__=="__main__":
     unittest.main()
