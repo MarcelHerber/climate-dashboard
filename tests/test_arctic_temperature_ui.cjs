@@ -58,7 +58,7 @@ test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=
   assert.ok(site.includes("node --check _site/arktis_temperatur.js"));
   assert.ok(page.includes('id="arcticRecords"'));
   assert.ok(page.includes('id="arcticSeasons"'));
-  assert.ok(!page.includes("src=\\"arktis_statistik.js"),"No separately loaded statistics script");
+  assert.ok(!page.includes('src="arktis_statistik.js'),"No separately loaded statistics script");
   assert.ok(script.includes("window.Arctic80StatsMath"),"Statistics must be merged into the working main module");
   assert.ok(!page.includes("window.Arctic80StatsMath"),"Avoid blocked inline statistics scripts");
   assert.doesNotThrow(()=>new Function(stats));
