@@ -187,40 +187,19 @@ assert "monthly_provisional.js" not in s, "Veraltetes separates Overlay noch gel
 print("HYRAS-Vormonat im Gebietsmittel-Hauptdiagramm verankert.")
 PY
 
-# Saharastaub als zusätzlicher Desktop-Einstieg neben den Wettergefahren ergänzen.
-# Die gemeinsame mobile Kategoriennavigation wird im folgenden Schritt injiziert.
+# Saharastaub ist direkt im Menü „Sonstiges“ eingebunden (Desktop und Mobil).
+# Kein globaler Header-Banner und kein separater Menüeintrag unter Europa.
 python - <<'PY'
 from pathlib import Path
-import re
-p=Path("_site/index.html")
-s=p.read_text(encoding="utf-8")
-if 'href="saharastaub.html"' not in s:
-    candidate=re.search(r'<a\b[^>]*href=["\x27](?:\./)?wettergefahren\.html["\x27][^>]*>.*?</a>',s,re.I|re.S)
-    link='<a href="saharastaub.html" class="nav-link">Saharastaub</a>'
-    if candidate:
-        s=s[:candidate.end()]+"\n"+link+s[candidate.end():]
-    elif re.search(r'</nav\s*>',s,re.I):
-        s=re.sub(r'</nav\s*>',link+"\n</nav>",s,count=1,flags=re.I)
-    else:
-        s=s.replace('</header>',link+"\n</header>",1)
-# Zusätzlich ein gut sichtbarer Direkteinstieg unmittelbar nach dem Header.
-# So ist das Modul auch erreichbar, wenn einzelne Desktop-Menüs überlaufen.
-marker='id="saharastaub-quicklink"'
-if marker not in s:
-    banner=(
-        '<div id="saharastaub-quicklink" style="padding:9px 18px;'
-        'background:var(--card-bg,var(--surface,#edf3f7));'
-        'border-bottom:1px solid var(--border,#b8c8d2);text-align:center">'
-        '<a href="saharastaub.html" style="font-weight:700;text-decoration:underline">'
-        'Saharastaub-Monitor · ICON-ART-EU ↗</a></div>'
-    )
-    if re.search(r'</header\s*>',s,re.I):
-        s=re.sub(r'</header\s*>',lambda m:m.group(0)+"\n"+banner,s,count=1,flags=re.I)
-    else:
-        s=re.sub(r'<body\b[^>]*>',lambda m:m.group(0)+"\n"+banner,s,count=1,flags=re.I)
-    if marker not in s:
-        raise SystemExit("Saharastaub-Direkteinstieg konnte nicht eingefügt werden")
-p.write_text(s,encoding="utf-8")
+page=Path("_site/index.html").read_text(encoding="utf-8")
+nav=Path("_site/mobile_navigation.js").read_text(encoding="utf-8")
+assert "window.location.href='saharastaub.html'" in page
+assert 'data-nav-group="misc" type="button" onclick="window.location.href=\'saharastaub.html\'"' in page
+assert '["saharastaub.html","Sonstiges · Saharastaub-Monitor (ICON-ART-EU)"]' in page
+assert 'name:"Sonstiges",items:' in nav
+assert nav.count('["saharastaub.html","Saharastaub · ICON-ART"]')==1
+assert "saharastaub-quicklink" not in page
+print("Saharastaub ist ausschließlich im Menü Sonstiges verlinkt.")
 PY
 
 # Ein einziges Handymenü auf allen veröffentlichten HTML-Seiten.
