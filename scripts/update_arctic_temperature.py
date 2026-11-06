@@ -124,6 +124,8 @@ def archive_years(blob: bytes) -> dict[int, dict[str, float]]:
                 continue
             body = raw.read().decode("utf-8", "replace")
             values = parse_daily(body, year)
+            if year in (1958, 2017) and len(values) < 10:
+                print("DMI legacy sample", entry.name, repr(body.splitlines()[:9]), flush=True)
             candidates.append((entry.name, len(values)))
             if len(values) < 150:
                 continue
