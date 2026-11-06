@@ -45,6 +45,7 @@ required_root_files=(
   meereis.css
   arktis_temperatur.html
   arktis_temperatur.js
+  arktis_statistik.js
   arktis_temperatur.css
   eurasia_snow.html
   eurasia_snow.js
@@ -147,7 +148,11 @@ else
   echo "Hinweis: DMI-Temperaturindex wird noch über täglichen Datenimport erzeugt."
 fi
 node --check _site/arktis_temperatur.js
+node --check _site/arktis_statistik.js
 node --test tests/test_arctic_temperature_ui.cjs
+# Fail fast when published HTML references a missing Arctic statistics asset.
+grep -q 'arktis_statistik.js' _site/arktis_temperatur.html
+test -s _site/arktis_statistik.js
 
 # Optionalen vorläufigen HYRAS-Monatsstand für Same-Origin-Ladezeit einpacken.
 # Ein fehlender Datenbranch blockiert NICHT die historischen Diagramme.
