@@ -117,6 +117,7 @@ def archive_years(blob: bytes) -> dict[int, dict[str, float]]:
     choices: dict[int, tuple[int, dict[str, float]]] = {}
     candidates: list[tuple[str, int]] = []
     with tarfile.open(fileobj=io.BytesIO(blob), mode="r:*") as tar:
+        print("DMI TAR inventory:", [m.name for m in tar.getmembers() if m.isfile()][:110], flush=True)
         for entry in tar:
             if not entry.isfile() or entry.size > 200_000:
                 continue
