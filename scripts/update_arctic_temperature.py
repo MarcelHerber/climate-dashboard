@@ -81,15 +81,22 @@ def parse_daily(text: str, year: int) -> dict[str, float]:
         stamp = _date(words[0], year)
         val_token = None
         if stamp and len(words) >= 3:
-            # Known DMI layout: Date (YYYYMMDD), day of year, Temp [K].
+            # New DMI: YYYYMMDD, day-of-year, actual temp Kelvin.
             if words[1].isdigit() and int(words[1]) != stamp.timetuple().tm_yday:
                 continue
             val_token = words[2]
+        elif len(words) >= 4 and words[0].isdigit() and int(words[0]) == year and words[1].isdigit():
+            # Historical DMI TAR: year, day-of-year, *actual* Kelvin,
+            # published ERA-40 climatology Kelvin (fourth column).
+            doy = int(words[1])
+            if 1 <= doy <= (366 if calendar.isleap(year) else 365):
+                stamp = date(year, 1, 1) + timedelta(days=doy-1)
+                val_token = words[2]
         elif len(words) >= 3 and words[0].isdigit():
-            # Legacy member fallback: day-of-year, temperature[K], climate[K].
+            # Other day-of-year archives (without year column).
             doy = int(words[0])
             if 1 <= doy <= (366 if calendar.isleap(year) else 365):
-                stamp = date(year, 1, 1) + timedelta(days=doy - 1)
+                stamp = date(year, 1, 1) + timedelta(days=doy-1)
                 val_token = words[1]
         if stamp is None or val_token is None:
             continue
@@ -124,13 +131,11 @@ def archive_years(blob: bytes) -> dict[int, dict[str, float]]:
                 continue
             body = raw.read().decode("utf-8", "replace")
             values = parse_daily(body, year)
-            if year in (1958, 2017) and len(values) < 10:
-                print("DMI legacy sample", entry.name, repr(body.splitlines()[:9]), flush=True)
             candidates.append((entry.name, len(values)))
             if len(values) < 150:
                 continue
             # Prefer canonical yearly running file over archival mixed format.
-            score = (2 if "meant" in entry.name.lower() else 1) * 1000 + len(values)
+            score = len(values) * 1000 + (2 if "meant" in entry.name.lower() else 1)
             if year not in choices or score > choices[year][0]:
                 choices[year] = (score, values)
     years = {year: values for year, (_, values) in choices.items()}
@@ -173,8 +178,6 @@ def build(archive_blob: bytes, running: dict[int, bytes], now: date | None = Non
     cutoff = max(valid_dates)
     plotted_years = {}
     for year, values in sorted(years.items()):
-        cells = [values.get(day) if date.fromisoformat(f"{year}-{day}") <= today else None for day in DAYS
-                 if day != "02-29" or calendar.isleap(year)]
         # Keep all arrays aligned on the exact same month/day, including Feb 29.
         aligned = [
             round(values[k], 3) if k in values and (date.fromisoformat(f"{year}-{k}") <= today) else None
