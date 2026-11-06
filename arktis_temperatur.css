@@ -65,3 +65,23 @@ html[data-theme="dark"],body.dark-mode{--arctic-bg:#0b1421;--arctic-paper:#16223
 html[data-theme="dark"] .arctic-controls select,body.dark-mode .arctic-controls select{background:#162234;border-color:#41556c}
 html[data-theme="dark"] .arctic-status,body.dark-mode .arctic-status{background:#173344;border-color:#375d70;color:#deeff7}
 html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons button{background:#203146;border-color:#445a70;color:#e1eff9}
+
+
+.arctic-stat>summary{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap;cursor:pointer;list-style:none;position:relative;padding:5px 28px 5px 0;color:var(--arctic-ink)}
+.arctic-stat>summary::-webkit-details-marker{display:none}
+.arctic-stat>summary:after{content:"⌄";position:absolute;right:4px;top:2px;font-size:22px}
+.arctic-stat[open]>summary:after{transform:rotate(180deg)}
+.arctic-stat>summary strong{font-size:18px}
+.arctic-stat>summary span,.arctic-stat-note{color:var(--arctic-muted);font-size:12px;line-height:1.55}
+.arctic-stat-body{padding-top:18px}
+.arctic-stat-control{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px;font-weight:650}
+.arctic-stat-control select{background:var(--arctic-paper);color:var(--arctic-ink);border:1px solid var(--arctic-edge);border-radius:7px;padding:8px 12px;font:inherit;max-width:100%}
+.arctic-stat-highlight{font-size:18px;font-weight:750;margin:15px 0 5px}
+.arctic-stat-tables{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin:17px 0}
+.arctic-stat-tables h3{font-size:14px;margin:0 0 8px}
+.arctic-stat-scroll{overflow-x:auto}
+.arctic-stat table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.arctic-stat th,.arctic-stat td{text-align:left;border-bottom:1px solid var(--arctic-edge);padding:7px 9px}
+.arctic-stat th{color:var(--arctic-muted);font-weight:700}
+.arctic-stat .arctic-selected{background:rgba(65,135,191,.12);font-weight:750}
+@media(max-width:650px){.arctic-stat-tables{grid-template-columns:1fr;gap:14px}.arctic-stat>summary{display:block}.arctic-stat>summary span{display:block;margin-top:4px}}
