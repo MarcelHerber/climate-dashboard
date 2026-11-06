@@ -45,6 +45,13 @@ class ArcticTemperatureTests(unittest.TestCase):
         self.assertAlmostEqual(value["01-01"], -23.830069, places=3)
         self.assertIn("01-02", value)
 
+    def test_2023_comma_delimited_dmi_year(self):
+        vals = dmi.parse_daily("Date,Day of year,Temp\n"
+                               "20230101,1,250.573624\n"
+                               "20230102,2,250.352844\n", 2023)
+        self.assertEqual(len(vals), 2)
+        self.assertAlmostEqual(vals["01-01"], -22.576376, places=3)
+
     def test_historical_four_columns_use_temperature_not_climate(self):
         vals = dmi.parse_daily("1958 1 235.748296 243.894301\n"
                                "1958 2 234.456662 244.023126\n", 1958)
