@@ -68,24 +68,40 @@ function render(){
  $("arcticPeriodHot").innerHTML=tableRows(s.warmest,year);
  $("arcticPeriodCold").innerHTML=tableRows(s.coldest,year);
 }
+function acceptData(incoming){
+ if(!incoming||!incoming.years||!Array.isArray(incoming.days)||incoming.days.length!==366)return false;
+ doc=incoming;
+ const year=String(doc.latest_year);
+ const latest=doc.years[year]||[];
+ const last=latest.findLastIndex(v=>good(v));
+ const current=$("arcticRecordDay").value;
+ if(!current||current==="01-01")$("arcticRecordDay").value=last>=0?doc.days[last]:"11-01";
+ render();
+ return true;
+}
 async function init(){
  const ids=["arcticRecordDay","arcticPeriod","arcticYear"];
  if(!ids.every(id=>$(id)))return;
- const sel=$("arcticPeriod");periods.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.label;sel.append(o);});
+ const sel=$("arcticPeriod");
+ periods.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.label;sel.append(o);});
  sel.value="m11";
  for(const id of ids)$(id).addEventListener("change",render);
- try {
-   const response=await fetch("data/arctic80_temperature.json",{cache:"no-store"});
-   if(!response.ok)throw Error(String(response.status));
-   doc=await response.json();
-   if(!doc.years||!Array.isArray(doc.days))throw Error("Ungültige Daten");
-   const year=String(doc.latest_year),last=doc.years[year]?.findLastIndex(v=>good(v))??-1;
-   $("arcticRecordDay").value=last>=0?doc.days[last]:"11-01";
-   render();
- }catch(error){
-   $("arcticRecordSummary").textContent="Statistikdaten konnten nicht geladen werden.";
-   $("arcticPeriodSummary").textContent="Statistikdaten konnten nicht geladen werden.";
-   console.warn("DMI statistics:",error);
+ // Existing main charts publish the exact data they already loaded successfully.
+ window.addEventListener("arctic80:data-ready",event=>acceptData(event.detail));
+ if(acceptData(window.Arctic80LoadedData))return;
+ const paths=["data/arctic80_temperature.json",
+   "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/arctic80_temperature.json"];
+ for(const path of paths){
+   try{
+     const response=await fetch(path,{cache:"no-store"});
+     if(!response.ok)throw Error("HTTP "+response.status);
+     const incoming=await response.json();
+     if(acceptData(incoming))return;
+   }catch(error){console.warn("DMI stats loading "+path,error);}
+ }
+ if(!doc){
+   $("arcticRecordSummary").textContent="Keine Statistikdaten geladen. Bitte Seite neu laden oder Datenstatus prüfen.";
+   $("arcticPeriodSummary").textContent="Keine Statistikdaten geladen. Bitte Seite neu laden oder Datenstatus prüfen.";
  }
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
