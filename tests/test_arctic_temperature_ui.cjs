@@ -58,7 +58,8 @@ test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=
   assert.ok(site.includes("node --check _site/arktis_statistik.js"));
   assert.ok(page.includes('id="arcticRecords"'));
   assert.ok(page.includes('id="arcticSeasons"'));
-  assert.ok(page.includes("window.Arctic80StatsMath"),"Stats must be included inline for reliable Pages delivery");
+  assert.match(page,/src="arktis_statistik\\.js\\?v=\\d+"/,"Statistics must load as CSP-safe external JavaScript");
+  assert.ok(!page.includes("window.Arctic80StatsMath"),"Avoid blocked inline statistics scripts");
   assert.doesNotThrow(()=>new Function(stats));
   assert.ok(script.includes("arctic80:data-ready"),"Charts must notify statistics when shared data is ready");
   assert.ok(stats.includes("completeMonth"),"Select last fully observed month by default");
