@@ -43,6 +43,9 @@ required_root_files=(
   meereis.html
   meereis.js
   meereis.css
+  arktis_temperatur.html
+  arktis_temperatur.js
+  arktis_temperatur.css
   eurasia_snow.html
   eurasia_snow.js
   eurasia_snow.css
@@ -123,6 +126,28 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+
+# Arktischer DMI-Index wird im täglichen Spezialworkflow erzeugt.
+# Die erste Veröffentlichung darf nicht durch eine noch ausstehende
+# Datenberechnung blockiert werden; die Seite zeigt den Status transparent.
+if [[ -s data/arctic80_temperature.json ]]; then
+  cp data/arctic80_temperature.json _site/data/arctic80_temperature.json
+  python - <<'PY'
+import json
+from pathlib import Path
+obj=json.loads(Path("_site/data/arctic80_temperature.json").read_text(encoding="utf-8"))
+assert obj["schema"]==1
+assert obj["days"][59]=="02-29"
+assert len(obj["days"])==366
+assert len(obj["years"])>=60
+assert len(obj["reference"]["temperatures"])==366
+print("DMI-Temperaturindex als lokale Pages-Datenquelle bereitgestellt:",obj["last_date"])
+PY
+else
+  echo "Hinweis: DMI-Temperaturindex wird noch über täglichen Datenimport erzeugt."
+fi
+node --check _site/arktis_temperatur.js
+node --test tests/test_arctic_temperature_ui.cjs
 
 # Optionalen vorläufigen HYRAS-Monatsstand für Same-Origin-Ladezeit einpacken.
 # Ein fehlender Datenbranch blockiert NICHT die historischen Diagramme.
