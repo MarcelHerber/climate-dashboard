@@ -5274,6 +5274,11 @@ initializeOverviewControls();
 // Keep the last observed monthly snapshots until the published DWD monthly
 // regional averages arrive; the normal DWD series always takes precedence.
 let monthlyObservedHistory=[];
+let monthlyObservedSelectionTouched=false;
+let monthlyObservedChangingSelection=false;
+document.getElementById("monthSelect")?.addEventListener("change",()=>{
+  if(!monthlyObservedChangingSelection)monthlyObservedSelectionTouched=true;
+});
 function validObservedSnapshot(data){
   return !!data && data.schema===1 && data.forecast===false
     && /^\d{4}-\d{2}$/.test(data.month)
@@ -5313,6 +5318,22 @@ async function loadMonthlyObservedLive(){
     }
   }
   monthlyObservedHistory=[...byMonth.values()].sort((a,b)=>a.month.localeCompare(b.month));
+  // Choose the latest actually observed calendar month on the initial load.
+  // On 1 December with no December HYRAS data, November remains visible.
+  // Never override a period the visitor has selected manually.
+  const selector=document.getElementById("monthSelect");
+  if(selector&&!monthlyObservedSelectionTouched&&monthlyObservedHistory.length){
+    const latest=monthlyObservedHistory[monthlyObservedHistory.length-1].month.slice(5);
+    if(selector.value!==latest && [...selector.options].some(option=>option.value===latest)){
+      monthlyObservedChangingSelection=true;
+      try{
+        selector.value=latest;
+        selector.dispatchEvent(new Event("change",{bubbles:true}));
+      }finally{
+        monthlyObservedChangingSelection=false;
+      }
+    }
+  }
   // Only the historical Chart.js chart receives provisional values.
   // Official DWD values in monthlyData are never overwritten.
   if(monthlyData.length)updateMonthly();
