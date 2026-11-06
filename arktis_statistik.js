@@ -72,6 +72,11 @@ function acceptData(incoming){
  if(!incoming||!incoming.years||!Array.isArray(incoming.days)||incoming.days.length!==366)return false;
  doc=incoming;
  const year=String(doc.latest_year);
+ // Start with the most recent fully observed month, not a still-running month.
+ const completeMonth=periods.slice(0,12).filter(p=>good(period(doc,Number(year),p.def))).at(-1);
+ if(completeMonth && !$("arcticPeriod").dataset.userSelected){
+   $("arcticPeriod").value=completeMonth.id;
+ }
  const latest=doc.years[year]||[];
  const last=latest.findLastIndex(v=>good(v));
  const current=$("arcticRecordDay").value;
@@ -86,6 +91,7 @@ async function init(){
  periods.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.label;sel.append(o);});
  sel.value="m11";
  for(const id of ids)$(id).addEventListener("change",render);
+ $("arcticPeriod").addEventListener("change",()=>{$("arcticPeriod").dataset.userSelected="1";});
  // Existing main charts publish the exact data they already loaded successfully.
  window.addEventListener("arctic80:data-ready",event=>acceptData(event.detail));
  if(acceptData(window.Arctic80LoadedData))return;
