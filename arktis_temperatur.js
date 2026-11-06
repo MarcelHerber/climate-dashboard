@@ -201,12 +201,13 @@ async function load(){
          ||!incoming.years||Object.keys(incoming.years).length<40
          ||!incoming.years[String(incoming.latest_year)])continue;
       data=incoming;
+      window.Arctic80LoadedData=data;
       selectYears();
       $("arcticLastDay").textContent=dateText(data.last_date);
       $("arcticUpdated").textContent=Object.keys(data.years).length+" Jahresreihen · DMI Originaldaten";
       ["arcticPngAnnual","arcticPngAnomaly","arcticPdf","arcticCsv"].forEach(id=>$(id).disabled=false);
       setStatus("Datenstand "+dateText(data.last_date)+" · "+Object.keys(data.years).length+" Jahresreihen · DMI-Analysen, keine Prognose.");
-      draw();$("arcticYear").dispatchEvent(new Event("change"));return;
+      draw();window.dispatchEvent(new CustomEvent("arctic80:data-ready",{detail:data}));$("arcticYear").dispatchEvent(new Event("change"));return;
     }catch(error){console.warn("DMI +80N:",path,error);}
   }
   $("arcticLastDay").textContent="Daten fehlen noch";
