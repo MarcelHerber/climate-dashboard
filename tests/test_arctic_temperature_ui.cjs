@@ -76,3 +76,8 @@ test("New Arctic ranking panels and their JavaScript ship in Pages artifact",()=
   assert.equal(math.period(fake,2024,[[0,1]]),3);
   assert.equal(math.period({...fake,years:{"2024":[2,null]}},2024,[[0,1]]),null);
 });
+
+test("DMI status visibly warns about stale archive and tied records share a rank",()=>{
+  assert.match(script,/ageDays>=2/);
+  assert.ok(script.includes("findIndex(y=>y.value===x.value)"));
+});
