@@ -63,6 +63,14 @@ async function main() {
         b: !!window.Chart?.getChart?.(document.getElementById("arcticAnomalyChart"))
       }));
       assert.ok(charts.a && charts.b, "Both Chart.js plots must render");
+      // These selectors are intentionally inside collapsed <details> panels.
+      // Exercise the real disclosure controls before selecting values.
+      for (const selector of ["#arcticRecords > summary", "#arcticSeasons > summary"]) {
+        if (device.mobile) await page.locator(selector).tap();
+        else await page.locator(selector).click();
+      }
+      assert.ok(await page.locator("#arcticRecords").evaluate(el => el.open));
+      assert.ok(await page.locator("#arcticSeasons").evaluate(el => el.open));
       const year = String(doc.latest_year);
       await page.locator("#arcticYear").selectOption(year);
       const index = doc.years[year].findLastIndex(v => Number.isFinite(v));
