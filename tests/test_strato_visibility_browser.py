@@ -96,6 +96,7 @@ def exercise(browser, width, height, label):
             validPng:png.startsWith('data:image/png;base64,')};
         }""")
         assert export_state["visible"] == ["P10–P90","Mittelwert","EPS p01","EPS p02"], export_state
+        assert page.evaluate("""() => window.stratoChartExport.legendEntries(window.demo).map(e=>e.label)""") == ["P10–P90","Mittelwert","2 EPS-Mitglieder"]
         assert export_state["height"] > export_state["chartHeight"] + 100, export_state
         assert export_state["firstPixel"] == [255,255,255,255], export_state
         assert export_state["validPng"], export_state
