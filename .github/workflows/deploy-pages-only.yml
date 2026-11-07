@@ -67,6 +67,7 @@ jobs:
       # Verify the *published* deployment, not only files in the repository.
       # Chromium exercises desktop and touch/mobile controls and real downloads.
       - name: DMI Arktis · Live-Browserprüfung (Desktop und Mobil)
+        if: github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
@@ -82,7 +83,7 @@ jobs:
           exit 1
 
       - name: DMI-Arktis · Prüfbilder sichern
-        if: always()
+        if: always() && github.event_name != 'schedule'
         uses: actions/upload-artifact@v4
         with:
           name: dmi-arctic-live-qa-${{ github.run_id }}
