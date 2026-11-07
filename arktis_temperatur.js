@@ -211,7 +211,16 @@ async function load(){
         setStatus("DMI-Datenstand "+dateText(data.last_date)+" – möglicherweise verzögert ("+ageDays+" Tage). Bitte Datenimport prüfen.",true);
       else
         setStatus("Datenstand "+dateText(data.last_date)+" · "+Object.keys(data.years).length+" Jahresreihen · DMI-Analysen, keine Prognose.");
-      draw();window.dispatchEvent(new CustomEvent("arctic80:data-ready",{detail:data}));$("arcticYear").dispatchEvent(new Event("change"));return;
+      // A missing chart CDN must not silently leave blank plots with enabled export buttons.
+      if(typeof Chart==="undefined"){
+        ["arcticPngAnnual","arcticPngAnomaly","arcticPdf"].forEach(id=>$(id).disabled=true);
+        setStatus("DMI-Daten sind vorhanden, aber Chart.js konnte nicht geladen werden. CSV und Statistik bleiben verfügbar.",true);
+      }else{
+        draw();
+      }
+      window.dispatchEvent(new CustomEvent("arctic80:data-ready",{detail:data}));
+      $("arcticYear").dispatchEvent(new Event("change"));
+      return;
     }catch(error){console.warn("DMI +80N:",path,error);}
   }
   $("arcticLastDay").textContent="Daten fehlen noch";
