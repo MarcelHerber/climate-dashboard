@@ -44,7 +44,7 @@ function periodStats(doc,chosen,year){
 }
 window.Arctic80StatsMath={daily,period,periodStats,quantile,periods};
 let doc;
-const tableRows=(list,year)=>list.map((x,i)=>'<tr'+(x.year===Number(year)?' class="arctic-selected"':'')+'><td>'+(i+1)+'.</td><td>'+x.year+'</td><td>'+fmt(x.value)+' °C</td></tr>').join("");
+const tableRows=(list,year)=>list.map((x,i)=>{const rank=list.findIndex(y=>y.value===x.value)+1;return '<tr'+(x.year===Number(year)?' class="arctic-selected"':'')+'><td>'+rank+'.</td><td>'+x.year+'</td><td>'+fmt(x.value)+' °C</td></tr>';}).join("");
 function render(){
  if(!doc)return;
  const year=$("arcticYear").value,parts=$("arcticRecordDay").value.split("-").map(Number);
