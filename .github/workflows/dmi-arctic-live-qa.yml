@@ -1,0 +1,41 @@
+name: DMI-Arktis Live-Funktionstest
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dmi-arctic-live-qa.yml"
+      - "tests/test_arctic_live_browser.cjs"
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dmi-arctic-live-browser
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+      - name: Playwright installieren
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Live-DMI-Seite auf Desktop und Handy testen
+        run: node tests/test_arctic_live_browser.cjs
+      - name: Screenshots hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmi-arctic-live-results
+          path: artifacts/dmi-*.png
+          if-no-files-found: ignore
