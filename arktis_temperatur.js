@@ -206,7 +206,11 @@ async function load(){
       $("arcticLastDay").textContent=dateText(data.last_date);
       $("arcticUpdated").textContent=Object.keys(data.years).length+" Jahresreihen · DMI Originaldaten";
       ["arcticPngAnnual","arcticPngAnomaly","arcticPdf","arcticCsv"].forEach(id=>$(id).disabled=false);
-      setStatus("Datenstand "+dateText(data.last_date)+" · "+Object.keys(data.years).length+" Jahresreihen · DMI-Analysen, keine Prognose.");
+      const ageDays=Math.floor((Date.now()-Date.parse(data.last_date+"T00:00:00Z"))/86400000);
+      if(ageDays>=2)
+        setStatus("DMI-Datenstand "+dateText(data.last_date)+" – möglicherweise verzögert ("+ageDays+" Tage). Bitte Datenimport prüfen.",true);
+      else
+        setStatus("Datenstand "+dateText(data.last_date)+" · "+Object.keys(data.years).length+" Jahresreihen · DMI-Analysen, keine Prognose.");
       draw();window.dispatchEvent(new CustomEvent("arctic80:data-ready",{detail:data}));$("arcticYear").dispatchEvent(new Event("change"));return;
     }catch(error){console.warn("DMI +80N:",path,error);}
   }
@@ -274,7 +278,7 @@ function periodStats(doc,chosen,year){
 }
 window.Arctic80StatsMath={daily,period,periodStats,quantile,periods};
 let doc;
-const tableRows=(list,year)=>list.map((x,i)=>'<tr'+(x.year===Number(year)?' class="arctic-selected"':'')+'><td>'+(i+1)+'.</td><td>'+x.year+'</td><td>'+fmt(x.value)+' °C</td></tr>').join("");
+const tableRows=(list,year)=>list.map((x,i)=>{const rank=list.findIndex(y=>y.value===x.value)+1;return '<tr'+(x.year===Number(year)?' class="arctic-selected"':'')+'><td>'+rank+'.</td><td>'+x.year+'</td><td>'+fmt(x.value)+' °C</td></tr>';}).join("");
 function render(){
  if(!doc)return;
  const year=$("arcticYear").value,parts=$("arcticRecordDay").value.split("-").map(Number);
