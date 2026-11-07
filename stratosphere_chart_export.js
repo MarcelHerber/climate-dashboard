@@ -29,6 +29,35 @@
     };
   });
 
+
+  // The interactive diagram retains individual EPS/GEFS member controls.
+  // Only the printable legend groups visible members into a single swatch.
+  // Preserve the first member's original position relative to other series.
+  function summarizeMemberEntries(entries) {
+    const printable = [];
+    const groups = new Map();
+    for (const entry of entries) {
+      if (!entry.member) {
+        printable.push(entry);
+        continue;
+      }
+      const label = String(entry.label || '');
+      const family = /^(?:EPS(?:[\s_-]+(?:p\d{2}|c\d{2}))|p\d{2})$/i.test(label)
+        ? 'EPS'
+        : /^(?:GEFS(?:[\s_-]+(?:p\d{2}|c\d{2}))|c\d{2})$/i.test(label)
+          ? 'GEFS' : 'Ensemble';
+      if (!groups.has(family)) {
+        const summary = {...entry,member:false,label:'',count:0};
+        groups.set(family,summary);
+        printable.push(summary);
+      }
+      const summary = groups.get(family);
+      summary.count += 1;
+      summary.label = summary.count + ' ' + family + '-Mitglieder';
+    }
+    return printable;
+  }
+
   function wrapping(ctx, value, maxWidth) {
     const words = String(value).split(/\s+/).filter(Boolean), result = [];
     let line = '';
@@ -148,7 +177,7 @@
       chart:entry.chart || entry,
       name:entry.chart?entry.title||'':undefined
     }));
-    const sections=items.map(item=>({name:item.name,entries:visibleEntries(item.chart)}));
+    const sections=items.map(item=>({name:item.name,entries:summarizeMemberEntries(visibleEntries(item.chart))}));
     const sample=document.createElement('canvas').getContext('2d');
     const layout=createLayout(sample,base.width,sections);
     const scale=layout.scale;
@@ -179,5 +208,5 @@
   const fromChart=(chart,opts={})=>compose(chart.canvas,chart,opts);
   const append=(base,charts,opts={})=>compose(base,charts,opts);
 
-  window.stratoChartExport={fromChart,append,visibleEntries};
+  window.stratoChartExport={fromChart,append,visibleEntries,legendEntries:chart=>summarizeMemberEntries(visibleEntries(chart))};
 })();

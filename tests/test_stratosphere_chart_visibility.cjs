@@ -190,3 +190,55 @@ test('export honors hidden individual members, but shows other visible lines',()
   assert.ok(!listed.includes('c01'));
   assert.ok(listed.includes('0 m/s'));
 });
+
+
+test('PNG legend combines 50 visible EPS members, preserving colored summary and main lines',()=>{
+  const all=[
+    {label:'_90% min',data:[1,2],borderColor:'transparent'},
+    {label:'_90% max',data:[3,4],borderColor:'transparent',
+      fill:{target:'-1',above:'rgba(71,126,183,.18)'}},
+    ...Array.from({length:50},(_,i)=>({
+      label:'_EPS p'+String(i+1).padStart(2,'0'),
+      data:[3+i/20,4+i/20],borderColor:'rgba(51,77,113,.40)'
+    })),
+    {label:'EPS-Mittel',data:[4,5],borderColor:'#d62828'},
+    {label:'Kontrolllauf (IFS)',data:[3,5],borderColor:'#e59318'},
+    {label:'0 m/s · Ostwindschwelle',data:[0,0],borderColor:'#273746'}
+  ];
+  const {chart,panel}=fixture(all,'stratoEpsSummary50Test');
+  const raw=png.visibleEntries(chart);
+  const legend=png.legendEntries(chart);
+  assert.equal(raw.filter(x=>x.member).length,50,'Keep 50 individual toggles');
+  assert.deepEqual(Array.from(legend,x=>x.label),[
+    'Perzentilfläche 90%','50 EPS-Mitglieder','EPS-Mittel',
+    'Kontrolllauf (IFS)','0 m/s · Ostwindschwelle'
+  ]);
+  assert.equal(legend[1].color,'rgba(51,77,113,.40)');
+  assert.equal(legend[1].member,false);
+  const members=api.groups(chart).filter(x=>x.member);
+  for(let i=0;i<38;i++)click(panel(),button(panel(),'toggle',members[i].key));
+  const reduced=png.legendEntries(chart);
+  assert.equal(reduced[1].label,'12 EPS-Mitglieder');
+  assert.equal(png.visibleEntries(chart).filter(x=>x.member).length,12);
+  click(panel(),button(panel(),'members-off'));
+  assert.ok(!png.legendEntries(chart).some(x=>x.label.includes('Mitglieder')));
+  assert.ok(png.legendEntries(chart).some(x=>x.label==='EPS-Mittel'));
+});
+
+test('PNG legend summarizes GEFS c00-c30 without affecting individual controls',()=>{
+  const members=Array.from({length:31},(_,i)=>({
+    label:'_GEFS_c'+String(i).padStart(2,'0'),
+    data:[i,i+1],borderColor:'rgba(35,46,62,.48)'
+  }));
+  const {chart,panel}=fixture([
+    ...members,
+    {label:'GEFS · Ensemble-Mittel',data:[1,2],borderColor:'#d62828'},
+    {label:'GEFS · Kontrolllauf',data:[1,3],borderColor:'#ef9b10'}
+  ],'stratoGefsSummary31Test');
+  assert.deepEqual(Array.from(png.legendEntries(chart),x=>x.label),[
+    '31 GEFS-Mitglieder','GEFS · Ensemble-Mittel','GEFS · Kontrolllauf'
+  ]);
+  const visible=api.groups(chart).filter(x=>x.member);
+  for(let i=0;i<24;i++)click(panel(),button(panel(),'toggle',visible[i].key));
+  assert.equal(png.legendEntries(chart)[0].label,'7 GEFS-Mitglieder');
+});
