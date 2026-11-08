@@ -12,7 +12,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script defer src="arktis_temperatur.js?v=8"></script>
-<script defer src="arktis_klimastatistik.js?v=2"></script>
+<script defer src="arktis_klimastatistik.js?v=3"></script>
 
 </head>
 <body>
@@ -226,6 +226,12 @@
       <div class="arctic-analysis-controls">
         <label>Zeitraum von <select id="arcticTrendFrom" aria-label="Beginn der Trendanalyse"></select></label>
         <label>bis <select id="arcticTrendTo" aria-label="Ende der Trendanalyse"></select></label>
+        <label>Datenabdeckung
+          <select id="arcticTrendCoverage" aria-label="Mindestabdeckung für Trend- und Dekadenstatistik">
+            <option value="0.95" selected>Mind. 95 % (lückenarm)</option>
+            <option value="1">100 % (streng)</option>
+          </select>
+        </label>
         <label class="arctic-analysis-check"><input id="arcticTrendLines" type="checkbox" checked> Lineare Trends anzeigen</label>
       </div>
       <p class="arctic-stat-note" id="arcticTrendStatus">Berechnung läuft …</p>
@@ -237,7 +243,7 @@
       </div>
       <div class="arctic-climate-chart-group">
         <div>
-          <h3>Außergewöhnlich warme und kalte Tage pro Jahr</h3>
+          <h3>Außergewöhnlich warme und kalte Tage (je 365 gültige Tage)</h3>
           <div class="arctic-climate-chart"><canvas id="arcticTrendDaysCanvas" role="img" aria-label="Anzahl warmer und kalter Extremtage pro vollständigem Jahr"></canvas></div>
         </div>
         <div>
@@ -246,12 +252,12 @@
         </div>
       </div>
       <p class="arctic-stat-note" id="arcticTrendSlope">Berechne lineare Trends …</p>
-      <h3>Dekadenmittel – nur vollständig verfügbare Jahre</h3>
+      <h3>Dekadenmittel – auswählbare Mindestabdeckung</h3>
       <div class="arctic-stat-scroll">
         <table><thead><tr><th>Dekade</th><th>Jahre</th><th>Ø Warmtage</th><th>Ø Kalttage</th><th>Ø längste Wärmefolge</th><th>Ø längste Kältefolge</th></tr></thead>
           <tbody id="arcticDecadeBody"></tbody></table>
       </div>
-      <p class="arctic-stat-note">Definition: Tageswerte über P90 bzw. unter P10 der festen Referenz 1958–2002. Es werden nur Jahre mit allen gültigen Tagen in Zeitreihen, Dekadenmitteln und Trends berücksichtigt; 2026 erscheint erst nach Jahresabschluss. Trendsteigungen sind deskriptiv, ohne Signifikanzbewertung. Änderungen der DMI-Modellgrundlage beeinflussen historische Vergleichbarkeit.</p>
+      <p class="arctic-stat-note">Definition: Tageswerte über P90 bzw. unter P10 der festen Referenz 1958–2002. Für Trend- und Dekadengrafiken werden standardmäßig Jahre mit mindestens 95 % gültigen Tagen genutzt; auf Wunsch nur vollständig erfasste Jahre. Häufigkeiten bei lückenarmen Jahren werden rechnerisch auf 365 auswertbare Tage normiert (nicht als zusätzliche Messwerte ausgegeben). Die längsten Serien sind dagegen ausschließlich beobachtete Folgen, die an Datenlücken enden. Das laufende unvollständige Jahr 2026 wird ausgeschlossen. Saisonranglisten verwenden ausschließlich vollständige Perioden. Trends sind deskriptiv, ohne Signifikanzprüfung; DMI-Modellwechsel begrenzen ihre Vergleichbarkeit.</p>
     </div>
   </details>
 
