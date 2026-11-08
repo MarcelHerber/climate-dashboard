@@ -1,0 +1,99 @@
+name: ERA5 Arktis >80°N · Temperatur- und Anomaliekarten
+
+on:
+  schedule:
+    - cron: "35 10 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_arctic_era5_maps.py"
+      - "tests/test_arctic_era5_maps.py"
+      - ".github/workflows/update-arctic-era5-maps.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: era5-arctic80-spatial-daily
+  cancel-in-progress: false
+
+jobs:
+  maps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Repository-Dateien laden
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+            tests
+            data/arctic_era5_maps
+      - name: Python vorbereiten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Benötigte ERA5- und Kartenpakete installieren
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf matplotlib "cartopy>=0.24" pytest
+      - name: Wissenschaftliche Karten- und Quellenprüfungen
+        run: python -m pytest -q tests/test_arctic_era5_maps.py
+      - name: Copernicus Climate Data Store konfigurieren
+        env:
+          CDSAPI_KEY: ${{ secrets.CDSAPI_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CDSAPI_KEY:-}" || { echo "CDSAPI_KEY fehlt"; exit 1; }
+          cat > "$HOME/.cdsapirc" <<EOF
+          url: https://cds.climate.copernicus.eu/api
+          key: ${CDSAPI_KEY}
+          EOF
+          chmod 600 "$HOME/.cdsapirc"
+      - name: Geprüfte echte ERA5-Karten aktualisieren
+        run: |
+          set -euo pipefail
+          python scripts/build_arctic_era5_maps.py --output data/arctic_era5_maps --max-new-days 2
+          python -c 'import json,sys;from pathlib import Path;sys.path.insert(0,"scripts");from build_arctic_era5_maps import validate_manifest;root=Path("data/arctic_era5_maps");d=json.loads((root/"index.json").read_text());validate_manifest(d,root);assert d["ready"] and not d["forecast"];assert d["anomaly_reference"]=="monthly_mean_same_calendar_month";print("VERIFIZIERT",d["latest_date"],len(d["days"]),"ERA5-Tage")'
+      - name: Geprüfte ERA5-Karten konfliktfest veröffentlichen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp -a data/arctic_era5_maps /tmp/arctic-era5-maps-publish
+          NEW_DATE=$(python -c 'import json;print(json.load(open("/tmp/arctic-era5-maps-publish/index.json"))["latest_date"])')
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            CURRENT=$(python -c 'import json,pathlib;p=pathlib.Path("data/arctic_era5_maps/index.json");print(json.loads(p.read_text()).get("latest_date","") if p.exists() else "")')
+            if [[ -n "$CURRENT" && "$CURRENT" > "$NEW_DATE" ]]; then
+              echo "Neuere ERA5-Karten sind bereits veröffentlicht ($CURRENT)"
+              exit 0
+            fi
+            mkdir -p data/arctic_era5_maps
+            cp -a /tmp/arctic-era5-maps-publish/. data/arctic_era5_maps/
+            git add data/arctic_era5_maps
+            if git diff --cached --quiet; then
+              echo "Keine Änderungen an den geprüften ERA5-Karten"
+              exit 0
+            fi
+            git commit -m "Publish verified ERA5 >80N spatial temperature and monthly-reference anomaly maps"
+            if git push origin HEAD:main; then
+              echo "ERA5-Karten im GitHub-Repository veröffentlicht"
+              if command -v gh >/dev/null 2>&1; then
+                gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages-only.yml/dispatches" -f ref=main ||
+                  echo "Hinweis: Pages wird ansonsten durch den stündlichen Workflow veröffentlicht"
+              fi
+              exit 0
+            fi
+          done
+          echo "ERA5-Karten nach mehreren Konflikten nicht veröffentlicht"
+          exit 1
