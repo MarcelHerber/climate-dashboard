@@ -480,6 +480,8 @@ function render(){
     const frag=document.createDocumentFragment();
     matching.slice(0,15).forEach((e,i)=>{
       const tr=document.createElement("tr");
+      tr.tabIndex=0;tr.setAttribute("role","button");
+      tr.setAttribute("aria-label","Serie "+dateLabel(e.start)+" bis "+dateLabel(e.end)+", "+e.days+" Tage im Diagramm anzeigen");
       if(e.start.slice(0,4)===String(selected)||e.end.slice(0,4)===String(selected))tr.className="arctic-selected";
       const position=rank(matching,"days",e);
       for(const v of [position+".",dateLabel(e.start)+" – "+dateLabel(e.end)+(e.latest?" *":""),String(e.days),number(e.meanExcess)+" K"]){
@@ -585,6 +587,11 @@ function visible(year=refCurrent()){
   if(!archive||!calc)return [];
   return kindsEnabled().flatMap(k=>eventSegments(archive,calc,year,k,minLength()));
 }
+window.Arctic80VisualState={
+  segments:(year)=>visible(year||refCurrent()).map(s=>({kind:s.kind,from:s.from,to:s.to,start:s.event.start,end:s.event.end,days:s.event.days})),
+  focused:()=>focus?{start:focus.start,end:focus.end,days:focus.days}:null,
+  loaded:()=>!!archive
+};
 function selectedEventFor(year,index){
   const iso=dateFor(year,archive.days[index]);
   const matches=visible(year).filter(s=>iso>=s.event.start&&iso<=s.event.end);
