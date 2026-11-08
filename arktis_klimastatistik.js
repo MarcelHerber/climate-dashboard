@@ -88,8 +88,14 @@ function seasonalRank(items,key,year){
   const row=sorted.find(r=>r.year===year);
   return {sorted,rank:row?1+items.filter(r=>r[key]>row[key]).length:null};
 }
-function annualFiltered(rows,from,to){
-  return complete(rows).filter(r=>r.year>=from&&r.year<=to);
+function annualFiltered(rows,from,to,minCoverage=1){
+  return rows.filter(r=>r.year>=from&&r.year<=to&&r.coverage>0&&r.coverage/r.expected>=minCoverage);
+}
+function normalizeAnnual(row){
+  // Standardize event frequency to 365 observed days without filling any missing day.
+  // Consecutive spell maxima remain directly observed minimum estimates.
+  return {...row,warmDaysEq:row.warmDays*365/row.coverage,
+    coldDaysEq:row.coldDays*365/row.coverage,coveragePct:100*row.coverage/row.expected};
 }
 function analyze(doc){
   const lib=window.Arctic80StreaksMath;
@@ -98,23 +104,26 @@ function analyze(doc){
   return {annual:basic.annual,events:basic.events,reference:basic.reference,
     seasons:seasons(doc,basic.reference),decades:decadal(basic.annual)};
 }
-window.Arctic80LongTermMath={kind,seasonDays,seasonFor,seasons,decadal,regression,seasonalRank,annualFiltered,analyze};
+window.Arctic80LongTermMath={kind,seasonDays,seasonFor,seasons,decadal,regression,seasonalRank,annualFiltered,normalizeAnnual,analyze};
 let doc=null,results=null,frequencyChart=null,durationChart=null,seasonChart=null;
 const meta="DMI/ECMWF-Temperaturindex nördlich 80° N · P10/P90 1958–2002 · keine homogenisierte Klimareihe";
-const valueName={warmDays:"Wärmetage",coldDays:"Kältetage",maxWarm:"Längste Wärmefolge",maxCold:"Längste Kältefolge"};
+const valueName={warmDays:"Wärmetage",coldDays:"Kältetage",warmDaysEq:"Wärmetage (365-Tage-Äquiv.)",
+  coldDaysEq:"Kältetage (365-Tage-Äquiv.)",maxWarm:"Längste Wärmefolge",maxCold:"Längste Kältefolge"};
 function tr(cells,head=false){
   const row=document.createElement("tr");
   for(const v of cells){const td=document.createElement(head?"th":"td");td.textContent=String(v);row.append(td);}
   return row;
 }
 function replaceRows(id,rows){const body=$(id);body.replaceChildren(...rows);}
+function coverageThreshold(){return Number($("arcticTrendCoverage").value)||.95;}
 function yearsRange(){
-  const completeYears=complete(results.annual).map(r=>r.year);
-  return {first:Math.min(...completeYears),last:Math.max(...completeYears)};
+  const eligible=annualFiltered(results.annual,1958,9999,.95).map(r=>r.year);
+  return {first:Math.min(...eligible),last:Math.max(...eligible)};
 }
 function rowSet(){
   const from=Number($("arcticTrendFrom").value),to=Number($("arcticTrendTo").value);
-  return annualFiltered(results.annual,Math.min(from,to),Math.max(from,to));
+  return annualFiltered(results.annual,Math.min(from,to),Math.max(from,to),coverageThreshold())
+    .map(normalizeAnnual);
 }
 function chartsOpts(yLabel){
   return {responsive:true,maintainAspectRatio:false,animation:false,
@@ -145,17 +154,21 @@ function replaceChart(old,id,rows,warm,cold,includeTrend=false){
   return new Chart($(id),{type:"line",data:{labels:rows.map(r=>r.year),
     datasets:datasets(rows,warm,cold,includeTrend)},options:chartsOpts("Tage")});
 }
-function decadeTable(rows){
-  const selectedYears=new Set(rows.map(r=>r.year));
-  const bins=results.decades.map(d=>({
-    ...d,available:rows.filter(r=>Math.floor(r.year/10)*10===d.decade)
-  })).filter(d=>d.available.length);
-  const summary=bins.map(d=>{
-    const sample=d.available,n=sample.length;
-    const avg=k=>sample.reduce((s,r)=>s+r[k],0)/n;
-    return {decade:d.decade,count:n,warm:avg("warmDays"),cold:avg("coldDays"),
-      longWarm:avg("maxWarm"),longCold:avg("maxCold")};
+function decadeSummary(rows){
+  const groups=new Map();
+  for(const row of rows){
+    const d=Math.floor(row.year/10)*10;
+    if(!groups.has(d))groups.set(d,[]);
+    groups.get(d).push(row);
+  }
+  return [...groups.entries()].sort((a,b)=>a[0]-b[0]).map(([decade,sample])=>{
+    const avg=key=>sample.reduce((s,r)=>s+r[key],0)/sample.length;
+    return {decade,count:sample.length,warm:avg("warmDaysEq"),
+      cold:avg("coldDaysEq"),longWarm:avg("maxWarm"),longCold:avg("maxCold")};
   });
+}
+function decadeTable(rows){
+  const summary=decadeSummary(rows);
   replaceRows("arcticDecadeBody",summary.map(d=>tr([
     d.decade+"er",d.count,fmt(d.warm),fmt(d.cold),fmt(d.longWarm),fmt(d.longCold)])));
   return summary;
@@ -164,16 +177,18 @@ function renderTrend(){
   if(!results||typeof Chart==="undefined")return;
   const all=rowSet();
   const useTrends=$("arcticTrendLines").checked;
+  const quality=coverageThreshold();
   $("arcticTrendStatus").textContent=all.length?
-    all.length+" vollständige Jahre ("+all[0].year+"–"+all.at(-1).year+"), feste Vergleichsschwellen P10/P90 1958–2002":
-    "In dieser Auswahl liegen keine vollständigen Jahre vor.";
-  frequencyChart=replaceChart(frequencyChart,"arcticTrendDaysCanvas",all,"warmDays","coldDays",useTrends);
+    all.length+" Jahre ("+all[0].year+"–"+all.at(-1).year+") mit mindestens "+
+      fmt(quality*100,0)+" % Datenabdeckung · Extremtage als 365-Tage-Äquivalent":
+    "In dieser Auswahl liegen keine Jahre mit ausreichender Datenabdeckung vor.";
+  frequencyChart=replaceChart(frequencyChart,"arcticTrendDaysCanvas",all,"warmDaysEq","coldDaysEq",useTrends);
   durationChart=replaceChart(durationChart,"arcticTrendDurationCanvas",all,"maxWarm","maxCold",useTrends);
-  const wf=regression(all,"warmDays"),cf=regression(all,"coldDays");
+  const wf=regression(all,"warmDaysEq"),cf=regression(all,"coldDaysEq");
   $("arcticTrendSlope").textContent=wf&&cf?
-    "Lineare Trends der Extremtage: Wärme "+signed(wf.perDecade)+" Tage/Dekade, Kälte "+
-      signed(cf.perDecade)+" Tage/Dekade (nur vollständige Jahre, deskriptiv; keine Signifikanzprüfung).":
-    "Zu wenige vollständige Jahre für eine lineare Trendberechnung.";
+    "Lineare Trends (normiert auf 365 auswertbare Tage): Wärme "+signed(wf.perDecade)+
+      ", Kälte "+signed(cf.perDecade)+" Tage/Dekade · deskriptiv, keine Signifikanzprüfung.":
+    "Zu wenige Jahre mit ausreichender Abdeckung für eine lineare Trendberechnung.";
   decadeTable(all);
 }
 function seasonKey(){return $("arcticSeasonChoose").value;}
@@ -212,7 +227,7 @@ function initializeYearOptions(){
   const first=$("arcticTrendFrom"),last=$("arcticTrendTo");
   first.replaceChildren();last.replaceChildren();
   for(let y=range.first;y<=range.last;y++){
-    if(!results.annual.some(a=>a.year===y&&a.coverage===a.expected))continue;
+    if(!results.annual.some(a=>a.year===y&&a.coverage/a.expected>=.95))continue;
     for(const select of [first,last]){
       const option=document.createElement("option");option.value=String(y);option.textContent=y;
       select.append(option);
@@ -240,13 +255,21 @@ function csv(rows){
   return "\ufeff"+rows.map(row=>row.map(v=>'"'+csvCell(v)+'"').join(";")).join("\r\n")+"\r\n";
 }
 function csvAnnual(){
+  const years=rowSet(),decades=decadeSummary(years);
   return csv([
-    ["DMI Extremtage · P10/P90 1958–2002 · vollständige Jahre; kein homogenisiertes Klimamittel"],
-    ["Jahr","Datenabdeckung","Erwartete Tage","Warmtage über P90","Kalttage unter P10","Längste Wärmefolge","Längste Kältefolge","Vollständig"],
-    ...results.annual.map(r=>[r.year,r.coverage,r.expected,r.warmDays,r.coldDays,r.maxWarm,r.maxCold,r.coverage===r.expected?"Ja":"Nein"]),
-    [],["Dekadenübersicht (nur vollständige Jahre)"],
-    ["Dekade","Jahresanzahl","Mittel Warmtage","Mittel Kalttage","Mittel längste Wärmefolge","Mittel längste Kältefolge"],
-    ...results.decades.map(d=>[d.decade,d.years,d.warmDays,d.coldDays,d.maxWarm,d.maxCold])
+    ["DMI Extremtage · P10/P90 1958–2002 · beobachtete Tage und 365-Tage-Äquivalent (keine interpolierten Tage)"],
+    ["Jahr","Gültige Tage","Erwartete Tage","Abdeckung %","Beobachtete Warmtage","Beobachtete Kalttage",
+      "Warmtage je 365 gültige Tage","Kalttage je 365 gültige Tage","Längste Wärmefolge (beobachtet)",
+      "Längste Kältefolge (beobachtet)","Vollständig"],
+    ...results.annual.map(r=>{
+      const n=normalizeAnnual(r);return [r.year,r.coverage,r.expected,n.coveragePct,
+        r.warmDays,r.coldDays,n.warmDaysEq,n.coldDaysEq,r.maxWarm,r.maxCold,
+        r.coverage===r.expected?"Ja":"Nein"];
+    }),
+    [],["Dekadenübersicht der aktuell ausgewählten Jahre · Mindestabdeckung "+(coverageThreshold()*100)+" %"],
+    ["Dekade","Jahresanzahl","Mittel Warmtage/365","Mittel Kalttage/365",
+      "Mittel längste Wärmefolge (beobachtet)","Mittel längste Kältefolge (beobachtet)"],
+    ...decades.map(d=>[d.decade,d.count,d.warm,d.cold,d.longWarm,d.longCold])
   ]);
 }
 function csvSeasons(){
@@ -402,14 +425,11 @@ function tableCanvas(title,subtitle,columns,rows){
 }
 function decadeExport(){
   const from=Number($("arcticTrendFrom").value),to=Number($("arcticTrendTo").value);
-  const rows=results.decades.map(d=>({
-    name:d.decade+"er",
-    selected:rowSet().filter(r=>Math.floor(r.year/10)*10===d.decade)
-  })).filter(d=>d.selected.length).map(d=>{
-    const sample=d.selected,n=sample.length,avg=key=>sample.reduce((sum,r)=>sum+r[key],0)/n;
-    return [d.name,n,fmt(avg("warmDays")),fmt(avg("coldDays")),fmt(avg("maxWarm")),fmt(avg("maxCold"))];
-  });
-  return tableCanvas("Arktis: Dekadenmittel der Extremtage","Nur vollständige Jahre · Zeitraum "+Math.min(from,to)+"–"+Math.max(from,to),
+  const rows=decadeSummary(rowSet()).map(d=>[
+    d.decade+"er",d.count,fmt(d.warm),fmt(d.cold),fmt(d.longWarm),fmt(d.longCold)]);
+  return tableCanvas("Arktis: Dekadenmittel der Extremtage",
+    "Mindestens "+fmt(coverageThreshold()*100,0)+" % Datenabdeckung · Zeitraum "+
+      Math.min(from,to)+"–"+Math.max(from,to)+" · Extremtage je 365 gültige Tage",
     ["Dekade","Jahre","Ø warm","Ø kalt","Ø warm Folge","Ø kalt Folge"],rows);
 }
 function seasonRankingExport(){
@@ -440,7 +460,7 @@ function seasonExport(mode){
 }
 function init(){
   if(!$("arcticLongTermLoad"))return;
-  for(const id of ["arcticTrendFrom","arcticTrendTo","arcticTrendLines"])
+  for(const id of ["arcticTrendFrom","arcticTrendTo","arcticTrendCoverage","arcticTrendLines"])
     $(id).addEventListener("change",renderTrend);
   $("arcticSeasonChoose").addEventListener("change",renderSeason);
   $("arcticYear").addEventListener("change",renderSeason);
