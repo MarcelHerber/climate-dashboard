@@ -127,6 +127,59 @@ async function main() {
       const summaryReady=await page.evaluate(()=>!!window.Arctic80LongTermMath &&
         window.Arctic80LongTermMath.analyze(window.Arctic80LoadedData).seasons.djf.some(s=>s.year===2026));
       assert.ok(summaryReady,"Seasonal DJF should join Dec 2025 with Jan/Feb 2026");
+      // ERA5 Arctic spatial maps: no synthetic fallback; validate real maps when available.
+      const era5Container=page.locator("#arcticEra5MapPanel");
+      assert.equal(await era5Container.count(),1);
+      await era5Container.evaluate(el=>el.open=true);
+      const era5Meta=await page.evaluate(async()=>{
+        const resp=await fetch("data/arctic_era5_maps/index.json",{cache:"no-store"});
+        return resp.ok?await resp.json():null;
+      });
+      await page.waitForFunction(() => !document.querySelector("#arcticEra5MapStatus")
+        .textContent.includes("Prüfe ERA5-Datenverfügbarkeit"),null,{timeout:30000});
+      if(era5Meta?.ready===true){
+        assert.ok(era5Meta.days.length>=1);
+        assert.equal(era5Meta.forecast,false);
+        assert.equal(era5Meta.reference_period,"1991-2020");
+        assert.equal(era5Meta.anomaly_reference,"monthly_mean_same_calendar_month");
+        await page.waitForFunction(()=>[
+          document.querySelector("#arcticEra5TempMap"),
+          document.querySelector("#arcticEra5AnomalyMap")].every(img=>img.complete&&img.naturalWidth>=800),
+          null,{timeout:45000});
+        assert.ok((await page.locator("#arcticEra5MeanTemp").innerText()).includes("°C"));
+        assert.ok((await page.locator("#arcticEra5MeanAnomaly").innerText()).includes("K"));
+        await page.locator("#arcticEra5MapMode").selectOption("anomaly");
+        assert.equal(await page.locator("#arcticEra5TempFrame").isVisible(),false);
+        assert.equal(await page.locator("#arcticEra5AnomalyFrame").isVisible(),true);
+        await page.locator("#arcticEra5MapMode").selectOption("both");
+        assert.ok(await page.locator("#arcticEra5TempFrame").isVisible());
+        for(const id of ["#arcticEra5TempPng","#arcticEra5AnomalyPng"]){
+          const a=page.locator(id);
+          assert.ok((await a.getAttribute("href")).endsWith(".png"));
+          const resp=await page.request.get(await a.getAttribute("href"));
+          assert.equal(resp.status(),200);
+          const data=await resp.body();
+          assert.equal(data.subarray(0,8).toString("hex"),"89504e470d0a1a0a");
+          assert.ok(data.length>=25000);
+        }
+        const downloadPromise=page.waitForEvent("download",{timeout:35000});
+        await page.locator("#arcticEra5Pdf").click();
+        const pdf=await downloadPromise;
+        assert.ok(pdf.suggestedFilename().endsWith(".pdf"));
+        const filepath=await pdf.path();
+        assert.equal(fs.readFileSync(filepath).subarray(0,4).toString(),"%PDF");
+        if(era5Meta.days.length>1){
+          await page.locator("#arcticEra5MapPrev").click();
+          assert.equal(await page.locator("#arcticEra5MapDate").inputValue(),era5Meta.days[1].date);
+          await page.locator("#arcticEra5MapNext").click();
+          assert.equal(await page.locator("#arcticEra5MapDate").inputValue(),era5Meta.days[0].date);
+        }
+      }else{
+        assert.ok((await page.locator("#arcticEra5MapStatus").innerText()).includes("keine vollständig geprüften echten Karten"));
+        assert.equal(await page.locator("#arcticEra5Pdf").isDisabled(),true);
+        assert.equal(await page.locator("#arcticEra5TempPng").getAttribute("href"),null);
+        assert.equal(await page.locator("#arcticEra5AnomalyPng").getAttribute("href"),null);
+      }
       const year = String(doc.latest_year);
       await page.locator("#arcticYear").selectOption(year);
       const index = doc.years[year].findLastIndex(v => Number.isFinite(v));
