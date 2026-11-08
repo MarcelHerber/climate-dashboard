@@ -184,6 +184,11 @@ async function refreshComparison(){
  compareGefs=result[0].status==="fulfilled"?result[0].value:null;
  compareEps=result[1].status==="fulfilled"?result[1].value:null;
  renderComparison();
+ // The direct wind comparison reuses these two strictly validated same-hour originals.
+ window.stratoJointForecastData={gefs:compareGefs,eps:compareEps,hour};
+ window.dispatchEvent(new CustomEvent("stratosphere:joint-data-ready",{
+  detail:window.stratoJointForecastData
+ }));
 }
 function renderComparison(){
  const gefs=compute(compareGefs),ecmwf=compute(compareEps);
