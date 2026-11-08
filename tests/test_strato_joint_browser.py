@@ -66,7 +66,7 @@ def exercise(browser, width, height):
           };
           sendPair(0);
         }""")
-        chart=page.evaluate("""() => Chart.getChart(document.getElementById('stratoJointCanvas'))""")
+        chart=page.evaluate("""() => !!Chart.getChart(document.getElementById('stratoJointCanvas'))""")
         assert chart is not None
         assert page.locator("#stratoJointPng").is_enabled()
         assert page.locator("#stratoJointCsv").is_enabled()
