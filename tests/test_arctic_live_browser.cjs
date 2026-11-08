@@ -156,7 +156,7 @@ async function main() {
         assert.ok(await page.locator("#arcticEra5TempFrame").isVisible());
         for(const id of ["#arcticEra5TempPng","#arcticEra5AnomalyPng"]){
           const a=page.locator(id);
-          assert.ok((await a.getAttribute("href")).endsWith(".png"));
+          assert.match(await a.getAttribute("href"),/\.png(?:\?map=b\d+)?$/);
           const href=await a.getAttribute("href");
           const resp=await page.request.get(new URL(href,BASE).toString());
           assert.equal(resp.status(),200);
