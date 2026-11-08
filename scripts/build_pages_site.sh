@@ -45,6 +45,7 @@ required_root_files=(
   meereis.css
   arktis_temperatur.html
   arktis_temperatur.js
+  arktis_era5_maps.js
   arktis_klimastatistik.js
   arktis_statistik.js
   arktis_temperatur.css
@@ -156,6 +157,44 @@ else
   echo "Hinweis: DMI-Temperaturindex wird noch über täglichen Datenimport erzeugt."
 fi
 node --check _site/arktis_temperatur.js
+node --check _site/arktis_era5_maps.js
+grep -q 'id="arcticEra5MapPanel"' _site/arktis_temperatur.html
+
+# Publish only VERIFIED real Copernicus ERA5 polar-cap fields; never synthetic maps.
+if [[ -s data/arctic_era5_maps/index.json ]]; then
+  mkdir -p _site/data/arctic_era5_maps
+  cp data/arctic_era5_maps/index.json _site/data/arctic_era5_maps/index.json
+  python - <<'PY'
+import json
+from pathlib import Path
+root=Path("data/arctic_era5_maps")
+site=Path("_site/data/arctic_era5_maps")
+doc=json.loads((root/"index.json").read_text(encoding="utf-8"))
+assert doc.get("schema")==1
+if doc.get("ready") is True:
+    assert doc.get("reference_period")=="1991-2020"
+    assert doc.get("forecast") is False
+    assert doc.get("anomaly_reference")=="monthly_mean_same_calendar_month"
+    days=doc.get("days",[])
+    assert days and all(row["date"]<=doc["latest_date"] for row in days)
+    for entry in days:
+        for key in ("temperature_png","anomaly_png"):
+            name=Path(entry[key])
+            assert name.parts[0]=="maps" and ".." not in name.parts and len(name.parts)==2
+            file=root/name
+            assert file.is_file() and file.stat().st_size>25000
+            with file.open("rb") as stream:
+                assert stream.read(8)==bytes.fromhex("89504e470d0a1a0a")
+            dest=site/name
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            import shutil
+            shutil.copy2(file,dest)
+    print("ERA5 Arktiskarten veröffentlicht:",doc["latest_date"],len(days),"geprüfte Tage")
+else:
+    assert not doc.get("days"),"Ungültiger Kartenindex: unavailable mit Bildern"
+    print("ERA5 Arktiskarten: Keine verifizierten Felder – ehrliche Statusanzeige aktiv")
+PY
+fi
 node --check _site/arktis_klimastatistik.js
 node --check tests/test_arctic_longterm_seasons.cjs
 node --test tests/test_arctic_longterm_seasons.cjs
