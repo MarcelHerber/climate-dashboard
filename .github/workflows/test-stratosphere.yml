@@ -29,6 +29,8 @@ on:
       - "tests/test_stratosphere_forecast_focus.cjs"
       - "tests/test_gefs_stratosphere.py"
       - "stratosphere_ssw_comparison.js"
+      - "stratosphere_joint_comparison.js"
+      - "tests/test_stratosphere_joint_comparison.cjs"
       - "stratosphaere.html"
       - ".github/workflows/update-era5-stratosphere.yml"
       - ".github/workflows/test-stratosphere.yml"
@@ -59,6 +61,8 @@ jobs:
           node --check stratosphere_ecmwf_runs.js
           node --test tests/test_stratosphere_ecmwf_runs.cjs
           node --check stratosphere_ecmwf_ens.js
+          node --check stratosphere_joint_comparison.js
+          node --test tests/test_stratosphere_joint_comparison.cjs
           node --check stratosphere_run_trends.js
           node --test tests/test_stratosphere_run_trends.cjs
           node --check stratosphere_reversal_diagnostics.js
