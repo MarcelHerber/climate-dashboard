@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily *verified* ERA5 north-of-80N T2m and month-relative anomaly maps.
+"""Verified ERA5 Arctic 60/70/80N maps and 30-day growing archive.
 
 All maps require actual CDS grids. No synthetic values, proxy maps, or placeholder
 raster. Daily product uses 24 hourly ERA5 fields, aggregated in UTC via the
@@ -27,7 +27,11 @@ DAILY_DATASET = "derived-era5-single-levels-daily-statistics"
 MONTHLY_DATASET = "reanalysis-era5-single-levels-monthly-means"
 BASELINE_START, BASELINE_END = 1991, 2020
 RESOLUTION = 0.5
-LAT_SOUTH = 80.0
+LAT_SOUTH = 60.0
+REGIONS = (80, 70, 60)
+TARGET_ARCHIVE_DAYS = 30
+EARLIEST_ERA5_AGE_DAYS = 7
+ARCHIVE_LOOKBACK_DAYS = 38
 DOI_DAILY = "10.24381/cds.4991cf48"
 DOI_MONTHLY = "10.24381/cds.f17050d7"
 PNG_SIGNATURE = bytes.fromhex("89504e470d0a1a0a")
@@ -36,7 +40,8 @@ ANOM_LEVELS = np.arange(-15, 18, 3)
 # Rendering contract: only publish a map when the polar coastline layer exists.
 # Earlier outputs silently omitted it when Cartopy's Natural Earth DownloadWarning
 # was accidentally converted to an exception.
-BOUNDARY_VERSION = 2
+BOUNDARY_VERSION = 3
+LEGACY_BOUNDARY_VERSION = 2
 _BOUNDARY_GEOMETRIES = None
 
 
@@ -50,7 +55,7 @@ def daily_request(day: date) -> dict:
         "daily_statistic": "daily_mean",
         "time_zone": "utc+00:00",
         "frequency": "1_hourly",
-        "area": [90, -180, 80, 180],
+        "area": [90, -180, 60, 180],
         "grid": "0.5/0.5",
     }
 
@@ -62,7 +67,7 @@ def monthly_request(month: int) -> dict:
         "year": [str(y) for y in range(BASELINE_START, BASELINE_END + 1)],
         "month": [f"{month:02d}"],
         "time": "00:00",
-        "area": [90, -180, 80, 180],
+        "area": [90, -180, 60, 180],
         "grid": "0.5/0.5",
         "data_format": "netcdf",
     }
@@ -134,7 +139,7 @@ def standardize(da):
     da = da.transpose(time_name, lat_name, lon_name)
     lats = np.asarray(da[lat_name].values, dtype=float)
     lons = np.asarray(da[lon_name].values, dtype=float)
-    if lats.size < 20 or lats.min() > 80.01 or lats.max() < 89.99:
+    if lats.size < 60 or lats.min() > 60.01 or lats.max() < 89.99:
         raise ValueError("ERA5 north-polar latitude selection is incomplete")
     if lons.size < 710 or np.ptp(lons) < 350:
         raise ValueError("ERA5 longitude coverage is not global")
@@ -210,14 +215,14 @@ def load_polar_boundaries():
                 resolution=resolution, category=category, name=name)
         geometries = []
         for geom in shapereader.Reader(path).geometries():
-            if not geom.is_empty and geom.bounds[3] >= 79.5:
+            if not geom.is_empty and geom.bounds[3] >= 59.5:
                 geometries.append(geom)
         return geometries
 
     # The 110m line lacks small high-Arctic archipelago detail.  At 10m the
     # Greenland coast, Svalbard, Franz Josef Land and Canadian islands appear.
     coast = candidates("10m", "physical", "coastline")
-    if len(coast) < 5:
+    if len(coast) < 20:
         raise ValueError(
             f"Natural Earth polar coastline incomplete: {len(coast)} geometries")
     # Administrative boundaries above 80N are sparse; their absence in the
@@ -232,7 +237,8 @@ def load_polar_boundaries():
     return _BOUNDARY_GEOMETRIES
 
 
-def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float):
+def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float,
+               lat_south: int = 80):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -243,6 +249,13 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
 
     if mode not in ("temperature", "anomaly"):
         raise ValueError("Unknown map mode")
+    if lat_south not in REGIONS:
+        raise ValueError("Only 60, 70 and 80 north are valid map extents")
+    keep_lat = np.asarray(lats) >= lat_south - 0.01
+    if keep_lat.sum() < 20 or np.asarray(lats)[keep_lat].max() < 89.99:
+        raise ValueError("Incomplete ERA5 latitude coverage for chosen polar extent")
+    lats = np.asarray(lats)[keep_lat]
+    values = np.asarray(values)[keep_lat, :]
     order = np.argsort(lons)
     lon = np.asarray(lons)[order]
     grid = np.asarray(values)[:, order]
@@ -252,7 +265,7 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
     norm = mcolors.BoundaryNorm(levels, cmap.N, extend="both")
     fig = plt.figure(figsize=(10.4, 10.3), facecolor="#ffffff", dpi=130)
     ax = fig.add_axes([0.12, 0.175, 0.76, 0.69], projection=ccrs.NorthPolarStereo())
-    ax.set_extent([-180, 180, 79.8, 90], crs=ccrs.PlateCarree())
+    ax.set_extent([-180, 180, lat_south - 0.2, 90], crs=ccrs.PlateCarree())
     theta = np.linspace(0, 2 * np.pi, 220)
     boundary = mpath.Path(np.column_stack([0.5 + .5*np.sin(theta),
                                            0.5 + .5*np.cos(theta)]))
@@ -282,10 +295,11 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
                       color="#43576a", linestyle="--")
     import matplotlib.ticker as mticker
     gl.xlocator = mticker.FixedLocator(np.arange(-180, 180, 30))
-    gl.ylocator = mticker.FixedLocator([80, 85])
+    parallels = [p for p in (60, 70, 80, 85) if p >= lat_south]
+    gl.ylocator = mticker.FixedLocator(parallels)
     # Graticule and labels support orientation in the largely oceanic 80–90N
     # domain, even where there are no international land borders.
-    for latlabel in (80, 85):
+    for latlabel in parallels:
         ax.text(35, latlabel, f"{latlabel}°N", transform=ccrs.PlateCarree(),
                 fontsize=8, color="#1b3448", weight="bold",
                 zorder=15, ha="left", va="bottom",
@@ -293,12 +307,12 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
                     patheffects.withStroke(linewidth=2.2, foreground="white")])
     for lonlabel in (-180, -90, 0, 90):
         label = f"{abs(lonlabel)}°{'W' if lonlabel<0 else ('E' if lonlabel>0 else '')}"
-        ax.text(lonlabel, 80.55, label, transform=ccrs.PlateCarree(),
+        ax.text(lonlabel, lat_south + .55, label, transform=ccrs.PlateCarree(),
                 fontsize=7.5, color="#20384d", zorder=15,
                 ha="center", va="center",
                 path_effects=[
                     patheffects.withStroke(linewidth=2.0, foreground="white")])
-    fig.text(.07, .955, "KLIMADASHBOARD  |  HOCHARKTIS >80° N",
+    fig.text(.07, .955, f"KLIMADASHBOARD  |  ARKTIS {lat_south}–90° N",
              fontsize=12, color="#215b82", weight="bold")
     title = "Lufttemperatur in 2 m Höhe" if mode=="temperature" else "Abweichung vom Monatsklima"
     subtitle = ("ERA5-Tagesmittel · 00–24 UTC" if mode=="temperature" else
@@ -318,7 +332,7 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
              fontsize=9, color="#536679")
     fig.text(.07, .030,
              ("Reanalyse, keine Prognose · Monatsreferenz 1991–2020 · " +
-              "nicht identisch mit DMI >80°N Index"),
+              "feste Legende in allen Regionen"),
              fontsize=8.8, color="#536679")
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, facecolor="white", dpi=130)
@@ -332,7 +346,7 @@ def load_reference(client, month: int, output: Path, workspace: Path):
             lat = cached["latitude"].copy()
             lon = cached["longitude"].copy()
             grid = cached["kelvin"].copy()
-        if lat.size>=20 and lon.size>=710 and np.isfinite(grid).all():
+        if lat.size>=60 and lat.min()<=60.01 and lat.max()>=89.99 and lon.size>=710 and np.isfinite(grid).all():
             print(f"Using verified 1991–2020 climatology for month {month:02d}", flush=True)
             return lat, lon, grid
     raw = workspace/f"monthly_{month:02d}.zip"
@@ -351,8 +365,35 @@ def valid_image(path: Path) -> bool:
     return path.exists() and path.stat().st_size >= 25000 and path.open("rb").read(8) == PNG_SIGNATURE
 
 
+
+def _region_png(day: date, region: int, mode: str) -> str:
+    suffix = "t2m" if mode == "temperature" else "anomaly"
+    return f"maps/{suffix}_{region}n_{day:%Y%m%d}.png"
+
+
+def _region_complete(region: dict, output: Path) -> bool:
+    return (region.get("boundary_version") in (LEGACY_BOUNDARY_VERSION, BOUNDARY_VERSION)
+            and all(valid_image(output / region[k])
+                    for k in ("temperature_png", "anomaly_png")))
+
+
+def _migrate_legacy(row: dict, output: Path) -> dict | None:
+    """Keep already verified >80N images while adding 60/70N from actual ERA5."""
+    regions = dict(row.get("regions", {}))
+    if not regions and all(k in row for k in ("temperature_png", "anomaly_png")):
+        regions["80"] = {k: row[k] for k in (
+            "boundary_version", "temperature_png", "anomaly_png",
+            "mean_c", "mean_anomaly_k", "min_c", "max_c",
+            "min_anomaly_k", "max_anomaly_k") if k in row}
+        regions["80"]["boundary_version"] = row.get("boundary_version")
+    regions = {key: data for key, data in regions.items()
+               if key in tuple(map(str, REGIONS)) and _region_complete(data, output)}
+    return {"date": row["date"], "regions": regions} if regions else None
+
+
 def make_one_day(day: date, client, output: Path, workspace: Path):
-    raw = workspace/f"daily_{day:%Y%m%d}.zip"
+    """One full 60–90N ERA5 download -> all 3 independently labeled map pairs."""
+    raw = workspace / f"daily_{day:%Y%m%d}.zip"
     client.retrieve(DAILY_DATASET, daily_request(day), str(raw))
     if not raw.exists() or raw.stat().st_size < 2000:
         raise RuntimeError("ERA5 daily data not downloaded")
@@ -362,137 +403,170 @@ def make_one_day(day: date, client, output: Path, workspace: Path):
         raise ValueError("Daily ERA5 grid and 1991–2020 reference mismatch")
     tc = kelvin - 273.15
     anomaly = kelvin - baseline
-    tc_mean = cap_mean(tc, lats)
-    anomaly_mean = cap_mean(anomaly, lats)
-    if not (-65 < tc_mean < 15 and -30 < anomaly_mean < 30):
-        raise ValueError("Implausible polar cap temperature/anomaly mean")
-    day_key = day.strftime("%Y%m%d")
-    directory = output/"maps"
-    temp_png = directory/f"t2m_{day_key}.png"
-    anom_png = directory/f"anomaly_{day_key}.png"
-    tmp_temp = workspace/f"temp_{day_key}.png"
-    tmp_anom = workspace/f"anom_{day_key}.png"
-    render_map(lats, lons, tc, day, "temperature", tmp_temp, tc_mean)
-    render_map(lats, lons, anomaly, day, "anomaly", tmp_anom, anomaly_mean)
-    if not valid_image(tmp_temp) or not valid_image(tmp_anom):
-        raise RuntimeError("ERA5 images failed PNG integrity checks")
-    directory.mkdir(parents=True, exist_ok=True)
-    os.replace(tmp_temp, temp_png)
-    os.replace(tmp_anom, anom_png)
-    record = {
-        "date": day.isoformat(),
-        "boundary_version": BOUNDARY_VERSION,
-        "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
-        "temperature_png": f"maps/{temp_png.name}",
-        "anomaly_png": f"maps/{anom_png.name}",
-        "mean_c": round(tc_mean, 2),
-        "mean_anomaly_k": round(anomaly_mean, 2),
-        "min_c": round(float(tc.min()), 2),
-        "max_c": round(float(tc.max()), 2),
-        "min_anomaly_k": round(float(anomaly.min()), 2),
-        "max_anomaly_k": round(float(anomaly.max()), 2),
-    }
-    print("Verified ERA5 >80N maps:", record, flush=True)
-    return record
+    regions = {}
+    staged = []
+    for south in REGIONS:
+        keep = lats >= south - .01
+        mean_c = cap_mean(tc[keep], lats[keep])
+        mean_anomaly = cap_mean(anomaly[keep], lats[keep])
+        if not (-65 < mean_c < 25 and -35 < mean_anomaly < 35):
+            raise ValueError(f"Implausible ERA5 polar mean for {south}N")
+        targets = {
+            "temperature_png": _region_png(day, south, "temperature"),
+            "anomaly_png": _region_png(day, south, "anomaly")
+        }
+        for mode, values, mean, key in (
+            ("temperature", tc, mean_c, "temperature_png"),
+            ("anomaly", anomaly, mean_anomaly, "anomaly_png")
+        ):
+            dest = workspace / f"{south}_{mode}_{day:%Y%m%d}.png"
+            render_map(lats, lons, values, day, mode, dest, mean, lat_south=south)
+            if not valid_image(dest):
+                raise RuntimeError(f"ERA5 {south}N {mode} PNG failed integrity check")
+            staged.append((dest, output / targets[key]))
+        regions[str(south)] = {
+            "boundary_version": BOUNDARY_VERSION,
+            "temperature_png": targets["temperature_png"],
+            "anomaly_png": targets["anomaly_png"],
+            "mean_c": round(mean_c, 2),
+            "mean_anomaly_k": round(mean_anomaly, 2),
+            "min_c": round(float(tc[keep].min()), 2),
+            "max_c": round(float(tc[keep].max()), 2),
+            "min_anomaly_k": round(float(anomaly[keep].min()), 2),
+            "max_anomaly_k": round(float(anomaly[keep].max()), 2),
+        }
+    # Publish only after all six real maps are validated.
+    for source, destination in staged:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(source, destination)
+    print(f"Verified ERA5 regions {list(regions)}: {day.isoformat()}", flush=True)
+    return {"date": day.isoformat(), "regions": regions}
 
 
 def validate_manifest(data: dict, root: Path) -> None:
-    if data.get("schema") != 1 or data.get("ready") is not True:
-        raise ValueError("ERA5 polar map index is not ready")
+    if data.get("schema") != 2 or data.get("ready") is not True:
+        raise ValueError("ERA5 polar map index must be ready schema 2")
     if data.get("reference_period") != "1991-2020":
-        raise ValueError("ERA5 polar map climatology reference mismatch")
+        raise ValueError("ERA5 climate baseline mismatch")
     records = data.get("days")
-    if not isinstance(records, list) or not records:
-        raise ValueError("ERA5 map index lacks actual days")
+    if not isinstance(records, list) or not records or len(records) > TARGET_ARCHIVE_DAYS:
+        raise ValueError("ERA5 archive must contain 1–30 real days")
     seen = set()
-    for entry in records:
-        day = date.fromisoformat(entry["date"])
-        if entry.get("boundary_version") != BOUNDARY_VERSION:
-            raise ValueError("Map missing verified Natural Earth boundaries")
-        if day in seen:
-            raise ValueError("Duplicate map date")
-        seen.add(day)
-        for key in ("temperature_png", "anomaly_png"):
-            relative = Path(entry[key])
-            if relative.is_absolute() or ".." in relative.parts:
-                raise ValueError("Unsafe ERA5 image relative path")
-            if not valid_image(root/relative):
-                raise ValueError(f"Missing/invalid ERA5 PNG: {relative}")
-        for val in ("mean_c", "mean_anomaly_k"):
-            if not math.isfinite(float(entry[val])):
-                raise ValueError("Nonfinite area-mean map value")
-    if data["latest_date"] != max(entry["date"] for entry in records):
-        raise ValueError("ERA5 latest_date mismatch")
+    for row in records:
+        date.fromisoformat(row["date"])
+        if row["date"] in seen: raise ValueError("Duplicate map date")
+        seen.add(row["date"])
+        regions = row.get("regions", {})
+        if not isinstance(regions, dict) or not regions:
+            raise ValueError("No verified maps in archived day")
+        for key, detail in regions.items():
+            if key not in {"60","70","80"}:
+                raise ValueError("Unrecognized polar region")
+            if detail.get("boundary_version") not in (LEGACY_BOUNDARY_VERSION, BOUNDARY_VERSION):
+                raise ValueError("Polar map boundaries not validated")
+            for image in ("temperature_png", "anomaly_png"):
+                path = Path(detail[image])
+                if path.is_absolute() or ".." in path.parts or len(path.parts) != 2 or path.parts[0] != "maps":
+                    raise ValueError("Unsafe ERA5 map path")
+                if not valid_image(root / path):
+                    raise ValueError(f"Missing or invalid ERA5 map: {path}")
+            for metric in ("mean_c", "mean_anomaly_k"):
+                if not math.isfinite(float(detail[metric])):
+                    raise ValueError("Nonfinite ERA5 polar mean")
+    if data["latest_date"] != max(row["date"] for row in records):
+        raise ValueError("Latest date mismatch")
+    if int(data.get("target_days",0)) != TARGET_ARCHIVE_DAYS:
+        raise ValueError("Incorrect archive target")
+
+
+def _candidate_days(today: date):
+    """Newest ERA5-available candidate first; then complete a 30-day window."""
+    return [today - timedelta(days=age)
+            for age in range(EARLIEST_ERA5_AGE_DAYS,
+                             EARLIEST_ERA5_AGE_DAYS + TARGET_ARCHIVE_DAYS)]
+
+
+def _selected_rows(by_date: dict, today: date):
+    window = {x.isoformat() for x in _candidate_days(today)}
+    return sorted((row for day, row in by_date.items() if day in window),
+                  key=lambda r: r["date"], reverse=True)[:TARGET_ARCHIVE_DAYS]
 
 
 def build(output: Path = OUTPUT, today: date | None = None, client=None,
-          max_new_days: int=2):
+          max_new_days: int=4):
     output = Path(output)
     today = today or datetime.now(timezone.utc).date()
-    index = output/"index.json"
-    old = json.loads(index.read_text(encoding="utf-8")) if index.exists() else {}
-    previous = old.get("days", []) if old.get("ready") else []
-    previous = [r for r in previous if all(valid_image(output/r[k])
-                 for k in ("temperature_png", "anomaly_png"))]
-    previous_dates = {row["date"] for row in previous}
-    # Invalidate previous borderless images and regenerate them from ERA5;
-    # a valid PNG alone does not prove the map has coastline geometry.
-    by_date = {row["date"]: row for row in previous
-               if row.get("boundary_version") == BOUNDARY_VERSION}
-    if client is None:
-        import cdsapi
-        client = cdsapi.Client()
+    old_path = output / "index.json"
+    old = json.loads(old_path.read_text(encoding="utf-8")) if old_path.exists() else {}
+    previous = old.get("days", []) if old.get("ready") is True else []
+    by_date = {}
+    for row in previous:
+        migrated = _migrate_legacy(row, output)
+        if migrated:
+            by_date[row["date"]] = migrated
+    missing = [
+        day for day in _candidate_days(today)
+        if day.isoformat() not in by_date
+        or any(str(lat) not in by_date[day.isoformat()]["regions"] for lat in REGIONS)
+    ]
+    failures=[]
     built=0
-    errors=[]
-    with tempfile.TemporaryDirectory(prefix="era5-arctic80-") as tmp:
-        work=Path(tmp)
-        for ago in range(7, 13):
-            day=today-timedelta(days=ago)
-            if day.isoformat() in by_date:
-                continue
-            # Reject older history that would displace existing, newer real images.
-            if previous and day.isoformat() < max(r["date"] for r in previous) and day.isoformat() not in previous_dates:
-                continue
-            try:
-                row=make_one_day(day, client, output, work)
-                by_date[row["date"]]=row
-                built+=1
+    if missing:
+        if client is None:
+            import cdsapi
+            client=cdsapi.Client()
+        with tempfile.TemporaryDirectory(prefix="era5-arctic-3region-") as tmp:
+            workspace=Path(tmp)
+            for day in missing:
                 if built>=max_new_days:
                     break
-            except Exception as exc:
-                errors.append(f"{day}: {type(exc).__name__}: {exc}")
-                print("ERA5 north-polar maps not available:", errors[-1], flush=True)
-        if not by_date:
-            raise RuntimeError("No real ERA5 north-polar temperature/anomaly maps available: "+
-                               " | ".join(errors)) 
-    records=sorted(by_date.values(), key=lambda r:r["date"], reverse=True)[:12]
+                try:
+                    row = make_one_day(day, client, output, workspace)
+                    by_date[day.isoformat()] = row
+                    built += 1
+                except Exception as exc:
+                    failures.append(f"{day}: {type(exc).__name__}: {exc}")
+                    print("ERA5 candidate unavailable:", failures[-1], flush=True)
+                    # Most recent day can lag; don't invent a field.
+    records=_selected_rows(by_date, today)
+    if not records:
+        raise RuntimeError("No real ERA5 Arctic maps available: "+" | ".join(failures))
     payload={
-        "schema":1,"ready":True,
+        "schema":2, "ready":True,
         "boundary_version": BOUNDARY_VERSION,
-        "boundary_source": "Natural Earth 10m coastline and 50m national land borders",
+        "boundary_source":"Natural Earth 10m coastline / 50m land borders",
         "source":"Copernicus Climate Change Service (C3S) / ECMWF ERA5",
         "daily_dataset":DAILY_DATASET, "monthly_dataset":MONTHLY_DATASET,
         "daily_doi":DOI_DAILY, "monthly_doi":DOI_MONTHLY,
         "parameter":"2m_temperature", "statistic":"daily_mean",
         "frequency":"1_hourly", "time_zone":"UTC+00:00",
-        "reference_period":"1991-2020", "anomaly_reference":"monthly_mean_same_calendar_month",
-        "domain":"80°N–90°N, 180°W–180°E", "grid_resolution_degrees":RESOLUTION,
-        "area_mean":"cos(latitude) weighting on displayed regular lat-lon grid",
-        "forecast":False, "latest_date":records[0]["date"],"days":records,
+        "reference_period":"1991-2020",
+        "anomaly_reference":"monthly_mean_same_calendar_month",
+        "regions":[80,70,60], "domain":"60°N–90°N, 180°W–180°E",
+        "grid_resolution_degrees":RESOLUTION,
+        "fixed_temperature_scale_c":[float(TEMP_LEVELS[0]),float(TEMP_LEVELS[-1])],
+        "fixed_anomaly_scale_k":[float(ANOM_LEVELS[0]),float(ANOM_LEVELS[-1])],
+        "area_mean":"cos(latitude) weights per selected polar cap",
+        "forecast":False,
+        "target_days":TARGET_ARCHIVE_DAYS,
+        "archive_days":len(records), "fully_mapped_days":sum(
+            all(str(lat) in row["regions"] for lat in REGIONS) for row in records),
+        "latest_date":records[0]["date"],"days":records,
         "generated_utc":datetime.now(timezone.utc).isoformat(timespec="seconds")
     }
     validate_manifest(payload, output)
-    index.parent.mkdir(parents=True, exist_ok=True)
-    temp=index.with_suffix(".json.tmp")
-    temp.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    os.replace(temp,index)
+    output.mkdir(parents=True, exist_ok=True)
+    tmp=old_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    os.replace(tmp, old_path)
+    print(f"Published ERA5 Arctic archive: {len(records)}/{TARGET_ARCHIVE_DAYS} days; "
+          f"fully mapped {payload['fully_mapped_days']}; newly mapped {built}")
     return payload
-
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--output",type=Path,default=OUTPUT)
-    parser.add_argument("--max-new-days",type=int,default=2)
+    parser.add_argument("--max-new-days",type=int,default=4)
     args=parser.parse_args()
     result=build(output=args.output,max_new_days=args.max_new_days)
     print(f"Ready: {result['latest_date']} | {len(result['days'])} available real ERA5 maps")
