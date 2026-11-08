@@ -80,6 +80,7 @@
   }
 
   function enableNativeEnsembleControls(chart) {
+    if(typeof document.getElementById!=='function')return false;
     const id=chart.canvas?.id;
     const nativeIds=id==='stratoEnsembleCanvas'
       ? ['stratoMembers','stratoBand90','stratoBand50']
