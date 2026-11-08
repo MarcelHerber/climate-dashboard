@@ -1,9 +1,9 @@
 {
   "ready": true,
-  "generated_at": "2026-10-14T19:11:55+00:00",
-  "latest_month_key": "2026-09",
-  "data_through": "2026-09",
-  "label": "September 2026",
+  "generated_at": "2026-11-08T13:49:41+00:00",
+  "latest_month_key": "2026-10",
+  "data_through": "2026-10",
+  "label": "Oktober 2026",
   "source": "Copernicus Climate Change Service / ECMWF · ERA5 monthly means",
   "datasets": {
     "pressure_levels": "reanalysis-era5-pressure-levels-monthly-means",
@@ -46,13 +46,13 @@
         "comparison_years": 86,
         "total_rank_positions": 87,
         "direction": "1 = wärmster",
-        "rank1_area_percent": 8.18431772203362,
-        "top3_area_percent": 20.701659813927968
+        "rank1_area_percent": 7.183121145732866,
+        "top3_area_percent": 14.752984196460645
       },
       "stats": {
-        "current_area_mean": 13.152148347513783,
-        "reference_area_mean": 12.048007860475506,
-        "anomaly_area_mean": 1.1041404870442189
+        "current_area_mean": 9.273915807178936,
+        "reference_area_mean": 8.381382126701062,
+        "anomaly_area_mean": 0.8925336804183678
       }
     },
     "z500": {
@@ -74,13 +74,13 @@
         "comparison_years": 86,
         "total_rank_positions": 87,
         "direction": "1 = höchste Geopotentialhöhe",
-        "rank1_area_percent": 28.490499776007987,
-        "top3_area_percent": 39.32789321789073
+        "rank1_area_percent": 7.5215477197617995,
+        "top3_area_percent": 22.916497987230944
       },
       "stats": {
-        "current_area_mean": 5757.012111388278,
-        "reference_area_mean": 5733.344705913365,
-        "anomaly_area_mean": 23.66740547491288
+        "current_area_mean": 5707.943170468642,
+        "reference_area_mean": 5670.489549455527,
+        "anomaly_area_mean": 37.45362101311429
       }
     },
     "wind300": {
@@ -102,13 +102,13 @@
         "comparison_years": 86,
         "total_rank_positions": 87,
         "direction": "1 = stärkster Wind",
-        "rank1_area_percent": 0.08902190871270202,
-        "top3_area_percent": 2.5695649575696264
+        "rank1_area_percent": 0.03488627227969846,
+        "top3_area_percent": 1.2059944582485014
       },
       "stats": {
-        "current_area_mean": 12.466442258520072,
-        "reference_area_mean": 12.330417214208701,
-        "anomaly_area_mean": 0.13602504405774843
+        "current_area_mean": 14.685887876172648,
+        "reference_area_mean": 15.07049033323712,
+        "anomaly_area_mean": -0.3846024566929543
       }
     },
     "mslp": {
@@ -130,13 +130,13 @@
         "comparison_years": 86,
         "total_rank_positions": 87,
         "direction": "1 = höchster Luftdruck",
-        "rank1_area_percent": 2.5633822886434543,
-        "top3_area_percent": 11.570846959098853
+        "rank1_area_percent": 5.072199479970232,
+        "top3_area_percent": 13.725375122260008
       },
       "stats": {
-        "current_area_mean": 1014.0423842835713,
-        "reference_area_mean": 1013.7405458913074,
-        "anomaly_area_mean": 0.3018383922637964
+        "current_area_mean": 1015.7941265548519,
+        "reference_area_mean": 1014.2705726496567,
+        "anomaly_area_mean": 1.523553905195152
       }
     }
   },
@@ -149,7 +149,8 @@
     "2026-06",
     "2026-07",
     "2026-08",
-    "2026-09"
+    "2026-09",
+    "2026-10"
   ],
   "archive_index_pattern": "era5_europe/archive/{period}/index.json",
   "history_years": [
@@ -242,6 +243,5 @@
   ],
   "history_archive_start": 1940,
   "history_archive_end": 2025,
-  "history_archive_type": "monthly-remote-webp-releases",
-  "history_archive_note": "Historical monthly images are hosted in annual GitHub Releases. The year appears only after all 144 maps and manifest are published."
+  "history_archive_type": "monthly-remote-webp-releases"
 }
