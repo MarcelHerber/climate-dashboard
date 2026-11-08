@@ -91,6 +91,7 @@ function ready(data){
     $("arcticEra5MapDate").append(o);
   }
   selectPosition(0);showMode();
+  $("arcticEra5Pdf").disabled=false;
   return true;
 }
 async function load(){
