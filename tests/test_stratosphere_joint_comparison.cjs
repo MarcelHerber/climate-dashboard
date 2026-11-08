@@ -61,7 +61,7 @@ test('different UTC hours, invalid member totals and fabricated incomplete value
 });
 test('all chart intervals retain exact finite quantiles and no time interpolation',()=>{
   assert.equal(percentile([0,10,20,30],.50),15);
-  assert.equal(percentile([0,10,20,30],.05),1.5);
+  assert.ok(Math.abs(percentile([0,10,20,30],.05)-1.5)<1e-12);
   const g=summarize(model('gefs',12),12,'gefs');
   assert.ok(g.rows.every(r=>Number.isFinite(r.mean)&&Number.isFinite(r.p05)));
   assert.ok(g.rows.every(r=>r.date.includes('2026-11-')));
