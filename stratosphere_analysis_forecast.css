@@ -1,0 +1,46 @@
+/* Stratosphere: NASA analysis+ensemble bridge, model comparison KPIs, vertical levels. */
+.strato-analysis-panel,.strato-metrics-panel,.strato-vertical-panel{margin-top:23px;min-width:0}
+.strato-analysis-controls,.strato-metrics-controls,.strato-vertical-controls{
+ display:flex;align-items:end;flex-wrap:wrap;gap:9px 12px;margin:13px 0 10px}
+.strato-analysis-controls label,.strato-metrics-controls label,.strato-vertical-controls label{
+ display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px;font-weight:700}
+.strato-analysis-controls select,.strato-metrics-controls select,.strato-vertical-controls select{
+ min-height:40px;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:7px;
+ color:var(--ink);padding:7px 12px;font:inherit}
+.strato-analysis-controls .btn,.strato-metrics-controls .btn,.strato-vertical-controls .btn{min-height:40px}
+.strato-analysis-chart{height:clamp(520px,68vh,750px)}
+.strato-metrics-chart{height:clamp(410px,52vh,610px)}
+.strato-vertical-chart{height:clamp(500px,62vh,720px)}
+.strato-analysis-chart canvas,.strato-metrics-chart canvas,.strato-vertical-chart canvas{
+ width:100%!important;height:100%!important}
+.strato-metrics-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:16px 0}
+.strato-metrics-kpis>div{min-width:0;background:var(--card);border:1px solid var(--line);
+ border-radius:9px;padding:12px}
+.strato-metrics-kpis small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.strato-metrics-kpis strong{display:block;font-size:16px;margin-top:8px;overflow-wrap:anywhere}
+.strato-metrics-trends,.strato-vertical-table{margin-top:15px;border:1px solid var(--line);
+ padding:12px;border-radius:9px;background:var(--card)}
+.strato-metrics-trends summary,.strato-vertical-table summary{font-weight:700;cursor:pointer}
+.strato-metrics-trends p{font-size:12px;overflow-wrap:anywhere}
+.strato-vertical-panel h4{margin:25px 0 8px}
+.strato-vertical-heatmap-scroll{max-width:100%;overflow-x:auto;background:#fff;border-radius:9px;
+ border:1px solid var(--line);padding:8px}
+.strato-vertical-heatmap-scroll canvas{display:block;width:100%;min-width:740px;height:auto;
+ background:#fff}
+.strato-vertical-table-scroll{max-width:100%;overflow-x:auto;margin-top:8px}
+.strato-vertical-table-scroll table{border-collapse:collapse;width:100%;min-width:430px;font-size:12px}
+.strato-vertical-table-scroll th,.strato-vertical-table-scroll td{
+ padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+@media(max-width:1050px){.strato-metrics-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:750px){
+ .strato-analysis-chart{height:500px}.strato-metrics-chart{height:420px}
+ .strato-vertical-chart{height:480px}
+ .strato-metrics-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .strato-analysis-controls .btn,.strato-metrics-controls .btn,.strato-vertical-controls .btn{
+  flex:1 1 138px}
+}
+@media(max-width:390px){
+ .strato-metrics-kpis{grid-template-columns:1fr 1fr}
+ .strato-analysis-controls label,.strato-metrics-controls label,.strato-vertical-controls label{width:100%}
+ .strato-analysis-controls select,.strato-metrics-controls select,.strato-vertical-controls select{width:100%}
+}
