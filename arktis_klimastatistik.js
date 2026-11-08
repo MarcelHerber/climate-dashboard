@@ -373,18 +373,70 @@ function pdfPages(canvases,title,name){
   });
   pdf.save(name);
 }
+function combineCanvases(canvases){
+  const width=Math.max(...canvases.map(c=>c.width)),height=canvases.reduce((sum,c)=>sum+c.height,0)+24*(canvases.length-1);
+  const output=document.createElement("canvas");output.width=width;output.height=height;
+  const ctx=output.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,width,height);
+  let top=0;
+  for(const c of canvases){ctx.drawImage(c,(width-c.width)/2,top);top+=c.height+24;}
+  return output;
+}
+function tableCanvas(title,subtitle,columns,rows){
+  const width=1280,height=Math.max(430,178+rows.length*30);
+  return stampCanvas(document.createElement("canvas"),width,height,title,subtitle,
+    (ctx,x,y,availW)=>{
+      const widths=columns.map((_,i)=>i?120:170);
+      ctx.font="bold 15px Arial";ctx.fillStyle="#20384f";
+      let offset=0;
+      columns.forEach((c,i)=>{ctx.fillText(c,x+offset,y+10);offset+=widths[i];});
+      ctx.strokeStyle="#b9c6d2";ctx.beginPath();ctx.moveTo(x,y+19);
+      ctx.lineTo(x+availW,y+19);ctx.stroke();
+      ctx.font="14px Arial";
+      rows.forEach((row,j)=>{
+        ctx.fillStyle=j%2===0?"#f3f6f8":"#fff";
+        ctx.fillRect(x,y+26+j*30,availW,28);
+        ctx.fillStyle="#263d51";let xx=0;
+        row.forEach((value,i)=>{ctx.fillText(String(value),x+xx+4,y+46+j*30);xx+=widths[i];});
+      });
+    });
+}
+function decadeExport(){
+  const from=Number($("arcticTrendFrom").value),to=Number($("arcticTrendTo").value);
+  const rows=results.decades.map(d=>({
+    name:d.decade+"er",
+    selected:rowSet().filter(r=>Math.floor(r.year/10)*10===d.decade)
+  })).filter(d=>d.selected.length).map(d=>{
+    const sample=d.selected,n=sample.length,avg=key=>sample.reduce((sum,r)=>sum+r[key],0)/n;
+    return [d.name,n,fmt(avg("warmDays")),fmt(avg("coldDays")),fmt(avg("maxWarm")),fmt(avg("maxCold"))];
+  });
+  return tableCanvas("Arktis: Dekadenmittel der Extremtage","Nur vollständige Jahre · Zeitraum "+Math.min(from,to)+"–"+Math.max(from,to),
+    ["Dekade","Jahre","Ø warm","Ø kalt","Ø warm Folge","Ø kalt Folge"],rows);
+}
+function seasonRankingExport(){
+  const season=seasonKey(),label=periodDefs[season].name,all=seasonalRows();
+  const warm=seasonalRank(all,"warm",0).sorted.slice(0,12),
+    cold=seasonalRank(all,"cold",0).sorted.slice(0,12);
+  const columns=["Rang","Jahr","Warmtage","Längste Folge","Jahr","Kalttage","Längste Folge"];
+  const rows=Array.from({length:Math.max(warm.length,cold.length)},(_,i)=>[
+    i+1,warm[i]?.year??"–",warm[i]?.warm??"–",warm[i]?.longestWarm??"–",
+    cold[i]?.year??"–",cold[i]?.cold??"–",cold[i]?.longestCold??"–"]);
+  return tableCanvas("Arktis: saisonale Rekordranglisten",label+" · nur vollständige Perioden · Referenz 1958–2002",
+    columns,rows);
+}
 function summaryExport(mode){
   const rows=rowSet(),caption=rows.length?rows[0].year+"–"+rows.at(-1).year:"keine vollständigen Jahre";
   const first=chartExport(frequencyChart,"Arktis: ungewöhnlich warme und kalte Tage",caption+" · Vollständige Jahre · P10/P90 1958–2002");
   const second=chartExport(durationChart,"Arktis: längste jährliche Extremfolgen",caption+" · Vollständige Jahre · P10/P90 1958–2002");
-  if(mode==="pdf")pdfPages([first,second],"Langzeitstatistik","Arktis_80N_Langzeitstatistik.pdf");
-  else saveCanvas(first,"Arktis_80N_Langzeit_Extremtage.png");
+  const decades=decadeExport();
+  if(mode==="pdf")pdfPages([first,second,decades],"Langzeitstatistik","Arktis_80N_Langzeitstatistik.pdf");
+  else saveCanvas(combineCanvases([first,second,decades]),"Arktis_80N_Langzeitstatistik.png");
 }
 function seasonExport(mode){
   const label=periodDefs[seasonKey()].name;
-  const canvas=chartExport(seasonChart,"Arktis: Extremtage nach Jahreszeit",label+" · Vollständige Perioden · P10/P90 1958–2002");
-  if(mode==="pdf")pdfPages([canvas],"Saisonstatistik","Arktis_80N_Saison_"+seasonKey()+".pdf");
-  else saveCanvas(canvas,"Arktis_80N_Saison_"+seasonKey()+".png");
+  const chart=chartExport(seasonChart,"Arktis: Extremtage nach Jahreszeit",label+" · Vollständige Perioden · P10/P90 1958–2002");
+  const ranks=seasonRankingExport();
+  if(mode==="pdf")pdfPages([chart,ranks],"Saisonstatistik","Arktis_80N_Saison_"+seasonKey()+".pdf");
+  else saveCanvas(combineCanvases([chart,ranks]),"Arktis_80N_Saison_"+seasonKey()+".png");
 }
 function init(){
   if(!$("arcticLongTermLoad"))return;
