@@ -356,3 +356,186 @@ async function init(){
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
 
+
+
+/* DMI climate-streak monitor: fixed 1958–2002 calendar-day P10/P90 reference. */
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const valid=v=>typeof v==="number"&&Number.isFinite(v);
+const leap=y=>y%4===0&&(y%100!==0||y%400===0);
+const dateLabel=iso=>iso?iso.slice(8,10)+"."+iso.slice(5,7)+"."+iso.slice(0,4):"–";
+const number=v=>valid(v)?v.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–";
+const quantile=(values,p)=>{
+  if(!values.length)return null;
+  const a=values.slice().sort((x,y)=>x-y),q=(a.length-1)*p,lo=Math.floor(q);
+  return a[lo]+(a[Math.ceil(q)]-a[lo])*(q-lo);
+};
+function thresholds(doc,start=1958,end=2002){
+  if(!Array.isArray(doc.days)||!doc.years)throw Error("DMI Tageswerte fehlen");
+  const p10=[],p90=[],counts=[];
+  for(let i=0;i<doc.days.length;i++){
+    const sample=[];
+    for(let y=start;y<=end;y++){
+      const v=doc.years[String(y)]?.[i];
+      if(valid(v))sample.push(v);
+    }
+    const enough=sample.length >= (doc.days[i]==="02-29"?10:30);
+    p10.push(enough?quantile(sample,.1):null);
+    p90.push(enough?quantile(sample,.9):null);
+    counts.push(sample.length);
+  }
+  return {p10,p90,counts};
+}
+function analyze(doc,ref=thresholds(doc)){
+  const annual=[],allEvents={warm:[],cold:[]};
+  const open={warm:null,cold:null};
+  const flush=kind=>{
+    const e=open[kind];if(!e)return;
+    e.meanExcess=e.excess/e.days;
+    e.latest=e.end===doc.last_date;
+    allEvents[kind].push(e);open[kind]=null;
+  };
+  let previousDay=null;
+  for(const y of Object.keys(doc.years).map(Number).sort((a,b)=>a-b)){
+    const values=doc.years[String(y)],row={
+      year:y,expected:leap(y)?366:365,coverage:0,
+      warmDays:0,coldDays:0,maxWarm:0,maxCold:0,
+      currentWarm:0,currentCold:0,months:Array.from({length:12},()=>({warm:0,cold:0,coverage:0}))
+    };
+    for(let i=0;i<doc.days.length;i++){
+      const day=doc.days[i];
+      if(day==="02-29"&&!leap(y))continue;
+      const iso=String(y).padStart(4,"0")+"-"+day;
+      const time=Date.UTC(y,Number(day.slice(0,2))-1,Number(day.slice(3)));
+      if(previousDay!==null&&time-previousDay!==86400000){flush("warm");flush("cold");}
+      previousDay=time;
+      const v=values[i],low=ref.p10[i],high=ref.p90[i];
+      const month=row.months[Number(day.slice(0,2))-1];
+      if(!valid(v)||!valid(low)||!valid(high)){
+        row.currentWarm=0;row.currentCold=0;
+        flush("warm");flush("cold");continue;
+      }
+      row.coverage++;month.coverage++;
+      const flags={warm:v>high,cold:v<low};
+      for(const kind of ["warm","cold"]){
+        const isMatch=flags[kind],counter=kind==="warm"?"warmDays":"coldDays";
+        const current=kind==="warm"?"currentWarm":"currentCold";
+        const max=kind==="warm"?"maxWarm":"maxCold";
+        if(isMatch){
+          row[counter]++;month[kind]++;
+          row[current]++;row[max]=Math.max(row[max],row[current]);
+          const excess=kind==="warm"?v-high:low-v;
+          if(!open[kind])open[kind]={start:iso,end:iso,days:0,excess:0};
+          open[kind].end=iso;open[kind].days++;open[kind].excess+=excess;
+        }else{
+          row[current]=0;flush(kind);
+        }
+      }
+    }
+    annual.push(row);
+  }
+  flush("warm");flush("cold");
+  const sortEvents=(a,b)=>b.days-a.days||b.meanExcess-a.meanExcess||a.start.localeCompare(b.start);
+  allEvents.warm.sort(sortEvents);allEvents.cold.sort(sortEvents);
+  return {reference:ref,annual,events:allEvents};
+}
+function rank(items,metric,target){
+  if(!target)return null;
+  return 1+items.filter(v=>v[metric]>target[metric]).length;
+}
+window.Arctic80StreaksMath={quantile,thresholds,analyze,rank,leap};
+let data=null,computed=null;
+const words={warm:{name:"warmer",label:"Warmtage",threshold:"P90",color:"warm"},cold:{name:"kälter",label:"Kalttage",threshold:"P10",color:"cold"}};
+function render(){
+  if(!computed)return;
+  const kind=$("arcticStreakType").value==="cold"?"cold":"warm";
+  const cfg=words[kind],selected=Number($("arcticYear").value);
+  const minDays=Number($("arcticStreakMinDays").value)||3;
+  const year=computed.annual.find(x=>x.year===selected);
+  if(!year)return;
+  const key=kind==="warm"?"warmDays":"coldDays",max=kind==="warm"?"maxWarm":"maxCold";
+  const full=computed.annual.filter(x=>x.coverage===x.expected);
+  const fullSelected=year.coverage===year.expected;
+  const yrRank=fullSelected?rank(full,key,year):null;
+  const all=computed.events[kind],matching=all.filter(x=>x.days>=minDays);
+  const selectedEvents=all.filter(x=>x.start.slice(0,4)===String(selected)||x.end.slice(0,4)===String(selected));
+  const maxEvent=selectedEvents.slice().sort((a,b)=>b.days-a.days)[0];
+  $("arcticStreakStatus").textContent="Perzentile "+cfg.threshold+" · Referenz 1958–2002 · "+computed.annual.length+" Jahre · "+matching.length+" Serien ab "+minDays+" Tagen";
+  $("arcticStreakDays").textContent=year[key]+" "+cfg.label;
+  $("arcticStreakCoverage").textContent=year.coverage+" von "+year.expected+" Kalendertagen mit gültiger Auswertung";
+  $("arcticStreakLongest").textContent=year[max]+" Tage";
+  $("arcticStreakLongestNote").textContent="Längste durchgehende Folge innerhalb von "+selected;
+  $("arcticStreakRanking").textContent=fullSelected?"Platz "+yrRank+" / "+full.length:"Nicht eingestuft";
+  $("arcticStreakRankingNote").textContent=fullSelected?"Rang nach Anzahl "+cfg.label+" (vollständige Jahre)":"Unvollständiges Jahr – kein unfairer Jahresvergleich";
+  $("arcticStreakNotable").textContent=maxEvent?
+    "Längste Serie mit Bezug zu "+selected+": "+maxEvent.days+" Tage ("+dateLabel(maxEvent.start)+"–"+dateLabel(maxEvent.end)+")."+
+    (maxEvent.latest?" Serie erreicht den jüngsten Datentag.":""):
+    "Für "+selected+" wurde keine entsprechende Serie festgestellt.";
+  const tbody=$("arcticStreakEvents");
+  tbody.replaceChildren();
+  if(!matching.length){
+    const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=4;td.textContent="Keine Serien für diese Mindestlänge.";tr.append(td);tbody.append(tr);
+  }else{
+    const frag=document.createDocumentFragment();
+    matching.slice(0,15).forEach((e,i)=>{
+      const tr=document.createElement("tr");
+      if(e.start.slice(0,4)===String(selected)||e.end.slice(0,4)===String(selected))tr.className="arctic-selected";
+      const position=rank(matching,"days",e);
+      for(const v of [position+".",dateLabel(e.start)+" – "+dateLabel(e.end)+(e.latest?" *":""),String(e.days),number(e.meanExcess)+" K"]){
+        const td=document.createElement("td");td.textContent=v;tr.append(td);
+      }
+      frag.append(tr);
+    });
+    tbody.append(frag);
+  }
+  const ordered=full.slice().sort((a,b)=>b[key]-a[key]||b[max]-a[max]||a.year-b.year);
+  const ybody=$("arcticStreakYears");ybody.replaceChildren();
+  const tbodyFragment=document.createDocumentFragment();
+  ordered.slice(0,15).forEach(row=>{
+    const tr=document.createElement("tr");if(row.year===selected)tr.className="arctic-selected";
+    for(const v of [rank(full,key,row)+".",String(row.year),String(row[key]),String(row[max])]){
+      const td=document.createElement("td");td.textContent=v;tr.append(td);
+    }
+    tbodyFragment.append(tr);
+  });ybody.append(tbodyFragment);
+  const histogram=$("arcticStreakMonths");histogram.replaceChildren();
+  const monthLabels=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  const monthsFrag=document.createDocumentFragment();
+  year.months.forEach((month,i)=>{
+    const cell=document.createElement("div");cell.className="arctic-streak-month";
+    const label=document.createElement("span");label.textContent=monthLabels[i];
+    const track=document.createElement("span");track.className="arctic-streak-track";
+    const bar=document.createElement("span");bar.className="arctic-streak-fill "+cfg.color;
+    bar.style.width=month.coverage?((100*month[kind])/month.coverage)+"%":"0%";
+    track.append(bar);
+    const stat=document.createElement("small");stat.textContent=month[kind]+"/"+month.coverage;
+    cell.title=monthLabels[i]+": "+month[kind]+" "+cfg.label+" bei "+month.coverage+" gültigen Tagen";
+    cell.append(label,track,stat);monthsFrag.append(cell);
+  });histogram.append(monthsFrag);
+}
+function accept(incoming){
+  if(!incoming||!Array.isArray(incoming.days)||incoming.days.length!==366||!incoming.years)return false;
+  data=incoming;
+  computed=analyze(data);
+  render();return true;
+}
+async function init(){
+  if(!$("arcticStreaks")||!$("arcticYear"))return;
+  ["arcticStreakType","arcticStreakMinDays","arcticYear"].forEach(id=>$(id).addEventListener("change",render));
+  window.addEventListener("arctic80:data-ready",event=>accept(event.detail));
+  if(accept(window.Arctic80LoadedData))return;
+  for(const path of [
+    "data/arctic80_temperature.json",
+    "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/arctic80_temperature.json"
+  ]){
+    try{
+      const res=await fetch(path,{cache:"no-store"});
+      if(res.ok&&accept(await res.json()))return;
+    }catch(err){console.warn("Arktis-Serien: Datenabruf",err);}
+  }
+  $("arcticStreakStatus").textContent="Seriendaten konnten nicht geladen werden.";
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
+else init();
+})();
