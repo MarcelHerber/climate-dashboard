@@ -2,11 +2,6 @@ name: DMI-Arktis Live-Funktionstest
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/dmi-arctic-live-qa.yml"
-      - "tests/test_arctic_live_browser.cjs"
   workflow_run:
     workflows: ["GitHub Pages schnell veröffentlichen"]
     types: [completed]
