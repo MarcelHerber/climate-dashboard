@@ -157,7 +157,8 @@ async function main() {
         for(const id of ["#arcticEra5TempPng","#arcticEra5AnomalyPng"]){
           const a=page.locator(id);
           assert.ok((await a.getAttribute("href")).endsWith(".png"));
-          const resp=await page.request.get(await a.getAttribute("href"));
+          const href=await a.getAttribute("href");
+          const resp=await page.request.get(new URL(href,BASE).toString());
           assert.equal(resp.status(),200);
           const data=await resp.body();
           assert.equal(data.subarray(0,8).toString("hex"),"89504e470d0a1a0a");
