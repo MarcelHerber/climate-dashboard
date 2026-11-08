@@ -89,8 +89,9 @@ async function main() {
       await page.locator("#arcticStreakType").selectOption("warm");
       assert.ok((await page.locator("#arcticStreakDays").innerText()).includes("Warmtage"));
       await page.locator("#arcticStreakMinDays").selectOption("7");
-      const math = await page.evaluate(() => window.Arctic80StreaksMath);
-      assert.ok(math && typeof math.analyze==="function","Streak engine must be present");
+      const mathReady = await page.evaluate(() =>
+        !!window.Arctic80StreaksMath && typeof window.Arctic80StreaksMath.analyze === "function");
+      assert.ok(mathReady,"Streak engine must be present");
       await page.locator("#arcticYear").selectOption("2023");
       assert.ok((await page.locator("#arcticStreakCoverage").innerText()).includes("Kalendertagen"));
       await page.locator("#arcticYear").selectOption(year);
