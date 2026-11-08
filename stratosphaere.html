@@ -6,13 +6,14 @@
 <title>Stratosphäre · 60° N zonaler Wind – Climate Dashboard</title>
 <meta name="description" content="60°N zonal gemittelter zonaler Wind in 10 bis 100 hPa: MERRA-2/GEOS FP, 1991–2020-Klimatologie, Prognosen und historische Winter.">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script defer src="stratosphere_chart_visibility.js?v=20261104-controls1"></script>
+<script defer src="stratosphere_chart_visibility.js?v=20261108-profiles1"></script>
 <script defer src="stratosphere_chart_export.js?v=20261107-member-summary2"></script>
 <script defer src="polar_vortex_map.js?v=20261015-v2"></script>
 <script defer src="ssw_catalog.js?v=20261014-1"></script>
 <script defer src="stratosphere_ensemble.js?v=20261023-gefs-fresh"></script>
 <script defer src="stratosphere_ecmwf_runs.js?v=20261104-ifs-export-ready"></script>
-<script defer src="stratosphere_ecmwf_ens.js?v=20261103-white-export-v2"></script>
+<script defer src="stratosphere_ecmwf_ens.js?v=20261108-wind-expose1"></script>
+<script defer src="stratosphere_joint_comparison.js?v=20261108-joint1"></script>
 <script defer src="stratosphere_run_trends.js?v=20261103-white-export-v2"></script>
 <script defer src="stratosphere_reversal_diagnostics.js?v=20261030-reversal-diagnostics-v1"></script>
 <script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
@@ -247,7 +248,8 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 @media(max-width:1000px){.strato-diagnostic-stats{grid-template-columns:repeat(3,minmax(145px,1fr))}}
 @media(max-width:750px){.strato-diagnostic-stats{grid-template-columns:repeat(2,minmax(125px,1fr))}.strato-diagnostic-charts{grid-template-columns:1fr}.strato-diagnostic-chart{height:275px}}
 </style>
-<link rel="stylesheet" href="stratosphere_chart_visibility.css?v=20261104-wide1">
+<link rel="stylesheet" href="stratosphere_chart_visibility.css?v=20261108-wide1">
+<link rel="stylesheet" href="stratosphere_joint_comparison.css?v=20261108-joint1">
 </head>
 <body class="strato-forecast-only">
 <header><nav class="nav" aria-label="Navigation">
@@ -388,6 +390,37 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <p id="stratoCompareRuns" class="legendnotes">Prüfe Modelllaufzeiten …</p>
   <div class="strato-prob-actions"><span id="stratoCompareStatus" role="status" aria-live="polite">Warte auf überprüfte Ensembleprognosen …</span><button class="btn" id="stratoCompareCsv" type="button" disabled>Vergleich als CSV</button></div>
  </div>
+
+ <section class="strato-prob-panel strato-joint-panel" id="stratoJointPanel" aria-label="Direkter GEFS-ECMWF-Ensemble-Zonalwindvergleich">
+  <h3>Direkter Zonalwindvergleich · GEFS gegenüber ECMWF ENS</h3>
+  <p>Gleiche UTC-Gültigkeitstermine, einheitliche Windachse (m/s): Mittelwerte, Kontrollläufe sowie 50-%- und 90-%-Ensemblebereiche beider Modelle. Die Markierungen auf der 0-m/s-Linie zeigen, an welchen Tagen <strong>ein Ensemblemitglied erstmals</strong> zwischen zwei aufeinanderfolgenden Tageswerten von West- auf Ostwind wechselt.</p>
+  <div class="strato-joint-toolbar">
+   <label for="stratoJointHour">Gültigkeitszeit
+    <select id="stratoJointHour"><option value="00" selected>00 UTC</option><option value="12">12 UTC</option></select>
+   </label>
+   <button id="stratoJointPng" class="btn" type="button" disabled>PNG speichern</button>
+   <button id="stratoJointCsv" class="btn" type="button" disabled>CSV speichern</button>
+  </div>
+  <div class="strato-joint-kpis">
+   <div><small>GEFS · mindestens eine erste Windumkehr</small><strong id="stratoJointGefsCross">–</strong></div>
+   <div><small>ECMWF ENS · mindestens eine erste Windumkehr</small><strong id="stratoJointEpsCross">–</strong></div>
+   <div><small>Gemeinsame Prognosezeitpunkte</small><strong id="stratoJointOverlap">–</strong></div>
+  </div>
+  <p class="legendnotes strato-joint-run">NOAA GEFS-Lauf: <span id="stratoJointGefsCycle">–</span> · ECMWF ENS-Lauf: <span id="stratoJointEpsCycle">–</span></p>
+  <div class="chart strato-joint-chart"><canvas id="stratoJointCanvas" role="img" aria-label="Gemeinsame tägliche Ensembleprognose des Zonalwinds bei 60 Grad Nord und 10 hPa mit markierten ersten Windumkehrterminen"></canvas></div>
+  <p id="stratoJointStatus" class="legendnotes" role="status" aria-live="polite">Warte auf vollständige Original-Ensembleprognosen für dieselbe UTC-Gültigkeitszeit.</p>
+  <details class="strato-joint-details">
+   <summary>Windumkehrtermine und Anzahl betroffener Mitglieder</summary>
+   <p>Gezählt wird der <strong>erste Tageswert-Wechsel jedes Mitglieds von U ≥ 0 auf U &lt; 0 m/s</strong>. Ein bei Prognosestart bereits negativer Wind ist keine neu vorhergesagte Umkehr. Tagesanteil Ostwind ist davon unabhängig; ein Mitglied kann darin an mehreren Tagen gezählt werden.</p>
+   <div class="strato-joint-table-scroll">
+    <table aria-label="Erste prognostizierte Windumkehr je Tag und Ensemble">
+     <thead><tr><th>Gültigkeitsdatum</th><th>Erste GEFS-Umkehr</th><th>Erste ENS-Umkehr</th><th>GEFS U &lt; 0</th><th>ENS U &lt; 0</th></tr></thead>
+     <tbody id="stratoJointReversals"><tr><td colspan="5">Daten werden geladen …</td></tr></tbody>
+    </table>
+   </div>
+  </details>
+  <p class="legendnotes">Quelle: NOAA GEFS und ECMWF IFS ENS (50 gestörte Mitglieder + IFS-Kontrolllauf). Beide Ensembles enthalten ihren jeweiligen Kontrolllauf in den 31 bzw. 51 Mitgliedern. Es werden weder Werte interpoliert noch unterschiedliche UTC-Stunden miteinander verglichen. Die Windumkehr eines Mitglieds bei 10 hPa ist <strong>keine bestätigte plötzliche Stratosphärenerwärmung (Major SSW)</strong>.</p>
+ </section>
 
  <div class="strato-trend" id="stratoRunTrends">
   <h3>Modelllaufentwicklung · GEFS und ECMWF ENS</h3>
