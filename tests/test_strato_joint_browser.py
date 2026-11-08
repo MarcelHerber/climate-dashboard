@@ -82,9 +82,9 @@ def exercise(browser, width, height):
            const chart=Chart.getChart(document.querySelector('#stratoJointCanvas'));
            return chart.data.datasets.map((d,i)=>({label:d.label,visible:chart.isDatasetVisible(i)}));
         }""")
-        assert any(item["label"].includes("25–75") and not item["visible"] for item in flags)
-        assert any(item["label"].includes("5–95") and item["visible"] for item in flags)
-        assert any(item["label"].includes("erste Member-Windumkehr") and item["visible"] for item in flags)
+        assert any("25–75" in item["label"] and not item["visible"] for item in flags)
+        assert any("5–95" in item["label"] and item["visible"] for item in flags)
+        assert any("erste Member-Windumkehr" in item["label"] and item["visible"] for item in flags)
         set_profile("ensemble")
         all_visible=page.evaluate("""() => {
           const c=Chart.getChart(document.querySelector('#stratoJointCanvas'));
