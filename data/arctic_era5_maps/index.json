@@ -1,13 +1,45 @@
 {
   "schema": 1,
-  "ready": false,
-  "source": "Copernicus Climate Change Service / ECMWF ERA5",
+  "ready": true,
+  "source": "Copernicus Climate Change Service (C3S) / ECMWF ERA5",
   "daily_dataset": "derived-era5-single-levels-daily-statistics",
   "monthly_dataset": "reanalysis-era5-single-levels-monthly-means",
+  "daily_doi": "10.24381/cds.4991cf48",
+  "monthly_doi": "10.24381/cds.f17050d7",
+  "parameter": "2m_temperature",
+  "statistic": "daily_mean",
+  "frequency": "1_hourly",
+  "time_zone": "UTC+00:00",
   "reference_period": "1991-2020",
   "anomaly_reference": "monthly_mean_same_calendar_month",
-  "domain": "80°N–90°N, all longitudes",
+  "domain": "80°N–90°N, 180°W–180°E",
+  "grid_resolution_degrees": 0.5,
+  "area_mean": "cos(latitude) weighting on displayed regular lat-lon grid",
   "forecast": false,
-  "days": [],
-  "note": "No verified ERA5 polar maps published yet. Await first successful CDS import; no synthetic data."
+  "latest_date": "2026-11-01",
+  "days": [
+    {
+      "date": "2026-11-01",
+      "temperature_png": "maps/t2m_20261101.png",
+      "anomaly_png": "maps/anomaly_20261101.png",
+      "mean_c": -6.94,
+      "mean_anomaly_k": 12.58,
+      "min_c": -27.49,
+      "max_c": 0.62,
+      "min_anomaly_k": 0.25,
+      "max_anomaly_k": 21.05
+    },
+    {
+      "date": "2026-10-31",
+      "temperature_png": "maps/t2m_20261031.png",
+      "anomaly_png": "maps/anomaly_20261031.png",
+      "mean_c": -6.81,
+      "mean_anomaly_k": 6.67,
+      "min_c": -26.67,
+      "max_c": 4.43,
+      "min_anomaly_k": -5.28,
+      "max_anomaly_k": 12.04
+    }
+  ],
+  "generated_utc": "2026-11-08T21:36:14+00:00"
 }
