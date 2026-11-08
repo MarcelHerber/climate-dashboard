@@ -6,12 +6,12 @@
 <meta name="color-scheme" content="light dark">
 <title>Arktische Temperaturen · nördlich 80° N | Climate Dashboard Deutschland</title>
 <meta name="description" content="Interaktiver DMI-Temperaturindex nördlich 80 Grad Nord: Jahresgänge seit 1958, historische Vergleiche, Tagesanomalien und 7-/30-Tage-Mittel.">
-<link rel="stylesheet" href="arktis_temperatur.css?v=4">
+<link rel="stylesheet" href="arktis_temperatur.css?v=5">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script defer src="arktis_temperatur.js?v=7"></script>
+<script defer src="arktis_temperatur.js?v=8"></script>
 
 </head>
 <body>
@@ -102,6 +102,39 @@
   </section>
 
 
+
+  <section class="arctic-panel arctic-visual-panel" id="arcticVisualPanel" aria-labelledby="arcticVisualTitle">
+    <div class="arctic-panel-title">
+      <div><h2 id="arcticVisualTitle">Interaktive Wärme- und Kälteserien</h2>
+        <p>Farbbänder markieren zusammenhängende Extremphasen des ausgewählten Jahres in <strong>beiden Diagrammen</strong>. Anklickbare Rekordserien oder Diagrammpunkte fokussieren das Ereignis.</p></div>
+    </div>
+    <div class="arctic-visual-controls">
+      <label><input id="arcticVisualWarm" type="checkbox" checked> <span class="arctic-visual-swatch warm"></span> Wärmeperioden (&gt; P90)</label>
+      <label><input id="arcticVisualCold" type="checkbox" checked> <span class="arctic-visual-swatch cold"></span> Kälteperioden (&lt; P10)</label>
+      <label>Serien ab <select id="arcticVisualMinimum" aria-label="Mindestlänge der farblich markierten Serien">
+        <option value="3">3 Tagen</option><option value="5">5 Tagen</option><option value="7" selected>7 Tagen</option>
+        <option value="10">10 Tagen</option><option value="14">14 Tagen</option>
+      </select></label>
+    </div>
+    <p class="arctic-stat-note" id="arcticVisualInfo" role="status" aria-live="polite">Wähle eine Rekordserie aus der Rangliste oder klicke in ein Diagramm.</p>
+  </section>
+  <details class="arctic-panel arctic-stat arctic-heatmap-panel" id="arcticHeatmapPanel" open>
+    <summary><strong>Historische Extremtage-Heatmap · 1958 bis heute</strong><span>Jedes Kästchen steht für einen Tag – feste P10-/P90-Schwellen von 1958–2002</span></summary>
+    <div class="arctic-stat-body">
+      <p class="arctic-stat-note" id="arcticHeatmapCount">Lade Tageswerte …</p>
+      <div class="arctic-heatmap-legend" aria-label="Legende der Heatmap">
+        <span><i class="arctic-heatmap-swatch warm"></i>Außergewöhnlich warm (&gt; P90)</span>
+        <span><i class="arctic-heatmap-swatch cold"></i>Außergewöhnlich kalt (&lt; P10)</span>
+        <span><i class="arctic-heatmap-swatch ordinary"></i>Zwischen P10 und P90</span>
+        <span><i class="arctic-heatmap-swatch missing"></i>Kein Wert</span>
+      </div>
+      <div class="arctic-heatmap-scroll" id="arcticHeatmapScroll" tabindex="0" aria-label="Heatmap horizontal scrollen">
+        <canvas id="arcticHeatmapCanvas" role="img" tabindex="0" aria-label="Extremtage-Heatmap 1958 bis heute. Zelle anklicken oder mit Pfeiltasten navigieren; Eingabetaste öffnet die Temperaturdiagramme."></canvas>
+      </div>
+      <p class="arctic-stat-note" id="arcticHeatmapHover" aria-live="polite">Für Tagesdetails über ein Kästchen fahren oder tippen. Auf dem Handy horizontal wischen.</p>
+      <p class="arctic-stat-note">Rot zeigt Tage über P90, Blau unter P10. Beide Schwellen gelten für den jeweiligen Kalendertag und beruhen auf dem festen DMI-Zeitraum 1958–2002. Der 29. Februar wird nur mit Schaltjahren verglichen. Anklicken wählt das Jahr oben und den Kalendertag in der Rekordauswertung aus. Die Heatmap enthält alle Extremtage; die Farbbänder in den beiden Temperaturdiagrammen zeigen nur Serien ab der gewählten Mindestlänge.</p>
+    </div>
+  </details>
   <details class="arctic-panel arctic-stat" id="arcticRecords">
     <summary><strong>Tagesrekorde &amp; Perzentile</strong><span>Historische Minima, Maxima und Top-10-Listen für jeden Kalendertag</span></summary>
     <div class="arctic-stat-body">
