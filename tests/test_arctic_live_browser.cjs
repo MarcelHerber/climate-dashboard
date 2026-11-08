@@ -72,6 +72,45 @@ async function main() {
       assert.ok(await page.locator("#arcticRecords").evaluate(el => el.open));
       assert.ok(await page.locator("#arcticSeasons").evaluate(el => el.open));
       assert.ok(await page.locator("#arcticStreaks").evaluate(el => el.open));
+      // Complete-year climate trends, selectable window, seasonal rankings, and two charts.
+      await page.waitForFunction(() =>
+        document.getElementById("arcticLongTermLoad")?.textContent.includes("Auswertung bereit") &&
+        document.querySelector("#arcticTrendFrom")?.options.length>35 &&
+        document.querySelectorAll("#arcticSeasonWarmBody tr").length>0,
+        null,{timeout:60000});
+      const chartsNew=await page.evaluate(()=>["arcticTrendDaysCanvas","arcticTrendDurationCanvas","arcticSeasonCanvas"]
+        .map(id=>!!window.Chart?.getChart?.(document.getElementById(id))));
+      assert.deepEqual(chartsNew,[true,true,true],"Trend and seasonal charts must render");
+      await page.locator("#arcticLongTermPanel").evaluate(el=>el.open=true);
+      await page.locator("#arcticClimateSeasonPanel").evaluate(el=>el.open=true);
+      const firstTrend=Number(await page.locator("#arcticTrendFrom").inputValue());
+      const finalTrend=Number(await page.locator("#arcticTrendTo").inputValue());
+      assert.ok(finalTrend>=2024&&firstTrend<=1970);
+      const shortStart=String(Math.max(firstTrend,2000));
+      await page.locator("#arcticTrendFrom").selectOption(shortStart);
+      assert.ok((await page.locator("#arcticTrendStatus").innerText()).includes(shortStart));
+      const countWithTrend=await page.evaluate(()=>Chart.getChart(
+        document.getElementById("arcticTrendDaysCanvas")).data.datasets.length);
+      assert.equal(countWithTrend,4);
+      await page.locator("#arcticTrendLines").uncheck();
+      const countWithoutTrend=await page.evaluate(()=>Chart.getChart(
+        document.getElementById("arcticTrendDaysCanvas")).data.datasets.length);
+      assert.equal(countWithoutTrend,2);
+      await page.locator("#arcticTrendLines").check();
+      await page.locator("#arcticTrendFrom").selectOption(String(firstTrend));
+      assert.ok(await page.locator("#arcticDecadeBody tr").count()>=5);
+      for(const s of ["djf","mam","jja","son"]){
+        await page.locator("#arcticSeasonChoose").selectOption(s);
+        assert.ok((await page.locator("#arcticSeasonStatus").innerText()).includes("vollständige Perioden"));
+        assert.ok(await page.locator("#arcticSeasonWarmBody tr").count()>=8);
+        assert.ok(await page.locator("#arcticSeasonColdBody tr").count()>=8);
+      }
+      await page.locator("#arcticSeasonChoose").selectOption("djf");
+      assert.ok((await page.locator("#arcticSeasonStatus").innerText()).includes("Winterjahr"));
+      assert.ok((await page.locator("#arcticSeasonSelected").innerText()).includes("2026"));
+      const summaryReady=await page.evaluate(()=>!!window.Arctic80LongTermMath &&
+        window.Arctic80LongTermMath.analyze(window.Arctic80LoadedData).seasons.djf.some(s=>s.year===2026));
+      assert.ok(summaryReady,"Seasonal DJF should join Dec 2025 with Jan/Feb 2026");
       const year = String(doc.latest_year);
       await page.locator("#arcticYear").selectOption(year);
       const index = doc.years[year].findLastIndex(v => Number.isFinite(v));
@@ -191,9 +230,42 @@ async function main() {
           assert.ok(content.includes(doc.days[index]));
         }
       }
+      // Test all CSV, high-resolution PNG and multipage PDF exports against live data.
+      const exportChecks=[
+        ["#arcticTrendPng",".png"],["#arcticTrendPdf",".pdf"],
+        ["#arcticAnnualStatsCsv",".csv"],["#arcticEventsCsv",".csv"],
+        ["#arcticSeasonPng",".png"],["#arcticSeasonPdf",".pdf"],
+        ["#arcticSeasonCsv",".csv"],["#arcticHeatmapPng",".png"],
+        ["#arcticHeatmapPdf",".pdf"],["#arcticHeatmapCsv",".csv"]
+      ];
+      for(const [selector,extension] of exportChecks){
+        const pending=page.waitForEvent("download",{timeout:45000});
+        await page.locator(selector).click();
+        const download=await pending;
+        assert.ok(download.suggestedFilename().endsWith(extension),
+          selector+" produced "+download.suggestedFilename());
+        const filepath=await download.path();
+        const bytes=fs.readFileSync(filepath);
+        assert.ok(bytes.length>500,selector+" must contain actual exported content");
+        if(extension===".png")assert.equal(bytes.subarray(0,4).toString("hex"),"89504e47");
+        if(extension===".pdf")assert.equal(bytes.subarray(0,4).toString(),"%PDF");
+        if(extension===".csv"){
+          const content=bytes.toString("utf8");
+          assert.ok(content.includes("DMI"),"CSV should identify DMI");
+          assert.ok(content.includes("1958"),"CSV should identify reference period");
+          if(selector==="#arcticHeatmapCsv")
+            assert.ok(content.split("\r\n").length>20000,"Include every day since 1958");
+          if(selector==="#arcticEventsCsv")
+            assert.ok(content.includes("Wärme")&&content.includes("Kälte"),"Both event types");
+          if(selector==="#arcticSeasonCsv")
+            assert.ok(content.includes("djf")&&content.includes("son"),"All four seasons");
+        }
+      }
       await page.locator("#arcticRecords").evaluate(el => el.open = true);
       await page.locator("#arcticSeasons").evaluate(el => el.open = true);
       await page.locator("#arcticStreaks").evaluate(el => el.open = true);
+      await page.locator("#arcticLongTermPanel").evaluate(el => el.open = true);
+      await page.locator("#arcticClimateSeasonPanel").evaluate(el => el.open = true);
       await page.screenshot({ path: path.join(outDir, "dmi-" + device.name + ".png"), fullPage: true });
       const overflow = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -217,7 +289,7 @@ async function main() {
         [], "Main Arctic resources must load");
       console.log("PASS " + device.name +
         " live: " + doc.last_date + ", " + Object.keys(doc.years).length +
-        " years, records, extreme overlays, historical heatmap, mobile touch, leap-day, 2 plots, 4 downloads, no overflow");
+        " years, extreme overlays, heatmap, climate trends, seasonal ranks, 14 live exports, leap day, no overflow");
       await context.close();
     }
   } finally {
