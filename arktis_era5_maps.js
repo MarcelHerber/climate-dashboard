@@ -11,7 +11,7 @@ const fmtSigned=x=>Number.isFinite(x)?(x>0?"+":"")+numeric(x):"–";
 function message(text,warning=false){
   const p=$("arcticEra5MapStatus");p.textContent=text;p.classList.toggle("error",warning);
 }
-function src(name){return BASE+name;}
+function src(name){return BASE+name+(index?.boundary_version?"?map=b"+index.boundary_version:"");}
 function link(id,filename,date,label){
   const a=$(id);
   if(!sanitizeFile(filename)){a.removeAttribute("href");a.removeAttribute("download");return;}
