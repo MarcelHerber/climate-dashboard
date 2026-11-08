@@ -152,6 +152,8 @@ else
 fi
 node --check _site/arktis_temperatur.js
 node --check _site/arktis_klimastatistik.js
+node --check tests/test_arctic_longterm_seasons.cjs
+node --test tests/test_arctic_longterm_seasons.cjs
 node --check _site/arktis_statistik.js
 node --check tests/test_arctic_temperature_ui.cjs
 grep -q 'window.Arctic80StatsMath' _site/arktis_temperatur.js
