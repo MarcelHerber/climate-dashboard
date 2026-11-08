@@ -45,6 +45,7 @@ required_root_files=(
   meereis.css
   arktis_temperatur.html
   arktis_temperatur.js
+  arktis_klimastatistik.js
   arktis_statistik.js
   arktis_temperatur.css
   eurasia_snow.html
@@ -150,6 +151,7 @@ else
   echo "Hinweis: DMI-Temperaturindex wird noch über täglichen Datenimport erzeugt."
 fi
 node --check _site/arktis_temperatur.js
+node --check _site/arktis_klimastatistik.js
 node --check _site/arktis_statistik.js
 node --check tests/test_arctic_temperature_ui.cjs
 grep -q 'window.Arctic80StatsMath' _site/arktis_temperatur.js
