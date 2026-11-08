@@ -14,6 +14,10 @@
 <script defer src="stratosphere_ecmwf_runs.js?v=20261104-ifs-export-ready"></script>
 <script defer src="stratosphere_ecmwf_ens.js?v=20261108-wind-expose1"></script>
 <script defer src="stratosphere_joint_comparison.js?v=20261108-joint1"></script>
+<script defer src="stratosphere_nasa_common.js?v=20261108-observed1"></script>
+<script defer src="stratosphere_analysis_forecast.js?v=20261108-analysis1"></script>
+<script defer src="stratosphere_comparison_metrics.js?v=20261108-metrics1"></script>
+<script defer src="stratosphere_vertical_profile.js?v=20261108-vertical1"></script>
 <script defer src="stratosphere_run_trends.js?v=20261103-white-export-v2"></script>
 <script defer src="stratosphere_reversal_diagnostics.js?v=20261030-reversal-diagnostics-v1"></script>
 <script defer src="stratosphere_winter_stats.js?v=20261030-rank"></script>
@@ -250,6 +254,7 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
 </style>
 <link rel="stylesheet" href="stratosphere_chart_visibility.css?v=20261108-wide1">
 <link rel="stylesheet" href="stratosphere_joint_comparison.css?v=20261108-joint1">
+<link rel="stylesheet" href="stratosphere_analysis_forecast.css?v=20261108-analysis1">
 </head>
 <body class="strato-forecast-only">
 <header><nav class="nav" aria-label="Navigation">
@@ -391,6 +396,22 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
   <div class="strato-prob-actions"><span id="stratoCompareStatus" role="status" aria-live="polite">Warte auf überprüfte Ensembleprognosen …</span><button class="btn" id="stratoCompareCsv" type="button" disabled>Vergleich als CSV</button></div>
  </div>
 
+ <section class="strato-prob-panel strato-analysis-panel" id="stratoHistoryForecastPanel">
+  <h3>Polarwirbel · 30 Tage NASA-Analyse und GEFS/ECMWF-ENS-Prognosen</h3>
+  <p>Zusammenhängende Zeitachse mit Original-NASA-Tagesanalysen, beiden Ensemble-Mittelwerten und historischem Klimamittel samt P10–P90-Bereich (1991–2020). Die gestrichelte senkrechte Linie markiert den Anfang des Modellzeitraums. Fehlende Tage bleiben offen, es wird keine Analyse-/Prognose-Brücke interpoliert.</p>
+  <div class="strato-analysis-controls">
+   <label>Darstellung <select id="stratoHistoryForecastMode">
+    <option value="absolute" selected>Zonalwind (m/s)</option>
+    <option value="anomaly">Abweichung zum Mittel 1991–2020</option>
+   </select></label>
+   <button id="stratoHistoryForecastPng" type="button" class="btn" disabled>PNG speichern</button>
+   <button id="stratoHistoryForecastCsv" type="button" class="btn" disabled>CSV speichern</button>
+  </div>
+  <div class="chart strato-analysis-chart"><canvas id="stratoHistoryForecastCanvas" role="img" aria-label="NASA-Tagesanalyse und GEFS-ECMWF-Ensembleprognosen des 10-hPa-Zonalwinds bei 60 Grad Nord mit historischem Klimamittel"></canvas></div>
+  <p id="stratoHistoryForecastStatus" class="legendnotes" role="status" aria-live="polite">NASA-Analyse und Klimareferenz werden geladen …</p>
+  <p class="legendnotes">Quelle: NASA Ozone Watch MERRA-2 / GEOS-FP, NOAA GEFS und ECMWF IFS ENS. NASA stellt Tageswerte bereit, nicht automatisch eine 12-UTC-Analyse. Verglichen werden nur echte Originalwerte. Prognosen auf 10 hPa / 60° N.</p>
+ </section>
+
  <section class="strato-prob-panel strato-joint-panel" id="stratoJointPanel" aria-label="Direkter GEFS-ECMWF-Ensemble-Zonalwindvergleich">
   <h3>Direkter Zonalwindvergleich · GEFS gegenüber ECMWF ENS</h3>
   <p>Gleiche UTC-Gültigkeitstermine, einheitliche Windachse (m/s): Mittelwerte, Kontrollläufe sowie 50-%- und 90-%-Ensemblebereiche beider Modelle. Die Markierungen auf der 0-m/s-Linie zeigen, an welchen Tagen <strong>ein Ensemblemitglied erstmals</strong> zwischen zwei aufeinanderfolgenden Tageswerten von West- auf Ostwind wechselt.</p>
@@ -420,6 +441,53 @@ body:not(.strato-forecast-only) #stratoEnsembleCard{display:none!important}
    </div>
   </details>
   <p class="legendnotes">Quelle: NOAA GEFS und ECMWF IFS ENS (50 gestörte Mitglieder + IFS-Kontrolllauf). Beide Ensembles enthalten ihren jeweiligen Kontrolllauf in den 31 bzw. 51 Mitgliedern. Es werden weder Werte interpoliert noch unterschiedliche UTC-Stunden miteinander verglichen. Die Windumkehr eines Mitglieds bei 10 hPa ist <strong>keine bestätigte plötzliche Stratosphärenerwärmung (Major SSW)</strong>.</p>
+ </section>
+
+
+ <section class="strato-prob-panel strato-metrics-panel" id="stratoJointMetricsPanel">
+  <h3>Modellvergleich · 7-/15-Tage-Windumkehr und GEFS–ECMWF-Abweichung</h3>
+  <p>Wahrscheinlichkeit, dass ein Mitglied <strong>innerhalb der ersten 7 bzw. 15 Prognosetage</strong> erstmals U ≥ 0 auf U &lt; 0 m/s wechselt (einschließlich Kontrolllauf). Das ist eine relative Ensemblehäufigkeit und keine bestätigte SSW-Prognose. Liegt keine volle Prognosehorizont-Abdeckung vor, erscheint „–“.</p>
+  <div class="strato-metrics-kpis">
+   <div><small>GEFS · erste Umkehr bis +7 d</small><strong id="stratoMetricG7">–</strong></div>
+   <div><small>ECMWF ENS · erste Umkehr bis +7 d</small><strong id="stratoMetricE7">–</strong></div>
+   <div><small>GEFS · erste Umkehr bis +15 d</small><strong id="stratoMetricG15">–</strong></div>
+   <div><small>ECMWF ENS · erste Umkehr bis +15 d</small><strong id="stratoMetricE15">–</strong></div>
+   <div><small>Größte mittlere Winddifferenz</small><strong id="stratoMetricLargest">–</strong></div>
+  </div>
+  <div class="strato-metrics-controls">
+   <label>Differenz hervorheben ab
+    <select id="stratoMetricThreshold"><option value="5">5 m/s</option><option value="10" selected>10 m/s</option><option value="15">15 m/s</option></select>
+   </label>
+   <button type="button" class="btn" id="stratoMetricPng" disabled>PNG speichern</button>
+   <button type="button" class="btn" id="stratoMetricCsv" disabled>CSV speichern</button>
+  </div>
+  <div class="chart strato-metrics-chart"><canvas id="stratoMetricDiffChart" role="img" aria-label="Winddifferenz des GEFS und ECMWF-Ensemble-Mittelwerts an identischen Gültigkeitsterminen"></canvas></div>
+  <p id="stratoMetricDivergence" class="legendnotes" aria-live="polite">Warte auf gleiche UTC-Gültigkeitstermine …</p>
+  <details class="strato-metrics-trends">
+   <summary>Lauf-zu-Lauf-Veränderung der Windumkehrwahrscheinlichkeit</summary>
+   <p id="stratoMetricTrendG">GEFS-Laufarchiv wird geprüft …</p>
+   <p id="stratoMetricTrendE">ECMWF-ENS-Laufarchiv wird geprüft …</p>
+   <p>Verglichen werden die Wahrscheinlichkeiten bis zum gleichen Vorhersagehorizont beim letzten und vorherigen verfügbaren Lauf <strong>derselben UTC-Startstunde</strong>. Beide Läufe besitzen daher verschiedene Kalendertage; die Angaben sind Vorhersageänderungen, keine Verifikation.</p>
+  </details>
+ </section>
+
+ <section class="strato-prob-panel strato-vertical-panel" id="stratoVerticalPanel">
+  <h3>Vertikale Polarwirbelentwicklung · 10 bis 100 hPa</h3>
+  <p>Echte tägliche NASA-Zonalwindanalysen bei 60° N für <strong>10, 30, 50, 70 und 100 hPa</strong>. Zusätzlich werden im Liniendiagramm die derzeit nachgewiesenen GEFS- und ECMWF-ENS-Prognosen bei <strong>10 hPa</strong> ergänzt. Für 30–100 hPa sind in den veröffentlichten Ensemble-Originalarchiven noch keine entsprechenden Modellwerte vorhanden.</p>
+  <div class="strato-vertical-controls">
+   <label>Darstellung <select id="stratoVerticalMode"><option value="absolute">Zonalwind (m/s)</option><option value="anomaly">Abweichung 1991–2020</option></select></label>
+   <button type="button" class="btn" id="stratoVerticalPng" disabled>Linien als PNG</button>
+   <button type="button" class="btn" id="stratoVerticalHeatPng" disabled>Zeit–Höhen-Karte als PNG</button>
+  </div>
+  <div class="chart strato-vertical-chart"><canvas id="stratoVerticalLineChart" role="img" aria-label="Zonalwind nach fünf Druckniveaus mit NASA-Analyse und 10-hPa-Ensembleprognosen"></canvas></div>
+  <h4>Zeit–Höhen-Karte · tägliche NASA-Analyse</h4>
+  <div class="strato-vertical-heatmap-scroll"><canvas id="stratoVerticalHeatmap" aria-label="NASA-Zonalwind bei 10 30 50 70 und 100 hPa im Zeitverlauf mit fester Farbskala"></canvas></div>
+  <p id="stratoVerticalStatus" class="legendnotes" role="status" aria-live="polite">Prüfe Originaldaten und Niveaus …</p>
+  <details class="strato-vertical-table">
+   <summary>Aktuelle Werte und Abweichungen je Druckniveau</summary>
+   <div class="strato-vertical-table-scroll"><table><thead><tr><th>Niveau</th><th>Letzte Analyse</th><th>Zonalwind</th><th>Abweichung 1991–2020</th></tr></thead><tbody id="stratoVerticalTable"></tbody></table></div>
+  </details>
+  <p class="legendnotes">Quelle: NASA Ozone Watch (MERRA-2 / GEOS-FP), Referenz 1991–2020 · NOAA GEFS und ECMWF IFS ENS (Modellprognosen momentan nur für 10 hPa). Die dargestellten zeitlichen Unterschiede sind keine automatische Feststellung einer abwärts gerichteten SSW-Kopplung.</p>
  </section>
 
  <div class="strato-trend" id="stratoRunTrends">
