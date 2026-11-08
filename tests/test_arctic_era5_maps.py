@@ -82,6 +82,7 @@ def test_manifest_never_accepts_missing_maps(tmp_path):
     payload={"schema":1,"ready":True,"reference_period":"1991-2020",
         "latest_date":"2026-10-31",
         "days":[{"date":"2026-10-31",
+                 "boundary_version":m.BOUNDARY_VERSION,
                  "temperature_png":"maps/t2m_20261031.png",
                  "anomaly_png":"maps/anomaly_20261031.png",
                  "mean_c":-11.5,"mean_anomaly_k":4.3}]}
@@ -109,3 +110,25 @@ def test_offline_synthetic_plot_only_to_temporary_test_folder(tmp_path):
     m.render_map(lats,lons,synthetic,date(2026,10,31),"temperature",path,-15.0)
     assert m.valid_image(path)
     assert path.stat().st_size>25000
+
+
+def test_verified_polar_coastlines_are_downloaded_and_not_silently_omitted():
+    coast, borders = m.load_polar_boundaries()
+    assert len(coast) >= 5, "High-Arctic shoreline geometries missing"
+    assert m.BOUNDARY_VERSION == 2
+    # No imaginary country border is required where no real border exists
+    # between 80 and 90 degrees north.
+    assert isinstance(borders, list)
+
+
+def test_map_rendering_fails_closed_if_boundary_layer_is_unavailable(tmp_path,monkeypatch):
+    def unavailable():
+        raise RuntimeError("No verified Natural Earth coastlines")
+    monkeypatch.setattr(m,"load_polar_boundaries",unavailable)
+    lat=np.arange(80,90.1,.5)
+    lon=np.arange(-180,180,.5)
+    out=tmp_path/"must-not-publish-borderless.png"
+    with pytest.raises(RuntimeError,match="coastlines"):
+        m.render_map(lat,lon,np.full((len(lat),len(lon)),-15.0),
+                     date(2026,10,31),"temperature",out,-15.)
+    assert not out.exists()
