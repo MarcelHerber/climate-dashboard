@@ -95,6 +95,64 @@ async function main() {
       await page.locator("#arcticYear").selectOption("2023");
       assert.ok((await page.locator("#arcticStreakCoverage").innerText()).includes("Kalendertagen"));
       await page.locator("#arcticYear").selectOption(year);
+      // Historical heatmap: all 69 year rows and every calendar day draw on a real canvas.
+      await page.waitForFunction(() => window.Arctic80VisualState?.loaded?.() &&
+        document.querySelector("#arcticHeatmapCanvas")?.height > 800 &&
+        document.querySelector("#arcticHeatmapCount")?.textContent.includes("Jahre"),
+        null,{timeout:30000});
+      const geometry=await page.evaluate(()=>({
+        height:document.querySelector("#arcticHeatmapCanvas").height,
+        width:document.querySelector("#arcticHeatmapCanvas").width,
+        scroll:document.querySelector("#arcticHeatmapScroll").clientWidth
+      }));
+      assert.ok(geometry.width>1000&&geometry.height>800,"Full 366-day by 69-year heatmap");
+      assert.ok(geometry.scroll<=device.width,"Heatmap must scroll inside mobile viewport");
+
+      await page.locator("#arcticYear").selectOption("2018");
+      const initialSegments=await page.evaluate(()=>window.Arctic80VisualState.segments());
+      assert.ok(initialSegments.some(s=>s.kind==="warm"&&s.start==="2018-09-25"&&s.end==="2018-11-12"),
+        "Chart overlays must include the 49-day autumn 2018 warm spell");
+      await page.locator("#arcticVisualWarm").uncheck();
+      assert.ok((await page.evaluate(()=>window.Arctic80VisualState.segments())).every(s=>s.kind!=="warm"),
+        "Warm overlay toggle must hide warm spells");
+      await page.locator("#arcticVisualWarm").check();
+      await page.locator("#arcticVisualCold").uncheck();
+      assert.ok((await page.evaluate(()=>window.Arctic80VisualState.segments())).every(s=>s.kind!=="cold"));
+      await page.locator("#arcticVisualCold").check();
+      await page.locator("#arcticVisualMinimum").selectOption("14");
+      assert.ok((await page.evaluate(()=>window.Arctic80VisualState.segments())).every(s=>s.days>=14));
+      await page.locator("#arcticVisualMinimum").selectOption("7");
+
+      await page.locator("#arcticStreakType").selectOption("warm");
+      await page.locator("#arcticStreakMinDays").selectOption("7");
+      const firstSpell=page.locator("#arcticStreakEvents tr[role='button']").first();
+      await firstSpell.click();
+      assert.ok((await page.locator("#arcticVisualInfo").innerText()).includes("49 Tage"),
+        "Clicking ranking must focus record spell in both plots");
+      assert.equal(await page.locator("#arcticYear").inputValue(),"2018");
+      const focused=await page.evaluate(()=>window.Arctic80VisualState.focused());
+      assert.equal(focused.start,"2018-09-25");
+
+      // Actual chart click should select a calendar day and show its threshold status.
+      const chartCoordinates=await page.evaluate(()=>{
+        const chart=Chart.getChart(document.getElementById("arcticAnnualChart"));
+        return {x:chart.scales.x.getPixelForValue(274),
+          y:chart.chartArea.top+Math.min(20,(chart.chartArea.bottom-chart.chartArea.top)/2)};
+      });
+      if(device.mobile)await page.locator("#arcticAnnualChart").tap({position:chartCoordinates});
+      else await page.locator("#arcticAnnualChart").click({position:chartCoordinates});
+      assert.ok((await page.locator("#arcticVisualInfo").innerText()).includes("01.10.2018"),
+        "Plot interaction must choose selected calendar day");
+
+      // Heatmap cell click: first row / Jan 2 -> main year 1958 and daily date 01-02.
+      await page.locator("#arcticHeatmapPanel").scrollIntoViewIfNeeded();
+      const heatmap=page.locator("#arcticHeatmapCanvas");
+      if(device.mobile)await heatmap.tap({position:{x:52,y:38}});
+      else await heatmap.click({position:{x:52,y:38}});
+      assert.equal(await page.locator("#arcticYear").inputValue(),"1958");
+      assert.equal(await page.locator("#arcticRecordDay").inputValue(),"01-02");
+      assert.ok((await page.locator("#arcticVisualInfo").innerText()).includes("02.01.1958"));
+      await page.locator("#arcticYear").selectOption(year);
       await page.locator("#arcticRecordDay").selectOption(doc.days[index]);
       assert.ok((await page.locator("#arcticRecordSummary").innerText()).includes("°C"));
       const expected = doc.years[year][index];
@@ -159,7 +217,7 @@ async function main() {
         [], "Main Arctic resources must load");
       console.log("PASS " + device.name +
         " live: " + doc.last_date + ", " + Object.keys(doc.years).length +
-        " years, records, seasons, extreme streaks, leap-day, 2 plots, 4 downloads, no overflow");
+        " years, records, extreme overlays, historical heatmap, mobile touch, leap-day, 2 plots, 4 downloads, no overflow");
       await context.close();
     }
   } finally {
