@@ -1,8 +1,8 @@
 {
-  "schema": 1,
+  "schema": 2,
   "ready": true,
-  "boundary_version": 2,
-  "boundary_source": "Natural Earth 10m coastline and 50m national land borders",
+  "boundary_version": 3,
+  "boundary_source": "Natural Earth 10m coastline / 50m land borders",
   "source": "Copernicus Climate Change Service (C3S) / ECMWF ERA5",
   "daily_dataset": "derived-era5-single-levels-daily-statistics",
   "monthly_dataset": "reanalysis-era5-single-levels-monthly-means",
@@ -14,38 +14,180 @@
   "time_zone": "UTC+00:00",
   "reference_period": "1991-2020",
   "anomaly_reference": "monthly_mean_same_calendar_month",
-  "domain": "80°N–90°N, 180°W–180°E",
+  "regions": [
+    80,
+    70,
+    60
+  ],
+  "domain": "60°N–90°N, 180°W–180°E",
   "grid_resolution_degrees": 0.5,
-  "area_mean": "cos(latitude) weighting on displayed regular lat-lon grid",
+  "fixed_temperature_scale_c": [
+    -45.0,
+    15.0
+  ],
+  "fixed_anomaly_scale_k": [
+    -15.0,
+    15.0
+  ],
+  "area_mean": "cos(latitude) weights per selected polar cap",
   "forecast": false,
+  "target_days": 30,
+  "archive_days": 4,
+  "fully_mapped_days": 4,
   "latest_date": "2026-11-01",
   "days": [
     {
       "date": "2026-11-01",
-      "boundary_version": 2,
-      "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
-      "temperature_png": "maps/t2m_20261101.png",
-      "anomaly_png": "maps/anomaly_20261101.png",
-      "mean_c": -6.94,
-      "mean_anomaly_k": 12.58,
-      "min_c": -27.49,
-      "max_c": 0.62,
-      "min_anomaly_k": 0.25,
-      "max_anomaly_k": 21.05
+      "regions": {
+        "80": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_80n_20261101.png",
+          "anomaly_png": "maps/anomaly_80n_20261101.png",
+          "mean_c": -6.94,
+          "mean_anomaly_k": 12.58,
+          "min_c": -27.49,
+          "max_c": 0.62,
+          "min_anomaly_k": 0.25,
+          "max_anomaly_k": 21.05
+        },
+        "70": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_70n_20261101.png",
+          "anomaly_png": "maps/anomaly_70n_20261101.png",
+          "mean_c": -7.99,
+          "mean_anomaly_k": 8.86,
+          "min_c": -36.54,
+          "max_c": 7.7,
+          "min_anomaly_k": -4.3,
+          "max_anomaly_k": 21.05
+        },
+        "60": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_60n_20261101.png",
+          "anomaly_png": "maps/anomaly_60n_20261101.png",
+          "mean_c": -6.88,
+          "mean_anomaly_k": 7.22,
+          "min_c": -36.54,
+          "max_c": 10.92,
+          "min_anomaly_k": -11.85,
+          "max_anomaly_k": 21.05
+        }
+      }
     },
     {
       "date": "2026-10-31",
-      "boundary_version": 2,
-      "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
-      "temperature_png": "maps/t2m_20261031.png",
-      "anomaly_png": "maps/anomaly_20261031.png",
-      "mean_c": -6.81,
-      "mean_anomaly_k": 6.67,
-      "min_c": -26.67,
-      "max_c": 4.43,
-      "min_anomaly_k": -5.28,
-      "max_anomaly_k": 12.04
+      "regions": {
+        "80": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_80n_20261031.png",
+          "anomaly_png": "maps/anomaly_80n_20261031.png",
+          "mean_c": -6.81,
+          "mean_anomaly_k": 6.67,
+          "min_c": -26.67,
+          "max_c": 4.43,
+          "min_anomaly_k": -5.28,
+          "max_anomaly_k": 12.04
+        },
+        "70": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_70n_20261031.png",
+          "anomaly_png": "maps/anomaly_70n_20261031.png",
+          "mean_c": -7.49,
+          "mean_anomaly_k": 2.36,
+          "min_c": -29.99,
+          "max_c": 9.04,
+          "min_anomaly_k": -19.0,
+          "max_anomaly_k": 12.04
+        },
+        "60": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_60n_20261031.png",
+          "anomaly_png": "maps/anomaly_60n_20261031.png",
+          "mean_c": -6.39,
+          "mean_anomaly_k": -0.28,
+          "min_c": -33.08,
+          "max_c": 12.25,
+          "min_anomaly_k": -22.74,
+          "max_anomaly_k": 12.04
+        }
+      }
+    },
+    {
+      "date": "2026-10-30",
+      "regions": {
+        "80": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_80n_20261030.png",
+          "anomaly_png": "maps/anomaly_80n_20261030.png",
+          "mean_c": -8.8,
+          "mean_anomaly_k": 4.68,
+          "min_c": -30.47,
+          "max_c": 3.67,
+          "min_anomaly_k": -10.4,
+          "max_anomaly_k": 10.79
+        },
+        "70": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_70n_20261030.png",
+          "anomaly_png": "maps/anomaly_70n_20261030.png",
+          "mean_c": -7.56,
+          "mean_anomaly_k": 2.28,
+          "min_c": -31.1,
+          "max_c": 8.87,
+          "min_anomaly_k": -18.31,
+          "max_anomaly_k": 10.79
+        },
+        "60": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_60n_20261030.png",
+          "anomaly_png": "maps/anomaly_60n_20261030.png",
+          "mean_c": -6.16,
+          "mean_anomaly_k": -0.06,
+          "min_c": -31.1,
+          "max_c": 12.53,
+          "min_anomaly_k": -23.49,
+          "max_anomaly_k": 10.79
+        }
+      }
+    },
+    {
+      "date": "2026-10-29",
+      "regions": {
+        "80": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_80n_20261029.png",
+          "anomaly_png": "maps/anomaly_80n_20261029.png",
+          "mean_c": -9.82,
+          "mean_anomaly_k": 3.67,
+          "min_c": -32.59,
+          "max_c": 3.42,
+          "min_anomaly_k": -12.27,
+          "max_anomaly_k": 11.65
+        },
+        "70": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_70n_20261029.png",
+          "anomaly_png": "maps/anomaly_70n_20261029.png",
+          "mean_c": -7.63,
+          "mean_anomaly_k": 2.21,
+          "min_c": -32.59,
+          "max_c": 9.4,
+          "min_anomaly_k": -18.57,
+          "max_anomaly_k": 11.65
+        },
+        "60": {
+          "boundary_version": 3,
+          "temperature_png": "maps/t2m_60n_20261029.png",
+          "anomaly_png": "maps/anomaly_60n_20261029.png",
+          "mean_c": -6.02,
+          "mean_anomaly_k": 0.08,
+          "min_c": -32.59,
+          "max_c": 12.38,
+          "min_anomaly_k": -23.37,
+          "max_anomaly_k": 11.65
+        }
+      }
     }
   ],
-  "generated_utc": "2026-11-08T21:54:10+00:00"
+  "generated_utc": "2026-11-08T22:38:42+00:00"
 }
