@@ -12,6 +12,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script defer src="arktis_temperatur.js?v=8"></script>
+<script defer src="arktis_era5_maps.js?v=1"></script>
 <script defer src="arktis_klimastatistik.js?v=3"></script>
 
 </head>
@@ -119,6 +120,54 @@
     </div>
     <p class="arctic-stat-note" id="arcticVisualInfo" role="status" aria-live="polite">Wähle eine Rekordserie aus der Rangliste oder klicke in ein Diagramm.</p>
   </section>
+
+  <details class="arctic-panel arctic-stat arctic-era5-maps" id="arcticEra5MapPanel" open>
+    <summary><strong>Räumliche Arktistemperatur · ERA5</strong><span>Verifizierte 2-m-Lufttemperatur und Abweichung vom Monatsklima 1991–2020 nördlich von 80°N</span></summary>
+    <div class="arctic-stat-body">
+      <div class="arctic-era5-map-controls">
+        <label>ERA5-Analysedatum
+          <select id="arcticEra5MapDate" aria-label="ERA5-Tag auswählen"><option value="">Daten werden geladen …</option></select>
+        </label>
+        <button type="button" id="arcticEra5MapPrev" disabled aria-label="Vorherige ERA5-Karte">← Vorheriger Tag</button>
+        <button type="button" id="arcticEra5MapNext" disabled aria-label="Nächste ERA5-Karte">Nächster Tag →</button>
+        <label>Ansicht
+          <select id="arcticEra5MapMode" aria-label="Räumliche ERA5-Karten auswählen">
+            <option value="both">Beide Karten</option>
+            <option value="temperature">Nur Temperatur</option>
+            <option value="anomaly">Nur Abweichung</option>
+          </select>
+        </label>
+      </div>
+      <p id="arcticEra5MapStatus" class="arctic-stat-note arctic-era5-status" role="status" aria-live="polite">Prüfe ERA5-Datenverfügbarkeit …</p>
+      <div class="arctic-era5-kpis">
+        <div><span>Mittlere Temperatur nördlich 80°N</span><strong id="arcticEra5MeanTemp">–</strong></div>
+        <div><span>Abweichung vom Monatsmittel 1991–2020</span><strong id="arcticEra5MeanAnomaly">–</strong></div>
+      </div>
+      <p id="arcticEra5MeanMethod" class="arctic-stat-note">Flächengewichtetes Mittel des ERA5-Rasters · nicht identisch mit dem DMI-Index.</p>
+      <div class="arctic-era5-grid" id="arcticEra5Maps">
+        <section id="arcticEra5TempFrame" class="arctic-era5-map-frame">
+          <h3>2-m-Lufttemperatur</h3>
+          <p class="arctic-stat-note">ERA5-Tagesmittel 00–24 UTC · feste Temperaturskala −45 bis +15 °C.</p>
+          <img id="arcticEra5TempMap" alt="Noch keine geprüfte ERA5-Temperaturkarte geladen." loading="lazy" decoding="async">
+          <a id="arcticEra5TempPng" class="arctic-era5-download" download>Temperaturkarte als PNG</a>
+        </section>
+        <section id="arcticEra5AnomalyFrame" class="arctic-era5-map-frame">
+          <h3>Abweichung zum Klimamittel</h3>
+          <p class="arctic-stat-note">Tagesmittel minus ERA5-Monatsmittel 1991–2020 · feste Anomalieskala −15 bis +15 K.</p>
+          <img id="arcticEra5AnomalyMap" alt="Noch keine geprüfte ERA5-Anomaliekarte geladen." loading="lazy" decoding="async">
+          <a id="arcticEra5AnomalyPng" class="arctic-era5-download" download>Anomaliekarte als PNG</a>
+        </section>
+      </div>
+      <div class="arctic-buttons arctic-analysis-buttons">
+        <button type="button" id="arcticEra5Pdf">Beide Karten als beschriftetes PDF</button>
+      </div>
+      <p class="arctic-stat-note"><strong>Methodik:</strong> Die Karte verwendet räumliche ERA5-Reanalysen der Lufttemperatur in 2 m Höhe auf einem 0,5°-Raster (80–90°N, alle Längengrade). Die Abweichung bezieht sich auf das <strong>monatliche</strong> ERA5-Klimamittel 1991–2020 für denselben Kalendermonat, nicht auf den klimatologischen Mittelwert des jeweiligen Tages. Sie ist somit nicht unmittelbar mit der tagesbezogenen DMI-Anomalie vergleichbar. Das DMI-Diagramm und die ERA5-Karte verwenden unterschiedliche Berechnungsgrundlagen. ERA5 ist eine Reanalyse, keine Wettervorhersage; neue Karten erscheinen mit einigen Tagen Verzögerung. Weder fehlende Daten noch fehlgeschlagene Downloads werden durch synthetische Karten ersetzt.</p>
+      <div class="arctic-method-links">
+        <a href="https://cds.climate.copernicus.eu/datasets/derived-era5-single-levels-daily-statistics" target="_blank" rel="noopener">Copernicus: ERA5-Tagesdaten</a>
+        <a href="https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-monthly-means" target="_blank" rel="noopener">Copernicus: ERA5-Monatsmittel</a>
+      </div>
+    </div>
+  </details>
   <details class="arctic-panel arctic-stat arctic-heatmap-panel" id="arcticHeatmapPanel" open>
     <summary><strong>Historische Extremtage-Heatmap · 1958 bis heute</strong><span>Jedes Kästchen steht für einen Tag – feste P10-/P90-Schwellen von 1958–2002</span></summary>
     <div class="arctic-stat-body">
