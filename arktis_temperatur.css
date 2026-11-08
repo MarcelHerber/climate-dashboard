@@ -119,3 +119,32 @@ html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons bu
  .arctic-streak-panel .arctic-streak-controls label{width:100%}
  .arctic-streak-panel .arctic-streak-controls select{width:100%}
 }
+
+
+
+/* Arctic extreme-streak chart controls and all-year heatmap */
+.arctic-visual-panel .arctic-panel-title{margin-bottom:12px}
+.arctic-visual-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px 24px}
+.arctic-visual-controls label{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--arctic-ink);cursor:pointer}
+.arctic-visual-controls select{background:var(--arctic-paper);color:var(--arctic-ink);border:1px solid var(--arctic-edge);padding:7px 9px;border-radius:7px;font:inherit}
+.arctic-visual-swatch{height:10px;width:17px;display:inline-block;border-radius:2px;flex-shrink:0}
+.arctic-visual-swatch.warm{background:#bc554b}.arctic-visual-swatch.cold{background:#377baa}
+.arctic-visual-panel .arctic-stat-note{margin:10px 0 0}
+.arctic-heatmap-panel{min-width:0;max-width:100%}
+.arctic-heatmap-panel .arctic-stat-body{min-width:0}
+.arctic-heatmap-legend{display:flex;flex-wrap:wrap;gap:7px 17px;margin:10px 0 14px}
+.arctic-heatmap-legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--arctic-muted)}
+.arctic-heatmap-swatch{display:inline-block;width:18px;height:11px;border-radius:2px}
+.arctic-heatmap-swatch.warm{background:#bc554b}.arctic-heatmap-swatch.cold{background:#377baa}
+.arctic-heatmap-swatch.ordinary{background:#d9e1e8}.arctic-heatmap-swatch.missing{background:#969eaa}
+.arctic-heatmap-scroll{overflow-x:auto;overflow-y:hidden;width:100%;min-width:0;max-width:100%;overscroll-behavior-inline:contain;border:1px solid var(--arctic-edge);border-radius:8px;background:var(--arctic-paper)}
+.arctic-heatmap-scroll canvas{display:block;max-width:none;cursor:crosshair;touch-action:pan-x pan-y}
+.arctic-heatmap-scroll:focus-visible,.arctic-heatmap-scroll canvas:focus-visible{outline:2px solid var(--arctic-blue);outline-offset:2px}
+.arctic-heatmap-panel #arcticHeatmapHover{min-height:20px;font-variant-numeric:tabular-nums}
+#arcticStreakEvents tr{cursor:pointer}
+#arcticStreakEvents tr:hover,#arcticStreakEvents tr:focus-visible{background:rgba(72,133,181,.13);outline:none}
+@media(max-width:650px){
+ .arctic-visual-controls{align-items:flex-start;gap:9px 14px}
+ .arctic-visual-controls label:last-child{flex-basis:100%}
+ .arctic-heatmap-legend{gap:7px 12px}
+}
