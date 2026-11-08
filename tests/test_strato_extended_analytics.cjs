@@ -34,7 +34,7 @@ test('NASA parser accepts only original daily analysis and ignores missing/forec
   '2026-11-03 30 10 15 17 20 24 28 34 24\n'+
   '2026-11-04 18 10 15 17 20 24 28 34 -1';
   const result=nasa.parse(raw);
-  assert.deepEqual([...result.entries()],[['2026-11-01',22]]);
+  assert.deepEqual(Array.from(result,([date,value])=>[date,value]),[['2026-11-01',22]]);
   assert.equal(nasa.season('2027-01-11'),2026);
   assert.equal(nasa.season('2026-07-01'),2026);
   assert.equal(nasa.dateISO('2027-01-01',-1),'2026-12-31');
