@@ -33,6 +33,11 @@ DOI_MONTHLY = "10.24381/cds.f17050d7"
 PNG_SIGNATURE = bytes.fromhex("89504e470d0a1a0a")
 TEMP_LEVELS = np.arange(-45, 20, 5)
 ANOM_LEVELS = np.arange(-15, 18, 3)
+# Rendering contract: only publish a map when the polar coastline layer exists.
+# Earlier outputs silently omitted it when Cartopy's Natural Earth DownloadWarning
+# was accidentally converted to an exception.
+BOUNDARY_VERSION = 2
+_BOUNDARY_GEOMETRIES = None
 
 
 def daily_request(day: date) -> dict:
@@ -179,6 +184,54 @@ def cap_mean(values: np.ndarray, lats: np.ndarray) -> float:
                  (weights.sum() * values.shape[1]))
 
 
+
+
+def load_polar_boundaries():
+    """Fetch and validate Natural Earth 10m shorelines plus political borders.
+
+    Unlike the original renderer, neither a download warning nor a cache miss
+    is grounds for silently publishing a boundary-free map.  The coastline
+    data are downloaded once per runner into Cartopy's Natural Earth cache.
+    Subsequent maps reuse the verified geometries.
+    """
+    global _BOUNDARY_GEOMETRIES
+    if _BOUNDARY_GEOMETRIES is not None:
+        return _BOUNDARY_GEOMETRIES
+
+    import warnings
+    from cartopy.io import shapereader
+
+    def candidates(resolution, category, name):
+        with warnings.catch_warnings():
+            # DownloadWarning is informational: Cartopy uses it while fetching
+            # valid Natural Earth shapefiles for the first time.
+            warnings.simplefilter("default")
+            path = shapereader.natural_earth(
+                resolution=resolution, category=category, name=name)
+        geometries = []
+        for geom in shapereader.Reader(path).geometries():
+            if not geom.is_empty and geom.bounds[3] >= 79.5:
+                geometries.append(geom)
+        return geometries
+
+    # The 110m line lacks small high-Arctic archipelago detail.  At 10m the
+    # Greenland coast, Svalbard, Franz Josef Land and Canadian islands appear.
+    coast = candidates("10m", "physical", "coastline")
+    if len(coast) < 5:
+        raise ValueError(
+            f"Natural Earth polar coastline incomplete: {len(coast)} geometries")
+    # Administrative boundaries above 80N are sparse; their absence in the
+    # *actual 80–90N domain* is not itself a download error.  Require the source
+    # dataset to exist, but do not invent or extrapolate national borders.
+    borders = candidates("50m", "cultural", "admin_0_boundary_lines_land")
+    _BOUNDARY_GEOMETRIES = (coast, borders)
+    print(
+        f"VERIFIED Natural Earth boundary geometries north of 79.5N: "
+        f"{len(coast)} coastlines, {len(borders)} land borders",
+        flush=True)
+    return _BOUNDARY_GEOMETRIES
+
+
 def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float):
     import matplotlib
     matplotlib.use("Agg")
@@ -206,24 +259,45 @@ def render_map(lats, lons, values, day: date, mode: str, path: Path, mean: float
     ax.set_boundary(boundary, transform=ax.transAxes)
     mesh = ax.pcolormesh(lon_w, lats, wrapped, transform=ccrs.PlateCarree(),
                          cmap=cmap, norm=norm, shading="auto", rasterized=True)
-    import warnings
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            feature = ax.coastlines(resolution="110m", linewidth=.75,
-                                    color="#263d52", alpha=.80)
-            fig.canvas.draw()
-    except Exception as err:
-        try:
-            feature.remove()
-        except Exception:
-            pass
-        print(f"Coastline warning (gridded ERA5 remains valid): {err}", flush=True)
+    # Keep real coastlines on top of the colored field.  If the geographic
+    # source fails, fail the map build rather than silently dropping borders.
+    from matplotlib import patheffects
+    coast, borders = load_polar_boundaries()
+    shore = ax.add_geometries(
+        coast, crs=ccrs.PlateCarree(), facecolor="none",
+        edgecolor="#142b42", linewidth=1.20, zorder=12)
+    shore.set_path_effects([
+        patheffects.Stroke(linewidth=2.4, foreground="#f7fbff", alpha=.85),
+        patheffects.Normal()])
+    if borders:
+        line = ax.add_geometries(
+            borders, crs=ccrs.PlateCarree(), facecolor="none",
+            edgecolor="#25384c", linewidth=.85, linestyle="--", zorder=13)
+        line.set_path_effects([
+            patheffects.Stroke(linewidth=1.9, foreground="#fff", alpha=.7),
+            patheffects.Normal()])
+    # Force rendering now: Natural Earth errors must propagate and block publish.
+    fig.canvas.draw()
     gl = ax.gridlines(draw_labels=False, linewidth=.6, alpha=.32,
                       color="#43576a", linestyle="--")
     import matplotlib.ticker as mticker
     gl.xlocator = mticker.FixedLocator(np.arange(-180, 180, 30))
     gl.ylocator = mticker.FixedLocator([80, 85])
+    # Graticule and labels support orientation in the largely oceanic 80–90N
+    # domain, even where there are no international land borders.
+    for latlabel in (80, 85):
+        ax.text(35, latlabel, f"{latlabel}°N", transform=ccrs.PlateCarree(),
+                fontsize=8, color="#1b3448", weight="bold",
+                zorder=15, ha="left", va="bottom",
+                path_effects=[
+                    patheffects.withStroke(linewidth=2.2, foreground="white")])
+    for lonlabel in (-180, -90, 0, 90):
+        label = f"{abs(lonlabel)}°{'W' if lonlabel<0 else ('E' if lonlabel>0 else '')}"
+        ax.text(lonlabel, 80.55, label, transform=ccrs.PlateCarree(),
+                fontsize=7.5, color="#20384d", zorder=15,
+                ha="center", va="center",
+                path_effects=[
+                    patheffects.withStroke(linewidth=2.0, foreground="white")])
     fig.text(.07, .955, "KLIMADASHBOARD  |  HOCHARKTIS >80° N",
              fontsize=12, color="#215b82", weight="bold")
     title = "Lufttemperatur in 2 m Höhe" if mode=="temperature" else "Abweichung vom Monatsklima"
@@ -307,6 +381,8 @@ def make_one_day(day: date, client, output: Path, workspace: Path):
     os.replace(tmp_anom, anom_png)
     record = {
         "date": day.isoformat(),
+        "boundary_version": BOUNDARY_VERSION,
+        "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
         "temperature_png": f"maps/{temp_png.name}",
         "anomaly_png": f"maps/{anom_png.name}",
         "mean_c": round(tc_mean, 2),
@@ -331,6 +407,8 @@ def validate_manifest(data: dict, root: Path) -> None:
     seen = set()
     for entry in records:
         day = date.fromisoformat(entry["date"])
+        if entry.get("boundary_version") != BOUNDARY_VERSION:
+            raise ValueError("Map missing verified Natural Earth boundaries")
         if day in seen:
             raise ValueError("Duplicate map date")
         seen.add(day)
@@ -356,7 +434,11 @@ def build(output: Path = OUTPUT, today: date | None = None, client=None,
     previous = old.get("days", []) if old.get("ready") else []
     previous = [r for r in previous if all(valid_image(output/r[k])
                  for k in ("temperature_png", "anomaly_png"))]
-    by_date = {row["date"]: row for row in previous}
+    previous_dates = {row["date"] for row in previous}
+    # Invalidate previous borderless images and regenerate them from ERA5;
+    # a valid PNG alone does not prove the map has coastline geometry.
+    by_date = {row["date"]: row for row in previous
+               if row.get("boundary_version") == BOUNDARY_VERSION}
     if client is None:
         import cdsapi
         client = cdsapi.Client()
@@ -369,7 +451,7 @@ def build(output: Path = OUTPUT, today: date | None = None, client=None,
             if day.isoformat() in by_date:
                 continue
             # Reject older history that would displace existing, newer real images.
-            if previous and day.isoformat() < max(r["date"] for r in previous):
+            if previous and day.isoformat() < max(r["date"] for r in previous) and day.isoformat() not in previous_dates:
                 continue
             try:
                 row=make_one_day(day, client, output, work)
@@ -386,6 +468,8 @@ def build(output: Path = OUTPUT, today: date | None = None, client=None,
     records=sorted(by_date.values(), key=lambda r:r["date"], reverse=True)[:12]
     payload={
         "schema":1,"ready":True,
+        "boundary_version": BOUNDARY_VERSION,
+        "boundary_source": "Natural Earth 10m coastline and 50m national land borders",
         "source":"Copernicus Climate Change Service (C3S) / ECMWF ERA5",
         "daily_dataset":DAILY_DATASET, "monthly_dataset":MONTHLY_DATASET,
         "daily_doi":DOI_DAILY, "monthly_doi":DOI_MONTHLY,
