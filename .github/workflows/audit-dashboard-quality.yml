@@ -1,0 +1,113 @@
+name: Dashboard Qualität · Schnee, Performance, Exporte
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "dashboard_export_hq.js"
+      - "wettergefahren*"
+      - "scripts/update_station_precip.py"
+      - "scripts/build_pages_site.sh"
+      - "scripts/audit_payload_sizes.cjs"
+      - "tests/test_dashboard_hq_export.cjs"
+      - ".github/workflows/audit-dashboard-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "dashboard_export_hq.js"
+      - "wettergefahren*"
+      - "scripts/**"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            index.html
+            dashboard_export_hq.js
+            wettergefahren_export.js
+            wettergefahren.html
+            station_snow_years.js
+            station_snow_accumulation.js
+            station_precip_index.json
+            station_snow_height_additional_index.json
+            daily_tmax_1881_2026.json
+            station_records.json
+            data.json
+            scripts/build_pages_site.sh
+            scripts/audit_payload_sizes.cjs
+            tests/test_dashboard_hq_export.cjs
+            tests/test_station_snow_years.cjs
+            tests/test_station_snow_accumulation.cjs
+      - name: JavaScript Syntax
+        run: |
+          node --check dashboard_export_hq.js
+          node --check wettergefahren_export.js
+          node --check tests/test_dashboard_hq_export.cjs
+          node --check scripts/audit_payload_sizes.cjs
+      - name: Regressionen für Schneehöhe und Export
+        run: |
+          node --test tests/test_dashboard_hq_export.cjs
+          node --test tests/test_station_snow_years.cjs
+          node --test tests/test_station_snow_accumulation.cjs
+      - name: Dateigrößen und JSON-Parsezeiten messen
+        run: node scripts/audit_payload_sizes.cjs > dashboard-payload-audit.json
+      - name: Größenprotokoll anzeigen
+        run: cat dashboard-payload-audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-payload-benchmark
+          path: dashboard-payload-audit.json
+
+  live:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_station_snow_years_live.py
+            tests/audit_mobile_live_interactions.py
+            tests/audit_live_loadtime.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Browser für echte DWD-, Modell- und Kartendaten installieren
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: "Schneehöhen: Jahresauswahl, Stationswechsel, Abweichung, Akkumulation"
+        run: python -u tests/audit_station_snow_years_live.py
+      - name: "Mobile Touch-Interaktionen: MOSMIX, Stratosphäre, Ensembles, HYRAS, Isobaren"
+        if: success()
+        run: python -u tests/audit_mobile_live_interactions.py
+      - name: Reale Ladezeiten von Schneehöhe und Niederschlag
+        if: always()
+        run: python -u tests/audit_live_loadtime.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dashboard-live-reliability-speed
+          path: |
+            snow_year_browser_audit/
+            mobile_live_reports/
+            live_loadtime_audit/
+          if-no-files-found: warn

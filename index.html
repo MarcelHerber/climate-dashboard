@@ -1233,6 +1233,7 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
 <link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">
 <link rel="stylesheet" href="dashboard_cleanup.css?v=20261021-wide1">
 <link rel="stylesheet" href="dashboard_theme.css?v=20261103-contrast-v3">
+<script defer src="dashboard_export_hq.js?v=20261108"></script>
 </head>
 <body>
 
@@ -9985,9 +9986,14 @@ async function downloadNationalStreakMap(){
     nationalStreakMap?.invalidateSize();
     await new Promise(resolve=>setTimeout(resolve,180));
     const canvas=await window.captureDashboardWithWhiteBackground(mapElement,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
+    if(!window.DashboardExportHQ)throw new Error("Die hochauflösende Exportbibliothek wurde nicht geladen.");
+    const labeled=window.DashboardExportHQ.composeCanvas(canvas,{
+      title:"Deutschland · "+metric.label+" · Stationsrekorde",
+      source:"Quelle: DWD CDC · Stationsauswertung · Kartenbasis: OpenStreetMap"
+    });
     const link=document.createElement("a");
     link.download=`kenntage_serienrekorde_${metricId}_deutschland.png`;
-    link.href=canvas.toDataURL("image/png");
+    link.href=labeled.toDataURL("image/png");
     link.click();
   }catch(error){
     alert(`Kartenexport fehlgeschlagen: ${error.message}`);
@@ -10256,15 +10262,22 @@ function stationSnowPopulateYearPicker(station,archive,current,currentYear){
   const available=window.StationSnowYears?.yearList(archive,currentYear,Boolean(current?.rows?.length))||[];
   const list=document.getElementById("stationSnowYearsList");
   const status=document.getElementById("stationSnowYearsStatus");
-  if(stationSnowYearStationId!==station.id){
-    stationSnowYearStationId=station.id;
-    stationSnowSelectedYears.clear();
+  // Preserve checked years when changing stations. Only discard years without
+  // an archive entry at the new station; keep the current-year selection too.
+  // This applies to both snow-depth and anomaly/accumulation charts.
+  const stationChanged=stationSnowYearStationId!==station.id;
+  stationSnowYearStationId=station.id;
+  stationSnowAvailableYears=available;
+  const yearsAtStation=new Set(available.map(item=>item.year));
+  for(const selected of [...stationSnowSelectedYears]){
+    if(!yearsAtStation.has(selected))stationSnowSelectedYears.delete(selected);
+  }
+  // First load, or no overlapping years between stations: show an available
+  // season rather than an empty chart. Manually deselecting every year at
+  // the same station must remain possible.
+  if(!stationSnowSelectedYears.size && stationChanged){
     const recent=available.find(item=>item.isCurrent)||available[0];
     if(recent)stationSnowSelectedYears.add(recent.year);
-  }
-  stationSnowAvailableYears=available;
-  for(const selected of [...stationSnowSelectedYears]){
-    if(!available.some(item=>item.year===selected))stationSnowSelectedYears.delete(selected);
   }
   list.replaceChildren();
   const fragment=document.createDocumentFragment();
@@ -10679,16 +10692,17 @@ function safeExportFilename(title,extension){
 }
 
 function chartCanvasWithWhiteBackground(chart){
-  const source=chart.canvas;
-  const exportCanvas=document.createElement("canvas");
-  exportCanvas.width=source.width;
-  exportCanvas.height=source.height;
-  const context=exportCanvas.getContext("2d",{alpha:false});
-  if(!context) throw new Error("Export-Canvas konnte nicht erstellt werden.");
-  context.fillStyle="#ffffff";
-  context.fillRect(0,0,exportCanvas.width,exportCanvas.height);
-  context.drawImage(source,0,0);
-  return exportCanvas;
+  if(!window.DashboardExportHQ)throw new Error("Die hochauflösende Exportbibliothek wurde nicht geladen.");
+  const canvas=chart.canvas;
+  const id=canvas.id||"";
+  const source=id.startsWith("stationSnow")
+    ?"DWD CDC · KL SHK_TAG / RR SH_TAG · Referenz 1991–2020"
+    :id.startsWith("stationPrecip")
+      ?"DWD CDC · Stationsniederschlag · Referenz 1991–2020"
+      :"Climate Dashboard Deutschland · Datenquelle und Zeitraum siehe Diagramm";
+  return window.DashboardExportHQ.renderChart(chart,{
+    title:chartExportTitle(chart,canvas),source
+  });
 }
 
 function triggerDataUrlDownload(dataUrl,filename){
@@ -10723,7 +10737,7 @@ function exportChartAsPdf(canvas){
   const pageWidth=pdf.internal.pageSize.getWidth();
   const pageHeight=pdf.internal.pageSize.getHeight();
   const margin=12;
-  const titleSpace=16;
+  const titleSpace=0;
   const maxWidth=pageWidth-margin*2;
   const maxHeight=pageHeight-margin*2-titleSpace;
   const ratio=Math.min(maxWidth/imageCanvas.width,maxHeight/imageCanvas.height);
@@ -10732,11 +10746,7 @@ function exportChartAsPdf(canvas){
   const x=(pageWidth-imageWidth)/2;
   const y=margin+titleSpace;
 
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(13);
-  pdf.setTextColor(25,25,25);
-  const lines=pdf.splitTextToSize(title,maxWidth);
-  pdf.text(lines,margin,margin+5);
+  // Titles and provenance are already included in the image.
   pdf.addImage(imageData,"PNG",x,y,imageWidth,imageHeight,undefined,"FAST");
   pdf.setFont("helvetica","normal");
   pdf.setFontSize(8);
@@ -10777,14 +10787,14 @@ function initializeChartExportButtons(){
     pngButton.type="button";
     pngButton.className="chart-export-button";
     pngButton.textContent="PNG";
-    pngButton.title="Grafik als PNG herunterladen";
+    pngButton.title="Hochauflösendes PNG mit vollständigen Achsen";
     pngButton.addEventListener("click",()=>runChartExport(pngButton,canvas,"png"));
 
     const pdfButton=document.createElement("button");
     pdfButton.type="button";
     pdfButton.className="chart-export-button";
     pdfButton.textContent="PDF";
-    pdfButton.title="Grafik als PDF herunterladen";
+    pdfButton.title="Hochauflösendes PDF mit vollständigen Achsen";
     pdfButton.addEventListener("click",()=>runChartExport(pdfButton,canvas,"pdf"));
 
     const csvButton=document.createElement("button");

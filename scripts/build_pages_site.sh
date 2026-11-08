@@ -12,6 +12,7 @@ required_root_files=(
   dashboard_cleanup.css
   dashboard_theme.css
   dashboard_theme.js
+  dashboard_export_hq.js
   mobile_navigation.css
   mobile_navigation.js
   mobile_content.css
@@ -135,6 +136,24 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Optimize the biggest first-use station archive without modifying any values.
+# A 13.4 MB indented source index becomes ~4.9 MB as compact JSON; future
+# updater runs also write it compactly. This prevents waiting for the next
+# scheduled DWD refresh before the published page gets the improvement.
+python - <<'PY'
+import json
+from pathlib import Path
+path=Path("_site/station_precip_index.json")
+original=path.stat().st_size
+payload=json.loads(path.read_text(encoding="utf-8"))
+assert payload.get("ready") and len(payload.get("stations") or []) >= 500
+with path.open("w",encoding="utf-8") as handle:
+    json.dump(payload,handle,ensure_ascii=False,separators=(",",":"),allow_nan=False)
+    handle.write("\n")
+print("Stationsniederschlag-Index:",original,"->",path.stat().st_size,"Byte (verlustfrei)")
+PY
+node --check _site/dashboard_export_hq.js
 
 
 # Arktischer DMI-Index wird im täglichen Spezialworkflow erzeugt.

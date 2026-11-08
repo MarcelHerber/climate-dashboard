@@ -235,7 +235,7 @@
     text(ctx,"Auswerteraster: "+state.data.grid.step+"°",x,top+104,"12px Arial",PALETTE.muted);
   }
 
-  async function makePNG() {
+  async function renderExportCanvas() {
     const read=window.iconEuHazardExportState;
     if(typeof read!=="function")throw Error("Kartendaten noch nicht initialisiert");
     const state=read();
@@ -290,36 +290,56 @@
     text(ctx,"Experimentelle Modellindikatoren · Keine amtlichen Wetterwarnungen",
       pad,footY+46,"bold 11px Arial","#9c3d33");
 
-    const blob=await new Promise((resolve,reject)=>{
-      try{canvas.toBlob(b=>b?resolve(b):reject(Error("PNG-Kodierung fehlgeschlagen")),"image/png");}
-      catch(e){reject(e);}
-    });
     const periodName=period.start_h+"-"+period.end_h+"h";
     const date=state.data.run_utc.slice(0,16).replace(/[T:]/g,"-");
     const type=state.currentType==="all"?"gesamt":state.currentType;
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="ICON-EU_Gefahren_"+type+"_"+periodName+"_"+date+"UTC.png";
-    document.body.append(a);
-    a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+    const stem="ICON-EU_Gefahren_"+type+"_"+periodName+"_"+date+"UTC";
+    return {canvas,stem};
   }
 
-  button.addEventListener("click",async()=>{
-    if(button.disabled)return;
-    button.disabled=true;button.setAttribute("aria-busy","true");
-    const previous=button.textContent;
-    button.textContent="PNG wird erstellt …";
-    info("Exportiere den aktuellen Kartenausschnitt mit geografischem Hintergrund …");
+  async function makePNG(){
+    const {canvas,stem}=await renderExportCanvas();
+    const blob=await new Promise((resolve,reject)=>{
+      canvas.toBlob(result=>result?resolve(result):reject(Error("PNG-Kodierung fehlgeschlagen")),"image/png");
+    });
+    const link=document.createElement("a");
+    link.href=URL.createObjectURL(blob);
+    link.download=stem+".png";
+    document.body.append(link);
+    link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(link.href),30000);
+  }
+
+  async function makePDF(){
+    if(!window.jspdf?.jsPDF)throw Error("PDF-Bibliothek konnte nicht geladen werden");
+    const {canvas,stem}=await renderExportCanvas();
+    const pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
+    const w=pdf.internal.pageSize.getWidth(),h=pdf.internal.pageSize.getHeight();
+    const margin=9;
+    const ratio=Math.min((w-2*margin)/canvas.width,(h-2*margin)/canvas.height);
+    const imgW=canvas.width*ratio,imgH=canvas.height*ratio;
+    pdf.addImage(canvas.toDataURL("image/png"),"PNG",(w-imgW)/2,(h-imgH)/2,imgW,imgH,undefined,"FAST");
+    pdf.save(stem+".pdf");
+  }
+
+  const pdfButton=document.getElementById("exportPdf");
+  async function runExport(control,format){
+    if(control.disabled)return;
+    control.disabled=true;control.setAttribute("aria-busy","true");
+    const previous=control.textContent;
+    control.textContent=format==="pdf"?"PDF wird erstellt …":"PNG wird erstellt …";
+    info("Exportiere die Gefahrenkarte mit geografischem Hintergrund …");
     try{
-      await makePNG();
-      info("PNG mit Modelllauf, Zeitraum, Legende und Gefahrenkarte erstellt.");
+      if(format==="pdf")await makePDF();else await makePNG();
+      info(format.toUpperCase()+" mit Modelllauf, Zeitraum, Legende und Gefahrenkarte erstellt.");
     }catch(error){
-      console.error("ICON-EU PNG-Export:",error);
-      info("PNG-Export fehlgeschlagen: "+error.message,true);
+      console.error("ICON-EU Kartenexport:",error);
+      info(format.toUpperCase()+"-Export fehlgeschlagen: "+error.message,true);
     }finally{
-      button.disabled=false;button.removeAttribute("aria-busy");
-      button.textContent=previous;
+      control.disabled=false;control.removeAttribute("aria-busy");
+      control.textContent=previous;
     }
-  });
+  }
+  button.addEventListener("click",()=>runExport(button,"png"));
+  pdfButton?.addEventListener("click",()=>runExport(pdfButton,"pdf"));
 })();
