@@ -198,6 +198,10 @@ async function main() {
             assert.equal(fs.readFileSync(await download.path()).subarray(0,4).toString(),"%PDF");
           }
           if(expected.length>1){
+            // Region switches preserve selected date, including the oldest day.
+            // Start from the newest day before testing the "previous" button.
+            await page.locator("#arcticEra5MapDate").selectOption(expected[0].date);
+            assert.equal(await page.locator("#arcticEra5MapPrev").isEnabled(),true);
             await page.locator("#arcticEra5MapPrev").click();
             assert.equal(await page.locator("#arcticEra5MapDate").inputValue(),expected[1].date);
             await page.locator("#arcticEra5MapNext").click();
