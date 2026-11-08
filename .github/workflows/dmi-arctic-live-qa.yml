@@ -1,6 +1,12 @@
 name: DMI-Arktis Live-Funktionstest
 
 on:
+  # Check browser QA changes directly; Maps update is separately tested after successful Pages deployment.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dmi-arctic-live-qa.yml"
+      - "tests/test_arctic_live_browser.cjs"
   workflow_dispatch:
   workflow_run:
     workflows: ["GitHub Pages schnell veröffentlichen"]
