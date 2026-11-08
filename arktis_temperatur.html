@@ -12,7 +12,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script defer src="arktis_temperatur.js?v=8"></script>
-<script defer src="arktis_era5_maps.js?v=2"></script>
+<script defer src="arktis_era5_maps.js?v=3"></script>
 <script defer src="arktis_klimastatistik.js?v=3"></script>
 
 </head>
@@ -122,11 +122,21 @@
   </section>
 
   <details class="arctic-panel arctic-stat arctic-era5-maps" id="arcticEra5MapPanel" open>
-    <summary><strong>Räumliche Arktistemperatur · ERA5</strong><span>Verifizierte 2-m-Lufttemperatur und Abweichung vom Monatsklima 1991–2020 nördlich von 80°N</span></summary>
+    <summary><strong>Räumliche Arktistemperatur · ERA5</strong><span>30-Tage-Kartenarchiv · Regionen 80–90°N, 70–90°N und 60–90°N · Monatsklima 1991–2020</span></summary>
     <div class="arctic-stat-body">
       <div class="arctic-era5-map-controls">
+        <label>Kartenausschnitt
+          <select id="arcticEra5MapRegion" aria-label="Arktischen Kartenausschnitt auswählen">
+            <option value="80" selected>80–90°N · Hocharktis</option>
+            <option value="70">70–90°N · erweiterte Arktis</option>
+            <option value="60">60–90°N · gesamte Arktis</option>
+          </select>
+        </label>
         <label>ERA5-Analysedatum
           <select id="arcticEra5MapDate" aria-label="ERA5-Tag auswählen"><option value="">Daten werden geladen …</option></select>
+        </label>
+        <label>Kalenderdatum
+          <input id="arcticEra5Calendar" type="date" aria-label="Datum im ERA5-Archiv auswählen" disabled>
         </label>
         <button type="button" id="arcticEra5MapPrev" disabled aria-label="Vorherige ERA5-Karte">← Vorheriger Tag</button>
         <button type="button" id="arcticEra5MapNext" disabled aria-label="Nächste ERA5-Karte">Nächster Tag →</button>
@@ -139,8 +149,9 @@
         </label>
       </div>
       <p id="arcticEra5MapStatus" class="arctic-stat-note arctic-era5-status" role="status" aria-live="polite">Prüfe ERA5-Datenverfügbarkeit …</p>
+      <p id="arcticEra5ArchiveProgress" class="arctic-stat-note">Das tägliche Archiv wird schrittweise bis 30 Tage erweitert. Es werden ausschließlich erfolgreich geprüfte ERA5-Karten angezeigt.</p>
       <div class="arctic-era5-kpis">
-        <div><span>Mittlere Temperatur nördlich 80°N</span><strong id="arcticEra5MeanTemp">–</strong></div>
+        <div><span>Mittlere Temperatur des Kartenausschnitts</span><strong id="arcticEra5MeanTemp">–</strong></div>
         <div><span>Abweichung vom Monatsmittel 1991–2020</span><strong id="arcticEra5MeanAnomaly">–</strong></div>
       </div>
       <p id="arcticEra5MeanMethod" class="arctic-stat-note">Flächengewichtetes Mittel des ERA5-Rasters · nicht identisch mit dem DMI-Index.</p>
@@ -161,7 +172,7 @@
       <div class="arctic-buttons arctic-analysis-buttons">
         <button type="button" id="arcticEra5Pdf" disabled>Beide Karten als beschriftetes PDF</button>
       </div>
-      <p class="arctic-stat-note"><strong>Methodik:</strong> Die Karte verwendet räumliche ERA5-Reanalysen der Lufttemperatur in 2 m Höhe auf einem 0,5°-Raster (80–90°N, alle Längengrade). Die Abweichung bezieht sich auf das <strong>monatliche</strong> ERA5-Klimamittel 1991–2020 für denselben Kalendermonat, nicht auf den klimatologischen Mittelwert des jeweiligen Tages. Sie ist somit nicht unmittelbar mit der tagesbezogenen DMI-Anomalie vergleichbar. Das DMI-Diagramm und die ERA5-Karte verwenden unterschiedliche Berechnungsgrundlagen. ERA5 ist eine Reanalyse, keine Wettervorhersage; neue Karten erscheinen mit einigen Tagen Verzögerung. Weder fehlende Daten noch fehlgeschlagene Downloads werden durch synthetische Karten ersetzt.</p>
+      <p class="arctic-stat-note"><strong>Methodik:</strong> Die Karte verwendet räumliche ERA5-Reanalysen der Lufttemperatur in 2 m Höhe auf einem 0,5°-Raster für die wählbaren Gebiete 80–90°N, 70–90°N und 60–90°N (alle Längengrade). Die Abweichung bezieht sich auf das <strong>monatliche</strong> ERA5-Klimamittel 1991–2020 für denselben Kalendermonat, nicht auf den klimatologischen Mittelwert des jeweiligen Tages. Sie ist somit nicht unmittelbar mit der tagesbezogenen DMI-Anomalie vergleichbar. Das DMI-Diagramm und die ERA5-Karte verwenden unterschiedliche Berechnungsgrundlagen. ERA5 ist eine Reanalyse, keine Wettervorhersage; neue Karten erscheinen mit einigen Tagen Verzögerung; das zunächst kleine 30-Tage-Archiv wird mit mehreren täglichen Verarbeitungsläufen schrittweise gefüllt. Weder fehlende Daten noch fehlgeschlagene Downloads werden durch synthetische Karten ersetzt.</p>
       <div class="arctic-method-links">
         <a href="https://cds.climate.copernicus.eu/datasets/derived-era5-single-levels-daily-statistics" target="_blank" rel="noopener">Copernicus: ERA5-Tagesdaten</a>
         <a href="https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-monthly-means" target="_blank" rel="noopener">Copernicus: ERA5-Monatsmittel</a>
