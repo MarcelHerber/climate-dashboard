@@ -25,7 +25,10 @@ for(const path of entries){
       const t=performance.now();
       const restored=JSON.parse(compact.toString("utf8"));
       samples.push(performance.now()-t);
-      assert.deepEqual(restored,data);
+      // JS stringify canonicalizes -0 to 0 (e.g. station elevation).
+      // Compare normalized JSON semantics; the Python Pages writer itself
+      // preserves the signed original values from the committed archive.
+      assert.equal(JSON.stringify(restored),JSON.stringify(data));
     }
     samples.sort((a,b)=>a-b);
     entry.compact_parse_median_ms=Number(samples[3].toFixed(2));
