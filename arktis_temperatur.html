@@ -6,12 +6,12 @@
 <meta name="color-scheme" content="light dark">
 <title>Arktische Temperaturen · nördlich 80° N | Climate Dashboard Deutschland</title>
 <meta name="description" content="Interaktiver DMI-Temperaturindex nördlich 80 Grad Nord: Jahresgänge seit 1958, historische Vergleiche, Tagesanomalien und 7-/30-Tage-Mittel.">
-<link rel="stylesheet" href="arktis_temperatur.css?v=2">
+<link rel="stylesheet" href="arktis_temperatur.css?v=3">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script defer src="arktis_temperatur.js?v=6"></script>
+<script defer src="arktis_temperatur.js?v=7"></script>
 
 </head>
 <body>
@@ -126,6 +126,57 @@
         <div><h3>10 kälteste Perioden</h3><div class="arctic-stat-scroll"><table><thead><tr><th>Rang</th><th>Jahr</th><th>Mittel</th></tr></thead><tbody id="arcticPeriodCold"></tbody></table></div></div>
       </div>
       <p class="arctic-stat-note">Nur Perioden ohne fehlende Tageswerte werden eingestuft. DJF-Winter 2026 umfasst Dezember 2025 und Januar/Februar 2026. Periodenmittel verwenden die Tageswerte gleichgewichtet. Es handelt sich um den DMI-Index, nicht um ein homogenisiertes flächengewichtetes Arktismittel.</p>
+    </div>
+  </details>
+
+  <details class="arctic-panel arctic-stat arctic-streak-panel" id="arcticStreaks">
+    <summary><strong>Wärme- &amp; Kälteserien</strong><span>Längste Extremphasen, historische Rekorde und Ranglisten seit 1958</span></summary>
+    <div class="arctic-stat-body">
+      <div class="arctic-streak-controls">
+        <label class="arctic-stat-control">Art der Serie
+          <select id="arcticStreakType" aria-label="Wärme- oder Kälteserien wählen">
+            <option value="warm">Außergewöhnlich warm (&gt; P90)</option>
+            <option value="cold">Außergewöhnlich kalt (&lt; P10)</option>
+          </select>
+        </label>
+        <label class="arctic-stat-control">Mindestlänge der Rekordliste
+          <select id="arcticStreakMinDays" aria-label="Mindestlänge der Serien">
+            <option value="3">3 Tage</option>
+            <option value="5">5 Tage</option>
+            <option value="7" selected>7 Tage</option>
+            <option value="10">10 Tage</option>
+            <option value="14">14 Tage</option>
+            <option value="30">30 Tage</option>
+          </select>
+        </label>
+      </div>
+      <p class="arctic-stat-note" id="arcticStreakStatus" role="status" aria-live="polite">Lade historische Serien …</p>
+      <div class="arctic-streak-kpis">
+        <div><span>Jahr in der Hauptauswahl</span><strong id="arcticStreakDays">–</strong><small id="arcticStreakCoverage">–</small></div>
+        <div><span>Längste Folge im gewählten Jahr</span><strong id="arcticStreakLongest">–</strong><small id="arcticStreakLongestNote">–</small></div>
+        <div><span>Jahresrang</span><strong id="arcticStreakRanking">–</strong><small id="arcticStreakRankingNote">Nur vollständig erfasste Jahre</small></div>
+      </div>
+      <p class="arctic-stat-note" id="arcticStreakNotable"></p>
+      <div class="arctic-streak-month-section">
+        <h3>Monatsübersicht des ausgewählten Jahres</h3>
+        <p class="arctic-stat-note">Anteil der Extremtage an den jeweils vorhandenen auswertbaren Tagen (Anzahl über der Leiste).</p>
+        <div id="arcticStreakMonths" class="arctic-streak-months" aria-label="Monatliche Zahl der Extremtage"></div>
+      </div>
+      <div class="arctic-stat-tables">
+        <div>
+          <h3>Längste historische Serien · Top 15</h3>
+          <div class="arctic-stat-scroll">
+            <table><thead><tr><th>Rang</th><th>Zeitraum</th><th>Tage</th><th>Ø Überschreitung</th></tr></thead><tbody id="arcticStreakEvents"></tbody></table>
+          </div>
+        </div>
+        <div>
+          <h3>Jahre mit den meisten Extremtagen · Top 15</h3>
+          <div class="arctic-stat-scroll">
+            <table><thead><tr><th>Rang</th><th>Jahr</th><th>Tage</th><th>Längste Folge</th></tr></thead><tbody id="arcticStreakYears"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <p class="arctic-stat-note">Methodik: Für jeden Kalendertag werden aus der festen DMI-Referenz 1958–2002 die empirischen Perzentile P10 und P90 berechnet. Als Extremtage zählen nur Werte <strong>streng</strong> unter P10 beziehungsweise über P90. Die Perzentile basieren auf mindestens 30 Referenzwerten (am 29. Februar mindestens 10). Fehlende Daten unterbrechen eine Serie; Jahreswechsel dagegen nicht. Serien, die am jüngsten verfügbaren Datentag enden, sind mit * gekennzeichnet und können sich verlängern. Jahresranglisten enthalten nur vollständig vorhandene Jahre, Jahresfolgen enden jeweils am 31. Dezember. Modellwechsel begrenzen die klimatologische Vergleichbarkeit des DMI-Index.</p>
     </div>
   </details>
   <section class="arctic-panel arctic-method" aria-labelledby="arcticMethodHeading">
