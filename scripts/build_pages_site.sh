@@ -156,6 +156,8 @@ grep -q 'window.Arctic80StatsMath' _site/arktis_temperatur.js
 node --test tests/test_arctic_temperature_ui.cjs
 node --check tests/test_arctic_streaks.cjs
 node --test tests/test_arctic_streaks.cjs
+node --check tests/test_arctic_extreme_visuals.cjs
+node --test tests/test_arctic_extreme_visuals.cjs
 # Fail fast when published HTML references a missing Arctic statistics asset.
 # Statistics are bundled in arktis_temperatur.js; HTML must load only that script.
 if grep -q 'src="arktis_statistik.js' _site/arktis_temperatur.html; then
