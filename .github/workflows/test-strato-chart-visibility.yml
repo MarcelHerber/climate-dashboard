@@ -2,11 +2,18 @@ name: Stratosphäre · Kurven und Diagrammgröße testen
 
 on:
   push:
-    branches: [main, strato-chart-visibility-20261104, strato-labeled-exports-20261104, strato-member-export-summary-20261107, strato-three-improvements-20261108]
+    branches: [main, strato-chart-visibility-20261104, strato-labeled-exports-20261104, strato-member-export-summary-20261107, strato-three-improvements-20261108, strato-analysis-metrics-vertical-20261108]
     paths:
       - "stratosphere_chart_visibility.js"
       - "stratosphere_chart_export.js"
       - "stratosphere_joint_comparison.js"
+      - "stratosphere_nasa_common.js"
+      - "stratosphere_analysis_forecast.js"
+      - "stratosphere_analysis_forecast.css"
+      - "stratosphere_comparison_metrics.js"
+      - "stratosphere_vertical_profile.js"
+      - "tests/test_strato_extended_analytics.cjs"
+      - "tests/test_strato_extended_browser.py"
       - "stratosphere_joint_comparison.css"
       - "stratosphere_ecmwf_ens.js"
       - "tests/test_stratosphere_joint_comparison.cjs"
@@ -37,6 +44,11 @@ jobs:
           node --check stratosphere_chart_visibility.js
           node --check stratosphere_chart_export.js
           node --check stratosphere_joint_comparison.js
+          node --check stratosphere_nasa_common.js
+          node --check stratosphere_analysis_forecast.js
+          node --check stratosphere_comparison_metrics.js
+          node --check stratosphere_vertical_profile.js
+          node --test tests/test_strato_extended_analytics.cjs
           node --test tests/test_stratosphere_joint_comparison.cjs
           node --test tests/test_stratosphere_chart_visibility.cjs
       - name: Veröffentlichungsreferenzen prüfen
@@ -44,6 +56,11 @@ jobs:
           grep -Fq 'stratosphere_chart_visibility.js' stratosphaere.html
           grep -Fq 'stratosphere_chart_export.js' stratosphaere.html
           grep -Fq 'stratosphere_joint_comparison.js' stratosphaere.html
+          grep -Fq 'stratosphere_nasa_common.js' stratosphaere.html
+          grep -Fq 'stratosphere_analysis_forecast.js' stratosphaere.html
+          grep -Fq 'stratosphere_comparison_metrics.js' stratosphaere.html
+          grep -Fq 'stratosphere_vertical_profile.js' stratosphaere.html
+          grep -Fq 'stratosphere_analysis_forecast.css' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_joint_comparison.js' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_chart_export.js' scripts/build_pages_site.sh
           grep -Fq 'stratosphere_chart_visibility.css' stratosphaere.html
@@ -65,6 +82,7 @@ jobs:
         run: |
           python -u tests/test_strato_visibility_browser.py
           python -u tests/test_strato_joint_browser.py
+          python -u tests/test_strato_extended_browser.py
       - name: Screenshots bereitstellen
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,5 +91,6 @@ jobs:
           path: |
             strato-control-browser/*.png
             strato-joint-browser/*.png
+            strato-extended-browser/*.png
           if-no-files-found: warn
           retention-days: 14
