@@ -8,6 +8,9 @@
 
   const preferences = new Map();
   const viewPanels = new WeakMap();
+  const profileSelections = new Map();
+  const profileIds = new Set(['stratoEnsembleCanvas','stratoEpsCanvas',
+    'stratoJointCanvas','windChart','levelsChart']);
 
   function labelOf(source) {
     let name = String(source || '').replace(/^_+/, '').replace(/\s+(?:Untergrenze|min|max)$/i, '').trim();
@@ -65,6 +68,50 @@
   function visible(chart, group) {
     return group.indexes.every(index => chart.isDatasetVisible(index));
   }
+  function profileDesired(group, selected) {
+    if (selected === 'ensemble') return true;
+    if (selected === 'overview') {
+      if (group.member) return false;
+      if (group.filled && /(?:25\s*[–-]\s*75|50\s*%)/i.test(group.label)) return false;
+      return true;
+    }
+    return undefined;
+  }
+
+  function enableNativeEnsembleControls(chart) {
+    const id=chart.canvas?.id;
+    const nativeIds=id==='stratoEnsembleCanvas'
+      ? ['stratoMembers','stratoBand90','stratoBand50']
+      : id==='stratoEpsCanvas'?['stratoEpsMembers','stratoEpsBands']:[];
+    let changed=false,first=null;
+    for(const controlId of nativeIds) {
+      const input=document.getElementById(controlId);
+      if(input && !input.checked) {
+        input.checked=true;
+        changed=true;
+        if(!first)first=input;
+      }
+    }
+    if(changed && first) first.dispatchEvent(new Event('change',{bubbles:true}));
+    return changed;
+  }
+
+  function applyProfile(chart, selected) {
+    const id=chart.canvas?.id;
+    if(!id || !profileIds.has(id))return;
+    profileSelections.set(id,selected);
+    if(selected!=='individual') {
+      const settings=store(chart);
+      for(const group of groups(chart)) {
+        const wanted=profileDesired(group,selected);
+        settings.set(group.key,wanted);
+        for(const index of group.indexes)chart.setDatasetVisibility(index,wanted);
+      }
+    }
+    const recreated=selected==='ensemble' && enableNativeEnsembleControls(chart);
+    if(!recreated)chart.update('none');
+  }
+
   function element(name, css, text) {
     const el = document.createElement(name);
     if (css) el.className = css;
@@ -106,7 +153,23 @@
     header.append(heading, description, buttons);
     const regular = element('div', 'strato-series-chips');
     for (const group of all.filter(g => !g.member)) regular.append(chip(chart, group));
-    const content = [header, regular];
+    const content=[header];
+    const id=chart.canvas?.id;
+    if(profileIds.has(id) && all.some(group=>group.member || group.filled)) {
+      const profiles=element('div','strato-series-profiles');
+      profiles.setAttribute('role','group');
+      profiles.setAttribute('aria-label','Ansichtsprofil des Diagramms');
+      const active=profileSelections.get(id)||'individual';
+      for(const [key,name] of [
+        ['overview','Übersicht'],['ensemble','Ensemble'],['individual','Individuell']
+      ]) {
+        const control=action(name,'profile',key,active===key);
+        control.classList.add('strato-series-profile');
+        profiles.append(control);
+      }
+      content.push(profiles);
+    }
+    content.push(regular);
     const members = all.filter(g => g.member);
     if (members.length) {
       const details = element('details', 'strato-series-members');
@@ -137,6 +200,11 @@
       const current = panel._chart, all = panel._groups || [];
       if (!current) return;
       const type = button.dataset.action;
+      if(type==='profile') {
+        applyProfile(current,button.dataset.key);
+        return;
+      }
+      profileSelections.set(current.canvas?.id,'individual');
       if (type === 'toggle') {
         const target = all.find(group => group.key === button.dataset.key);
         if (target) setVisible(current, target, !visible(current, target));
@@ -156,10 +224,12 @@
       // External controls leave more usable plot space than long Chart.js legends.
       if (chart.options?.plugins?.legend) chart.options.plugins.legend.display = false;
       const settings = store(chart);
+      const selected=profileSelections.get(chart.canvas?.id)||'individual';
       for (const group of groups(chart)) {
-        const previous = settings.get(group.key);
-        if (previous !== undefined) {
-          for (const index of group.indexes) chart.setDatasetVisibility(index, previous);
+        const desired=selected==='individual' ? settings.get(group.key)
+          : profileDesired(group,selected);
+        if(desired !== undefined) {
+          for(const index of group.indexes) chart.setDatasetVisibility(index,desired);
         }
       }
     },
@@ -173,6 +243,24 @@
       viewPanels.delete(chart);
     }
   };
+  // Keep the original legacy checkboxes functional and in sync with profile mode.
+  if(typeof document.addEventListener==='function') {
+    document.addEventListener('change',event=>{
+      const mapping={
+        stratoMembers:'stratoEnsembleCanvas',
+        stratoBand90:'stratoEnsembleCanvas',
+        stratoBand50:'stratoEnsembleCanvas',
+        stratoEpsMembers:'stratoEpsCanvas',
+        stratoEpsBands:'stratoEpsCanvas',
+        windEnsembleToggle:'windChart',
+        windEnsembleBands:'windChart'
+      };
+      const id=mapping[event.target?.id];
+      if(!id)return;
+      profileSelections.set(id,'individual');
+      preferences.get(id)?.clear();
+    },true);
+  }
   Chart.register(plugin);
-  window.stratoSeriesVisibility = {groups, preferences};
+  window.stratoSeriesVisibility = {groups, preferences, profileSelections,applyProfile};
 })();
