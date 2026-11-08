@@ -242,3 +242,46 @@ test('PNG legend summarizes GEFS c00-c30 without affecting individual controls',
   for(let i=0;i<24;i++)click(panel(),button(panel(),'toggle',visible[i].key));
   assert.equal(png.legendEntries(chart)[0].label,'7 GEFS-Mitglieder');
 });
+
+
+test('Übersicht, Ensemble und Individuell independently control full GEFS chart and redraws',()=>{
+  const data=[
+    {label:'_GEFS 5–95 % Untergrenze',data:[0,1],borderColor:'transparent'},
+    {label:'GEFS 5–95 %',data:[3,4],fill:{target:'-1',above:'#2266aa33'}},
+    {label:'_GEFS 25–75 % Untergrenze',data:[1,2],borderColor:'transparent'},
+    {label:'GEFS 25–75 %',data:[2,3],fill:{target:'-1',above:'#2266aa66'}},
+    {label:'_c00',data:[1,2],borderColor:'#223344'},
+    {label:'_c01',data:[2,3],borderColor:'#223344'},
+    {label:'GEFS · Ensemble-Mittel',data:[2,4],borderColor:'#1665ad'},
+    {label:'Kontrolllauf',data:[1,5],borderColor:'#d59221'},
+    {label:'0 m/s · Windumkehrschwelle',data:[0,0],borderColor:'#333333'}
+  ];
+  const id='stratoEnsembleCanvas';
+  const first=fixture(data,id);
+  let profile=button(first.panel(),'profile','overview');
+  assert.ok(profile,'Overview option must exist on GEFS chart');
+  click(first.panel(),profile);
+  assert.equal(first.chart.isDatasetVisible(0),true);
+  assert.equal(first.chart.isDatasetVisible(1),true);
+  assert.equal(first.chart.isDatasetVisible(2),false);
+  assert.equal(first.chart.isDatasetVisible(3),false);
+  assert.equal(first.chart.isDatasetVisible(4),false);
+  assert.equal(first.chart.isDatasetVisible(5),false);
+  assert.equal(first.chart.isDatasetVisible(6),true);
+  assert.equal(api.profileSelections.get(id),'overview');
+  plugin.beforeDestroy(first.chart);
+  const recreated=fixture(data,id);
+  assert.equal(recreated.chart.isDatasetVisible(4),false,'Overview persists after chart re-creation');
+  assert.equal(recreated.chart.isDatasetVisible(3),false);
+  click(recreated.panel(),button(recreated.panel(),'profile','ensemble'));
+  assert.equal(recreated.chart.isDatasetVisible(4),true);
+  assert.equal(recreated.chart.isDatasetVisible(3),true);
+  assert.equal(api.profileSelections.get(id),'ensemble');
+  const group=api.groups(recreated.chart).find(g=>g.label==='c00');
+  click(recreated.panel(),button(recreated.panel(),'toggle',group.key));
+  assert.equal(api.profileSelections.get(id),'individual');
+  assert.equal(recreated.chart.isDatasetVisible(4),false);
+  assert.equal(recreated.chart.isDatasetVisible(5),true);
+  click(recreated.panel(),button(recreated.panel(),'profile','individual'));
+  assert.equal(recreated.chart.isDatasetVisible(4),false,'Custom mode keeps selection');
+});
