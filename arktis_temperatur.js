@@ -558,7 +558,10 @@ const colorFor=(kind)=>kind===null?FIXED_COLORS.missing:
   kind==="neutral"?FIXED_COLORS.neutral:FIXED_COLORS[kind];
 function dateFor(year,day){return String(year)+"-"+day;}
 function overlap(event,year){
-  const start=Math.max(event.start,year+"-01-01"),end=Math.min(event.end,year+"-12-31");
+  // ISO YYYY-MM-DD strings are ordered lexicographically; Math.max/min would coerce them to NaN.
+  const yearStart=year+"-01-01",yearEnd=year+"-12-31";
+  const start=event.start>yearStart?event.start:yearStart;
+  const end=event.end<yearEnd?event.end:yearEnd;
   return start<=end?{start,end}:null;
 }
 function eventSegments(doc,results,year,kind,minDays=7){
