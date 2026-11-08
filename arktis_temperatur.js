@@ -539,3 +539,269 @@ async function init(){
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
 else init();
 })();
+
+
+
+/* DMI Arctic interactive extreme spells on both charts + 1958-present heatmap */
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const good=x=>typeof x==="number"&&Number.isFinite(x);
+const FIXED_COLORS={warm:"#bc554b",cold:"#377baa",neutral:"#d9e1e8",missing:"#969eaa"};
+const cfg={top:33,left:48,cell:3,row:13,foot:12};
+let archive=null,calc=null,focus=null,hover=null,heatmapYears=[],registered=false;
+const kindAt=(value,low,high)=>!good(value)||!good(low)||!good(high)?null:
+  value>high?"warm":value<low?"cold":"neutral";
+const colorFor=(kind)=>kind===null?FIXED_COLORS.missing:
+  kind==="neutral"?FIXED_COLORS.neutral:FIXED_COLORS[kind];
+function dateFor(year,day){return String(year)+"-"+day;}
+function overlap(event,year){
+  const start=Math.max(event.start,year+"-01-01"),end=Math.min(event.end,year+"-12-31");
+  return start<=end?{start,end}:null;
+}
+function eventSegments(doc,results,year,kind,minDays=7){
+  const kinds=kind==="all"?["warm","cold"]:[kind];
+  const selected=String(year),segments=[];
+  for(const k of kinds)for(const event of results.events[k]){
+    if(event.days<minDays)continue;
+    const shared=overlap(event,selected);
+    if(!shared)continue;
+    const from=doc.days.indexOf(shared.start.slice(5)),to=doc.days.indexOf(shared.end.slice(5));
+    if(from>=0&&to>=from)segments.push({kind:k,from,to,event});
+  }
+  return segments.sort((a,b)=>a.from-b.from);
+}
+function hitCell(x,y,years,daysCount){
+  const col=Math.floor((x-cfg.left)/cfg.cell),row=Math.floor((y-cfg.top)/cfg.row);
+  if(row<0||row>=years.length||col<0||col>=daysCount)return null;
+  return {year:years[row],index:col};
+}
+window.Arctic80VisualMath={kindAt,colorFor,overlap,eventSegments,hitCell};
+const dayText=iso=>iso?iso.slice(8,10)+"."+iso.slice(5,7)+"."+iso.slice(0,4):"–";
+const refCurrent=()=>String($("arcticYear")?.value||"");
+const minLength=()=>Number($("arcticVisualMinimum")?.value||7);
+const kindsEnabled=()=>["warm","cold"].filter(k=>$("arcticVisual"+(k==="warm"?"Warm":"Cold"))?.checked);
+function visible(year=refCurrent()){
+  if(!archive||!calc)return [];
+  return kindsEnabled().flatMap(k=>eventSegments(archive,calc,year,k,minLength()));
+}
+function selectedEventFor(year,index){
+  const iso=dateFor(year,archive.days[index]);
+  const matches=visible(year).filter(s=>iso>=s.event.start&&iso<=s.event.end);
+  return matches.sort((a,b)=>b.event.days-a.event.days)[0]||null;
+}
+function info(text){
+  if($("arcticVisualInfo"))$("arcticVisualInfo").textContent=text;
+}
+function chartUpdate(){
+  if(typeof Chart==="undefined")return;
+  for(const id of ["arcticAnnualChart","arcticAnomalyChart"]){
+    const chart=Chart.getChart?.($(id));
+    if(chart)chart.update("none");
+  }
+}
+const overlay={
+  id:"arcticExtremeOverlay",
+  beforeDatasetsDraw(chart){
+    if(!archive||!calc||!chart.canvas||!["arcticAnnualChart","arcticAnomalyChart"].includes(chart.canvas.id))return;
+    const y=refCurrent(),segments=visible(y),scale=chart.scales.x,box=chart.chartArea;
+    if(!scale||!box||!segments.length)return;
+    const step=Math.abs(scale.getPixelForValue(1)-scale.getPixelForValue(0));
+    if(!Number.isFinite(step)||step===0)return;
+    const ctx=chart.ctx;ctx.save();ctx.beginPath();
+    ctx.rect(box.left,box.top,box.right-box.left,box.bottom-box.top);ctx.clip();
+    for(const segment of segments){
+      const left=Math.max(box.left,scale.getPixelForValue(segment.from)-step/2);
+      const right=Math.min(box.right,scale.getPixelForValue(segment.to)+step/2);
+      if(right<=left)continue;
+      const chosen=focus===segment.event;
+      ctx.fillStyle=segment.kind==="warm"?(chosen?"rgba(188,85,75,.25)":"rgba(188,85,75,.12)"):
+        (chosen?"rgba(55,123,170,.26)":"rgba(55,123,170,.12)");
+      ctx.fillRect(left,box.top,right-left,box.bottom-box.top);
+      ctx.fillStyle=FIXED_COLORS[segment.kind];
+      ctx.fillRect(left,box.top,right-left,chosen?6:3);
+      if(chosen){ctx.lineWidth=2.5;ctx.strokeStyle=FIXED_COLORS[segment.kind];
+        ctx.strokeRect(left+1,box.top+1,Math.max(1,right-left-2),box.bottom-box.top-2);}
+    }
+    ctx.restore();
+  }
+};
+function eventCaption(e){
+  const kind=calc.events.warm.includes(e)?"Wärme":"Kälte";
+  return kind+"serie: "+e.days+" Tage · "+dayText(e.start)+" bis "+dayText(e.end);
+}
+function chooseEvent(e,navigate=true){
+  if(!e)return;
+  const preferred=refCurrent();
+  const year=(preferred>=e.start.slice(0,4)&&preferred<=e.end.slice(0,4))?preferred:e.start.slice(0,4);
+  if(year!==refCurrent()){$("arcticYear").value=year;$("arcticYear").dispatchEvent(new Event("change",{bubbles:true}));}
+  focus=e;
+  const day=e.start.slice(0,4)===year?e.start.slice(5):"01-01";
+  if($("arcticRecordDay")){$("arcticRecordDay").value=day;$("arcticRecordDay").dispatchEvent(new Event("change"));}
+  info("Im Diagramm markiert: "+eventCaption(e)+(e.end.slice(0,4)!==e.start.slice(0,4)?" · läuft über den Jahreswechsel":""));
+  chartUpdate();paint();
+  if(navigate)$("arcticAnnualWrap")?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function selectDay(year,index,navigate){
+  if(!archive||!archive.days[index])return;
+  const value=archive.years[String(year)]?.[index];
+  if(refCurrent()!==String(year)){
+    $("arcticYear").value=String(year);$("arcticYear").dispatchEvent(new Event("change",{bubbles:true}));
+  }
+  const day=archive.days[index],iso=dateFor(year,day);
+  if($("arcticRecordDay")){$("arcticRecordDay").value=day;$("arcticRecordDay").dispatchEvent(new Event("change"));}
+  const s=selectedEventFor(year,index);
+  focus=s?.event||null;
+  const threshold=calc.reference;
+  const kind=kindAt(value,threshold.p10[index],threshold.p90[index]);
+  info(dayText(iso)+" · "+(good(value)?value.toLocaleString("de-DE",{maximumFractionDigits:1})+" °C":"kein Messwert")+
+    " · "+(kind==="warm"?"über P90":kind==="cold"?"unter P10":kind===null?"Datenlücke":"innerhalb P10–P90")+
+    (s?" · "+eventCaption(s.event):""));
+  chartUpdate();paint();
+  if(navigate)$("arcticAnnualWrap")?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+function chartClick(event){
+  if(!archive||!calc||typeof Chart==="undefined")return;
+  const chart=Chart.getChart(event.currentTarget),scale=chart?.scales?.x;
+  if(!scale)return;
+  const rect=chart.canvas.getBoundingClientRect();
+  const px=(event.clientX-rect.left)*(chart.canvas.width/rect.width)/chart.currentDevicePixelRatio;
+  if(px<chart.chartArea.left||px>chart.chartArea.right)return;
+  const index=Math.max(0,Math.min(archive.days.length-1,Math.round(scale.getValueForPixel(px))));
+  const year=Number(refCurrent());
+  selectDay(year,index,false);
+}
+function eventRowClick(event){
+  const tr=event.target.closest("tr");if(!tr||!calc||!tr.parentNode||!tr.parentNode.id)return;
+  const kind=$("arcticStreakType")?.value==="cold"?"cold":"warm";
+  const minimum=Number($("arcticStreakMinDays")?.value||7);
+  const list=calc.events[kind].filter(e=>e.days>=minimum).slice(0,15);
+  const rowIndex=[...tr.parentNode.children].indexOf(tr);
+  if(list[rowIndex])chooseEvent(list[rowIndex]);
+}
+function heatmapSize(){return {w:cfg.left+archive.days.length*cfg.cell+15,
+  h:cfg.top+heatmapYears.length*cfg.row+cfg.foot};}
+function paint(){
+  if(!archive||!calc)return;
+  const canvas=$("arcticHeatmapCanvas"),ctx=canvas.getContext("2d");
+  const {w,h}=heatmapSize();
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
+    canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+    canvas.style.width=w+"px";canvas.style.height=h+"px";
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const dark=document.documentElement.dataset.theme==="dark"||document.body.classList.contains("dark-mode");
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle=dark?"#162234":"#ffffff";ctx.fillRect(0,0,w,h);
+  ctx.font="11px system-ui,Arial";ctx.textBaseline="middle";
+  const ink=dark?"#cbd8e7":"#52677c";
+  ctx.fillStyle=ink;
+  const monthNames=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  for(let m=1;m<=12;m++){
+    const idx=archive.days.indexOf(String(m).padStart(2,"0")+"-01");
+    if(idx<0)continue;
+    const x=cfg.left+idx*cfg.cell;
+    ctx.fillText(monthNames[m-1],x+3,15);
+  }
+  const yearFocus=refCurrent();
+  const selectedIndex=hover?.index??archive.days.indexOf($("arcticRecordDay")?.value||"");
+  const rowYears=heatmapYears;
+  for(let r=0;r<rowYears.length;r++){
+    const year=rowYears[r],arr=archive.years[String(year)]||[];
+    const top=cfg.top+r*cfg.row;
+    ctx.fillStyle=ink;ctx.fillText(String(year),2,top+5);
+    for(let i=0;i<archive.days.length;i++){
+      const kind=kindAt(arr[i],calc.reference.p10[i],calc.reference.p90[i]);
+      ctx.fillStyle=colorFor(kind);
+      ctx.fillRect(cfg.left+i*cfg.cell,top,cfg.cell,11);
+    }
+    if(String(year)===yearFocus){
+      ctx.strokeStyle=dark?"#e4e9f1":"#253d53";ctx.lineWidth=1.6;
+      ctx.strokeRect(cfg.left-.6,top-1,archive.days.length*cfg.cell+1.2,13);
+      ctx.fillStyle=dark?"#f6cf70":"#1a4c72";ctx.fillText("▶",cfg.left-10,top+5);
+      if(selectedIndex>=0){
+        ctx.fillStyle=dark?"#f6cf70":"#223e56";
+        ctx.fillRect(cfg.left+selectedIndex*cfg.cell,top-2,Math.max(2,cfg.cell),15);
+        ctx.fillStyle=colorFor(kindAt(arr[selectedIndex],calc.reference.p10[selectedIndex],calc.reference.p90[selectedIndex]));
+        ctx.fillRect(cfg.left+selectedIndex*cfg.cell+.5,top,Math.max(1,cfg.cell-1),11);
+      }
+    }
+  }
+  ctx.strokeStyle=dark?"rgba(235,240,248,.30)":"rgba(30,58,82,.22)";
+  ctx.lineWidth=.6;
+  for(let m=2;m<=12;m++){
+    const idx=archive.days.indexOf(String(m).padStart(2,"0")+"-01");
+    const x=cfg.left+idx*cfg.cell;
+    ctx.beginPath();ctx.moveTo(x,cfg.top);ctx.lineTo(x,cfg.top+rowYears.length*cfg.row);ctx.stroke();
+  }
+}
+function cellFromEvent(event){
+  const canvas=$("arcticHeatmapCanvas"),rect=canvas.getBoundingClientRect();
+  const {w,h}=heatmapSize();
+  return hitCell((event.clientX-rect.left)*w/rect.width,
+    (event.clientY-rect.top)*h/rect.height,heatmapYears,archive.days.length);
+}
+function heatHover(event){
+  if(!archive||!calc)return;
+  const cell=cellFromEvent(event);
+  if(!cell)return;
+  hover=cell;
+  const day=archive.days[cell.index],val=archive.years[String(cell.year)]?.[cell.index];
+  const kind=kindAt(val,calc.reference.p10[cell.index],calc.reference.p90[cell.index]);
+  $("arcticHeatmapHover").textContent=dayText(dateFor(cell.year,day))+" · "+
+    (good(val)?val.toLocaleString("de-DE",{maximumFractionDigits:1})+" °C":"keine Daten")+
+    " · "+(kind==="warm"?"über P90":kind==="cold"?"unter P10":kind===null?"fehlend":"P10–P90");
+}
+function setupCanvas(){
+  const canvas=$("arcticHeatmapCanvas");
+  canvas.addEventListener("pointermove",heatHover);
+  canvas.addEventListener("click",event=>{
+    const cell=cellFromEvent(event);if(cell)selectDay(cell.year,cell.index,true);
+  });
+  canvas.addEventListener("keydown",event=>{
+    const keys={ArrowLeft:[0,-1],ArrowRight:[0,1],ArrowUp:[-1,0],ArrowDown:[1,0]};
+    if(!keys[event.key]&&event.key!=="Enter")return;
+    event.preventDefault();
+    const year=Number(refCurrent()),index=archive.days.indexOf($("arcticRecordDay")?.value||"01-01");
+    if(event.key==="Enter"){selectDay(year,Math.max(0,index),true);return;}
+    const row=heatmapYears.indexOf(year);
+    const delta=keys[event.key];
+    const nextYear=heatmapYears[Math.max(0,Math.min(heatmapYears.length-1,row+delta[0]))]||year;
+    const nextIndex=Math.max(0,Math.min(365,index+delta[1]));
+    selectDay(nextYear,nextIndex,false);
+    const x=cfg.left+nextIndex*cfg.cell;
+    $("arcticHeatmapScroll").scrollLeft=Math.max(0,x-180);
+  });
+}
+function initData(doc){
+  if(!doc?.years||doc.days?.length!==366||!window.Arctic80StreaksMath)return;
+  archive=doc;calc=window.Arctic80StreaksMath.analyze(doc);
+  heatmapYears=Object.keys(doc.years).map(Number).sort((a,b)=>a-b);
+  if(!heatmapYears.length)return;
+  $("arcticHeatmapCount").textContent=heatmapYears.length+" Jahre · "+heatmapYears[0]+"–"+heatmapYears.at(-1)+" · Referenz 1958–2002";
+  paint();chartUpdate();
+}
+function init(){
+  if(!$("arcticHeatmapCanvas")||!$("arcticAnnualChart"))return;
+  if(typeof Chart!=="undefined"&&!registered){Chart.register(overlay);registered=true;}
+  setupCanvas();
+  ["arcticVisualWarm","arcticVisualCold","arcticVisualMinimum"].forEach(id=>
+    $(id).addEventListener("change",()=>{focus=null;chartUpdate();paint();}));
+  $("arcticYear").addEventListener("change",()=>{focus=null;paint();chartUpdate();});
+  $("arcticRecordDay").addEventListener("change",paint);
+  $("arcticStreakEvents").addEventListener("click",eventRowClick);
+  $("arcticStreakEvents").addEventListener("keydown",event=>{
+    if(event.key==="Enter"||event.key===" "){event.preventDefault();eventRowClick(event);}
+  });
+  for(const id of ["arcticAnnualChart","arcticAnomalyChart"])$(id).addEventListener("click",chartClick);
+  const themeObserver=new MutationObserver(()=>paint());
+  themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  themeObserver.observe(document.body,{attributes:true,attributeFilter:["class"]});
+  window.addEventListener("arctic80:data-ready",event=>initData(event.detail));
+  if(window.Arctic80LoadedData)initData(window.Arctic80LoadedData);
+  else info("Die Heatmap wartet auf die DMI-Tageswerte …");
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
+else init();
+})();
