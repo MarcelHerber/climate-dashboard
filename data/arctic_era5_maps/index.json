@@ -1,6 +1,8 @@
 {
   "schema": 1,
   "ready": true,
+  "boundary_version": 2,
+  "boundary_source": "Natural Earth 10m coastline and 50m national land borders",
   "source": "Copernicus Climate Change Service (C3S) / ECMWF ERA5",
   "daily_dataset": "derived-era5-single-levels-daily-statistics",
   "monthly_dataset": "reanalysis-era5-single-levels-monthly-means",
@@ -20,6 +22,8 @@
   "days": [
     {
       "date": "2026-11-01",
+      "boundary_version": 2,
+      "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
       "temperature_png": "maps/t2m_20261101.png",
       "anomaly_png": "maps/anomaly_20261101.png",
       "mean_c": -6.94,
@@ -31,6 +35,8 @@
     },
     {
       "date": "2026-10-31",
+      "boundary_version": 2,
+      "boundary_source": "Natural Earth 10m coastline / 50m admin-0 land borders",
       "temperature_png": "maps/t2m_20261031.png",
       "anomaly_png": "maps/anomaly_20261031.png",
       "mean_c": -6.81,
@@ -41,5 +47,5 @@
       "max_anomaly_k": 12.04
     }
   ],
-  "generated_utc": "2026-11-08T21:36:14+00:00"
+  "generated_utc": "2026-11-08T21:54:10+00:00"
 }
