@@ -721,7 +721,9 @@ def build_index(
             "historical_built_at": historical_state.get("built_at"),
         },
     }
-    atomic_write_json(root / "station_precip_index.json", index)
+    # Same observations, keys and numeric precision; omit indentation to reduce
+    # first-load transfer and JSON parse overhead for the 2,000-station index.
+    atomic_write_json_compact(root / "station_precip_index.json", index)
     return index
 
 
