@@ -1,125 +1,199 @@
-/* Verified ERA5 polar-cap 2m temperature and monthly-reference anomaly maps. */
+/* Copernicus ERA5 Arctic 30-day archive, 60/70/80N real-data maps. */
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
 const BASE="data/arctic_era5_maps/";
-let index=null,position=0;
-const sanitizeFile=p=>/^maps\/(?:t2m|anomaly)_[0-9]{8}\.png$/.test(p);
-const germanDate=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8)+"."+s.slice(5,7)+"."+s.slice(0,4):"–";
-const numeric=x=>Number.isFinite(x)?x.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–";
-const fmtSigned=x=>Number.isFinite(x)?(x>0?"+":"")+numeric(x):"–";
-function message(text,warning=false){
-  const p=$("arcticEra5MapStatus");p.textContent=text;p.classList.toggle("error",warning);
+const REGIONS=["80","70","60"];
+let archive=null,days=[],position=0;
+const validFile=p=>/^maps\/(?:t2m|anomaly)_(?:(?:60|70|80)n_)?[0-9]{8}\.png$/.test(p);
+const dateLabel=s=>s&&/^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8)+"."+s.slice(5,7)+"."+s.slice(0,4):"–";
+const number=x=>Number.isFinite(x)?x.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1}):"–";
+const signed=x=>Number.isFinite(x)?(x>0?"+":"")+number(x):"–";
+const region=()=>$("arcticEra5MapRegion").value;
+const regionLabel=()=>region()+"–90°N";
+function status(text,error=false){
+ const el=$("arcticEra5MapStatus");el.textContent=text;el.classList.toggle("error",error);
 }
-function src(name){return BASE+name+(index?.boundary_version?"?map=b"+index.boundary_version:"");}
-function link(id,filename,date,label){
-  const a=$(id);
-  if(!sanitizeFile(filename)){a.removeAttribute("href");a.removeAttribute("download");return;}
-  a.href=src(filename);a.download="ERA5_Arktis80_"+label+"_"+date+".png";
+function fileURL(name,version){
+ return BASE+name+(version?"?map=b"+version:"");
 }
-function selectPosition(n){
-  if(!index?.days?.length)return;
-  position=Math.min(index.days.length-1,Math.max(0,n));
-  const item=index.days[position];
-  $("arcticEra5MapDate").value=item.date;
-  const main=$("arcticEra5TempMap"),anom=$("arcticEra5AnomalyMap");
-  const temp=src(item.temperature_png),deviation=src(item.anomaly_png);
-  main.src=temp;anom.src=deviation;
-  main.alt="ERA5-2-m-Temperaturkarte nördlich 80°N vom "+germanDate(item.date)+
-    " mit fester Farbskala −45 bis +15 °C und Küstenlinien";
-  anom.alt="ERA5-Tagesmittelabweichung vom Monatsklima 1991–2020 am "+germanDate(item.date)+
-    " mit fester Skala −15 bis +15 K";
-  $("arcticEra5MeanTemp").textContent=numeric(item.mean_c)+" °C";
-  $("arcticEra5MeanAnomaly").textContent=fmtSigned(item.mean_anomaly_k)+" K";
-  $("arcticEra5MeanMethod").textContent="Flächengewichtetes Mittel von 80°N bis 90°N · ERA5 · "+germanDate(item.date);
-  link("arcticEra5TempPng",item.temperature_png,item.date,"Temperatur");
-  link("arcticEra5AnomalyPng",item.anomaly_png,item.date,"Monatsanomalie");
-  $("arcticEra5MapPrev").disabled=position>=index.days.length-1;
-  $("arcticEra5MapNext").disabled=position===0;
-  message("ERA5-Reanalyse vom "+germanDate(item.date)+
-    " · 2-m-Lufttemperatur · Tagesmittel 00–24 UTC · 0,5° · Monatsreferenz 1991–2020.");
+function link(id,filename,date,kind,version){
+ const a=$(id);
+ if(!validFile(filename)){a.removeAttribute("href");a.removeAttribute("download");return;}
+ a.href=fileURL(filename,version);
+ a.download="ERA5_Arktis_"+region()+"-90N_"+kind+"_"+date+".png";
+}
+function normalize(data){
+ if(data?.ready!==true||![1,2].includes(data.schema)||!Array.isArray(data.days))return null;
+ const normalized=[];
+ const used=new Set();
+ for(const row of data.days){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(row.date||"")||used.has(row.date))continue;
+   const regions={};
+   if(data.schema===2&&row.regions){
+     for(const key of REGIONS){
+       const r=row.regions[key];
+       if(r&&validFile(r.temperature_png)&&validFile(r.anomaly_png)&&
+          Number.isFinite(r.mean_c)&&Number.isFinite(r.mean_anomaly_k))regions[key]=r;
+     }
+   }else if(validFile(row.temperature_png)&&validFile(row.anomaly_png)&&
+         Number.isFinite(row.mean_c)&&Number.isFinite(row.mean_anomaly_k)){
+     regions["80"]={...row};
+   }
+   if(!Object.keys(regions).length)continue;
+   used.add(row.date);normalized.push({date:row.date,regions});
+ }
+ normalized.sort((a,b)=>b.date.localeCompare(a.date));
+ return normalized.length?{...data,days:normalized}:null;
+}
+function available(){return archive?.days.filter(row=>row.regions[region()])||[];}
+function clearMap(text){
+ for(const id of ["arcticEra5TempMap","arcticEra5AnomalyMap"]){
+   $(id).removeAttribute("src");$(id).alt="Keine validierte ERA5-Karte für diesen Ausschnitt";
+ }
+ for(const id of ["arcticEra5TempPng","arcticEra5AnomalyPng"]){
+   $(id).removeAttribute("href");$(id).removeAttribute("download");
+ }
+ $("arcticEra5Pdf").disabled=true;
+ $("arcticEra5MeanTemp").textContent="–";
+ $("arcticEra5MeanAnomaly").textContent="–";
+ $("arcticEra5MapPrev").disabled=true;$("arcticEra5MapNext").disabled=true;
+ $("arcticEra5MeanMethod").textContent="Für diesen Kartenausschnitt sind noch keine geprüften Daten verfügbar.";
+ status(text,true);
+}
+function current(){return days[position]||null;}
+function render(n){
+ if(!days.length)return;
+ position=Math.max(0,Math.min(n,days.length-1));
+ const row=current(),data=row.regions[region()],lower=region();
+ const v=data.boundary_version||archive.boundary_version||2;
+ $("arcticEra5MapDate").value=row.date;
+ const cal=$("arcticEra5Calendar");cal.value=row.date;
+ cal.min=days.at(-1).date;cal.max=days[0].date;
+ const temp=$("arcticEra5TempMap"),anom=$("arcticEra5AnomalyMap");
+ $("arcticEra5Pdf").disabled=true;
+ temp.src=fileURL(data.temperature_png,v);
+ anom.src=fileURL(data.anomaly_png,v);
+ temp.alt="ERA5-Tagesmitteltemperatur "+lower+"–90°N vom "+dateLabel(row.date)+
+  ", feste Farbskala −45 bis +15 °C mit Küstenlinien";
+ anom.alt="ERA5-Abweichung vom Monatsklima 1991–2020 für "+lower+"–90°N am "+
+  dateLabel(row.date)+", feste Farbskala −15 bis +15 K";
+ $("arcticEra5MeanTemp").textContent=number(data.mean_c)+" °C";
+ $("arcticEra5MeanAnomaly").textContent=signed(data.mean_anomaly_k)+" K";
+ $("arcticEra5MeanMethod").textContent="Flächengewichtetes ERA5-Kappenmittel "+lower+
+   " · "+dateLabel(row.date)+" · nicht identisch mit dem DMI-Index.";
+ link("arcticEra5TempPng",data.temperature_png,row.date,"Temperatur",v);
+ link("arcticEra5AnomalyPng",data.anomaly_png,row.date,"Monatsanomalie",v);
+ $("arcticEra5MapPrev").disabled=position===days.length-1;
+ $("arcticEra5MapNext").disabled=position===0;
+ status("ERA5-Reanalyse "+dateLabel(row.date)+" · Region "+regionLabel()+
+   " · 0,5°-Raster · Referenz: Monatsmittel 1991–2020 · feste Farbskalen.");
+}
+function setRegion(preferredDate){
+ days=available();position=0;
+ const selector=$("arcticEra5MapDate");
+ selector.replaceChildren();
+ const cal=$("arcticEra5Calendar");
+ cal.disabled=days.length===0;
+ const totals=archive?.days.length||0;
+ const counts=REGIONS.map(k=>k+"–90°N: "+archive.days.filter(x=>x.regions[k]).length+" Tage");
+ $("arcticEra5ArchiveProgress").textContent="Kartenarchiv: "+totals+" von "+
+   (archive?.target_days||30)+" Zieltagen · "+counts.join(" · ")+
+   ". Weitere ERA5-Tage werden automatisch ergänzt, sobald sie verfügbar sind.";
+ if(!days.length){
+   const option=document.createElement("option");option.value="";option.textContent="Noch keine Karten";
+   selector.append(option);cal.value="";
+   clearMap("Für "+regionLabel()+" liegen noch keine geprüften Karten vor. Die ERA5-Archivverarbeitung läuft schrittweise.");
+   return;
+ }
+ for(const row of days){
+   const opt=document.createElement("option");opt.value=row.date;opt.textContent=dateLabel(row.date);
+   selector.append(opt);
+ }
+ let index=days.findIndex(x=>x.date===preferredDate);
+ if(index<0)index=0;
+ render(index);
 }
 function showMode(){
-  const mode=$("arcticEra5MapMode").value;
-  const both=mode==="both";
-  $("arcticEra5Maps").classList.toggle("single",!both);
-  $("arcticEra5TempFrame").hidden=mode==="anomaly";
-  $("arcticEra5AnomalyFrame").hidden=mode==="temperature";
+ const mode=$("arcticEra5MapMode").value;
+ $("arcticEra5Maps").classList.toggle("single",mode!=="both");
+ $("arcticEra5TempFrame").hidden=mode==="anomaly";
+ $("arcticEra5AnomalyFrame").hidden=mode==="temperature";
 }
-async function asPdf(){
-  if(!index?.days?.length)return;
-  const Pdf=window.jspdf?.jsPDF;
-  if(!Pdf){message("PDF-Bibliothek derzeit nicht verfügbar. Die PNG-Karten bleiben abrufbar.",true);return;}
-  const item=index.days[position];
-  const images=[
-    {el:$("arcticEra5TempMap"),name:"Temperaturkarte"},
-    {el:$("arcticEra5AnomalyMap"),name:"Abweichung zum Monatsmittel 1991–2020"}
-  ];
-  try {
-    const pdf=new Pdf({orientation:"portrait",format:"a4",unit:"mm"});
-    for(let i=0;i<images.length;i++){
-      const img=images[i].el;
-      if(!img.complete||img.naturalWidth<800)throw Error("Eine Karte ist noch nicht vollständig geladen.");
-      if(i)pdf.addPage();
-      const originalWidth=img.naturalWidth,originalHeight=img.naturalHeight;
-      const scale=Math.min(184/originalWidth,257/originalHeight);
-      const w=originalWidth*scale,h=originalHeight*scale;
-      const canvas=document.createElement("canvas");
-      canvas.width=originalWidth;canvas.height=originalHeight;
-      canvas.getContext("2d").drawImage(img,0,0);
-      pdf.addImage(canvas.toDataURL("image/png"),"PNG",(210-w)/2,12,w,h);
-      pdf.setFontSize(9);
-      pdf.setTextColor(62,80,97);
-      pdf.text("Quelle: Copernicus C3S / ECMWF ERA5 · "+item.date+" · "+images[i].name,13,289);
-    }
-    pdf.save("ERA5_Arktis80_Temperatur_und_Monatsanomalie_"+item.date+".pdf");
-  }catch(err){
-    message("PDF konnte nicht erstellt werden: "+err.message,true);
+async function exportPdf(){
+ if(!current())return;
+ const Pdf=window.jspdf?.jsPDF;
+ if(!Pdf){status("PDF-Bibliothek nicht verfügbar; PNG-Karten können heruntergeladen werden.",true);return;}
+ const row=current();
+ const imgs=[{img:$("arcticEra5TempMap"),title:"Temperatur"},
+             {img:$("arcticEra5AnomalyMap"),title:"Monatsanomalie"}];
+ try{
+  const pdf=new Pdf({orientation:"portrait",format:"a4",unit:"mm"});
+  for(let i=0;i<imgs.length;i++){
+   const image=imgs[i].img;
+   if(!image.complete||image.naturalWidth<800)throw Error("Kartendatei noch nicht geladen");
+   if(i)pdf.addPage();
+   const ratio=Math.min(184/image.naturalWidth,257/image.naturalHeight);
+   const w=image.naturalWidth*ratio,h=image.naturalHeight*ratio;
+   const canvas=document.createElement("canvas");
+   canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+   canvas.getContext("2d").drawImage(image,0,0);
+   pdf.addImage(canvas.toDataURL("image/png"),"PNG",(210-w)/2,12,w,h);
+   pdf.setFontSize(9);pdf.setTextColor(62,80,97);
+   pdf.text("Copernicus C3S / ECMWF ERA5 · "+row.date+" · "+regionLabel()+" · "+imgs[i].title,13,289);
   }
+  pdf.save("ERA5_Arktis_"+region()+"-90N_Temperatur_und_Anomalie_"+row.date+".pdf");
+ }catch(err){status("PDF-Export nicht möglich: "+err.message,true);}
 }
-function ready(data){
-  if(data?.ready!==true||!Array.isArray(data.days)||!data.days.length)return false;
-  const days=data.days.filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.date||"")&&
-    sanitizeFile(x.temperature_png)&&sanitizeFile(x.anomaly_png)&&
-    Number.isFinite(x.mean_c)&&Number.isFinite(x.mean_anomaly_k))
-    .sort((a,b)=>b.date.localeCompare(a.date));
-  if(!days.length)return false;
-  index={...data,days};
-  $("arcticEra5MapDate").replaceChildren();
-  for(const item of days){
-    const o=document.createElement("option");o.value=item.date;o.textContent=germanDate(item.date);
-    $("arcticEra5MapDate").append(o);
-  }
-  selectPosition(0);showMode();
-  $("arcticEra5Pdf").disabled=false;
-  return true;
+function enablePdfWhenLoaded(){
+ const ready=["arcticEra5TempMap","arcticEra5AnomalyMap"].every(id=>{
+  const e=$(id);return e.hasAttribute("src")&&e.complete&&e.naturalWidth>=800;
+ });
+ $("arcticEra5Pdf").disabled=!ready;
 }
 async function load(){
-  try{
-    const res=await fetch(BASE+"index.json?t="+Date.now(),{cache:"no-store"});
-    if(!res.ok)throw Error("HTTP "+res.status);
-    const json=await res.json();
-    if(!ready(json)){
-      message("Die ERA5-Kartenpipeline ist eingerichtet, aber noch keine vollständig geprüften echten Karten veröffentlicht. Es werden keine Ersatzwerte angezeigt.",true);
-    }
-  }catch(err){
-    message("ERA5-Kartendaten derzeit nicht verfügbar ("+err.message+"). Bestehende DMI-Temperaturdiagramme bleiben unabhängig davon nutzbar.",true);
-  }
+ try{
+  const response=await fetch(BASE+"index.json?t="+Date.now(),{cache:"no-store"});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  archive=normalize(await response.json());
+  if(!archive)throw Error("noch keine geprüften Kartendaten");
+  setRegion();
+  showMode();
+ }catch(error){
+  $("arcticEra5ArchiveProgress").textContent="Kartenarchiv noch nicht verfügbar.";
+  clearMap("ERA5-Kartendaten nicht verfügbar ("+error.message+"). Die DMI-Auswertungen bleiben nutzbar.");
+ }
 }
 function init(){
-  if(!$("arcticEra5MapPanel"))return;
-  $("arcticEra5MapDate").addEventListener("change",event=>{
-    const n=index?.days?.findIndex(x=>x.date===event.target.value)??-1;
-    if(n>=0)selectPosition(n);
+ if(!$("arcticEra5MapPanel"))return;
+ $("arcticEra5MapRegion").addEventListener("change",()=>setRegion(current()?.date));
+ $("arcticEra5MapDate").addEventListener("change",event=>{
+  const n=days.findIndex(r=>r.date===event.target.value);
+  if(n>=0)render(n);
+ });
+ $("arcticEra5Calendar").addEventListener("change",event=>{
+  const date=event.target.value;
+  const n=days.findIndex(row=>row.date===date);
+  if(n>=0)render(n);
+  else{
+   event.target.value=current()?.date||"";
+   status("Für den "+dateLabel(date)+" ist im "+regionLabel()+"-Archiv noch keine geprüfte ERA5-Karte verfügbar.",true);
+  }
+ });
+ $("arcticEra5MapPrev").addEventListener("click",()=>render(position+1));
+ $("arcticEra5MapNext").addEventListener("click",()=>render(position-1));
+ $("arcticEra5MapMode").addEventListener("change",showMode);
+ $("arcticEra5Pdf").addEventListener("click",exportPdf);
+ for(const id of ["arcticEra5TempMap","arcticEra5AnomalyMap"]){
+  $(id).addEventListener("load",enablePdfWhenLoaded);
+  $(id).addEventListener("error",()=>{
+   $("arcticEra5Pdf").disabled=true;
+   status("Eine ERA5-Kartendatei konnte nicht geladen werden. Bitte Archiv-/Datenstatus prüfen.",true);
   });
-  $("arcticEra5MapPrev").addEventListener("click",()=>selectPosition(position+1));
-  $("arcticEra5MapNext").addEventListener("click",()=>selectPosition(position-1));
-  $("arcticEra5MapMode").addEventListener("change",showMode);
-  $("arcticEra5Pdf").addEventListener("click",asPdf);
-  for(const id of ["arcticEra5TempMap","arcticEra5AnomalyMap"])
-    $(id).addEventListener("error",()=>message("Eine ERA5-Bilddatei kann nicht geladen werden; bitte die veröffentlichte Kartenliste überprüfen.",true));
-  load();
+ }
+ load();
 }
+window.ArcticEra5Archive={normalize,validFile,getState:()=>({schema:archive?.schema,region:region(),days:days.map(x=>x.date)})};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
 else init();
 })();
