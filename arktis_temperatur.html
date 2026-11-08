@@ -6,12 +6,13 @@
 <meta name="color-scheme" content="light dark">
 <title>Arktische Temperaturen · nördlich 80° N | Climate Dashboard Deutschland</title>
 <meta name="description" content="Interaktiver DMI-Temperaturindex nördlich 80 Grad Nord: Jahresgänge seit 1958, historische Vergleiche, Tagesanomalien und 7-/30-Tage-Mittel.">
-<link rel="stylesheet" href="arktis_temperatur.css?v=5">
+<link rel="stylesheet" href="arktis_temperatur.css?v=6">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script defer src="arktis_temperatur.js?v=8"></script>
+<script defer src="arktis_klimastatistik.js?v=1"></script>
 
 </head>
 <body>
@@ -121,6 +122,11 @@
   <details class="arctic-panel arctic-stat arctic-heatmap-panel" id="arcticHeatmapPanel" open>
     <summary><strong>Historische Extremtage-Heatmap · 1958 bis heute</strong><span>Jedes Kästchen steht für einen Tag – feste P10-/P90-Schwellen von 1958–2002</span></summary>
     <div class="arctic-stat-body">
+      <div class="arctic-buttons arctic-analysis-buttons">
+        <button type="button" id="arcticHeatmapPng">Heatmap PNG (hohe Auflösung)</button>
+        <button type="button" id="arcticHeatmapPdf">Heatmap PDF</button>
+        <button type="button" id="arcticHeatmapCsv">Alle Heatmap-Tageswerte CSV</button>
+      </div>
       <p class="arctic-stat-note" id="arcticHeatmapCount">Lade Tageswerte …</p>
       <div class="arctic-heatmap-legend" aria-label="Legende der Heatmap">
         <span><i class="arctic-heatmap-swatch warm"></i>Außergewöhnlich warm (&gt; P90)</span>
@@ -210,6 +216,80 @@
         </div>
       </div>
       <p class="arctic-stat-note">Methodik: Für jeden Kalendertag werden aus der festen DMI-Referenz 1958–2002 die empirischen Perzentile P10 und P90 berechnet. Als Extremtage zählen nur Werte <strong>streng</strong> unter P10 beziehungsweise über P90. Die Perzentile basieren auf mindestens 30 Referenzwerten (am 29. Februar mindestens 10). Fehlende Daten unterbrechen eine Serie; Jahreswechsel dagegen nicht. Serien, die am jüngsten verfügbaren Datentag enden, sind mit * gekennzeichnet und können sich verlängern. Jahresranglisten enthalten nur vollständig vorhandene Jahre, Jahresfolgen enden jeweils am 31. Dezember. Modellwechsel begrenzen die klimatologische Vergleichbarkeit des DMI-Index.</p>
+    </div>
+  </details>
+
+  <details class="arctic-panel arctic-stat arctic-climate-trend" id="arcticLongTermPanel" open>
+    <summary><strong>Langzeitentwicklung der Extremtage</strong><span>Jahresreihen seit 1958, Dekadenmittel und lineare Trends</span></summary>
+    <div class="arctic-stat-body">
+      <p class="arctic-stat-note" id="arcticLongTermLoad" role="status" aria-live="polite">Lade Langzeit- und Saisonstatistiken …</p>
+      <div class="arctic-analysis-controls">
+        <label>Zeitraum von <select id="arcticTrendFrom" aria-label="Beginn der Trendanalyse"></select></label>
+        <label>bis <select id="arcticTrendTo" aria-label="Ende der Trendanalyse"></select></label>
+        <label class="arctic-analysis-check"><input id="arcticTrendLines" type="checkbox" checked> Lineare Trends anzeigen</label>
+      </div>
+      <p class="arctic-stat-note" id="arcticTrendStatus">Berechnung läuft …</p>
+      <div class="arctic-buttons arctic-analysis-buttons">
+        <button type="button" id="arcticTrendPng">Jahresstatistik PNG</button>
+        <button type="button" id="arcticTrendPdf">Jahresstatistik PDF (2 Seiten)</button>
+        <button type="button" id="arcticAnnualStatsCsv">Jahre &amp; Dekaden CSV</button>
+        <button type="button" id="arcticEventsCsv">Alle Extremserien CSV</button>
+      </div>
+      <div class="arctic-climate-chart-group">
+        <div>
+          <h3>Außergewöhnlich warme und kalte Tage pro Jahr</h3>
+          <div class="arctic-climate-chart"><canvas id="arcticTrendDaysCanvas" role="img" aria-label="Anzahl warmer und kalter Extremtage pro vollständigem Jahr"></canvas></div>
+        </div>
+        <div>
+          <h3>Längste zusammenhängende Wärme- und Kältefolge pro Jahr</h3>
+          <div class="arctic-climate-chart"><canvas id="arcticTrendDurationCanvas" role="img" aria-label="Längste Wärme- und Kältefolge innerhalb der vollständigen Jahre"></canvas></div>
+        </div>
+      </div>
+      <p class="arctic-stat-note" id="arcticTrendSlope">Berechne lineare Trends …</p>
+      <h3>Dekadenmittel – nur vollständig verfügbare Jahre</h3>
+      <div class="arctic-stat-scroll">
+        <table><thead><tr><th>Dekade</th><th>Jahre</th><th>Ø Warmtage</th><th>Ø Kalttage</th><th>Ø längste Wärmefolge</th><th>Ø längste Kältefolge</th></tr></thead>
+          <tbody id="arcticDecadeBody"></tbody></table>
+      </div>
+      <p class="arctic-stat-note">Definition: Tageswerte über P90 bzw. unter P10 der festen Referenz 1958–2002. Es werden nur Jahre mit allen gültigen Tagen in Zeitreihen, Dekadenmitteln und Trends berücksichtigt; 2026 erscheint erst nach Jahresabschluss. Trendsteigungen sind deskriptiv, ohne Signifikanzbewertung. Änderungen der DMI-Modellgrundlage beeinflussen historische Vergleichbarkeit.</p>
+    </div>
+  </details>
+
+  <details class="arctic-panel arctic-stat arctic-climate-season" id="arcticClimateSeasonPanel">
+    <summary><strong>Saisonale Wärme- und Kälterekorde</strong><span>Winter, Frühling, Sommer und Herbst: Extremtage, längste Serien und historische Ranglisten</span></summary>
+    <div class="arctic-stat-body">
+      <label class="arctic-stat-control">Jahreszeit
+        <select id="arcticSeasonChoose" aria-label="Jahreszeit der historischen Extremstatistik">
+          <option value="djf">Winter (Dez–Feb)</option>
+          <option value="mam">Frühling (Mär–Mai)</option>
+          <option value="jja">Sommer (Jun–Aug)</option>
+          <option value="son">Herbst (Sep–Nov)</option>
+        </select>
+      </label>
+      <p class="arctic-stat-note" id="arcticSeasonStatus">Lade Saisonauswertung …</p>
+      <p class="arctic-stat-highlight" id="arcticSeasonSelected">Verknüpfung mit dem oben ausgewählten Jahr</p>
+      <div class="arctic-buttons arctic-analysis-buttons">
+        <button type="button" id="arcticSeasonPng">Saison PNG</button>
+        <button type="button" id="arcticSeasonPdf">Saison PDF</button>
+        <button type="button" id="arcticSeasonCsv">Alle Saisons CSV</button>
+      </div>
+      <h3>Warm- und Kalttage in vollständigen Saisonabschnitten</h3>
+      <div class="arctic-climate-chart"><canvas id="arcticSeasonCanvas" role="img" aria-label="Historische warme und kalte Extremtage in der ausgewählten Jahreszeit"></canvas></div>
+      <div class="arctic-stat-tables">
+        <div>
+          <h3>Wärmste Saisons · Top 12 nach Tagen über P90</h3>
+          <div class="arctic-stat-scroll"><table>
+            <thead><tr><th>Rang</th><th>Jahr</th><th>Warmtage</th><th>Längste Wärmefolge</th></tr></thead><tbody id="arcticSeasonWarmBody"></tbody>
+          </table></div>
+        </div>
+        <div>
+          <h3>Kälteste Saisons · Top 12 nach Tagen unter P10</h3>
+          <div class="arctic-stat-scroll"><table>
+            <thead><tr><th>Rang</th><th>Jahr</th><th>Kalttage</th><th>Längste Kältefolge</th></tr></thead><tbody id="arcticSeasonColdBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <p class="arctic-stat-note">DJF wird dem Jahr zugeordnet, in dem Januar/Februar liegen (z. B. Winter 2026 = Dezember 2025 bis Februar 2026). Alle Saisonwerte nutzen dieselben festen Tagesperzentile wie die Wärme-/Kälteserien; Tage mit Datenlücken führen zum Ausschluss der gesamten Saison. Saisonrekorde sind Indexrekorde, keine homogenisierten Klimarekorde.</p>
     </div>
   </details>
   <section class="arctic-panel arctic-method" aria-labelledby="arcticMethodHeading">
