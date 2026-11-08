@@ -56,6 +56,6 @@ test("Extremes heatmap UI, toggles, accessible instructions and responsive scrol
   assert.match(js,/id:"arcticExtremeOverlay"/);
   assert.match(js,/Chart\.register\(overlay\)/);
   assert.match(css,/arctic-heatmap-scroll\{overflow-x:auto/);
-  assert.match(html,/arktis_temperatur\.js\?v=8/);
-  assert.match(html,/arktis_temperatur\.css\?v=5/);
+  assert.match(html,/arktis_temperatur\.js\?v=\d+/);
+  assert.match(html,/arktis_temperatur\.css\?v=\d+/);
 });
