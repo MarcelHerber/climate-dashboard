@@ -63,6 +63,11 @@ required_root_files=(
   stratosphere_chart_export.js
   stratosphere_joint_comparison.js
   stratosphere_joint_comparison.css
+  stratosphere_nasa_common.js
+  stratosphere_analysis_forecast.js
+  stratosphere_analysis_forecast.css
+  stratosphere_comparison_metrics.js
+  stratosphere_vertical_profile.js
   stratosphere_chart_visibility.css
   stratosphere_ecmwf_runs.js
   stratosphere_ecmwf_ens.js
@@ -343,6 +348,11 @@ node --check stratosphere_ensemble.js
 node --check stratosphere_chart_visibility.js
 node --check stratosphere_chart_export.js
 node --check stratosphere_joint_comparison.js
+node --check stratosphere_nasa_common.js
+node --check stratosphere_analysis_forecast.js
+node --check stratosphere_comparison_metrics.js
+node --check stratosphere_vertical_profile.js
+node --test tests/test_strato_extended_analytics.cjs
 node --test tests/test_stratosphere_joint_comparison.cjs
 node --test tests/test_stratosphere_chart_visibility.cjs
 node --check stratosphere_ecmwf_runs.js
@@ -378,6 +388,14 @@ test -s _site/stratosphere_chart_visibility.js
 test -s _site/stratosphere_chart_export.js
 test -s _site/stratosphere_joint_comparison.js
 test -s _site/stratosphere_joint_comparison.css
+test -s _site/stratosphere_nasa_common.js
+test -s _site/stratosphere_analysis_forecast.js
+test -s _site/stratosphere_analysis_forecast.css
+test -s _site/stratosphere_comparison_metrics.js
+test -s _site/stratosphere_vertical_profile.js
+grep -q 'id="stratoHistoryForecastCanvas"' _site/stratosphaere.html
+grep -q 'id="stratoMetricDiffChart"' _site/stratosphaere.html
+grep -q 'id="stratoVerticalHeatmap"' _site/stratosphaere.html
 test -s _site/stratosphere_chart_visibility.css
 grep -q 'stratosphere_chart_visibility.js' _site/stratosphaere.html
 grep -q 'stratosphere_chart_export.js' _site/stratosphaere.html
