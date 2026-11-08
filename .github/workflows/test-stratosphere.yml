@@ -30,6 +30,11 @@ on:
       - "tests/test_gefs_stratosphere.py"
       - "stratosphere_ssw_comparison.js"
       - "stratosphere_joint_comparison.js"
+      - "stratosphere_nasa_common.js"
+      - "stratosphere_analysis_forecast.js"
+      - "stratosphere_comparison_metrics.js"
+      - "stratosphere_vertical_profile.js"
+      - "tests/test_strato_extended_analytics.cjs"
       - "tests/test_stratosphere_joint_comparison.cjs"
       - "stratosphaere.html"
       - ".github/workflows/update-era5-stratosphere.yml"
@@ -75,6 +80,11 @@ jobs:
           node --test tests/test_stratosphere_ensemble_members.cjs
           node --test tests/test_stratosphere_forecast_focus.cjs
           node --check stratosphere_ssw_comparison.js
+          node --check stratosphere_nasa_common.js
+          node --check stratosphere_analysis_forecast.js
+          node --check stratosphere_comparison_metrics.js
+          node --check stratosphere_vertical_profile.js
+          node --test tests/test_strato_extended_analytics.cjs
           python - <<'PY'
           from pathlib import Path
           import re
@@ -86,6 +96,12 @@ jobs:
                   path=Path(f"/tmp/stratosphere-inline-{i}.js")
                   path.write_text(code,encoding="utf-8")
                   subprocess.run(["node","--check",str(path)],check=True)
+          for module in ("stratosphere_nasa_common.js", "stratosphere_analysis_forecast.js",
+                         "stratosphere_comparison_metrics.js", "stratosphere_vertical_profile.js"):
+              assert module in page
+          assert 'id="stratoHistoryForecastCanvas"' in page
+          assert 'id="stratoMetricDiffChart"' in page
+          assert 'id="stratoVerticalHeatmap"' in page
           assert "stratosphere_ensemble.js" in page
           assert "stratosphere_ecmwf_runs.js" in page
           assert "stratosphere_ecmwf_ens.js" in page
