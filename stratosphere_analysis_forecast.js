@@ -31,11 +31,11 @@ function compose(history,comparison,mode){
   const result=[];
   for(let date=from;date<=end;date=dates.dateISO(date,1)){
     const average=dates.climate(ref,date,'mean');
-    const adjust=n=>mode==='anomaly'&&finite(n)&&finite(average)?n-average:n;
+    const adjust=n=>mode==='anomaly'?(finite(n)&&finite(average)?n-average:null):n;
     const validReference=mode!=='anomaly'||finite(average);
     const observed=ref?.observations?.get(date);
     const gRow=gmap.get(date),eRow=emap.get(date);
-    result.push({date,average:mode==='anomaly'?0:average,
+    result.push({date,average:mode==='anomaly'?(finite(average)?0:null):average,
       p10:adjust(dates.climate(ref,date,'p10')),
       p90:adjust(dates.climate(ref,date,'p90')),
       analysis:date<=startsOn&&validReference&&finite(observed)?adjust(observed):null,
