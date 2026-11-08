@@ -67,9 +67,9 @@ jobs:
         run: |
           python -m pip install playwright
           python -m playwright install --with-deps chromium
-      - name: Schneehöhen: Jahresauswahl, Stationswechsel, Abweichung, Akkumulation
+      - name: "Schneehöhen: Jahresauswahl, Stationswechsel, Abweichung, Akkumulation"
         run: python -u tests/audit_station_snow_years_live.py
-      - name: Mobile Touch-Interaktionen: MOSMIX, Stratosphäre, Ensembles, HYRAS, Isobaren
+      - name: "Mobile Touch-Interaktionen: MOSMIX, Stratosphäre, Ensembles, HYRAS, Isobaren"
         if: success()
         run: python -u tests/audit_mobile_live_interactions.py
       - name: Reale Ladezeiten von Schneehöhe und Niederschlag
