@@ -1,0 +1,45 @@
+name: HQ Export · Live Browserdownloads
+
+on:
+  pull_request:
+    paths:
+      - "tests/audit_hq_downloads_live.py"
+      - ".github/workflows/audit-hq-exports-live.yml"
+      - "dashboard_export_hq.js"
+      - "wettergefahren_export.js"
+  push:
+    branches: [main]
+    paths:
+      - "tests/audit_hq_downloads_live.py"
+      - ".github/workflows/audit-hq-exports-live.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hq-downloads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_hq_downloads_live.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run real mobile and desktop downloads
+        run: python -u tests/audit_hq_downloads_live.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hq-export-download-screenshots
+          path: hq_export_live_audit/
+          if-no-files-found: warn
