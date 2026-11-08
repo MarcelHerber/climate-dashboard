@@ -143,6 +143,14 @@ async function main() {
         assert.equal(era5Meta.forecast,false);
         assert.equal(era5Meta.reference_period,"1991-2020");
         assert.equal(era5Meta.anomaly_reference,"monthly_mean_same_calendar_month");
+        assert.equal(era5Meta.boundary_version,2,
+          "Live Arctic ERA5 maps must contain verified 10m coastlines");
+        assert.ok(era5Meta.days.every(day=>day.boundary_version===2),
+          "Every map must be rebuilt with verified shorelines");
+        for(const id of ["arcticEra5TempMap","arcticEra5AnomalyMap"]){
+          assert.ok((await page.locator("#"+id).getAttribute("src")).includes("?map=b2"),
+            "Browser must cache-bust older borderless polar map");
+        }
         await page.waitForFunction(()=>[
           document.querySelector("#arcticEra5TempMap"),
           document.querySelector("#arcticEra5AnomalyMap")].every(img=>img.complete&&img.naturalWidth>=800),
