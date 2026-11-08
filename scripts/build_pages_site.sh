@@ -158,6 +158,8 @@ else
 fi
 node --check _site/arktis_temperatur.js
 node --check _site/arktis_era5_maps.js
+node --check tests/test_arctic_era5_archive_ui.cjs
+node --test tests/test_arctic_era5_archive_ui.cjs
 grep -q 'id="arcticEra5MapPanel"' _site/arktis_temperatur.html
 
 # Publish only VERIFIED real Copernicus ERA5 polar-cap fields; never synthetic maps.
