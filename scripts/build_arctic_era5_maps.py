@@ -449,8 +449,8 @@ def validate_manifest(data: dict, root: Path) -> None:
     if data.get("reference_period") != "1991-2020":
         raise ValueError("ERA5 climate baseline mismatch")
     records = data.get("days")
-    if not isinstance(records, list) or not records or len(records) > TARGET_ARCHIVE_DAYS:
-        raise ValueError("ERA5 archive must contain 1–30 real days")
+    if not isinstance(records, list) or not records:
+        raise ValueError("ERA5 archive must contain at least one real day")
     seen = set()
     for row in records:
         date.fromisoformat(row["date"])
@@ -487,9 +487,9 @@ def _candidate_days(today: date):
 
 
 def _selected_rows(by_date: dict, today: date):
-    window = {x.isoformat() for x in _candidate_days(today)}
-    return sorted((row for day, row in by_date.items() if day in window),
-                  key=lambda r: r["date"], reverse=True)[:TARGET_ARCHIVE_DAYS]
+    # A 30-day INITIAL backfill, not a 30-day rolling deletion. Once verified,
+    # previously published historical days remain in the archive permanently.
+    return sorted(by_date.values(), key=lambda r: r["date"], reverse=True)
 
 
 def build(output: Path = OUTPUT, today: date | None = None, client=None,
@@ -549,6 +549,9 @@ def build(output: Path = OUTPUT, today: date | None = None, client=None,
         "area_mean":"cos(latitude) weights per selected polar cap",
         "forecast":False,
         "target_days":TARGET_ARCHIVE_DAYS,
+        "initial_backfill_days":sum(row["date"] in
+            {day.isoformat() for day in _candidate_days(today)} for row in records),
+        "archive_policy":"append_only",
         "archive_days":len(records), "fully_mapped_days":sum(
             all(str(lat) in row["regions"] for lat in REGIONS) for row in records),
         "latest_date":records[0]["date"],"days":records,
