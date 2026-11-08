@@ -6,7 +6,7 @@
 const $=id=>document.getElementById(id);
 const dates=window.stratoNASAData;
 const root=$('stratoHistoryForecastPanel');
-if(!root||!dates)return;
+if(!dates)return;
 let last=null,chart=null,rows=[],available=null;
 let request=0;
 const fmt=n=>Number.isFinite(n)?n.toFixed(1):'–';
@@ -46,6 +46,7 @@ function compose(history,comparison,mode){
   return {rows:result,from,end,transition:startsOn,g,e,mode};
 }
 window.stratoHistoryMath={compose};
+if(!root)return;
 const markerPlugin={
   id:'stratoAnalysisBoundary',
   afterDatasetsDraw(graph){
