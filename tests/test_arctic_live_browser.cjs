@@ -139,6 +139,16 @@ async function main() {
       await page.screenshot({ path: path.join(outDir, "dmi-" + device.name + ".png"), fullPage: true });
       const overflow = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      if (overflow > 6) {
+        const offenders = await page.evaluate(() =>
+          [...document.querySelectorAll("body *")].map(el => ({
+            tag:el.tagName,id:el.id,cls:String(el.className||"").slice(0,70),
+            right:Math.round(el.getBoundingClientRect().right),
+            left:Math.round(el.getBoundingClientRect().left),
+            width:Math.round(el.getBoundingClientRect().width)
+          })).filter(x=>x.right>window.innerWidth+5 && x.width>3).slice(0,18));
+        console.error("Mobile overflow elements:",JSON.stringify(offenders));
+      }
       assert.ok(overflow <= 6, device.name + " horizontal overflow " + overflow + "px");
       assert.deepEqual(errors, [], "Unhandled browser JS errors");
       assert.deepEqual(failedRequests.filter(v => /arktis_temperatur|arctic80_temperature/.test(v)),
