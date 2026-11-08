@@ -108,6 +108,7 @@ def exercise(browser,width,height):
         assert page.locator("#stratoVerticalPng").is_enabled()
         assert page.locator("#stratoVerticalHeatPng").is_enabled()
         assert page.locator("#stratoVerticalTable tr").count()==5
+        page.locator(".strato-vertical-table summary").click()
         table_text=page.locator("#stratoVerticalTable tr").all_inner_texts()
         print("Vertical row diagnostics:",repr(table_text),flush=True)
         assert any("10 hPa" in text for text in table_text),table_text
