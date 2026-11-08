@@ -9,6 +9,7 @@
   const preferences = new Map();
   const viewPanels = new WeakMap();
   const profileSelections = new Map();
+  let applyingNativeProfile=false;
   const profileIds = new Set(['stratoEnsembleCanvas','stratoEpsCanvas',
     'stratoJointCanvas','windChart','levelsChart']);
 
@@ -92,7 +93,11 @@
         if(!first)first=input;
       }
     }
-    if(changed && first) first.dispatchEvent(new Event('change',{bubbles:true}));
+    if(changed && first) {
+      applyingNativeProfile=true;
+      try {first.dispatchEvent(new Event('change',{bubbles:true}));}
+      finally {applyingNativeProfile=false;}
+    }
     return changed;
   }
 
@@ -255,6 +260,7 @@
         windEnsembleToggle:'windChart',
         windEnsembleBands:'windChart'
       };
+      if(applyingNativeProfile)return;
       const id=mapping[event.target?.id];
       if(!id)return;
       profileSelections.set(id,'individual');
