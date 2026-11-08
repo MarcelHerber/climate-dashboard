@@ -53,6 +53,17 @@ test("Seasonal rankings keep ties and separate warm from cold records",()=>{
  assert.equal(r.rank,1);assert.equal(r.sorted[0].warm,9);
  assert.equal(stat.seasonalRank(season,"cold",2001).rank,2);
 });
+test("Optional 95-percent annual coverage restores 2010s without inventing missing days",()=>{
+  const rows=[{year:2015,coverage:363,expected:365,warmDays:10,coldDays:20},
+    {year:2016,coverage:362,expected:366,warmDays:15,coldDays:15},
+    {year:2019,coverage:345,expected:365,warmDays:12,coldDays:12}];
+  const selected=stat.annualFiltered(rows,2010,2020,.95);
+  assert.equal(selected.length,2);
+  const normalized=stat.normalizeAnnual(selected[0]);
+  assert.equal(normalized.warmDaysEq,10*365/363);
+  assert.equal(normalized.coldDaysEq,20*365/363);
+  assert.ok(stat.annualFiltered(rows,2010,2020,1).length===0);
+});
 test("Trend regression uses observed complete years only and yields per-decade units",()=>{
  const rows=[{year:2000,coverage:365,expected:365,warmDays:0},
  {year:2001,coverage:365,expected:365,warmDays:2},
@@ -95,7 +106,7 @@ test("All four CSV exports and PNG/PDF controls are present and wired",()=>{
  assert.ok(build.includes("  arktis_klimastatistik.js\n"));
  assert.ok(build.includes("node --check _site/arktis_klimastatistik.js"));
  for(const id of ["arcticTrendDaysCanvas","arcticTrendDurationCanvas","arcticSeasonCanvas","arcticDecadeBody",
- "arcticSeasonWarmBody","arcticSeasonColdBody","arcticLongTermLoad"]){
+ "arcticSeasonWarmBody","arcticSeasonColdBody","arcticLongTermLoad","arcticTrendCoverage"]){
   assert.ok(html.includes('id="'+id+'"'),id);
  }
  assert.ok(moduleCode.includes("Quelle: DMI / ECMWF"));
