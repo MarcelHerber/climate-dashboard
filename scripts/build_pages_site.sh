@@ -166,33 +166,51 @@ if [[ -s data/arctic_era5_maps/index.json ]]; then
   cp data/arctic_era5_maps/index.json _site/data/arctic_era5_maps/index.json
   python - <<'PY'
 import json
+import re
+import shutil
 from pathlib import Path
 root=Path("data/arctic_era5_maps")
 site=Path("_site/data/arctic_era5_maps")
 doc=json.loads((root/"index.json").read_text(encoding="utf-8"))
-assert doc.get("schema")==1
+assert doc.get("schema") in (1,2)
 if doc.get("ready") is True:
     assert doc.get("reference_period")=="1991-2020"
     assert doc.get("forecast") is False
     assert doc.get("anomaly_reference")=="monthly_mean_same_calendar_month"
-    days=doc.get("days",[])
-    assert days and all(row["date"]<=doc["latest_date"] for row in days)
-    for entry in days:
-        for key in ("temperature_png","anomaly_png"):
-            name=Path(entry[key])
-            assert name.parts[0]=="maps" and ".." not in name.parts and len(name.parts)==2
-            file=root/name
-            assert file.is_file() and file.stat().st_size>25000
-            with file.open("rb") as stream:
-                assert stream.read(8)==bytes.fromhex("89504e470d0a1a0a")
-            dest=site/name
-            dest.parent.mkdir(parents=True,exist_ok=True)
-            import shutil
-            shutil.copy2(file,dest)
-    print("ERA5 Arktiskarten veröffentlicht:",doc["latest_date"],len(days),"geprüfte Tage")
+    rows=doc.get("days",[])
+    assert rows and all(row["date"]<=doc["latest_date"] for row in rows)
+    if doc["schema"] == 2:
+        assert doc.get("target_days")==30
+        assert doc.get("regions")==[80,70,60]
+        assert len(rows)<=30
+    files=set()
+    for row in rows:
+        regions=row.get("regions",{}) if doc["schema"]==2 else {"80":row}
+        assert regions
+        for region,entry in regions.items():
+            assert region in {"80","70","60"}
+            assert entry.get("boundary_version") in (2,3)
+            for field in ("mean_c","mean_anomaly_k"):
+                import math
+                assert math.isfinite(float(entry[field]))
+            for key in ("temperature_png","anomaly_png"):
+                name=entry[key]
+                assert re.fullmatch(r"maps/(t2m|anomaly)_(?:(60|70|80)n_)?\d{8}\.png",name)
+                files.add(name)
+    assert files
+    for name in sorted(files):
+        path=root/name
+        assert path.is_file() and path.stat().st_size>25000
+        with path.open("rb") as stream:
+            assert stream.read(8)==bytes.fromhex("89504e470d0a1a0a")
+        destination=site/name
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(path,destination)
+    print("ERA5-Arktisarchiv:",len(rows),"echte Tage,",
+          len(files),"geprüfte PNG-Karten","(v"+str(doc["schema"])+")")
 else:
-    assert not doc.get("days"),"Ungültiger Kartenindex: unavailable mit Bildern"
-    print("ERA5 Arktiskarten: Keine verifizierten Felder – ehrliche Statusanzeige aktiv")
+    assert not doc.get("days"),"Invalid ERA5 archive: unready with days"
+    print("ERA5-Arktiskarten: Archiv noch ohne verifizierte Tageswerte")
 PY
 fi
 node --check _site/arktis_klimastatistik.js
