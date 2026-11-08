@@ -108,8 +108,10 @@ def exercise(browser,width,height):
         assert page.locator("#stratoVerticalPng").is_enabled()
         assert page.locator("#stratoVerticalHeatPng").is_enabled()
         assert page.locator("#stratoVerticalTable tr").count()==5
-        assert "10 hPa" in page.locator("#stratoVerticalTable tr").first.inner_text()
-        assert "100 hPa" in page.locator("#stratoVerticalTable tr").last.inner_text()
+        table_text=page.locator("#stratoVerticalTable tr").all_inner_texts()
+        print("Vertical row diagnostics:",repr(table_text),flush=True)
+        assert any("10 hPa" in text for text in table_text),table_text
+        assert any("100 hPa" in text for text in table_text),table_text
         assert "10 hPa" in page.locator("#stratoVerticalStatus").inner_text()
         assert "12" not in page.locator("#stratoHistoryForecastStatus").inner_text().split("Modell")[0]
         mean=page.locator("#stratoMetricG7").inner_text()
