@@ -86,6 +86,22 @@ async function main() {
       const firstTrend=Number(await page.locator("#arcticTrendFrom").inputValue());
       const finalTrend=Number(await page.locator("#arcticTrendTo").inputValue());
       assert.ok(finalTrend>=2024&&firstTrend<=1970);
+      assert.equal(await page.locator("#arcticTrendCoverage").inputValue(),"0.95");
+      let chartYears=await page.evaluate(()=>
+        Chart.getChart(document.getElementById("arcticTrendDaysCanvas")).data.labels.map(Number));
+      assert.ok(chartYears.includes(2018),"Default 95% coverage must retain 2010s");
+      assert.ok(!chartYears.includes(2026),"Ongoing incomplete year must remain outside trends");
+      assert.ok((await page.locator("#arcticTrendStatus").innerText()).includes("95 %"));
+      await page.locator("#arcticTrendCoverage").selectOption("1");
+      chartYears=await page.evaluate(()=>
+        Chart.getChart(document.getElementById("arcticTrendDaysCanvas")).data.labels.map(Number));
+      assert.ok(!chartYears.includes(2018),"Strict mode must exclude incomplete 2018");
+      await page.locator("#arcticTrendCoverage").selectOption("0.95");
+      chartYears=await page.evaluate(()=>
+        Chart.getChart(document.getElementById("arcticTrendDaysCanvas")).data.labels.map(Number));
+      assert.ok(chartYears.includes(2018));
+      assert.ok((await page.locator("#arcticTrendSlope").innerText()).includes("365"));
+
       const shortStart=String(Math.max(firstTrend,2000));
       await page.locator("#arcticTrendFrom").selectOption(shortStart);
       assert.ok((await page.locator("#arcticTrendStatus").innerText()).includes(shortStart));
