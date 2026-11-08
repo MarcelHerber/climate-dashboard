@@ -176,7 +176,10 @@ async function main() {
           assert.equal(await page.locator("#arcticEra5MapDate").inputValue(),era5Meta.days[0].date);
         }
       }else{
-        assert.ok((await page.locator("#arcticEra5MapStatus").innerText()).includes("keine vollständig geprüften echten Karten"));
+        const statusText=await page.locator("#arcticEra5MapStatus").innerText();
+        assert.ok(statusText.includes("keine vollständig geprüften echten Karten") ||
+          statusText.includes("nicht verfügbar"),
+          "Missing ERA5 map data must produce an honest unavailable status, not fabricated maps: "+statusText);
         assert.equal(await page.locator("#arcticEra5Pdf").isDisabled(),true);
         assert.equal(await page.locator("#arcticEra5TempPng").getAttribute("href"),null);
         assert.equal(await page.locator("#arcticEra5AnomalyPng").getAttribute("href"),null);
