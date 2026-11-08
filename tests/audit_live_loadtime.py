@@ -35,7 +35,7 @@ with sync_playwright() as pw:
                         const canvas=document.getElementById(tab+"Chart");
                         return panel && !panel.hidden && canvas &&
                           !!window.Chart?.getChart?.(canvas);
-                    }""",tab,timeout=120000)
+                    }""",arg=tab,timeout=120000)
                     item["chart_ready_ms"]=round((perf_counter()-started)*1000)
                     item["station_count"]=page.evaluate("""tab => {
                         const index=tab==="stationSnow"?
