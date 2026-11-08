@@ -4,7 +4,7 @@
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id),nasa=window.stratoNASAData;
-if(!$('stratoVerticalPanel')||!nasa)return;
+if(!nasa)return;
 const LEVELS=nasa.LEVELS;
 const COLORS={10:'#b42f32',30:'#bd7620',50:'#328467',70:'#246ba0',100:'#684ca6'};
 const finite=x=>typeof x==='number'&&Number.isFinite(x);
@@ -22,6 +22,7 @@ function color(value,mode){
   return 'rgb('+target.map((c,i)=>mix(center[i],c,t)).join(',')+')';
 }
 window.stratoVerticalMath={anomaly,scaleFor,color};
+if(!$('stratoVerticalPanel'))return;
 let history=null,forecast=null,lineChart=null,lastRows=[],token=0;
 const status=s=>$('stratoVerticalStatus').textContent=s;
 function tabularRows(analyses,mode) {
