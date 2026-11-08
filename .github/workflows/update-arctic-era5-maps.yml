@@ -1,8 +1,9 @@
-name: ERA5 Arktis >80°N · Temperatur- und Anomaliekarten
+name: ERA5 Arktis · Archiv und Regionen 60–90°N
 
 on:
   schedule:
     - cron: "35 10 * * *"
+    - cron: "15 19 * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -40,7 +41,7 @@ jobs:
       - name: Benötigte ERA5- und Kartenpakete installieren
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf matplotlib "cartopy>=0.24" pytest
+          python -m pip install "cdsapi>=0.7.7" numpy xarray netCDF4 h5netcdf matplotlib "cartopy>=0.24" pytest Pillow
       - name: Wissenschaftliche Karten- und Quellenprüfungen
         run: python -m pytest -q tests/test_arctic_era5_maps.py
       - name: Copernicus Climate Data Store konfigurieren
@@ -58,8 +59,8 @@ jobs:
       - name: Geprüfte echte ERA5-Karten aktualisieren
         run: |
           set -euo pipefail
-          python scripts/build_arctic_era5_maps.py --output data/arctic_era5_maps --max-new-days 2
-          python -c 'import json,sys;from pathlib import Path;sys.path.insert(0,"scripts");from build_arctic_era5_maps import validate_manifest;root=Path("data/arctic_era5_maps");d=json.loads((root/"index.json").read_text());validate_manifest(d,root);assert d["ready"] and not d["forecast"];assert d["anomaly_reference"]=="monthly_mean_same_calendar_month";print("VERIFIZIERT",d["latest_date"],len(d["days"]),"ERA5-Tage")'
+          python scripts/build_arctic_era5_maps.py --output data/arctic_era5_maps --max-new-days 4
+          python -c 'import json,sys;from pathlib import Path;sys.path.insert(0,"scripts");from build_arctic_era5_maps import validate_manifest;root=Path("data/arctic_era5_maps");d=json.loads((root/"index.json").read_text());validate_manifest(d,root);assert d["ready"] and not d["forecast"] and d["schema"]==2 and d["target_days"]==30;assert d["anomaly_reference"]=="monthly_mean_same_calendar_month";print("VERIFIZIERT",d["latest_date"],len(d["days"]),"ERA5-Tage")'
       - name: Geprüfte ERA5-Karten konfliktfest veröffentlichen
         shell: bash
         env:
