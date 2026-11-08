@@ -97,9 +97,10 @@ function setRegion(preferredDate){
  cal.disabled=days.length===0;
  const totals=archive?.days.length||0;
  const counts=REGIONS.map(k=>k+"–90°N: "+archive.days.filter(x=>x.regions[k]).length+" Tage");
- $("arcticEra5ArchiveProgress").textContent="Kartenarchiv: "+totals+" von "+
-   (archive?.target_days||30)+" Zieltagen · "+counts.join(" · ")+
-   ". Weitere ERA5-Tage werden automatisch ergänzt, sobald sie verfügbar sind.";
+ $("arcticEra5ArchiveProgress").textContent="ERA5-Kartenarchiv: "+totals+
+   " dauerhaft gespeicherte Tage · "+(archive?.initial_backfill_days??Math.min(totals,30))+
+   " / "+(archive?.target_days||30)+" Tage der ersten Rückfüllung · "+
+   counts.join(" · ")+". Neue Tage werden automatisch ergänzt.";
  if(!days.length){
    const option=document.createElement("option");option.value="";option.textContent="Noch keine Karten";
    selector.append(option);cal.value="";
