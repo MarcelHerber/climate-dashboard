@@ -34,6 +34,33 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_station_snow_years_live.py
+            tests/audit_mobile_live_interactions.py
+            tests/audit_live_loadtime.py
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            index.html
+            dashboard_export_hq.js
+            wettergefahren_export.js
+            wettergefahren.html
+            station_snow_years.js
+            station_snow_accumulation.js
+            station_precip_index.json
+            station_snow_height_additional_index.json
+            daily_tmax_1881_2026.json
+            station_records.json
+            data.json
+            scripts/build_pages_site.sh
+            scripts/audit_payload_sizes.cjs
+            tests/test_dashboard_hq_export.cjs
+            tests/test_station_snow_years.cjs
+            tests/test_station_snow_accumulation.cjs
       - name: JavaScript Syntax
         run: |
           node --check dashboard_export_hq.js
