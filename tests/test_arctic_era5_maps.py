@@ -185,3 +185,16 @@ def test_old_partial_archive_is_kept_even_when_new_era5_fetch_fails(tmp_path):
     assert output["schema"]==2
     assert output["archive_days"]==1
     assert output["days"][0]["regions"].keys()=={"80"}
+
+
+def test_verified_historical_days_are_never_dropped_after_first_month():
+    by_date={
+        (date(2026,11,1)-__import__("datetime").timedelta(days=i)).isoformat():
+          {"date":(date(2026,11,1)-__import__("datetime").timedelta(days=i)).isoformat(),
+           "regions":{"80":{}}}
+        for i in range(45)
+    }
+    rows=m._selected_rows(by_date,date(2026,11,8))
+    assert len(rows)==45
+    assert rows[0]["date"]=="2026-11-01"
+    assert rows[-1]["date"]=="2026-09-18"
