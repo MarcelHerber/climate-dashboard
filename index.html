@@ -10256,15 +10256,22 @@ function stationSnowPopulateYearPicker(station,archive,current,currentYear){
   const available=window.StationSnowYears?.yearList(archive,currentYear,Boolean(current?.rows?.length))||[];
   const list=document.getElementById("stationSnowYearsList");
   const status=document.getElementById("stationSnowYearsStatus");
-  if(stationSnowYearStationId!==station.id){
-    stationSnowYearStationId=station.id;
-    stationSnowSelectedYears.clear();
+  // Preserve checked years when changing stations. Only discard years without
+  // an archive entry at the new station; keep the current-year selection too.
+  // This applies to both snow-depth and anomaly/accumulation charts.
+  const stationChanged=stationSnowYearStationId!==station.id;
+  stationSnowYearStationId=station.id;
+  stationSnowAvailableYears=available;
+  const yearsAtStation=new Set(available.map(item=>item.year));
+  for(const selected of [...stationSnowSelectedYears]){
+    if(!yearsAtStation.has(selected))stationSnowSelectedYears.delete(selected);
+  }
+  // First load, or no overlapping years between stations: show an available
+  // season rather than an empty chart. Manually deselecting every year at
+  // the same station must remain possible.
+  if(!stationSnowSelectedYears.size && stationChanged){
     const recent=available.find(item=>item.isCurrent)||available[0];
     if(recent)stationSnowSelectedYears.add(recent.year);
-  }
-  stationSnowAvailableYears=available;
-  for(const selected of [...stationSnowSelectedYears]){
-    if(!available.some(item=>item.year===selected))stationSnowSelectedYears.delete(selected);
   }
   list.replaceChildren();
   const fragment=document.createDocumentFragment();
