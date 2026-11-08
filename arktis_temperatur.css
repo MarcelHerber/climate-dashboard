@@ -105,10 +105,11 @@ html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons bu
 .arctic-streak-fill.cold{background:#3984b7}
 .arctic-streak-month small{font-size:11px;width:33px;text-align:right}
 .arctic-streak-panel .arctic-stat-tables{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)}
-.arctic-streak-panel .arctic-stat-scroll{max-width:100%}
+.arctic-streak-panel .arctic-stat-tables>div{min-width:0;max-width:100%}
+.arctic-streak-panel .arctic-stat-scroll{width:100%;max-width:100%;overflow-x:auto}
 .arctic-streak-panel th,.arctic-streak-panel td{white-space:nowrap}
 @media(max-width:960px){
- .arctic-streak-panel .arctic-stat-tables{grid-template-columns:1fr}
+ .arctic-streak-panel .arctic-stat-tables{grid-template-columns:minmax(0,1fr)}
  .arctic-streak-months{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media(max-width:650px){
