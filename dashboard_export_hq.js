@@ -1,0 +1,112 @@
+/* Climate Dashboard – print-quality exports independent of mobile viewport.
+   Keeps source chart data and all scientific values unchanged. */
+(function(root){
+  "use strict";
+  const WIDTH=2200, HEIGHT=1470, MARGIN=72, HEADER=168, FOOTER=118;
+  function copy(value,seen){
+    if(value===null || typeof value!=="object")return value;
+    seen=seen||new WeakMap();
+    if(seen.has(value))return seen.get(value);
+    if(Array.isArray(value)){
+      const result=[];seen.set(value,result);
+      value.forEach((entry,i)=>{result[i]=copy(entry,seen);});
+      return result;
+    }
+    const result={};seen.set(value,result);
+    for(const key of Object.keys(value))result[key]=copy(value[key],seen);
+    return result;
+  }
+  function line(ctx,text,x,y,maxWidth,size,bold){
+    ctx.font=(bold?"700 ":"400 ")+size+"px Arial, Helvetica, sans-serif";
+    ctx.fillText(String(text||""),x,y,maxWidth);
+  }
+  function composeCanvas(source,metadata){
+    if(!source || !source.width || !source.height)throw Error("Grafik ist leer.");
+    const out=document.createElement("canvas");
+    out.width=WIDTH;out.height=HEIGHT;
+    const ctx=out.getContext("2d",{alpha:false});
+    if(!ctx)throw Error("Export-Canvas konnte nicht erstellt werden.");
+    ctx.fillStyle="#ffffff";ctx.fillRect(0,0,WIDTH,HEIGHT);
+    ctx.textBaseline="top";
+    ctx.fillStyle="#19324a";
+    line(ctx,metadata.title||"Climate Dashboard Deutschland",MARGIN,46,WIDTH-MARGIN*2,39,true);
+    ctx.fillStyle="#58697c";
+    line(ctx,"Climate Dashboard Deutschland · hochauflösender Export",MARGIN,105,WIDTH-MARGIN*2,20,false);
+    ctx.strokeStyle="#cfd9e4";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(MARGIN,145);ctx.lineTo(WIDTH-MARGIN,145);ctx.stroke();
+    const availableW=WIDTH-MARGIN*2,availableH=HEIGHT-HEADER-FOOTER;
+    const scale=Math.min(availableW/source.width,availableH/source.height);
+    const drawW=source.width*scale,drawH=source.height*scale;
+    ctx.drawImage(source,(WIDTH-drawW)/2,HEADER+(availableH-drawH)/2,drawW,drawH);
+    ctx.strokeStyle="#cfd9e4";
+    ctx.beginPath();ctx.moveTo(MARGIN,HEIGHT-FOOTER+12);
+    ctx.lineTo(WIDTH-MARGIN,HEIGHT-FOOTER+12);ctx.stroke();
+    ctx.fillStyle="#405369";
+    line(ctx,metadata.source||"Quelle und Bezugszeitraum: siehe Diagramm/Kartenlegende.",
+      MARGIN,HEIGHT-FOOTER+30,WIDTH-MARGIN*2,19,false);
+    line(ctx,"Erstellt: "+new Date().toLocaleString("de-DE")+" · Werte und Einheiten unverändert",
+      MARGIN,HEIGHT-FOOTER+65,WIDTH-MARGIN*2,17,false);
+    return out;
+  }
+  function renderChart(chart,metadata){
+    if(!chart || !chart.data || !root.Chart)throw Error("Diagramm nicht verfügbar.");
+    const canvas=document.createElement("canvas");
+    canvas.width=WIDTH-MARGIN*2;canvas.height=HEIGHT-HEADER-FOOTER;
+    const originalOptions=chart.config?._config?.options || chart.config?.options || {};
+    const options=copy(originalOptions);
+    options.responsive=false;
+    options.maintainAspectRatio=false;
+    options.animation=false;
+    options.devicePixelRatio=1;
+    options.plugins=options.plugins||{};
+    // The site-wide mobile Chart.js plugin must not reduce export tick labels.
+    options.plugins.climateMobileLegibilityV1=false;
+    options.plugins.zoom=false;
+    options.plugins.datalabels={display:false};
+    const legend=options.plugins.legend||{};
+    if(legend.display!==false){
+      legend.display=true;
+      legend.labels=legend.labels||{};
+      legend.labels.font={...(legend.labels.font||{}),size:18};
+      legend.labels.boxWidth=24;
+    }
+    options.plugins.legend=legend;
+    for(const [axis,config] of Object.entries(options.scales||{})){
+      if(!config || typeof config!=="object")continue;
+      config.ticks=config.ticks||{};
+      if(config.ticks.display!==false && config.ticks.autoSkip!==false){
+        config.ticks.maxTicksLimit=Math.max(Number(config.ticks.maxTicksLimit)||0,axis==="x"?17:10);
+        config.ticks.maxRotation=axis==="x"?35:0;
+      }
+      config.ticks.font={...(config.ticks.font||{}),size:19};
+      if(config.title?.display)config.title.font={...(config.title.font||{}),size:22};
+    }
+    if(options.plugins.title?.display){
+      options.plugins.title.font={...(options.plugins.title.font||{}),size:25};
+      options.plugins.title.padding=16;
+    }
+    // Preserve user-controlled visibility without modifying the source chart.
+    const datasets=chart.data.datasets.map((dataset,index)=>{
+      const cloned=copy(dataset);
+      cloned.hidden=typeof chart.isDatasetVisible==="function"
+        ?!chart.isDatasetVisible(index):Boolean(dataset.hidden);
+      return cloned;
+    });
+    const config={
+      type:chart.config.type,
+      data:{labels:copy(chart.data.labels),datasets},
+      options
+    };
+    const scopedPlugins=chart.config?._config?.plugins;
+    if(Array.isArray(scopedPlugins))config.plugins=scopedPlugins;
+    let cloneChart;
+    try{
+      cloneChart=new root.Chart(canvas,config);
+      cloneChart.update("none");
+      return composeCanvas(canvas,metadata);
+    }finally{
+      if(cloneChart)cloneChart.destroy();
+    }
+  }
+  root.DashboardExportHQ=Object.freeze({copy,composeCanvas,renderChart,WIDTH,HEIGHT});
+})(window);
