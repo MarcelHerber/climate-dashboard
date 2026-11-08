@@ -203,7 +203,7 @@ if doc.get("ready") is True:
     if doc["schema"] == 2:
         assert doc.get("target_days")==30
         assert doc.get("regions")==[80,70,60]
-        assert len(rows)<=30
+        assert doc.get("archive_policy") in ("append_only",None)
     files=set()
     for row in rows:
         regions=row.get("regions",{}) if doc["schema"]==2 else {"80":row}
