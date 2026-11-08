@@ -138,6 +138,7 @@ async function main() {
       await page.waitForFunction(() => !document.querySelector("#arcticEra5MapStatus")
         .textContent.includes("Prüfe ERA5-Datenverfügbarkeit"),null,{timeout:30000});
       if(era5Meta?.ready===true){
+        await page.locator("#arcticEra5MapPanel").scrollIntoViewIfNeeded();
         assert.ok(era5Meta.days.length>=1);
         assert.equal(era5Meta.forecast,false);
         assert.equal(era5Meta.reference_period,"1991-2020");
