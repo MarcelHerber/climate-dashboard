@@ -86,7 +86,7 @@ def test_manifest_never_accepts_missing_maps(tmp_path):
                  "temperature_png":"maps/t2m_20261031.png",
                  "anomaly_png":"maps/anomaly_20261031.png",
                  "mean_c":-11.5,"mean_anomaly_k":4.3}}}]}
-    with pytest.raises(ValueError,match="invalid ERA5 PNG"):
+    with pytest.raises(ValueError,match="invalid ERA5 map"):
         m.validate_manifest(payload,tmp_path)
     payload["days"][0]["regions"]["80"]["temperature_png"]="../outside.png"
     with pytest.raises(ValueError,match="Unsafe"):
@@ -138,7 +138,7 @@ def test_migrate_verified_80n_without_inventing_60n(tmp_path):
     from PIL import Image
     p=tmp_path/"maps";p.mkdir()
     for name in ("t2m_20261101.png","anomaly_20261101.png"):
-        Image.new("RGB",(400,400),"white").save(p/name)
+        Image.fromarray(np.random.default_rng(42).integers(0,256,(400,400,3),dtype=np.uint8)).save(p/name)
     legacy={"date":"2026-11-01","boundary_version":2,
         "temperature_png":"maps/t2m_20261101.png",
         "anomaly_png":"maps/anomaly_20261101.png",
@@ -170,7 +170,7 @@ def test_old_partial_archive_is_kept_even_when_new_era5_fetch_fails(tmp_path):
     from PIL import Image
     mp=tmp_path/"maps";mp.mkdir()
     for name in ("t2m_20261101.png","anomaly_20261101.png"):
-        Image.new("RGB",(400,400),"white").save(mp/name)
+        Image.fromarray(np.random.default_rng(42).integers(0,256,(400,400,3),dtype=np.uint8)).save(mp/name)
     existing={"schema":1,"ready":True,"days":[{
         "date":"2026-11-01","boundary_version":2,
         "temperature_png":"maps/t2m_20261101.png",
