@@ -69,6 +69,7 @@
       legend.labels=legend.labels||{};
       legend.labels.font={...(legend.labels.font||{}),size:18};
       legend.labels.boxWidth=24;
+      legend.labels.color="#22374d";
     }
     options.plugins.legend=legend;
     for(const [axis,config] of Object.entries(options.scales||{})){
@@ -79,11 +80,17 @@
         config.ticks.maxRotation=axis==="x"?35:0;
       }
       config.ticks.font={...(config.ticks.font||{}),size:19};
-      if(config.title?.display)config.title.font={...(config.title.font||{}),size:22};
+      config.ticks.color="#24384d";
+      if(config.grid?.display!==false)config.grid={...(config.grid||{}),color:"#d9e1e8"};
+      if(config.title?.display){
+        config.title.font={...(config.title.font||{}),size:22};
+        config.title.color="#24384d";
+      }
     }
     if(options.plugins.title?.display){
       options.plugins.title.font={...(options.plugins.title.font||{}),size:25};
       options.plugins.title.padding=16;
+      options.plugins.title.color="#19324a";
     }
     // Preserve user-controlled visibility without modifying the source chart.
     const datasets=chart.data.datasets.map((dataset,index)=>{
