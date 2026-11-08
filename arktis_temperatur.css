@@ -85,3 +85,36 @@ html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons bu
 .arctic-stat th{color:var(--arctic-muted);font-weight:700}
 .arctic-stat .arctic-selected{background:rgba(65,135,191,.12);font-weight:750}
 @media(max-width:650px){.arctic-stat-tables{grid-template-columns:1fr;gap:14px}.arctic-stat>summary{display:block}.arctic-stat>summary span{display:block;margin-top:4px}}
+
+
+/* DMI historical extreme spells */
+.arctic-streak-panel .arctic-streak-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px 22px}
+.arctic-streak-panel .arctic-streak-controls label{display:flex;align-items:flex-start;flex-direction:column;gap:7px}
+.arctic-streak-panel .arctic-streak-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:15px 0}
+.arctic-streak-panel .arctic-streak-kpis>div{min-width:0;border:1px solid var(--arctic-edge);background:var(--arctic-bg);border-radius:9px;padding:14px}
+.arctic-streak-panel .arctic-streak-kpis span,.arctic-streak-panel .arctic-streak-kpis small{display:block;font-size:12px;color:var(--arctic-muted)}
+.arctic-streak-panel .arctic-streak-kpis strong{display:block;font-size:22px;line-height:1.45;font-variant-numeric:tabular-nums;color:var(--arctic-ink)}
+.arctic-streak-month-section{margin:18px 0}
+.arctic-streak-month-section h3{font-size:14px;margin:0 0 4px}
+.arctic-streak-months{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px 14px;margin-top:10px}
+.arctic-streak-month{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;color:var(--arctic-muted);font-variant-numeric:tabular-nums}
+.arctic-streak-month>span:first-child{width:29px;flex-shrink:0}
+.arctic-streak-track{height:9px;background:var(--arctic-edge);flex:1;min-width:12px;border-radius:8px;overflow:hidden}
+.arctic-streak-fill{display:block;height:100%;border-radius:8px}
+.arctic-streak-fill.warm{background:#c45746}
+.arctic-streak-fill.cold{background:#3984b7}
+.arctic-streak-month small{font-size:11px;width:33px;text-align:right}
+.arctic-streak-panel .arctic-stat-tables{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr)}
+.arctic-streak-panel .arctic-stat-scroll{max-width:100%}
+.arctic-streak-panel th,.arctic-streak-panel td{white-space:nowrap}
+@media(max-width:960px){
+ .arctic-streak-panel .arctic-stat-tables{grid-template-columns:1fr}
+ .arctic-streak-months{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ .arctic-streak-panel .arctic-streak-kpis{grid-template-columns:1fr}
+ .arctic-streak-months{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .arctic-streak-panel .arctic-streak-controls{align-items:stretch}
+ .arctic-streak-panel .arctic-streak-controls label{width:100%}
+ .arctic-streak-panel .arctic-streak-controls select{width:100%}
+}
