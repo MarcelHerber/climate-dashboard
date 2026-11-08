@@ -174,3 +174,35 @@ html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons bu
  .arctic-climate-chart{height:315px}
  .arctic-analysis-buttons button{flex:1 1 auto}
 }
+
+
+/* North-of-80N ERA5 verified temperature/anomaly map viewer */
+.arctic-era5-map-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:5px 0 14px}
+.arctic-era5-map-controls label{display:flex;flex-direction:column;gap:6px;color:var(--arctic-muted);font-size:12px;font-weight:750}
+.arctic-era5-map-controls select,.arctic-era5-map-controls button{font:inherit;font-size:12px;border:1px solid var(--arctic-edge);border-radius:8px;padding:10px 12px;background:var(--arctic-paper);color:var(--arctic-ink)}
+.arctic-era5-map-controls button{cursor:pointer}
+.arctic-era5-map-controls button:disabled{opacity:.45;cursor:not-allowed}
+.arctic-era5-status{margin:10px 0 15px;min-height:20px}
+.arctic-era5-status.error{color:#b94b43}
+.arctic-era5-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.arctic-era5-kpis>div{border:1px solid var(--arctic-edge);border-radius:9px;background:var(--arctic-bg);padding:12px}
+.arctic-era5-kpis span{display:block;color:var(--arctic-muted);font-size:12px}
+.arctic-era5-kpis strong{display:block;font-size:24px;line-height:1.4;font-variant-numeric:tabular-nums}
+.arctic-era5-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:12px 0}
+.arctic-era5-grid.single{grid-template-columns:minmax(0,1fr);max-width:850px;margin-inline:auto}
+.arctic-era5-map-frame{min-width:0;border:1px solid var(--arctic-edge);border-radius:10px;background:var(--arctic-bg);padding:12px}
+.arctic-era5-map-frame[hidden]{display:none}
+.arctic-era5-map-frame h3{font-size:16px;margin:2px 0}
+.arctic-era5-map-frame .arctic-stat-note{margin:3px 0 10px}
+.arctic-era5-map-frame img{display:block;width:100%;height:auto;min-height:145px;object-fit:contain;border-radius:6px;background:var(--arctic-paper);border:1px solid var(--arctic-edge)}
+.arctic-era5-download{display:inline-flex;margin:12px 0 2px;font-size:13px;font-weight:750}
+.arctic-era5-download:not([href]){pointer-events:none;opacity:.45}
+.arctic-era5-maps .arctic-stat-body{min-width:0}
+@media(max-width:850px){.arctic-era5-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:580px){
+ .arctic-era5-kpis{grid-template-columns:1fr}
+ .arctic-era5-map-controls label{width:100%}
+ .arctic-era5-map-controls select{width:100%}
+ .arctic-era5-map-controls button{flex:1}
+ .arctic-era5-map-frame{padding:7px}
+}
