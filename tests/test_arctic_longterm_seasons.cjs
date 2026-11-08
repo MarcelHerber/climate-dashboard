@@ -91,7 +91,7 @@ test("All four CSV exports and PNG/PDF controls are present and wired",()=>{
  "arcticSeasonPng","arcticSeasonPdf","arcticSeasonCsv"];
  for(const id of buttons){assert.ok(html.includes('id="'+id+'"'),id);
   assert.ok(moduleCode.includes('["'+id+'"'),"Event handler "+id);}
- assert.ok(html.includes('src="arktis_klimastatistik.js?v=1"'));
+ assert.match(html,/src="arktis_klimastatistik\.js\?v=\d+"/);
  assert.ok(build.includes("  arktis_klimastatistik.js\n"));
  assert.ok(build.includes("node --check _site/arktis_klimastatistik.js"));
  for(const id of ["arcticTrendDaysCanvas","arcticTrendDurationCanvas","arcticSeasonCanvas","arcticDecadeBody",
