@@ -140,13 +140,17 @@ async function main() {
       const overflow = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (overflow > 6) {
-        const offenders = await page.evaluate(() =>
-          [...document.querySelectorAll("body *")].map(el => ({
-            tag:el.tagName,id:el.id,cls:String(el.className||"").slice(0,70),
-            right:Math.round(el.getBoundingClientRect().right),
-            left:Math.round(el.getBoundingClientRect().left),
-            width:Math.round(el.getBoundingClientRect().width)
-          })).filter(x=>x.right>window.innerWidth+5 && x.width>3).slice(0,18));
+        const offenders = await page.evaluate(() => {
+          const viewport = document.documentElement.clientWidth;
+          return {viewport,innerWidth:window.innerWidth,
+            scrollWidth:document.documentElement.scrollWidth,
+            offenders:[...document.querySelectorAll("body *")].map(el => ({
+              tag:el.tagName,id:el.id,cls:String(el.className||"").slice(0,70),
+              right:Math.round(el.getBoundingClientRect().right),
+              left:Math.round(el.getBoundingClientRect().left),
+              width:Math.round(el.getBoundingClientRect().width)
+            })).filter(x=>x.right>viewport+5 && x.width>3).slice(0,20)};
+        });
         console.error("Mobile overflow elements:",JSON.stringify(offenders));
       }
       assert.ok(overflow <= 6, device.name + " horizontal overflow " + overflow + "px");
