@@ -65,15 +65,35 @@ async function main() {
       assert.ok(charts.a && charts.b, "Both Chart.js plots must render");
       // These selectors are intentionally inside collapsed <details> panels.
       // Exercise the real disclosure controls before selecting values.
-      for (const selector of ["#arcticRecords > summary", "#arcticSeasons > summary"]) {
+      for (const selector of ["#arcticRecords > summary", "#arcticSeasons > summary", "#arcticStreaks > summary"]) {
         if (device.mobile) await page.locator(selector).tap();
         else await page.locator(selector).click();
       }
       assert.ok(await page.locator("#arcticRecords").evaluate(el => el.open));
       assert.ok(await page.locator("#arcticSeasons").evaluate(el => el.open));
+      assert.ok(await page.locator("#arcticStreaks").evaluate(el => el.open));
       const year = String(doc.latest_year);
       await page.locator("#arcticYear").selectOption(year);
       const index = doc.years[year].findLastIndex(v => Number.isFinite(v));
+      // Streak monitor: real data, both modes, minimum-duration filter,
+      // highlighted-year response, and live threshold math all work in-browser.
+      await page.waitForFunction(() =>
+        !document.querySelector("#arcticStreakStatus").textContent.includes("Lade historische Serien"),null,{timeout:30000});
+      assert.ok(await page.locator("#arcticStreakEvents tr").count()>=1);
+      assert.ok(await page.locator("#arcticStreakYears tr").count()>=1);
+      assert.equal(await page.locator("#arcticStreakMonths > div").count(),12);
+      await page.locator("#arcticStreakType").selectOption("cold");
+      assert.ok((await page.locator("#arcticStreakDays").innerText()).includes("Kalttage"));
+      await page.locator("#arcticStreakMinDays").selectOption("30");
+      assert.ok((await page.locator("#arcticStreakStatus").innerText()).includes("30 Tagen"));
+      await page.locator("#arcticStreakType").selectOption("warm");
+      assert.ok((await page.locator("#arcticStreakDays").innerText()).includes("Warmtage"));
+      await page.locator("#arcticStreakMinDays").selectOption("7");
+      const math = await page.evaluate(() => window.Arctic80StreaksMath);
+      assert.ok(math && typeof math.analyze==="function","Streak engine must be present");
+      await page.locator("#arcticYear").selectOption("2023");
+      assert.ok((await page.locator("#arcticStreakCoverage").innerText()).includes("Kalendertagen"));
+      await page.locator("#arcticYear").selectOption(year);
       await page.locator("#arcticRecordDay").selectOption(doc.days[index]);
       assert.ok((await page.locator("#arcticRecordSummary").innerText()).includes("°C"));
       const expected = doc.years[year][index];
@@ -114,6 +134,7 @@ async function main() {
       }
       await page.locator("#arcticRecords").evaluate(el => el.open = true);
       await page.locator("#arcticSeasons").evaluate(el => el.open = true);
+      await page.locator("#arcticStreaks").evaluate(el => el.open = true);
       await page.screenshot({ path: path.join(outDir, "dmi-" + device.name + ".png"), fullPage: true });
       const overflow = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -123,7 +144,7 @@ async function main() {
         [], "Main Arctic resources must load");
       console.log("PASS " + device.name +
         " live: " + doc.last_date + ", " + Object.keys(doc.years).length +
-        " years, records, months, seasons, leap-day, both plots, 4 downloads, no overflow");
+        " years, records, seasons, extreme streaks, leap-day, 2 plots, 4 downloads, no overflow");
       await context.close();
     }
   } finally {
