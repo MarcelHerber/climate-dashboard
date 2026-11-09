@@ -20,6 +20,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            station_snow_explorer.js
+            station_snow_explorer.css
+            station_snow_height_index.json
+            station_snow_height_additional_index.json
+            index.html
+            scripts/build_pages_site.sh
+            tests/test_station_snow_explorer.cjs
+            tests/audit_station_snow_explorer_live.py
       - name: Syntax and station clustering regressions
         run: |
           node --check station_snow_explorer.js
