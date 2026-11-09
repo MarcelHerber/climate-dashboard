@@ -1,0 +1,30 @@
+name: Snow map touch and overflow regression
+
+on:
+  push:
+    branches: [fix/snow-map-touch-and-overflow-20261109]
+  pull_request:
+    paths:
+      - station_snow_explorer.js
+      - station_snow_explorer.css
+      - tests/test_station_snow_explorer.cjs
+      - tests/audit_station_snow_explorer_live.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Syntax and station clustering regressions
+        run: |
+          node --check station_snow_explorer.js
+          node --test tests/test_station_snow_explorer.cjs
+          python -m py_compile tests/audit_station_snow_explorer_live.py
+      - name: Confirm CSS does not block pinch zoom
+        run: |
+          ! grep -q 'touch-action:pan-x pan-y' station_snow_explorer.css
