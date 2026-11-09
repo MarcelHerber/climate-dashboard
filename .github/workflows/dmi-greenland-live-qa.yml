@@ -1,0 +1,45 @@
+name: DMI Grönland · Live Desktop und Handy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tests/test_greenland_live_browser.cjs"
+      - ".github/workflows/dmi-greenland-live-qa.yml"
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dmi-greenland-live-qa
+  cancel-in-progress: false
+
+jobs:
+  browser:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authentischen DMI-Stationscache und Parser testen
+        run: |
+          node --check groenland_stationen.js
+          node --test tests/test_dmi_greenland_ui.cjs
+          python scripts/build_dmi_greenland_stations.py --check
+      - name: Headless Chromium installieren
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Öffentliche Grönland-Seite mit echten DMI-Daten auf Desktop und Handy testen
+        run: node tests/test_greenland_live_browser.cjs
+      - name: Test-Screenshots als Nachweis speichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenland-desktop-mobile
+          path: artifacts/greenland-*.png
+          if-no-files-found: ignore
