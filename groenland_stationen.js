@@ -48,13 +48,16 @@ async function getJSON(url,timeout=35000){
 }
 async function apiValues(id,param,resolution,from,to){
  if(!/^[0-9A-Za-z_-]{3,24}$/.test(id)||!validParam(param))throw Error("Ungültige DMI-Abfrage");
+ const limit=resolution==="year"?1000:resolution==="month"?3000:32000;
  const url=urlFor("stationValue",{
   stationId:id,parameterId:param,timeResolution:resolution,
-  datetime:from+"T00:00:00Z/"+to+"T23:59:59Z",limit:"40000"
+  datetime:from+"T00:00:00Z/"+to+"T23:59:59Z",limit:String(limit)
  });
  const data=await getJSON(url,70000);
- if(data.links?.some(l=>l.rel==="next") || data.features.length===40000){
-  throw Error("DMI-Abfrage ist unvollständig. Bitte kleineren Zeitraum auswählen.");
+ // DMI returns rel=next even when the page contains fewer than limit rows.
+ // A smaller result is complete; only an actual full page needs re-querying.
+ if(data.features.length>=limit){
+  throw Error("DMI-Abfrage erreicht das Abfragelimit. Bitte kleineren Zeitraum auswählen.");
  }
  return normalize(data.features,param,resolution);
 }
