@@ -58,6 +58,8 @@ async function main(){
    const zoomBefore=await page.evaluate(()=>window.GreenlandDmiMath.getState().mapZoom);
    if(device.mobile)await page.locator("#grMap .leaflet-control-zoom-in").tap();
    else await page.locator("#grMap .leaflet-control-zoom-in").click();
+   await page.waitForFunction(before=>window.GreenlandDmiMath.getState().mapZoom>before,
+     zoomBefore,{timeout:8000});
    assert.ok(await page.evaluate(()=>window.GreenlandDmiMath.getState().mapZoom)>zoomBefore,
      "Leaflet zoom controls must respond to "+device.name+" interaction");
    await page.locator("#grMapReset").click();
