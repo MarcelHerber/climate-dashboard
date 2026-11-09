@@ -231,7 +231,7 @@ function drawSeries(){
  chart=new Chart(canvas,{
   type:"line",data:{datasets:[{
    label:meta.label+" ("+meta.unit+")",data:plot.map(x=>({x:x.date,y:x.value,trace:x.trace})),
-   parsing:false,borderColor:"#1971a5",backgroundColor:"rgba(34,121,162,.12)",
+   borderColor:"#1971a5",backgroundColor:"rgba(34,121,162,.12)",
    pointRadius:isDaily?0:1.5,pointHoverRadius:5,borderWidth:2,tension:0,spanGaps:false
   }]},
   options:{responsive:true,maintainAspectRatio:false,animation:false,
