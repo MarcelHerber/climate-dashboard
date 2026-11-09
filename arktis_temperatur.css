@@ -215,3 +215,31 @@ html[data-theme="dark"] .arctic-buttons button,body.dark-mode .arctic-buttons bu
 .arctic-era5-map-controls input[type="date"]:disabled{opacity:.5}
 #arcticEra5ArchiveProgress{margin-top:-4px;margin-bottom:14px}
 @media(max-width:580px){.arctic-era5-map-controls input[type="date"]{width:100%;max-width:100%}}
+
+
+/* Shared DMI/ERA5 calendar control and two-day comparison (accessible on mobile). */
+.arctic-era5-linked{border:1px solid var(--arctic-edge);background:var(--arctic-bg);padding:12px 15px;border-radius:10px;margin:8px 0 14px}
+.arctic-era5-linked strong{font-size:14px;color:var(--arctic-ink)}
+.arctic-era5-linked p{color:var(--arctic-muted);font-size:13px;line-height:1.5;margin:5px 0 0}
+.arctic-era5-linked #arcticEra5SyncStatus{font-weight:650;color:var(--arctic-ink)}
+.arctic-era5-linked #arcticEra5SyncStatus.error{color:#b94b43}
+.arctic-era5-compare-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px 18px;margin:12px 0}
+.arctic-era5-compare-controls label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--arctic-ink);font-weight:650}
+.arctic-era5-compare-controls .arctic-era5-compare-check{flex-direction:row;align-items:center;min-height:40px}
+.arctic-era5-compare-controls input{accent-color:var(--arctic-blue)}
+.arctic-era5-compare-controls select,.arctic-era5-compare-controls button{font:inherit;background:var(--arctic-paper);color:var(--arctic-ink);border:1px solid var(--arctic-edge);border-radius:8px;padding:10px}
+.arctic-era5-compare-controls button{cursor:pointer}
+.arctic-era5-compare-controls button:disabled,.arctic-era5-compare-controls select:disabled{opacity:.5;cursor:not-allowed}
+.arctic-era5-grid[hidden],.arctic-era5-comparison[hidden],#arcticEra5PrimaryDownloads[hidden],#arcticEra5CompareDownloads[hidden],#arcticEra5CompareSummary[hidden]{display:none!important}
+.arctic-era5-grid:focus-visible,.arctic-era5-comparison:focus-visible{outline:2px solid var(--arctic-blue);outline-offset:3px}
+.arctic-era5-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:12px;touch-action:pan-y}
+.arctic-era5-grid{touch-action:pan-y}
+.arctic-era5-comparison-day{border:1px solid var(--arctic-edge);border-radius:10px;padding:12px;min-width:0;background:var(--arctic-bg)}
+.arctic-era5-comparison-day h3{margin:2px 0 8px;font-size:16px;color:var(--arctic-ink)}
+.arctic-era5-comparison-day .arctic-stat-note{margin:0 0 14px}
+.arctic-era5-comparison-map{margin:10px 0;min-width:0}
+.arctic-era5-comparison-map[hidden]{display:none!important}
+.arctic-era5-comparison-map img{display:block;width:100%;height:auto;object-fit:contain;border:1px solid var(--arctic-edge);border-radius:7px;background:var(--arctic-paper)}
+#arcticEra5CompareSummary{font-weight:650;font-size:13px;line-height:1.6;margin:11px 0}
+@media(max-width:800px){.arctic-era5-comparison{grid-template-columns:1fr}}
+@media(max-width:580px){.arctic-era5-compare-controls{align-items:stretch}.arctic-era5-compare-controls label{width:100%}.arctic-era5-compare-controls select{width:100%}.arctic-era5-comparison-day{padding:8px}}
