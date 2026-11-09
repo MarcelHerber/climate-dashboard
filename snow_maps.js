@@ -4,6 +4,9 @@
   if (!root) return;
   const $ = id => document.getElementById(id);
   const dateSelect = $('snowMapDate');
+  const regionSelect = $('snowMapRegion');
+  const REGIONS = {hemisphere:'Nordhalbkugel nördlich 20° N',europe:'Europa (Island bis Ural, 35–75° N; 25° W–70° O)'};
+  const REGION_SUFFIX = {hemisphere:'',europe:'europe_'};
   const status = $('snowMapStatus');
   const base = new URL('eurasia_snow/maps/', document.baseURI);
   const sources = [base, new URL('https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/maps/')];
@@ -14,6 +17,13 @@
     status.textContent = text;
     status.dataset.kind = kind;
   }
+  function region() {return regionSelect.value === 'europe' ? 'europe' : 'hemisphere';}
+  function imagesFor(row, chosenRegion = region()) {
+    const prefix=REGION_SUFFIX[chosenRegion];
+    const keys=prefix?['europe_cover','europe_anomaly']:['cover','anomaly'];
+    if(!keys.every(key=>row[key] === 'images/'+row.date+'_'+key+'.png'))return null;
+    return keys.map(key=>new URL(row[key],imageBase).href);
+  }
   function controls(busy) {
     root.dataset.loading = String(busy);
     dateSelect.disabled = !records.length;
@@ -21,6 +31,7 @@
     $('snowMapNext').disabled = selected <= 0;
     $('snowCoverDownload').disabled = busy || !active;
     $('snowAnomalyDownload').disabled = busy || !active;
+    regionSelect.disabled = busy || !records.length;
   }
   async function request(url) {
     const response = await fetch(url, {cache:'no-cache', signal:AbortSignal.timeout(25000)});
@@ -48,7 +59,7 @@
     if (sourceErrors) text += ' · Einzelne Quellen fehlen; verfügbarer Datenstand wird angezeigt.';
     show(text, age >= 4 || sourceErrors ? 'warn' : 'success');
     const years = Array.isArray(row.reference_years) ? row.reference_years : [];
-    $('snowMapReference').textContent = 'Nordhalbkugel nördlich 20° N · ' +
+    $('snowMapReference').textContent = REGIONS[region()] + ' · ' +
       'Vergleich: gleicher Kalendertag 2001–2020 · ' + years.length + ' verfügbare Vergleichsjahre' +
       ' · mindestens ' + (row.minimum_samples || 15) + ' Landwerte je Rasterzelle.';
   }
@@ -62,21 +73,23 @@
     controls(true);
     show('Schneekarten für ' + formatDate(row.date) + ' werden geladen …');
     try {
-      const urls = ['cover', 'anomaly'].map(key => new URL(row[key], imageBase).href);
+      const chosenRegion=region();
+      const urls=imagesFor(row,chosenRegion);
+      if(!urls)throw new Error('Für diesen Tag liegt noch keine geprüfte Europa-Karte vor');
       await Promise.all(urls.map(preload));
       if (token !== selectionToken) return;
       for (const [i, key] of ['snowCoverImage', 'snowAnomalyImage'].entries()) {
         $(key).src = urls[i];
         $(key).hidden = false;
         $(key).alt = (i === 0 ? 'Beobachtete Schneebedeckung' : 'Abweichung von der Schneehäufigkeit 2001–2020') +
-          ' · Nordhalbkugel · ' + formatDate(row.date) + ', 00 UTC';
+          ' · ' + REGIONS[chosenRegion] + ' · ' + formatDate(row.date) + ', 00 UTC';
       }
-      active = {row, urls};
+      active = {row, urls, region:chosenRegion};
       report(row);
     } catch (error) {
       if (token !== selectionToken) return;
       for (const id of ['snowCoverImage', 'snowAnomalyImage']) $(id).hidden = true;
-      show('Die Karten für ' + formatDate(row.date) + ' konnten nicht geladen werden. Bitte erneut versuchen oder ein anderes Datum wählen.', 'warn');
+      show('Die Karten für ' + formatDate(row.date) + ' konnten nicht geladen werden ('+error.message+'). Bitte anderes Datum oder Nordhalbkugel wählen.', 'warn');
     } finally {
       if (token === selectionToken) controls(false);
     }
@@ -102,6 +115,10 @@
       if (!doc) throw new Error('Kein Kartenverzeichnis');
       const oldDate = dateSelect.value;
       records = [...doc.maps].sort((a, b) => b.date.localeCompare(a.date));
+      if(region()==='europe' && !records.some(row=>row.europe_cover&&row.europe_anomaly)){
+        regionSelect.value='hemisphere';
+        show('Europa-Kartenausschnitt wird aus den originalen IMS-Daten nachberechnet; Nordhalbkugel bleibt verfügbar.','warn');
+      }
       imageBase = source;
       sourceErrors = doc.source_errors?.length || 0;
       dateSelect.replaceChildren(...records.map(row => new Option(formatDate(row.date) + ' · 00 UTC', row.date)));
@@ -129,7 +146,7 @@
       if (!blob.type.startsWith('image/')) throw new Error('Keine Bilddatei');
       const url = URL.createObjectURL(blob), link = document.createElement('a');
       link.href = url;
-      link.download = 'NOAA_IMS_Nordhalbkugel_' + (kind === 'cover' ? 'Schneebedeckung_' : 'Abweichung_2001-2020_') + selection.row.date + '.png';
+      link.download = 'NOAA_IMS_' + (selection.region==='europe'?'Europa_Island-Ural':'Nordhalbkugel') + '_' + (kind === 'cover' ? 'Schneebedeckung_' : 'Abweichung_2001-2020_') + selection.row.date + '.png';
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch (error) {
@@ -139,6 +156,7 @@
     }
   }
   dateSelect.addEventListener('change', () => select(records.findIndex(row => row.date === dateSelect.value)));
+  regionSelect.addEventListener('change', () => select(selected));
   $('snowMapPrevious').addEventListener('click', () => select(selected + 1));
   $('snowMapNext').addEventListener('click', () => select(selected - 1));
   $('snowMapRefresh').addEventListener('click', load);

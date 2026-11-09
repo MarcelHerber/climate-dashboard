@@ -90,6 +90,23 @@ class SnowMapChecks(unittest.TestCase):
         self.assertEqual(dates[0], dt.date(2026, 11, 3))
         self.assertEqual(dates[-1], dt.date(2026, 10, 28))
 
+    def test_europe_domain_and_independent_image_validation(self):
+        m = self.maps()
+        self.assertEqual(m.EUROPE_EXTENT, (-25, 70, 35, 75))
+        from PIL import Image
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            row = {}
+            for key in ('cover', 'anomaly', 'europe_cover', 'europe_anomaly'):
+                row[key] = key + '.png'
+                size = (3080, 1760) if key.startswith('europe_') else (3520, 1188)
+                Image.new('RGB', size, 'white').save(directory / row[key])
+            self.assertTrue(m.complete_pair(directory, row, europe=True))
+            (directory / row['europe_anomaly']).unlink()
+            self.assertFalse(m.complete_pair(directory, row, europe=True))
+            self.assertTrue(m.complete_pair(directory, row))
+
     def test_pair_validation_requires_both_opaque_full_size_images(self):
         m = self.maps()
         from PIL import Image
