@@ -73,7 +73,7 @@ class ArcticArchiveStatusTests(unittest.TestCase):
             p.write_text(json.dumps(doc))
             with patch.object(mod, "ROOT", root):
                 rows = {x["id"]: x for x in mod.build()["datasets"]}
-            self.assertEqual(rows["dmi_arctic"]["status"], "delayed")
+            self.assertEqual(rows["dmi_arctic"]["status"], "incomplete")
             self.assertIn("prüfen", rows["dmi_arctic"]["note"])
 
 
