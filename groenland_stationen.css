@@ -89,3 +89,18 @@ button:disabled{cursor:not-allowed!important;opacity:.5}
  .gr-kpis strong,.gr-record-grid strong{font-size:16px}
 }
 @media(max-width:360px){.gr-kpis,.gr-record-grid{grid-template-columns:1fr}}
+
+/* Map actions/legend remain usable even on a narrow phone. */
+.gr-map-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.gr-map-actions button{min-height:39px;padding:8px 12px;font:inherit;font-size:12px;font-weight:750;cursor:pointer;border-radius:8px;background:var(--gr-soft);color:var(--gr-ink);border:1px solid var(--gr-border)}
+.gr-map-legend{display:flex;gap:6px 9px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--gr-muted)}
+.gr-swatch{display:inline-block;width:11px;height:11px;border:1px solid rgba(30,50,75,.22);border-radius:50%;margin-right:-4px}
+.gr-swatch.cold{background:#2676b3}.gr-swatch.mild{background:#dfb252}
+.gr-swatch.warm{background:#d75a48}.gr-swatch.missing{background:#748398}
+#grMap .leaflet-control-container{font-size:12px}
+#grMap .leaflet-control-attribution{line-height:1.3}
+@media(max-width:740px){
+ .gr-map-actions{align-items:flex-start;flex-direction:column}
+ .gr-map-actions button{width:100%}
+ #grMap .leaflet-control-zoom a{width:37px;height:37px;line-height:37px}
+}
