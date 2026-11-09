@@ -59,8 +59,8 @@ jobs:
       - name: Geprüfte echte ERA5-Karten aktualisieren
         run: |
           set -euo pipefail
-          python scripts/build_arctic_era5_maps.py --output data/arctic_era5_maps --max-new-days 4
-          python -c 'import json,sys;from pathlib import Path;sys.path.insert(0,"scripts");from build_arctic_era5_maps import validate_manifest;root=Path("data/arctic_era5_maps");d=json.loads((root/"index.json").read_text());validate_manifest(d,root);assert d["ready"] and not d["forecast"] and d["schema"]==2 and d["target_days"]==30;assert d["anomaly_reference"]=="monthly_mean_same_calendar_month";print("VERIFIZIERT",d["latest_date"],len(d["days"]),"ERA5-Tage")'
+          python scripts/build_arctic_era5_maps.py --output data/arctic_era5_maps --max-new-days 8
+          python -c 'import json,sys;from pathlib import Path;sys.path.insert(0,"scripts");from build_arctic_era5_maps import validate_manifest;root=Path("data/arctic_era5_maps");d=json.loads((root/"index.json").read_text());validate_manifest(d,root);assert d["ready"] and not d["forecast"] and d["schema"]==2 and d["target_days"]==30;assert d["anomaly_reference"]=="monthly_mean_same_calendar_month";assert d["archive_days"]==len(d["days"]);assert d["fully_mapped_days"]==len(d["days"]),"Nicht jeder Archivtag hat Karten für 60/70/80N";assert all(all(r in day["regions"] and day["regions"][r]["boundary_version"]==3 for r in ("60","70","80")) for day in d["days"]),"Unvollständige oder veraltete Küstenlinien";print("VERIFIZIERT",d["latest_date"],len(d["days"]),"ERA5-Tage in 3 Regionen")'
       - name: Geprüfte ERA5-Karten konfliktfest veröffentlichen
         shell: bash
         env:
