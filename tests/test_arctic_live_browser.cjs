@@ -219,6 +219,82 @@ async function main() {
           }
         }
         await page.locator("#arcticEra5MapRegion").selectOption("80");
+        // DMI/ERA5 synchronized day selection using real repository/Pages data.
+        const allDates=era5Meta.days.filter(d=>d.regions?.["80"]).map(d=>d.date);
+        assert.ok(allDates.length>=2,"Two-day ERA5 comparison requires at least 2 actual archived dates");
+        await page.waitForFunction(()=>window.ArcticEra5Sync?.getState?.().ready===true);
+        await page.locator("#arcticEra5MapDate").selectOption(allDates[0]);
+        await page.waitForFunction(date=>document.getElementById("arcticRecordDay")?.value===date.slice(5),allDates[0]);
+        assert.equal(await page.locator("#arcticYear").inputValue(),allDates[0].slice(0,4));
+
+        // Actual mouse click or touchscreen tap on the DMI Chart.js plot.
+        await page.locator("#arcticAnnualChart").scrollIntoViewIfNeeded();
+        const clickPoint=await page.evaluate(date=>{
+          const canvas=document.getElementById("arcticAnnualChart");
+          const chart=Chart.getChart(canvas),rect=canvas.getBoundingClientRect();
+          const i=window.Arctic80LoadedData.days.indexOf(date.slice(5));
+          if(i<0)throw Error("Target day missing in DMI calendar");
+          return {x:rect.left+chart.scales.x.getPixelForValue(i),
+            y:rect.top+(chart.chartArea.top+chart.chartArea.bottom)/2};
+        },allDates[1]);
+        if(device.mobile)await page.touchscreen.tap(clickPoint.x,clickPoint.y);
+        else await page.mouse.click(clickPoint.x,clickPoint.y);
+        await page.waitForFunction(date=>window.ArcticEra5Sync.getState().primaryDate===date,allDates[1]);
+        assert.ok((await page.locator("#arcticEra5SyncStatus").innerText()).includes("Synchronisiert"));
+
+        // A historical DMI-only date must not be silently replaced by a false ERA5 date.
+        await page.locator("#arcticYear").selectOption("1990");
+        await page.locator("#arcticAnnualChart").scrollIntoViewIfNeeded();
+        if(device.mobile)await page.touchscreen.tap(clickPoint.x,clickPoint.y);
+        else await page.mouse.click(clickPoint.x,clickPoint.y);
+        assert.equal(await page.locator("#arcticEra5MapDate").inputValue(),allDates[1]);
+        assert.ok((await page.locator("#arcticEra5SyncStatus").innerText()).includes("noch keine geprüfte ERA5-Karte"));
+        await page.locator("#arcticYear").selectOption(String(doc.latest_year));
+
+        // Comparison renders two independent real days in the same polar region.
+        await page.locator("#arcticEra5CompareEnabled").check();
+        await page.locator("#arcticEra5CompareDate").selectOption(allDates[0]);
+        assert.ok(await page.locator("#arcticEra5CompareGrid").isVisible());
+        assert.ok(!await page.locator("#arcticEra5Maps").isVisible());
+        assert.ok((await page.locator("#arcticEra5CompareSummary").innerText()).includes("Tag B minus Tag A"));
+        await page.waitForFunction(()=>[
+          "arcticEra5CompareATemp","arcticEra5CompareAAnomaly",
+          "arcticEra5CompareBTemp","arcticEra5CompareBAnomaly"
+        ].every(id=>{const img=document.getElementById(id);return img.complete&&img.naturalWidth>=800;}),null,{timeout:45000});
+        for(const id of ["arcticEra5CompareATempPng","arcticEra5CompareBAnomalyPng"]){
+          const url=await page.locator("#"+id).getAttribute("href");
+          assert.match(url,/^data\/arctic_era5_maps\/maps\//);
+          assert.equal((await page.request.get(new URL(url,BASE).toString())).status(),200);
+        }
+        const comparePdfPromise=page.waitForEvent("download",{timeout:45000});
+        await page.locator("#arcticEra5ComparePdf").click();
+        const comparePdf=await comparePdfPromise;
+        assert.ok(comparePdf.suggestedFilename().includes("Vergleich"));
+        assert.equal(fs.readFileSync(await comparePdf.path()).subarray(0,4).toString(),"%PDF");
+
+        // Keyboard navigation changes map A and the linked DMI day.
+        await page.locator("#arcticEra5CompareGrid").focus();
+        await page.keyboard.press("ArrowLeft");
+        await page.waitForFunction(date=>window.ArcticEra5Sync.getState().primaryDate===date,allDates[2]||allDates[1]);
+        assert.equal(await page.locator("#arcticRecordDay").inputValue(),(allDates[2]||allDates[1]).slice(5));
+        // Mobile gestures use a horizontal swipe; vertical scrolling must remain possible.
+        if(device.mobile){
+          const surface=page.locator("#arcticEra5CompareGrid");
+          await surface.evaluate(el=>{
+            const start=new Touch({identifier:8,target:el,clientX:280,clientY:240});
+            const end=new Touch({identifier:8,target:el,clientX:90,clientY:242});
+            el.dispatchEvent(new TouchEvent("touchstart",{bubbles:true,touches:[start],targetTouches:[start]}));
+            el.dispatchEvent(new TouchEvent("touchend",{bubbles:true,changedTouches:[end],touches:[],targetTouches:[]}));
+          });
+          const next=allDates[3]||allDates[2]||allDates[1];
+          await page.waitForFunction(date=>window.ArcticEra5Sync.getState().primaryDate===date,next);
+        }
+        await page.locator("#arcticEra5CompareSwap").click();
+        assert.ok((await page.locator("#arcticEra5CompareSummary").innerText()).includes("Tag B minus Tag A"));
+        await page.locator("#arcticEra5MapRegion").selectOption("70");
+        assert.match(await page.locator("#arcticEra5CompareATemp").getAttribute("src"),/t2m_70n_/);
+        await page.locator("#arcticEra5CompareEnabled").uncheck();
+        assert.ok(await page.locator("#arcticEra5Maps").isVisible());
       }else{
         const status=await page.locator("#arcticEra5MapStatus").innerText();
         assert.ok(status.includes("nicht verfügbar") ||
