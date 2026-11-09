@@ -51,6 +51,9 @@ required_root_files=(
   arktis_klimastatistik.js
   arktis_statistik.js
   arktis_temperatur.css
+  groenland_stationen.html
+  groenland_stationen.js
+  groenland_stationen.css
   eurasia_snow.html
   eurasia_snow.js
   eurasia_snow.css
@@ -240,6 +243,16 @@ else:
     print("ERA5-Arktiskarten: Archiv noch ohne verifizierte Tageswerte")
 PY
 fi
+# DMI Greenland monitor: ship both source and verified cache with genuine Greenland station coordinates.
+node --check _site/groenland_stationen.js
+if [[ -s data/dmi_greenland_stations.json ]]; then
+  cp data/dmi_greenland_stations.json _site/data/dmi_greenland_stations.json
+  python scripts/build_dmi_greenland_stations.py --check
+fi
+grep -q 'id="grMap"' _site/groenland_stationen.html
+grep -q 'src="groenland_stationen.js?v=1"' _site/groenland_stationen.html
+node --check tests/test_dmi_greenland_ui.cjs
+node --test tests/test_dmi_greenland_ui.cjs
 node --check _site/arktis_klimastatistik.js
 node --check tests/test_arctic_longterm_seasons.cjs
 node --test tests/test_arctic_longterm_seasons.cjs
