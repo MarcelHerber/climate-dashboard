@@ -56,10 +56,30 @@
         stations:[station]
       });
     }
-    return [...groups.values()].map(group=>({
+    // Neighboring grid cells can create overlapping clickable 40px icons.
+    // Merge nearby centroids so mobile taps select the intended cluster.
+    const output=[...groups.values()].map(group=>({
       count:group.count,lat:group.lat/group.count,lon:group.lon/group.count,
       stations:group.stations
     }));
+    const minSeparation=48;
+    let changed=true;
+    while(changed){
+      changed=false;
+      outer: for(let i=0;i<output.length;i++){
+        const a=output[i],pa=project(a.lat,a.lon);
+        for(let j=i+1;j<output.length;j++){
+          const b=output[j],pb=project(b.lat,b.lon);
+          if(Math.hypot(pa.x-pb.x,pa.y-pb.y)>=minSeparation)continue;
+          const count=a.count+b.count;
+          a.lat=(a.lat*a.count+b.lat*b.count)/count;
+          a.lon=(a.lon*a.count+b.lon*b.count)/count;
+          a.count=count;a.stations.push(...b.stations);
+          output.splice(j,1);changed=true;break outer;
+        }
+      }
+    }
+    return output;
   }
   const detailsFor=station=>{
     if(!station)return "";
@@ -215,7 +235,7 @@
         const clusterIcon=leaflet.divIcon({
           className:"station-snow-cluster-icon",
           html:'<span aria-hidden="true">'+formatCount(count)+"</span>",
-          iconSize:[40,40],iconAnchor:[20,20]
+          iconSize:[36,36],iconAnchor:[18,18]
         });
         const group=leaflet.marker([item.lat,item.lon],{icon:clusterIcon,
           keyboard:true,title:formatCount(count)+" Schneestationen"});

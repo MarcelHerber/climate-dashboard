@@ -131,7 +131,12 @@ def case(browser,width):
         assert page.evaluate("""()=>document.querySelector('#stationSnowMap').clientWidth>0""")
         result["mapNoOverflow"]=page.evaluate("""()=>{
           const el=document.querySelector('#stationSnowMap');
-          return el.scrollWidth<=el.clientWidth+3
+          const bounds=el.getBoundingClientRect();
+          const parent=el.parentElement.getBoundingClientRect();
+          const clipped=getComputedStyle(el).overflowX==='hidden';
+          return clipped && bounds.width>0 &&
+            bounds.left>=parent.left-3 && bounds.right<=parent.right+3 &&
+            document.documentElement.scrollWidth<=window.innerWidth+3
         }""")
         assert result["mapNoOverflow"]
 
