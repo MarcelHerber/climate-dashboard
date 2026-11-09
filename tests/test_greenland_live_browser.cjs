@@ -41,7 +41,18 @@ async function main(){
    assert.ok(await row.count(),"Filtered true station from DMI");
    if(device.mobile)await row.tap();else await row.click();
    assert.equal(await page.evaluate(()=>window.GreenlandDmiMath.getState().stationId),station.id);
-   await page.waitForFunction(()=>window.GreenlandDmiMath.getState().series>=5,null,{timeout:105000});
+   try{
+     await page.waitForFunction(()=>window.GreenlandDmiMath.getState().series>=5,null,{timeout:45000});
+   }catch(err){
+     const diag=await page.evaluate(()=>({
+       station:window.GreenlandDmiMath?.getState?.(),
+       main:document.querySelector("#grStatus")?.textContent,
+       series:document.querySelector("#grSeriesStatus")?.textContent,
+       records:document.querySelector("#grRecordStatus")?.textContent
+     }));
+     console.error("DMI GREENLAND DIAGNOSTIC:",JSON.stringify(diag));
+     throw err;
+   }
    assert.ok(await page.evaluate(()=>!!Chart.getChart(document.getElementById("grChart"))),
      "Historical chart must render with actual values");
    await page.waitForFunction(()=>window.GreenlandDmiMath.getState().records>=2,null,{timeout:105000});
