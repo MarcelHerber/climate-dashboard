@@ -31,6 +31,39 @@ async function main(){
    await page.waitForFunction(()=>window.GreenlandDmiMath?.getState?.().stations>=10,null,{timeout:75000});
    assert.ok(await page.locator("#grMap .leaflet-container").count()||await page.locator("#grMap.leaflet-container").count(),
     "Leaflet must render interactive map");
+   // A previous deployment had the wrong Leaflet stylesheet SRI hash: Leaflet JS
+   // loaded, but tiles floated as independent unaligned squares with no markers.
+   // Merely testing for .leaflet-container did not detect this regression.
+   await page.waitForFunction(()=>{
+     const tile=document.querySelector("#grMap .leaflet-tile");
+     const pane=document.querySelector("#grMap .leaflet-tile-pane");
+     const zoom=document.querySelector("#grMap .leaflet-control-zoom-in");
+     const marker=document.querySelector("#grMap path.leaflet-interactive");
+     return tile&&pane&&zoom&&marker&&
+       getComputedStyle(tile).position==="absolute"&&
+       getComputedStyle(pane).position==="absolute"&&
+       getComputedStyle(zoom).display!=="none";
+   },null,{timeout:30000});
+   assert.ok(await page.evaluate(()=>window.GreenlandDmiMath.getState().markerCount>=10),
+     "Map must have real DMI station markers");
+   const style=await page.evaluate(()=>{
+     const t=document.querySelector("#grMap .leaflet-tile");
+     return {position:getComputedStyle(t).position,width:t.getBoundingClientRect().width,
+       zoom:window.GreenlandDmiMath.getState().mapZoom};
+   });
+   assert.equal(style.position,"absolute","Leaflet stylesheet must actually load");
+   assert.ok(style.width>=200&&style.width<=260,"Tiles must be 256px and grid-aligned");
+   assert.ok(style.zoom>=1&&style.zoom<=5,"Greenland initial viewport must show multiple stations");
+   await page.screenshot({path:path.join(out,"greenland-map-"+device.name+".png"),fullPage:false});
+   const zoomBefore=await page.evaluate(()=>window.GreenlandDmiMath.getState().mapZoom);
+   if(device.mobile)await page.locator("#grMap .leaflet-control-zoom-in").tap();
+   else await page.locator("#grMap .leaflet-control-zoom-in").click();
+   assert.ok(await page.evaluate(()=>window.GreenlandDmiMath.getState().mapZoom)>zoomBefore,
+     "Leaflet zoom controls must respond to "+device.name+" interaction");
+   await page.locator("#grMapReset").click();
+   assert.ok(await page.evaluate(()=>window.GreenlandDmiMath.getState().markerCount>=10),
+     "Map reset must restore all station markers");
+
    const station=cache.stations.find(s=>/Nuuk/i.test(s.name)&&s.parameters.includes("mean_temp"))||
      cache.stations.find(s=>s.parameters.includes("mean_temp")&&cache.latest[s.id]?.mean_temp);
    assert.ok(station,"DMI cached station with real temperature needed");
