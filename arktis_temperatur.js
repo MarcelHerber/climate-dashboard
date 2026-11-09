@@ -652,7 +652,7 @@ function chooseEvent(e,navigate=true){
   chartUpdate();paint();
   if(navigate)$("arcticAnnualWrap")?.scrollIntoView({behavior:"smooth",block:"center"});
 }
-function selectDay(year,index,navigate){
+function selectDay(year,index,navigate,origin="dmi"){
   if(!archive||!archive.days[index])return;
   const value=archive.years[String(year)]?.[index];
   if(refCurrent()!==String(year)){
@@ -668,8 +668,20 @@ function selectDay(year,index,navigate){
     " · "+(kind==="warm"?"über P90":kind==="cold"?"unter P10":kind===null?"Datenlücke":"innerhalb P10–P90")+
     (s?" · "+eventCaption(s.event):""));
   chartUpdate();paint();
+  window.dispatchEvent(new CustomEvent("arctic80:day-selected",{
+    detail:{date:iso,source:origin}
+  }));
   if(navigate)$("arcticAnnualWrap")?.scrollIntoView({behavior:"smooth",block:"center"});
 }
+// The ERA5 viewer can navigate the existing DMI records without recreating charts or
+// silently changing the date to a different day. Historical years remain selectable.
+window.Arctic80NavigateToDate=(iso,origin="era5")=>{
+  if(!archive||!/^\d{4}-\d{2}-\d{2}$/.test(iso||""))return false;
+  const year=Number(iso.slice(0,4)),day=iso.slice(5),index=archive.days.indexOf(day);
+  if(index<0||!archive.years[String(year)]||(day==="02-29"&&!leap(year)))return false;
+  selectDay(year,index,false,origin);
+  return true;
+};
 function chartClick(event){
   if(!archive||!calc||typeof Chart==="undefined")return;
   const chart=Chart.getChart(event.currentTarget),scale=chart?.scales?.x;
