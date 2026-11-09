@@ -60,6 +60,22 @@ test("pixel-grid clustering merges same-position stations and omits invalid coor
   assert.ok(result.some(group=>group.count===2));
   assert.ok(result.some(group=>group.count===1));
 });
+test("adjacent grid clusters cannot overlap on touch screens",()=>{
+  const points=[
+    {id:"a",lat:50,lon:7},
+    {id:"b",lat:50,lon:7.1},
+    {id:"c",lat:50,lon:7.4},
+    {id:"d",lat:50,lon:9}
+  ];
+  const project=(lat,lon)=>({x:lon*100,y:lat*100});
+  const clusters=explorer.clusters(points,project,10);
+  for(let i=0;i<clusters.length;i++)for(let j=i+1;j<clusters.length;j++){
+    const a=project(clusters[i].lat,clusters[i].lon);
+    const b=project(clusters[j].lat,clusters[j].lon);
+    assert.ok(Math.hypot(a.x-b.x,a.y-b.y)>=48,"cluster icons overlap");
+  }
+  assert.equal(clusters.reduce((sum,item)=>sum+item.count,0),points.length);
+});
 test("source and measurement-quality labels preserve different RR/KL semantics",()=>{
   const d=explorer.detailsFor({id:"00019",name:"Abtsgmünd",
     state:"Baden-Württemberg",height:400,observed_history_years:48,
