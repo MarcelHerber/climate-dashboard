@@ -740,12 +740,14 @@ doc = json.loads((root / 'index.json').read_text())
 assert doc['schema'] == 1 and doc['reference_period'] == [2001, 2020]
 assert doc['maps']
 for row in doc['maps']:
-    for kind in ('cover', 'anomaly'):
+    kinds = ('cover', 'anomaly', 'europe_cover', 'europe_anomaly') if row.get('version', 0) >= 3 else ('cover', 'anomaly')
+    for kind in kinds:
         assert row[kind] == f"images/{row['date']}_{kind}.png"
         data = (root / row[kind]).read_bytes()
         assert data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR'
         width, height, depth, color = struct.unpack('>IIBB', data[16:26])
-        assert width >= 3000 and height >= 900 and depth == 8 and color == 2
+        min_width, min_height = (2400, 1400) if kind.startswith('europe_') else (3000, 900)
+        assert width >= min_width and height >= min_height and depth == 8 and color == 2
 assert doc['latest'] == max(row['date'] for row in doc['maps'])
 print('IMS-Schneekarten: vollständige opake Kartenpaare geprüft')
 PY
