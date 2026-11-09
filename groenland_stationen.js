@@ -222,11 +222,42 @@ function downsample(rows,max=1800){
  }
  return out;
 }
+// A missing period must appear as a real chart break, never a straight interpolation.
+// Reduce only continuous segments; protect gaps and each segment's extrema.
+function nextPeriod(date,resolution){
+ if(resolution==="year")return String(Number(date)+1);
+ if(resolution==="month"){
+  const [y,m]=date.split("-").map(Number);
+  return new Date(Date.UTC(y,m,1)).toISOString().slice(0,7);
+ }
+ const d=new Date(date+"T00:00:00Z");
+ return new Date(d.getTime()+86400000).toISOString().slice(0,10);
+}
+function plotWithGaps(rows,resolution){
+ if(!rows.length)return [];
+ const parts=[];let segment=[rows[0]];
+ for(let i=1;i<rows.length;i++){
+  if(nextPeriod(rows[i-1].date,resolution)!==rows[i].date){
+   parts.push(segment);segment=[];
+  }
+  segment.push(rows[i]);
+ }
+ parts.push(segment);
+ const budget=Math.max(12,Math.ceil(1800/parts.length));
+ const result=[];
+ for(let i=0;i<parts.length;i++){
+  if(i){
+   result.push({date:nextPeriod(parts[i-1].at(-1).date,resolution),value:null,missing:true});
+  }
+  result.push(...downsample(parts[i],budget));
+ }
+ return result;
+}
 function drawSeries(){
  if(chart)chart.destroy();chart=null;
  if(typeof Chart==="undefined"){pickStatus("grSeriesStatus","Chart.js nicht erreichbar – CSV-Download bleibt verfügbar.",true);return;}
  const canvas=$("grChart"),p=$("grParameter").value,meta=PARAMS[p];
- const plot=downsample(series);
+ const plot=plotWithGaps(series,$("grResolution").value);
  const isDaily=$("grResolution").value==="day";
  chart=new Chart(canvas,{
   type:"line",data:{datasets:[{
@@ -413,7 +444,7 @@ function init(){
  $("grPng").addEventListener("click",savePng);
  loadCatalogue();
 }
-window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,PARAMS,
+window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,plotWithGaps,PARAMS,
  getState:()=>({stationId:station?.id||"",stations:catalogue.length,
   records:records.length,series:series.length,hasMap:!!map,dataStamp:cachedStamp})};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
