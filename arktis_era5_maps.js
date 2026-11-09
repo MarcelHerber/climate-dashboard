@@ -62,7 +62,7 @@ function clearMap(text){
  status(text,true);
 }
 function current(){return days[position]||null;}
-function render(n){
+function render(n,source="init"){
  if(!days.length)return;
  position=Math.max(0,Math.min(n,days.length-1));
  const row=current(),data=row.regions[region()],lower=region();
@@ -88,6 +88,9 @@ function render(n){
  $("arcticEra5MapNext").disabled=position===0;
  status("ERA5-Reanalyse "+dateLabel(row.date)+" · Region "+regionLabel()+
    " · 0,5°-Raster · Referenz: Monatsmittel 1991–2020 · feste Farbskalen.");
+ window.dispatchEvent(new CustomEvent("arctic-era5:date-change",{
+  detail:{date:row.date,region:region(),source}
+ }));
 }
 function setRegion(preferredDate){
  days=available();position=0;
@@ -121,7 +124,7 @@ function setRegion(preferredDate){
  }
  let index=days.findIndex(x=>x.date===preferredDate);
  if(index<0)index=0;
- render(index);
+ render(index,"region");
 }
 function showMode(){
  const mode=$("arcticEra5MapMode").value;
@@ -168,6 +171,7 @@ async function load(){
   if(!archive)throw Error("noch keine geprüften Kartendaten");
   setRegion();
   showMode();
+  window.dispatchEvent(new CustomEvent("arctic-era5:ready",{detail:{days:archive.days.length}}));
  }catch(error){
   $("arcticEra5ArchiveProgress").textContent="Kartenarchiv noch nicht verfügbar.";
   clearMap("ERA5-Kartendaten nicht verfügbar ("+error.message+"). Die DMI-Auswertungen bleiben nutzbar.");
@@ -178,19 +182,19 @@ function init(){
  $("arcticEra5MapRegion").addEventListener("change",()=>setRegion(current()?.date));
  $("arcticEra5MapDate").addEventListener("change",event=>{
   const n=days.findIndex(r=>r.date===event.target.value);
-  if(n>=0)render(n);
+  if(n>=0)render(n,"user");
  });
  $("arcticEra5Calendar").addEventListener("change",event=>{
   const date=event.target.value;
   const n=days.findIndex(row=>row.date===date);
-  if(n>=0)render(n);
+  if(n>=0)render(n,"user");
   else{
    event.target.value=current()?.date||"";
    status("Für den "+dateLabel(date)+" ist im "+regionLabel()+"-Archiv noch keine geprüfte ERA5-Karte verfügbar.",true);
   }
  });
- $("arcticEra5MapPrev").addEventListener("click",()=>render(position+1));
- $("arcticEra5MapNext").addEventListener("click",()=>render(position-1));
+ $("arcticEra5MapPrev").addEventListener("click",()=>navigate(1,"user"));
+ $("arcticEra5MapNext").addEventListener("click",()=>navigate(-1,"user"));
  $("arcticEra5MapMode").addEventListener("change",showMode);
  $("arcticEra5Pdf").addEventListener("click",exportPdf);
  for(const id of ["arcticEra5TempMap","arcticEra5AnomalyMap"]){
@@ -202,7 +206,25 @@ function init(){
  }
  load();
 }
-window.ArcticEra5Archive={normalize,validFile,getState:()=>({schema:archive?.schema,region:region(),days:days.map(x=>x.date)})};
+// Small read-only API and guarded navigation for the common DMI/ERA5 controller.
+function selectDate(date,source="dmi"){
+ const n=days.findIndex(row=>row.date===date);
+ if(n<0)return false;
+ render(n,source);return true;
+}
+function navigate(step,source="user"){
+ if(!days.length)return false;
+ const n=position+step;
+ if(n<0||n>=days.length)return false;
+ render(n,source);return true;
+}
+window.ArcticEra5Archive={
+ normalize,validFile,selectDate,navigate,
+ getState:()=>({schema:archive?.schema,region:region(),date:current()?.date||null,
+   days:days.map(x=>x.date),ready:!!archive}),
+ getRow:(date)=>days.find(row=>row.date===date)||null,
+ getDates:()=>days.map(x=>x.date)
+};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
 else init();
 })();
