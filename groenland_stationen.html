@@ -8,7 +8,7 @@
 <meta name="description" content="Interaktive Karte grönländischer DMI-Wetterstationen, historische Originalmesswerte seit 1953, Temperatur-, Niederschlags- und Windrekorde.">
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="groenland_stationen.css?v=1">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzXUQ6Bf7MoeXcCQvM7nJ3/5VY=" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -35,6 +35,10 @@
       <label>Stationsstatus
        <select id="grStatusFilter"><option value="active">Aktive Stationen</option><option value="all">Alle einschließlich historischer</option></select>
       </label>
+    </div>
+    <div class="gr-map-actions">
+      <button id="grMapReset" type="button" aria-label="Alle grönländischen Stationen auf der Karte anzeigen">Gesamtes Grönland anzeigen</button>
+      <span class="gr-map-legend" aria-label="Temperaturfarben auf der Stationskarte"><i class="gr-swatch cold"></i> kalt <i class="gr-swatch mild"></i> mild <i class="gr-swatch warm"></i> warm <i class="gr-swatch missing"></i> keine aktuellen Werte</span>
     </div>
     <div id="grMap" role="application" aria-label="Interaktive DMI-Wetterstationskarte Grönland"></div>
     <p class="gr-note">Marker zeigen DMI-Standorte; Farbe zeigt das jüngste gültige Temperatur-Tagesmittel, sofern vorhanden. Die Größe des Archivs und die Aktualität unterscheiden sich je Station.</p>
