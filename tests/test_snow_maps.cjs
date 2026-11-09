@@ -8,13 +8,13 @@ const settle = async () => { for (let i=0;i<12;i++) await new Promise(resolve=>s
 function browser({deferImages=false, unavailable=false}={}) {
   const elements=new Map(), pending=[], downloads=[], failures=new Set();
   class Element {
-    constructor(id=''){this.id=id;this.dataset={};this.listeners={};this.value='';this.hidden=false;this.disabled=false;this.tagName=id==='snowMapDate'?'SELECT':'BUTTON';}
+    constructor(id=''){this.id=id;this.dataset={};this.listeners={};this.value=id==='snowMapRegion'?'hemisphere':'';this.hidden=false;this.disabled=false;this.tagName=id==='snowMapDate'||id==='snowMapRegion'?'SELECT':'BUTTON';}
     addEventListener(name,fn){this.listeners[name]=fn;}
     replaceChildren(...children){this.children=children;this.value=children[0]?.value||'';}
     click(){if(this.download) downloads.push(this.download); else if(!this.disabled)this.listeners.click?.();}
   }
   const get=id=>{if(!elements.has(id))elements.set(id,new Element(id));return elements.get(id);};
-  const records=['2026-11-03','2026-11-02','2026-11-01'].map(date=>({date,valid_utc:date+'T00:00:00Z',cover:`images/${date}_cover.png`,anomaly:`images/${date}_anomaly.png`,reference_years:Array.from({length:20},(_,i)=>2001+i),minimum_samples:15}));
+  const records=['2026-11-03','2026-11-02','2026-11-01'].map(date=>({date,valid_utc:date+'T00:00:00Z',cover:`images/${date}_cover.png`,anomaly:`images/${date}_anomaly.png`,europe_cover:`images/${date}_europe_cover.png`,europe_anomaly:`images/${date}_europe_anomaly.png`,reference_years:Array.from({length:20},(_,i)=>2001+i),minimum_samples:15}));
   const manifest={schema:1,reference_period:[2001,2020],maps:records,source_errors:[]};
   class Image {
     set src(url){const action=()=>failures.has(url)?this.onerror():this.onload();if(deferImages)pending.push({url,action});else queueMicrotask(action);}
@@ -77,4 +77,30 @@ test('unreachable source gives a visible status and leaves retry available',asyn
   assert.match(b.get('snowMapStatus').textContent,/nicht erreichbar/);
   assert.equal(b.get('snowMapDate').disabled,true);
   assert.equal(b.get('snowMapRefresh').disabled,false);
+});
+
+test('Europe extent keeps date and loads matching verified images and download names',async()=>{
+  const b=browser();await settle();
+  const region=b.get('snowMapRegion');
+  region.value='europe';region.listeners.change();await settle();
+  assert.equal(b.get('snowMapDate').value,'2026-11-03');
+  assert.match(b.get('snowCoverImage').src,/2026-11-03_europe_cover.png$/);
+  assert.match(b.get('snowAnomalyImage').src,/2026-11-03_europe_anomaly.png$/);
+  assert.match(b.get('snowMapReference').textContent,/Island bis Ural/);
+  b.get('snowCoverDownload').click();await settle();
+  assert.equal(b.downloads[0],'NOAA_IMS_Europa_Island-Ural_Schneebedeckung_2026-11-03.png');
+  region.value='hemisphere';region.listeners.change();await settle();
+  assert.match(b.get('snowCoverImage').src,/2026-11-03_cover.png$/);
+});
+
+test('switching extent while images load cannot mix Europe and hemisphere layers',async()=>{
+  const b=browser({deferImages:true});await settle();b.flush();await settle();
+  const region=b.get('snowMapRegion');
+  region.value='europe';region.listeners.change();
+  region.value='hemisphere';region.listeners.change();
+  const first=b.pending.splice(0,2),last=b.pending.splice(0);
+  for(const pending of last)pending.action();await settle();
+  for(const pending of first)pending.action();await settle();
+  assert.match(b.get('snowCoverImage').src,/2026-11-03_cover.png$/);
+  assert.match(b.get('snowAnomalyImage').src,/2026-11-03_anomaly.png$/);
 });
