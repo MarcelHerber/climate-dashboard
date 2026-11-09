@@ -403,6 +403,76 @@ def build(remote=None):
                else "Temperatur- und Zonalwindreferenz vollständig"),
             allowed_delay=14, incomplete=complete < 30 or tdays < 366 or udays < 366))
 
+    # DMI index and ERA5 Arctic map archive are independent products.
+    # Count only validated observations and complete three-region map days.
+    dmi = read_json("data/arctic80_temperature.json")
+    if isinstance(dmi, dict) and dmi.get("schema") == 1:
+        day_keys = dmi.get("days") or []
+        years = dmi.get("years") or {}
+        valid_years = {year: values for year, values in years.items()
+                       if str(year).isdigit() and isinstance(values, list)
+                       and len(values) == len(day_keys) == 366}
+        dates = [f"{year}-{day_keys[i]}" for year, values in valid_years.items()
+                 for i, value in enumerate(values)
+                 if isinstance(value, (int, float)) and not isinstance(value, bool)
+                 and value == value and abs(value) < 200
+                 and valid_date(f"{year}-{day_keys[i]}")]
+        latest = max(dates, default=None)
+        claimed = dmi.get("last_date")
+        verified = bool(latest and claimed == latest and len(valid_years) >= 60)
+        items.append(result("dmi_arctic", "DMI Temperaturindex nördlich 80°N", "Arktis",
+            latest, dmi.get("updated_utc"),
+            f"{len(valid_years)} validierte Jahrgänge · {len(dates)} Tageswerte",
+            "ERA-40/ECMWF-Analysearchiv · kein flächengewichtetes Temperaturmittel"
+            + ("" if verified else " · Letzter Datentag/Archivstruktur bitte prüfen"),
+            allowed_delay=5, incomplete=not verified))
+    else:
+        items.append(result("dmi_arctic", "DMI Temperaturindex nördlich 80°N", "Arktis",
+            None, None, "DMI-Index nicht verfügbar", "Messdaten können unabhängig erreichbar sein"))
+
+    arctic = read_json("data/arctic_era5_maps/index.json")
+    if isinstance(arctic, dict) and arctic.get("schema") == 2:
+        mapped = []
+        for day in arctic.get("days") or []:
+            if not isinstance(day, dict) or not valid_date(day.get("date")):
+                continue
+            regions = day.get("regions") or {}
+            complete = True
+            for cap in ("60", "70", "80"):
+                layer = regions.get(cap) or {}
+                prefix = f"maps/"
+                date_tag = day["date"].replace("-", "")
+                if (layer.get("temperature_png") != f"{prefix}t2m_{cap}n_{date_tag}.png"
+                    or layer.get("anomaly_png") != f"{prefix}anomaly_{cap}n_{date_tag}.png"
+                    or not all(isinstance(layer.get(k), (int, float))
+                               and not isinstance(layer.get(k), bool)
+                               and abs(layer[k]) < 200 and layer[k] == layer[k]
+                               for k in ("mean_c", "mean_anomaly_k"))):
+                    complete = False
+                    break
+            if complete:
+                mapped.append(day["date"])
+        mapped = sorted(set(mapped))
+        latest = mapped[-1] if mapped else None
+        span = (date.fromisoformat(latest) - date.fromisoformat(mapped[0])).days + 1 if latest else 0
+        gaps = max(0, span - len(mapped))
+        target = arctic.get("target_days", 30)
+        target = target if isinstance(target, int) and target > 0 else 30
+        complete_archive = bool(arctic.get("ready") is True
+            and len(mapped) >= target and gaps == 0
+            and arctic.get("latest_date") == latest)
+        items.append(result("era5_arctic_maps", "ERA5 Arktis · tägliche Temperaturkarten",
+            "Arktis", latest, arctic.get("generated_utc"),
+            f"{len(mapped)}/{target} vollständig kartierte Tage · 60/70/80–90°N"
+            + (f" · {gaps} Lücken im Archivzeitraum" if gaps else ""),
+            "Copernicus ERA5 · reale Rasterdaten · feste Temperaturskalen"
+            + ("" if arctic.get("latest_date") == latest else " · Indexdatum weicht ab"),
+            allowed_delay=8, incomplete=not complete_archive))
+    else:
+        items.append(result("era5_arctic_maps", "ERA5 Arktis · tägliche Temperaturkarten",
+            "Arktis", None, None, "Kartenindex nicht verfügbar",
+            "Die Karten werden nicht durch simulierte Daten ersetzt"))
+
     ice = read_json("sea_ice/index.json")
     if ice:
         for key, label in (("north", "Meereis Arktis"), ("south", "Meereis Antarktis")):
