@@ -73,3 +73,11 @@ test("Real station catalogue JSON has valid DMI metadata and genuine recent valu
   assert.match(x.date,/^20\d\d-\d\d-\d\d$/);
  }
 });
+
+test("Historical chart draws a gap rather than interpolating missing DMI years",()=>{
+ const rows=[{date:"1980",value:-5},{date:"1981",value:-6},{date:"1985",value:-1}];
+ const plot=m.plotWithGaps(rows,"year");
+ assert.deepEqual(Array.from(plot,x=>x.date),["1980","1981","1982","1985"]);
+ assert.equal(plot[2].value,null);
+ assert.equal(plot[2].missing,true);
+});
