@@ -30,6 +30,21 @@ jobs:
           node --check groenland_stationen.js
           node --test tests/test_dmi_greenland_ui.cjs
           python scripts/build_dmi_greenland_stations.py --check
+      - name: Historische DMI-API-Stationswerte serverseitig prüfen
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.parse
+          import urllib.request
+          query={"stationId":"04250","parameterId":"mean_temp","timeResolution":"year",
+                 "datetime":"1953-01-01T00:00:00Z/2026-12-31T23:59:59Z","limit":"500"}
+          url="https://opendataapi.dmi.dk/v2/climateData/collections/stationValue/items?"+urllib.parse.urlencode(query)
+          with urllib.request.urlopen(urllib.request.Request(url,headers={"User-Agent":"ClimateDashboard-Greenland-QA"}),timeout=60) as r:
+            doc=json.load(r)
+          print("Real DMI Greenland 04250 yearly mean_temp:",len(doc["features"]),
+                "status",doc.get("numberReturned"),"first",doc["features"][0].get("properties",{}).get("from") if doc["features"] else None)
+          assert len(doc["features"])>=5
+          PY
       - name: Headless Chromium installieren
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
