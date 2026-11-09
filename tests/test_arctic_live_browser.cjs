@@ -149,7 +149,15 @@ async function main() {
         if(era5Meta.schema===2){
           assert.deepEqual(era5Meta.regions,[80,70,60]);
           assert.equal(era5Meta.target_days,30);
-          assert.ok(era5Meta.days.length<=30);
+          assert.equal(era5Meta.archive_policy,"append_only");
+          assert.equal(era5Meta.archive_days,era5Meta.days.length);
+          assert.ok(era5Meta.days.length>=era5Meta.initial_backfill_days,
+            "Append-only archive must retain all previously verified dates");
+          assert.equal(era5Meta.fully_mapped_days,era5Meta.days.length,
+            "Every published day must include all three polar regions");
+          assert.ok(era5Meta.days.every(day=>["60","70","80"].every(region=>
+            day.regions?.[region]?.boundary_version===3)),
+            "All published polar maps require current coastline version");
           assert.ok(era5Meta.days.every(day=>Object.keys(day.regions||{}).every(k=>
             ["60","70","80"].includes(k))));
         }
