@@ -29,7 +29,8 @@ LOG = logging.getLogger('snow_maps')
 SOURCE = 'https://noaadata.apps.nsidc.org/NOAA/G02156/24km/'
 GEOGRAPHY = ('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/'
              'v5.1.2/geojson/ne_50m_admin_0_countries.geojson')
-VERSION = 2
+VERSION = 3
+EUROPE_EXTENT = (-25, 70, 35, 75)  # Iceland to western Urals; 35–75 N
 SIZE = 1024
 CELL = 23684.977
 XLL, YLL = -12126597.0, -12126480.0
@@ -156,13 +157,15 @@ class Archive:
         return grid
 
 
-def complete_pair(directory: Path, record: dict) -> bool:
+def complete_pair(directory: Path, record: dict, *, europe=False) -> bool:
     from PIL import Image
     try:
-        for key in ('cover', 'anomaly'):
+        keys = ('cover', 'anomaly', 'europe_cover', 'europe_anomaly') if europe else ('cover', 'anomaly')
+        for key in keys:
             with Image.open(directory / record[key]) as image:
                 image.load()
-                if image.width < 3000 or image.height < 900 or image.mode != 'RGB':
+                min_width, min_height = (2400, 1400) if key.startswith('europe_') else (3000, 900)
+                if image.width < min_width or image.height < min_height or image.mode != 'RGB':
                     return False
         return True
     except (OSError, KeyError):
@@ -198,7 +201,7 @@ def borders(ax, countries):
     ax.add_collection(LineCollection(lines, colors='#586c7e', linewidths=.28, zorder=3))
 
 
-def render(path, field, date, countries, *, anomaly=False, minimum=15, reference_years=20, surface=None):
+def render(path, field, date, countries, *, anomaly=False, minimum=15, reference_years=20, surface=None, europe=False):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -206,12 +209,16 @@ def render(path, field, date, countries, *, anomaly=False, minimum=15, reference
     from matplotlib.patches import Patch
     from PIL import Image
 
-    fig, ax = plt.subplots(figsize=(16, 5.4), dpi=220, facecolor='white')
-    fig.subplots_adjust(left=.045, right=.985, top=.79, bottom=.22)
+    fig, ax = plt.subplots(figsize=(14, 8) if europe else (16, 5.4), dpi=220, facecolor='white')
+    fig.subplots_adjust(left=.075 if europe else .045, right=.965 if europe else .985,
+                        top=.83 if europe else .79, bottom=.19 if europe else .22)
     ax.set_facecolor('#eaf1f5')
     title = 'Abweichung der Schneebedeckung' if anomaly else 'Beobachtete Schneebedeckung'
-    fig.text(.045, .925, title + ' | Nordhalbkugel', fontsize=18, weight='bold', color='#243b53')
-    fig.text(.045, .867, f'NOAA / USNIC IMS · {date:%d.%m.%Y}, 00 UTC · nominal 24 km',
+    fig.text(.075 if europe else .045, .925,
+             title + (' | Europa (Island–Ural)' if europe else ' | Nordhalbkugel'),
+             fontsize=18, weight='bold', color='#243b53')
+    fig.text(.075 if europe else .045, .88 if europe else .867,
+             f'NOAA / USNIC IMS · {date:%d.%m.%Y}, 00 UTC · nominal 24 km',
              fontsize=10.5, color='#51677d')
     if anomaly:
         if surface is not None:
@@ -224,7 +231,7 @@ def render(path, field, date, countries, *, anomaly=False, minimum=15, reference
         cmap.set_bad((0, 0, 0, 0))
         image = ax.imshow(np.ma.masked_invalid(field), origin='upper', extent=(-180, 180, 20, 90),
                           cmap=cmap, vmin=-100, vmax=100, interpolation='nearest', aspect='auto')
-        bar_ax = fig.add_axes((.25, .145, .5, .023))
+        bar_ax = fig.add_axes((.25, .105 if europe else .145, .5, .020 if europe else .023))
         bar = fig.colorbar(image, cax=bar_ax, orientation='horizontal', ticks=[-100, -75, -50, -25, 0, 25, 50, 75, 100])
         bar.ax.tick_params(labelsize=8)
         bar.set_label('Abweichung in Prozentpunkten · Rot: weniger Schnee · Blau: mehr Schnee', fontsize=9)
@@ -237,21 +244,28 @@ def render(path, field, date, countries, *, anomaly=False, minimum=15, reference
         ax.legend(handles=[Patch(color='#7697c7', label='Schneebedecktes Land'),
                            Patch(color='#ffffff', ec='#8b99a4', label='Schneefreies Land'),
                            Patch(color='#b8c6d0', label='Meer- / Seeeis')],
-                  loc='upper center', bbox_to_anchor=(.5, -.13), ncol=3, frameon=False, fontsize=10)
+                  loc='upper center', bbox_to_anchor=(.5, -.09 if europe else -.13), ncol=3, frameon=False, fontsize=10)
         note = 'Beobachtete Landbedeckung: Schnee vorhanden / nicht vorhanden. Keine Schneehöhe oder Neuschneemenge.'
     borders(ax, countries)
-    ax.set(xlim=(-180, 180), ylim=(20, 90))
-    ax.set_xticks([-180, -120, -60, 0, 60, 120, 180],
-                  ['180°', '120° W', '60° W', '0°', '60° O', '120° O', '180°'])
-    ax.set_yticks([30, 50, 70, 90], ['30° N', '50° N', '70° N', '90° N'])
+    if europe:
+        ax.set(xlim=(EUROPE_EXTENT[0], EUROPE_EXTENT[1]),
+               ylim=(EUROPE_EXTENT[2], EUROPE_EXTENT[3]))
+        ax.set_xticks([-20, 0, 20, 40, 60],
+                      ['20° W', '0°', '20° O', '40° O', '60° O'])
+        ax.set_yticks([40, 50, 60, 70], ['40° N', '50° N', '60° N', '70° N'])
+    else:
+        ax.set(xlim=(-180, 180), ylim=(20, 90))
+        ax.set_xticks([-180, -120, -60, 0, 60, 120, 180],
+                      ['180°', '120° W', '60° W', '0°', '60° O', '120° O', '180°'])
+        ax.set_yticks([30, 50, 70, 90], ['30° N', '50° N', '70° N', '90° N'])
     ax.tick_params(labelsize=8, colors='#51677d', length=0, pad=5)
     ax.grid(color='#748ba1', alpha=.12, linewidth=.4)
     for spine in ax.spines.values():
         spine.set_edgecolor('#8091a0')
         spine.set_linewidth(.6)
-    fig.text(.045, .035, 'Quelle: NOAA / USNIC IMS via NSIDC, G02156 · DOI 10.7265/N52R3PMC · Grenzen: Natural Earth',
+    fig.text(.075 if europe else .045, .035, 'Quelle: NOAA / USNIC IMS via NSIDC, G02156 · DOI 10.7265/N52R3PMC · Grenzen: Natural Earth',
              fontsize=7.5, color='#51677d')
-    fig.text(.045, .014, note, fontsize=7.5, color='#51677d')
+    fig.text(.075 if europe else .045, .014, note, fontsize=7.5, color='#51677d')
     data = io.BytesIO()
     fig.savefig(data, format='png', facecolor='white', transparent=False)
     plt.close(fig)
@@ -284,7 +298,8 @@ def update(output: Path, cache: Path, *, days=7, today=None):
     for date in current_dates:
         dates, minimum = reference_dates(date)
         old = records.get(date.isoformat())
-        if (old and old.get('version') == VERSION and len(old.get('reference_years', [])) == len(dates)):
+        if (old and old.get('version') == VERSION and complete_pair(output, old, europe=True)
+                and len(old.get('reference_years', [])) == len(dates)):
             continue
         try:
             grids = {}
@@ -310,19 +325,24 @@ def update(output: Path, cache: Path, *, days=7, today=None):
             entry = {'date': date.isoformat(), 'valid_utc': date.isoformat() + 'T00:00:00Z',
                      'version': VERSION, 'cover': f'images/{date}_cover.png',
                      'anomaly': f'images/{date}_anomaly.png',
+                     'europe_cover': f'images/{date}_europe_cover.png',
+                     'europe_anomaly': f'images/{date}_europe_anomaly.png',
                      'reference_years': sorted(day.year for day in grids),
                      'minimum_samples': minimum, 'reference_land_coverage': round(coverage, 5),
                      'source_url': archive.catalogs[date.year][date],
                      'reference_sources': [archive.catalogs[d.year][d] for d in sorted(grids)]}
-            staged = {kind: str(Path(entry[kind]).with_suffix('.tmp.png')) for kind in ('cover', 'anomaly')}
-            for kind, field in [('cover', view), ('anomaly', difference)]:
+            kinds = ('cover', 'anomaly', 'europe_cover', 'europe_anomaly')
+            staged = {kind: str(Path(entry[kind]).with_suffix('.tmp.png')) for kind in kinds}
+            for kind, field in [('cover', view), ('anomaly', difference),
+                                ('europe_cover', view), ('europe_anomaly', difference)]:
                 temporary = output / staged[kind]
-                render(temporary, field, date, countries, anomaly=kind == 'anomaly',
-                       minimum=minimum, reference_years=len(grids), surface=view)
-            if not complete_pair(output, staged):
+                render(temporary, field, date, countries, anomaly=kind.endswith('anomaly'),
+                       minimum=minimum, reference_years=len(grids), surface=view,
+                       europe=kind.startswith('europe_'))
+            if not complete_pair(output, staged, europe=True):
                 raise ValueError('Kartenpaar nicht vollständig')
             # Render AND validate both before replacing a previously complete pair.
-            for kind in ('cover', 'anomaly'):
+            for kind in kinds:
                 (output / staged[kind]).replace(output / entry[kind])
             records[entry['date']] = entry
             LOG.info('%s: zwei Karten, %d Referenzjahre, %.2f%% Landreferenz', date, len(grids), coverage * 100)
@@ -346,7 +366,7 @@ def update(output: Path, cache: Path, *, days=7, today=None):
     temporary = manifest.with_suffix('.tmp')
     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     temporary.replace(manifest)
-    keep = {r[kind] for r in selected for kind in ('cover', 'anomaly')}
+    keep = {r[kind] for r in selected for kind in ('cover', 'anomaly', 'europe_cover', 'europe_anomaly') if kind in r}
     for path in (output / 'images').glob('*.png'):
         if path.relative_to(output).as_posix() not in keep:
             path.unlink()
