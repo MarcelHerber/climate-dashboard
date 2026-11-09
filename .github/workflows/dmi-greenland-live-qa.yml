@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "tests/test_greenland_live_browser.cjs"
+      - "tests/test_greenland_map_live_browser.cjs"
       - "groenland_stationen.js"
       - "groenland_stationen.html"
       - "groenland_stationen.css"
@@ -58,10 +59,9 @@ jobs:
         run: |
           python -m http.server 8765 --directory . > /tmp/dmi-greenland-http.log 2>&1 &
           node tests/test_greenland_live_browser.cjs
-      - name: Öffentlichen GitHub-Pages-Stand prüfen
-        run: |
-          echo "Lokaler Chromium-Test prüft die Originaldateien mit echter DMI-API."
-          echo "Ein Live-Deployment ist über den separaten GitHub-Pages-Workflow verifiziert."
+      - name: Veröffentlichte Grönland-Karte nach Pages-Deployment auf Desktop und Handy prüfen
+        if: github.event_name == 'workflow_run'
+        run: node tests/test_greenland_map_live_browser.cjs
       - name: Test-Screenshots als Nachweis speichern
         if: always()
         uses: actions/upload-artifact@v4
