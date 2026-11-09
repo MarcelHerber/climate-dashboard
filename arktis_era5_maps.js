@@ -100,7 +100,15 @@ function setRegion(preferredDate){
  $("arcticEra5ArchiveProgress").textContent="ERA5-Kartenarchiv: "+totals+
    " dauerhaft gespeicherte Tage · "+(archive?.initial_backfill_days??Math.min(totals,30))+
    " / "+(archive?.target_days||30)+" Tage der ersten Rückfüllung · "+
-   counts.join(" · ")+". Neue Tage werden automatisch ergänzt.";
+   counts.join(" · ")+". "+
+   (()=>{const d=days.map(x=>x.date).sort();
+     if(d.length<2)return "Weitere Tage werden automatisch ergänzt.";
+     const span=Math.round((Date.parse(d.at(-1)+"T00:00:00Z")-
+       Date.parse(d[0]+"T00:00:00Z"))/86400000)+1;
+     const missing=Math.max(0,span-d.length);
+     return missing?missing+" fehlende Tage zwischen "+dateLabel(d[0])+
+       " und "+dateLabel(d.at(-1))+".":"Keine Lücke zwischen ältestem und neuestem Kartentag.";
+   })()+" Neue Tage werden automatisch ergänzt.";
  if(!days.length){
    const option=document.createElement("option");option.value="";option.textContent="Noch keine Karten";
    selector.append(option);cal.value="";

@@ -1,0 +1,46 @@
+name: Arctic status and viewport quality checks
+
+on:
+  push:
+    branches:
+      - improve/arctic-status-mobile-qa-20261109
+    paths:
+      - scripts/build_data_status.py
+      - datenstatus.html
+      - arktis_era5_maps.js
+      - tests/test_arctic_status_extension.py
+      - .github/workflows/test-arctic-status-20261109.yml
+  pull_request:
+    paths:
+      - scripts/build_data_status.py
+      - datenstatus.html
+      - arktis_era5_maps.js
+      - tests/test_arctic_status_extension.py
+      - .github/workflows/test-arctic-status-20261109.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and Arctic archive regression tests
+        run: |
+          python -m py_compile scripts/build_data_status.py
+          python -m unittest discover -s tests -p 'test_arctic_status_extension.py' -v
+          python -m unittest discover -s tests -p 'test_data_status.py' -v
+          node --check arktis_era5_maps.js
+          node --test tests/test_arctic_era5_archive_ui.cjs
+      - name: Validate status page JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("datenstatus.html").read_text()
+          js = s.split("<script>", 1)[1].split("</script>", 1)[0]
+          Path("/tmp/status-page.js").write_text(js)
+          PY
+          node --check /tmp/status-page.js

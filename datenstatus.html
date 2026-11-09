@@ -34,6 +34,22 @@ table{border-collapse:collapse;width:100%;min-width:760px}
 th,td{padding:12px 10px;border-bottom:1px solid #e6edf5;text-align:left;vertical-align:top}
 th{font-size:12px;color:#52647b}
 td{font-size:14px}
+@media(max-width:650px){
+ .scroll{overflow:visible}
+ table{display:block;min-width:0}
+ thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ tbody{display:grid;gap:12px}
+ tbody tr{display:block;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+ tbody td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+   padding:8px 0;text-align:right;overflow-wrap:anywhere}
+ tbody td:first-child{text-align:left}
+ tbody td:not(:first-child)::before{content:attr(data-label);font-weight:700;
+   color:var(--muted);text-align:left;flex:0 0 38%}
+ tbody td:not(:first-child){flex-wrap:wrap}
+ tbody td:not(:first-child) .small{width:100%}
+ tbody td[colspan]{display:block;text-align:left}
+ tbody td[colspan]::before{display:none}
+}
 .name{font-weight:700}
 .small{font-size:12px;color:var(--muted)}
 .status{display:inline-block;font-size:12px;border-radius:15px;padding:4px 9px;font-weight:700;white-space:nowrap}
@@ -82,6 +98,7 @@ const STATUS={
  unknown:["Nicht prüfbar","unknown"]
 };
 const pages={
+ dmi_arctic:"arktis_temperatur.html",era5_arctic_maps:"arktis_temperatur.html",
  dwd_monthly:"index.html",dwd_daily:"index.html",station_records:"index.html",
  station_precip:"index.html",station_climate_days:"index.html",station_heatwaves:"index.html",
  snow:"index.html",fast_live:"index.html",era5_monthly:"index.html",era5_strat:"stratosphaere.html",
@@ -119,11 +136,12 @@ function render(){
   name.append(document.createElement("br"));const area=document.createElement("span");area.className="small";area.textContent=entry.group;name.append(area);
   const last=entry.latest||"–";
   const lag=entry.lag==null?"":entry.cadence==="monthly"?entry.lag+" Monat(e) seit Datenmonat":entry.cadence==="hourly"?entry.lag+" Stunde(n) zurück":entry.lag+" Tag(e) zurück";
-  const c=textCell(tr,last);const sub=document.createElement("div");sub.className="small";sub.textContent=lag;c.append(sub);
-  textCell(tr,formatted(entry.updated));
-  const coverage=textCell(tr,entry.coverage);
+  const c=textCell(tr,last);c.dataset.label="Letzter Datenstand";const sub=document.createElement("div");sub.className="small";sub.textContent=lag;c.append(sub);
+  textCell(tr,formatted(entry.updated)).dataset.label="Archiv aktualisiert";
+  const coverage=textCell(tr,entry.coverage);coverage.dataset.label="Abdeckung und Hinweis";
   const note=document.createElement("div");note.className="small";note.textContent=entry.note||"";coverage.append(note);
   const td=tr.insertCell(),def=STATUS[entry.status]||STATUS.unknown,p=document.createElement("span");
+  td.dataset.label="Status";
   p.className="status "+def[1];p.textContent=def[0];td.append(p);
  }
 }
