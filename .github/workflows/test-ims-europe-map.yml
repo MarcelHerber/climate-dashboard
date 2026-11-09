@@ -1,0 +1,45 @@
+name: NOAA IMS Europe map extent validation
+
+on:
+  push:
+    branches: [feature/ims-europe-extent-20261109]
+  pull_request:
+    paths:
+      - snow_maps.js
+      - eurasia_snow.html
+      - scripts/update_snow_maps.py
+      - tests/test_snow_maps.py
+      - tests/test_snow_maps.cjs
+      - scripts/build_pages_site.sh
+      - .github/workflows/test-ims-europe-map.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            snow_maps.js
+            eurasia_snow.html
+            scripts/update_snow_maps.py
+            scripts/build_pages_site.sh
+            tests/test_snow_maps.py
+            tests/test_snow_maps.cjs
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "numpy>=1.26,<3" "matplotlib>=3.8,<4" "pillow>=10,<13"
+      - name: Scientific and UI regression tests
+        run: |
+          python -m py_compile scripts/update_snow_maps.py
+          python -m unittest discover -s tests -p test_snow_maps.py -v
+          node --check snow_maps.js
+          node --test tests/test_snow_maps.cjs
