@@ -47,6 +47,7 @@ required_root_files=(
   arktis_temperatur.html
   arktis_temperatur.js
   arktis_era5_maps.js
+  arktis_era5_sync.js
   arktis_klimastatistik.js
   arktis_statistik.js
   arktis_temperatur.css
@@ -177,9 +178,14 @@ else
 fi
 node --check _site/arktis_temperatur.js
 node --check _site/arktis_era5_maps.js
+node --check _site/arktis_era5_sync.js
 node --check tests/test_arctic_era5_archive_ui.cjs
 node --test tests/test_arctic_era5_archive_ui.cjs
 grep -q 'id="arcticEra5MapPanel"' _site/arktis_temperatur.html
+grep -q 'src="arktis_era5_sync.js?v=1"' _site/arktis_temperatur.html
+for el in arcticEra5CompareEnabled arcticEra5CompareGrid arcticEra5CompareDate arcticEra5SyncStatus; do
+  grep -q "id=\"$el\"" _site/arktis_temperatur.html || { echo "DMI/ERA5 Vergleich fehlt: $el"; exit 1; }
+done
 
 # Publish only VERIFIED real Copernicus ERA5 polar-cap fields; never synthetic maps.
 if [[ -s data/arctic_era5_maps/index.json ]]; then
