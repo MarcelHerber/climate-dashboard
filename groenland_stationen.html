@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Grönland · DMI-Wetterstationen und Klimarekorde | Climate Dashboard</title>
+<meta name="description" content="Interaktive Karte grönländischer DMI-Wetterstationen, historische Originalmesswerte seit 1953, Temperatur-, Niederschlags- und Windrekorde.">
+<link rel="stylesheet" href="dashboard_theme.css">
+<link rel="stylesheet" href="groenland_stationen.css?v=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzXUQ6Bf7MoeXcCQvM7nJ3/5VY=" crossorigin="">
+<script defer src="dashboard_theme.js"></script>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script defer src="groenland_stationen.js?v=1"></script>
+</head>
+<body class="greenland-page">
+<header class="gr-header">
+ <a href="index.html" class="gr-brand">◌ Climate Dashboard Deutschland</a>
+ <nav aria-label="Navigation"><a href="index.html">Startseite</a><a href="arktis_temperatur.html">DMI-Arktis</a><a href="meereis.html">Meereis</a></nav>
+</header>
+<main class="gr-main" id="greenlandMain">
+ <div class="gr-intro">
+  <div><span class="gr-eyebrow">DMI · offizielle Klimadaten · Grönland</span>
+   <h1>Grönland-Stationsmonitor</h1>
+   <p>Alle verfügbaren DMI-Stationsstandorte auf einer Karte; historische Stationswerte, Wetterextreme und frei wählbare Zeiträume. Originaldaten ohne synthetische Lückenfüllung.</p></div>
+  <div class="gr-updated"><span>Datenbestand</span><strong id="grUpdated">Lädt …</strong><small id="grCoverage">DMI Climate Data API</small></div>
+ </div>
+ <p class="gr-status" id="grStatus" role="status" aria-live="polite">DMI-Stationen und aktuelle Messungen werden geladen …</p>
+ <section class="gr-grid" aria-label="Stationsübersicht">
+  <div class="gr-card gr-map-card">
+    <div class="gr-card-header"><h2>Stationskarte</h2><span id="grMapCount">—</span></div>
+    <div class="gr-map-tools">
+      <label>Station suchen <input id="grSearch" type="search" placeholder="z. B. Nuuk, Station Nord oder Stationsnummer" aria-label="Stationsnamen suchen"></label>
+      <label>Stationsstatus
+       <select id="grStatusFilter"><option value="active">Aktive Stationen</option><option value="all">Alle einschließlich historischer</option></select>
+      </label>
+    </div>
+    <div id="grMap" role="application" aria-label="Interaktive DMI-Wetterstationskarte Grönland"></div>
+    <p class="gr-note">Marker zeigen DMI-Standorte; Farbe zeigt das jüngste gültige Temperatur-Tagesmittel, sofern vorhanden. Die Größe des Archivs und die Aktualität unterscheiden sich je Station.</p>
+  </div>
+  <div class="gr-card gr-list-card">
+    <div class="gr-card-header"><h2>Station wählen</h2><span id="grStationCount">—</span></div>
+    <div id="grStationList" class="gr-station-list" role="listbox" aria-label="Grönländische Wetterstationen"></div>
+    <p class="gr-note" id="grStationListNote">Stationsstandorte werden aus dem offiziellen DMI-Katalog geladen.</p>
+  </div>
+ </section>
+ <section class="gr-card gr-series-card" aria-labelledby="grStationTitle">
+  <div class="gr-card-header"><div>
+    <h2 id="grStationTitle">Station auswählen</h2><p class="gr-muted" id="grStationMeta">–</p></div>
+    <div class="gr-downloads"><button id="grCsv" disabled>Messwerte CSV</button><button id="grPng" disabled>Diagramm PNG</button></div>
+  </div>
+  <div class="gr-controls">
+    <label>Parameter
+      <select id="grParameter">
+        <option value="mean_temp">Tages-/Monats-/Jahresmittel Temperatur · °C</option>
+        <option value="max_temp_w_date">Temperaturmaximum · °C</option>
+        <option value="min_temp">Temperaturminimum · °C</option>
+        <option value="acc_precip">Niederschlagssumme · mm</option>
+        <option value="max_wind_speed_3sec">Maximale 3-s-Böe · m/s</option>
+        <option value="mean_wind_speed">Mittlere Windgeschwindigkeit · m/s</option>
+        <option value="mean_pressure">Luftdruckmittel · hPa</option>
+      </select>
+    </label>
+    <label>Auflösung
+      <select id="grResolution">
+        <option value="day">Tageswerte</option>
+        <option value="month">Monatswerte</option>
+        <option value="year" selected>Jahreswerte</option>
+      </select>
+    </label>
+    <label>Von Jahr <select id="grFromYear"></select></label>
+    <label>Bis Jahr <select id="grToYear"></select></label>
+    <button id="grApply" type="button">Zeitraum laden</button>
+  </div>
+  <div id="grSeriesStatus" class="gr-note" role="status" aria-live="polite">Wähle eine Station für die historischen DMI-Werte.</div>
+  <div class="gr-kpis">
+    <div><span>Erster verfügbarer Wert</span><strong id="grFirst">–</strong></div>
+    <div><span>Letzter verfügbarer Wert</span><strong id="grLast">–</strong></div>
+    <div><span>Extrem im gewählten Zeitraum</span><strong id="grExtreme">–</strong></div>
+    <div><span>Gültige Werte</span><strong id="grValidCount">–</strong></div>
+  </div>
+  <div class="gr-chart-wrap"><canvas id="grChart" role="img" aria-label="Zeitreihe originaler DMI-Stationswerte"></canvas></div>
+  <p class="gr-note">Fehlende Messwerte bleiben Lücken. Tageswerte beziehen sich auf die vom DMI definierten Messintervalle; diese können je nach Parameter von einem Mitternacht-zu-Mitternacht-Tag abweichen. Bei Niederschlag bedeutet −0,1 mm laut DMI „Spur unter 0,1 mm“.</p>
+ </section>
+ <section class="gr-card" aria-labelledby="grRecordsTitle">
+   <div class="gr-card-header"><div><h2 id="grRecordsTitle">Historische Stationsrekorde</h2>
+     <p class="gr-muted">Aus Jahresmaxima und -minima der offiziellen DMI-Daten · vollständige API-Auswertung je verfügbarer Reihe</p></div>
+     <button id="grRecordCsv" type="button" disabled>Rekorde CSV</button>
+   </div>
+   <p class="gr-note" id="grRecordStatus" role="status" aria-live="polite">Wähle eine Station, um ihre historischen Rekorde zu laden.</p>
+   <div class="gr-record-grid" id="grRecordGrid">
+    <div><span>Höchste Temperatur</span><strong id="grRecHigh">–</strong><small id="grRecHighYear">–</small></div>
+    <div><span>Tiefste Temperatur</span><strong id="grRecLow">–</strong><small id="grRecLowYear">–</small></div>
+    <div><span>Stärkste 3-s-Böe</span><strong id="grRecGust">–</strong><small id="grRecGustYear">–</small></div>
+    <div><span>Größter Tagesniederschlag</span><strong id="grRecRain">–</strong><small id="grRecRainYear">–</small></div>
+   </div>
+   <p class="gr-note">Rekorde sind <strong>Stationsrekorde innerhalb der jeweils vom DMI bereitgestellten Reihe</strong>, keine landesweiten Bestwerte. Die Datenverfügbarkeit variiert nach Station und Messgröße; die ausgewiesenen Jahre kennzeichnen die jeweilige Jahresauswertung, nicht zwingend das genaue Ereignisdatum. Keine Rekordangabe bei nicht verfügbaren Werten.</p>
+ </section>
+ <section class="gr-card" aria-labelledby="grSourcesTitle">
+  <h2 id="grSourcesTitle">Datenquelle und Qualität</h2>
+  <p>Quelle: <strong>Dänisches Meteorologisches Institut (DMI)</strong>, Climate Data API: <code>station</code> (Standorte) und <code>stationValue</code> (Stunden-, Tages-, Monats- und Jahreswerte). Der Stationskatalog und die jüngsten Tageswerte werden automatisiert im Repository zwischengespeichert; historische Reihen werden beim Auswählen gezielt vom DMI abgerufen.</p>
+  <p>Ungültige DMI-Werte (<code>validity=false</code>) werden ausgeschlossen. Werte mit <code>qcStatus=none</code> können vorläufig und noch nicht manuell geprüft sein. Das DMI nimmt für Grönland keine automatische räumliche Lückenfüllung vor; Stationsverlegungen und Instrumentenwechsel können Reihen beeinflussen.</p>
+  <div class="gr-links">
+   <a href="https://www.dmi.dk/friedata/dokumentation/apis/climate-data-api-1" target="_blank" rel="noopener">DMI Climate Data API</a>
+   <a href="https://www.dmi.dk/friedata/dokumentation/climate-data" target="_blank" rel="noopener">DMI Parameter und Qualität</a>
+   <a href="https://opendataapi.dmi.dk/v2/climateData/collections/station/items" target="_blank" rel="noopener">Original-Stationskatalog</a>
+   <a href="data/dmi_greenland_stations.json">Aktueller Stationscache (JSON)</a>
+  </div>
+ </section>
+</main>
+<footer class="gr-footer">Climate Dashboard Deutschland · Originaldaten: DMI · keine Prognose</footer>
+</body></html>
