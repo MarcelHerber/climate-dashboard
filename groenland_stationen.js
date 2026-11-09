@@ -114,7 +114,7 @@ function markerTitle(s){
  const t=latestFor(s.id,"mean_temp");
  return s.name+" · "+s.id+(t?" · "+fmt(t.value)+" °C ("+dateLabel(t.date)+")":" · ohne jüngstes Temperaturmittel");
 }
-function selectStation(id,scroll=true){
+function selectStation(id,scroll=true,focusMap=true){
  const s=catalogue.find(x=>x.id===id);if(!s)return;
  station=s;serial++;
  $("grStationTitle").textContent=s.name+" · "+s.id;
@@ -125,7 +125,13 @@ function selectStation(id,scroll=true){
   " · "+s.type;
  for(const [key,m] of markers)m.setStyle({weight:key===s.id?3:1,opacity:key===s.id?1:.82});
  const marker=markers.get(id);
- if(marker&&map){map.panTo(marker.getLatLng(),{animate:true});marker.openPopup();}
+ if(marker&&map&&focusMap){
+  // Keep station coordinates fixed; do not land on an empty ocean tile when a
+  // small-screen map is currently zoomed out to show all of Greenland.
+  map.invalidateSize({pan:false});
+  map.setView(marker.getLatLng(),Math.max(5,map.getZoom()),{animate:false});
+  marker.openPopup();
+ }
  renderList();
  $("grSeriesStatus").textContent="Lade historische Originalwerte für "+s.name+" …";
  $("grRecordStatus").textContent="Prüfe DMI-Jahresextreme für "+s.name+" …";
@@ -163,6 +169,19 @@ function renderList(){
   if(visible)markerGroup?.addLayer(m);else markerGroup?.removeLayer(m);
  }
 }
+function fitStationBounds(){
+ if(!map||!markerGroup||!markerGroup.getLayers().length)return;
+ map.invalidateSize({pan:false});
+ map.fitBounds(markerGroup.getBounds(),{padding:[28,28],maxZoom:4,animate:false});
+}
+function resetMap(){
+ if(!map)return;
+ $("grSearch").value="";
+ $("grStatusFilter").value="active";
+ map.closePopup();
+ renderList();
+ fitStationBounds();
+}
 function makeMap(){
  if(typeof L==="undefined"){
   $("grMap").textContent="Kartengrundlage konnte nicht geladen werden. Die Stationsliste ist weiterhin nutzbar.";
@@ -189,7 +208,15 @@ function makeMap(){
   markers.set(s.id,m);
  }
  renderList();
- setTimeout(()=>map.invalidateSize(),350);
+ $("grMapReset").disabled=false;
+ fitStationBounds();
+ // Browsers can finish mobile navigation layout after the map has initialized.
+ // Recalculate its tile grid once the final responsive container size is known.
+ setTimeout(()=>map.invalidateSize({pan:false}),200);
+ if(typeof ResizeObserver!=="undefined"){
+  const observer=new ResizeObserver(()=>map?.invalidateSize({pan:false}));
+  observer.observe($("grMap"));
+ }
 }
 function resetParameterIfUnsupported(){
  const allowed=station?.parameters||[];
@@ -427,7 +454,7 @@ async function loadCatalogue(){
   makeMap();
   const current=catalogue.find(s=>s.status==="Active"&&latestFor(s.id,"mean_temp"))||
                 catalogue.find(s=>s.status==="Active")||catalogue[0];
-  if(current)selectStation(current.id,false);
+  if(current)selectStation(current.id,false,false);
  }catch(e){
   $("grUpdated").textContent="Keine Daten";
   status("DMI-Stationskatalog derzeit nicht verfügbar: "+e.message+
@@ -442,6 +469,7 @@ function init(){
  $("grApply").addEventListener("click",loadBoth);
  $("grSearch").addEventListener("input",renderList);
  $("grStatusFilter").addEventListener("change",renderList);
+ $("grMapReset").addEventListener("click",resetMap);
  $("grCsv").addEventListener("click",saveSeries);
  $("grRecordCsv").addEventListener("click",saveRecords);
  $("grPng").addEventListener("click",savePng);
@@ -449,6 +477,7 @@ function init(){
 }
 window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,plotWithGaps,PARAMS,
  getState:()=>({stationId:station?.id||"",stations:catalogue.length,
-  records:records.length,series:series.length,hasMap:!!map,dataStamp:cachedStamp})};
+  records:records.length,series:series.length,hasMap:!!map,
+  markerCount:markerGroup?.getLayers().length||0,mapZoom:map?.getZoom()??null,dataStamp:cachedStamp})};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
