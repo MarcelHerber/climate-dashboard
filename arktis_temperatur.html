@@ -6,13 +6,14 @@
 <meta name="color-scheme" content="light dark">
 <title>Arktische Temperaturen · nördlich 80° N | Climate Dashboard Deutschland</title>
 <meta name="description" content="Interaktiver DMI-Temperaturindex nördlich 80 Grad Nord: Jahresgänge seit 1958, historische Vergleiche, Tagesanomalien und 7-/30-Tage-Mittel.">
-<link rel="stylesheet" href="arktis_temperatur.css?v=6">
+<link rel="stylesheet" href="arktis_temperatur.css?v=7">
 <link rel="stylesheet" href="dashboard_theme.css">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script defer src="arktis_temperatur.js?v=8"></script>
-<script defer src="arktis_era5_maps.js?v=4"></script>
+<script defer src="arktis_temperatur.js?v=9"></script>
+<script defer src="arktis_era5_maps.js?v=5"></script>
+<script defer src="arktis_era5_sync.js?v=1"></script>
 <script defer src="arktis_klimastatistik.js?v=3"></script>
 
 </head>
@@ -155,7 +156,19 @@
         <div><span>Abweichung vom Monatsmittel 1991–2020</span><strong id="arcticEra5MeanAnomaly">–</strong></div>
       </div>
       <p id="arcticEra5MeanMethod" class="arctic-stat-note">Flächengewichtetes Mittel des ERA5-Rasters · nicht identisch mit dem DMI-Index.</p>
-      <div class="arctic-era5-grid" id="arcticEra5Maps">
+      <div class="arctic-era5-linked" aria-label="Gemeinsame Tagesnavigation">
+        <strong>DMI ↔ ERA5: gemeinsame Tagesauswahl</strong>
+        <p id="arcticEra5SyncStatus" role="status" aria-live="polite">Lade die verfügbaren Kartentage. Ein Klick auf einen DMI-Diagrammtag öffnet dessen ERA5-Karten, falls vorhanden.</p>
+        <p class="arctic-stat-note">Bei fehlenden ERA5-Tagen bleibt die letzte verfügbare Karte stehen und wird nicht als Ersatzdatum ausgegeben. Mit ← / → auf den fokussierten Karten oder durch horizontales Wischen wechselst du den Tag; die DMI-Diagramme folgen.</p>
+      </div>
+      <div class="arctic-era5-compare-controls">
+        <label class="arctic-era5-compare-check"><input type="checkbox" id="arcticEra5CompareEnabled"> Zwei ERA5-Tage nebeneinander vergleichen</label>
+        <label>Vergleichsdatum B
+          <select id="arcticEra5CompareDate" aria-label="Zweiten ERA5-Tag auswählen" disabled><option value="">Archiv wird geladen …</option></select>
+        </label>
+        <button type="button" id="arcticEra5CompareSwap" disabled>Tag A und B tauschen</button>
+      </div>
+      <div class="arctic-era5-grid" id="arcticEra5Maps" tabindex="0" aria-label="ERA5-Karten: Pfeiltasten und Wischgesten wechseln den Tag">
         <section id="arcticEra5TempFrame" class="arctic-era5-map-frame">
           <h3>2-m-Lufttemperatur</h3>
           <p class="arctic-stat-note">ERA5-Tagesmittel 00–24 UTC · feste Temperaturskala −45 bis +15 °C.</p>
@@ -169,8 +182,38 @@
           <a id="arcticEra5AnomalyPng" class="arctic-era5-download" download>Anomaliekarte als PNG</a>
         </section>
       </div>
-      <div class="arctic-buttons arctic-analysis-buttons">
+      <div class="arctic-buttons arctic-analysis-buttons" id="arcticEra5PrimaryDownloads">
         <button type="button" id="arcticEra5Pdf" disabled>Beide Karten als beschriftetes PDF</button>
+      </div>
+      <div class="arctic-era5-comparison" id="arcticEra5CompareGrid" hidden tabindex="0" aria-label="ERA5-Zwei-Tage-Vergleich: mit Pfeiltasten oder horizontalem Wischen Tag A wechseln">
+        <article class="arctic-era5-comparison-day">
+          <h3 id="arcticEra5CompareATitle">Tag A</h3>
+          <p id="arcticEra5CompareAMetrics" class="arctic-stat-note"></p>
+          <div class="arctic-era5-comparison-map" data-era5-kind="temperature">
+            <img id="arcticEra5CompareATemp" alt="Temperaturkarte Tag A" loading="lazy" decoding="async">
+            <a id="arcticEra5CompareATempPng" class="arctic-era5-download" download>Temperatur PNG · A</a>
+          </div>
+          <div class="arctic-era5-comparison-map" data-era5-kind="anomaly">
+            <img id="arcticEra5CompareAAnomaly" alt="Anomaliekarte Tag A" loading="lazy" decoding="async">
+            <a id="arcticEra5CompareAAnomalyPng" class="arctic-era5-download" download>Anomalie PNG · A</a>
+          </div>
+        </article>
+        <article class="arctic-era5-comparison-day">
+          <h3 id="arcticEra5CompareBTitle">Tag B</h3>
+          <p id="arcticEra5CompareBMetrics" class="arctic-stat-note"></p>
+          <div class="arctic-era5-comparison-map" data-era5-kind="temperature">
+            <img id="arcticEra5CompareBTemp" alt="Temperaturkarte Tag B" loading="lazy" decoding="async">
+            <a id="arcticEra5CompareBTempPng" class="arctic-era5-download" download>Temperatur PNG · B</a>
+          </div>
+          <div class="arctic-era5-comparison-map" data-era5-kind="anomaly">
+            <img id="arcticEra5CompareBAnomaly" alt="Anomaliekarte Tag B" loading="lazy" decoding="async">
+            <a id="arcticEra5CompareBAnomalyPng" class="arctic-era5-download" download>Anomalie PNG · B</a>
+          </div>
+        </article>
+      </div>
+      <p id="arcticEra5CompareSummary" class="arctic-stat-note" aria-live="polite" hidden></p>
+      <div class="arctic-buttons arctic-analysis-buttons" id="arcticEra5CompareDownloads" hidden>
+        <button type="button" id="arcticEra5ComparePdf" disabled>Vier Vergleichskarten als PDF</button>
       </div>
       <p class="arctic-stat-note"><strong>Methodik:</strong> Die Karte verwendet räumliche ERA5-Reanalysen der Lufttemperatur in 2 m Höhe auf einem 0,5°-Raster für die wählbaren Gebiete 80–90°N, 70–90°N und 60–90°N (alle Längengrade). Die Abweichung bezieht sich auf das <strong>monatliche</strong> ERA5-Klimamittel 1991–2020 für denselben Kalendermonat, nicht auf den klimatologischen Mittelwert des jeweiligen Tages. Sie ist somit nicht unmittelbar mit der tagesbezogenen DMI-Anomalie vergleichbar. Das DMI-Diagramm und die ERA5-Karte verwenden unterschiedliche Berechnungsgrundlagen. ERA5 ist eine Reanalyse, keine Wettervorhersage; neue Karten erscheinen mit einigen Tagen Verzögerung; zunächst werden 30 Tage rückwirkend ergänzt, danach wird das Archiv fortlaufend erweitert. Weder fehlende Daten noch fehlgeschlagene Downloads werden durch synthetische Karten ersetzt.</p>
       <div class="arctic-method-links">
