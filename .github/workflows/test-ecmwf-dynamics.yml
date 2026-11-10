@@ -30,7 +30,7 @@ jobs:
           node --input-type=module --check < alpenwetter-worker/src/cloud-lab.js
       - name: Anmeldung, Datenschutz und dynamisches Browser-Skript prüfen
         run: |
-          node --experimental-default-type=module --input-type=module <<'JS'
+          node --input-type=module <<'JS'
           import assert from "node:assert/strict";
           import {dynamicsLabPage,dynamicsLabLoginPage,dynamicsLabData} from "./alpenwetter-worker/src/dynamics-lab.js";
           import worker from "./alpenwetter-worker/src/index.js";
