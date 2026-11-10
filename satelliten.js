@@ -58,8 +58,15 @@ function layerTimes(xml,layerName){
  const layers=[...doc.getElementsByTagName("*")].filter(n=>n.localName==="Layer");
  const selected=layers.find(n=>[...n.children].some(c=>c.localName==="Name"&&c.textContent.trim()===layerName));
  if(!selected)return [];
- const el=[...selected.children].find(c=>(c.localName==="Dimension"||c.localName==="Extent")&&(c.getAttribute("name")||"").toLowerCase()==="time");
- return parseTimes(el?.textContent||"");
+ // WMS 1.1.1 often has an empty <Dimension> declaration followed by
+ // a populated <Extent name="time">; time can also be inherited.
+ let current=selected;
+ while(current&&current.localName==="Layer"){
+  const candidates=[...current.children].filter(c=>(c.localName==="Dimension"||c.localName==="Extent")&&(c.getAttribute("name")||"").toLowerCase()==="time"&&c.textContent.trim());
+  if(candidates.length)return parseTimes(candidates[0].textContent);
+  current=current.parentElement;
+ }
+ return [];
 }
 function fillTimes(){time.replaceChildren();if(!frames.length){const o=new Option("Keine verifizierten UTC-Zeiten","");time.add(o);index=-1;buttons();return;}
  frames.forEach((t,i)=>time.add(new Option(formatUTC(t),String(i))));
