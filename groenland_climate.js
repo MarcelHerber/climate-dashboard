@@ -115,8 +115,36 @@ function fillRanking(){
   setText("grMapStationRanksTitle",stationName?stationName+" · keine verfügbaren Jahresrekorde":"Station auswählen");
  }
 }
+function drawLegend(mode){
+ const limits={
+  latest:[-30,-15,-5,5],high:[-10,0,10,20],
+  low:[-45,-35,-25,-15],gust:[10,20,30,40],rain:[5,15,30,60]
+ };
+ const colors=["#4b448f","#2479b0","#44a3b9","#e1b14b","#d85c4a"];
+ const unit=mode==="latest"?"°C":MODES[mode].unit;
+ const threshold=limits[mode]||limits.latest;
+ const labels=[
+  "< "+threshold[0],threshold[0]+" bis < "+threshold[1],
+  threshold[1]+" bis < "+threshold[2],threshold[2]+" bis < "+threshold[3],
+  "≥ "+threshold[3]
+ ];
+ const legend=$("grMapLegend");legend.replaceChildren();
+ const title=document.createElement("strong");title.textContent="Farbskala ("+unit+"): ";
+ legend.append(title);
+ for(let i=0;i<5;i++){
+  const box=document.createElement("span");box.className="gr-map-legend-item";
+  const swatch=document.createElement("i");swatch.className="gr-swatch";
+  swatch.style.background=colors[i];
+  box.append(swatch,document.createTextNode(labels[i]));legend.append(box);
+ }
+ const missing=document.createElement("span");missing.className="gr-map-legend-item";
+ const square=document.createElement("i");square.className="gr-swatch";
+ square.style.background="#748398";
+ missing.append(square,document.createTextNode("keine Daten"));legend.append(missing);
+}
 function applyMap(){
  lastMode=$("grMapMode").value;
+ drawLegend(lastMode);
  if(lastMode==="latest"){
   window.GreenlandDmiMap?.applyRecordMap("latest");
   $("grMapRanking").hidden=true;
