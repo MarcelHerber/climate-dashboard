@@ -47,3 +47,17 @@ with tarfile.open(fileobj=io.BytesIO(archive.content),mode="r:gz") as ar:
      a=ds.read(band,out_shape=(150,150))
      print("BAND",band,"tags",ds.tags(band),"sample",np.unique(a)[:30].tolist(),"minmax",(np.min(a),np.max(a)),
            "colormap",str(ds.colormap(band))[:400] if ds.count==1 else "-")
+
+ print("LPA_PPI_COUNT",len([m for m in items if "down_LPA" in m.name and ".PPI.Z_" in m.name]))
+ for item in sorted([m for m in items if "down_LPA" in m.name and ".PPI.Z_" in m.name],key=lambda m:m.name)[-4:]:
+  with rasterio.MemoryFile(ar.extractfile(item).read()) as mem:
+   with mem.open() as ds:
+    print("LPA_PPI",item.name,item.size,"shape",ds.shape,"bounds",str(ds.bounds),
+          "crs",ds.crs,"data_types",ds.dtypes,"tags",str(ds.tags())[:1800],"interp",ds.colorinterp)
+    values=ds.read(out_shape=(4,190,190),masked=False)
+    rgba=values.transpose(1,2,0)
+    print("LPA_STATS","avg_rgb",rgba[:,:,:3].mean(axis=(0,1)).tolist(),
+      "alpha_gt_0",float((rgba[:,:,3]>0).mean()),
+      "alpha_255",float((rgba[:,:,3]==255).mean()),
+      "white_fraction",float(np.all(rgba[:,:,:3]>245,axis=2).mean()),
+      "sample_unique",np.unique(rgba.reshape(-1,4),axis=0)[:25].tolist())
