@@ -1,0 +1,31 @@
+/* Satelliten: responsive WMS imagery, independent of dashboard page layout. */
+:root{--sat-bg:#f3f7fb;--sat-panel:#fff;--sat-text:#15304a;--sat-muted:#536a7e;--sat-border:#d5e1ea;--sat-link:#17659c;--sat-button:#edf4fa}
+html[data-theme="dark"]{--sat-bg:#0e1827;--sat-panel:#17283d;--sat-text:#e8f2fa;--sat-muted:#bccbda;--sat-border:#36506b;--sat-link:#93cefa;--sat-button:#233a52}
+*{box-sizing:border-box}html{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}body{margin:0;background:var(--sat-bg);color:var(--sat-text);line-height:1.55}a{color:var(--sat-link)}a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #f6ad38;outline-offset:2px}
+.sat-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px max(22px,calc((100vw - 1450px)/2));background:var(--sat-panel);border-bottom:1px solid var(--sat-border);font-weight:700}
+.sat-header-actions{display:flex;align-items:center;gap:16px;font-size:13px;color:var(--sat-muted)}
+.sat-header button,.sat-actions button{font:inherit;color:var(--sat-text);background:var(--sat-button);border:1px solid var(--sat-border);padding:10px 14px;border-radius:9px;cursor:pointer}
+.sat-header button{display:flex;align-items:center;gap:7px;min-height:42px}
+.sat-header button .header-icon svg{width:18px;height:18px}
+.sat-header button:disabled,.sat-actions button:disabled{opacity:.48;cursor:not-allowed}
+.sat-main{max-width:1480px;margin:0 auto;padding:24px clamp(14px,3vw,32px) 52px}
+.sat-eyebrow{text-transform:uppercase;letter-spacing:.12em;color:var(--sat-link);font-weight:800;font-size:12px}
+h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-size:19px;margin:0 0 12px}.sat-lead{margin:0 0 24px;max-width:1000px;color:var(--sat-muted)}
+.sat-panel{padding:clamp(16px,2vw,24px);background:var(--sat-panel);border:1px solid var(--sat-border);border-radius:15px;margin-bottom:18px;box-shadow:0 7px 20px rgba(35,63,91,.055)}
+.sat-controls{display:grid;grid-template-columns:1.2fr 1.25fr 1fr 1.1fr;gap:12px}
+.sat-controls label{font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:6px;min-width:0}
+.sat-controls select{font:inherit;font-size:14px;color:var(--sat-text);background:var(--sat-bg);border:1px solid var(--sat-border);border-radius:8px;min-height:44px;padding:8px;width:100%}
+.sat-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.sat-actions button:hover:not(:disabled),.sat-header button:hover{border-color:var(--sat-link)}
+.sat-status{border-left:4px solid #4a88ba;background:var(--sat-bg);padding:11px 14px;margin-top:16px;border-radius:5px;color:var(--sat-text);min-height:44px}
+.sat-status[data-kind="error"]{border-color:#c75955}.sat-status[data-kind="warning"]{border-color:#d89a23}
+.sat-map-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}.sat-map-top>span{font-size:14px;font-weight:700;color:var(--sat-muted)}
+.sat-picture-frame{background:#101c2d;min-height:240px;display:flex;justify-content:center;align-items:center;border-radius:10px;overflow:hidden;position:relative}
+.sat-picture-frame img{display:block;max-width:100%;height:auto;object-fit:contain}
+.sat-picture-frame img[hidden]{display:none}
+.sat-empty{color:#e8f2f8;padding:32px;text-align:center}
+.sat-caption{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:12px;color:var(--sat-muted);font-size:12px}
+.sat-links{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-weight:700;font-size:14px}
+.sat-panel p{max-width:1050px}.sat-footer{max-width:1480px;margin:0 auto;padding:10px 24px 32px;color:var(--sat-muted);font-size:13px}
+@media(max-width:1050px){.sat-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.sat-main{padding:18px 12px 34px}.sat-header{padding:12px 14px}.sat-header-actions>span{display:none}.sat-controls{grid-template-columns:minmax(0,1fr)}.sat-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.sat-actions button{min-height:44px;padding:10px 7px}.sat-actions button:last-child{grid-column:1/-1}.sat-picture-frame{min-height:170px}.sat-caption{display:block}.sat-caption>span{display:block;margin-top:4px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
