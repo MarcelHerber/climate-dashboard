@@ -66,8 +66,10 @@ function fillTimes(){time.replaceChildren();if(!frames.length){const o=new Optio
  index=frames.length-1;time.value=String(index);buttons();
 }
 async function refresh(){
- stop();token++;const mine=token;abort?.abort();abort=new AbortController();frames=[];index=-1;loaded=false;fillTimes();
- id("satOfficial").href=description().url;id("satAttribution").textContent=description().credit;
+ stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;fillTimes();
+ id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
+ id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
+ product.disabled=source.value==="mtgi2";region.disabled=source.value==="mtgi2";id("satAttribution").textContent=source.value==="mtgi2"?"ESA · erste MTG-I2-Aufnahmen":description().credit;
  if(source.value==="mtgi2"){
   image.hidden=true;empty.hidden=false;empty.textContent="MTG-I2: erste Aufnahmen und die 2,5-Minuten-Animation sind über den ESA-Link abrufbar. Noch keine reguläre Livequelle.";
   id("satMapTitle").textContent="MTG-I2 · Erstaufnahmen (November 2026)";
@@ -79,9 +81,9 @@ async function refresh(){
  // A server-default frame is never labelled as current.
  drawFrame(null);
  const caps=API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetCapabilities"}).toString();
- const timeout=setTimeout(()=>abort?.abort(),16000);
+ const timeout=setTimeout(()=>controller.abort(),16000);
  try{
-  const response=await fetch(caps,{signal:abort.signal,mode:"cors",cache:"no-store"});
+  const response=await fetch(caps,{signal:controller.signal,mode:"cors",cache:"no-store"});
   if(!response.ok)throw new Error("HTTP "+response.status);
   const xml=await response.text();if(mine!==token)return;
   const available=layerTimes(xml,description().layer);
