@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T16:21:06Z",
+  "generated_at": "2026-11-10T16:24:34Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -66,14 +66,16 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.6,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 312994,
       "atlantic_ok": true,
       "atlantic_bytes": 939042,
       "southwest_ok": true,
-      "southwest_bytes": 1635652
+      "southwest_bytes": 1635652,
+      "film_preview_ok": false,
+      "film_preview_error": "HTTP Error 500: Internal Server Error"
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -136,14 +138,19 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.6,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 293187,
       "atlantic_ok": true,
       "atlantic_bytes": 1055756,
       "southwest_ok": true,
-      "southwest_bytes": 2016711
+      "southwest_bytes": 2016711,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        314410,
+        316005
+      ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
@@ -206,14 +213,19 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 21.1,
+      "age_minutes": 24.6,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 251164,
       "atlantic_ok": true,
       "atlantic_bytes": 738334,
-      "southwest_ok": false,
-      "southwest_error": "The read operation timed out"
+      "southwest_ok": true,
+      "southwest_bytes": 1727103,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        288425,
+        273193
+      ]
     }
   },
   "errors": [],
