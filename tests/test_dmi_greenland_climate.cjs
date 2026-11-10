@@ -7,8 +7,8 @@ const ctx={window:{},document:{readyState:"loading",addEventListener(){}},Date,N
 vm.createContext(ctx);vm.runInContext(script,ctx);
 const m=ctx.window.GreenlandClimateMath;
 const today=new Date(Date.UTC(2026,10,10));
-function annual(y,extra=0,count=365){
- return {date:String(y),value:5+(y-1991)*.03+extra,count:y%4===0&&y%100!==0?366:count,qc:"manual"};
+function annual(y,extra=0,count=null){
+ return {date:String(y),value:5+(y-1991)*.03+extra,count:count??(y%4===0&&y%100!==0?366:365),qc:"manual"};
 }
 function monthly(y,mon,v=0,count=30){
  const days=new Date(Date.UTC(y,mon,0)).getUTCDate();
