@@ -1,0 +1,113 @@
+name: Spanien-Inseln · AEMET Radar und Balearen
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_aemet_canarias_radar.py"
+      - "alpenwetter-worker/src/canarias-radar-lab.js"
+      - "alpenwetter-worker/src/canarias-radar-client.js"
+      - "alpenwetter-worker/src/opera-radar-lab.js"
+      - "alpenwetter-worker/src/opera-radar-client.js"
+      - "alpenwetter-worker/src/index.js"
+      - "tests/test_canarias_radar_browser.mjs"
+      - "tests/test_opera_radar_browser.mjs"
+      - ".github/workflows/test-spanish-islands.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-aemet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - name: GeoTIFF Abhängigkeiten
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3"
+      - name: Reale AEMET-Kanaren-Radarbilder importieren
+        run: python scripts/build_aemet_canarias_radar.py --out /tmp/canarias-smoke --smoke
+      - name: Originalfarben, Projektion und Zeitstempel validieren
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,numpy as np
+          from PIL import Image
+          from datetime import datetime,timezone,timedelta
+          root=Path("/tmp/canarias-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and m["unit"]=="dBZ"
+          assert m["radar_product"]=="PPI 0.5 degree"
+          assert m["grid"]=={"west":-19.5,"east":-12.2,"south":27.0,"north":30.6,"width":1460,"height":720}
+          assert len(m["palette"]["colors"])==11
+          assert len(m["frames"])>=1
+          for frame in m["frames"]:
+              ts=datetime.fromisoformat(frame["utc"].replace("Z","+00:00"))
+              assert datetime.now(timezone.utc)-ts<timedelta(minutes=65)
+              with Image.open(root/frame["image"]) as im:
+                  assert im.mode=="L" and im.size==(1460,720)
+                  a=np.asarray(im)
+                  assert a.min()>=0 and a.max()<=11
+                  assert 0 <= frame["stats"]["echo_pixel_fraction"] <= 1
+          print("AEMET actual LPA GeoTIFF RGB/dBZ, time, no-echo, projection PASS")
+          PY
+  cloudflare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Passwort, Canvas-Skript und Worker-Routen prüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/canarias-radar-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/canarias-radar-client.js
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import worker from "./alpenwetter-worker/src/index.js";
+          import {canariasRadarPage,canariasRadarLoginPage,canariasRadarData} from "./alpenwetter-worker/src/canarias-radar-lab.js";
+          const page=canariasRadarPage();
+          const js=page.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+          assert.ok(js?.length>9000);new Function(js);assert.doesNotMatch(js,/__name\(/);
+          assert.match(canariasRadarLoginPage(),/name="next" value="\/radarlabor\/kanaren"/);
+          const env={ALPENWETTER_PASSWORD:"unit-only"};
+          for(const path of ["/radarlabor/api/canarias/current.json","/radarlabor/api/canarias/frames/202611102110.png"]){
+           const r=await worker.fetch(new Request("https://example.org"+path),env);
+           assert.equal(r.status,401);
+          }
+          const login=await worker.fetch(new Request("https://example.org/radarlabor/kanaren"),env);
+          assert.match(await login.text(),/type="password"/);
+          const invalid=await canariasRadarData(new URL("https://example.org/radarlabor/api/canarias/dangerous.jpg"),v=>new Headers(v));
+          assert.equal(invalid.status,400);
+          console.log("AEMET Canary radar route, auth and browser source PASS");
+          JS
+      - name: Cloudflare Worker vollständig bauen
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/canarias-worker --config alpenwetter-worker/wrangler.toml
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Playwright Chromium installieren
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Kanaren-Radar auf Desktop und Handy
+        run: node tests/test_canarias_radar_browser.mjs
+      - name: Balearen im bestehenden OPERA-Europakomposit testen
+        run: node tests/test_opera_radar_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spanish-islands-radar-browser-screenshots
+          path: |
+            /tmp/canarias-radar-*.png
+            /tmp/opera-radar-*.png
+          if-no-files-found: ignore
