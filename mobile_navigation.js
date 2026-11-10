@@ -224,6 +224,22 @@
     const bars=el("span","cdm-menu-bars");bars.setAttribute("aria-hidden","true");
     trigger.appendChild(bars);trigger.appendChild(el("span","cdm-menu-caption","Menü"));
     trigger.addEventListener("click",()=>overlay.hidden?open():close());
+    // Standalone satellite page: shared mobile header hides its original
+    // header, so expose the already-wired theme toggle through one compact button.
+    if(!home && window.location.pathname.split("/").pop()==="satelliten.html"){
+      const satTheme=el("button","cdm-satellite-theme","◐");
+      satTheme.type="button";satTheme.id="cdMobileSatelliteTheme";
+      const syncSatelliteTheme=()=>{
+        const dark=document.documentElement.dataset.theme==="dark";
+        satTheme.setAttribute("aria-pressed",String(dark));
+        satTheme.setAttribute("aria-label",dark?"Hellen Modus einschalten":"Dark Mode einschalten");
+        satTheme.title=dark?"Hellen Modus einschalten":"Dark Mode einschalten";
+      };
+      satTheme.addEventListener("click",()=>document.getElementById("dashboardThemeToggle")?.click());
+      document.addEventListener("dashboardthemechange",syncSatelliteTheme);
+      syncSatelliteTheme();
+      mobileBar.appendChild(satTheme);
+    }
     if(headerActions){
       headerActions.appendChild(trigger);
     }else{
