@@ -28,3 +28,30 @@ try:
  r=s.get("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson",timeout=45)
  print("BORDERS",r.status_code,len(r.content),r.text[:140])
 except Exception as e:print("BORDERS_ERROR",str(e))
+
+for kind,stamp in (("DBZH","20261110T1835"),("RATE","20261110T1830")):
+ for ext in ("h5","tiff"):
+  url=f"https://s3.waw3-1.cloudferro.com/openradar-24h/2026/11/10/OPERA/COMP/OPERA@{stamp}@0@{kind}.{ext}"
+  try:
+   r=s.get(url,timeout=55)
+   print("FILE",kind,ext,r.status_code,len(r.content),r.headers.get("content-type"))
+   if r.status_code!=200:continue
+   if ext=="h5":
+    with h5py.File(io.BytesIO(r.content),"r") as h:
+     def walk(k,obj):
+      if k.count("/")>3:return
+      at={a:(v.decode(errors="replace") if isinstance(v,bytes) else v.tolist() if isinstance(v,np.ndarray) else v) for a,v in obj.attrs.items()}
+      if at:print("H5",k,at)
+      if hasattr(obj,"shape"):print("H5_DATA",k,obj.shape,str(obj.dtype))
+     h.visititems(walk)
+   else:
+    import tempfile,os
+    import rasterio
+    with tempfile.NamedTemporaryFile(suffix=".tif",delete=False) as tmp:
+     tmp.write(r.content);tmpname=tmp.name
+    with rasterio.open(tmpname) as ds:
+     print("TIFF_META",kind,{"shape":ds.shape,"crs":str(ds.crs),"transform":str(ds.transform),"nodata":ds.nodata,"scales":ds.scales,"offsets":ds.offsets,"tags":ds.tags(),"bandtags":ds.tags(1),"dtype":ds.dtypes,"bounds":str(ds.bounds)})
+     a=ds.read(1,out_shape=(100,100))
+     print("TIFF_SAMPLES",int(np.min(a)),int(np.max(a)),np.unique(a)[:30].tolist())
+    os.remove(tmpname)
+  except Exception as e:print("FILE_ERROR",kind,ext,str(e)[:300])
