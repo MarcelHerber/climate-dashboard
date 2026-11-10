@@ -1,0 +1,114 @@
+name: DWD Radarkomposit · echte Daten und Desktop/Handy
+
+on:
+  pull_request:
+    paths:
+      - "alpenwetter-worker/src/radar-client.js"
+      - "alpenwetter-worker/src/radar-lab.js"
+      - "alpenwetter-worker/src/index.js"
+      - "scripts/build_dwd_radar_ry.py"
+      - "tests/test_radar_browser.mjs"
+      - ".github/workflows/test-dwd-radar.yml"
+      - ".github/workflows/update-dwd-radar.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  code:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: JavaScript/Cloudflare Passwortprüfung
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/radar-client.js
+          node --input-type=module --check < alpenwetter-worker/src/radar-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import {radarLabPage,radarLoginPage,radarLabData} from "./alpenwetter-worker/src/radar-lab.js";
+          import worker from "./alpenwetter-worker/src/index.js";
+          const page=radarLabPage();
+          const source=page.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+          assert.ok(source?.length>9000);
+          new Function(source);
+          assert.doesNotMatch(source,/__name\(/);
+          assert.match(radarLoginPage(),/name="next" value="\/radarlabor"/);
+          const denied=await worker.fetch(new Request("https://example.org/radarlabor/api/current.json"),{ALPENWETTER_PASSWORD:"unit-only"});
+          assert.equal(denied.status,401);
+          const login=await worker.fetch(new Request("https://example.org/radarlabor"),{ALPENWETTER_PASSWORD:"unit-only"});
+          assert.match(await login.text(),/type="password"/);
+          const invalid=await radarLabData(new URL("https://example.org/radarlabor/api/private.txt"),h=>new Headers(h));
+          assert.equal(invalid.status,400);
+          console.log("Protected radar frontend, API auth and browser script syntax PASS");
+          JS
+      - name: Cloudflare Worker bündelbar
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/radar-worker --config alpenwetter-worker/wrangler.toml
+
+  radar-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Original DWD RY HDF5 und Projektion
+        run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "pyproj>=3.7,<4" "pillow>=11,<13" "requests>=2,<3"
+      - name: DWD echte Radar-Frames validieren
+        run: python scripts/build_dwd_radar_ry.py --out /tmp/ry-smoke --frames 12
+      - name: Geografische Lage, Fehlwertmaske und Originalzeitschritte überprüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          from PIL import Image
+          from datetime import datetime,timedelta,timezone
+          root=Path("/tmp/ry-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and len(m["frames"])==12
+          assert m["units"]=="mm/h"
+          assert m["grid"]=={"west":1.,"east":19.,"south":45.,"north":56.,"width":900,"height":550}
+          previous=None
+          for frame in m["frames"]:
+            start=datetime.fromisoformat(frame["utc"].replace("Z","+00:00"))
+            end=datetime.fromisoformat(frame["end_utc"].replace("Z","+00:00"))
+            assert timedelta(minutes=0)<=end-start<=timedelta(minutes=10)
+            if previous:assert start>previous
+            previous=start
+            with Image.open(root/frame["image"]) as im:
+              assert im.mode=="L" and im.size==(900,550)
+              data=np.asarray(im)
+              assert (data==255).mean()>.01 and (data<255).mean()>.15
+          assert datetime.now(timezone.utc)-previous<timedelta(minutes=35)
+          print("DWD RY REAL HDF5: 12 actual snapshots, reprojected rain rate, valid metadata and no-data masks PASS")
+          PY
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Chromium vorbereiten
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Radar Karte, Zeitleiste, PNG und Handy
+        run: node tests/test_radar_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dwd-radar-browser-screenshots
+          path: /tmp/radar-*.png
+          if-no-files-found: ignore
