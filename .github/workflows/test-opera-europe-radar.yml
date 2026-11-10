@@ -1,0 +1,121 @@
+name: OPERA Europa Radar · Karten, Daten und Grenzen
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_opera_europe_radar.py"
+      - "scripts/build_radar_borders.py"
+      - "alpenwetter-worker/src/opera-radar-lab.js"
+      - "alpenwetter-worker/src/opera-radar-client.js"
+      - "alpenwetter-worker/src/radar-lab.js"
+      - "alpenwetter-worker/src/radar-client.js"
+      - "alpenwetter-worker/src/index.js"
+      - "tests/test_opera_radar_browser.mjs"
+      - ".github/workflows/test-opera-europe-radar.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: GIS- und OPERA-COG-Bibliotheken
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3" "shapely>=2,<3"
+      - name: Echtes OPERA-CIRRUS und NIMBUS abrufen
+        run: python scripts/build_opera_europe_radar.py --out /tmp/opera-smoke --smoke
+      - name: Natural Earth 10m Vektorgrenzen vorbereiten
+        run: python scripts/build_radar_borders.py --out /tmp/opera-smoke/borders_europe.geojson
+      - name: Validierung von Pixeln, Skalierung und Grenzen
+        run: |
+          python - <<'PY'
+          import json,numpy as np
+          from PIL import Image
+          from pathlib import Path
+          root=Path("/tmp/opera-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and m["grid"]["width"]==1480
+          assert list(m["encoding"]["dbzh_range"])==[-20,75]
+          assert set(m["products"])=={"dbzh","rate"}
+          for kind,product in m["products"].items():
+              assert len(product["frames"])==2
+              for frame in product["frames"]:
+                  im=np.asarray(Image.open(root/frame["image"]))
+                  assert im.shape==(880,1480) and im.dtype==np.uint8
+                  assert (im==255).mean()>.001 and (im!=255).mean()>.1
+                  assert frame["stats"]["coverage"]>.1
+              print("Real OPERA",kind,product["unit"],"GIS & scaling PASS")
+          border=json.loads((root/"borders_europe.geojson").read_text(encoding="utf-8"))
+          assert border["type"]=="FeatureCollection" and len(border["features"])>=35
+          assert (root/"borders_europe.geojson").stat().st_size>250_000
+          print("Natural Earth 10m clipped vector borders PASS")
+          PY
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Playwright Chromium
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Desktop/Handy OPERA Radar, Palette, Zeitnavigation, PNG
+        run: node tests/test_opera_radar_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: opera-europe-responsive-screenshots
+          path: /tmp/opera-radar-*.png
+          if-no-files-found: ignore
+
+  cloudflare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Passwort, Worker-Routen und eigenständiges Browser-JavaScript prüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/opera-radar-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/opera-radar-client.js
+          node --input-type=module --check < alpenwetter-worker/src/radar-client.js
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import worker from "./alpenwetter-worker/src/index.js";
+          import {operaRadarPage,operaRadarLoginPage,operaRadarData} from "./alpenwetter-worker/src/opera-radar-lab.js";
+          import {radarLabData} from "./alpenwetter-worker/src/radar-lab.js";
+          const html=operaRadarPage(),script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+          assert.ok(script?.length>12000);
+          new Function(script);
+          assert.doesNotMatch(script,/__name\(/);
+          assert.match(operaRadarLoginPage(),/value="\/radarlabor\/europa"/);
+          const env={ALPENWETTER_PASSWORD:"unit-secret-only"};
+          for(const url of ["/radarlabor/api/opera/current.json","/radarlabor/api/borders_europe.geojson"]){
+            const r=await worker.fetch(new Request("https://example.org"+url),env);
+            assert.equal(r.status,401,url+" not protected");
+          }
+          const login=await worker.fetch(new Request("https://example.org/radarlabor/europa"),env);
+          assert.equal(login.status,200);assert.match(await login.text(),/type="password"/);
+          const bad=await operaRadarData(new URL("https://example.org/radarlabor/api/opera/arbitrary.jpg"),v=>new Headers(v));
+          assert.equal(bad.status,400);
+          const badBorders=await radarLabData(new URL("https://example.org/radarlabor/api/../evil"),v=>new Headers(v));
+          assert.equal(badBorders.status,400);
+          console.log("Protected OPERA Europe, border endpoint and inline browser code PASS");
+          JS
+      - name: Vollständigen Cloudflare-Worker bauen (ohne Veröffentlichung)
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/opera-worker --config alpenwetter-worker/wrangler.toml
