@@ -2,6 +2,9 @@
   "use strict";
   const $=id=>document.getElementById(id);
   const SRC="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/index.json";
+  const EUROPE_SRC="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/eurasia_snow/europe_index.json";
+  const areaLabel=()=> $("seriesRegion").value==="europe"?"Europas (Island–Ural)":"Eurasiens";
+  const areaSlug=()=> $("seriesRegion").value==="europe"?"Europa_Island-Ural":"Eurasien";
   const WINTER_MONTHS=[10,11,12,1,2,3],
     MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12],
     MONTH_NAMES={1:"Januar",2:"Februar",3:"März",4:"April",5:"Mai",6:"Juni",
@@ -10,7 +13,7 @@
       10:"Okt",11:"Nov",12:"Dez"};
   const COLORS={obs:"#182a41",climo:"#78889a",band:"rgba(142,163,181,.22)",
     fit:"#ef6871",historicalMin:"#138ab5",historicalMax:"#d07846"};
-  let doc=null,chart=null;
+  let doc=null,eurasiaDoc=null,europeDoc=null,chart=null;
 
   function show(message,kind="normal"){
     $("message").textContent=message;
@@ -123,32 +126,45 @@
     });
   }
   function render(){
-    if(!doc)return;
+    if(!doc){
+      chart.data.labels=[];chart.data.datasets=[];chart.update();
+      $("plotTitle").textContent="Schneebedeckung "+areaLabel()+" · geprüfte Daten werden geladen";
+      for(const id of ["latest","slope","coverage","currentAreaAnomaly"])$(id).textContent="–";
+      $("climNote").textContent="Erst echte NOAA-IMS-Beobachtungen ermöglichen Referenzwerte und Rekorde.";
+      return;
+    }
     const season=Number($("season").value),calendarYear=Number($("calendarYear").value),
       selection=$("month").value;
     const isWinter=selection==="winter",isYear=selection==="year",isLong=isWinter||isYear;
     if(isWinter ? !Number.isInteger(season) : !Number.isInteger(calendarYear))return;
     const rows=sourceRows(season,selection,calendarYear);
-    const obs=rows.map(row=>row.date&&Number.isFinite(doc.daily[row.date])?doc.daily[row.date]:null);
+    const obsAbs=rows.map(row=>row.date&&Number.isFinite(doc.daily[row.date])?doc.daily[row.date]:null);
     const clima=rows.map(row=>climatologyRow(row.month,row.day));
-    const mean=clima.map(row=>row&&Number.isFinite(row.mean)?row.mean:null),
-      low=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
-        Math.max(0,row.mean-row.stddev):null),
+    const departure=$("showAreaAnomaly").checked;
+    const mean=clima.map(row=>row&&Number.isFinite(row.mean)?row.mean:null);
+    const obs=obsAbs.map((value,i)=>value!==null&&(!departure||mean[i]!==null)?
+      (departure?Math.round((value-mean[i])*100000)/100000:value):null);
+    const low=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
+        (departure?-row.stddev:Math.max(0,row.mean-row.stddev)):null),
       high=clima.map(row=>row&&Number.isFinite(row.mean)&&Number.isFinite(row.stddev)?
-        row.mean+row.stddev:null);
+        (departure?row.stddev:row.mean+row.stddev):null);
     $("winterYearControl").hidden=!isWinter;
     $("calendarYearControl").hidden=isWinter;
     const seasonTitle=seasonName(season),monthTitle=MONTH_NAMES[Number(selection)];
+    const heading=departure?"Schneeflächen-Anomalie":"Schneebedeckung";
     const chartTitle=isWinter?
-      "Schneebedeckung Eurasiens · Winterhalbjahr "+seasonTitle:
-      isYear?"Schneebedeckung Eurasiens · Kalenderjahr "+calendarYear:
-      "Schneebedeckung Eurasiens · "+monthTitle+" "+calendarYear;
+      heading+" "+areaLabel()+" · Winterhalbjahr "+seasonTitle:
+      isYear?heading+" "+areaLabel()+" · Kalenderjahr "+calendarYear:
+      heading+" "+areaLabel()+" · "+monthTitle+" "+calendarYear;
     $("plotTitle").textContent=chartTitle;
     $("plot").setAttribute("aria-label",chartTitle+" in Millionen Quadratkilometern");
     document.title=chartTitle+" | Climate Dashboard Deutschland";
     chart.options.plugins.title.text=chartTitle;
     const extrema=rows.map((row,i)=>historicalExtrema(row,clima[i]));
-    const minima=extrema.map(e=>e?e.min:null),maxima=extrema.map(e=>e?e.max:null);
+    const minima=extrema.map((e,i)=>e&&(!departure||mean[i]!==null)?
+        (departure?e.min-mean[i]:e.min):null),
+      maxima=extrema.map((e,i)=>e&&(!departure||mean[i]!==null)?
+        (departure?e.max-mean[i]:e.max):null);
     const minYears=extrema.map(e=>e?e.minYear:null),maxYears=extrema.map(e=>e?e.maxYear:null);
     const available=mean.filter(Number.isFinite).length;
     const series=[];
@@ -168,7 +184,8 @@
           pointRadius:0,borderDash:[3,4],borderWidth:1.8,recordYears:maxYears
         }));
       }
-      series.push(dataset("Klimamittel (verfügbare Referenzjahre)",mean,COLORS.climo,{
+      series.push(dataset(departure?"Null-Linie (Klimamittel)":"Klimamittel (verfügbare Referenzjahre)",
+        departure?mean.map(v=>v===null?null:0):mean,COLORS.climo,{
         pointRadius:0,borderDash:[8,5],borderWidth:2.3
       }));
     }
@@ -185,25 +202,33 @@
     chart.options.scales.x.title.text=isWinter?"Winterhalbjahr "+seasonTitle:
       isYear?"Kalenderjahr "+calendarYear:
       MONTH_NAMES[Number(selection)]+" "+calendarYear;
+    chart.options.scales.y.min=departure?undefined:0;
+    chart.options.scales.y.title.text=departure?
+      "Abweichung der Schneefläche (Mio. km²)":"Schneebedeckte Landfläche (Mio. km²)";
     chart.data.labels=rows.map(r=>r.label);
     chart.data.datasets=series;
     chart.update();
 
-    const valid=obs.map((value,i)=>({value,date:rows[i].date}))
+    const valid=obsAbs.map((value,i)=>({value,date:rows[i].date,index:i}))
       .filter(item=>item.value!==null);
     const last=valid.at(-1);
     $("latest").textContent=last?
       last.value.toFixed(2)+" Mio. km² · "+new Date(last.date+"T12:00:00Z")
         .toLocaleDateString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}):
       "Für die Auswahl noch keine IMS-Tageswerte";
+    const lastDelta=last&&mean[last.index]!==null?last.value-mean[last.index]:null;
+    $("currentAreaAnomaly").textContent=lastDelta===null?
+      "Noch kein belastbares Klimamittel":
+      (lastDelta>=0?"+":"")+lastDelta.toFixed(2)+" Mio. km²";
     $("slope").textContent=isLong?"Nur für einzelne Monate":
       fit?(fit.slope>=0?"+":"")+fit.slope.toFixed(3)+" Mio. km²/Tag":
         "Noch keine belastbare Trendlinie";
-    $("coverage").textContent=available+" / "+rows.length+" Kalendertage";
+    $("coverage").textContent=available+" / "+rows.length+
+      " Kalendertage · "+Object.keys(doc.daily).length+" Messungen im Archiv";
     const counts=clima.filter(row=>row&&Number.isFinite(row.mean))
       .map(row=>row.years);
     const loYears=counts.length?Math.min(...counts):0,hiYears=counts.length?Math.max(...counts):0;
-    $("climNote").textContent="Referenz 1999–2025 ohne 2014 · "+available+
+    $("climNote").textContent="Europa und Eurasien nutzen eigene Flächenreihen. Referenz 1999–2025 ohne 2014 · "+available+
       " von "+rows.length+" Kalendertagen mit ausreichenden historischen Vergleichen"+
       (counts.length?" ("+loYears+"–"+hiYears+" Stichprobenjahre je dargestelltem Tag)":"")+
       ". Die Min-/Max-Kurven zeigen das niedrigste und höchste Tagesflächenmittel der vorhandenen Vergleichsjahre (jeweiliges Jahr im Tooltip); bei weiteren Archivdaten können sich Extremwerte ändern. Für den 29. Februar gelten mindestens fünf statt zehn Vergleichsjahre.";
@@ -228,6 +253,7 @@
       .sort((a,b)=>b-a);
   }
   function yearOptions(){
+    if(!doc)return;
     const previousSeason=$("season").value,previousYear=$("calendarYear").value;
     $("season").replaceChildren();
     archivedSeasons().forEach(season=>{
@@ -243,14 +269,25 @@
       $("calendarYear").value=previousYear;
   }
   async function load(){
+    const region=$("seriesRegion").value, isEurope=region==="europe";
+    const source=isEurope?EUROPE_SRC:SRC;
+    doc=isEurope?europeDoc:eurasiaDoc;
+    if(!doc)render();
     try{
-      show("NOAA-IMS-Winterdaten werden geladen …");
-      const response=await fetch(SRC+"?t="+Date.now(),{cache:"no-store"});
+      show("NOAA-IMS-"+(isEurope?"Europadaten":"Eurasiendaten")+" werden geladen …");
+      const response=await fetch(source+"?t="+Date.now(),{cache:"no-store"});
       if(!response.ok)throw Error("HTTP "+response.status);
       const incoming=await response.json();
       if(incoming.schema!==1 || !incoming.daily ||
-         incoming.source?.doi!=="10.7265/N52R3PMC")
-        throw Error("Datenformat ungültig");
+        incoming.source?.doi!=="10.7265/N52R3PMC" ||
+        (isEurope&&
+          (incoming.analysis?.region?.lon_west!==-25 ||
+           incoming.analysis?.region?.lon_east!==70 ||
+           incoming.analysis?.region?.lat_south!==35 ||
+           incoming.analysis?.region?.lat_north!==75)))
+        throw Error("Datenformat oder geografisches Gebiet ungültig");
+      if(isEurope)europeDoc=incoming;else eurasiaDoc=incoming;
+      if($("seriesRegion").value!==region)return;
       doc=incoming;
       const first=!$("season").options.length;
       yearOptions();
@@ -266,13 +303,30 @@
       $("updated").textContent="Datenstand: "+new Date(incoming.generated_utc).toLocaleString(
         "de-DE",{timeZone:"UTC",dateStyle:"medium",timeStyle:"short"})+" UTC";
       render();
-      show("NOAA IMS: "+Object.keys(incoming.daily).length+
-        " verifizierte Tageswerte · Jahresansicht und Winterhalbjahr · Klimatologie wird laufend ergänzt.","success");
+      const coverage=incoming.status?.n_climatology_days_year ?? 0;
+      show("NOAA IMS "+(isEurope?"Europa":"Eurasien")+": "+Object.keys(incoming.daily).length+
+        " verifizierte Tageswerte · "+coverage+"/366 Tage mit verfügbarer Klimatologie."+
+        (isEurope&&coverage<366?" Der historische Rücklauf ist noch unvollständig; fehlende Werte bleiben Lücken.":""),"success");
     }catch(error){
-      show("NOAA-IMS-Beobachtungen konnten nicht geladen werden: "+
-        error.message+". Keine geschätzten Schneewerte angezeigt.","warn");
+      if($("seriesRegion").value!==region)return;
+      doc=null;render();
+      show((isEurope?"Europa-Schneeflächenarchiv wird aus NOAA-Originalrastern aufgebaut. ":
+          "Eurasien-Beobachtungen nicht erreichbar. ")+
+        "Noch keine belastbaren Werte für diese Gebietsauswahl: "+error.message,
+        "warn");
     }
   }
+  function selectRegion(){
+    doc=$("seriesRegion").value==="europe"?europeDoc:eurasiaDoc;
+    if(!doc){render();load();return;}
+    yearOptions();render();
+    $("updated").textContent="Datenstand: "+new Date(doc.generated_utc).toLocaleString(
+      "de-DE",{timeZone:"UTC",dateStyle:"medium",timeStyle:"short"})+" UTC";
+    show("NOAA IMS "+($("seriesRegion").value==="europe"?"Europa":"Eurasien")+
+      ": "+Object.keys(doc.daily).length+" echte Tageswerte.", "success");
+  }
+  $("seriesRegion").addEventListener("change",selectRegion);
+  $("showAreaAnomaly").addEventListener("change",render);
   $("season").addEventListener("change",render);
   $("calendarYear").addEventListener("change",render);
   $("month").addEventListener("change",render);
@@ -288,24 +342,26 @@
     ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(source,0,0);
     a.href=canvas.toDataURL("image/png",1);
-    a.download="Eurasien_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".png";
+    a.download=areaSlug()+"_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".png";
     a.click();
   });
   $("csv").addEventListener("click",()=>{
     if(!doc)return;
     const rows=sourceRows(Number($("season").value),$("month").value,Number($("calendarYear").value)),
-      csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,historical_min_million_km2,min_year,historical_max_million_km2,max_year,reference_years"];
+      csv=["date,observation_million_km2,climatology_mean_million_km2,climatology_stddev_million_km2,historical_min_million_km2,min_year,historical_max_million_km2,max_year,reference_years,anomaly_million_km2"];
     for(const row of rows){
       const c=climatologyRow(row.month,row.day)||{};
       const extrema=historicalExtrema(row,c);
       csv.push([row.date||"",row.date?doc.daily[row.date]??"": "",
         c.mean??"",c.stddev??"",extrema?.min??"",extrema?.minYear??"",
-        extrema?.max??"",extrema?.maxYear??"",c.years??0].join(","));
+        extrema?.max??"",extrema?.maxYear??"",c.years??0,
+        row.date&&Number.isFinite(doc.daily[row.date])&&Number.isFinite(c.mean)?
+          (doc.daily[row.date]-c.mean).toFixed(5):""].join(","));
     }
     const blob=new Blob([csv.join("\n")+"\n"],{type:"text/csv;charset=utf-8"});
     const link=document.createElement("a");
     link.href=URL.createObjectURL(blob);
-    link.download="Eurasien_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".csv";
+    link.download=areaSlug()+"_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".csv";
     link.click();
     setTimeout(()=>URL.revokeObjectURL(link.href),2000);
   });
