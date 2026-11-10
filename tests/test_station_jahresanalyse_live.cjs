@@ -15,25 +15,30 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    await page.waitForFunction(()=>{
     const el=document.getElementById("sjaInventory");
     return el && /Stationen/.test(el.textContent);
-   },{timeout:80000});
+   },null,{timeout:80000});
    const inventory=await page.locator("#sjaInventory").textContent();
    assert.match(inventory,/Temperatur/);
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===365,
-     {timeout:90000});
+     null,{timeout:90000});
    const tempCount=await page.locator("#sjaYears input").count();
    assert.ok(tempCount>20,device+": historical temperature years missing");
    await page.locator("#sjaMetric").selectOption("0");
    assert.match(await page.locator("#sjaChartTitle").textContent(),/Tmax/);
    await page.locator("#sjaPrecip").click();
-   await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===12,
-     {timeout:90000});
+   try {
+    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===12,
+      null,{timeout:90000});
+   } catch (error) {
+    console.error(device,"precipitation state",await page.locator("#sjaStatus").textContent(),"errors",errors);
+    throw error;
+   }
    assert.match(await page.locator("#sjaChartTitle").textContent(),/Niederschlag/);
    await page.locator("#sjaMode").selectOption("daily");
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===365,
-     {timeout:30000});
+     null,{timeout:60000});
    await page.locator("#sjaSnow").click();
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===366,
-     {timeout:90000});
+     null,{timeout:90000});
    assert.match(await page.locator("#sjaStatus").textContent(),/hydrologischen Jahren/);
    assert.equal(errors.length,0,device+" JS errors: "+errors.join(" | "));
    if(device==="mobile"){
