@@ -1,0 +1,58 @@
+name: ECMWF Dynamik-Studio · Code und Zugang testen
+
+on:
+  pull_request:
+    paths:
+      - "alpenwetter-worker/src/dynamics-lab.js"
+      - "alpenwetter-worker/src/index.js"
+      - "alpenwetter-worker/src/cloud-lab.js"
+      - "scripts/build_ecmwf_dynamics.py"
+      - ".github/workflows/update-ecmwf-dynamics.yml"
+      - ".github/workflows/test-ecmwf-dynamics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: JavaScript-Module syntaktisch prüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module --check < alpenwetter-worker/src/dynamics-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/cloud-lab.js
+      - name: Anmeldung, Datenschutz und dynamisches Browser-Skript prüfen
+        run: |
+          node --experimental-default-type=module --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import {dynamicsLabPage,dynamicsLabLoginPage,dynamicsLabData} from "./alpenwetter-worker/src/dynamics-lab.js";
+          import worker from "./alpenwetter-worker/src/index.js";
+          const html=dynamicsLabPage();
+          assert.match(html, /ECMWF Dynamik-/);
+          const inline=html.match(/<script>([\s\S]*?)<\/script>/);
+          assert.ok(inline && inline[1]);
+          new Function(inline[1]);
+          const login=dynamicsLabLoginPage();
+          assert.match(login,/name="next" value="\/dynamik"/);
+          const env={ALPENWETTER_PASSWORD:"test-not-real-secret"};
+          const unauthorized=await worker.fetch(new Request("https://example.org/dynamik/api/data/current.json"),env);
+          assert.equal(unauthorized.status,401);
+          const gatedPage=await worker.fetch(new Request("https://example.org/dynamik"),env);
+          assert.equal(gatedPage.status,200);
+          assert.match(await gatedPage.text(), /type="password"/);
+          const badPath=await dynamicsLabData(new URL("https://example.org/dynamik/api/data/../invalid.png"), x=>new Headers(x));
+          assert.equal(badPath.status,400);
+          console.log("Private API 401, protected login, page and inline-script syntax: OK");
+          JS
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Python-Syntaxprüfung
+        run: python -m py_compile scripts/build_ecmwf_dynamics.py
