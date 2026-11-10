@@ -1,4 +1,5 @@
 import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
+import { dynamicsLabPage, dynamicsLabLoginPage, dynamicsLabData, dynamicsBoundaries } from "./dynamics-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -29,6 +30,12 @@ export default {
     const authenticated = await hasValidSession(request, env.ALPENWETTER_PASSWORD);
 
     if (!authenticated) {
+      if (url.pathname.startsWith("/dynamik/api/")) {
+        return jsonResponse({ error: "Nur nach Anmeldung erreichbar" }, 401);
+      }
+      if (url.pathname === "/dynamik" || url.pathname === "/dynamik/") {
+        return htmlResponse(dynamicsLabLoginPage());
+      }
       if (url.pathname.startsWith("/wolkenlabor/data/")) {
         return jsonResponse({ error: "Nur nach Anmeldung für den Laborbereich erreichbar" }, 401);
       }
@@ -42,6 +49,15 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/dynamik" || url.pathname === "/dynamik/") {
+      return htmlResponse(dynamicsLabPage());
+    }
+    if (url.pathname === "/dynamik/api/boundaries") {
+      return dynamicsBoundaries(securityHeaders);
+    }
+    if (url.pathname.startsWith("/dynamik/api/data/")) {
+      return dynamicsLabData(url, securityHeaders);
+    }
     if (url.pathname === "/wolkenlabor" || url.pathname === "/wolkenlabor/") {
       return htmlResponse(cloudLabPage());
     }
@@ -105,7 +121,8 @@ async function handleLogin(request, env) {
 
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
-  const target = String(form.get("next") || "") === "/wolkenlabor" ? "/wolkenlabor" : "/";
+  const next = String(form.get("next") || "");
+  const target = next === "/wolkenlabor" || next === "/dynamik" ? next : "/";
   return redirect(target, cookie);
 }
 

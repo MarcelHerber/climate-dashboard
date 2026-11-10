@@ -1,0 +1,124 @@
+name: ECMWF Dynamik-Studio · Code und Zugang testen
+
+on:
+  pull_request:
+    paths:
+      - "alpenwetter-worker/src/dynamics-lab.js"
+      - "alpenwetter-worker/src/index.js"
+      - "alpenwetter-worker/src/cloud-lab.js"
+      - "scripts/build_ecmwf_dynamics.py"
+      - ".github/workflows/update-ecmwf-dynamics.yml"
+      - ".github/workflows/test-ecmwf-dynamics.yml"
+      - "tests/test_dynamics_browser.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: JavaScript-Module syntaktisch prüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module --check < alpenwetter-worker/src/dynamics-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/cloud-lab.js
+      - name: Anmeldung, Datenschutz und dynamisches Browser-Skript prüfen
+        run: |
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import {dynamicsLabPage,dynamicsLabLoginPage,dynamicsLabData} from "./alpenwetter-worker/src/dynamics-lab.js";
+          import worker from "./alpenwetter-worker/src/index.js";
+          const html=dynamicsLabPage();
+          assert.match(html, /ECMWF Dynamik-/);
+          const inline=html.match(/<script>([\s\S]*?)<\/script>/);
+          assert.ok(inline && inline[1]);
+          new Function(inline[1]);
+          const login=dynamicsLabLoginPage();
+          assert.match(login,/name="next" value="\/dynamik"/);
+          const env={ALPENWETTER_PASSWORD:"test-not-real-secret"};
+          const unauthorized=await worker.fetch(new Request("https://example.org/dynamik/api/data/current.json"),env);
+          assert.equal(unauthorized.status,401);
+          const gatedPage=await worker.fetch(new Request("https://example.org/dynamik"),env);
+          assert.equal(gatedPage.status,200);
+          assert.match(await gatedPage.text(), /type="password"/);
+          const badPath=await dynamicsLabData(new URL("https://example.org/dynamik/api/data/../invalid.png"), x=>new Headers(x));
+          assert.equal(badPath.status,400);
+          console.log("Private API 401, protected login, page and inline-script syntax: OK");
+          JS
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Python-Syntaxprüfung
+        run: python -m py_compile scripts/build_ecmwf_dynamics.py
+
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF und Rasterbibliotheken
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Zwei echte ECMWF-IFS-Prognosezeitpunkte prüfen
+        run: python scripts/build_ecmwf_dynamics.py --out /tmp/dynamics-smoke --smoke
+      - name: Originalwerte, Felder und Zeitstempel validieren
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          root=Path("/tmp/dynamics-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert [f["hour"] for f in m["frames"]]==[0,3]
+          assert set(m["frames"][0]["images"])=={"tcwv","jet","ascent","pv","iru","irv"}
+          for frame in m["frames"]:
+              for relative in frame["images"].values():
+                  with Image.open(root/relative) as im:
+                      assert im.mode=="L" and im.size==(m["grid"]["width"],m["grid"]["height"])
+          print("REAL IFS GRIB and derived images validated for",m["cycle"])
+          PY
+
+  browser-responsive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Playwright Chromium installieren
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Karten, Ebenen, Downloads und Mobilansicht in Chromium prüfen
+        run: node tests/test_dynamics_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dynamics-studio-qa-screenshots
+          path: |
+            /tmp/dynamics-desktop.png
+            /tmp/dynamics-mobil.png
+          if-no-files-found: ignore
+
+  worker-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Cloudflare Worker mit allen Dynamik-Routen bauen
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/dynamics-worker-bundle --config alpenwetter-worker/wrangler.toml
