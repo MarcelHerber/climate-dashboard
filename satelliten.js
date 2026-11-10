@@ -18,14 +18,46 @@ const REGIONS={
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
+const timeline=id("satTimeline"),timelineLabel=id("satTimelineLabel"),filmImage=id("satFilmImage");
+const filmLength=id("satFilmLength"),filmQuality=id("satFilmQuality"),filmSpeed=id("satFilmSpeed");
+const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLabel"),filmProgressWrap=id("satFilmProgressWrap");
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
+let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPosition=0;
 const description=()=>PRODUCTS[product.value];
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
-function stop(){if(frameTimer!==null){clearInterval(frameTimer);frameTimer=null;}play.textContent="▶ Film";play.setAttribute("aria-label","Satellitenfilm starten");}
-function buttons(){const ready=source.value==="mtgi1"&&frames.length>1;prev.disabled=!ready||index<=0;next.disabled=!ready||index>=frames.length-1;play.disabled=!ready;time.disabled=!frames.length||source.value!=="mtgi1";png.disabled=!loaded||source.value!=="mtgi1";}
+function updateTimeline(){
+ timeline.max=String(Math.max(0,frames.length-1));
+ timeline.disabled=!frames.length||source.value!=="mtgi1";
+ timeline.value=String(Math.max(0,index));
+ timelineLabel.textContent=frames[index]?formatUTC(frames[index]):"Keine Beobachtungen";
+}
+function stop(reset=true){
+ if(frameTimer!==null){clearTimeout(frameTimer);frameTimer=null;}
+ filmPlaying=false;
+ if(reset){
+  filmGeneration++;filmLoading=false;filmItems=[];filmPosition=0;
+  filmImage.hidden=true;
+  filmProgressWrap.hidden=true;
+  if(source.value==="mtgi1")image.hidden=false;
+ }
+ play.textContent=reset?"▶ Film starten":"▶ Fortsetzen";
+ play.setAttribute("aria-label",reset?"Satellitenfilm starten":"Satellitenfilm fortsetzen");
+ buttons();
+}
+function buttons(){
+ const ready=source.value==="mtgi1"&&frames.length>1;
+ prev.disabled=!ready||index<=0;
+ next.disabled=!ready||index>=frames.length-1;
+ play.disabled=!ready;
+ time.disabled=!frames.length||source.value!=="mtgi1";
+ png.disabled=!loaded||source.value!=="mtgi1";
+ updateTimeline();
+}
 function formatUTC(t){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(t))+" UTC";}
-function imageUrl(t){const layer=description(),r=REGIONS[region.value];
- const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326",bbox:r.bbox.join(","),width:String(r.w),height:String(r.h),bgcolor:"0x000000"});
+function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.value];
+ const w=previewWidth?Math.min(previewWidth,r.w):r.w;
+ const h=previewWidth?Math.max(1,Math.round(r.h*w/r.w)):r.h;
+ const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326",bbox:r.bbox.join(","),width:String(w),height:String(h),bgcolor:"0x000000"});
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
@@ -125,9 +157,103 @@ async function refresh(){
  }catch(e){if(mine!==token)return;await manifestFallback(mine,"WMS-Metadaten im Browser derzeit nicht lesbar (möglicherweise CORS).");}
  finally{clearTimeout(timeout);}
 }
-function show(i){if(i<0||i>=frames.length)return;index=i;time.value=String(index);drawFrame(frames[index]);buttons();}
-function advance(){if(index>=frames.length-1){stop();return;}show(index+1);}
-function startPause(){if(frameTimer!==null){stop();return;}if(frames.length<2)return;if(index>=frames.length-1)show(0);frameTimer=setInterval(advance,900);play.textContent="Ⅱ Pause";play.setAttribute("aria-label","Satellitenfilm pausieren");}
+function show(i){
+ if(i<0||i>=frames.length)return;
+ index=i;time.value=String(index);
+ drawFrame(frames[index]);buttons();
+}
+function loadedPreview(t,width,ordinal){
+ return new Promise(resolve=>{
+  const im=new Image();im.decoding="async";let complete=false;
+  const finish=ok=>{
+   if(complete)return;
+   complete=true;clearTimeout(timeout);im.onload=null;im.onerror=null;
+   if(!ok)im.src="";
+   resolve(ok?{time:t,img:im,index:ordinal}:null);
+  };
+  const timeout=setTimeout(()=>finish(false),14000);
+  im.onload=()=>finish(im.naturalWidth>0);
+  im.onerror=()=>finish(false);
+  im.src=imageUrl(t,width);
+ });
+}
+function showFilmFrame(){
+ const item=filmItems[filmPosition];if(!item)return;
+ index=item.index;
+ time.value=String(index);
+ currentUrl=imageUrl(item.time);
+ id("satRawImage").href=currentUrl;id("satRawImage").hidden=false;
+ loaded=true;verified=true;
+ filmImage.src=item.img.src;filmImage.alt=description().name+" · Filmvorschau · "+formatUTC(item.time);
+ filmImage.hidden=false;image.hidden=true;empty.hidden=true;
+ id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
+ id("satValid").textContent="Beobachtung: "+formatUTC(item.time);
+ id("satImageInfo").textContent="Vorgeladener Film · "+filmQuality.value+" px · UTC aus geprüften WMS-Metadaten; PNG in voller Auflösung";
+ setStatus("Satellitenfilm · Bild "+(filmPosition+1)+" von "+filmItems.length+" · "+formatUTC(item.time),"info");
+ buttons();
+}
+function filmTick(){
+ if(!filmPlaying||filmItems.length<2)return;
+ filmPosition=(filmPosition+1)%filmItems.length;
+ showFilmFrame();
+ frameTimer=setTimeout(filmTick,Number(filmSpeed.value));
+}
+function playReady(){
+ if(filmItems.length<2)return;
+ filmPlaying=true;
+ play.textContent="Ⅱ Pause";play.setAttribute("aria-label","Satellitenfilm pausieren");
+ showFilmFrame();
+ frameTimer=setTimeout(filmTick,Number(filmSpeed.value));
+}
+async function prepareFilm(){
+ if(filmLoading||frames.length<2)return;
+ stop();filmLoading=true;
+ const generation=filmGeneration;
+ const maxCount=Number(filmLength.value)||8;
+ const start=Math.max(0,Math.min(index,frames.length-maxCount));
+ const clip=frames.slice(start,Math.min(frames.length,start+maxCount));
+ const size=Number(filmQuality.value)||480;
+ const results=new Array(clip.length);
+ let cursor=0,completed=0;
+ filmProgressWrap.hidden=false;
+ filmProgress.max=clip.length;filmProgress.value=0;
+ filmProgressLabel.textContent="Lade 0 von "+clip.length+" verkleinerten Bildern …";
+ play.textContent="✕ Laden abbrechen";play.setAttribute("aria-label","Filmladen abbrechen");
+ setStatus("Lade kompakte Filmbilder (maximal zwei gleichzeitige Anfragen). Die Einzelbildkarte bleibt sichtbar.","info");
+ const worker=async()=>{
+  while(cursor<clip.length&&generation===filmGeneration){
+   const i=cursor++;
+   const result=await loadedPreview(clip[i],size,frames.indexOf(clip[i]));
+   if(generation!==filmGeneration)return;
+   results[i]=result;
+   completed++;
+   filmProgress.value=completed;
+   filmProgressLabel.textContent="Vorgeladen: "+completed+" / "+clip.length+" · "+results.filter(Boolean).length+" verwendbar";
+  }
+ };
+ await Promise.all([worker(),worker()]);
+ if(generation!==filmGeneration)return;
+ filmLoading=false;
+ filmItems=results.filter(Boolean);
+ filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px)";
+ if(filmItems.length<2){
+  play.textContent="▶ Erneut versuchen";
+  setStatus("Für den Film konnten nicht mindestens zwei Satellitenbilder geladen werden. Bitte kleinere Filmlänge wählen oder erneut versuchen.","warning");
+  return;
+ }
+ filmPosition=0;
+ playReady();
+}
+function startPause(){
+ if(filmLoading){
+  stop();setStatus("Filmladen abgebrochen; Einzelbildansicht bleibt verfügbar.","warning");return;
+ }
+ if(filmPlaying){
+  stop(false);setStatus("Filmvorschau pausiert. Mit „Fortsetzen“ wird kein Bild erneut heruntergeladen.","info");return;
+ }
+ if(filmItems.length>=2){playReady();return;}
+ prepareFilm();
+}
 async function downloadPNG(){
  if(!loaded||!currentUrl)return;
  png.disabled=true;setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
@@ -149,12 +275,27 @@ async function downloadPNG(){
  }catch(_){setStatus("EUMETSAT erlaubt für diese Browseranfrage keinen direkten PNG-Canvas-Export (CORS). Öffne das Originalbild bzw. den EUMETView-Link; es wurde kein falsches Downloadbild erzeugt.","warning");}
  finally{buttons();}
 }
-[source,product,region].forEach(el=>el.addEventListener("change",refresh));
+[source,product].forEach(el=>el.addEventListener("change",refresh));
+region.addEventListener("change",()=>{
+ stop();
+ // The UTC dimension is independent of the geographic crop. No capabilities refetch.
+ if(source.value==="mtgi1"&&frames.length)drawFrame(frames[index]);
+ else refresh();
+});
 id("satReload").addEventListener("click",refresh);
 time.addEventListener("change",()=>{stop();show(Number(time.value));});
+timeline.addEventListener("input",()=>{const i=Number(timeline.value);timelineLabel.textContent=frames[i]?formatUTC(frames[i]):"Keine Beobachtungen";});
+timeline.addEventListener("change",()=>{stop();show(Number(timeline.value));});
 prev.addEventListener("click",()=>{stop();show(index-1);});
 next.addEventListener("click",()=>{stop();show(index+1);});
-play.addEventListener("click",startPause);png.addEventListener("click",downloadPNG);
+play.addEventListener("click",startPause);
+filmLength.addEventListener("change",()=>{if(filmItems.length||filmLoading||filmPlaying){stop();if(frames[index])drawFrame(frames[index]);}});
+filmQuality.addEventListener("change",()=>{if(filmItems.length||filmLoading||filmPlaying){stop();if(frames[index])drawFrame(frames[index]);}});
+filmSpeed.addEventListener("change",()=>{
+ if(!filmPlaying)return;
+ clearTimeout(frameTimer);frameTimer=setTimeout(filmTick,Number(filmSpeed.value));
+});
+png.addEventListener("click",downloadPNG);
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
 refresh();
