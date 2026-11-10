@@ -1,5 +1,6 @@
 import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
 import { dynamicsLabPage, dynamicsLabLoginPage, dynamicsLabData, dynamicsBoundaries } from "./dynamics-lab.js";
+import { shapiroLabPage, shapiroLoginPage, shapiroData } from "./shapiro-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -33,6 +34,9 @@ export default {
       if (url.pathname.startsWith("/dynamik/api/")) {
         return jsonResponse({ error: "Nur nach Anmeldung erreichbar" }, 401);
       }
+      if (url.pathname === "/dynamik/shapiro" || url.pathname === "/dynamik/shapiro/") {
+        return htmlResponse(shapiroLoginPage());
+      }
       if (url.pathname === "/dynamik" || url.pathname === "/dynamik/") {
         return htmlResponse(dynamicsLabLoginPage());
       }
@@ -49,6 +53,12 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/dynamik/shapiro" || url.pathname === "/dynamik/shapiro/") {
+      return htmlResponse(shapiroLabPage());
+    }
+    if (url.pathname.startsWith("/dynamik/api/shapiro/")) {
+      return shapiroData(url, securityHeaders);
+    }
     if (url.pathname === "/dynamik" || url.pathname === "/dynamik/") {
       return htmlResponse(dynamicsLabPage());
     }
@@ -122,7 +132,7 @@ async function handleLogin(request, env) {
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
   const next = String(form.get("next") || "");
-  const target = next === "/wolkenlabor" || next === "/dynamik" ? next : "/";
+  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro"].includes(next) ? next : "/";
   return redirect(target, cookie);
 }
 
