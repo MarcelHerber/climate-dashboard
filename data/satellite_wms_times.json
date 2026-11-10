@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T16:29:50Z",
+  "generated_at": "2026-11-10T16:33:09Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,7 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-10T08:10:00Z",
         "2026-11-10T08:20:00Z",
         "2026-11-10T08:30:00Z",
         "2026-11-10T08:40:00Z",
@@ -55,27 +54,37 @@
         "2026-11-10T15:30:00Z",
         "2026-11-10T15:40:00Z",
         "2026-11-10T15:50:00Z",
-        "2026-11-10T16:00:00Z"
+        "2026-11-10T16:00:00Z",
+        "2026-11-10T16:10:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T16:00:00Z",
-      "latest_verified_time": "2026-11-10T16:00:00Z",
+      "latest_advertised_time": "2026-11-10T16:10:00Z",
+      "latest_verified_time": "2026-11-10T16:10:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 445920,
+      "bytes": 442480,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 29.8,
+      "age_minutes": 23.2,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 312994,
+      "full_disk_bytes": 311918,
       "atlantic_ok": true,
-      "atlantic_bytes": 939042,
+      "atlantic_bytes": 937121,
       "southwest_ok": true,
-      "southwest_bytes": 1635652,
-      "film_preview_ok": false,
-      "film_preview_error": "HTTP Error 500: Internal Server Error"
+      "southwest_bytes": 1624215,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 274231
+        },
+        {
+          "width": 480,
+          "bytes": 272827
+        }
+      ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -138,18 +147,24 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 19.8,
+      "age_minutes": 23.2,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 293574,
       "atlantic_ok": true,
       "atlantic_bytes": 1059564,
-      "southwest_ok": false,
-      "southwest_error": "HTTP Error 500: Internal Server Error",
+      "southwest_ok": true,
+      "southwest_bytes": 2017841,
       "film_preview_ok": true,
       "film_preview_bytes": [
-        316005,
-        315925
+        {
+          "width": 480,
+          "bytes": 316005
+        },
+        {
+          "width": 480,
+          "bytes": 315925
+        }
       ]
     },
     "cloudtype": {
@@ -213,7 +228,7 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 19.8,
+      "age_minutes": 23.2,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 243903,
@@ -221,11 +236,8 @@
       "atlantic_bytes": 712318,
       "southwest_ok": true,
       "southwest_bytes": 1631863,
-      "film_preview_ok": true,
-      "film_preview_bytes": [
-        273193,
-        257926
-      ]
+      "film_preview_ok": false,
+      "film_preview_error": "HTTP Error 500: Internal Server Error"
     }
   },
   "errors": [],
