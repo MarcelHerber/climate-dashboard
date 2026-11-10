@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T16:33:09Z",
+  "generated_at": "2026-11-10T16:55:08Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,8 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-10T08:20:00Z",
-        "2026-11-10T08:30:00Z",
         "2026-11-10T08:40:00Z",
         "2026-11-10T08:50:00Z",
         "2026-11-10T09:00:00Z",
@@ -55,42 +53,42 @@
         "2026-11-10T15:40:00Z",
         "2026-11-10T15:50:00Z",
         "2026-11-10T16:00:00Z",
-        "2026-11-10T16:10:00Z"
+        "2026-11-10T16:10:00Z",
+        "2026-11-10T16:20:00Z",
+        "2026-11-10T16:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T16:10:00Z",
-      "latest_verified_time": "2026-11-10T16:10:00Z",
+      "latest_advertised_time": "2026-11-10T16:30:00Z",
+      "latest_verified_time": "2026-11-10T16:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 442480,
+      "bytes": 440114,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 23.2,
+      "age_minutes": 25.1,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 311918,
+      "full_disk_bytes": 310224,
       "atlantic_ok": true,
-      "atlantic_bytes": 937121,
+      "atlantic_bytes": 933227,
       "southwest_ok": true,
-      "southwest_bytes": 1624215,
+      "southwest_bytes": 1607217,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 274231
+          "bytes": 271308
         },
         {
           "width": 480,
-          "bytes": 272827
+          "bytes": 270378
         }
       ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-10T08:20:00Z",
-        "2026-11-10T08:30:00Z",
         "2026-11-10T08:40:00Z",
         "2026-11-10T08:50:00Z",
         "2026-11-10T09:00:00Z",
@@ -136,42 +134,42 @@
         "2026-11-10T15:40:00Z",
         "2026-11-10T15:50:00Z",
         "2026-11-10T16:00:00Z",
-        "2026-11-10T16:10:00Z"
+        "2026-11-10T16:10:00Z",
+        "2026-11-10T16:20:00Z",
+        "2026-11-10T16:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T16:10:00Z",
-      "latest_verified_time": "2026-11-10T16:10:00Z",
+      "latest_advertised_time": "2026-11-10T16:30:00Z",
+      "latest_verified_time": "2026-11-10T16:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 550970,
+      "bytes": 551148,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 23.2,
+      "age_minutes": 25.1,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 293574,
+      "full_disk_bytes": 293989,
       "atlantic_ok": true,
-      "atlantic_bytes": 1059564,
+      "atlantic_bytes": 1062454,
       "southwest_ok": true,
-      "southwest_bytes": 2017841,
+      "southwest_bytes": 2021344,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 316005
+          "bytes": 317388
         },
         {
-          "width": 480,
-          "bytes": 315925
+          "width": 720,
+          "bytes": 736085
         }
       ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
       "available_times": [
-        "2026-11-10T08:20:00Z",
-        "2026-11-10T08:30:00Z",
         "2026-11-10T08:40:00Z",
         "2026-11-10T08:50:00Z",
         "2026-11-10T09:00:00Z",
@@ -217,27 +215,38 @@
         "2026-11-10T15:40:00Z",
         "2026-11-10T15:50:00Z",
         "2026-11-10T16:00:00Z",
-        "2026-11-10T16:10:00Z"
+        "2026-11-10T16:10:00Z",
+        "2026-11-10T16:20:00Z",
+        "2026-11-10T16:30:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T16:10:00Z",
-      "latest_verified_time": "2026-11-10T16:10:00Z",
+      "latest_advertised_time": "2026-11-10T16:30:00Z",
+      "latest_verified_time": "2026-11-10T16:30:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 46869,
+      "bytes": 8902,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 23.2,
+      "age_minutes": 25.1,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 243903,
+      "full_disk_bytes": 229183,
       "atlantic_ok": true,
-      "atlantic_bytes": 712318,
+      "atlantic_bytes": 660717,
       "southwest_ok": true,
-      "southwest_bytes": 1631863,
-      "film_preview_ok": false,
-      "film_preview_error": "HTTP Error 500: Internal Server Error"
+      "southwest_bytes": 1444025,
+      "film_preview_ok": true,
+      "film_preview_bytes": [
+        {
+          "width": 480,
+          "bytes": 242911
+        },
+        {
+          "width": 480,
+          "bytes": 228055
+        }
+      ]
     }
   },
   "errors": [],
