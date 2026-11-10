@@ -39,7 +39,8 @@ try {
   if(!b) await page.waitForTimeout(3000);
   assert.ok(responses.some(x=>x[0]==="borders_europe.geojson"&&x[1]===200),
    "High-res Natural Earth boundaries not fetched");
-  assert.ok(responses.some(x=>x[0]==="current.json"&&x[1]===200));
+  assert.ok(responses.some(x=>x[0]==="opera/current.json"&&x[1]===200));
+  assert.ok(responses.some(x=>x[0].startsWith("opera/frames/dbzh_")&&x[1]===200),"ECMWETNET dBZ images missing");
   const sample=await page.evaluate(()=>({
    width:document.documentElement.clientWidth,
    scrollWidth:document.documentElement.scrollWidth,
