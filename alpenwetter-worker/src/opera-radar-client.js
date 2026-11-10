@@ -106,7 +106,7 @@ function getImage(frame){
    const img=new Image();
    img.onload=()=>{
      try{
-       const layer=coloredImage(img,state.kind);
+       const layer=coloredImage(img,path.startsWith("frames/dbzh_")?"dbzh":"rate");
        state.cache.set(path,layer);
        while(state.cache.size>10)state.cache.delete(state.cache.keys().next().value);
        resolve(layer);
