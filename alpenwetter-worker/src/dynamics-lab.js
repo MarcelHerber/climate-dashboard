@@ -64,7 +64,7 @@ const STYLE = [
 ".bar{height:13px;width:min(450px,100%);border-radius:4px;background:linear-gradient(to right,#f7f9fc,#d1f2ff,#83d3d3,#419947,#e8e458,#ec6f28,#9b1a58)}",
 ".pill{font-size:11px;border:1px solid #345976;border-radius:99px;padding:4px 8px;color:#b7e6ca;background:#183c36}",
 "@media(max-width:900px){.layout{grid-template-columns:1fr}.settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}.card{padding:12px}}",
-"@media(max-width:530px){header{padding:12px}main{padding:13px 8px}.settings{display:block}.row{justify-content:flex-start}.map canvas{aspect-ratio:16/10}}"
+"@media(max-width:530px){header{padding:12px}main{padding:13px 8px}.settings{display:block}.row{justify-content:flex-start}.map canvas{aspect-ratio:16/9}}"
 ].join("");
 
 export function dynamicsLabPage() {
