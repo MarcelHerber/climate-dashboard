@@ -1,0 +1,56 @@
+name: MTG EUMETView live data check
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check_satellite_wms.py"
+      - "satelliten.js"
+      - ".github/workflows/check-satellite-wms.yml"
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mtg-wms-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Probe official WMS metadata and three RGB PNGs
+        run: python scripts/check_satellite_wms.py
+      - name: Save status in repository for same-origin browser fallback
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/satellite_wms_times.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update verified EUMETSAT WMS data status"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Summarize live check
+        if: always()
+        run: |
+          echo "### EUMETSAT MTG-WMS-Liveprüfung" >> "$GITHUB_STEP_SUMMARY"
+          if test -s data/satellite_wms_times.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          data=json.load(open("data/satellite_wms_times.json"))
+          print("GetCapabilities:", "OK" if data.get("capabilities_ok") else "Nicht erreichbar")
+          print()
+          print("| Produkt | PNG | Aufnahme UTC | Frisch |")
+          print("|---|---|---|---|")
+          for key,v in data["products"].items():
+              print(f"| {key} | {'OK' if v['map_ok'] else 'Fehler'} | {v.get('latest_verified_time') or 'nicht verifiziert'} | {v.get('fresh', '–')} |")
+          PY
+          fi
