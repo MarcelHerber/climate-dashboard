@@ -49,7 +49,7 @@ jobs:
       - name: Projektion, Landmaske und Klimareferenz testen
         run: python -m unittest discover -s tests -p test_europe_snow_area.py -v
       - name: Originale NOAA-IMS-Raster für Europa flächengewichtet auswerten
-        run: python -u scripts/update_europe_snow_area.py --max-new 2600
+        run: python -u scripts/update_europe_snow_area.py --max-new 3200
       - name: Keine erfundenen Schneeflächen und keine unzureichende Klimatologie publizieren
         run: |
           python - <<'PY'
