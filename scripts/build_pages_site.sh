@@ -368,6 +368,9 @@ PY
 # Ein einziges Handymenü auf allen veröffentlichten HTML-Seiten.
 # Desktop bleibt unverändert; keine individuellen Seiteninhalte werden verändert.
 python scripts/inject_mobile_navigation.py _site
+node --check _site/satelliten.js
+node --test tests/test_satelliten_ui.cjs
+grep -q 'src="satelliten.js"' _site/satelliten.html
 node --check _site/saharastaub.js
 node --test tests/test_saharastaub_ui.cjs
 node --test tests/test_monthly_observed_chart.cjs
