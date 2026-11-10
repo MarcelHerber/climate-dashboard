@@ -56,3 +56,32 @@ jobs:
           python-version: "3.12"
       - name: Python-Syntaxprüfung
         run: python -m py_compile scripts/build_ecmwf_dynamics.py
+
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF und Rasterbibliotheken
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Zwei echte ECMWF-IFS-Prognosezeitpunkte prüfen
+        run: python scripts/build_ecmwf_dynamics.py --out /tmp/dynamics-smoke --smoke
+      - name: Originalwerte, Felder und Zeitstempel validieren
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          root=Path("/tmp/dynamics-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert [f["hour"] for f in m["frames"]]==[0,3]
+          assert set(m["frames"][0]["images"])=={"tcwv","jet","ascent","pv","iru","irv"}
+          for frame in m["frames"]:
+              for relative in frame["images"].values():
+                  with Image.open(root/relative) as im:
+                      assert im.mode=="L" and im.size==(m["grid"]["width"],m["grid"]["height"])
+          print("REAL IFS GRIB and derived images validated for",m["cycle"])
+          PY
