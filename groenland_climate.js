@@ -123,7 +123,11 @@ function drawLegend(mode){
  const colors=["#4b448f","#2479b0","#44a3b9","#e1b14b","#d85c4a"];
  const unit=mode==="latest"?"°C":MODES[mode].unit;
  const threshold=limits[mode]||limits.latest;
- const labels=[
+ const labels=mode==="latest"?[
+  "≤ "+threshold[0],"> "+threshold[0]+" bis ≤ "+threshold[1],
+  "> "+threshold[1]+" bis ≤ "+threshold[2],
+  "> "+threshold[2]+" bis ≤ "+threshold[3],"> "+threshold[3]
+ ]:[
   "< "+threshold[0],threshold[0]+" bis < "+threshold[1],
   threshold[1]+" bis < "+threshold[2],threshold[2]+" bis < "+threshold[3],
   "≥ "+threshold[3]
