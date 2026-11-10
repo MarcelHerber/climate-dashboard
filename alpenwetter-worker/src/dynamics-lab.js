@@ -397,3 +397,17 @@ function dynamicsClient() {
     .catch(()=>say("Natural-Earth-Grenzen derzeit nicht erreichbar; Wetterfelder bleiben nutzbar.",true));
   baseMap();boot();
 }
+
+export function dynamicsLabLoginPage() {
+  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+   '<meta name="robots" content="noindex,nofollow,noarchive"><title>Privates Dynamik-Studio · Anmeldung</title>' +
+   '<style>:root{color-scheme:dark;font-family:system-ui}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1929;color:#eff7ff}' +
+   'main{width:min(430px,calc(100% - 30px));background:#142a40;border:1px solid #395c75;border-radius:15px;padding:26px;box-sizing:border-box}' +
+   'p{color:#bed3e5}label{display:block;margin:12px 0 6px}input,button{box-sizing:border-box;width:100%;padding:12px;font:inherit;border-radius:8px}' +
+   'input{color:white;background:#0b1d30;border:1px solid #57758f}button{background:#237aad;border:0;margin-top:13px;color:white;font-weight:700;cursor:pointer}</style>' +
+   '</head><body><main><small>GESCHÜTZTER TESTBEREICH</small><h1>ECMWF Dynamik-Studio</h1>' +
+   '<p>Die interaktive Modellanimation erfordert das vorhandene Alpenwetter-Passwort.</p>' +
+   '<form method="POST" action="/login"><input type="hidden" name="next" value="/dynamik">' +
+   '<label for="pwd">Passwort</label><input id="pwd" type="password" name="password" autocomplete="current-password" required>' +
+   '<button type="submit">Studio öffnen</button></form></main></body></html>';
+}
