@@ -164,7 +164,7 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
             rows.append({"utc":iso(stamp),"image":relative,"stats":stats})
             LOG.info("OPERA %s %s coverage=%.3f min/max=%s/%s",kind,iso(stamp),
                      stats["coverage"],stats["min_physical"],stats["max_physical"])
-        if len(rows)<4:
+        if len(rows)<min(4,counts[kind]):
             raise ValueError(f"Insufficient verified {kind} frames")
         frames[kind]={**PRODUCTS[kind],"frames":rows}
     manifest={
