@@ -6,8 +6,8 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false,totalSlots=8}={}){
- let failed480=false;
+function fixture({failOne480=false,failOne320=false,totalSlots=8}={}){
+ let failed480=false,failed320=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
    "satPrev","satNext","satPlay","satPng","satTimeline","satTimelineLabel","satFilmStage",
@@ -39,6 +39,7 @@ function fixture({failOne480=false,totalSlots=8}={}){
     this.naturalHeight=Number(params.get("height"));
     if(isSmall)state.active--;
     if(failOne480&&!failed480&&this.naturalWidth===480){failed480=true;this.onerror?.();return;}
+    if(failOne320&&!failed320&&this.naturalWidth===320){failed320=true;this.onerror?.();return;}
     this.onload?.();
    },isSmall?7:3);
   }
@@ -149,6 +150,20 @@ test("36-frame film uses small 320px images and ends at selected UTC frame",asyn
  const afterPreload=requests.length;
  await delay(110);
  assert.equal(requests.length,afterPreload,"playback makes no further HTTP requests");
+ nodes.get("satPlay").dispatch("click");
+});
+test("36-frame GeoColour film recovers once from a failed 320px image",async()=>{
+ const {nodes,requests,state}=fixture({totalSlots:48,failOne320:true});
+ await waitUntil(()=>nodes.get("satTime").options.length===48,"48 verified times");
+ nodes.get("satFilmLength").value="36";
+ nodes.get("satFilmLength").dispatch("change");
+ assert.equal(nodes.get("satFilmQuality").value,"320");
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"recovered 36-frame film",5000);
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="320").length,36);
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="720").length,1);
+ assert.equal(nodes.get("satFilmProgress").value,36);
+ assert.ok(state.maxActive<=2);
  nodes.get("satPlay").dispatch("click");
 });
 test("48-frame movie covers every available timestamp without duplicate downloads",async()=>{
