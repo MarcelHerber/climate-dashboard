@@ -22,10 +22,17 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.update_snow_maps import Archive, SIZE, CELL, XLL, YLL, RADIUS, K0
-from scripts.update_eurasia_snow import (
-    HISTORY_YEARS, WINTER_MONTHS, ALL_MONTHS, calculate_month_climatology,
-)
+try:
+    from scripts.update_snow_maps import Archive, SIZE, CELL, XLL, YLL, RADIUS, K0
+    from scripts.update_eurasia_snow import (
+        HISTORY_YEARS, WINTER_MONTHS, ALL_MONTHS, calculate_month_climatology,
+    )
+except ModuleNotFoundError:
+    # python scripts/update_europe_snow_area.py from the repository root
+    from update_snow_maps import Archive, SIZE, CELL, XLL, YLL, RADIUS, K0
+    from update_eurasia_snow import (
+        HISTORY_YEARS, WINTER_MONTHS, ALL_MONTHS, calculate_month_climatology,
+    )
 
 LOG = logging.getLogger("ims_europe_area")
 REGION = {"lat_south": 35, "lat_north": 75, "lon_west": -25, "lon_east": 70}
