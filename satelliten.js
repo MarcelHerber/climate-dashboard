@@ -200,7 +200,7 @@ function showFilmFrame(){
  filmImage.hidden=false;image.hidden=true;empty.hidden=true;
  id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
  id("satValid").textContent="Beobachtung: "+formatUTC(item.time);
- id("satImageInfo").textContent="Vorgeladener Film · "+filmQuality.value+" px · UTC aus geprüften WMS-Metadaten; PNG in voller Auflösung";
+ id("satImageInfo").textContent="Vorgeladener Film · "+item.img.naturalWidth+" px · UTC aus geprüften WMS-Metadaten; PNG in voller Auflösung";
  setStatus("Satellitenfilm · Bild "+(filmPosition+1)+" von "+filmItems.length+" · "+formatUTC(item.time),"info");
  buttons();
 }
@@ -247,7 +247,7 @@ async function prepareFilm(){
  if(generation!==filmGeneration)return;
  filmLoading=false;
  filmItems=results.filter(Boolean);
- filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px)";
+ filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px"+(filmItems.some(item=>item.img.naturalWidth>size)?", einzelne Ersatzbilder 720 px":"")+")";
  if(filmItems.length<2){
   play.textContent="▶ Erneut versuchen";
   setStatus("Für den Film konnten nicht mindestens zwei Satellitenbilder geladen werden. Bitte kleinere Filmlänge wählen oder erneut versuchen.","warning");
