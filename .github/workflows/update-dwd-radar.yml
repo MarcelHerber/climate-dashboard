@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "scripts/build_dwd_radar_ry.py"
+      - "scripts/build_radar_borders.py"
       - ".github/workflows/update-dwd-radar.yml"
 
 permissions:
@@ -27,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: ODIM HDF5 und Projektion
-        run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "pyproj>=3.7,<4" "pillow>=11,<13" "requests>=2,<3"
+        run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "pyproj>=3.7,<4" "pillow>=11,<13" "requests>=2,<3" "shapely>=2,<3"
       - name: Datenbranch vorbereiten
         shell: bash
         env:
@@ -42,6 +43,8 @@ jobs:
             git -C /tmp/dwd-radar-data init -q -b radar-data
             git -C /tmp/dwd-radar-data remote add origin "$url"
           fi
+      - name: Natural Earth hochaufgelöste Vektorgrenzen für Deutschland und Europa aufbereiten
+        run: python scripts/build_radar_borders.py --out /tmp/dwd-radar-data/data/radar/borders_europe.geojson
       - name: Echte DWD-RY-Radarbilder abrufen und geografisch reprojizieren
         run: python scripts/build_dwd_radar_ry.py --out /tmp/dwd-radar-data/data/radar --frames 36
       - name: Dateistand und Radar-Messwerte prüfen
@@ -54,6 +57,9 @@ jobs:
           import numpy as np
           root=Path("/tmp/dwd-radar-data/data/radar")
           m=json.loads((root/"current.json").read_text())
+          geo=json.loads((root/"borders_europe.geojson").read_text())
+          assert geo["type"]=="FeatureCollection" and len(geo["features"])>=35
+          assert (root/"borders_europe.geojson").stat().st_size>250000
           assert m["schema"]==1 and m["units"]=="mm/h" and m["grid"]["width"]==900
           frames=m["frames"]
           assert len(frames)>=12
