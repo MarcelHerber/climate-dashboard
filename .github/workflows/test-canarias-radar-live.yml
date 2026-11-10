@@ -1,0 +1,35 @@
+name: Kanaren-Radar · Live- und Handykontrolle
+
+on:
+  workflow_run:
+    workflows:
+      - "AEMET Kanaren · 10-Minuten-Radar"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      ALPENWETTER_PASSWORD: ${{ secrets.ALPENWETTER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Browser für Live-Test vorbereiten
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Original AEMET-Radardaten, Passwort, Mobile und PNG
+        run: node tests/test_canarias_radar_live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canarias-real-radar-live-screenshots
+          path: /tmp/canarias-live-*.png
+          if-no-files-found: ignore
