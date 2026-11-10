@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Meteosat-Third-Generation-Satellitenbilder von EUMETSAT: Europa, Deutschland, Zeitnavigation und RGB-Produkte.">
+<title>Satelliten · MTG | Climate Dashboard Deutschland</title>
+<link rel="stylesheet" href="dashboard_theme.css">
+<link rel="stylesheet" href="mobile_navigation.css">
+<link rel="stylesheet" href="satelliten.css">
+<script defer src="dashboard_theme.js"></script>
+<script defer src="mobile_navigation.js"></script>
+<script defer src="satelliten.js"></script>
+</head>
+<body>
+<header class="sat-header"><a href="./index.html">← Climate Dashboard Deutschland</a><div class="sat-header-actions"><span>Atmosphäre · Satelliten</span><button id="dashboardThemeToggle" type="button" aria-label="Dark Mode einschalten" aria-pressed="false"><span class="header-icon" aria-hidden="true"></span><span class="action-label">Dunkel</span></button></div></header>
+<main class="sat-main">
+<div class="sat-eyebrow">EUMETSAT · Meteosat Third Generation · FCI</div>
+<h1>Satellitenbilder</h1>
+<p class="sat-lead">Originale RGB-Produkte aus EUMETView. Die Karte wird direkt beim offiziellen Anbieter angefordert. Zeitpunkte für die Animation erscheinen nur, wenn der Dienst sie über seine Metadaten bestätigt.</p>
+<section class="sat-panel" aria-labelledby="satControlsTitle">
+<h2 id="satControlsTitle">Satellit und Kartenauswahl</h2>
+<div class="sat-controls">
+<label for="satSource">Satellit<select id="satSource"><option value="mtgi1">MTG-I1 / Meteosat-12 · reguläre Bildprodukte</option><option value="mtgi2">MTG-I2 · erste ESA-Aufnahmen (kein Livestream)</option></select></label>
+<label for="satProduct">Bildprodukt<select id="satProduct"><option value="geocolour">GeoColour · Tag-/Nachtansicht</option><option value="dust">Dust RGB · Staub und Luftmassen</option><option value="cloudtype">Cloud Type RGB · Wolkentypen (Tag)</option></select></label>
+<label for="satRegion">Kartenausschnitt<select id="satRegion"><option value="europe">Europa und Nordafrika</option><option value="central">Mitteleuropa</option><option value="germany">Deutschland</option><option value="disk">Erdscheibe</option></select></label>
+<label for="satTime">Beobachtungszeit · UTC<select id="satTime" disabled><option value="">Zeitpunkte werden geprüft …</option></select></label>
+</div>
+<div class="sat-actions">
+<button id="satPrev" type="button" disabled aria-label="Vorheriges Satellitenbild">← Vorheriges</button>
+<button id="satPlay" type="button" disabled aria-label="Satellitenfilm starten">▶ Film</button>
+<button id="satNext" type="button" disabled aria-label="Nächstes Satellitenbild">Nächstes →</button>
+<button id="satReload" type="button">↻ Aktualisieren</button>
+<button id="satPng" type="button" disabled>PNG mit Beschriftung ↓</button>
+</div>
+<div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
+</section>
+<section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
+<div class="sat-map-top"><h2 id="satMapTitle">GeoColour · Europa und Nordafrika</h2><span id="satValid">UTC: nicht überprüft</span></div>
+<div id="satPictureFrame" class="sat-picture-frame"><img id="satImage" alt="Satellitenbild vom offiziellen EUMETSAT-WMS-Dienst" /><p id="satEmpty" class="sat-empty" hidden>Keine Satellitenaufnahme geladen. Über den offiziellen EUMETView-Link kannst du die Bilder direkt öffnen.</p></div>
+<div class="sat-caption"><span id="satAttribution">Bilddaten: © EUMETSAT / GeoColour-Hintergrund: NASA</span><span id="satImageInfo">WMS · EPSG:4326 · verifiziertes UTC-Datum nur bei bestätigter Zeitdimension</span></div>
+<div class="sat-links"><a id="satOfficial" href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_geocolour" target="_blank" rel="noopener noreferrer">Produkt bei EUMETView öffnen ↗</a><a href="https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images" target="_blank" rel="noopener noreferrer">MTG-I2: ESA-Erstbilder ↗</a></div>
+</section>
+<section class="sat-panel">
+<h2>MTG-I1 und MTG-I2 – Datenstatus</h2>
+<p><strong>MTG-I1:</strong> Die drei hier auswählbaren Produkte stammen aus dem regulären EUMETView-Angebot. Die Seite kennzeichnet einen Bildzeitpunkt nur nach Prüfung der WMS-Zeitdimension; ohne diese Prüfung wird niemals ein angeblich aktueller Zeitpunkt erfunden.</p>
+<p><strong>MTG-I2:</strong> Die am 6. November 2026 veröffentlichten Erstaufnahmen entstanden während der Inbetriebnahme. Ein öffentlicher, automatisch aktualisierter MTG-I2-Livestream ist hier noch nicht eingebunden. Der Regelbetrieb ist laut ESA für das zweite Quartal 2027 vorgesehen.</p>
+<p>Für wissenschaftliche Vergleiche bitte Bildzeitpunkt, Produkt und Projektion beachten. Der Dienst kann ohne Vorankündigung einzelne Produkte oder Zeitpunkte aussetzen. Farben von RGB-Produkten sind qualitative Darstellungen, keine direkt messbaren Staub- oder Wolkenkonzentrationen.</p>
+</section>
+</main>
+<footer class="sat-footer">Datenquelle: <a href="https://view.eumetsat.int/" target="_blank" rel="noopener noreferrer">EUMETSAT EUMETView</a> · <a href="https://user.eumetsat.int/catalogue/EO%3AEUM%3ADAT%3A0913" target="_blank" rel="noopener noreferrer">Datenlizenz / Produkt</a> · Climate Dashboard Deutschland</footer>
+</body></html>
