@@ -7,12 +7,13 @@
 <title>Grönland · DMI-Wetterstationen und Klimarekorde | Climate Dashboard</title>
 <meta name="description" content="Interaktive Karte grönländischer DMI-Wetterstationen, historische Originalmesswerte seit 1953, Temperatur-, Niederschlags- und Windrekorde.">
 <link rel="stylesheet" href="dashboard_theme.css">
-<link rel="stylesheet" href="groenland_stationen.css?v=1">
+<link rel="stylesheet" href="groenland_stationen.css?v=2">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-<script defer src="groenland_stationen.js?v=1"></script>
+<script defer src="groenland_stationen.js?v=2"></script>
+<script defer src="groenland_climate.js?v=1"></script>
 </head>
 <body class="greenland-page">
 <header class="gr-header">
@@ -35,18 +36,33 @@
       <label>Stationsstatus
        <select id="grStatusFilter"><option value="active">Aktive Stationen</option><option value="all">Alle einschließlich historischer</option></select>
       </label>
+      <label>Darstellung auf der Karte
+        <select id="grMapMode" aria-label="Parameter auf der Grönlandkarte">
+          <option value="latest">Aktuelles Temperaturmittel</option>
+          <option value="high">Höchste Temperatur (Stationsrekord)</option>
+          <option value="low">Tiefste Temperatur (Stationsrekord)</option>
+          <option value="gust">Stärkste 3-s-Böe (Stationsrekord)</option>
+          <option value="rain">Größter 24-h-Niederschlag (Stationsrekord)</option>
+        </select>
+      </label>
     </div>
     <div class="gr-map-actions">
       <button id="grMapReset" type="button" aria-label="Alle grönländischen Stationen auf der Karte anzeigen">Gesamtes Grönland anzeigen</button>
       <span class="gr-map-legend" aria-label="Temperaturfarben auf der Stationskarte"><i class="gr-swatch cold"></i> kalt <i class="gr-swatch mild"></i> mild <i class="gr-swatch warm"></i> warm <i class="gr-swatch missing"></i> keine aktuellen Werte</span>
     </div>
     <div id="grMap" role="application" aria-label="Interaktive DMI-Wetterstationskarte Grönland"></div>
-    <p class="gr-note">Marker zeigen DMI-Standorte; Farbe zeigt das jüngste gültige Temperatur-Tagesmittel, sofern vorhanden. Die Größe des Archivs und die Aktualität unterscheiden sich je Station.</p>
+    <p id="grMapRecordStatus" class="gr-note" role="status" aria-live="polite">Die Kartenfarben zeigen die jüngsten verfügbaren DMI-Temperaturmittel. Für historische Rekorde eine andere Darstellung wählen.</p>
+    <p class="gr-note">Rekorde sind Extremwerte aus <strong>vorhandenen, gültigen DMI-Jahreswerten</strong>; sie sind keine geprüften landesweiten Rekorde. Fehlende Stationswerte bleiben grau. Die Farben und Grenzwerte sind innerhalb jeder Messgröße konstant.</p>
   </div>
   <div class="gr-card gr-list-card">
     <div class="gr-card-header"><h2>Station wählen</h2><span id="grStationCount">—</span></div>
     <div id="grStationList" class="gr-station-list" role="listbox" aria-label="Grönländische Wetterstationen"></div>
     <p class="gr-note" id="grStationListNote">Stationsstandorte werden aus dem offiziellen DMI-Katalog geladen.</p>
+    <div id="grMapRanking" class="gr-map-ranking" hidden>
+      <h3 id="grMapRankingTitle">Rekorde nach Station</h3>
+      <p class="gr-note">Auf eine Station tippen, um ihre Messreihe und Rekordstatistik zu öffnen.</p>
+      <ol id="grMapRankingList" aria-label="Stationsrangliste"></ol>
+    </div>
   </div>
  </section>
  <section class="gr-card gr-series-card" aria-labelledby="grStationTitle">
@@ -86,6 +102,51 @@
   </div>
   <div class="gr-chart-wrap"><canvas id="grChart" role="img" aria-label="Zeitreihe originaler DMI-Stationswerte"></canvas></div>
   <p class="gr-note">Fehlende Messwerte bleiben Lücken. Tageswerte beziehen sich auf die vom DMI definierten Messintervalle; diese können je nach Parameter von einem Mitternacht-zu-Mitternacht-Tag abweichen. Bei Niederschlag bedeutet −0,1 mm laut DMI „Spur unter 0,1 mm“.</p>
+ </section>
+ <section class="gr-card gr-climate-card" id="grClimate" aria-labelledby="grClimateTitle">
+   <div class="gr-card-header">
+     <div>
+       <h2 id="grClimateTitle">Klimamittel, Anomalien und langfristige Trends</h2>
+       <p class="gr-muted">DMI-Originalwerte · Referenz 1991–2020 · mit geprüfter Messabdeckung je Zeitintervall</p>
+     </div>
+     <div class="gr-downloads"><button id="grClimateCsv" disabled>Klimawerte CSV</button><button id="grClimatePng" disabled>Diagramm PNG</button></div>
+   </div>
+   <div class="gr-controls">
+     <label>Auswertung
+       <select id="grClimateView">
+         <option value="year">Jahresmittel und Jahresanomalien</option>
+         <option value="month">Monatsmittel und Monatsanomalien</option>
+       </select>
+     </label>
+     <label>Monat
+       <select id="grClimateMonth" disabled>
+         <option value="1">Januar</option><option value="2">Februar</option><option value="3">März</option>
+         <option value="4">April</option><option value="5">Mai</option><option value="6">Juni</option>
+         <option value="7">Juli</option><option value="8">August</option><option value="9">September</option>
+         <option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option>
+       </select>
+     </label>
+     <label>Mindestabdeckung pro Jahr/Monat
+       <select id="grClimateCoverage">
+         <option value="0.8">80 % der Kalendertage</option>
+         <option value="0.9">90 % der Kalendertage</option>
+         <option value="1">100 % der Kalendertage</option>
+       </select>
+     </label>
+   </div>
+   <p class="gr-note" id="grClimateStatus" role="status" aria-live="polite">Wähle eine Station für die Klimaanalyse.</p>
+   <div class="gr-kpis gr-climate-kpis">
+     <div><span>Klimamittel 1991–2020</span><strong id="grClimateNormal">–</strong><small id="grClimateNormalN"></small></div>
+     <div><span>Trend</span><strong id="grClimateTrend">–</strong><small>°C pro Jahrzehnt</small></div>
+     <div><span>Wärmstes Jahr / Monat</span><strong id="grClimateHot">–</strong><small id="grClimateHotYear"></small></div>
+     <div><span>Kältestes Jahr / Monat</span><strong id="grClimateCold">–</strong><small id="grClimateColdYear"></small></div>
+   </div>
+   <div class="gr-chart-wrap gr-climate-chart"><canvas id="grClimateChart" aria-label="DMI-Temperaturanomalien gegenüber 1991 bis 2020 und Trend" role="img"></canvas></div>
+   <div class="gr-climate-ranks">
+     <div><h3>Wärmste Jahre</h3><ol id="grClimateWarmRanks"></ol></div>
+     <div><h3>Kälteste Jahre</h3><ol id="grClimateColdRanks"></ol></div>
+   </div>
+   <p class="gr-note">Einzelintervalle werden nur berücksichtigt, wenn das DMI für sie die erforderliche Zahl an Beobachtungstagen ausweist. Für die Referenz werden mindestens <strong>24 gültige Jahre von 1991 bis 2020</strong> verlangt; fehlen diese, werden weder Anomalien noch Trends oder Rangplätze berechnet. Unvollständige aktuelle Jahre werden nicht automatisch als vollständige Jahreswerte gezählt. Die Trendangabe ist eine lineare Regression über die tatsächlich verwendeten Zeitpunkte; sie beschreibt keine Ursache.</p>
  </section>
  <section class="gr-card" aria-labelledby="grRecordsTitle">
    <div class="gr-card-header"><div><h2 id="grRecordsTitle">Historische Stationsrekorde</h2>
