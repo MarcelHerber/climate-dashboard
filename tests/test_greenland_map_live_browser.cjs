@@ -40,6 +40,25 @@ async function main(){
    assert.ok(mapState.stations>=10&&mapState.markers>=10);
    assert.equal(mapState.tilePosition,"absolute");
    assert.ok(mapState.controls);
+   // Public Pages must contain both new layers, not just the old marker catalogue.
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().recordModes.length>=3,
+     null,{timeout:25000});
+   await page.locator("#grMapMode").selectOption("high");
+   assert.ok(await page.locator("#grMapRankingList li").count()>=5,
+     "Public Pages must show the original DMI historical record leaderboard");
+   assert.ok((await page.locator("#grMapLegend").innerText()).includes("°C"),
+     "Record-map legend must identify the fixed scale unit");
+   await page.locator("#grSearch").fill("Nuuk");
+   await page.locator(".gr-station").filter({hasText:"04250"}).first().click();
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().hasNormal,
+     null,{timeout:80000});
+   const climate=await page.evaluate(()=>window.GreenlandClimateMath.getState());
+   assert.ok(climate.referenceYears>=24&&climate.points>=24,
+     "Live Pages must calculate trustworthy Greenland climate anomalies");
+   await page.locator("#grClimateView").selectOption("month");
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().view==="month"&&
+     window.GreenlandClimateMath.getState().hasNormal,null,{timeout:80000});
+   console.log("PASS public Greenland climate "+device.name+":",JSON.stringify(climate));
    await page.locator("#grMap").screenshot({
     path:path.join(folder,"greenland-live-map-"+device.name+".png"),
     animations:"disabled"
