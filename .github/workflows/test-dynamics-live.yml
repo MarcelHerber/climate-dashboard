@@ -1,6 +1,8 @@
 name: ECMWF Dynamik-Studio · Live Fehlerdiagnose
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "alpenwetter-worker/src/dynamics-lab.js"
