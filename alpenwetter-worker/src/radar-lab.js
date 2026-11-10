@@ -4,7 +4,7 @@ import { RADAR_CLIENT_SOURCE } from "./radar-client.js";
 const SOURCE="https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/radar-data/data/radar/";
 export async function radarLabData(url, securityHeaders) {
   const path=url.pathname.replace(/^\/radarlabor\/api\//,"");
-  if(!/^(?:current\.json|frames\/\d{12}\.png)$/.test(path))
+  if(!/^(?:current\.json|borders_europe\.geojson|frames\/\d{12}\.png)$/.test(path))
     return new Response("Unzulässiger Radar-Dateipfad",{status:400,headers:securityHeaders({"Content-Type":"text/plain"})});
   try{
     const r=await fetch(SOURCE+path,{
@@ -14,7 +14,7 @@ export async function radarLabData(url, securityHeaders) {
       status:r.status===404?404:502,headers:securityHeaders({"Content-Type":"application/json; charset=utf-8"})
     });
     return new Response(r.body,{status:200,headers:securityHeaders({
-      "Content-Type":path.endsWith(".png")?"image/png":"application/json; charset=utf-8"
+      "Content-Type":path.endsWith(".png")?"image/png":path.endsWith(".geojson")?"application/geo+json; charset=utf-8":"application/json; charset=utf-8"
     })});
   }catch(_error){
     return new Response(JSON.stringify({error:"Radarquelle nicht erreichbar"}),{
@@ -61,11 +61,11 @@ export function radarLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>DWD Radarkomposit · Privates Radarlabor</title><style>'+CSS+'</style></head><body>'+
  '<header><div><small>CLIMATE DASHBOARD · PASSWORTGESCHÜTZT</small><strong>DWD Radar-Komposit <span class="badge">Test</span></strong></div>'+
- '<nav><a href="/dynamik">Dynamik-Studio</a><a href="/dynamik/shapiro">Shapiro-Keyser</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
+ '<nav><a href="/radarlabor/europa">Europa-Komposit (OPERA)</a><a href="/dynamik">Dynamik-Studio</a><a href="/dynamik/shapiro">Shapiro-Keyser</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
  '<main><h1>Radarkomposit Deutschland</h1><p class="intro">DWD RADOLAN RY · 1-km-Radarverbund · qualitätsgeprüfte, aus Radarreflektivität abgeleitete Niederschlagsrate (mm/h), alle 5 Minuten. Keine Stationsaneichung und keine Vorhersage. Fehlende Radarwerte werden als fehlend und nicht als trocken dargestellt.</p>'+
  '<div class="layout"><section class="card">'+
  '<div class="bar"><strong id="product">DWD RY · Daten prüfen …</strong><span id="stamp" class="badge">–</span></div>'+
- '<div class="mapbox"><canvas id="map" width="900" height="550" role="img" aria-label="Georeferenziertes DWD-Radarkomposit über Deutschland"></canvas>'+
+ '<div class="mapbox"><canvas id="map" width="1800" height="1100" role="img" aria-label="Georeferenziertes DWD-Radarkomposit über Deutschland"></canvas>'+
  '<div class="mapstamp" id="mapStamp">Radardaten werden geladen</div></div>'+
  '<div class="bar"><button id="prev" disabled aria-label="Vorheriges Radarbild">◀</button>'+
  '<button id="play" class="primary" disabled>▶ Animation</button><button id="next" disabled aria-label="Nächstes Radarbild">▶</button>'+
