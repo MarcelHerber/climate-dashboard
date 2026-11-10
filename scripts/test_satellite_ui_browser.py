@@ -103,6 +103,17 @@ def exercise(page, viewport_label, official_xml):
         timeout=45000
     )
     evidence["atlantic_real_image_loaded"]=True
+    # Azores, Madeira and Canary Islands in one Southwest-Europe satellite frame.
+    page.locator("#satRegion").select_option("southwest")
+    evidence["southwest_bbox"]="-37%2C24%2C19%2C53" in (page.locator("#satImage").get_attribute("src") or "")
+    assert evidence["southwest_bbox"], "Southwest-Europe extent is not applied"
+    page.wait_for_function(
+        "() => { const img=document.getElementById('satImage'); "
+        "return img.src.includes('-37%2C24%2C19%2C53') && img.complete && img.naturalWidth>0; }",
+        timeout=45000
+    )
+    evidence["southwest_real_image_loaded"]=True
+    page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
     # Select the native geostationary projection for full disk.
     page.locator("#satRegion").select_option("disk")
     page.wait_for_timeout(350)
