@@ -13,6 +13,10 @@ test("Meteosat viewer assets included in Pages deployment",()=>{
  assert.ok(mobile.includes('["satelliten.html","Satelliten · MTG"]'));
  assert.ok(mobile.includes('satelliteLink.href="./satelliten.html"'));
  assert.ok(html.includes("mobile_navigation.js"));
+ assert.ok(html.includes('<option value="atlantic">Nordatlantik &amp; Europa'));
+ assert.ok(js.includes('atlantic:{name:"Nordatlantik & Europa",bbox:[-70,15,35,75]'));
+ assert.ok(js.includes("region.value"));
+ assert.ok(js.includes('srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326"'));
  assert.ok(html.includes("dashboard_theme.js"));
 });
 test("Meteosat viewer shows only documented official products and honest source status",()=>{
