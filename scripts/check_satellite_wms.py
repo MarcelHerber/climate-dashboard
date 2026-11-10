@@ -108,7 +108,7 @@ def dimensions_for_layer(root, target):
     return []
 
 
-def test_png(layer, timestamp, full_disk=False, atlantic=False):
+def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False):
     params = {
         "service": "WMS", "version": "1.1.1", "request": "GetMap",
         "layers": layer, "styles": "", "format": "image/png",
@@ -123,6 +123,10 @@ def test_png(layer, timestamp, full_disk=False, atlantic=False):
         params.update({"srs":"EPSG:4326",
                        "bbox":"-70,15,35,75",
                        "width":"800", "height":"486"})
+    if southwest:
+        params.update({"srs":"EPSG:4326",
+                       "bbox":"-37,24,19,53",
+                       "width":"800", "height":"514"})
     if timestamp:
         params["time"] = timestamp
     payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
@@ -184,6 +188,13 @@ def main():
         except Exception as error:
             entry["atlantic_ok"] = False
             entry["atlantic_error"] = str(error)[:350]
+        try:
+            southwest_image = test_png(layer, available[-1] if available else None, southwest=True)
+            entry["southwest_ok"] = bool(southwest_image.get("ok"))
+            entry["southwest_bytes"] = southwest_image["bytes"]
+        except Exception as error:
+            entry["southwest_ok"] = False
+            entry["southwest_error"] = str(error)[:350]
         result["products"][key] = entry
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
