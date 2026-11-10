@@ -11,28 +11,29 @@ const REGIONS={
  europe:{name:"Europa und Nordafrika",bbox:[-27,24,49,73],w:1300,h:850},
  central:{name:"Mitteleuropa",bbox:[-2,43,25,58],w:1300,h:780},
  germany:{name:"Deutschland",bbox:[5,47,16,56],w:1140,h:950},
- disk:{name:"Erdscheibe",bbox:[-77,-77,77,77],w:1100,h:1100}
+ disk:{name:"Erdscheibe",bbox:[-6500000,-6500000,6500000,6500000],w:1400,h:1400}
 };
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
-let frames=[],index=-1,frameTimer=null,token=0,currentUrl="",loaded=false,verified=false,abort=null;
+let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null;
 const description=()=>PRODUCTS[product.value];
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
 function stop(){if(frameTimer!==null){clearInterval(frameTimer);frameTimer=null;}play.textContent="▶ Film";play.setAttribute("aria-label","Satellitenfilm starten");}
 function buttons(){const ready=source.value==="mtgi1"&&frames.length>1;prev.disabled=!ready||index<=0;next.disabled=!ready||index>=frames.length-1;play.disabled=!ready;time.disabled=!frames.length||source.value!=="mtgi1";png.disabled=!loaded||source.value!=="mtgi1";}
 function formatUTC(t){return new Intl.DateTimeFormat("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(t))+" UTC";}
 function imageUrl(t){const layer=description(),r=REGIONS[region.value];
- const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:"EPSG:4326",bbox:r.bbox.join(","),width:String(r.w),height:String(r.h)});
+ const params=new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",layers:layer.layer,styles:"",format:"image/png",transparent:"false",srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326",bbox:r.bbox.join(","),width:String(r.w),height:String(r.h),bgcolor:"0x000000"});
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
-function drawFrame(t){const seq=token;loaded=false;verified=Boolean(t);currentUrl=imageUrl(t);empty.hidden=true;image.hidden=false;image.alt=description().name+" – "+REGIONS[region.value].name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
+function drawFrame(t){const seq=token,req=++imageRequest;loaded=false;verified=Boolean(t);currentUrl=imageUrl(t);empty.hidden=true;image.hidden=false;image.alt=description().name+" – "+REGIONS[region.value].name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
  id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
- id("satImageInfo").textContent=t?"WMS · EPSG:4326 · UTC aus GetCapabilities":"WMS · EPSG:4326 · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
- image.onload=()=>{if(seq!==token)return;loaded=true;empty.hidden=true;image.hidden=false;buttons();if(t)setStatus("Bild für "+formatUTC(t)+" geladen · Zeit aus WMS-Metadaten.","info");else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");};
- image.onerror=()=>{if(seq!==token)return;loaded=false;image.hidden=true;empty.hidden=false;buttons();setStatus("Der EUMETSAT-Kartendienst konnte das angeforderte Bild nicht liefern. Bitte den offiziellen Produktlink verwenden.","error");};
+ const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
+ id("satImageInfo").textContent=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
+ image.onload=()=>{if(seq!==token||req!==imageRequest)return;loaded=true;empty.hidden=true;image.hidden=false;buttons();if(t)setStatus("Bild für "+formatUTC(t)+" geladen · Zeit aus WMS-Metadaten.","info");else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");};
+ image.onerror=()=>{if(seq!==token||req!==imageRequest)return;loaded=false;image.hidden=true;empty.hidden=false;buttons();setStatus("Der EUMETSAT-Kartendienst konnte das angeforderte Bild nicht liefern. Bitte den offiziellen Produktlink verwenden.","error");};
  buttons();image.src=currentUrl;
 }
 function parseTimes(text){
