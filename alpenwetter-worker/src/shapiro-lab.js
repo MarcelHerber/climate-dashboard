@@ -50,7 +50,7 @@ export function shapiroLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>Shapiro-Keyser-Monitor · ECMWF · Privat</title><style>'+CSS+'</style></head><body>'+
  '<header><div><small>CLIMATE DASHBOARD · PASSWORTGESCHÜTZT</small><strong>Shapiro-Keyser- &amp; Sting-Jet-Monitor</strong></div><nav>'+
- '<a href="/dynamik">ECMWF Dynamik-Studio</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
+ '<a href="/radarlabor">Radarkomposit (Test)</a><a href="/dynamik">ECMWF Dynamik-Studio</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
  '<main><h1>Extratropische Zyklonen untersuchen</h1><p class="lead">Drei synchronisierte Diagnosekarten, vertikale Modellquerschnitte und objektive Tiefdruck-Kandidaten. Reale ECMWF-IFS-Felder · 0,25° · alle 3 Stunden. Ein Verdachtsfall ist keine Bestätigung einer Shapiro-Keyser-Zyklone oder eines Sting Jets.</p>'+
  '<div class="tabs" role="group" aria-label="Diagnosekarte wählen">'+
  '<button id="viewA" aria-pressed="true" type="button">A · Frontalstruktur / Warm Seclusion</button>'+
