@@ -104,3 +104,33 @@ button:disabled{cursor:not-allowed!important;opacity:.5}
  .gr-map-actions button{width:100%}
  #grMap .leaflet-control-zoom a{width:37px;height:37px;line-height:37px}
 }
+
+
+/* Greenland climate anomaly and historical record map 2026. */
+.gr-map-tools label{min-width:0;flex:1 1 190px}
+.gr-map-tools select{width:100%}
+.gr-climate-card{scroll-margin-top:60px}
+.gr-climate-kpis small{display:block;color:var(--gr-muted);font-size:11px;line-height:1.4}
+.gr-climate-chart{min-height:350px;height:min(52vh,470px)}
+.gr-climate-ranks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:15px 0}
+.gr-climate-ranks>div{border:1px solid var(--gr-border);border-radius:9px;background:var(--gr-soft);padding:12px;min-width:0}
+.gr-climate-ranks h3,.gr-map-ranking h3{font-size:15px;margin:0 0 8px;color:var(--gr-ink)}
+.gr-climate-ranks ol{padding-left:29px;margin:0;column-gap:15px}
+.gr-climate-ranks li{font-variant-numeric:tabular-nums;padding:4px 0;font-size:13px}
+.gr-map-ranking{margin-top:15px;border-top:1px solid var(--gr-border);padding-top:14px}
+.gr-map-ranking ol{padding-left:22px;margin:8px 0}
+.gr-map-ranking li{font-size:12px;padding:4px 0;font-variant-numeric:tabular-nums}
+.gr-rank-station{appearance:none;background:none!important;border:0!important;color:var(--gr-accent)!important;
+ font-size:12px!important;line-height:1.4;text-align:left;padding:2px!important;cursor:pointer}
+.gr-rank-station:hover,.gr-rank-station:focus-visible{text-decoration:underline;outline:2px solid var(--gr-accent);outline-offset:1px}
+.gr-map-station-ranks{margin-top:15px;border-top:1px solid var(--gr-border);padding-top:13px}
+.gr-map-station-ranks h4{margin:0 0 6px;font-size:13px}
+.gr-map-station-ranks li{color:var(--gr-muted)}
+@media(max-width:740px){
+ .gr-climate-ranks{grid-template-columns:1fr}
+ .gr-climate-chart{min-height:300px;height:345px}
+ .gr-climate-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .gr-map-ranking ol{max-height:260px;overflow:auto}
+ .gr-climate-ranks li{font-size:12px}
+}
+@media(max-width:360px){.gr-climate-kpis{grid-template-columns:1fr}}
