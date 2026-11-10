@@ -82,7 +82,7 @@
     const high=samples.reduce((a,b)=>b.value>a.value?b:a);
     return {min:low.value,max:high.value,minYear:low.year,maxYear:high.year};
   }
-  function regression(values){
+  function regression(values,allowNegative=false){
     const p=values.map((value,i)=>({x:i+1,y:value}))
       .filter(x=>Number.isFinite(x.y));
     if(p.length<8||p.at(-1).x<10)return null;
@@ -91,7 +91,7 @@
       sxy=p.reduce((s,v)=>s+v.x*v.y,0),den=n*sxx-sx*sx;
     if(!den)return null;
     const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
-    return {slope,series:values.map((_,i)=>Math.max(0,intercept+slope*(i+1)))};
+    return {slope,series:values.map((_,i)=>allowNegative?intercept+slope*(i+1):Math.max(0,intercept+slope*(i+1)))};
   }
   function dataset(label,arr,color,extra={}){
     return {label,data:arr,borderColor:color,backgroundColor:color,
@@ -193,7 +193,7 @@
       borderWidth:3.2,pointRadius:isLong?0:3.2
     }));
     $("showTrend").disabled=isLong;
-    const fit=(!isLong&&$("showTrend").checked)?regression(obs):null;
+    const fit=(!isLong&&$("showTrend").checked)?regression(obs,departure):null;
     if(fit){
       series.push(dataset("Lineare Trendgerade (keine Prognose)",fit.series,COLORS.fit,{
         pointRadius:0,borderDash:[5,4],borderWidth:2
@@ -342,7 +342,7 @@
     ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(source,0,0);
     a.href=canvas.toDataURL("image/png",1);
-    a.download=areaSlug()+"_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+".png";
+    a.download=areaSlug()+"_NOAA_IMS_"+($("month").value==="winter"?$("season").value:$("calendarYear").value)+"_"+$("month").value+($("showAreaAnomaly").checked?"_Anomalie":"")+".png";
     a.click();
   });
   $("csv").addEventListener("click",()=>{
