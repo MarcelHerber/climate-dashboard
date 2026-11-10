@@ -1,0 +1,87 @@
+name: AEMET Kanaren · 10-Minuten-Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "3,13,23,33,43,53 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_aemet_canarias_radar.py"
+      - ".github/workflows/update-aemet-canarias-radar.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aemet-canarias-radar
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: AEMET georeferenzierte GeoTIFFs
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3"
+      - name: Kanaren-Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/canarias-radar-data >/dev/null 2>&1; then
+            git clone -q --depth 1 -b canarias-radar-data "$url" /tmp/canarias-data
+          else
+            mkdir -p /tmp/canarias-data
+            git -C /tmp/canarias-data init -q -b canarias-radar-data
+            git -C /tmp/canarias-data remote add origin "$url"
+          fi
+      - name: AEMET Original-GeoTIFFs und 10-Minuten-Archive aktualisieren
+        run: python scripts/build_aemet_canarias_radar.py --out /tmp/canarias-data/data/canarias
+      - name: Echte Radarzeitschritte und Bildmetadaten prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime,timezone,timedelta
+          import numpy as np
+          from PIL import Image
+          root=Path("/tmp/canarias-data/data/canarias")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and m["unit"]=="dBZ" and m["cadence_minutes"]==10
+          assert len(m["palette"]["labels"])==len(m["palette"]["colors"])==11
+          assert m["source"].startswith("AEMET Canarias")
+          assert len(m["frames"])>=1
+          previous=None
+          for row in m["frames"]:
+              moment=datetime.fromisoformat(row["utc"].replace("Z","+00:00"))
+              assert previous is None or moment>previous
+              previous=moment
+              assert moment<=datetime.now(timezone.utc)+timedelta(minutes=5)
+              with Image.open(root/row["image"]) as im:
+                  assert im.size==(1460,720) and im.mode=="L"
+                  a=np.asarray(im)
+                  assert int(a.max())<=11, "Only decoded AEMET dBZ palette classes may appear"
+          assert datetime.now(timezone.utc)-previous<timedelta(minutes=60)
+          print("AEMET Canary georeferenced radar verified:",len(m["frames"]),"latest",previous)
+          PY
+      - name: Nur bestätigte Radarbilder veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/canarias-data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/canarias
+          if git diff --cached --quiet; then
+            echo "Keine neuen Radaraufnahmen"
+          else
+            git commit -m "Publish actual AEMET Canary regional radar"
+            git push origin HEAD:canarias-radar-data
+          fi
