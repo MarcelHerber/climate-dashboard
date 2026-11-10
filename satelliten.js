@@ -221,9 +221,12 @@ async function prepareFilm(){
  if(filmLoading||frames.length<2)return;
  stop();filmLoading=true;
  const generation=filmGeneration;
- const maxCount=Number(filmLength.value)||8;
- const start=Math.max(0,Math.min(index,frames.length-maxCount));
- const clip=frames.slice(start,Math.min(frames.length,start+maxCount));
+ const maxCount=Math.min(frames.length,Math.max(2,Number(filmLength.value)||8));
+ // The current UTC selection is the END of the film, not its start.
+ // For example 36 frames at 10-minute intervals show about six hours.
+ const last=Math.max(1,index);
+ const start=Math.max(0,last-maxCount+1);
+ const clip=frames.slice(start,last+1);
  const size=Number(filmQuality.value)||480;
  const results=new Array(clip.length);
  let cursor=0,completed=0;
@@ -301,7 +304,12 @@ timeline.addEventListener("change",()=>{stop();show(Number(timeline.value));});
 prev.addEventListener("click",()=>{stop();show(index-1);});
 next.addEventListener("click",()=>{stop();show(index+1);});
 play.addEventListener("click",startPause);
-filmLength.addEventListener("change",()=>{if(filmItems.length||filmLoading||filmPlaying){stop();if(frames[index])drawFrame(frames[index]);}});
+filmLength.addEventListener("change",()=>{
+ // For longer films use a smaller WMS raster by default, unless the user
+ // explicitly chose the sharper 720 px setting.
+ if(Number(filmLength.value)>=20&&filmQuality.value==="480")filmQuality.value="320";
+ if(filmItems.length||filmLoading||filmPlaying){stop();if(frames[index])drawFrame(frames[index]);}
+});
 filmQuality.addEventListener("change",()=>{if(filmItems.length||filmLoading||filmPlaying){stop();if(frames[index])drawFrame(frames[index]);}});
 filmSpeed.addEventListener("change",()=>{
  if(!filmPlaying)return;
