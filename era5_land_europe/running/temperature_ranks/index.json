@@ -1,6 +1,6 @@
 {
   "ready": true,
-  "data_through": "2026-11-03",
+  "data_through": "2026-11-04",
   "current_year": 2026,
   "history_start": 1950,
   "history_end": 2025,
@@ -11,35 +11,35 @@
   "products": {
     "day": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_day_rank.png",
-      "label": "03.11.2026",
+      "label": "04.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich des 03.11. mit demselben Kalendertag 1950–2025.",
+      "note": "Vergleich des 04.11. mit demselben Kalendertag 1950–2025.",
       "stats": {
-        "rank1_area_percent": 1.1473393598676171,
-        "top3_area_percent": 4.645121856753854,
+        "rank1_area_percent": 1.9252355312427112,
+        "top3_area_percent": 4.876077766606007,
         "valid_gridpoints": 125942,
         "min_rank": 1,
-        "max_rank": 76
+        "max_rank": 74
       }
     },
     "month_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_month_to_date_rank.png",
-      "label": "01.–03.11.2026",
+      "label": "01.–04.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.–03.11. mit demselben Monatsabschnitt 1950–2025.",
+      "note": "Vergleich 01.–04.11. mit demselben Monatsabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 1.4967488554425414,
-        "top3_area_percent": 5.404912062384421,
+        "rank1_area_percent": 1.354521330831455,
+        "top3_area_percent": 4.32324390605772,
         "valid_gridpoints": 125942,
         "min_rank": 1,
         "max_rank": 74
@@ -47,7 +47,7 @@
     },
     "season_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_season_to_date_rank.png",
-      "label": "Herbst · 01.09.2026–03.11.2026",
+      "label": "Herbst · 01.09.2026–04.11.2026",
       "unit": "Rang",
       "season_key": "autumn",
       "season_name": "Herbst",
@@ -56,10 +56,10 @@
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich Herbst ab 01.09. bis 03.11. mit demselben Jahreszeitenabschnitt 1950–2025.",
+      "note": "Vergleich Herbst ab 01.09. bis 04.11. mit demselben Jahreszeitenabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 5.760567398616479,
-        "top3_area_percent": 32.02596171379523,
+        "rank1_area_percent": 5.59983530571057,
+        "top3_area_percent": 31.651557128277954,
         "valid_gridpoints": 125942,
         "min_rank": 1,
         "max_rank": 66
@@ -67,17 +67,17 @@
     },
     "year_to_date": {
       "file": "era5_land_europe/running/temperature_ranks/temperature_year_to_date_rank.png",
-      "label": "01.01.–03.11.2026",
+      "label": "01.01.–04.11.2026",
       "unit": "Rang",
       "history_start": 1950,
       "history_end": 2025,
       "comparison_years": 76,
       "total_rank_positions": 77,
       "rank_direction": "1 = wärmster",
-      "note": "Vergleich 01.01.–03.11. mit demselben Jahresabschnitt 1950–2025.",
+      "note": "Vergleich 01.01.–04.11. mit demselben Jahresabschnitt 1950–2025.",
       "stats": {
-        "rank1_area_percent": 18.421001481950185,
-        "top3_area_percent": 29.694338535401084,
+        "rank1_area_percent": 18.35956205542935,
+        "top3_area_percent": 29.672615428852186,
         "valid_gridpoints": 125942,
         "min_rank": 1,
         "max_rank": 65
@@ -391,7 +391,8 @@
     "2026-10-31",
     "2026-11-01",
     "2026-11-02",
-    "2026-11-03"
+    "2026-11-03",
+    "2026-11-04"
   ],
   "archive_index_pattern": "era5_land_europe/running/temperature_ranks/archive/{date}/index.json",
   "archive_image_format": "lossless-webp"
