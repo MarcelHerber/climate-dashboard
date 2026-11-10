@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Stations-Jahresanalyse · Climate Dashboard Deutschland</title>
+<meta name="description" content="DWD Stations-Jahresverläufe für Tagesmittel, Höchst- und Tiefsttemperatur, Niederschlag und Schneehöhe mit historischen Vergleichen.">
+<link rel="stylesheet" href="dashboard_theme.css">
+<link rel="stylesheet" href="station_jahresanalyse.css?v=1">
+<script defer src="dashboard_theme.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script defer src="station_jahresanalyse.js?v=1"></script>
+</head>
+<body class="sja-page">
+<header class="sja-top">
+  <a class="sja-brand" href="index.html">◌ Climate Dashboard Deutschland</a>
+  <nav><a href="index.html#cd-tab=stationProfile">Stationsprofil</a><a href="index.html#cd-tab=stationPrecip">Niederschlag</a><a href="index.html#cd-tab=stationSnow">Schneehöhe</a></nav>
+</header>
+<main class="sja-main">
+  <div class="sja-heading">
+    <div><span class="sja-eyebrow">DWD · Stationsdaten</span><h1>Stations-Jahresanalyse</h1><p>Temperatur, Niederschlag und Schneehöhe als historische Jahresverläufe – mit echten Stationsdaten, frei wählbaren Vergleichsjahren und Klimareferenz 1991–2020.</p></div>
+    <div class="sja-count" id="sjaInventory">Stationsarchiv lädt …</div>
+  </div>
+  <section class="sja-panel" aria-label="Station wählen">
+    <div class="sja-top-controls">
+      <label class="sja-search">Station suchen <input type="search" id="sjaSearch" autocomplete="off" placeholder="Name, Bundesland oder Stations-ID" aria-controls="sjaMatches"></label>
+      <label>Bundesland <select id="sjaState"><option value="">Alle Bundesländer</option></select></label>
+    </div>
+    <div id="sjaMatches" class="sja-matches" role="listbox" aria-label="Stationsauswahl"></div>
+    <div class="sja-selected" id="sjaSelected">Wähle eine Station aus.</div>
+  </section>
+  <section class="sja-panel" id="sjaAnalysis">
+    <div class="sja-tabs" role="group" aria-label="Messgröße">
+      <button type="button" id="sjaTemp" data-kind="temp" class="active" aria-pressed="true">Temperatur</button>
+      <button type="button" id="sjaPrecip" data-kind="precip" aria-pressed="false">Niederschlag</button>
+      <button type="button" id="sjaSnow" data-kind="snow" aria-pressed="false">Schneehöhe</button>
+    </div>
+    <div class="sja-flex">
+      <label id="sjaMetricWrap">Temperaturparameter
+        <select id="sjaMetric"><option value="2">Tagesmittel (TMK)</option><option value="0">Tmax (TXK)</option><option value="1">Tmin (TNK)</option></select>
+      </label>
+      <label>Darstellung
+        <select id="sjaMode"></select>
+      </label>
+    </div>
+    <div class="sja-choice-title">Vergleichsjahre <span id="sjaYearHint">Bis zu fünf Kurven gleichzeitig auswählen</span></div>
+    <div id="sjaYears" class="sja-years" role="group" aria-label="Historische Jahre"></div>
+    <div class="sja-chartbar">
+      <h2 id="sjaChartTitle">Jahresverlauf</h2>
+      <div class="sja-buttons"><button type="button" id="sjaPng" disabled>PNG</button><button type="button" id="sjaCsv" disabled>CSV</button></div>
+    </div>
+    <div class="sja-chartbox"><canvas id="sjaChart" role="img" aria-label="DWD Stationsjahresdiagramm"></canvas></div>
+    <div id="sjaStatus" class="sja-status" role="status" aria-live="polite">Daten werden vorbereitet …</div>
+    <div id="sjaStats" class="sja-stats"></div>
+  </section>
+  <section class="sja-panel sja-notes">
+    <h2>Datenbasis und Hinweise</h2>
+    <p><strong>Temperatur:</strong> DWD CDC KL-Tagesdaten, TXK/TNK/TMK. Ausgewählte historische Kalenderjahre und das laufende Jahr (vorläufig) werden auf einer 365-Tage-Achse verglichen. Der 29. Februar ist nur im Vergleichsdiagramm ausgelassen; die Originaldatei bleibt unverändert. Fehlende Tageswerte bleiben Lücken.</p>
+    <p><strong>Niederschlag:</strong> DWD CDC RR (RS). Historische Jahre stehen als vollständig beobachtete Monatssummen bereit; aktuelle Tageswerte werden direkt aus dem monatlichen Stationscache geladen. Kumulierte Werte werden bei Datenlücken nicht künstlich fortgeführt. Die Vergleichslinie 1991–2020 stammt aus vollständig beobachteten Referenzjahren.</p>
+    <p><strong>Schneehöhe:</strong> DWD SHK_TAG. Hier gelten hydrologische Jahre vom 1. November bis 31. Oktober, benannt nach dem Endjahr. Historische Jahre dürfen unvollständig sein und werden entsprechend gekennzeichnet. Als Klimareferenz dient der tägliche Median der verfügbaren qualitätsgeprüften Jahre 1991–2020; daneben kann das historische Maximum dargestellt werden.</p>
+    <p><strong>Abdeckung:</strong> Die Auswahl zeigt nur Stationen, für die im Repository entsprechende Originalarchive vorliegen. Nicht jede Station besitzt alle Messgrößen; fehlende Werte werden weder mit Null noch mit Nachbarstationen ersetzt. Die Daten stammen aus dem vorhandenen Climate-Dashboard-Archiv und werden nur bei Auswahl einer Station geladen.</p>
+  </section>
+</main>
+<footer class="sja-footer">Climate Dashboard Deutschland · Daten: Deutscher Wetterdienst (DWD), Climate Data Center</footer>
+</body>
+</html>
