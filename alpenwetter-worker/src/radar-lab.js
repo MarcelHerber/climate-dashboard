@@ -61,7 +61,7 @@ export function radarLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>DWD Radarkomposit · Privates Radarlabor</title><style>'+CSS+'</style></head><body>'+
  '<header><div><small>CLIMATE DASHBOARD · PASSWORTGESCHÜTZT</small><strong>DWD Radar-Komposit <span class="badge">Test</span></strong></div>'+
- '<nav><a href="/radarlabor/europa">Europa-Komposit (OPERA)</a><a href="/dynamik">Dynamik-Studio</a><a href="/dynamik/shapiro">Shapiro-Keyser</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
+ '<nav><a href="/radarlabor/kanaren">Kanaren-Radar (AEMET)</a><a href="/radarlabor/europa">Europa-Komposit (OPERA)</a><a href="/dynamik">Dynamik-Studio</a><a href="/dynamik/shapiro">Shapiro-Keyser</a><a href="/wolkenlabor">Wolkenlabor</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
  '<main><h1>Radarkomposit Deutschland</h1><p class="intro">DWD RADOLAN RY · 1-km-Radarverbund · qualitätsgeprüfte, aus Radarreflektivität abgeleitete Niederschlagsrate (mm/h), alle 5 Minuten. Keine Stationsaneichung und keine Vorhersage. Fehlende Radarwerte werden als fehlend und nicht als trocken dargestellt.</p>'+
  '<div class="layout"><section class="card">'+
  '<div class="bar"><strong id="product">DWD RY · Daten prüfen …</strong><span id="stamp" class="badge">–</span></div>'+
