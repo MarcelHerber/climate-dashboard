@@ -182,7 +182,7 @@ async function loadedPreview(t,width,ordinal){
  if(first.item)return first.item;
  // EUMETSAT occasionally responds with HTTP 500 to a particular image
  // size. Try one alternate preview size on a quick error, not on timeout.
- if(first.reason==="error"&&width===480){
+ if(first.reason==="error"&&(width===480||width===320)){
   const fallback=await previewAttempt(t,720,ordinal);
   return fallback.item;
  }
