@@ -258,7 +258,7 @@ function renderTemp(){
 }
 function precipBaseline(profile){
  const curve=profile.climate_mean_cumulative||[];
- const ends=[31,59,90,120,151,181,212,243,273,304,334,365],out=[],prev=0;
+ const ends=[31,59,90,120,151,181,212,243,273,304,334,365],out=[];let prev=0;
  for(const end of ends){
   const value=curve[end-1];
   out.push(isNumber(value)?Math.round((value-prev)*10)/10:null);
