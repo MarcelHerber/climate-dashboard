@@ -66,6 +66,26 @@ async function main(){
    assert.ok(await page.evaluate(()=>window.GreenlandDmiMath.getState().markerCount>=10),
      "Map reset must restore all station markers");
 
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().recordModes.length>=3,
+     null,{timeout:45000});
+   const recordResponse=await page.evaluate(async()=>{
+     const r=await fetch("data/dmi_greenland_records.json",{cache:"no-store"});
+     if(!r.ok)throw Error("DMI record cache HTTP "+r.status);
+     return await r.json();
+   });
+   assert.equal(recordResponse.schema,1);
+   for(const mode of ["high","low","gust","rain"]){
+     await page.locator("#grMapMode").selectOption(mode);
+     await page.waitForFunction(expected=>window.GreenlandDmiMap?.getState().mode===expected,
+       mode,{timeout:9000});
+     assert.ok(await page.locator("#grMapLegend .gr-map-legend-item").count()>=5);
+     assert.ok((await page.locator("#grMapRecordStatus").innerText()).includes("Stationen"));
+     assert.ok(await page.locator("#grMapRankingList li").count()>=5);
+     assert.equal(await page.evaluate(()=>window.GreenlandDmiMath.getState().markerCount),
+       cache.stations.length);
+   }
+   await page.locator("#grMapMode").selectOption("latest");
+   assert.equal(await page.evaluate(()=>window.GreenlandDmiMap.getState().mode),"latest");
    const station=cache.stations.find(s=>/Nuuk/i.test(s.name)&&s.parameters.includes("mean_temp"))||
      cache.stations.find(s=>s.parameters.includes("mean_temp")&&cache.latest[s.id]?.mean_temp);
    assert.ok(station,"DMI cached station with real temperature needed");
@@ -92,6 +112,40 @@ async function main(){
      "Historical chart must render with actual values");
    await page.waitForFunction(()=>window.GreenlandDmiMath.getState().records>=2,null,{timeout:105000});
    assert.ok((await page.locator("#grRecordStatus").innerText()).includes("Rekordparametern"));
+   const climateState=async()=>page.evaluate(()=>window.GreenlandClimateMath.getState());
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().hasNormal ||
+     document.querySelector("#grClimateStatus")?.classList.contains("gr-error"),
+     null,{timeout:75000});
+   let climate=await climateState();
+   console.log("DMI GREENLAND CLIMATE",device.name,JSON.stringify(climate),
+     await page.locator("#grClimateStatus").innerText());
+   assert.ok(climate.hasNormal,"Nuuk must have verified 1991–2020 baseline");
+   assert.ok(climate.referenceYears>=24,"Reference requires >=24 genuine years");
+   assert.ok(climate.points>=24,"Historical annual anomalies must be calculated");
+   assert.ok(climate.hasChart,"Anomaly chart must render");
+   const climCSV=page.waitForEvent("download",{timeout:25000});
+   await page.locator("#grClimateCsv").click();
+   const savedCSV=await climCSV;
+   assert.ok(fs.readFileSync(await savedCSV.path()).toString("utf8").includes("1991"));
+   const climPNG=page.waitForEvent("download",{timeout:25000});
+   await page.locator("#grClimatePng").click();
+   const savedPNG=await climPNG;
+   assert.equal(fs.readFileSync(await savedPNG.path()).subarray(0,4).toString("hex"),"89504e47");
+   await page.locator("#grClimateView").selectOption("month");
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().view==="month"&&
+       window.GreenlandClimateMath.getState().hasNormal,null,{timeout:70000});
+   await page.locator("#grClimateMonth").selectOption("7");
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().hasNormal,null,{timeout:12000});
+   climate=await climateState();
+   assert.ok(climate.referenceYears>=24&&climate.points>=24);
+   await page.locator("#grClimateView").selectOption("year");
+   await page.waitForFunction(()=>window.GreenlandClimateMath?.getState?.().view==="year"&&
+       window.GreenlandClimateMath.getState().hasNormal,null,{timeout:60000});
+   await page.locator("#grMapMode").selectOption("high");
+   assert.ok(await page.locator("#grMapStationRanks li").count()>=5,
+     "Clicked station must show its historical yearly record ranking");
+   await page.locator("#grMapMode").selectOption("latest");
+
    const csvPromise=page.waitForEvent("download",{timeout:30000});
    await page.locator("#grCsv").click();const csv=await csvPromise;
    assert.ok(csv.suggestedFilename().endsWith(".csv"));
