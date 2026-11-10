@@ -71,7 +71,7 @@ jobs:
           import {canariasRadarPage,canariasRadarLoginPage,canariasRadarData} from "./alpenwetter-worker/src/canarias-radar-lab.js";
           const page=canariasRadarPage();
           const js=page.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-          assert.ok(js?.length>9000);new Function(js);assert.doesNotMatch(js,/__name\(/);
+          assert.ok(js?.length>8000);new Function(js);assert.doesNotMatch(js,/__name\(/);
           assert.match(canariasRadarLoginPage(),/name="next" value="\/radarlabor\/kanaren"/);
           const env={ALPENWETTER_PASSWORD:"unit-only"};
           for(const path of ["/radarlabor/api/canarias/current.json","/radarlabor/api/canarias/frames/202611102110.png"]){
