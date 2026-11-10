@@ -29,14 +29,14 @@ from build_ecmwf_dynamics import (
 LOG=logging.getLogger("ifs-shapiro")
 LEVELS=(300,400,500,600,700,850,925)
 PV_LEVELS=(200,250,300)
-SURFACE=("msl",)
+SURFACE=("msl","sp")
 STANDARD=("u","v","r","w","t")
 SCALES={
     "thetae":(260.,370.), "msl":(940.,1050.),
     "fgen":(-32.,32.), "wind850":(0.,85.), "wind700":(0.,95.),
     "rh700":(0.,100.), "rh500":(0.,100.),
     "pv":(-2.,15.), "jet300":(0.,110.), "gh500":(4300.,6100.),
-    "omega700":(-3.,3.)
+    "omega700":(-3.,3.),"u850":(-85.,85.),"v850":(-85.,85.)
 }
 ATLAS_SCALES={"wind":(0.,105.),"rh":(0.,100.),"omega":(-5.,5.),"theta":(240.,410.)}
 MAP_NAMES=tuple(SCALES)
@@ -89,7 +89,7 @@ def retrieve(client:Client,run:datetime,hour:int) -> dict[str,np.ndarray]:
             ("pv", "pl", ["u","v","t","vo"], list(PV_LEVELS),
              {p+str(z) for p in ("u","v","t","vo") for z in PV_LEVELS}),
             ("height", "pl", ["gh"], [500], {"gh500"}),
-            ("surface","sfc",["msl"],None,{"msl"}),
+            ("surface","sfc",["msl","sp"],None,{"msl","sp"}),
         ]
         fields={}
         for name,levtype,params,levels,expected in sets:
@@ -138,11 +138,11 @@ def frontogenesis(thetae:np.ndarray,u:np.ndarray,v:np.ndarray) -> np.ndarray:
     return (fgen*100000.*10800.).astype(np.float32)
 
 
-def encode(arr:np.ndarray,limit:tuple[float,float]) -> Image.Image:
+def encode(arr:np.ndarray,limit:tuple[float,float],min_coverage:float=.98) -> Image.Image:
     lo,hi=limit
     a=np.asarray(arr)
     valid=np.isfinite(a)
-    if valid.mean()<.99:raise ValueError("Too many missing values in encoded field")
+    if valid.mean()<min_coverage:raise ValueError("Too many missing values in encoded field")
     px=np.full(a.shape,255,np.uint8)
     px[valid]=np.rint(np.clip((a[valid]-lo)/(hi-lo),0,1)*254).astype(np.uint8)
     return Image.fromarray(px)
@@ -211,12 +211,19 @@ def derive(fields:dict[str,np.ndarray],hour:int) -> tuple[dict,dict,list]:
       "rh700":fields["r700"],"rh500":fields["r500"],
       "pv":erte_pv(fields),"jet300":np.hypot(fields["u300"],fields["v300"]),
       "gh500":fields["gh500"],"omega700":fields["w700"],
+      "u850":fields["u850"],"v850":fields["v850"],
     }
+    # Mask subterrain levels using ECMWF surface pressure, rather than extrapolating.
+    def stack(field):
+        return np.vstack([
+            np.where(fields["sp"] >= z*100.,field(z),np.nan)
+            for z in LEVELS
+        ])
     atlases={
-      "wind":np.vstack([np.hypot(fields["u"+str(z)],fields["v"+str(z)]) for z in LEVELS]),
-      "rh":np.vstack([fields["r"+str(z)] for z in LEVELS]),
-      "omega":np.vstack([fields["w"+str(z)] for z in LEVELS]),
-      "theta":np.vstack([fields["t"+str(z)]*(1000./z)**.2854 for z in LEVELS]),
+      "wind":stack(lambda z:np.hypot(fields["u"+str(z)],fields["v"+str(z)])),
+      "rh":stack(lambda z:fields["r"+str(z)]),
+      "omega":stack(lambda z:fields["w"+str(z)]),
+      "theta":stack(lambda z:fields["t"+str(z)]*(1000./z)**.2854),
     }
     lows=detect_lows(maps["msl"],te,fgen,wind850,hour)
     return maps,atlases,lows
@@ -255,7 +262,7 @@ def build(out:Path,hours:tuple[int,...]=HOURS) -> dict:
             paths[name]=relative
         for name,grid in atlases.items():
             relative=f"frames/{cycle:%Y%m%d%H}/profile_{name}_{hour:03d}.png"
-            encode(grid,ATLAS_SCALES[name]).save(out/relative,optimize=True)
+            encode(grid,ATLAS_SCALES[name],min_coverage=.75).save(out/relative,optimize=True)
             profiles[name]=relative
         rows.append({
           "hour":hour,"valid_utc":(cycle+timedelta(hours=hour)).isoformat().replace("+00:00","Z"),
@@ -272,7 +279,7 @@ def build(out:Path,hours:tuple[int,...]=HOURS) -> dict:
       "units":{"thetae":"K","msl":"hPa","fgen":"K/(100km*3h)",
                "wind850":"m/s","wind700":"m/s","rh700":"%",
                "rh500":"%","pv":"PVU","jet300":"m/s",
-               "gh500":"gpm","omega700":"Pa/s"},
+               "gh500":"gpm","omega700":"Pa/s","u850":"m/s","v850":"m/s"},
       "encoding":{"minmax":SCALES,"profile_minmax":ATLAS_SCALES,
                   "missing":255,"scale_max":254},
       "profile_levels_hpa":LEVELS,
@@ -282,7 +289,7 @@ def build(out:Path,hours:tuple[int,...]=HOURS) -> dict:
         "frontogenesis":"850-hPa kinematic horizontal frontogenesis of smoothed theta-e, no diabatic term",
         "pv":"Layer-mean approximate 200/250/300 hPa Ertel PV, 3 levels",
         "screening":"Objective minima/depth/frontogenesis/wind/theta-e anomaly. NO Shapiro-Keyser or sting-jet verification",
-        "cross_section":"Native pressure-level forecasts sampled along great-circle-approximated lon-lat path on 0.25 degree grid; no trajectory analysis"
+        "cross_section":"925 to 300 hPa native pressure-level forecasts, spatially interpolated along a straight lon-lat segment; subterrain levels masked using surface pressure. Not Lagrangian trajectories"
       },
       "frames":rows,
     }
