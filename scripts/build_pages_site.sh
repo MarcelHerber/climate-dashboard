@@ -53,6 +53,7 @@ required_root_files=(
   arktis_temperatur.css
   groenland_stationen.html
   groenland_stationen.js
+  groenland_climate.js
   groenland_stationen.css
   eurasia_snow.html
   eurasia_snow.js
@@ -245,12 +246,21 @@ PY
 fi
 # DMI Greenland monitor: ship both source and verified cache with genuine Greenland station coordinates.
 node --check _site/groenland_stationen.js
+node --check _site/groenland_climate.js
+if [[ -s data/dmi_greenland_records.json ]]; then
+  cp data/dmi_greenland_records.json _site/data/dmi_greenland_records.json
+  python scripts/build_dmi_greenland_records.py --check
+fi
 if [[ -s data/dmi_greenland_stations.json ]]; then
   cp data/dmi_greenland_stations.json _site/data/dmi_greenland_stations.json
   python scripts/build_dmi_greenland_stations.py --check
 fi
 grep -q 'id="grMap"' _site/groenland_stationen.html
-grep -q 'src="groenland_stationen.js?v=1"' _site/groenland_stationen.html
+grep -q 'src="groenland_stationen.js?v=2"' _site/groenland_stationen.html
+grep -q 'src="groenland_climate.js?v=1"' _site/groenland_stationen.html
+for element in grClimate grClimateStatus grClimateChart grMapMode grMapRankingList grMapStationRanks; do
+  grep -q "id=\"$element\"" _site/groenland_stationen.html || { echo "DMI Grönland fehlt: $element"; exit 1; }
+done
 node --check tests/test_dmi_greenland_ui.cjs
 node --test tests/test_dmi_greenland_ui.cjs
 node --check _site/arktis_klimastatistik.js
