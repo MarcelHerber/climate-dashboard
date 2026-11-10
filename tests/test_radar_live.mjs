@@ -11,8 +11,15 @@ try {
   const page=await context.newPage(),errors=[],network=[];
   page.on("pageerror",err=>errors.push(err.message));
   page.on("response",r=>{if(r.url().includes("/radarlabor/api/"))network.push({path:r.url().split("/radarlabor/api/")[1],status:r.status()})});
-  const login=await page.goto(BASE+"/radarlabor",{waitUntil:"domcontentloaded",timeout:35000});
+  // Worker deployment can finish after the data action that triggers this QA.
+  let login;
+  for(let retry=0;retry<18;retry++){
+    login=await page.goto(BASE+"/radarlabor",{waitUntil:"domcontentloaded",timeout:35000});
+    if(login.status()===200 && await page.locator('input[name="next"][value="/radarlabor"]').count())break;
+    await page.waitForTimeout(5000);
+  }
   assert.equal(login.status(),200);
+  assert.equal(await page.locator('input[name="next"][value="/radarlabor"]').count(),1,"New Worker radar route not deployed");
   const denied=await page.request.get(BASE+"/radarlabor/api/current.json");
   assert.equal(denied.status(),401);
   await page.locator('input[type="password"]').fill(password);
