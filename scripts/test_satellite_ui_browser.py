@@ -115,7 +115,10 @@ def exercise(page, viewport_label, official_xml):
     evidence["mtgi1_product_enabled"]=page.locator("#satProduct").is_enabled()
     assert evidence["mtgi1_product_enabled"]
     evidence["theme_toggle_present"]=page.locator("#dashboardThemeToggle").count()==1
-    page.locator("#dashboardThemeToggle").click()
+    theme_control="#cdMobileSatelliteTheme" if viewport_label=="mobile" else "#dashboardThemeToggle"
+    evidence["theme_control_visible"]=page.locator(theme_control).is_visible()
+    assert evidence["theme_control_visible"], "The theme control must be visible and reachable"
+    page.locator(theme_control).click()
     evidence["dark_theme_on"]=page.evaluate(
         "()=>document.documentElement.dataset.theme === 'dark'")
     assert evidence["dark_theme_on"], "Dark mode did not toggle"
