@@ -18,7 +18,7 @@ const REGIONS={
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
-const timeline=id("satTimeline"),timelineLabel=id("satTimelineLabel"),filmImage=id("satFilmImage");
+const timeline=id("satTimeline"),timelineLabel=id("satTimelineLabel"),filmImage=id("satFilmStage");
 const filmLength=id("satFilmLength"),filmQuality=id("satFilmQuality"),filmSpeed=id("satFilmSpeed");
 const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLabel"),filmProgressWrap=id("satFilmProgressWrap");
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
@@ -36,7 +36,7 @@ function stop(reset=true){
  filmPlaying=false;
  if(reset){
   filmGeneration++;filmLoading=false;filmItems=[];filmPosition=0;
-  filmImage.hidden=true;
+  filmImage.hidden=true;filmImage.replaceChildren();
   filmProgressWrap.hidden=true;
   if(source.value==="mtgi1")image.hidden=false;
  }
@@ -184,7 +184,8 @@ function showFilmFrame(){
  currentUrl=imageUrl(item.time);
  id("satRawImage").href=currentUrl;id("satRawImage").hidden=false;
  loaded=true;verified=true;
- filmImage.src=item.img.src;filmImage.alt=description().name+" · Filmvorschau · "+formatUTC(item.time);
+ filmImage.replaceChildren(item.img);
+ filmImage.setAttribute("aria-label",description().name+" · Filmvorschau · "+formatUTC(item.time));
  filmImage.hidden=false;image.hidden=true;empty.hidden=true;
  id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
  id("satValid").textContent="Beobachtung: "+formatUTC(item.time);
