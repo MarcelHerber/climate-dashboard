@@ -24,6 +24,7 @@
       ["wettergefahren.html","ICON-EU Wettergefahren"],["stratosphaere.html","Stratosphäre"],
       ["mosmix.html","MOSMIX"]]},
     {id:"synoptic",name:"Synoptik & Karten",items:[
+      ["satelliten.html","Satelliten · MTG"],
       ["isobaren_original.html","Europa-Isobaren & Fronten"],
       ["weltweite_isobaren.html","Weltweite Isobaren"],
       ["tiefdruck_tracker.html","Tiefdruck-Tracker"]]},
@@ -209,6 +210,11 @@
     brand.setAttribute("aria-label","Climate Dashboard – Startseite");
     mobileBar.appendChild(brand);
     const headerActions=home?document.querySelector(".dashboard-header .header-actions"):null;
+    if(headerActions&&!headerActions.querySelector(".cdm-satellite-header-link")){
+      const satelliteLink=el("a","cdm-satellite-header-link","Satelliten");
+      satelliteLink.href="./satelliten.html";satelliteLink.title="EUMETSAT Meteosat-Satellitenbilder";
+      headerActions.appendChild(satelliteLink);
+    }
     trigger=el("button","cdm-trigger");
     trigger.id="cdMobileMenuButton";
     trigger.type="button";
