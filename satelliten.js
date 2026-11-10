@@ -27,7 +27,7 @@ function imageUrl(t){const layer=description(),r=REGIONS[region.value];
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
-function drawFrame(t){const seq=token,req=++imageRequest;loaded=false;verified=Boolean(t);currentUrl=imageUrl(t);empty.hidden=true;image.hidden=false;image.alt=description().name+" – "+REGIONS[region.value].name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
+function drawFrame(t){const seq=token,req=++imageRequest;loaded=false;verified=Boolean(t);currentUrl=imageUrl(t);id("satRawImage").href=currentUrl;id("satRawImage").hidden=false;empty.hidden=true;image.hidden=false;image.alt=description().name+" – "+REGIONS[region.value].name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
  id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
@@ -101,6 +101,7 @@ async function refresh(){
  id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
  product.disabled=source.value==="mtgi2";region.disabled=source.value==="mtgi2";id("satAttribution").textContent=source.value==="mtgi2"?"ESA · erste MTG-I2-Aufnahmen":description().credit;
  if(source.value==="mtgi2"){
+  id("satRawImage").hidden=true;
   image.hidden=true;empty.hidden=false;empty.textContent="MTG-I2: erste Aufnahmen und die 2,5-Minuten-Animation sind über den ESA-Link abrufbar. Noch keine reguläre Livequelle.";
   id("satMapTitle").textContent="MTG-I2 · Erstaufnahmen (November 2026)";
   id("satValid").textContent="Kein Livestream";id("satImageInfo").textContent="ESA-Erstbilder · keine laufend aktualisierte Datenquelle";
