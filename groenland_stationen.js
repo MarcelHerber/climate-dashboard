@@ -51,8 +51,8 @@ function applyRecordMap(mode,data={}){
   if(!marker)continue;
   const value=mapValue(s);
   marker.setStyle({
-   fillColor:recordColor(mode,recordMode==="latest"?value?.value:value?.value),
-   fillOpacity:value?.value===undefined?.5:.9,
+   fillColor:recordColor(mode,value?.value),
+   fillOpacity:isNumber(value?.value)?.9:.5,
    color:station?.id===s.id?"#0b2236":"#fff",
    weight:station?.id===s.id?3:1
   });
