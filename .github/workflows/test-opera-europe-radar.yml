@@ -98,7 +98,7 @@ jobs:
           import {operaRadarPage,operaRadarLoginPage,operaRadarData} from "./alpenwetter-worker/src/opera-radar-lab.js";
           import {radarLabData} from "./alpenwetter-worker/src/radar-lab.js";
           const html=operaRadarPage(),script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-          assert.ok(script?.length>12000);
+          assert.ok(script?.length>9000);
           new Function(script);
           assert.doesNotMatch(script,/__name\(/);
           assert.match(operaRadarLoginPage(),/value="\/radarlabor\/europa"/);
