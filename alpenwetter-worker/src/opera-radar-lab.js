@@ -70,7 +70,7 @@ export function operaRadarPage(){
   '<button id="reload">↻ Daten prüfen</button><button id="save" disabled>PNG speichern</button></div>'+
   '<div class="status" id="status" role="status" aria-live="polite">Lade OPERA-Europadaten …</div></section>'+
   '<aside class="card side"><h2>Darstellung</h2><label for="region">Kartenausschnitt</label>'+
-  '<select id="region"><option value="all">Europa und Nordatlantik</option><option value="central">Mitteleuropa</option><option value="north">Nord- und Westeuropa</option><option value="south">Südeuropa / Mittelmeer</option></select>'+
+  '<select id="region"><option value="all">Europa und Nordatlantik</option><option value="central">Mitteleuropa</option><option value="north">Nord- und Westeuropa</option><option value="south">Südeuropa / Mittelmeer</option><option value="balearics">Balearen – Mallorca, Menorca, Ibiza</option></select>'+
   '<label for="overlay">Radarebene</label><select id="overlay"><option value="on">Einblenden</option><option value="off">Ausblenden</option></select>'+
   '<h2 style="margin-top:22px">Feste Farblegende</h2><div id="legend" class="legend"></div>'+
   '<p id="legendNote" class="explainer">Die dBZ-Skala beschreibt Radarreflektivität und ist keine direkt gemessene Regenrate.</p>'+
