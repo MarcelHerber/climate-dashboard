@@ -1,0 +1,36 @@
+name: OPERA Europakomposit · Live- und Grenzentest
+
+on:
+  workflow_run:
+    workflows:
+      - "OPERA Europakomposit · DBZH & RATE"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-browser:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ALPENWETTER_PASSWORD: ${{ secrets.ALPENWETTER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Chromium installieren
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Geschütztes Europakomposit mit echten dBZ/mm/h-Daten testen
+        run: node tests/test_opera_radar_live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: opera-europe-live-desktop-mobile
+          path: /tmp/opera-europe-live-*.png
+          if-no-files-found: ignore
