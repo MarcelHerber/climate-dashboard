@@ -72,7 +72,7 @@ export function dynamicsLabPage() {
   return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta name="robots" content="noindex,nofollow,noarchive"><title>ECMWF Dynamik-Studio · Privat</title><style>' + STYLE + '</style></head><body>' +
     '<header><div><small>CLIMATE DASHBOARD · GESCHÜTZTES LABOR</small><strong>ECMWF Dynamik- &amp; Jetstream-Studio</strong> <span class="pill">Privat</span></div>' +
-    '<nav><a href="/dynamik/shapiro">Shapiro-Keyser-Monitor</a><a href="/wolkenlabor">Wolkenlabor</a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>' +
+    '<nav><a href="/radarlabor">Radarkomposit (Test)</a><a href="/dynamik/shapiro">Shapiro-Keyser-Monitor</a><a href="/wolkenlabor">Wolkenlabor</a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>' +
     '<main><h1>Strömung, Feuchte &amp; Tropopausendynamik</h1><p class="lead">Originale ECMWF-IFS-Ausgangsfelder mit transparent gekennzeichneten Berechnungen. Die Animation zeigt nur bestätigte Modellzeitpunkte; fehlende Daten werden nicht ergänzt.</p>' +
     '<div class="layout"><section class="card"><div class="row"><strong id="run">ECMWF IFS · Datenstand wird geprüft</strong><span class="timestamp" id="valid">–</span></div>' +
     '<div class="map"><canvas id="map" width="1600" height="900" aria-label="ECMWF-Karte mit atmosphärischen Dynamikfeldern" role="img"></canvas></div>' +
