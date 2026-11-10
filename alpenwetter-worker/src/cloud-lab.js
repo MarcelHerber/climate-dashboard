@@ -24,7 +24,7 @@ export function cloudLabPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>Wolkenfilm-Studio · Privat</title><style>'+
  LAB_CSS+'</style></head><body><header><div><div class="sub">Climate Dashboard · privates Studio</div><strong>ICON Wolkenfilm-Studio</strong> <span class="badge">Geschützt</span></div>'+
- '<nav><a href="/wolkenlabor/europa-tmax">Europa Tmax <span class="badge">Test</span></a><a href="/wolkenlabor/europa-tmin">Europa Tmin <span class="badge">Test</span></a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
+ '<nav><a href="/dynamik">Dynamik- &amp; Jetstream-Studio</a><a href="/wolkenlabor/europa-tmax">Europa Tmax <span class="badge">Test</span></a><a href="/wolkenlabor/europa-tmin">Europa Tmin <span class="badge">Test</span></a><a href="/">Alpenwetter</a><form action="/logout" method="POST"><button type="submit">Abmelden</button></form></nav></header>'+
  '<main><h1>Wolkenfilm-Studio</h1><p class="lead">Sendefähige Wolkenfilm-Darstellung aus echten DWD-Modellfeldern. Wolkenschichten individuell in Graustufen einstellen; bei ICON-D2 auf Wunsch mit stündlichen Regen- und Schneefeldern. Keine künstlich erzeugten Wetterdaten.</p>'+
  '<div class="model-switch" role="group" aria-label="Vorhersagemodell und Region">'+
  '<button id="modelEU" type="button" aria-pressed="true">Europa · ICON-EU</button>'+
