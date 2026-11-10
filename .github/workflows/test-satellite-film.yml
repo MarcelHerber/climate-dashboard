@@ -1,0 +1,64 @@
+name: MTG lightweight film regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - "satelliten.js"
+      - "satelliten.html"
+      - "satelliten.css"
+      - "tests/test_satellite_film.cjs"
+      - "tests/test_satelliten_ui.cjs"
+      - ".github/workflows/test-satellite-film.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mtg-film-regression
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Check JavaScript and buffered playback controls
+        id: checks
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --check satelliten.js && node --test tests/test_satelliten_ui.cjs tests/test_satellite_film.cjs 2>&1 | tee /tmp/mtg-film-tests.log
+      - name: Record test result with source commit
+        if: always()
+        env:
+          CHECK_RESULT: ${{ steps.checks.outcome }}
+        run: |
+          python - <<'PY'
+          import json, os, datetime
+          from pathlib import Path
+          p=Path("data/satellite_film_check_latest.json")
+          output=Path("/tmp/mtg-film-tests.log")
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps({
+            "checked_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "source_sha":os.getenv("GITHUB_SHA"),
+            "result":os.getenv("CHECK_RESULT"),
+            "test_output_tail":output.read_text(encoding="utf-8",errors="replace")[-5000:] if output.exists() else "No test log"
+          },ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/satellite_film_check_latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record lightweight MTG film test result"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Fail for broken film playback
+        if: steps.checks.outcome == 'failure'
+        run: exit 1
