@@ -89,6 +89,11 @@ def decode(blob:bytes,lookup:tuple[np.ndarray,np.ndarray]|None=None):
         if raw.shape!=(1200,1100) or not (.00001<gain<1.) or abs(offset)>10:
             raise ValueError("Invalid RY data shape, gain or offset")
         if lookup is None:lookup=grid_lookup(f)
+        end_day=scalar_string(meta(f["dataset1/what"],"enddate"))
+        end_clock=scalar_string(meta(f["dataset1/what"],"endtime"))
+        if not re.fullmatch(r"\d{8}",end_day) or not re.fullmatch(r"\d{6}",end_clock):
+            raise ValueError("Missing ODIM observation end time")
+        valid_end=datetime.strptime(end_day+end_clock,"%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
         ix,iy=lookup
         inside=(ix>=0)&(ix<raw.shape[1])&(iy>=0)&(iy<raw.shape[0])
         arr=np.full((HEIGHT,WIDTH),255,np.uint8)
@@ -108,7 +113,7 @@ def decode(blob:bytes,lookup:tuple[np.ndarray,np.ndarray]|None=None):
         stats={"coverage":round(float(coverage),4),
                "wet_fraction":round(float(((arr>0)&(arr<255)).mean()),4),
                "max_rate_mm_h":round(float(np.nanmax(np.where((raw!=nodata)&(raw!=undetect),raw.astype(np.float32)*gain+offset,0))),2)}
-        return arr,lookup,stats
+        return arr,lookup,stats,valid_end
 
 def build(out:Path, count:int=N_FRAMES)->dict:
     out.mkdir(parents=True,exist_ok=True)
@@ -133,13 +138,15 @@ def build(out:Path, count:int=N_FRAMES)->dict:
         if previous and target.exists() and any(f.get("utc")==instant.isoformat().replace("+00:00","Z") for f in previous.get("frames",[])):
             with Image.open(target) as im:
                 if im.size==(WIDTH,HEIGHT) and im.mode=="L":
-                    rows.append({"utc":instant.isoformat().replace("+00:00","Z"),"image":relative})
+                    rows.append({"utc":instant.isoformat().replace("+00:00","Z"),"end_utc":(instant+timedelta(minutes=5)).isoformat().replace("+00:00","Z"),"image":relative})
                     continue
         resp=session.get(URL+name,timeout=45)
         resp.raise_for_status()
-        grid,lookup,stats=decode(resp.content,lookup)
+        grid,lookup,stats,valid_end=decode(resp.content,lookup)
+        if not 0<= (valid_end-instant).total_seconds() <= 600:
+            raise ValueError("Radar HDF5 observation time does not match filename")
         Image.fromarray(grid,mode="L").save(target,optimize=True)
-        rows.append({"utc":instant.isoformat().replace("+00:00","Z"),"image":relative,"stats":stats})
+        rows.append({"utc":instant.isoformat().replace("+00:00","Z"),"end_utc":valid_end.isoformat().replace("+00:00","Z"),"image":relative,"stats":stats})
         LOG.info("DWD RY %s coverage=%s max=%.2f mm/h",stamp,stats["coverage"],stats["max_rate_mm_h"])
     if len(rows)<12:raise RuntimeError("Insufficient verified radar snapshots")
     # Last radar timestamp must really be current. Publishing older data isn't a live composite.
