@@ -1,0 +1,49 @@
+name: NOAA IMS Europafläche · Live-Diagramm Desktop und Handy
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "34 10 * * *"
+  push:
+    branches: [qa/ims-europe-area-live-20261110, main]
+    paths:
+      - tests/audit_europe_snow_area_live.cjs
+      - .github/workflows/audit-europe-snow-area-live.yml
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ims-europe-area-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_europe_snow_area_live.cjs
+      - name: Real Chromium browser installieren
+        run: |
+          npm install --no-save --no-package-lock playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Mit aktuellen NOAA IMS Daten Europa/Eurasien, Klimaanomalie und Downloads testen
+        run: node tests/audit_europe_snow_area_live.cjs
+      - name: Browserbericht, Downloads und Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ims-europe-area-browser
+          path: artifacts/ims-europe-area-live/
+          if-no-files-found: warn
+          retention-days: 14
