@@ -50,3 +50,15 @@ body.sja-page{margin:0;min-height:100vh;background:var(--sja-bg);color:var(--sja
 .sja-notes p{font-size:13px;color:var(--sja-muted);line-height:1.6;margin:9px 0}
 .sja-footer{text-align:center;color:var(--sja-muted);font-size:12px;padding:20px}
 @media(max-width:700px){.sja-top{padding:12px 14px;flex-wrap:wrap}.sja-top nav{gap:12px}.sja-heading{display:block}.sja-count{display:inline-block;margin-top:12px}.sja-matches{margin-right:-10px}.sja-years{max-height:145px}.sja-choice-title span{display:block;margin:5px 0 0}.sja-chartbox{height:380px;min-height:0}.sja-chartbar{align-items:flex-start}.sja-chartbar h2{max-width:70%}.sja-flex label{flex:1}.sja-flex select{width:100%;min-width:0}}
+
+/* Temperaturvergleich: eine ruhige Abweichungsfläche zum Tagesmittel. */
+.sja-fill-controls{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:13px 0 2px;padding:11px 13px;border:1px solid var(--sja-stroke);border-radius:9px;background:var(--sja-bg)}
+.sja-fill-controls[hidden]{display:none}
+.sja-fill-controls label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:750}
+.sja-fill-controls select{min-width:110px;max-width:100%;border:1px solid var(--sja-stroke);background:var(--sja-card);color:var(--sja-ink);border-radius:7px;padding:8px 10px;font:inherit}
+.sja-fill-legend{display:flex;flex-wrap:wrap;align-items:center;gap:15px;font-size:12px;color:var(--sja-muted)}
+.sja-fill-legend>span{display:inline-flex;align-items:center;gap:6px}
+.sja-swatch{display:inline-block;flex:none;width:15px;height:11px;border-radius:3px;border:1px solid transparent}
+.sja-warm{background:rgba(219,63,56,.34);border-color:#ce534b}
+.sja-cold{background:rgba(39,107,201,.34);border-color:#3779c6}
+@media(max-width:700px){.sja-fill-controls{align-items:stretch}.sja-fill-controls label{flex:1 1 100%}.sja-fill-controls select{width:100%}.sja-fill-legend{gap:9px}}

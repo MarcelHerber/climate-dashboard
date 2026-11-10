@@ -11,7 +11,8 @@ const AXIS=Array.from({length:365},(_,i)=>{
 const MONTHS=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
 const cache=new Map();
 let stations=[],station=null,kind="temp",mode="daily",metric=2,years=[],selected=new Set();
-let payload=null,chart=null,serial=0,lastExport=null;
+let payload=null,chart=null,serial=0,lastExport=null,fillYear=null;
+const WARM_FILL="rgba(219,63,56,0.30)",COLD_FILL="rgba(39,107,201,0.30)";
 const number=n=>Number.isFinite(n)?n.toLocaleString("de-DE",{maximumFractionDigits:1}):"–";
 const isNumber=n=>typeof n==="number"&&Number.isFinite(n);
 const text=(id,value)=>{$(id).textContent=value;};
@@ -45,14 +46,21 @@ function png(){
  if(!chart||!station)return;
  const source=chart.canvas;
  const c=document.createElement("canvas"),scale=2;
- c.width=Math.max(1200,source.width*scale);c.height=source.height*scale+145;
+ c.width=Math.max(1200,source.width*scale);c.height=source.height*scale+175;
  const ctx=c.getContext("2d");
  ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);
  ctx.fillStyle="#162d40";ctx.font="bold 28px Arial";
  ctx.fillText("DWD · "+station.name+" · "+$("sjaChartTitle").textContent,25,42,c.width-50);
  ctx.font="17px Arial";ctx.fillStyle="#4e687d";
  ctx.fillText("Climate Dashboard Deutschland · Messwerte ohne synthetische Ergänzungen",25,76,c.width-50);
- ctx.drawImage(source,0,105,c.width,source.height*scale);
+ if(kind==="temp"&&Number.isInteger(fillYear)){
+  ctx.fillStyle="#cf4b43";ctx.fillRect(25,93,15,15);
+  ctx.fillStyle="#4e687d";ctx.font="16px Arial";
+  ctx.fillText("Wärmer als 1991–2020",46,106);
+  ctx.fillStyle="#3779c6";ctx.fillRect(270,93,15,15);
+  ctx.fillStyle="#4e687d";ctx.fillText("Kühler als 1991–2020 · Fläche für "+fillYear,291,106);
+ }
+ ctx.drawImage(source,0,136,c.width,source.height*scale);
  ctx.fillText("Quelle: DWD CDC · Referenz 1991–2020 · fehlende Werte bleiben Lücken",25,c.height-16,c.width-50);
  const a=document.createElement("a");a.download="DWD_Jahresanalyse_"+station.id+"_"+kind+".png";
  a.href=c.toDataURL("image/png");document.body.append(a);a.click();a.remove();
@@ -76,7 +84,8 @@ function makeChart(labels,datasets,title,unit,chartType="line",note=""){
  const color=theme?"#d5e3ed":"#405971";
  const records=datasets.map(d=>({
    label:d.label,data:d.data,type:d.type||chartType,
-   borderColor:d.color||"#777",backgroundColor:d.fill||d.color||"#777",
+   borderColor:d.color||"#777",backgroundColor:d.fillColor||d.color||"#777",
+   fill:d.fillConfig||false,
    borderWidth:d.borderWidth??2,tension:0,spanGaps:false,pointRadius:0,
    pointHoverRadius:4,barPercentage:.85,categoryPercentage:.8,
    borderDash:d.dash||[],order:d.order??1,
@@ -85,6 +94,7 @@ function makeChart(labels,datasets,title,unit,chartType="line",note=""){
   type:chartType,data:{labels,datasets:records},
   options:{responsive:true,maintainAspectRatio:false,animation:false,normalized:true,
    interaction:{mode:"index",intersect:false},plugins:{
+    filler:{propagate:false},
     legend:{position:"bottom",labels:{color,boxWidth:14,usePointStyle:true}},
     tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+(isNumber(ctx.raw)?number(ctx.raw)+" "+unit:"keine Messung")}}
    },scales:{x:{grid:{display:false},ticks:{color,maxTicksLimit:13,maxRotation:0,autoSkip:true}},
@@ -102,6 +112,7 @@ function populateModes(){
  for(const [value,label] of options){const o=document.createElement("option");o.value=value;o.textContent=label;$("sjaMode").append(o);}
  mode=options[0][0];
  $("sjaMetricWrap").hidden=kind!=="temp";
+ $("sjaFillControls").hidden=kind!=="temp";
 }
 function renderYearOptions(available,initial){
  const old=new Set(selected);
@@ -241,19 +252,39 @@ function cumulative(values){
   sum+=v;return Math.round(sum*10)/10;
  });
 }
+function updateTemperatureFillYear(){
+ const candidates=[...selected].sort((a,b)=>b-a);
+ if(!candidates.includes(fillYear))fillYear=candidates[0]??null;
+ const control=$("sjaFillControls"),picker=$("sjaFillYear");
+ control.hidden=candidates.length===0;
+ picker.replaceChildren();
+ for(const year of candidates){
+  const option=document.createElement("option");option.value=String(year);
+  option.textContent=String(year)+(year===CURRENT?" (aktuell)":"");
+  picker.append(option);
+ }
+ if(fillYear!==null)picker.value=String(fillYear);
+ return fillYear;
+}
 function renderTemp(){
  const {history}=payload,k=Number($("sjaMetric").value),name=["Tmax","Tmin","Tagesmittel"][k];
  const reference=referenceTemp(history,k);
+ const highlightedYear=updateTemperatureFillYear();
  const datasets=[{label:"1991–2020 · Mittel",data:reference,color:"#525e6b",dash:[5,5],borderWidth:2,order:3}];
  let observed=0;
  [...selected].sort((a,b)=>a-b).forEach((year,i)=>{
   const data=history.get(year)?.map(row=>row[k])||Array(365).fill(null);
   observed+=data.filter(isNumber).length;
-  datasets.push({label:String(year)+(year===CURRENT?" · vorläufig":""),data,color:COLORS[i%COLORS.length],order:1});
+  datasets.push({
+   label:String(year)+(year===CURRENT?" · vorläufig":""),data,color:COLORS[i%COLORS.length],order:1,
+   // Chart.js filler: absolute target index 0 is the 1991–2020 daily mean.
+   // Only one year is shaded; other selected years remain clean line plots.
+   fillConfig:year===highlightedYear?{target:0,above:WARM_FILL,below:COLD_FILL}:false
+  });
  });
  makeChart(AXIS.map(x=>x.slice(3)+"."+x.slice(0,2)),datasets,
   name+" · Tagesverlauf", "°C","line",
-  observed+" echte Tagesmesswerte in den gewählten Jahren. Referenzkurve aus den verfügbaren Jahren 1991–2020 (mindestens 15 Werte je Kalendertag). Fehlende Werte bleiben Lücken.");
+  observed+" echte Tagesmesswerte in den gewählten Jahren. Referenzkurve aus den verfügbaren Jahren 1991–2020 (mindestens 15 Werte je Kalendertag). "+(highlightedYear===null?"":"Abweichungsfläche "+highlightedYear+": Rot = wärmer, Blau = kühler. ")+"Fehlende Werte bleiben Lücken.");
  text("sjaStats", "");
 }
 function precipBaseline(profile){
@@ -336,7 +367,7 @@ function choose(st){
   const active=button.dataset.kind===kind;
   button.classList.toggle("active",active);button.setAttribute("aria-pressed",String(active));
  }
- selected=new Set();renderMatches();load();
+ selected=new Set();fillYear=null;renderMatches();load();
 }
 function renderMatches(){
  const query=clean($("sjaSearch").value),region=$("sjaState").value;
@@ -357,6 +388,7 @@ function renderMatches(){
 async function init(){
  $("sjaSearch").addEventListener("input",renderMatches);$("sjaState").addEventListener("change",renderMatches);
  $("sjaMetric").addEventListener("change",render);$("sjaMode").addEventListener("change",render);
+ $("sjaFillYear").addEventListener("change",()=>{fillYear=Number($("sjaFillYear").value);render();});
  $("sjaPng").addEventListener("click",png);$("sjaCsv").addEventListener("click",csv);
  for(const b of document.querySelectorAll("[data-kind]"))b.addEventListener("click",()=>{
   if(!station||!station[b.dataset.kind])return;

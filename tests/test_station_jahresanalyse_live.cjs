@@ -22,9 +22,35 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
      null,{timeout:90000});
    const tempCount=await page.locator("#sjaYears input").count();
    assert.ok(tempCount>20,device+": historical temperature years missing");
+   // One temperature year must fill to the 1991–2020 line, with red above / blue below.
+   await page.waitForFunction(()=>document.querySelector("#sjaFillYear")?.options.length>=2,null,{timeout:10000});
+   const fillState=()=>page.evaluate(()=>{
+    const chart=window.Chart.getChart(document.getElementById("sjaChart"));
+    const filled=chart.data.datasets.filter(d=>d.fill&&typeof d.fill==="object");
+    return {fills:filled.map(d=>({name:d.label,target:d.fill.target,above:d.fill.above,below:d.fill.below})),
+      selected:document.getElementById("sjaFillYear").value,
+      datasetCount:chart.data.datasets.length};
+   });
+   let state=await fillState();
+   assert.equal(state.fills.length,1,device+": exactly one shaded year");
+   assert.equal(state.fills[0].target,0,"Fill must reference 1991–2020 dataset");
+   assert.match(state.fills[0].above,/219,63,56/);
+   assert.match(state.fills[0].below,/39,107,201/);
+   assert.ok(state.fills[0].name.startsWith(state.selected),"Highlighted year mismatch");
+   const choices=await page.locator("#sjaFillYear option").evaluateAll(opts=>opts.map(o=>o.value));
+   await page.locator("#sjaFillYear").selectOption(choices.find(y=>y!==state.selected));
+   state=await fillState();
+   assert.ok(state.fills[0].name.startsWith(state.selected),"Changed shading year was not applied");
+   await page.locator('#sjaYears input[value="'+state.selected+'"]').uncheck();
+   state=await fillState();
+   assert.ok(state.fills[0].name.startsWith(state.selected),"Fill not reassigned after deselecting shaded year");
+   const pngDownload=page.waitForEvent("download");
+   await page.locator("#sjaPng").click();
+   assert.ok((await pngDownload).suggestedFilename().endsWith(".png"));
    await page.locator("#sjaMetric").selectOption("0");
    assert.match(await page.locator("#sjaChartTitle").textContent(),/Tmax/);
    await page.locator("#sjaPrecip").click();
+   assert.equal(await page.locator("#sjaFillControls").isVisible(),false,"Fill picker must be temperature-only");
    try {
     await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===12,
       null,{timeout:90000});
@@ -56,7 +82,7 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    await page.locator("#sjaCsv").click();
    const downloaded=await downloadPromise;
    assert.ok(downloaded.suggestedFilename().endsWith(".csv"));
-   console.log(device,inventory,"temperature years",tempCount,"snow chart and CSV OK");
+   console.log(device,inventory,"temperature years",tempCount,"red/blue fill, PNG, snow chart and CSV OK");
    await context.close();
   }
  }finally{await browser.close();}
