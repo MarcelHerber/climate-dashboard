@@ -526,7 +526,7 @@ function init(){
  loadCatalogue();
 }
 window.GreenlandDmiMap={
- applyRecordMap, getCatalogue:()=>catalogue.slice(),
+ applyRecordMap, selectStation:(id)=>selectStation(id,true,true), getCatalogue:()=>catalogue.slice(),
  getState:()=>({mode:recordMode,visibleMarkers:markerGroup?.getLayers().length||0})
 };
 window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,plotWithGaps,PARAMS,apiValues,
