@@ -15,7 +15,7 @@ test("Meteosat viewer assets included in Pages deployment",()=>{
  assert.ok(html.includes("mobile_navigation.js"));
  assert.ok(html.includes('<option value="atlantic">Nordatlantik &amp; Europa'));
  assert.ok(html.includes('<option value="southwest">Südwesteuropa · Azoren &amp; Kanaren'));
- assert.ok(js.includes('southwest:{name:"Südwesteuropa · Azoren & Kanaren",bbox:[-37,24,19,53],w:1400,h:900}'));
+ assert.ok(js.includes('southwest:{name:"Südwesteuropa · Azoren & Kanaren",bbox:[-37,24,19,53],w:1200,h:620}'));
  assert.ok(js.includes('atlantic:{name:"Nordatlantik & Europa",bbox:[-70,15,35,75]'));
  assert.ok(js.includes("region.value"));
  assert.ok(js.includes('srs:region.value==="disk"?"AUTO:97004,9001,0,0":"EPSG:4326"'));
