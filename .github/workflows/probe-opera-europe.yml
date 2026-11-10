@@ -1,0 +1,20 @@
+name: OPERA Europa Radar · Zugriffsprobe
+on:
+  pull_request:
+    paths:
+      - "tests/probe_opera_europe.py"
+      - ".github/workflows/probe-opera-europe.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "requests>=2,<3"
+      - run: python tests/probe_opera_europe.py
