@@ -2,6 +2,7 @@ import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
 import { dynamicsLabPage, dynamicsLabLoginPage, dynamicsLabData, dynamicsBoundaries } from "./dynamics-lab.js";
 import { shapiroLabPage, shapiroLoginPage, shapiroData } from "./shapiro-lab.js";
 import { radarLabPage, radarLoginPage, radarLabData } from "./radar-lab.js";
+import {operaRadarPage,operaRadarLoginPage,operaRadarData} from "./opera-radar-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -35,6 +36,9 @@ export default {
       if (url.pathname.startsWith("/radarlabor/api/")) {
         return jsonResponse({ error: "Radarbilder nur nach Anmeldung abrufbar" }, 401);
       }
+      if (url.pathname === "/radarlabor/europa" || url.pathname === "/radarlabor/europa/") {
+        return htmlResponse(operaRadarLoginPage());
+      }
       if (url.pathname === "/radarlabor" || url.pathname === "/radarlabor/") {
         return htmlResponse(radarLoginPage());
       }
@@ -60,6 +64,12 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/radarlabor/europa" || url.pathname === "/radarlabor/europa/") {
+      return htmlResponse(operaRadarPage());
+    }
+    if (url.pathname.startsWith("/radarlabor/api/opera/")) {
+      return operaRadarData(url,securityHeaders);
+    }
     if (url.pathname === "/radarlabor" || url.pathname === "/radarlabor/") {
       return htmlResponse(radarLabPage());
     }
@@ -145,7 +155,7 @@ async function handleLogin(request, env) {
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
   const next = String(form.get("next") || "");
-  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor"].includes(next) ? next : "/";
+  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor","/radarlabor/europa"].includes(next) ? next : "/";
   return redirect(target, cookie);
 }
 
