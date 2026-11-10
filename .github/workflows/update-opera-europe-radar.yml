@@ -1,0 +1,87 @@
+name: OPERA Europakomposit · DBZH & RATE
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "4,14,24,34,44,54 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_opera_europe_radar.py"
+      - ".github/workflows/update-opera-europe-radar.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opera-europe-radar
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Projektion und Open Radar Data
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3"
+      - name: Europäische OPERA-Datenbranch vorbereiten
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/opera-radar-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 -b opera-radar-data "$url" /tmp/opera-data
+          else
+            mkdir -p /tmp/opera-data
+            git -C /tmp/opera-data init -q -b opera-radar-data
+            git -C /tmp/opera-data remote add origin "$url"
+          fi
+      - name: 1-km-Reflektivität und 2-km-Niederschlagsrate aus OPERA COGs berechnen
+        run: python scripts/build_opera_europe_radar.py --out /tmp/opera-data/data/opera
+      - name: Datenlizenz, Kartenfelder und Originalzeitschritte validieren
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from datetime import datetime,timezone,timedelta
+          import json,numpy as np
+          from PIL import Image
+          root=Path("/tmp/opera-data/data/opera")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and "EUMETNET" in m["source"] and "CC BY 4.0" in m["license"]
+          assert m["grid"]["width"]==1480 and m["grid"]["height"]==880
+          assert set(m["products"])=={"dbzh","rate"}
+          for kind,info in m["products"].items():
+              assert len(info["frames"])>=4
+              stamps=[datetime.fromisoformat(x["utc"].replace("Z","+00:00")) for x in info["frames"]]
+              assert stamps==sorted(set(stamps))
+              assert datetime.now(timezone.utc)-stamps[-1]<timedelta(minutes=60)
+              assert info["unit"]==("dBZ" if kind=="dbzh" else "mm/h")
+              assert info["native_km"]==(1 if kind=="dbzh" else 2)
+              for f in info["frames"]:
+                  with Image.open(root/f["image"]) as im:
+                      assert im.mode=="L" and im.size==(1480,880)
+                      vals=np.asarray(im)
+                      assert (vals==255).mean()>.001
+                      assert (vals<255).mean()>.10
+          print("Real EUMETNET OPERA validated:",{k:len(v["frames"]) for k,v in m["products"].items()})
+          PY
+      - name: Nur validierte europäische Radarprodukte veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/opera-data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/opera
+          if git diff --cached --quiet; then
+            echo "Kein neues OPERA-Produkt"
+          else
+            git commit -m "Publish verified EUMETNET OPERA radar composites"
+            git push origin HEAD:opera-radar-data
+          fi

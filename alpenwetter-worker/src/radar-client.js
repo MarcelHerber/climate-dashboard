@@ -39,7 +39,7 @@ function fromByte(p){
 function graticule(){
  const r=region();
  ctx.fillStyle="#e1eff5";ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.save();ctx.strokeStyle="#b8d3de";ctx.lineWidth=.7;ctx.setLineDash([4,7]);
+ ctx.save();ctx.strokeStyle="#b8d3de";ctx.lineWidth=1.2;ctx.setLineDash([4,7]);
  ctx.beginPath();
  for(let lon=2;lon<20;lon+=2)if(lon>=r.w&&lon<=r.e){
   ctx.moveTo(lx(lon),0);ctx.lineTo(lx(lon),canvas.height)}
@@ -74,7 +74,7 @@ function lines(){
 function borderOutlines(){
  if(!st.geo)return;
  ctx.save();ctx.beginPath();ctx.rect(0,0,canvas.width,canvas.height);ctx.clip();
- ctx.strokeStyle="#475e72bf";ctx.lineWidth=1.1;ctx.beginPath();
+ ctx.strokeStyle="#28435beb";ctx.lineWidth=2.15;ctx.beginPath();
  for(const feature of st.geo.features||[]){
    const geom=feature.geometry||{},polygons=geom.type==="Polygon"?[geom.coordinates]:geom.type==="MultiPolygon"?geom.coordinates:[];
    for(const polygon of polygons||[])for(const ring of polygon||[]){
@@ -225,7 +225,7 @@ $("png").addEventListener("click",()=>{
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
  },"image/png");
 });
-fetch("/dynamik/api/boundaries").then(r=>{if(!r.ok)throw Error("Grenzen fehlen");return r.json()})
+fetch("/radarlabor/api/borders_europe.geojson").then(r=>{if(!r.ok)throw Error("Grenzen fehlen");return r.json()})
  .then(geo=>{st.geo=geo;if(st.manifest)render();else{graticule();lines();borderOutlines()}})
  .catch(()=>{});
 initLegend();graticule();boot();
