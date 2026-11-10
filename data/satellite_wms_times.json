@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T12:25:42Z",
+  "generated_at": "2026-11-10T12:28:10Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -66,12 +66,14 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 25.7,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 312093,
       "atlantic_ok": true,
-      "atlantic_bytes": 910477
+      "atlantic_bytes": 910477,
+      "southwest_ok": true,
+      "southwest_bytes": 844130
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -134,12 +136,14 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 25.7,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 291492,
       "atlantic_ok": true,
-      "atlantic_bytes": 1047333
+      "atlantic_bytes": 1047333,
+      "southwest_ok": true,
+      "southwest_bytes": 1131320
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
@@ -202,12 +206,14 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 25.7,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 345364,
       "atlantic_ok": true,
-      "atlantic_bytes": 1071755
+      "atlantic_bytes": 1071755,
+      "southwest_ok": true,
+      "southwest_bytes": 1195042
     }
   },
   "errors": [],
