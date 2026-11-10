@@ -126,7 +126,7 @@ def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False)
     if southwest:
         params.update({"srs":"EPSG:4326",
                        "bbox":"-37,24,19,53",
-                       "width":"800", "height":"514"})
+                       "width":"1200", "height":"620"})
     if timestamp:
         params["time"] = timestamp
     payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
