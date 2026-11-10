@@ -108,13 +108,17 @@ def dimensions_for_layer(root, target):
     return []
 
 
-def test_png(layer, timestamp):
+def test_png(layer, timestamp, full_disk=False):
     params = {
         "service": "WMS", "version": "1.1.1", "request": "GetMap",
         "layers": layer, "styles": "", "format": "image/png",
         "srs": "EPSG:4326", "bbox": "-2,43,25,58",
         "width": "600", "height": "360",
     }
+    if full_disk:
+        params.update({"srs":"AUTO:97004,9001,0,0",
+                       "bbox":"-6500000,-6500000,6500000,6500000",
+                       "width":"500", "height":"500"})
     if timestamp:
         params["time"] = timestamp
     payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
@@ -162,6 +166,13 @@ def main():
                 entry["fresh"] = 0 <= age <= 90
         except Exception as error:
             entry["error"] = str(error)[:350]
+        try:
+            native = test_png(layer, available[-1] if available else None, full_disk=True)
+            entry["full_disk_ok"] = bool(native.get("ok"))
+            entry["full_disk_bytes"] = native["bytes"]
+        except Exception as error:
+            entry["full_disk_ok"] = False
+            entry["full_disk_error"] = str(error)[:350]
         result["products"][key] = entry
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
