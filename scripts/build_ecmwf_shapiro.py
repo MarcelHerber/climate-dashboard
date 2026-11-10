@@ -269,6 +269,30 @@ def build(out:Path,hours:tuple[int,...]=HOURS) -> dict:
           "maps":paths,"profiles":profiles,"candidates":lows,
         })
         LOG.info("IFS Shapiro +%d: maps, %d profile atlases, %d screened lows",hour,len(profiles),len(lows))
+    # Link nearby pressure minima across consecutive three-hour steps.
+    next_track=1
+    previous=[]
+    for row in rows:
+        selected=set()
+        for c in row["candidates"]:
+            possible=[]
+            for p in previous:
+                if p["track_id"] in selected:continue
+                dy=(c["lat"]-p["lat"])*111.2
+                dx=(c["lon"]-p["lon"])*111.2*np.cos(np.deg2rad((c["lat"]+p["lat"])/2))
+                distance=float(np.hypot(dx,dy))
+                if distance<650 and abs(c["msl_hpa"]-p["msl_hpa"])<25:
+                    possible.append((distance,p))
+            if possible:
+                p=min(possible,key=lambda x:x[0])[1]
+                c["track_id"]=p["track_id"]
+                c["pressure_change_hpa_3h"]=round(c["msl_hpa"]-p["msl_hpa"],1)
+            else:
+                c["track_id"]=next_track
+                c["pressure_change_hpa_3h"]=None
+                next_track+=1
+            selected.add(c["track_id"])
+        previous=row["candidates"]
     manifest={
       "schema":1,"source":"ECMWF IFS Open Data 0.25 degree, CC BY 4.0",
       "cycle":cycle.strftime("%Y%m%d%H"),
