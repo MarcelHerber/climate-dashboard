@@ -43,6 +43,13 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    assert.equal(errors.length,0,device+" JS errors: "+errors.join(" | "));
    if(device==="mobile"){
     const width=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:window.innerWidth}));
+    if(width.scroll>width.viewport+8){
+     const offenders=await page.evaluate(()=>[...document.querySelectorAll("body *")]
+       .map(el=>({tag:el.tagName,cls:typeof el.className==="string"?el.className:"",
+         right:Math.round(el.getBoundingClientRect().right),width:Math.round(el.getBoundingClientRect().width)}))
+       .filter(el=>el.right>window.innerWidth+10).sort((a,b)=>b.right-a.right).slice(0,12));
+     console.error("Mobile overflow culprits",offenders);
+    }
     assert.ok(width.scroll<=width.viewport+8,"Mobile horizontal overflow: "+JSON.stringify(width));
    }
    const downloadPromise=page.waitForEvent("download");
