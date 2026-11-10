@@ -57,6 +57,7 @@ def check_remote():
                     "satellite_markup":b'id="satSource"' in head,
                     "southwest_published":b'value="southwest"' in head,
                     "buffered_film_published":b'id="satFilmLength"' in head,
+                    "long_film_published":b'<option value="36">' in head and b'<option value="48">' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
@@ -146,6 +147,15 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satSource").select_option("mtgi1")
     evidence["mtgi1_product_enabled"]=page.locator("#satProduct").is_enabled()
     assert evidence["mtgi1_product_enabled"]
+    # Extended film options: 36/48 are available on mobile and desktop.
+    page.locator("#satFilmLength").select_option("36")
+    evidence["long_film_36"]=page.locator("#satFilmLength").input_value()=="36"
+    evidence["automatic_320px"]=page.locator("#satFilmQuality").input_value()=="320"
+    assert evidence["long_film_36"] and evidence["automatic_320px"]
+    page.locator("#satFilmLength").select_option("48")
+    evidence["long_film_48"]=page.locator("#satFilmLength").input_value()=="48"
+    assert evidence["long_film_48"]
+    page.locator("#satFilmLength").select_option("8")
     evidence["theme_toggle_present"]=page.locator("#dashboardThemeToggle").count()==1
     theme_control="#cdMobileSatelliteTheme" if viewport_label=="mobile" else "#dashboardThemeToggle"
     evidence["theme_control_visible"]=page.locator(theme_control).is_visible()
