@@ -189,6 +189,21 @@ with path.open("w",encoding="utf-8") as handle:
 print("Stationsniederschlag-Index:",original,"->",path.stat().st_size,"Byte (verlustfrei)")
 PY
 node --check _site/dashboard_export_hq.js
+# Fallback for browser CORS: only publish satellite timestamps checked by the
+# independent EUMETSAT live probe; never create fake status if absent.
+if [[ -s data/satellite_wms_times.json ]]; then
+  cp data/satellite_wms_times.json _site/data/satellite_wms_times.json
+  python - <<'PY'
+import json
+from pathlib import Path
+status=json.loads(Path("_site/data/satellite_wms_times.json").read_text(encoding="utf-8"))
+assert status.get("schema")==1 and status.get("provider")=="EUMETSAT"
+assert all(k in status.get("products",{}) for k in ("geocolour","dust","cloudtype"))
+print("EUMETSAT WMS-Status mit tatsächlichen Verifikationen eingebunden.")
+PY
+else
+  echo "Hinweis: Der automatische EUMETSAT-WMS-Check ist noch nicht abgeschlossen."
+fi
 
 
 # Arktischer DMI-Index wird im täglichen Spezialworkflow erzeugt.
