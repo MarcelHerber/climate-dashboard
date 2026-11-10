@@ -1,0 +1,113 @@
+name: ECMWF Dynamik-Studio · echte Prognosen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "25 6,18 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_ecmwf_dynamics.py"
+      - ".github/workflows/update-ecmwf-dynamics.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dynamics-ifs-forecast-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Wissenschaftliche und technische Bibliotheken
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Lokale Mathematiktests und Syntaxprüfung
+        run: |
+          python -m py_compile scripts/build_ecmwf_dynamics.py
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          import numpy as np
+          import build_ecmwf_dynamics as d
+          shape=(d.HEIGHT,d.WIDTH)
+          f={}
+          for z,t in [(200,220.),(250,231.),(300,243.)]:
+              f["t"+str(z)]=np.full(shape,t,dtype=np.float32)
+              f["u"+str(z)]=np.full(shape,22,dtype=np.float32)
+              f["v"+str(z)]=np.full(shape,2,dtype=np.float32)
+              f["vo"+str(z)]=np.zeros(shape,dtype=np.float32)
+              f["d"+str(z)]=np.zeros(shape,dtype=np.float32)
+          for z in (400,500,600):f["w"+str(z)]=np.full(shape,-.2,dtype=np.float32)
+          f["tcwv"]=np.full(shape,24,dtype=np.float32)
+          r=d.derive(f)
+          assert set(r)==set(d.SCALES)
+          assert np.all(np.isfinite(r["pv"]))
+          assert float(r["pv"][40,160])>0, "stable NH stratification must give positive PV"
+          assert float(np.max(abs(r["iru"])))<1e-5
+          assert np.allclose(r["ascent"],.2,atol=.00001)
+          for name,field in r.items():
+              img=d.encode(field,*d.SCALES[name])
+              assert img.size==(d.WIDTH,d.HEIGHT) and img.mode=="L"
+          print("PV sign, vertical velocity, divergence and raster encodings checked")
+          PY
+      - name: Datenbranch vorbereiten
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/dynamics-data >/dev/null 2>&1; then
+            git clone -q --depth 1 -b dynamics-data "$url" /tmp/dynamics-data
+          else
+            mkdir -p /tmp/dynamics-data
+            git -C /tmp/dynamics-data init -q -b dynamics-data
+            git -C /tmp/dynamics-data remote add origin "$url"
+          fi
+      - name: ECMWF Originalfelder und Diagnosen erzeugen
+        run: python scripts/build_ecmwf_dynamics.py --out /tmp/dynamics-data/data/dynamik
+      - name: Datensatz vollständig validieren
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from PIL import Image
+          root=Path("/tmp/dynamics-data/data/dynamik")
+          m=json.loads((root/"current.json").read_text(encoding="utf-8"))
+          assert m["schema"]==1 and m["grid"]["step"]==.25
+          assert len(m["frames"])==17, "All 17 timestamps required; no partial publication"
+          assert [f["hour"] for f in m["frames"]]==list(range(0,49,3))
+          fields={"tcwv","jet","ascent","pv","iru","irv"}
+          for frame in m["frames"]:
+              assert set(frame["images"])==fields
+              for relative in frame["images"].values():
+                  path=root/relative
+                  assert path.is_file() and path.stat().st_size>1000
+                  with Image.open(path) as im:
+                      assert im.mode=="L" and im.size==(m["grid"]["width"],m["grid"]["height"])
+                      im.verify()
+          print("ECMWF forecast validated:",m["cycle"],len(m["frames"]),"frames")
+          PY
+      - name: Nur vollständige Felder veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/dynamics-data
+          cycle="$(python -c 'import json;print(json.load(open("data/dynamik/current.json"))["cycle"])')"
+          find data/dynamik/frames -mindepth 1 -maxdepth 1 -type d ! -name "$cycle" -exec rm -rf {} +
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/dynamik
+          if git diff --cached --quiet; then
+            echo "No new IFS cycle"
+          else
+            git commit -m "Publish verified ECMWF upper-air dynamics $cycle"
+            git push origin HEAD:dynamics-data
+          fi
