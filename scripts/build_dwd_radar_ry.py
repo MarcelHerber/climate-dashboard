@@ -99,7 +99,9 @@ def decode(blob:bytes,lookup:tuple[np.ndarray,np.ndarray]|None=None):
         arr=np.full((HEIGHT,WIDTH),255,np.uint8)
         if inside.any():
             vals=raw[iy[inside],ix[inside]]
-            valid=np.isfinite(vals)&(vals!=nodata)
+            # 65534 is a reserved upper-end uint16 code encountered in RY;
+            # never interpret it as an extreme 655.34 mm/h radar echo.
+            valid=np.isfinite(vals)&(vals!=nodata)&(vals!=65534)
             rates=vals.astype(np.float32)*gain+offset
             out=np.zeros(len(vals),np.uint8)
             detected=valid&(vals!=undetect)&(rates>=.05)
@@ -110,9 +112,11 @@ def decode(blob:bytes,lookup:tuple[np.ndarray,np.ndarray]|None=None):
         coverage=(arr!=255).mean()
         if coverage<.15 or coverage>.99:
             raise ValueError(f"Implausible DWD coverage {coverage:.3f}; check ODIM georeference")
+        valid_raw=(raw!=nodata)&(raw!=65534)&(raw!=undetect)
         stats={"coverage":round(float(coverage),4),
+               "reserved_65534_cells":int(np.count_nonzero(raw==65534)),
                "wet_fraction":round(float(((arr>0)&(arr<255)).mean()),4),
-               "max_rate_mm_h":round(float(np.nanmax(np.where((raw!=nodata)&(raw!=undetect),raw.astype(np.float32)*gain+offset,0))),2)}
+               "max_rate_mm_h":round(float(np.nanmax(np.where(valid_raw,raw.astype(np.float32)*gain+offset,0))),2)}
         return arr,lookup,stats,valid_end
 
 def build(out:Path, count:int=N_FRAMES)->dict:
