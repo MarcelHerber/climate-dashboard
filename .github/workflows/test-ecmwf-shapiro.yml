@@ -1,0 +1,138 @@
+name: Shapiro-Keyser · Wissenschaft, UI & Echt-Daten
+
+on:
+  pull_request:
+    paths:
+      - "alpenwetter-worker/src/shapiro-client.js"
+      - "alpenwetter-worker/src/shapiro-lab.js"
+      - "alpenwetter-worker/src/dynamics-lab.js"
+      - "alpenwetter-worker/src/index.js"
+      - "scripts/build_ecmwf_shapiro.py"
+      - "tests/test_shapiro_browser.mjs"
+      - ".github/workflows/test-ecmwf-shapiro.yml"
+      - ".github/workflows/update-ecmwf-shapiro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: JavaScript, Worker und Browserquellen prüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/shapiro-client.js
+          node --input-type=module --check < alpenwetter-worker/src/shapiro-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import {shapiroLabPage,shapiroLoginPage,shapiroData} from "./alpenwetter-worker/src/shapiro-lab.js";
+          import worker from "./alpenwetter-worker/src/index.js";
+          const html=shapiroLabPage(),script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+          assert.ok(script?.length>12000);
+          new Function(script);
+          assert.doesNotMatch(script,/__name\(/);
+          assert.match(html,/Punkte A–B/);
+          assert.match(shapiroLoginPage(),/value="\/dynamik\/shapiro"/);
+          const env={ALPENWETTER_PASSWORD:"unit-test-only"};
+          const denied=await worker.fetch(new Request("https://example.org/dynamik/api/shapiro/current.json"),env);
+          assert.equal(denied.status,401);
+          const gated=await worker.fetch(new Request("https://example.org/dynamik/shapiro"),env);
+          assert.match(await gated.text(),/type="password"/);
+          const wrong=await shapiroData(new URL("https://example.org/dynamik/api/shapiro/unknown.png"),x=>new Headers(x));
+          assert.equal(wrong.status,400);
+          console.log("Password, protected forecast API, route and browser code PASS");
+          JS
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Wissenschaftliche NumPy/Scipy-Diagnose
+        run: |
+          pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+          python -m py_compile scripts/build_ecmwf_shapiro.py
+          python - <<'PY'
+          import sys
+          import numpy as np
+          sys.path.insert(0,"scripts")
+          import build_ecmwf_shapiro as s
+          shape=(s.HEIGHT,s.WIDTH)
+          theta=s.theta_e(np.full(shape,288.),np.full(shape,.009))
+          assert 280<theta.mean()<340
+          fg=s.frontogenesis(theta,np.full(shape,12.),np.full(shape,3.))
+          assert abs(float(fg.mean()))<.05
+          yy,xx=np.ogrid[:shape[0],:shape[1]]
+          p=1016-27*np.exp(-((xx-220)**2+(yy-115)**2)/150.)
+          low=s.detect_lows(p,theta,np.full(shape,5.),np.full(shape,35.),0)
+          assert low and low[0]["score"]>=3
+          print("theta-e, frontogenesis, automatic low screening PASS")
+          PY
+  real-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF GRIB Werkzeuge
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Zweimal echte ECMWF Druckniveaus prüfen
+        run: python scripts/build_ecmwf_shapiro.py --out /tmp/ifs-shapiro-smoke --smoke
+      - name: Karten, Vertikalschnittdaten und Druckmasken validieren
+        run: |
+          python - <<'PY'
+          import json
+          from PIL import Image
+          from pathlib import Path
+          root=Path("/tmp/ifs-shapiro-smoke")
+          m=json.loads((root/"current.json").read_text())
+          assert [f["hour"] for f in m["frames"]]==[0,3]
+          assert len(m["profile_levels_hpa"])==7
+          assert len(m["frames"][0]["maps"])==13
+          for frame in m["frames"]:
+              for f in frame["maps"].values():
+                  with Image.open(root/f) as im:
+                      assert im.mode=="L" and im.size==(461,253)
+              for f in frame["profiles"].values():
+                  with Image.open(root/f) as im:
+                      assert im.mode=="L" and im.size==(461,1771)
+          print("REAL ECMWF 0/+3 h, all forecast fields and 7 pressure levels PASS")
+          PY
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Playwright Chromium
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Desktop und Handy · Karten · Querschnitt · Kandidaten · PNG
+        run: node tests/test_shapiro_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shapiro-browser-screenshots
+          path: /tmp/shapiro-*.png
+          if-no-files-found: ignore
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Cloudflare Worker komplett bauen (ohne Deploy)
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/shapiro-bundle --config alpenwetter-worker/wrangler.toml
