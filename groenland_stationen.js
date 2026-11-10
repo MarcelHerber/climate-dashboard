@@ -25,6 +25,45 @@ const isNumber=x=>typeof x==="number"&&Number.isFinite(x);
 const validParam=id=>Object.prototype.hasOwnProperty.call(PARAMS,id);
 let catalogue=[],latest={},station=null,map=null,markers=new Map(),chart=null,series=[],records=[],serial=0;
 let cachedStamp="",markerGroup=null;
+let recordMode="latest",mapRecords={},markerDetails=new Map();
+const RECORD_MAP_SETTINGS={
+ latest:{label:"Jüngstes Tagesmittel",unit:"°C",levels:[-30,-15,-5,5]},
+ high:{label:"Historisches Temperaturmaximum",unit:"°C",levels:[-10,0,10,20]},
+ low:{label:"Historisches Temperaturminimum",unit:"°C",levels:[-45,-35,-25,-15]},
+ gust:{label:"Historische stärkste 3-s-Böe",unit:"m/s",levels:[10,20,30,40]},
+ rain:{label:"Historischer größter 24-h-Niederschlag",unit:"mm",levels:[5,15,30,60]}
+};
+const RECORD_COLORS=["#4b448f","#2479b0","#44a3b9","#e1b14b","#d85c4a"];
+function recordColor(mode,value){
+ if(!isNumber(value))return "#748398";
+ if(mode==="latest")return tempColor(value);
+ const levels=RECORD_MAP_SETTINGS[mode]?.levels;
+ if(!levels)return "#748398";
+ for(let i=0;i<levels.length;i++)if(value<levels[i])return RECORD_COLORS[i];
+ return RECORD_COLORS[4];
+}
+function mapValue(s){return recordMode==="latest"?latestFor(s.id,"mean_temp"):mapRecords[s.id];}
+function applyRecordMap(mode,data={}){
+ if(!Object.prototype.hasOwnProperty.call(RECORD_MAP_SETTINGS,mode))return;
+ recordMode=mode;mapRecords=data||{};
+ for(const s of catalogue){
+  const marker=markers.get(s.id);
+  if(!marker)continue;
+  const value=mapValue(s);
+  marker.setStyle({
+   fillColor:recordColor(mode,recordMode==="latest"?value?.value:value?.value),
+   fillOpacity:value?.value===undefined?.5:.9,
+   color:station?.id===s.id?"#0b2236":"#fff",
+   weight:station?.id===s.id?3:1
+  });
+  marker.setRadius(value?.value===undefined?4.3:6);
+  const detail=markerDetails.get(s.id);
+  if(detail)detail.textContent=markerTitle(s);
+  marker.bindTooltip(markerTitle(s),{direction:"top",opacity:.93});
+ }
+ renderList();
+}
+
 const statuses={active:"Aktive Station",all:"Historische Station"};
 
 function status(text,error=false){
@@ -111,8 +150,13 @@ function tempColor(value){
 }
 function latestFor(id,param){return latest[id]?.[param];}
 function markerTitle(s){
- const t=latestFor(s.id,"mean_temp");
- return s.name+" · "+s.id+(t?" · "+fmt(t.value)+" °C ("+dateLabel(t.date)+")":" · ohne jüngstes Temperaturmittel");
+ const t=mapValue(s);
+ if(!t||!isNumber(t.value))return s.name+" · "+s.id+" · keine Werte für "+RECORD_MAP_SETTINGS[recordMode].label;
+ if(recordMode==="latest")
+  return s.name+" · "+s.id+" · "+fmt(t.value)+" °C ("+dateLabel(t.date)+")";
+ return s.name+" · "+s.id+" · "+RECORD_MAP_SETTINGS[recordMode].label+
+  ": "+fmt(t.value)+" "+RECORD_MAP_SETTINGS[recordMode].unit+
+  " · "+t.year+" · "+t.count+" DMI-Jahreswerte";
 }
 function selectStation(id,scroll=true,focusMap=true){
  const s=catalogue.find(x=>x.id===id);if(!s)return;
@@ -137,6 +181,7 @@ function selectStation(id,scroll=true,focusMap=true){
  $("grRecordStatus").textContent="Prüfe DMI-Jahresextreme für "+s.name+" …";
  resetParameterIfUnsupported();
  loadBoth();
+ window.dispatchEvent(new CustomEvent("grdmi:station-selected",{detail:{id:s.id,name:s.name}}));
  if(scroll&&matchMedia("(max-width: 740px)").matches)$("grStationTitle").scrollIntoView({behavior:"smooth",block:"start"});
 }
 function filteredStations(){
@@ -158,8 +203,11 @@ function renderList(){
   button.setAttribute("role","option");button.setAttribute("aria-selected",String(station?.id===s.id));
   const name=document.createElement("strong");name.textContent=s.name;
   const meta=document.createElement("span");meta.textContent=s.id+" · "+(s.status==="Active"?"aktiv":"historisch");
-  const val=document.createElement("small");const t=latestFor(s.id,"mean_temp");
-  val.textContent=t?fmt(t.value)+" °C · "+dateLabel(t.date):"Kein aktueller Tageswert";
+  const val=document.createElement("small"),t=mapValue(s);
+  val.textContent=t&&isNumber(t.value)?
+    fmt(t.value)+" "+RECORD_MAP_SETTINGS[recordMode].unit+
+     " · "+(recordMode==="latest"?dateLabel(t.date):String(t.year)):
+    "Keine Werte";
   button.append(name,meta,val);button.addEventListener("click",()=>selectStation(s.id));
   frag.append(button);
  }
@@ -203,11 +251,13 @@ function makeMap(){
   const detail=document.createElement("p");detail.textContent=markerTitle(s);
   const b=document.createElement("button");b.type="button";b.textContent="Station auswählen";
   b.addEventListener("click",()=>selectStation(s.id));
+  markerDetails.set(s.id,detail);
   content.append(strong,detail,b);m.bindPopup(content);
   m.on("click",()=>selectStation(s.id,false));
   markers.set(s.id,m);
  }
  renderList();
+ window.dispatchEvent(new Event("grdmi:map-ready"));
  $("grMapReset").disabled=false;
  fitStationBounds();
  // Browsers can finish mobile navigation layout after the map has initialized.
@@ -475,7 +525,11 @@ function init(){
  $("grPng").addEventListener("click",savePng);
  loadCatalogue();
 }
-window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,plotWithGaps,PARAMS,
+window.GreenlandDmiMap={
+ applyRecordMap, getCatalogue:()=>catalogue.slice(),
+ getState:()=>({mode:recordMode,visibleMarkers:markerGroup?.getLayers().length||0})
+};
+window.GreenlandDmiMath={normalize,prepareCatalogue,downsample,plotWithGaps,PARAMS,apiValues,
  getState:()=>({stationId:station?.id||"",stations:catalogue.length,
   records:records.length,series:series.length,hasMap:!!map,
   markerCount:markerGroup?.getLayers().length||0,mapZoom:map?.getZoom()??null,dataStamp:cachedStamp})};
