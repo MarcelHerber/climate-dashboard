@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T12:02:44Z",
+  "generated_at": "2026-11-10T12:09:43Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -66,8 +66,10 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.7,
-      "fresh": true
+      "age_minutes": 29.7,
+      "fresh": true,
+      "full_disk_ok": true,
+      "full_disk_bytes": 311691
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
@@ -130,8 +132,10 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.7,
-      "fresh": true
+      "age_minutes": 29.7,
+      "fresh": true,
+      "full_disk_ok": true,
+      "full_disk_bytes": 291538
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
@@ -194,8 +198,10 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.7,
-      "fresh": true
+      "age_minutes": 29.7,
+      "fresh": true,
+      "full_disk_ok": true,
+      "full_disk_bytes": 345946
     }
   },
   "errors": [],
