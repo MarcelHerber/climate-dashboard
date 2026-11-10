@@ -1,0 +1,57 @@
+name: NOAA IMS Europakarten · Live Desktop und Handy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - qa/ims-europe-live-browser-20261110
+      - main
+    paths:
+      - tests/test_snow_maps_live.cjs
+      - snow_maps.js
+      - eurasia_snow.html
+      - .github/workflows/test-ims-europe-live.yml
+  pull_request:
+    paths:
+      - tests/test_snow_maps_live.cjs
+      - snow_maps.js
+      - eurasia_snow.html
+      - .github/workflows/test-ims-europe-live.yml
+  workflow_run:
+    workflows: ["GitHub Pages schnell veröffentlichen"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ims-snow-live-browser-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/test_snow_maps_live.cjs
+      - name: Install browser
+        run: |
+          npm install --no-save --no-package-lock playwright@1.57.0
+          npx playwright install --with-deps chromium
+      - name: Test real IMS maps, map-area switching, touch and PNG exports
+        run: node tests/test_snow_maps_live.cjs
+      - name: Save screenshots and data integrity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noaa-ims-europe-live
+          path: artifacts/ims-snow-live/
+          if-no-files-found: warn
+          retention-days: 14
