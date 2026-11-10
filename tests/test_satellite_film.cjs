@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false}={}){
+function fixture({failOne480=false,totalSlots=8}={}){
  let failed480=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
@@ -52,7 +52,7 @@ function fixture({failOne480=false}={}){
  nodes.get("satFilmQuality").value="480";
  nodes.get("satFilmSpeed").value="40"; // accelerate simulated clock; site presets are >=420 ms
  const now=Date.now();
- const slots=Array.from({length:8},(_,i)=>new Date(Math.floor((now-90*60000+i*600000)/600000)*600000).toISOString());
+ const slots=Array.from({length:totalSlots},(_,i)=>new Date(Math.floor((now-(totalSlots-i)*600000)/600000)*600000).toISOString());
  const manifest={generated_at:new Date().toISOString(),capabilities_ok:true,products:{
   geocolour:{map_ok:true,latest_verified_time:slots.at(-1),available_times:slots}
  }};
@@ -127,12 +127,54 @@ test("One failed 480px WMS frame falls back once to 720px and playback still sta
  assert.ok(nodes.get("satFilmStage").children[0].naturalWidth>0);
  nodes.get("satPlay").dispatch("click");
 });
+test("36-frame film uses small 320px images and ends at selected UTC frame",async()=>{
+ const {nodes,requests,state,slots}=fixture({totalSlots:48});
+ await waitUntil(()=>nodes.get("satTime").options.length===48,"48 verified UTC times");
+ nodes.get("satTime").value="39";
+ nodes.get("satTime").dispatch("change");
+ nodes.get("satFilmLength").value="36";
+ nodes.get("satFilmLength").dispatch("change");
+ assert.equal(nodes.get("satFilmQuality").value,"320","long movies default to 320 px");
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"36-frame movie starts",4000);
+ const previewRequests=requests.filter(r=>new URL(r.url).searchParams.get("width")==="320");
+ assert.equal(previewRequests.length,36,"all 36 selected frames loaded once");
+ assert.ok(state.maxActive<=2,"long film limits simultaneous requests");
+ const firstURL=new URL(previewRequests[0].url);
+ const lastURL=new URL(previewRequests.at(-1).url);
+ assert.equal(firstURL.searchParams.get("time"),slots[4],"movie begins at frame four");
+ assert.equal(lastURL.searchParams.get("time"),slots[39],"movie ends at selected UTC time");
+ assert.equal(nodes.get("satFilmProgress").value,36);
+ assert.match(nodes.get("satFilmProgressLabel").textContent,/36 von 36/);
+ const afterPreload=requests.length;
+ await delay(110);
+ assert.equal(requests.length,afterPreload,"playback makes no further HTTP requests");
+ nodes.get("satPlay").dispatch("click");
+});
+test("48-frame movie covers every available timestamp without duplicate downloads",async()=>{
+ const {nodes,requests,state,slots}=fixture({totalSlots:48});
+ await waitUntil(()=>nodes.get("satTime").options.length===48,"48 timestamps");
+ nodes.get("satFilmLength").value="48";
+ nodes.get("satFilmLength").dispatch("change");
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"48-frame movie starts",5000);
+ const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="320");
+ assert.equal(previews.length,48);
+ assert.equal(new URL(previews[0].url).searchParams.get("time"),slots[0]);
+ assert.equal(new URL(previews.at(-1).url).searchParams.get("time"),slots[47]);
+ assert.ok(state.maxActive<=2);
+ const before=requests.length;
+ await delay(100);
+ assert.equal(requests.length,before,"48-frame playback uses cached frames only");
+ nodes.get("satPlay").dispatch("click");
+});
 test("Lightweight film controls exist and preserve original high-res export",()=>{
  for(const id of ["satTimeline","satFilmLength","satFilmQuality","satFilmSpeed","satFilmStage",
   "satFilmProgressWrap","satFilmProgress","satFilmProgressLabel"]){
   assert.ok(html.includes('id="'+id+'"'),"Missing "+id);
  }
- for(const quality of ["480","720"])assert.ok(html.includes('value="'+quality+'"'));
+ for(const quality of ["320","480","720"])assert.ok(html.includes('value="'+quality+'"'));
+ for(const n of [6,8,12,20,36,48])assert.ok(html.includes('<option value="'+n+'"'),"Missing "+n+"-frame choice");
  assert.match(source,/const w=previewWidth\?Math\.min\(previewWidth,r\.w\):r\.w/);
  assert.match(source,/filmImage\.replaceChildren\(item\.img\)/);
  assert.match(source,/await Promise\.all\(\[worker\(\),worker\(\)\]\)/);
