@@ -10,6 +10,7 @@ const PRODUCTS={
 const REGIONS={
  europe:{name:"Europa und Nordafrika",bbox:[-27,24,49,73],w:1300,h:850},
  atlantic:{name:"Nordatlantik & Europa",bbox:[-70,15,35,75],w:1400,h:850},
+ southwest:{name:"Südwesteuropa · Azoren & Kanaren",bbox:[-37,24,19,53],w:1400,h:900},
  central:{name:"Mitteleuropa",bbox:[-2,43,25,58],w:1300,h:780},
  germany:{name:"Deutschland",bbox:[5,47,16,56],w:1140,h:950},
  disk:{name:"Erdscheibe",bbox:[-6500000,-6500000,6500000,6500000],w:1400,h:1400}
