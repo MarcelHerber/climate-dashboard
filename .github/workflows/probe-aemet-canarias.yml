@@ -1,0 +1,17 @@
+name: Radar Kanaren · AEMET GeoTIFF-Quellenprüfung
+on:
+  pull_request:
+    paths: ["tests/probe_aemet_canarias.py",".github/workflows/probe-aemet-canarias.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: pip install "requests>=2,<3" "beautifulsoup4>=4,<5" "numpy>=2,<3" "rasterio>=1.4,<2"
+      - run: python tests/probe_aemet_canarias.py

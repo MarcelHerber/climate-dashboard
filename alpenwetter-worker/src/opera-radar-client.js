@@ -7,7 +7,8 @@ const VIEWS={
  all:{w:-27,e:47,s:29,n:73},
  central:{w:-12,e:32,s:40,n:62},
  north:{w:-26,e:34,s:45,n:72},
- south:{w:-18,e:39,s:29,n:52}
+ south:{w:-18,e:39,s:29,n:52},
+ balearics:{w:0.1,e:5.25,s:37.9,n:41.15}
 };
 const MODE={
  dbzh:{name:"CIRRUS · maximale Reflektivität",unit:"dBZ",min:-20,max:75,

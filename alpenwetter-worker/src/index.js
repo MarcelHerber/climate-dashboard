@@ -3,6 +3,7 @@ import { dynamicsLabPage, dynamicsLabLoginPage, dynamicsLabData, dynamicsBoundar
 import { shapiroLabPage, shapiroLoginPage, shapiroData } from "./shapiro-lab.js";
 import { radarLabPage, radarLoginPage, radarLabData } from "./radar-lab.js";
 import {operaRadarPage,operaRadarLoginPage,operaRadarData} from "./opera-radar-lab.js";
+import {canariasRadarPage,canariasRadarLoginPage,canariasRadarData} from "./canarias-radar-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -36,6 +37,9 @@ export default {
       if (url.pathname.startsWith("/radarlabor/api/")) {
         return jsonResponse({ error: "Radarbilder nur nach Anmeldung abrufbar" }, 401);
       }
+      if (url.pathname === "/radarlabor/kanaren" || url.pathname === "/radarlabor/kanaren/") {
+        return htmlResponse(canariasRadarLoginPage());
+      }
       if (url.pathname === "/radarlabor/europa" || url.pathname === "/radarlabor/europa/") {
         return htmlResponse(operaRadarLoginPage());
       }
@@ -64,6 +68,12 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/radarlabor/kanaren" || url.pathname === "/radarlabor/kanaren/") {
+      return htmlResponse(canariasRadarPage());
+    }
+    if (url.pathname.startsWith("/radarlabor/api/canarias/")) {
+      return canariasRadarData(url,securityHeaders);
+    }
     if (url.pathname === "/radarlabor/europa" || url.pathname === "/radarlabor/europa/") {
       return htmlResponse(operaRadarPage());
     }
@@ -155,7 +165,7 @@ async function handleLogin(request, env) {
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
   const next = String(form.get("next") || "");
-  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor","/radarlabor/europa"].includes(next) ? next : "/";
+  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor","/radarlabor/europa","/radarlabor/kanaren"].includes(next) ? next : "/";
   return redirect(target, cookie);
 }
 

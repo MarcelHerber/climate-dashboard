@@ -59,7 +59,7 @@ export function operaRadarPage(){
   return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
   '<meta name="robots" content="noindex,nofollow,noarchive"><title>OPERA Europa-Radarkomposit · Privat</title><style>'+CSS+'</style></head><body>'+
   '<header><div><small>CLIMATE DASHBOARD · PASSWORTGESCHÜTZT</small><strong>EUMETNET OPERA · Europa-Radarkomposit</strong></div>'+
-  '<nav><a href="/radarlabor">DWD Deutschland</a><a href="/dynamik">Dynamik-Studio</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
+  '<nav><a href="/radarlabor/kanaren">Kanaren · AEMET</a><a href="/radarlabor">DWD Deutschland</a><a href="/dynamik">Dynamik-Studio</a><form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
   '<main><h1>Radar über Europa</h1><p class="intro">Zwei getrennte amtliche Radarkomposite: CIRRUS zeigt maximale Reflektivität in dBZ (1 km, 5 min); NIMBUS zeigt Niederschlagsrate in mm/h (2 km, 15 min). Beide mit festen Skalen, hochauflösenden Ländergrenzen und geografisch korrekter Projektion. Fehlende Daten sind kein Niederschlagsnachweis.</p>'+
   '<div class="tabs" role="group" aria-label="Radarkomposit wählen"><button id="dbzh" aria-pressed="true">Reflektivität · dBZ · 5 min</button><button id="rate" aria-pressed="false">Niederschlag · mm/h · 15 min</button></div>'+
   '<div class="layout"><section class="card"><div class="row"><strong id="product">OPERA · Daten prüfen …</strong><span id="time" class="tag">–</span></div>'+
@@ -70,7 +70,7 @@ export function operaRadarPage(){
   '<button id="reload">↻ Daten prüfen</button><button id="save" disabled>PNG speichern</button></div>'+
   '<div class="status" id="status" role="status" aria-live="polite">Lade OPERA-Europadaten …</div></section>'+
   '<aside class="card side"><h2>Darstellung</h2><label for="region">Kartenausschnitt</label>'+
-  '<select id="region"><option value="all">Europa und Nordatlantik</option><option value="central">Mitteleuropa</option><option value="north">Nord- und Westeuropa</option><option value="south">Südeuropa / Mittelmeer</option></select>'+
+  '<select id="region"><option value="all">Europa und Nordatlantik</option><option value="central">Mitteleuropa</option><option value="north">Nord- und Westeuropa</option><option value="south">Südeuropa / Mittelmeer</option><option value="balearics">Balearen – Mallorca, Menorca, Ibiza</option></select>'+
   '<label for="overlay">Radarebene</label><select id="overlay"><option value="on">Einblenden</option><option value="off">Ausblenden</option></select>'+
   '<h2 style="margin-top:22px">Feste Farblegende</h2><div id="legend" class="legend"></div>'+
   '<p id="legendNote" class="explainer">Die dBZ-Skala beschreibt Radarreflektivität und ist keine direkt gemessene Regenrate.</p>'+

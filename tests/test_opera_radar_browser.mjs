@@ -53,6 +53,9 @@ try{
   await page.locator("#rate").click();
   await page.waitForFunction(()=>document.getElementById("product")?.textContent.includes("NIMBUS")&&document.getElementById("status")?.textContent.includes("Echtes OPERA-Europakomposit"),null,{timeout:35000});
   assert.equal(await page.locator("#legend .item").count(),11);
+  await page.locator("#region").selectOption("balearics");
+  assert.equal(await page.locator("#region").inputValue(),"balearics");
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("Echtes OPERA-Europakomposit"),null,{timeout:10000});
   await page.locator("#region").selectOption("central");
   await page.locator("#previous").click();
   await page.locator("#next").click();
