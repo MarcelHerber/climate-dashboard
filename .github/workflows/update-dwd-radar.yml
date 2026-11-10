@@ -67,7 +67,7 @@ jobs:
                   assert im.mode=="L" and im.size==(900,550)
                   pix=np.asarray(im)
                   assert np.any(pix==0) and np.any(pix==255),"Dry and no-data separation absent"
-                  assert np.any((pix>0)&(pix<255)),"No valid rain echoes in test time"
+                  # A completely dry radar frame is valid weather, not a pipeline failure.
           print("All real DWD RY radar frames georeferenced, timestamped, unit-converted and checked",len(frames))
           PY
       - name: Verifizierte Radar-Frames veröffentlichen
