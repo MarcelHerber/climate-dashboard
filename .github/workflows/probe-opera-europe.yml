@@ -16,5 +16,5 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "requests>=2,<3"
+      - run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "requests>=2,<3" "rasterio>=1.4,<2"
       - run: python tests/probe_opera_europe.py
