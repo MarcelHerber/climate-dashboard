@@ -15,7 +15,7 @@ function fixture(){
    "satOfficial","satAttribution","satReload"];
  class Element{
   constructor(){this.hidden=false;this.disabled=false;this.value="";this.textContent="";this.options=[];
-    this.children=[];this.listeners=new Map();this.attrs={};}
+    this.children=[];this.listeners=new Map();this.attrs={};this.dataset={};}
   addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(fn);}
   dispatch(type){for(const cb of this.listeners.get(type)||[])cb({type});}
   replaceChildren(...children){this.children=children;this.options=[];}
