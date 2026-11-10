@@ -162,20 +162,31 @@ function show(i){
  index=i;time.value=String(index);
  drawFrame(frames[index]);buttons();
 }
-function loadedPreview(t,width,ordinal){
+function previewAttempt(t,width,ordinal){
  return new Promise(resolve=>{
   const im=new Image();im.decoding="async";let complete=false;
-  const finish=ok=>{
+  const finish=reason=>{
    if(complete)return;
    complete=true;clearTimeout(timeout);im.onload=null;im.onerror=null;
-   if(!ok)im.src="";
-   resolve(ok?{time:t,img:im,index:ordinal}:null);
+   if(reason!=="ok")im.src="";
+   resolve(reason==="ok"?{item:{time:t,img:im,index:ordinal},reason}:{item:null,reason});
   };
-  const timeout=setTimeout(()=>finish(false),14000);
-  im.onload=()=>finish(im.naturalWidth>0);
-  im.onerror=()=>finish(false);
+  const timeout=setTimeout(()=>finish("timeout"),12000);
+  im.onload=()=>finish(im.naturalWidth>0?"ok":"error");
+  im.onerror=()=>finish("error");
   im.src=imageUrl(t,width);
  });
+}
+async function loadedPreview(t,width,ordinal){
+ const first=await previewAttempt(t,width,ordinal);
+ if(first.item)return first.item;
+ // EUMETSAT occasionally responds with HTTP 500 to a particular image
+ // size. Try one alternate preview size on a quick error, not on timeout.
+ if(first.reason==="error"&&width===480){
+  const fallback=await previewAttempt(t,720,ordinal);
+  return fallback.item;
+ }
+ return null;
 }
 function showFilmFrame(){
  const item=filmItems[filmPosition];if(!item)return;
