@@ -56,6 +56,7 @@ def check_remote():
             return {"http_status":res.status,
                     "satellite_markup":b'id="satSource"' in head,
                     "southwest_published":b'value="southwest"' in head,
+                    "buffered_film_published":b'id="satFilmLength"' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
