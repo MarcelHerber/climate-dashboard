@@ -95,6 +95,9 @@ required_root_files=(
   saharastaub.css
   saharastaub.js
   saharastaub_extended.js
+  satelliten.html
+  satelliten.js
+  satelliten.css
   wettergefahren.js
   wettergefahren.css
   wettergefahren_export.js
