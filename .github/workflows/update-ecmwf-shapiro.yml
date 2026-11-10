@@ -1,0 +1,113 @@
+name: Shapiro-Keyser · ECMWF Echt-Daten & Querschnitte
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 7,19 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_ecmwf_shapiro.py"
+      - ".github/workflows/update-ecmwf-shapiro.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ifs-shapiro-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF Datenwerkzeuge
+        run: pip install "numpy>=2,<3" "scipy>=1.13,<2" "pillow>=11,<13" "eccodes>=2,<3" "ecmwf-opendata>=0.3.35,<1"
+      - name: Syntax und mathematische Diagnosen testen
+        run: |
+          python -m py_compile scripts/build_ecmwf_shapiro.py
+          python - <<'PY'
+          import sys
+          import numpy as np
+          sys.path.insert(0,"scripts")
+          import build_ecmwf_shapiro as s
+          shape=(s.HEIGHT,s.WIDTH)
+          t=s.theta_e(np.full(shape,288.),np.full(shape,.009))
+          assert np.nanmin(t)>280 and np.nanmax(t)<340
+          assert abs(float(np.nanmean(s.frontogenesis(t,np.full(shape,12.),np.full(shape,3.)))))<.05
+          p=np.full(shape,1016.)
+          yy,xx=np.ogrid[:shape[0],:shape[1]]
+          p-=27*np.exp(-((xx-220)**2+(yy-115)**2)/150.)
+          lows=s.detect_lows(p,t,np.full(shape,5.),np.full(shape,35.),0)
+          assert len(lows)>=1 and lows[0]["score"]>=3
+          for name,limit in s.ATLAS_SCALES.items():
+              out=s.encode(np.ones((shape[0]*7,shape[1]))*sum(limit)/2,limit,.75)
+              assert out.mode=="L" and out.size==(shape[1],shape[0]*7)
+          print("theta-e, frontogenesis, surface-pressure candidates and atlas encoding OK")
+          PY
+      - name: ECMWF-Datenbranch vorbereiten
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/shapiro-data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch shapiro-data "$url" /tmp/shapiro-data
+          else
+            mkdir -p /tmp/shapiro-data
+            git -C /tmp/shapiro-data init -q -b shapiro-data
+            git -C /tmp/shapiro-data remote add origin "$url"
+          fi
+      - name: Siebzehn echte ECMWF-Prognosezeitpunkte aufbereiten
+        run: python scripts/build_ecmwf_shapiro.py --out /tmp/shapiro-data/data/shapiro
+      - name: Prognosedaten, Karten und Querschnittsatlanten vollständig prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          root=Path("/tmp/shapiro-data/data/shapiro")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and m["grid"]["step"]==.25
+          assert [x["hour"] for x in m["frames"]]==list(range(0,49,3))
+          from sys import path
+          path.insert(0,"scripts")
+          import build_ecmwf_shapiro as s
+          for row in m["frames"]:
+              assert set(row["maps"])==set(s.MAP_NAMES)
+              assert set(row["profiles"])==set(s.ATLAS_NAMES)
+              for kind,items in (("map",row["maps"]),("profile",row["profiles"])):
+                  for relative in items.values():
+                      p=root/relative
+                      assert p.exists() and p.stat().st_size>200
+                      with Image.open(p) as im:
+                          size=(s.WIDTH,s.HEIGHT*(len(s.LEVELS) if kind=="profile" else 1))
+                          assert im.mode=="L" and im.size==size
+                          im.verify()
+              for c in row["candidates"]:
+                  assert c["classification"]=="automatic_screening_only"
+                  assert 0<=c["score"]<=4 and c["track_id"]>=1
+          print("REAL VERIFIED ECMWF SHAPIRO CYCLE",m["cycle"],"frames",len(m["frames"]))
+          PY
+      - name: Nur geprüfte Daten bereitstellen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/shapiro-data
+          cycle="$(python -c 'import json;print(json.load(open("data/shapiro/current.json"))["cycle"])')"
+          find data/shapiro/frames -mindepth 1 -maxdepth 1 -type d ! -name "$cycle" -exec rm -rf {} +
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/shapiro
+          if git diff --cached --quiet; then
+            echo "Keine neuen Modellfelder"
+          else
+            git commit -m "Publish verified ECMWF Shapiro diagnostics $cycle"
+            git push origin HEAD:shapiro-data
+          fi
