@@ -1,0 +1,53 @@
+name: DWD Stations-Jahresanalyse · echte Daten Desktop und Handy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - station_jahresanalyse.html
+      - station_jahresanalyse.js
+      - station_jahresanalyse.css
+      - scripts/build_station_jahresanalyse_catalog.py
+      - scripts/build_pages_site.sh
+      - mobile_navigation.js
+      - tests/test_station_jahresanalyse_live.cjs
+      - .github/workflows/station-jahresanalyse-qa.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: station-jahresanalyse-live-qa
+  cancel-in-progress: true
+
+jobs:
+  real-data:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - name: Katalog aus echten DWD-Daten erzeugen und Scripts prüfen
+        run: |
+          python -m py_compile scripts/build_station_jahresanalyse_catalog.py
+          python scripts/build_station_jahresanalyse_catalog.py station_jahresanalyse_catalog.json
+          node --check station_jahresanalyse.js
+          node --check tests/test_station_jahresanalyse_live.cjs
+          python - <<'PY'
+          import json
+          d=json.load(open("station_jahresanalyse_catalog.json",encoding="utf-8"))
+          assert d["schema"]==1 and len(d["stations"])>=200
+          fra=next(s for s in d["stations"] if s["id"]=="01420")
+          assert fra["temp"] and fra["precip"] and fra["snow"],fra
+          print("Echte DWD-Archive Frankfurt:",fra)
+          PY
+      - name: Chromium für responsive Live-Tests installieren
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Drei Messgrößen, Jahreswechsel, CSV, Desktop und Handy prüfen
+        env:
+          STATION_JAHR_URL: http://127.0.0.1:8769/station_jahresanalyse.html
+        run: |
+          python -m http.server 8769 --directory . > /tmp/station-year-http.log 2>&1 &
+          node tests/test_station_jahresanalyse_live.cjs
