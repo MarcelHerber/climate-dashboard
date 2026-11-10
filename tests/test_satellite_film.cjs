@@ -6,7 +6,8 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture(){
+function fixture({failOne480=false}={}){
+ let failed480=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
    "satPrev","satNext","satPlay","satPng","satTimeline","satTimelineLabel","satFilmStage",
@@ -37,6 +38,7 @@ function fixture(){
     this.naturalWidth=Number(params.get("width"));
     this.naturalHeight=Number(params.get("height"));
     if(isSmall)state.active--;
+    if(failOne480&&!failed480&&this.naturalWidth===480){failed480=true;this.onerror?.();return;}
     this.onload?.();
    },isSmall?7:3);
   }
@@ -113,6 +115,17 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  nodes.get("satRegion").value="germany";
  nodes.get("satRegion").dispatch("change");
  assert.equal(fetches.length,before,"switching region must not re-fetch time metadata");
+});
+test("One failed 480px WMS frame falls back once to 720px and playback still starts",async()=>{
+ const {nodes,requests}=fixture({failOne480:true});
+ await waitUntil(()=>nodes.get("satTime").options.length===8,"UTC timestamps");
+ nodes.get("satPlay").dispatch("click");
+ await waitUntil(()=>!nodes.get("satFilmStage").hidden,"movie with fallback starts");
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="480").length,6);
+ assert.equal(requests.filter(r=>new URL(r.url).searchParams.get("width")==="720").length,1);
+ assert.equal(nodes.get("satFilmProgress").value,6);
+ assert.ok(nodes.get("satFilmStage").children[0].naturalWidth>0);
+ nodes.get("satPlay").dispatch("click");
 });
 test("Lightweight film controls exist and preserve original high-res export",()=>{
  for(const id of ["satTimeline","satFilmLength","satFilmQuality","satFilmSpeed","satFilmStage",
