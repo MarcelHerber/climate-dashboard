@@ -48,7 +48,7 @@ function buttons(){
  const ready=source.value==="mtgi1"&&frames.length>1;
  prev.disabled=!ready||index<=0;
  next.disabled=!ready||index>=frames.length-1;
- play.disabled=!ready;
+ play.disabled=!ready||index<1;
  time.disabled=!frames.length||source.value!=="mtgi1";
  png.disabled=!loaded||source.value!=="mtgi1";
  updateTimeline();
@@ -224,7 +224,7 @@ async function prepareFilm(){
  const maxCount=Math.min(frames.length,Math.max(2,Number(filmLength.value)||8));
  // The current UTC selection is the END of the film, not its start.
  // For example 36 frames at 10-minute intervals show about six hours.
- const last=Math.max(1,index);
+ const last=Math.max(0,index);
  const start=Math.max(0,last-maxCount+1);
  const clip=frames.slice(start,last+1);
  const size=Number(filmQuality.value)||480;
