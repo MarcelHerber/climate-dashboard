@@ -8,6 +8,8 @@ on:
       - "tests/test_greenland_live_browser.cjs"
       - "tests/test_greenland_map_live_browser.cjs"
       - "groenland_stationen.js"
+      - "groenland_climate.js"
+      - "tests/test_dmi_greenland_climate.cjs"
       - "groenland_stationen.html"
       - "groenland_stationen.css"
       - ".github/workflows/dmi-greenland-live-qa.yml"
@@ -33,6 +35,9 @@ jobs:
         run: |
           node --check groenland_stationen.js
           node --test tests/test_dmi_greenland_ui.cjs
+          node --check groenland_climate.js
+          node --test tests/test_dmi_greenland_climate.cjs
+          python scripts/build_dmi_greenland_records.py --check
           python scripts/build_dmi_greenland_stations.py --check
       - name: Historische DMI-API-Stationswerte serverseitig prüfen
         run: |
