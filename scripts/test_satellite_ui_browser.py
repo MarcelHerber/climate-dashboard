@@ -93,16 +93,6 @@ def exercise(page, viewport_label, official_xml):
         evidence["time_after_prev"]=page.locator("#satTime").input_value()
         assert evidence["time_before"]!=evidence["time_after_prev"], "Back navigation did not change UTC frame"
         page.locator("#satNext").click()
-    # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
-    page.locator("#satRegion").select_option("atlantic")
-    evidence["atlantic_bbox"]="-70%2C15%2C35%2C75" in (page.locator("#satImage").get_attribute("src") or "")
-    assert evidence["atlantic_bbox"], "North Atlantic extent is not applied"
-    page.wait_for_function(
-        "() => { const img=document.getElementById('satImage'); "
-        "return img.src.includes('-70%2C15%2C35%2C75') && img.complete && img.naturalWidth>0; }",
-        timeout=45000
-    )
-    evidence["atlantic_real_image_loaded"]=True
     # Azores, Madeira and Canary Islands in one Southwest-Europe satellite frame.
     page.locator("#satRegion").select_option("southwest")
     evidence["southwest_bbox"]="-37%2C24%2C19%2C53" in (page.locator("#satImage").get_attribute("src") or "")
@@ -114,6 +104,16 @@ def exercise(page, viewport_label, official_xml):
     )
     evidence["southwest_real_image_loaded"]=True
     page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
+    # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
+    page.locator("#satRegion").select_option("atlantic")
+    evidence["atlantic_bbox"]="-70%2C15%2C35%2C75" in (page.locator("#satImage").get_attribute("src") or "")
+    assert evidence["atlantic_bbox"], "North Atlantic extent is not applied"
+    page.wait_for_function(
+        "() => { const img=document.getElementById('satImage'); "
+        "return img.src.includes('-70%2C15%2C35%2C75') && img.complete && img.naturalWidth>0; }",
+        timeout=45000
+    )
+    evidence["atlantic_real_image_loaded"]=True
     # Select the native geostationary projection for full disk.
     page.locator("#satRegion").select_option("disk")
     page.wait_for_timeout(350)
