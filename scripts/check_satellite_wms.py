@@ -33,12 +33,13 @@ def url(params):
 
 
 def fetch(url_string, cap):
-    request = Request(url_string, headers={"User-Agent": "ClimateDashboard-WMS-healthcheck/1.0"})
+    request = Request(url_string, headers={"User-Agent": "ClimateDashboard-WMS-healthcheck/1.0", "Origin":"https://marcelherber.github.io"})
     with urlopen(request, timeout=TIMEOUT) as response:
         payload = response.read(cap + 1)
         if len(payload) > cap:
             raise ValueError(f"Antwort größer als {cap} Bytes")
-        return payload, response.status, response.headers.get("Content-Type", "")
+        return (payload, response.status, response.headers.get("Content-Type", ""),
+                response.headers.get("Access-Control-Allow-Origin"))
 
 
 def localname(tag):
@@ -116,12 +117,13 @@ def test_png(layer, timestamp):
     }
     if timestamp:
         params["time"] = timestamp
-    payload, code, mime = fetch(url(params), 8 * 1024 * 1024)
+    payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
     if not payload.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError(f"Keine PNG-Daten (HTTP {code}, Content-Type {mime}, Bytes {len(payload)})")
     if len(payload) < 512:
         raise ValueError("PNG ist ungewöhnlich klein")
-    return {"ok": True, "bytes": len(payload), "http_status": code, "content_type": mime}
+    return {"ok": True, "bytes": len(payload), "http_status": code, "content_type": mime,
+            "cors_allow_origin": cors}
 
 
 def main():
@@ -132,7 +134,9 @@ def main():
     }
     root = None
     try:
-        xml, _, content_type = fetch(url({"service": "WMS", "version": "1.1.1", "request": "GetCapabilities"}), MAX_XML)
+        xml, _, content_type, cors = fetch(url({"service": "WMS", "version": "1.1.1", "request": "GetCapabilities"}), MAX_XML)
+        result["capabilities_cors_allow_origin"] = cors
+        result["capabilities_cors_ok"] = cors in ("*", "https://marcelherber.github.io")
         root = ET.fromstring(xml)
         if localname(root.tag) not in ("WMT_MS_Capabilities", "WMS_Capabilities"):
             raise ValueError("Unbekanntes WMS-Capabilities-Format")
