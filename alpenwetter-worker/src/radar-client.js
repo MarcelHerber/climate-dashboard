@@ -133,8 +133,8 @@ function currentFrame(){return st.frames[st.frame]}
 async function render(){
  if(!st.manifest||!st.frames.length)return;
  const serial=++st.serial,frame=currentFrame();
- $("stamp").textContent=clock(frame.utc);
- $("mapStamp").textContent="DWD RY · "+clock(frame.utc);
+ $("stamp").textContent=clock(frame.end_utc||frame.utc);
+ $("mapStamp").textContent="DWD RY · 5-Min-Intervall bis "+clock(frame.end_utc||frame.utc);
  $("timeline").value=st.frame;
  try{
   const field=await loadField(frame);
@@ -142,7 +142,7 @@ async function render(){
   graticule();lines();
   if($("overlay").value==="rain")overlay(field);
   borderOutlines();
-  const stampAge=(Date.now()-Date.parse(st.manifest.frames.at(-1).utc))/60000;
+  const stampAge=(Date.now()-Date.parse(st.manifest.frames.at(-1).end_utc||st.manifest.frames.at(-1).utc))/60000;
   setStatus("DWD RY · echtes 5-Minuten-Radarkomposit geladen · "+
     st.frames.length+" Bilder · letzter Datenstand "+Math.round(stampAge)+" min zurück"+
     (stampAge>25?" · Achtung: verspäteter Datenstand":"")+".");
