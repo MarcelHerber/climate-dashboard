@@ -25,3 +25,25 @@ for u in urls:
    doc=bs4.BeautifulSoup(html,"html.parser")
    print("SCRIPTS",[(tag.get("src")) for tag in doc.select("script[src]") if any(x in str(tag.get("src")).lower() for x in ["radar","observ","api","map"])][:24])
  except Exception as e: print("ERR",u,str(e)[:300])
+
+import tarfile,io
+import numpy as np
+import rasterio
+archive=s.get("https://www.aemet.es/es/api-eltiempo/radar/download/regional/LPA",timeout=120)
+archive.raise_for_status()
+with tarfile.open(fileobj=io.BytesIO(archive.content),mode="r:gz") as ar:
+ items=[m for m in ar.getmembers() if m.isfile()]
+ print("ARCHIVE",len(items),sum(m.size for m in items))
+ for item in items[:65]:
+  print("ITEM",item.name,item.size)
+ tif=[m for m in items if m.name.lower().endswith((".tif",".tiff"))]
+ for item in tif[:5]:
+  data=ar.extractfile(item).read()
+  with rasterio.MemoryFile(data) as mem:
+   with mem.open() as ds:
+    print("GEOTIFF",item.name,"shape",ds.shape,"count",ds.count,"crs",ds.crs,"bounds",ds.bounds,"nodata",ds.nodata,
+          "dtype",ds.dtypes,"tags",ds.tags(),"scales",ds.scales,"offsets",ds.offsets,"colorinterp",ds.colorinterp)
+    for band in range(1,min(ds.count,4)+1):
+     a=ds.read(band,out_shape=(150,150))
+     print("BAND",band,"tags",ds.tags(band),"sample",np.unique(a)[:30].tolist(),"minmax",(np.min(a),np.max(a)),
+           "colormap",str(ds.colormap(band))[:400] if ds.count==1 else "-")
