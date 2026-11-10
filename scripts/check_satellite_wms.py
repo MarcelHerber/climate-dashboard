@@ -108,7 +108,7 @@ def dimensions_for_layer(root, target):
     return []
 
 
-def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False):
+def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False, film_preview=False):
     params = {
         "service": "WMS", "version": "1.1.1", "request": "GetMap",
         "layers": layer, "styles": "", "format": "image/png",
@@ -127,6 +127,9 @@ def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False)
         params.update({"srs":"EPSG:4326",
                        "bbox":"-37,24,19,53",
                        "width":"1200", "height":"620"})
+    if film_preview:
+        params.update({"srs":"EPSG:4326","bbox":"-37,24,19,53",
+                       "width":"480","height":"248"})
     if timestamp:
         params["time"] = timestamp
     payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
@@ -195,6 +198,21 @@ def main():
         except Exception as error:
             entry["southwest_ok"] = False
             entry["southwest_error"] = str(error)[:350]
+        # Small 480px frames use the same official WMS and timestamp values
+        # as the film. Check two consecutive frames, not only one static image.
+        entry["film_preview_ok"] = False
+        if len(available) >= 2:
+            try:
+                sizes=[]
+                for moment in available[-2:]:
+                    film_check=test_png(layer,moment,film_preview=True)
+                    sizes.append(film_check["bytes"])
+                entry["film_preview_ok"] = True
+                entry["film_preview_bytes"] = sizes
+            except Exception as error:
+                entry["film_preview_error"] = str(error)[:350]
+        else:
+            entry["film_preview_error"] = "Weniger als zwei verifizierte UTC-Zeitpunkte"
         result["products"][key] = entry
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
