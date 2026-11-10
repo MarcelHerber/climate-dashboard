@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-10T16:18:24Z",
+  "generated_at": "2026-11-10T16:21:06Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,7 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-10T08:00:00Z",
         "2026-11-10T08:10:00Z",
         "2026-11-10T08:20:00Z",
         "2026-11-10T08:30:00Z",
@@ -55,30 +54,30 @@
         "2026-11-10T15:20:00Z",
         "2026-11-10T15:30:00Z",
         "2026-11-10T15:40:00Z",
-        "2026-11-10T15:50:00Z"
+        "2026-11-10T15:50:00Z",
+        "2026-11-10T16:00:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T15:50:00Z",
-      "latest_verified_time": "2026-11-10T15:50:00Z",
+      "latest_advertised_time": "2026-11-10T16:00:00Z",
+      "latest_verified_time": "2026-11-10T16:00:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 448775,
+      "bytes": 445920,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 28.4,
+      "age_minutes": 21.1,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 314128,
-      "atlantic_ok": false,
-      "atlantic_error": "HTTP Error 500: Internal Server Error",
+      "full_disk_bytes": 312994,
+      "atlantic_ok": true,
+      "atlantic_bytes": 939042,
       "southwest_ok": true,
-      "southwest_bytes": 1647002
+      "southwest_bytes": 1635652
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-10T08:00:00Z",
         "2026-11-10T08:10:00Z",
         "2026-11-10T08:20:00Z",
         "2026-11-10T08:30:00Z",
@@ -125,25 +124,26 @@
         "2026-11-10T15:20:00Z",
         "2026-11-10T15:30:00Z",
         "2026-11-10T15:40:00Z",
-        "2026-11-10T15:50:00Z"
+        "2026-11-10T15:50:00Z",
+        "2026-11-10T16:00:00Z"
       ],
-      "latest_advertised_time": "2026-11-10T15:50:00Z",
-      "latest_verified_time": "2026-11-10T15:50:00Z",
+      "latest_advertised_time": "2026-11-10T16:00:00Z",
+      "latest_verified_time": "2026-11-10T16:00:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 550056,
+      "bytes": 550923,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 28.4,
+      "age_minutes": 21.1,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 292941,
+      "full_disk_bytes": 293187,
       "atlantic_ok": true,
-      "atlantic_bytes": 1056323,
+      "atlantic_bytes": 1055756,
       "southwest_ok": true,
-      "southwest_bytes": 2015232
+      "southwest_bytes": 2016711
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
@@ -206,14 +206,14 @@
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 18.4,
+      "age_minutes": 21.1,
       "fresh": true,
       "full_disk_ok": true,
       "full_disk_bytes": 251164,
       "atlantic_ok": true,
       "atlantic_bytes": 738334,
-      "southwest_ok": true,
-      "southwest_bytes": 1727103
+      "southwest_ok": false,
+      "southwest_error": "The read operation timed out"
     }
   },
   "errors": [],
