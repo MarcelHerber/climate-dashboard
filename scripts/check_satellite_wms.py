@@ -108,7 +108,7 @@ def dimensions_for_layer(root, target):
     return []
 
 
-def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False, film_preview=False):
+def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False, film_preview=False, preview_width=480):
     params = {
         "service": "WMS", "version": "1.1.1", "request": "GetMap",
         "layers": layer, "styles": "", "format": "image/png",
@@ -129,7 +129,7 @@ def test_png(layer, timestamp, full_disk=False, atlantic=False, southwest=False,
                        "width":"1200", "height":"620"})
     if film_preview:
         params.update({"srs":"EPSG:4326","bbox":"-37,24,19,53",
-                       "width":"480","height":"248"})
+                       "width":str(preview_width),"height":str(round(preview_width * 620 / 1200))})
     if timestamp:
         params["time"] = timestamp
     payload, code, mime, cors = fetch(url(params), 8 * 1024 * 1024)
@@ -205,8 +205,13 @@ def main():
             try:
                 sizes=[]
                 for moment in available[-2:]:
-                    film_check=test_png(layer,moment,film_preview=True)
-                    sizes.append(film_check["bytes"])
+                    try:
+                        film_check=test_png(layer,moment,film_preview=True,preview_width=480)
+                        sizes.append({"width":480,"bytes":film_check["bytes"]})
+                    except Exception:
+                        # Match the browser fallback: one 720px retry, never infinite retries.
+                        film_check=test_png(layer,moment,film_preview=True,preview_width=720)
+                        sizes.append({"width":720,"bytes":film_check["bytes"]})
                 entry["film_preview_ok"] = True
                 entry["film_preview_bytes"] = sizes
             except Exception as error:
