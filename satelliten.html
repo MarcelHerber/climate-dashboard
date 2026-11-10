@@ -26,18 +26,32 @@
 <label for="satRegion">Kartenausschnitt<select id="satRegion"><option value="europe">Europa und Nordafrika</option><option value="atlantic">Nordatlantik &amp; Europa · bis Neufundland</option><option value="southwest">Südwesteuropa · Azoren &amp; Kanaren</option><option value="central">Mitteleuropa</option><option value="germany">Deutschland</option><option value="disk">Erdscheibe</option></select></label>
 <label for="satTime">Beobachtungszeit · UTC<select id="satTime" disabled><option value="">Zeitpunkte werden geprüft …</option></select></label>
 </div>
+<div class="sat-timeline">
+<label for="satTimeline">Zeitverlauf <output id="satTimelineLabel" for="satTimeline">Keine Beobachtungen</output></label>
+<input id="satTimeline" type="range" min="0" max="0" step="1" value="0" disabled aria-label="Satellitenbild zeitlich auswählen">
+</div>
+<div class="sat-film-controls" aria-label="Einstellungen für den Satellitenfilm">
+<label for="satFilmLength">Filmlänge<select id="satFilmLength"><option value="6">6 Bilder · ganz leicht</option><option value="8" selected>8 Bilder · Standard</option><option value="12">12 Bilder · längerer Film</option></select></label>
+<label for="satFilmQuality">Vorschauqualität<select id="satFilmQuality"><option value="480" selected>Sparsam · 480 px</option><option value="720">Schärfer · 720 px</option></select></label>
+<label for="satFilmSpeed">Geschwindigkeit<select id="satFilmSpeed"><option value="1200">Langsam</option><option value="750" selected>Normal</option><option value="420">Schnell</option></select></label>
+</div>
 <div class="sat-actions">
 <button id="satPrev" type="button" disabled aria-label="Vorheriges Satellitenbild">← Vorheriges</button>
-<button id="satPlay" type="button" disabled aria-label="Satellitenfilm starten">▶ Film</button>
+<button id="satPlay" type="button" disabled aria-label="Satellitenfilm starten">▶ Film starten</button>
 <button id="satNext" type="button" disabled aria-label="Nächstes Satellitenbild">Nächstes →</button>
 <button id="satReload" type="button">↻ Aktualisieren</button>
 <button id="satPng" type="button" disabled>PNG mit Beschriftung ↓</button>
 </div>
+<div class="sat-film-progress" id="satFilmProgressWrap" hidden>
+<progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
+<output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
+</div>
+<p class="sat-film-hint">Für den Film werden nur wenige, verkleinerte Originalbilder einmalig vorgeladen. Einzelbild und PNG bleiben in hoher Auflösung.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
 <div class="sat-map-top"><h2 id="satMapTitle">GeoColour · Europa und Nordafrika</h2><span id="satValid">UTC: nicht überprüft</span></div>
-<div id="satPictureFrame" class="sat-picture-frame"><img id="satImage" alt="Satellitenbild vom offiziellen EUMETSAT-WMS-Dienst" /><p id="satEmpty" class="sat-empty" hidden>Keine Satellitenaufnahme geladen. Über den offiziellen EUMETView-Link kannst du die Bilder direkt öffnen.</p></div>
+<div id="satPictureFrame" class="sat-picture-frame"><img id="satImage" alt="Satellitenbild vom offiziellen EUMETSAT-WMS-Dienst" /><img id="satFilmImage" alt="Vorgeladene Satellitenfilm-Vorschau" hidden /><p id="satEmpty" class="sat-empty" hidden>Keine Satellitenaufnahme geladen. Über den offiziellen EUMETView-Link kannst du die Bilder direkt öffnen.</p></div>
 <div class="sat-caption"><span id="satAttribution">Bilddaten: © EUMETSAT / GeoColour-Hintergrund: NASA</span><span id="satImageInfo">WMS · EPSG:4326 · verifiziertes UTC-Datum nur bei bestätigter Zeitdimension</span></div>
 <div class="sat-links"><a id="satRawImage" href="#" target="_blank" rel="noopener noreferrer" hidden>Originales Satelliten-PNG öffnen ↗</a><a id="satOfficial" href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_geocolour" target="_blank" rel="noopener noreferrer">Produkt bei EUMETView öffnen ↗</a><a href="https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images" target="_blank" rel="noopener noreferrer">MTG-I2: ESA-Erstbilder ↗</a></div>
 </section>
