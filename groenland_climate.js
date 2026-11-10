@@ -264,7 +264,7 @@ async function loadClimate(){
  }
 }
 function csvClimate(){
- if(!stationId||!climate?.normal)return;
+ if(!stationId||!finite(climate?.normal))return;
  const view=$("grClimateView").value,month=$("grClimateMonth").value;
  csvSave("DMI_Groenland_Klimaanomalien_"+stationId+"_"+view+(view==="month"?"_"+month:"")+".csv",[
   ["DMI-Station","Zeitraum","DMI-Temperatur °C","Messungstage","Tagesabdeckung","Referenz 1991–2020 °C","Anomalie °C","DMI QC"],
