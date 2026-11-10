@@ -22,6 +22,9 @@ required_root_files=(
   station_snow_accumulation.js
   station_snow_explorer.js
   station_snow_explorer.css
+  station_jahresanalyse.html
+  station_jahresanalyse.js
+  station_jahresanalyse.css
   monthly_layout.js
   stratosphaere.html
   polar_vortex_map.js
@@ -144,6 +147,30 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Phase 1: compact station-year catalogue and independent comparison page.
+# Avoid loading 4+ MB of station indices just to show station suggestions.
+python scripts/build_station_jahresanalyse_catalog.py _site/station_jahresanalyse_catalog.json
+node --check _site/station_jahresanalyse.js
+python - <<'PY'
+from pathlib import Path
+import json
+root=Path("_site")
+page=root/"index.html"
+source=page.read_text(encoding="utf-8")
+anchor = '<button class="tab-button" data-nav-group="stations" onclick="switchTab(\'stationProfile\')">Stationsprofil</button>'
+addition = '<a class="tab-button" data-nav-group="stations" href="station_jahresanalyse.html">Stations-Jahresdiagramme</a>'
+if source.count(anchor)!=1:
+    raise SystemExit("Stationsprofil-Navigationsanker fehlt oder ist nicht eindeutig")
+source=source.replace(anchor,anchor+"\\n          "+addition,1)
+page.write_text(source,encoding="utf-8")
+catalog=json.loads((root/"station_jahresanalyse_catalog.json").read_text(encoding="utf-8"))
+assert catalog["schema"]==1 and catalog["totals"]["temp"]>=50
+assert catalog["totals"]["precip"]>=100
+assert '["station_jahresanalyse.html","Jahresdiagramme · DWD-Stationen"]' in (root/"mobile_navigation.js").read_text(encoding="utf-8")
+assert 'src="station_jahresanalyse.js?v=1"' in (root/"station_jahresanalyse.html").read_text(encoding="utf-8")
+print("Jahresanalyse im Desktop- und Handymenü, Datenarchiv geprüft.")
+PY
 
 # Optimize the biggest first-use station archive without modifying any values.
 # A 13.4 MB indented source index becomes ~4.9 MB as compact JSON; future
