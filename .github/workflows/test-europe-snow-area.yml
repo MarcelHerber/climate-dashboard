@@ -1,0 +1,50 @@
+name: NOAA IMS Europe snow area · scientific and UI tests
+
+on:
+  push:
+    branches: [feature/noaa-ims-europe-area-series-20261110]
+  pull_request:
+    paths:
+      - scripts/update_europe_snow_area.py
+      - tests/test_europe_snow_area.py
+      - tests/test_europe_snow_area_frontend.cjs
+      - eurasia_snow.js
+      - eurasia_snow.html
+      - eurasia_snow.css
+      - .github/workflows/test-europe-snow-area.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/update_europe_snow_area.py
+            scripts/update_snow_maps.py
+            scripts/update_eurasia_snow.py
+            tests/test_europe_snow_area.py
+            tests/test_europe_snow_area_frontend.cjs
+            eurasia_snow.js
+            eurasia_snow.html
+            eurasia_snow.css
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "numpy>=1.26,<3"
+      - name: NOAA IMS projection and land-area tests
+        run: |
+          python -m py_compile scripts/update_europe_snow_area.py
+          python -m unittest discover -s tests -p test_europe_snow_area.py -v
+      - name: Chart and region controls regression
+        run: |
+          node --check eurasia_snow.js
+          node --check tests/test_europe_snow_area_frontend.cjs
+          node --test tests/test_europe_snow_area_frontend.cjs
