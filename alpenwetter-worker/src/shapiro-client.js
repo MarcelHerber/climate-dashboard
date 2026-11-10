@@ -28,7 +28,7 @@ const palettes={
  C:[[0,[207,231,247]],[.19,[72,172,205]],[.38,[105,196,155]],[.55,[249,220,119]],[.77,[233,101,79]],[1,[136,35,132]]]
 };
 const state={m:null,geo:null,mode:"A",frame:0,cache:new Map(),
-  serial:0,playing:false,timer:null,cross:false,points:[],selected:null};
+  serial:0,crossSerial:0,playing:false,timer:null,cross:false,points:[],selected:null};
 const fdate=s=>new Date(s).toLocaleString("de-DE",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})+" UTC";
 const view=()=>regions[el("region").value];
 const px=lon=>(lon-view().w)/(view().e-view().w)*cvs.width;
@@ -310,12 +310,12 @@ function profileValue(atlas,lon,lat,levelIndex,kind){
 }
 async function renderCross(){
  if(!state.m||state.points.length!==2)return;
- const serial=state.serial,frame=state.m.frames[state.frame],key=el("profile").value;
+ const serial=++state.crossSerial,frame=state.m.frames[state.frame],key=el("profile").value;
  el("crossHint").textContent="Lade Profil "+key+" aus echten ECMWF-Druckniveaus …";
  try{
   const g=state.m.grid,levels=state.m.profile_levels_hpa;
   const field=await getField(frame.profiles[key],g.width,g.height*levels.length);
-  if(serial!==state.serial)return;
+  if(serial!==state.crossSerial||!state.m)return;
   const width=240,height=128,tmp=document.createElement("canvas");
   tmp.width=width;tmp.height=height;const context=tmp.getContext("2d");
   const image=context.createImageData(width,height);
@@ -357,7 +357,7 @@ async function renderCross(){
  }
 }
 async function boot(){
- stop();state.serial++;state.cache.clear();status("Prüfe vollständigen ECMWF-Datensatz …");
+ stop();state.serial++;state.crossSerial++;state.cache.clear();status("Prüfe vollständigen ECMWF-Datensatz …");
  try{
   const response=await fetch(API+"current.json",{cache:"no-store"});
   if(!response.ok)throw Error(response.status===404?"Noch kein geprüfter Prognoselauf verfügbar":"HTTP "+response.status);
@@ -411,7 +411,7 @@ el("crossPick").addEventListener("click",()=>{
  "Auswahl pausiert. Querschnitt bleibt sichtbar.";
 });
 el("crossClear").addEventListener("click",()=>{
- state.points=[];state.cross=false;el("crossPick").setAttribute("aria-pressed","false");
+ state.points=[];state.cross=false;state.crossSerial++;el("crossPick").setAttribute("aria-pressed","false");
  sectionPlaceholder("Zwei Kartenpunkte A und B wählen");el("crossHint").textContent="Linie gelöscht. Auf Karte zwei Punkte für einen neuen Querschnitt wählen.";
  render();
 });
