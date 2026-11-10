@@ -263,6 +263,8 @@ for element in grClimate grClimateStatus grClimateChart grMapMode grMapRankingLi
 done
 node --check tests/test_dmi_greenland_ui.cjs
 node --test tests/test_dmi_greenland_ui.cjs
+node --check tests/test_dmi_greenland_climate.cjs
+node --test tests/test_dmi_greenland_climate.cjs
 node --check _site/arktis_klimastatistik.js
 node --check tests/test_arctic_longterm_seasons.cjs
 node --test tests/test_arctic_longterm_seasons.cjs
