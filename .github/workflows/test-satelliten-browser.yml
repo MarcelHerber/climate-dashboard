@@ -6,6 +6,8 @@ on:
       - "satelliten.html"
       - "satelliten.js"
       - "satelliten.css"
+      - "mobile_navigation.js"
+      - "mobile_navigation.css"
       - "scripts/test_satellite_ui_browser.py"
       - ".github/workflows/test-satelliten-browser.yml"
   workflow_dispatch:
@@ -15,7 +17,7 @@ permissions:
 
 concurrency:
   group: mtg-browser-test
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   chromium:
