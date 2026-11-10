@@ -162,7 +162,7 @@ anchor = '<button class="tab-button" data-nav-group="stations" onclick="switchTa
 addition = '<a class="tab-button" data-nav-group="stations" href="station_jahresanalyse.html">Stations-Jahresdiagramme</a>'
 if source.count(anchor)!=1:
     raise SystemExit("Stationsprofil-Navigationsanker fehlt oder ist nicht eindeutig")
-source=source.replace(anchor,anchor+"\\n          "+addition,1)
+source=source.replace(anchor,anchor+"\n          "+addition,1)
 page.write_text(source,encoding="utf-8")
 catalog=json.loads((root/"station_jahresanalyse_catalog.json").read_text(encoding="utf-8"))
 assert catalog["schema"]==1 and catalog["totals"]["temp"]>=50
