@@ -1,6 +1,7 @@
 import { cloudLabPage, cloudLabLoginPage, cloudLabData } from "./cloud-lab.js";
 import { dynamicsLabPage, dynamicsLabLoginPage, dynamicsLabData, dynamicsBoundaries } from "./dynamics-lab.js";
 import { shapiroLabPage, shapiroLoginPage, shapiroData } from "./shapiro-lab.js";
+import { radarLabPage, radarLoginPage, radarLabData } from "./radar-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -31,6 +32,12 @@ export default {
     const authenticated = await hasValidSession(request, env.ALPENWETTER_PASSWORD);
 
     if (!authenticated) {
+      if (url.pathname.startsWith("/radarlabor/api/")) {
+        return jsonResponse({ error: "Radarbilder nur nach Anmeldung abrufbar" }, 401);
+      }
+      if (url.pathname === "/radarlabor" || url.pathname === "/radarlabor/") {
+        return htmlResponse(radarLoginPage());
+      }
       if (url.pathname.startsWith("/dynamik/api/")) {
         return jsonResponse({ error: "Nur nach Anmeldung erreichbar" }, 401);
       }
@@ -53,6 +60,12 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/radarlabor" || url.pathname === "/radarlabor/") {
+      return htmlResponse(radarLabPage());
+    }
+    if (url.pathname.startsWith("/radarlabor/api/")) {
+      return radarLabData(url, securityHeaders);
+    }
     if (url.pathname === "/dynamik/shapiro" || url.pathname === "/dynamik/shapiro/") {
       return htmlResponse(shapiroLabPage());
     }
@@ -132,7 +145,7 @@ async function handleLogin(request, env) {
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
   const next = String(form.get("next") || "");
-  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro"].includes(next) ? next : "/";
+  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor"].includes(next) ? next : "/";
   return redirect(target, cookie);
 }
 

@@ -1,0 +1,25 @@
+name: DWD Radar · ODIM Metadaten prüfen
+
+on:
+  pull_request:
+    paths:
+      - "tests/probe_dwd_ry.py"
+      - ".github/workflows/test-radar-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: HDF5 Analyse
+        run: |
+          pip install "h5py>=3.11,<4" "numpy>=2,<3" "requests>=2,<3"
+          python tests/probe_dwd_ry.py

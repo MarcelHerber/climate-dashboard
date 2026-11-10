@@ -1,0 +1,86 @@
+name: DWD Radarkomposit · automatische 5-Minuten-Bilder
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_dwd_radar_ry.py"
+      - ".github/workflows/update-dwd-radar.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dwd-radar-ry-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ODIM HDF5 und Projektion
+        run: pip install "h5py>=3.11,<4" "numpy>=2,<3" "pyproj>=3.7,<4" "pillow>=11,<13" "requests>=2,<3"
+      - name: Datenbranch vorbereiten
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code origin refs/heads/radar-data >/dev/null 2>&1; then
+            git clone -q --depth 1 -b radar-data "$url" /tmp/dwd-radar-data
+          else
+            mkdir -p /tmp/dwd-radar-data
+            git -C /tmp/dwd-radar-data init -q -b radar-data
+            git -C /tmp/dwd-radar-data remote add origin "$url"
+          fi
+      - name: Echte DWD-RY-Radarbilder abrufen und geografisch reprojizieren
+        run: python scripts/build_dwd_radar_ry.py --out /tmp/dwd-radar-data/data/radar --frames 36
+      - name: Dateistand und Radar-Messwerte prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime,timezone,timedelta
+          from PIL import Image
+          import numpy as np
+          root=Path("/tmp/dwd-radar-data/data/radar")
+          m=json.loads((root/"current.json").read_text())
+          assert m["schema"]==1 and m["units"]=="mm/h" and m["grid"]["width"]==900
+          frames=m["frames"]
+          assert len(frames)>=12
+          dates=[datetime.fromisoformat(f["utc"].replace("Z","+00:00")) for f in frames]
+          assert dates==sorted(set(dates))
+          assert datetime.now(timezone.utc)-dates[-1] < timedelta(minutes=35)
+          for f in frames:
+              path=root/f["image"]
+              assert path.exists() and path.stat().st_size>200
+              with Image.open(path) as im:
+                  assert im.mode=="L" and im.size==(900,550)
+                  pix=np.asarray(im)
+                  assert np.any(pix==0) and np.any(pix==255),"Dry and no-data separation absent"
+                  # A completely dry radar frame is valid weather, not a pipeline failure.
+          print("All real DWD RY radar frames georeferenced, timestamped, unit-converted and checked",len(frames))
+          PY
+      - name: Verifizierte Radar-Frames veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/dwd-radar-data
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/radar
+          if git diff --cached --quiet; then
+            echo "Kein neuer DWD-Datensatz"
+          else
+            git commit -m "Publish verified DWD RY 5-min radar composite"
+            git push origin HEAD:radar-data
+          fi
