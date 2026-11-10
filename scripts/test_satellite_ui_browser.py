@@ -55,6 +55,7 @@ def check_remote():
             head = res.read(32_000)
             return {"http_status":res.status,
                     "satellite_markup":b'id="satSource"' in head,
+                    "southwest_published":b'value="southwest"' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
@@ -97,11 +98,20 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satRegion").select_option("southwest")
     evidence["southwest_bbox"]="-37%2C24%2C19%2C53" in (page.locator("#satImage").get_attribute("src") or "")
     assert evidence["southwest_bbox"], "Southwest-Europe extent is not applied"
-    page.wait_for_function(
-        "() => { const img=document.getElementById('satImage'); "
-        "return img.src.includes('-37%2C24%2C19%2C53') && img.complete && img.naturalWidth>0; }",
-        timeout=45000
-    )
+    try:
+        page.wait_for_function(
+            "() => { const img=document.getElementById('satImage'); "
+            "return img.src.includes('-37%2C24%2C19%2C53') && img.complete && img.naturalWidth>0; }",
+            timeout=45000
+        )
+    except Exception as error:
+        evidence["southwest_diagnostics"] = {
+            "status": page.locator("#satStatus").inner_text(),
+            "image": page.locator("#satImage").evaluate(
+                "(img)=>({src:img.src,complete:img.complete,width:img.naturalWidth,height:img.naturalHeight})")
+        }
+        page.screenshot(path=str(SHOTS/(viewport_label+"-southwest-error.png")),full_page=True)
+        raise AssertionError("Southwest PNG load failed: "+str(evidence["southwest_diagnostics"])) from error
     evidence["southwest_real_image_loaded"]=True
     page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
     # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
