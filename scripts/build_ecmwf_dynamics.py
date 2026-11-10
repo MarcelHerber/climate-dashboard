@@ -53,7 +53,8 @@ def decode_grib(path: Path, required: set[str]) -> dict[str, np.ndarray]:
             try:
                 param = str(eccodes.codes_get(message, "shortName"))
                 kind = str(eccodes.codes_get(message, "typeOfLevel"))
-                key = param if kind == "surface" else param + str(int(eccodes.codes_get(message, "level")))
+                # TCWV can carry atmosphereSingleLayer rather than a surface level.
+                key = param if param == "tcwv" else param + str(int(eccodes.codes_get(message, "level")))
                 if key not in required:
                     continue
                 if key in result:
