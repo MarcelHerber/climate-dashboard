@@ -16,7 +16,7 @@ function data(europe=false){
     schema:1,source:{doi:"10.7265/N52R3PMC"},
     analysis:{region:europe?{lat_south:35,lat_north:75,lon_west:-25,lon_east:70}:{}},
     generated_utc:"2026-11-10T04:00:00Z",
-    daily:{"2026-11-09":obs,"2026-11-10":obs-.1,"2025-11-09":mean},
+    daily:{"2026-11-08":obs-.1,"2026-11-09":obs,"2025-11-09":mean},
     seasons:[2026,2025],calendar_years:[2026,2025],
     climatology_by_month:{"11":november},
     status:{n_climatology_days_year:1}
