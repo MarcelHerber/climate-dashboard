@@ -31,8 +31,8 @@
 <input id="satTimeline" type="range" min="0" max="0" step="1" value="0" disabled aria-label="Satellitenbild zeitlich auswählen">
 </div>
 <div class="sat-film-controls" aria-label="Einstellungen für den Satellitenfilm">
-<label for="satFilmLength">Filmlänge<select id="satFilmLength"><option value="6">6 Bilder · ganz leicht</option><option value="8" selected>8 Bilder · Standard</option><option value="12">12 Bilder · längerer Film</option></select></label>
-<label for="satFilmQuality">Vorschauqualität<select id="satFilmQuality"><option value="480" selected>Sparsam · 480 px</option><option value="720">Schärfer · 720 px</option></select></label>
+<label for="satFilmLength">Filmlänge<select id="satFilmLength"><option value="6">6 Bilder · ganz leicht</option><option value="8" selected>8 Bilder · Standard</option><option value="12">12 Bilder · ca. 2 Stunden</option><option value="20">20 Bilder · ca. 3 Stunden</option><option value="36">36 Bilder · ca. 6 Stunden</option><option value="48">48 Bilder · ca. 8 Stunden</option></select></label>
+<label for="satFilmQuality">Vorschauqualität<select id="satFilmQuality"><option value="320">Extra sparsam · 320 px</option><option value="480" selected>Sparsam · 480 px</option><option value="720">Schärfer · 720 px</option></select></label>
 <label for="satFilmSpeed">Geschwindigkeit<select id="satFilmSpeed"><option value="1200">Langsam</option><option value="750" selected>Normal</option><option value="420">Schnell</option></select></label>
 </div>
 <div class="sat-actions">
@@ -46,7 +46,7 @@
 <progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
 <output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
 </div>
-<p class="sat-film-hint">Für den Film werden nur wenige, verkleinerte Originalbilder einmalig vorgeladen. Einzelbild und PNG bleiben in hoher Auflösung.</p>
+<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbild und PNG bleiben hochauflösend.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
