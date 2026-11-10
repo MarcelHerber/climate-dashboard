@@ -1,0 +1,94 @@
+name: NOAA IMS Europafläche · Tageswerte und Klimatologie
+
+on:
+  schedule:
+    - cron: "51 6,14,22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/update_europe_snow_area.py
+      - tests/test_europe_snow_area.py
+      - .github/workflows/update-europe-snow-area.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noaa-ims-europe-area
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/update_europe_snow_area.py
+            scripts/update_snow_maps.py
+            scripts/update_eurasia_snow.py
+            tests/test_europe_snow_area.py
+            eurasia_snow/index.json
+            eurasia_snow/europe_index.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Original-IMS-Raster nach Bedarf cachen
+        uses: actions/cache@v4
+        with:
+          path: .cache/ims-europe-snow
+          key: ims-europe-native-v1-${{ github.run_id }}
+          restore-keys: ims-europe-native-v1-
+      - name: Geografiebibliothek
+        run: pip install "numpy>=1.26,<3" "pillow>=10,<13"
+      - name: Projektion, Landmaske und Klimareferenz testen
+        run: python -m unittest discover -s tests -p test_europe_snow_area.py -v
+      - name: Originale NOAA-IMS-Raster für Europa flächengewichtet auswerten
+        run: python -u scripts/update_europe_snow_area.py --max-new 2600
+      - name: Keine erfundenen Schneeflächen und keine unzureichende Klimatologie publizieren
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          obj=json.loads(Path("eurasia_snow/europe_index.json").read_text())
+          assert obj["schema"]==1 and obj["forecast"] is None
+          assert obj["analysis"]["region"]=={"lat_south":35,"lat_north":75,"lon_west":-25,"lon_east":70}
+          assert obj["source"]["doi"]=="10.7265/N52R3PMC"
+          assert obj["status"]["n_daily"]==len(obj["daily"])>=1
+          assert all(0<=value<=27 for value in obj["daily"].values())
+          assert len(set(obj["daily"]))==len(obj["daily"])
+          for rows in obj["climatology_by_month"].values():
+              for r in rows:
+                  if r["mean"] is None:
+                      assert r["min"] is None and r["max"] is None
+                  else:
+                      assert r["years"]>=r["min_years"]
+                      assert 0<=r["min"]<=r["mean"]<=r["max"]<=27
+          print("Europe original IMS days:",len(obj["daily"]))
+          print("Europe climatology day coverage:",obj["status"]["n_climatology_days_year"],"/366")
+          print("European source failures:",obj["status"]["n_failures"])
+          PY
+      - name: Verifizierten Europa-Datensatz in main speichern
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add eurasia_snow/europe_index.json
+          if git diff --cached --quiet; then
+            echo "Unverändert"; exit 0
+          fi
+          git commit -m "NOAA IMS Europa: geprüfte Tagesflächen und historische Referenz"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Echte Europadaten im GitHub-Archiv veröffentlicht"; exit 0
+            fi
+            git rebase --abort || true
+            sleep "$((attempt * 3))"
+          done
+          exit 1

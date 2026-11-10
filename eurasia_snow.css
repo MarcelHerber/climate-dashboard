@@ -16,7 +16,7 @@ h1{font-size:clamp(28px,3vw,40px);line-height:1.2;margin:5px 0 10px}h2{font-size
 .status[data-kind="warn"]{background:#fff7eb;border-color:#e9d6ab}.status[data-kind="success"]{background:#eff8f0;border-color:#c9e3cc}
 .chart{position:relative;height:min(67vh,675px);min-height:435px;width:100%}.chart canvas{width:100%;height:100%}
 .small{font-size:12px;color:var(--muted);line-height:1.55;margin:10px 0 0}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}
 .stats .panel{margin:0 0 16px}.metric{font-size:clamp(18px,2vw,25px);font-weight:850;letter-spacing:-.02em}
 .methodology{font-size:13px;color:#40566a}.methodology strong{color:#16334c}
 .methodology p{max-width:1100px;margin:11px 0}.methodology a{color:#166498}
@@ -56,3 +56,4 @@ h1{font-size:clamp(28px,3vw,40px);line-height:1.2;margin:5px 0 10px}h2{font-size
 .snow-series-heading{margin:30px 0 12px;scroll-margin-top:24px}
 @media(max-width:580px){.snow-map-section .controls label{width:100%}.snow-map-section .controls select{min-width:0;width:100%}.snow-map-navigation{flex:1 1 100%}.snow-map-navigation button{flex:1}.snow-map-card figcaption{padding:10px}.snow-map-actions{padding:6px 10px}.snow-map-actions button{width:100%}.snow-map-heading{gap:0}.snow-map-card{margin-top:16px}}
 
+\n/* New Europe snow area: controls remain readable on narrow phones. */\n@media(max-width:740px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.controls label:has(#seriesRegion){min-width:0;width:100%}.controls label:has(#seriesRegion) select{width:100%}}\n@media(max-width:580px){.stats{grid-template-columns:1fr}}\n

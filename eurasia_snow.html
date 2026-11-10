@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Eurasien-Schneebedeckung: täglich beobachtete NOAA IMS Land-Schneefläche im gesamten Kalenderjahr Januar–Dezember sowie Winterhalbjahr Oktober–März, Klimatologie und Tagesextreme.">
 <title>Schneebedeckung · Karten und Jahresverlauf | Climate Dashboard Deutschland</title>
-<link rel="stylesheet" href="eurasia_snow.css?v=20261109-europe">
+<link rel="stylesheet" href="eurasia_snow.css?v=20261110-area">
 <script defer src="snow_maps.js?v=20261109-europe"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script defer src="eurasia_snow.js?v=20261103-white-export-v2"></script>
+<script defer src="eurasia_snow.js?v=20261110-area"></script>
 </head>
 <body>
 <header>
@@ -18,7 +18,7 @@
 <main>
   <div class="eyebrow">Schnee · Beobachtungen · Klimatologie · Januar–Dezember</div>
   <h1>Schneebedeckung: Karten und Jahresverlauf</h1>
-  <p class="intro">Die Karten zeigen wahlweise die <strong>Nordhalbkugel nördlich 20° N</strong> oder <strong>Europa von Island bis zum Ural</strong> und ihre Abweichung von der Schneehäufigkeit 2001–2020. Darunter folgt die Eurasien-Zeitreihe für das gesamte Kalenderjahr, das Winterhalbjahr Oktober–März oder einzelne Monate. Ihr Gebiet umfasst 20–60° N und 10° W–180° O, also Teile Europas und Asiens ohne den hohen Norden. Alle Beobachtungen und Vergleichswerte werden aus echten NOAA-IMS-Tagesrastern berechnet.</p>
+  <p class="intro">Die Karten zeigen wahlweise die <strong>Nordhalbkugel nördlich 20° N</strong> oder <strong>Europa von Island bis zum Ural</strong> und ihre Abweichung von der Schneehäufigkeit 2001–2020. Darunter stehen <strong>zwei eigenständige Zeitreihen</strong> zur Auswahl: Eurasien (20–60° N, 10° W–180° O) und Europa (35–75° N, 25° W–70° O, Island bis Ural). Beide zeigen die Schneefläche nach tatsächlicher geografischer Rasterfläche. Eine Gebietsumschaltung berechnet keine Werte aus der anderen Region. Alle Beobachtungen und Vergleichswerte werden aus echten NOAA-IMS-Tagesrastern berechnet.</p>
 
   <section class="panel snow-map-section" id="snowMaps" aria-labelledby="snowMapsTitle">
     <div class="snow-map-heading">
@@ -56,9 +56,15 @@
     <p class="small">Quelle: <a href="https://nsidc.org/data/g02156/versions/1" target="_blank" rel="noopener">NOAA / USNIC IMS via NSIDC, G02156</a> · nominal 24 km · Grenzen: Natural Earth. Der Kartenvergleich 2001–2020 und die Referenz der folgenden Zeitreihe sind getrennt gekennzeichnet.</p>
   </section>
 
-  <div id="snowTimeSeries" class="eyebrow snow-series-heading">Eurasien · Schneefläche im Jahresverlauf</div>
+  <div id="snowTimeSeries" class="eyebrow snow-series-heading">Europa und Eurasien · Schneefläche im Jahresverlauf</div>
   <section class="panel">
     <div class="controls">
+      <label>Gebiet der Zeitreihe
+        <select id="seriesRegion" aria-label="Gebiet für Schneeflächen-Zeitreihe">
+          <option value="eurasia">Eurasien · 20–60° N</option>
+          <option value="europe">Europa · Island bis Ural</option>
+        </select>
+      </label>
       <label>Zeitraum
         <select id="month" aria-label="Kalenderjahr, Winterhalbjahr oder Einzelmonat">
           <option value="year" selected>Gesamtes Kalenderjahr · Jan–Dez</option>
@@ -84,6 +90,7 @@
         <select id="season" aria-label="Winterhalbjahr"></select>
       </label>
       <label class="checkbox"><input type="checkbox" id="showExtremes" checked> Historisches Tagesminimum und -maximum</label>
+      <label class="checkbox"><input type="checkbox" id="showAreaAnomaly"> Abweichung der Schneefläche zum Klimamittel anzeigen</label>
       <label class="checkbox"><input type="checkbox" id="showTrend" checked> Lineare Monatstrendlinie (keine Prognose)</label>
       <button type="button" id="refresh">Daten aktualisieren ↻</button>
       <button type="button" id="png">Diagramm als PNG ↓</button>
@@ -105,14 +112,15 @@
     <article class="panel"><h3>Letzter Beobachtungswert</h3><div class="metric" id="latest">–</div></article>
     <article class="panel"><h3>Monatstrend</h3><div class="metric" id="slope">–</div><p class="small">Lineare Regression, keine Wetterprognose</p></article>
     <article class="panel"><h3>Klimatologische Abdeckung</h3><div class="metric" id="coverage">–</div></article>
+    <article class="panel"><h3>Abweichung am letzten Beobachtungstag</h3><div class="metric" id="currentAreaAnomaly">–</div><p class="small">Mio. km² über/unter dem tagesgleichen Mittel</p></article>
   </section>
 
   <section class="panel methodology">
     <h2>Datengrundlage und Einordnung</h2>
     <p><strong>Beobachtung:</strong> U.S. National Ice Center / NOAA Interactive Multisensor Snow and Ice Mapping System (IMS), tägliches 24-km-Produkt, Kategorie „schneebedecktes Land“. Meereis wird nicht mitgerechnet. Die tatsächliche Fläche wird aus der polaren stereografischen Projektion flächengewichtet berechnet.</p>
-    <p><strong>Gebiet:</strong> 20–60° nördliche Breite, 10° westliche bis 180° östliche Länge. Enthält Teile Europas und Asiens, aber nicht ganz Eurasien – gerade hohe nördliche Breiten fehlen. Der Gebietsausschnitt bleibt für alle Monate gleich und entspricht nicht zwingend der unbekannten Maske einer externen Grafik. Das IMS-Raster ist nominal 24 km groß; Grenzzellen werden nach ihrem Mittelpunkt zugeordnet.</p>
-    <p><strong>Klimatologie:</strong> Januar bis Dezember werden je Kalendertag aus 1999–2025 ohne 2014 berechnet. Mindestens zehn historische Jahre pro Tag sind erforderlich, am 29. Februar fünf echte Schaltjahre. Zusätzlich werden das kleinste und größte beobachtete Flächenmaß je Kalendertag mit dem zugehörigen Rekordjahr angezeigt (optional abwählbar). Sie beziehen sich auf die derzeit verfügbaren historischen Vergleichsjahre und können sich mit weiteren Archivdaten ändern. Fehlende Daten bleiben Lücken, statt interpoliert zu werden; das graue Band ist historische Streuung, kein Prognoseunsicherheitsbereich.</p>
-    <p><strong>Jahresansicht:</strong> Die Auswahl „Kalenderjahr 2026“ umfasst den 1. Januar bis 31. Dezember 2026. „Winterhalbjahr 2025 / 2026“ umfasst Oktober–Dezember 2025 und Januar–März 2026. Für ein Nichtschaltjahr bleibt der 29. Februar als leere Position bestehen, damit die Datumsachse bei Vergleichen nicht verschoben wird. <strong>Prognosen:</strong> ECMWF IFS und EPS werden erst hinzugefügt, wenn die Flächen vergleichbar und unabhängig aus Modellfeldern berechnet sind. Schneewasseräquivalent ist nicht automatisch identisch mit binärer IMS-Schneebedeckung. Eine Trendgerade ist keine Modellvorhersage.</p>
+    <p><strong>Gebiete:</strong> Eurasien: 20–60° N und 10° W–180° O. Europa: 35–75° N und 25° W–70° O, entsprechend dem Europaausschnitt der Schneekarten. Es handelt sich um feste geografische Rechtecke einschließlich angrenzender Teile Asiens, nicht um Staatsgrenzen. Die beiden Gebiete werden <strong>unabhängig aus den originalen IMS-Rastern</strong> berechnet; kein Abschneiden einer bereits aggregierten Fläche. Das IMS-Raster ist nominal 24 km groß und Grenzzellen werden nach ihrem Mittelpunkt zugeordnet.</p>
+    <p><strong>Klimatologie:</strong> Januar bis Dezember werden je Kalendertag aus 1999–2025 ohne 2014 berechnet. Mindestens zehn historische Jahre pro Tag sind erforderlich, am 29. Februar fünf echte Schaltjahre. Zusätzlich werden das kleinste und größte beobachtete Flächenmaß je Kalendertag mit dem zugehörigen Rekordjahr angezeigt (optional abwählbar). Sie beziehen sich auf die derzeit verfügbaren historischen Vergleichsjahre und können sich mit weiteren Archivdaten ändern. Für die neue Europa-Reihe wird das historische Archiv schrittweise aus Originaldaten ergänzt; fehlende Daten und Klimamittel bleiben Lücken, statt interpoliert zu werden; das graue Band ist historische Streuung, kein Prognoseunsicherheitsbereich.</p>
+    <p><strong>Abweichungsdiagramm:</strong> Die beobachtete europäische bzw. eurasische Schneefläche minus tagesgleiches Klimamittel in Millionen km²; die Nulllinie entspricht dem Mittel. Das ist <em>nicht</em> die flächenhafte Raster-Anomalie in Prozentpunkten, die oben auf der Karte dargestellt ist. Die Kartenreferenz ist 2001–2020, die Zeitreihenreferenz 1999–2025 ohne 2014; beide sind getrennt ausgewiesen. <strong>Jahresansicht:</strong> Die Auswahl „Kalenderjahr 2026“ umfasst den 1. Januar bis 31. Dezember 2026. „Winterhalbjahr 2025 / 2026“ umfasst Oktober–Dezember 2025 und Januar–März 2026. Für ein Nichtschaltjahr bleibt der 29. Februar als leere Position bestehen, damit die Datumsachse bei Vergleichen nicht verschoben wird. <strong>Prognosen:</strong> ECMWF IFS und EPS werden erst hinzugefügt, wenn die Flächen vergleichbar und unabhängig aus Modellfeldern berechnet sind. Schneewasseräquivalent ist nicht automatisch identisch mit binärer IMS-Schneebedeckung. Eine Trendgerade ist keine Modellvorhersage.</p>
     <p><strong>Datenquelle:</strong> <a href="https://nsidc.org/data/g02156/versions/1" target="_blank" rel="noopener">NOAA/USNIC IMS via NSIDC, G02156</a>, DOI <a href="https://doi.org/10.7265/N52R3PMC" target="_blank" rel="noopener">10.7265/N52R3PMC</a>. Meteorologische Interpretation und Flächenberechnung erfolgen unabhängig. Diese Darstellung ersetzt keine amtlichen Warnungen.</p>
   </section>
 </main>
