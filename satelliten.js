@@ -16,7 +16,7 @@ const REGIONS={
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
-let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null;
+let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
 const description=()=>PRODUCTS[product.value];
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
 function stop(){if(frameTimer!==null){clearInterval(frameTimer);frameTimer=null;}play.textContent="▶ Film";play.setAttribute("aria-label","Satellitenfilm starten");}
@@ -32,7 +32,7 @@ function drawFrame(t){const seq=token,req=++imageRequest;loaded=false;verified=B
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
  id("satImageInfo").textContent=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
- image.onload=()=>{if(seq!==token||req!==imageRequest)return;loaded=true;empty.hidden=true;image.hidden=false;buttons();if(t)setStatus("Bild für "+formatUTC(t)+" geladen · Zeit aus WMS-Metadaten.","info");else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");};
+ image.onload=()=>{if(seq!==token||req!==imageRequest)return;loaded=true;empty.hidden=true;image.hidden=false;buttons();if(t)setStatus("Bild für "+formatUTC(t)+" geladen · Zeit aus "+(metadataSource==="manifest"?"verifiziertem GitHub-WMS-Check":"WMS-Metadaten")+".","info");else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");};
  image.onerror=()=>{if(seq!==token||req!==imageRequest)return;loaded=false;image.hidden=true;empty.hidden=false;buttons();setStatus("Der EUMETSAT-Kartendienst konnte das angeforderte Bild nicht liefern. Bitte den offiziellen Produktlink verwenden.","error");};
  buttons();image.src=currentUrl;
 }
@@ -73,8 +73,30 @@ function fillTimes(){time.replaceChildren();if(!frames.length){const o=new Optio
  frames.forEach((t,i)=>time.add(new Option(formatUTC(t),String(i))));
  index=frames.length-1;time.value=String(index);buttons();
 }
+async function manifestFallback(mine,reason){
+ try{
+  const result=await fetch("./data/satellite_wms_times.json",{cache:"no-store"});
+  if(!result.ok)throw new Error("Statusdatei HTTP "+result.status);
+  const doc=await result.json();
+  if(mine!==token)return;
+  const age=Date.now()-Date.parse(doc.generated_at),layer=doc.products?.[product.value];
+  if(!Number.isFinite(age)||age<0||age>4*60*60*1000)throw new Error("Statusdatei fehlt oder ist älter als 4 Stunden");
+  if(!doc.capabilities_ok||!layer?.map_ok||!layer.latest_verified_time||!Array.isArray(layer.available_times))throw new Error("Keine überprüften PNG-Aufnahmen für dieses Produkt");
+  const times=layer.available_times.filter(t=>Number.isFinite(Date.parse(t))&&Date.parse(t)<=Date.now()+600000);
+  if(!times.includes(layer.latest_verified_time))throw new Error("Abgleich zwischen Zeitstempel und Bildprüfung fehlt");
+  frames=[...new Set(times)].sort().slice(-48);
+  if(!frames.length)throw new Error("Keine bestätigten Zeitpunkte");
+  metadataSource="manifest";fillTimes();drawFrame(frames[index]);
+  const lastAge=Date.now()-Date.parse(layer.latest_verified_time);
+  if(lastAge>90*60000)setStatus("Letzter geprüfter Satellitenzeitpunkt liegt "+Math.round(lastAge/60000)+" Minuten zurück (nicht aktuell). "+reason,"warning");
+  else setStatus("UTC-Zeiten aus dem GitHub-WMS-Livetest übernommen; Bild wird geladen. "+reason,"info");
+ }catch(error){
+  if(mine!==token)return;
+  setStatus(reason+" Kein brauchbarer GitHub-WMS-Status verfügbar ("+error.message+"). Einzelbild ohne verifizierte Zeit; Animation deaktiviert.","warning");
+ }
+}
 async function refresh(){
- stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;fillTimes();
+ stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";fillTimes();
  id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
  id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
  product.disabled=source.value==="mtgi2";region.disabled=source.value==="mtgi2";id("satAttribution").textContent=source.value==="mtgi2"?"ESA · erste MTG-I2-Aufnahmen":description().credit;
@@ -95,9 +117,9 @@ async function refresh(){
   if(!response.ok)throw new Error("HTTP "+response.status);
   const xml=await response.text();if(mine!==token)return;
   const available=layerTimes(xml,description().layer);
-  if(!available.length){setStatus("Der WMS-Dienst liefert keine im Browser prüfbaren Einzelzeitpunkte. Das Bild wird ohne behaupteten Zeitstempel angezeigt; Animation deaktiviert.","warning");return;}
-  frames=available;fillTimes();drawFrame(frames[index]);
- }catch(e){if(mine!==token)return;setStatus("WMS-Zeitmetadaten derzeit nicht lesbar (z. B. CORS oder Dienstfehler). Einzelbild ohne verifizierte Zeit; Film deaktiviert.","warning");}
+  if(!available.length){await manifestFallback(mine,"Der WMS-Dienst meldet im Browser keine verwertbaren Zeitpunkte.");return;}
+  metadataSource="live";frames=available;fillTimes();drawFrame(frames[index]);
+ }catch(e){if(mine!==token)return;await manifestFallback(mine,"WMS-Metadaten im Browser derzeit nicht lesbar (möglicherweise CORS).");}
  finally{clearTimeout(timeout);}
 }
 function show(i){if(i<0||i>=frames.length)return;index=i;time.value=String(index);drawFrame(frames[index]);buttons();}
