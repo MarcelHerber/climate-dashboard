@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "alpenwetter-worker/src/dynamics-lab.js"
+      - "alpenwetter-worker/src/dynamics-client.js"
       - "alpenwetter-worker/src/index.js"
       - "alpenwetter-worker/src/cloud-lab.js"
       - "scripts/build_ecmwf_dynamics.py"
@@ -28,18 +29,22 @@ jobs:
         run: |
           node --input-type=module --check < alpenwetter-worker/src/index.js
           node --input-type=module --check < alpenwetter-worker/src/dynamics-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/dynamics-client.js
           node --input-type=module --check < alpenwetter-worker/src/cloud-lab.js
       - name: Anmeldung, Datenschutz und dynamisches Browser-Skript prüfen
         run: |
           node --input-type=module <<'JS'
           import assert from "node:assert/strict";
           import {dynamicsLabPage,dynamicsLabLoginPage,dynamicsLabData} from "./alpenwetter-worker/src/dynamics-lab.js";
+          import {DYNAMICS_CLIENT_SOURCE} from "./alpenwetter-worker/src/dynamics-client.js";
           import worker from "./alpenwetter-worker/src/index.js";
           const html=dynamicsLabPage();
           assert.match(html, /ECMWF Dynamik-/);
           const inline=html.match(/<script>([\s\S]*?)<\/script>/);
           assert.ok(inline && inline[1]);
           new Function(inline[1]);
+          assert.doesNotMatch(inline[1], /__name\(/, "Bundler helper leaked into browser script");
+          assert.ok(DYNAMICS_CLIENT_SOURCE.length>10000);
           const login=dynamicsLabLoginPage();
           assert.match(login,/name="next" value="\/dynamik"/);
           const env={ALPENWETTER_PASSWORD:"test-not-real-secret"};
