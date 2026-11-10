@@ -150,6 +150,7 @@ def main():
         try:
             check = test_png(layer, available[-1] if available else None)
             entry.update(check)
+            entry["map_ok"] = bool(check.get("ok"))
             if available:
                 entry["latest_verified_time"] = available[-1]
                 age = (NOW - parse_date(available[-1])).total_seconds() / 60
