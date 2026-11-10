@@ -9,6 +9,7 @@ on:
       - "scripts/build_ecmwf_dynamics.py"
       - ".github/workflows/update-ecmwf-dynamics.yml"
       - ".github/workflows/test-ecmwf-dynamics.yml"
+      - "tests/test_dynamics_browser.mjs"
   workflow_dispatch:
 
 permissions:
@@ -85,3 +86,26 @@ jobs:
                       assert im.mode=="L" and im.size==(m["grid"]["width"],m["grid"]["height"])
           print("REAL IFS GRIB and derived images validated for",m["cycle"])
           PY
+
+  browser-responsive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Playwright Chromium installieren
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Karten, Ebenen, Downloads und Mobilansicht in Chromium prüfen
+        run: node tests/test_dynamics_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dynamics-studio-qa-screenshots
+          path: |
+            /tmp/dynamics-desktop.png
+            /tmp/dynamics-mobil.png
+          if-no-files-found: ignore
