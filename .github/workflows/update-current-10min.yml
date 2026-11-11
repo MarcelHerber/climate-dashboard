@@ -3,6 +3,12 @@ name: DWD 10-Minuten-Aktuellbereich aktualisieren
 on:
   schedule:
     - cron: "*/10 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_current_10min.py"
+      - "tests/test_current_10min_extremes.py"
+      - ".github/workflows/update-current-10min.yml"
   workflow_dispatch:
 
 permissions:
