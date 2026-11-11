@@ -37,9 +37,9 @@ try{
    };
   });
   assert.equal(info.cards,6);
-  assert.equal(info.actions,12);
+  assert.equal(info.actions,18);
   assert.ok(info.actionWidths.every(n=>n>=40));
-  assert.equal(info.outside,0,"Single download buttons clipped");
+  assert.equal(info.outside,0,"Single PNG/PDF/SVG download buttons clipped");
   assert.ok(info.scroll<=info.client+2,vp.name+" scroll overflow "+JSON.stringify(info));
   assert.deepEqual(errors,[]);
   await page.screenshot({path:"/tmp/mosmix-single-export-"+vp.name+".png",fullPage:true});
