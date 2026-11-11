@@ -97,8 +97,11 @@ function drawFrame(t, fallbackDepth=0){
    const item=doc.schema===1?doc.entries?.[product.value]?.[region.value]:null;
    const timestamp=Date.parse(item?.time);
    const age=Date.now()-timestamp;
-   const path="./data/satellite_cache/"+product.value+"_"+region.value+".png";
-   if(!item||!Number.isFinite(timestamp)||age<0||age>7*86400000||item.url!==path||item.source!=="EUMETSAT WMS"||item.width!==400)return false;
+   const path="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
+    (typeof item?.time==="string"?item.time.replace(/[-:]/g,""):"")+".png";
+   if(!item||!Number.isFinite(timestamp)||age<0||age>7*86400000||
+      !/^\\d{8}T\\d{6}Z$/.test(item.time.replace(/[-:]/g,""))||
+      item.url!==path||item.source!=="EUMETSAT WMS"||item.width!==400)return false;
    if(!current())return false;
    setStatus("Der EUMETSAT-WMS ist gestört ("+reason+"). Lade gespeicherte Aufnahme vom "+formatUTC(item.time)+" …","warning");
    return await new Promise(resolve=>{
