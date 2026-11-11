@@ -70,7 +70,7 @@ function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.v
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
-function drawFrame(t){
+function drawFrame(t, fallbackDepth=0){
  const seq=token,req=++imageRequest;
  if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
  loaded=false;verified=Boolean(t);
@@ -83,9 +83,10 @@ function drawFrame(t){
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
  const note=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
  id("satImageInfo").textContent=note;
- // First request keeps the original high resolution. If the WMS stalls or
- // rejects it, try smaller images for this *same verified UTC and BBOX*.
- const widths=[0,...[800,600].filter(w=>w<r.w)];
+ // Display light previews first. Only the explicit raw-image/PNG action requests full resolution.
+ // Keep geographic bounds and the verified UTC unchanged across size retries.
+ const widths=[400,320];
+ const fullUrl=imageUrl(t);
  let level=0;
  const current=()=>seq===token&&req===imageRequest;
  function fail(reason){
@@ -97,15 +98,23 @@ function drawFrame(t){
      " ("+reason+"). Versuche dieselbe Aufnahme mit "+widths[level]+" px …","warning");
    attempt();return;
   }
+  // Try at most two earlier WMS-advertised observations; never relabel their timestamps.
+  const previous=t?frames.indexOf(t)-1:-1;
+  if(previous>=0&&fallbackDepth<2){
+   index=previous;time.value=String(index);
+   drawFrame(frames[index],fallbackDepth+1);
+   setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
+   return;
+  }
   loaded=false;image.hidden=true;empty.hidden=false;
   empty.textContent="Satellitenbild derzeit nicht erreichbar. Bitte später erneut laden oder den offiziellen Produktlink öffnen.";
-  buttons();setStatus("EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild ("+reason+").","error");
+  buttons();setStatus("EUMETSAT liefert momentan auch mit kleinerer Auflösung kein Bild ("+reason+").","error");
  }
  function attempt(){
   if(!current()||!filmImage.hidden)return;
   const url=imageUrl(t,widths[level]);
-  currentUrl=url;
-  id("satRawImage").href=url;id("satRawImage").hidden=false;
+  currentUrl=fullUrl;
+  id("satRawImage").href=fullUrl;id("satRawImage").hidden=false;
   const size=widths[level]||r.w;
   image.onload=()=>{
    if(!current())return;
@@ -114,15 +123,15 @@ function drawFrame(t){
    id("satImageInfo").textContent=note+(level?" · Ersatzbild "+image.naturalWidth+" px":"");
    buttons();
    if(!filmImage.hidden)return;
-   if(level)setStatus("Bild für "+(t?formatUTC(t):"unbekannte Zeit")+" in "+image.naturalWidth+
-     " px geladen. Der EUMETSAT-Dienst hat die höhere Auflösung nicht rechtzeitig geliefert.","warning");
-   else if(t)setStatus("Bild für "+formatUTC(t)+" geladen · Zeit aus "+
+   if(level||fallbackDepth)setStatus("Bild für "+(t?formatUTC(t):"unbekannte Zeit")+" in "+image.naturalWidth+
+     " px geladen"+(fallbackDepth?" · ältere bestätigte Aufnahme":" · reduzierte Vorschau")+". Originalauflösung über Bildlink oder PNG-Download.","warning");
+   else if(t)setStatus("Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" px) · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
        (metadataSource==="manifest"?"verifiziertem GitHub-WMS-Check":"WMS-Metadaten")+".","info");
    else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");
   };
   image.onerror=()=>fail("Bildfehler");
   image.src=url;
-  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?18000:12000);
+  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?12000:10000);
   buttons();
  }
  attempt();
@@ -183,7 +192,8 @@ async function manifestFallback(mine,reason){
   else setStatus("UTC-Zeiten aus dem GitHub-WMS-Livetest übernommen; Bild wird geladen. "+reason,"info");
  }catch(error){
   if(mine!==token)return;
-  setStatus(reason+" Kein brauchbarer GitHub-WMS-Status verfügbar ("+error.message+"). Einzelbild ohne verifizierte Zeit; Animation deaktiviert.","warning");
+  setStatus(reason+" Kein brauchbarer GitHub-WMS-Status verfügbar ("+error.message+"). Versuche ein Einzelbild ohne verifizierte Zeit; Animation deaktiviert.","warning");
+  drawFrame(null);
  }
 }
 async function refresh(){
@@ -201,8 +211,9 @@ async function refresh(){
  }
  empty.textContent="Keine Satellitenaufnahme geladen. Über den offiziellen EUMETView-Link kannst du die Bilder direkt öffnen.";
  setStatus("Lade EUMETSAT-Bild; prüfe verfügbare UTC-Zeitpunkte …");
- // A server-default frame is never labelled as current.
- drawFrame(null);
+ // Avoid a concurrent unverified GetMap request while fetching WMS timestamps.
+ image.hidden=true;empty.hidden=false;
+ empty.textContent="Ermittle verfügbare Satellitenzeitpunkte …";
  const caps=API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetCapabilities"}).toString();
  const timeout=setTimeout(()=>controller.abort(),16000);
  try{
@@ -361,7 +372,9 @@ async function downloadPNG(){
  png.disabled=true;setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
  try{
   const img=new Image();img.crossOrigin="anonymous";
-  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("CORS"));img.src=currentUrl;});
+  // The preview is deliberately small; only download requests the native WMS size.
+  const exportUrl=verified&&frames[index]?imageUrl(frames[index]):imageUrl(null);
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("CORS or high-resolution WMS unavailable"));img.src=exportUrl;});
   const pad=24,header=96,footer=80,c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight+header+footer;
   const ctx=c.getContext("2d");ctx.fillStyle="#ffffff";ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle="#162f4a";
   ctx.font="bold 27px Arial";ctx.fillText("MTG / "+description().name+" · "+REGIONS[region.value].name,pad,42);
