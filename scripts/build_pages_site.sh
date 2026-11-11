@@ -103,6 +103,7 @@ required_root_files=(
   satelliten.js
   satelliten.css
   satellite_overlay.js
+  satellite_film_export.js
   wettergefahren.js
   wettergefahren.css
   wettergefahren_export.js
@@ -446,6 +447,8 @@ PY
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
 node --check _site/satellite_overlay.js
+node --check _site/satellite_film_export.js
+node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_film.cjs
