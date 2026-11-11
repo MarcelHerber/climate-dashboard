@@ -316,10 +316,25 @@ def build_station_profile(
         return (row["dt"] - timedelta(microseconds=1)).astimezone(BERLIN).date()
 
     today_extrema = [row for row in source_rows["temperature_extrema"] if interval_day(row) == today_local]
-    today_wind = [row for row in source_rows["wind"] if row["dt"].astimezone(BERLIN).date() == today_local]
+    # FF_10 is the mean speed over the preceding ten-minute interval.
+    today_wind = [row for row in source_rows["wind"] if interval_day(row) == today_local]
     today_gust = [row for row in source_rows["gust"] if interval_day(row) == today_local]
     today_precip = [row for row in source_rows["precipitation"] if interval_day(row) == today_local]
 
+    # Only the actual DWD TX_10/TN_10 intervals give genuine 2-m temperature extremes.
+    # For the other continuous parameters, choose the highest valid 10-minute
+    # measurement in the local calendar day. Wind/gusts retain the interval
+    # end time; precipitation is accumulated separately.
+    def daily_peak(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+        valid = [row for row in rows if row.get(key) is not None]
+        return max(valid, key=lambda row: row[key]) if valid else None
+
+    humidity_peak = daily_peak(today_temp, "humidity")
+    dewpoint_peak = daily_peak(today_temp, "dewpoint")
+    pressure_peak = daily_peak(today_temp, "pressure")
+    ground_temp_peak = daily_peak(today_temp, "ground_temp")
+    wind_peak = daily_peak(today_wind, "wind_speed")
+    gust_peak = daily_peak(today_gust, "gust_speed")
     today_temps = [float(row["temp"]) for row in today_temp if row.get("temp") is not None]
     today_maxima = [row for row in today_extrema if row.get("temp_max_10min") is not None]
     today_minima = [row for row in today_extrema if row.get("temp_min_10min") is not None]
@@ -409,10 +424,26 @@ def build_station_profile(
         "mean_10min_c": average(today_temps),
         "temperature_count": len(today_temps),
         "mean_wind_ms": average(today_winds),
-        "max_wind_ms": round(max(today_winds), 2) if today_winds else None,
-        "max_gust_ms": round(max(today_gusts), 2) if today_gusts else None,
+        "max_wind_ms": wind_peak["wind_speed"] if wind_peak else None,
+        "max_wind_interval_end_local": iso_local(wind_peak),
+        "max_gust_ms": gust_peak["gust_speed"] if gust_peak else None,
+        "max_gust_interval_end_local": iso_local(gust_peak),
+        "max_humidity_pct": humidity_peak["humidity"] if humidity_peak else None,
+        "max_humidity_local": iso_local(humidity_peak),
+        "max_dewpoint_c": dewpoint_peak["dewpoint"] if dewpoint_peak else None,
+        "max_dewpoint_local": iso_local(dewpoint_peak),
+        "max_pressure_hpa": pressure_peak["pressure"] if pressure_peak else None,
+        "max_pressure_local": iso_local(pressure_peak),
+        "max_ground_temp_c": ground_temp_peak["ground_temp"] if ground_temp_peak else None,
+        "max_ground_temp_local": iso_local(ground_temp_peak),
+        # RWS_10: all valid intervals that end during the selected local
+        # calendar day. Missing intervals are not replaced with zero.
         "precip_sum_mm": round(sum(today_precip_values), 2) if today_precip_values else None,
         "precip_count": len(today_precip_values),
+        "precip_first_interval_end_local": iso_local(next(
+            (row for row in today_precip if row.get("precip_10min") is not None), None)),
+        "precip_last_interval_end_local": iso_local(next(
+            (row for row in reversed(today_precip) if row.get("precip_10min") is not None), None)),
         "wet_intervals": sum(1 for value in today_precip_values if value > 0),
     }
 
@@ -445,8 +476,17 @@ def build_station_profile(
         "today_extreme_source": today["extreme_temperature_source"],
         "today_extreme_count": min(len(today_maxima), len(today_minima)),
         "today_mean_10min_c": today["mean_10min_c"],
+        "today_max_wind_ms": today["max_wind_ms"],
+        "today_max_wind_interval_end_local": today["max_wind_interval_end_local"],
         "today_max_gust_ms": today["max_gust_ms"],
+        "today_max_gust_interval_end_local": today["max_gust_interval_end_local"],
+        "today_max_humidity_pct": today["max_humidity_pct"],
+        "today_max_dewpoint_c": today["max_dewpoint_c"],
+        "today_max_pressure_hpa": today["max_pressure_hpa"],
+        "today_max_ground_temp_c": today["max_ground_temp_c"],
         "today_precip_sum_mm": today["precip_sum_mm"],
+        "today_precip_count": today["precip_count"],
+        "today_precip_last_interval_end_local": today["precip_last_interval_end_local"],
         "availability": availability,
         "profile": f"stations/{station_id}.json",
     }
@@ -605,7 +645,7 @@ def main() -> int:
         "availability_counts": availability_counts,
         "source_error_counts": source_error_counts,
         "source": "DWD CDC 10-minute now: air_temperature + extreme_temperature + wind + extreme_wind + precipitation",
-        "source_note": "Temperatur-Tagesextreme für den lokalen Kalendertag (00–24 Uhr Europe/Berlin) ausschließlich aus TX_10/TN_10 (originale 10-Minuten-Extrema), nicht aus TT_10-Momentanwerten; 00:00-Intervallende zählt zum Vortag. Dieser Zeitraum kann vom amtlichen DWD-Klimatag abweichen. Fehlende Extreme bleiben fehlend. DWD-now unter einer Stunde aktualisiert, Messwerte vorläufig; Zusatzprodukte treffen teils zeitversetzt ein.",
+        "source_note": "Lokaler Kalendertag (00–24 Uhr Europe/Berlin): Temperaturmax/-min aus originalen TX_10/TN_10-Intervallen; Windmaximum aus FF_10, Böenmaximum aus FX_10; Feuchte, Taupunkt, Druck und Bodentemperatur aus Tagesmaximum der 10-Minuten-Messungen. Niederschlag bleibt die bisherige Summe aller verfügbaren RWS_10-Intervalle; fehlende Werte sind keine 0 und können die Summe verkürzen. 00:00-Intervallenden zählen zum Vortag. Der Zeitraum kann vom amtlichen DWD-Klimatag abweichen. Alle Werte sind vorläufig.",
         "stations": stations,
         "failures": failures[:50],
     }
