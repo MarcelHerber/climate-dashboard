@@ -82,3 +82,11 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 #satCitiesLayer{z-index:5}
 .sat-isobar-label{font-family:Arial,sans-serif;font-weight:800;font-size:13px;fill:#fff;stroke:rgba(10,24,40,.95);stroke-width:3px;paint-order:stroke;dominant-baseline:middle;text-anchor:middle}
 @media(max-width:650px){.sat-isobar-label{font-size:11px}.sat-isobar-status{font-size:11px}.sat-overlay-controls{gap:9px 12px}}
+
+/* Additional NOAA views stay independent of the EUMETSAT time/projection controls. */
+.sat-noaa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:16px}
+.sat-noaa-grid figure{margin:0;min-width:0;padding:12px;border:1px solid var(--border,#b6c7d7);border-radius:12px;background:var(--surface,#f7fafc)}
+.sat-noaa-grid img{display:block;max-width:100%;width:100%;height:auto;aspect-ratio:1;object-fit:contain;background:#08131f;border-radius:8px}
+.sat-noaa-grid figcaption{font-size:13px;line-height:1.65;padding:8px 2px 1px}
+.sat-noaa-grid figcaption a{color:var(--accent,#1473b6)}
+@media(max-width:680px){.sat-noaa-grid{grid-template-columns:minmax(0,1fr)}}
