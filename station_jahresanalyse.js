@@ -12,7 +12,7 @@ const MONTHS=["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov"
 const cache=new Map();
 let stations=[],station=null,kind="temp",mode="daily",metric=2,years=[],selected=new Set();
 let payload=null,chart=null,serial=0,lastExport=null,fillYear=null;
-const WARM_FILL="rgba(219,63,56,0.30)",COLD_FILL="rgba(39,107,201,0.30)";
+const WARM_FILL="rgba(222,44,41,0.58)",COLD_FILL="rgba(31,96,217,0.58)";
 const number=n=>Number.isFinite(n)?n.toLocaleString("de-DE",{maximumFractionDigits:1}):"–";
 const isNumber=n=>typeof n==="number"&&Number.isFinite(n);
 const text=(id,value)=>{$(id).textContent=value;};
@@ -54,10 +54,10 @@ function png(){
  ctx.font="17px Arial";ctx.fillStyle="#4e687d";
  ctx.fillText("Climate Dashboard Deutschland · Messwerte ohne synthetische Ergänzungen",25,76,c.width-50);
  if(kind==="temp"&&Number.isInteger(fillYear)){
-  ctx.fillStyle="#cf4b43";ctx.fillRect(25,93,15,15);
+  ctx.fillStyle="#de2c29";ctx.fillRect(25,93,15,15);
   ctx.fillStyle="#4e687d";ctx.font="16px Arial";
   ctx.fillText("Wärmer als 1991–2020",46,106);
-  ctx.fillStyle="#3779c6";ctx.fillRect(270,93,15,15);
+  ctx.fillStyle="#1f60d9";ctx.fillRect(270,93,15,15);
   ctx.fillStyle="#4e687d";ctx.fillText("Kühler als 1991–2020 · Fläche für "+fillYear,291,106);
  }
  ctx.drawImage(source,0,136,c.width,source.height*scale);

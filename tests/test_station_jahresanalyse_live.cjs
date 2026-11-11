@@ -58,8 +58,8 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    let state=await fillState();
    assert.equal(state.fills.length,1,device+": exactly one shaded year");
    assert.equal(state.fills[0].target,0,"Fill must reference 1991–2020 dataset");
-   assert.match(state.fills[0].above,/219,63,56/);
-   assert.match(state.fills[0].below,/39,107,201/);
+   assert.match(state.fills[0].above,/222,44,41,0\.58/);
+   assert.match(state.fills[0].below,/31,96,217,0\.58/);
    assert.ok(state.fills[0].name.startsWith(state.selected),"Highlighted year mismatch");
    const choices=await page.locator("#sjaFillYear option").evaluateAll(opts=>opts.map(o=>o.value));
    await page.locator("#sjaFillYear").selectOption(choices.find(y=>y!==state.selected));

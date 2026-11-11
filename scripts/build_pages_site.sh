@@ -168,7 +168,7 @@ catalog=json.loads((root/"station_jahresanalyse_catalog.json").read_text(encodin
 assert catalog["schema"]==1 and catalog["totals"]["temp"]>=50
 assert catalog["totals"]["precip"]>=100
 assert '["station_jahresanalyse.html","Jahresdiagramme · DWD-Stationen"]' in (root/"mobile_navigation.js").read_text(encoding="utf-8")
-assert 'src="station_jahresanalyse.js?v=3"' in (root/"station_jahresanalyse.html").read_text(encoding="utf-8")
+assert 'src="station_jahresanalyse.js?v=4"' in (root/"station_jahresanalyse.html").read_text(encoding="utf-8")
 print("Jahresanalyse im Desktop- und Handymenü, Datenarchiv geprüft.")
 PY
 
