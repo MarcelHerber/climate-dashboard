@@ -190,8 +190,11 @@ test("Oversized EUMETSAT still-image failure automatically retries same time and
  await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"recovered smaller still image",1500);
  const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="800");
  assert.ok(previews.length>=1,"800px backup not requested");
- const first=new URL(requests.find(r=>new URL(r.url).searchParams.get("width")==="1200").url);
  const fallback=new URL(previews.at(-1).url);
+ const first=new URL(requests.find(r=>{
+  const q=new URL(r.url).searchParams;
+  return q.get("width")==="1200" && q.get("time")===fallback.searchParams.get("time");
+ }).url);
  assert.equal(first.searchParams.get("bbox"),fallback.searchParams.get("bbox"));
  assert.equal(first.searchParams.get("time"),fallback.searchParams.get("time"));
  assert.equal(fallback.searchParams.get("bbox"),"-37,24,19,53");
