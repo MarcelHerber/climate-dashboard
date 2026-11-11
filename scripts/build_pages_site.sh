@@ -123,6 +123,7 @@ required_root_files=(
   state_monthly_ensemble.css
   monthly_frequency.js
   mosmix.js
+  mosmix_vector_export.js
   station_thresholds.js
   dwd_station_daily_map.js
   dwd_station_daily_map.css
@@ -506,6 +507,8 @@ fi
 node --check _site/dashboard_theme.js
 # MOSMIX muss auch im Haupt-Website-Deploy syntaktisch valide sein.
 node --check _site/mosmix.js
+node --check _site/mosmix_vector_export.js
+node tests/test_mosmix_vector_exports.mjs
 node tests/test_mosmix_world.mjs
 node tests/test_mosmix_sun_daily.mjs
 node tests/test_mosmix_loader.mjs
