@@ -120,9 +120,9 @@
         }
       }
       const opts=chart.options;
-      opts.layout=opts.layout||{};
+      if(!opts.layout)opts.layout={};
       opts.layout.padding={top:17,bottom:7};
-      opts.plugins=opts.plugins||{};
+      if(!opts.plugins)opts.plugins={};
       if(opts.plugins.title){
         opts.plugins.title.font={family:"system-ui, sans-serif",size:15,weight:"600"};
         opts.plugins.title.padding={top:6,bottom:16};
@@ -136,7 +136,7 @@
       legend.labels.boxHeight=11;
       legend.labels.padding=18;
       legend.labels.font={family:"system-ui, sans-serif",size:12,weight:"500"};
-      opts.plugins.legend=legend;
+      if(!opts.plugins.legend)opts.plugins.legend=legend;
       const tooltip=opts.plugins.tooltip||{};
       Object.assign(tooltip,{
         enabled:true,backgroundColor:"#17263c",titleColor:"#ffffff",bodyColor:"#f1f6fc",
@@ -144,7 +144,7 @@
         displayColors:true,titleFont:{size:13,weight:"700"},bodyFont:{size:12},
         callbacks:tooltipCallbacks(chart)
       });
-      opts.plugins.tooltip=tooltip;
+      if(!opts.plugins.tooltip)opts.plugins.tooltip=tooltip;
       opts.plugins.datalabels={
         display:ctx=>{
           if(ctx.datasetIndex!==0)return false;
@@ -162,22 +162,22 @@
       };
       const scales=opts.scales||{};
       if(scales.x){
-        scales.x.grid=scales.x.grid||{};
+        if(!scales.x.grid)scales.x.grid={};
         scales.x.grid.display=false;
-        scales.x.ticks=scales.x.ticks||{};
+        if(!scales.x.ticks)scales.x.ticks={};
         scales.x.ticks.maxRotation=0;
         scales.x.ticks.autoSkip=true;
         scales.x.ticks.font={family:"system-ui, sans-serif",size:11};
-        scales.x.border=scales.x.border||{};
+        if(!scales.x.border)scales.x.border={};
         scales.x.border.display=false;
       }
       if(scales.y){
-        scales.y.grid=scales.y.grid||{};
+        if(!scales.y.grid)scales.y.grid={};
         scales.y.grid.drawTicks=false;
-        scales.y.ticks=scales.y.ticks||{};
+        if(!scales.y.ticks)scales.y.ticks={};
         scales.y.ticks.padding=10;
         scales.y.ticks.font={family:"system-ui, sans-serif",size:11};
-        scales.y.border=scales.y.border||{};
+        if(!scales.y.border)scales.y.border={};
         scales.y.border.display=false;
         if(scales.y.title)scales.y.title.font={size:12,weight:"600"};
       }
