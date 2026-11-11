@@ -268,7 +268,7 @@ for product, regions in doc.get("entries",{}).items():
         filename=f"{product}_{region}.png"
         assert entry.get("url")==f"./data/satellite_cache/{filename}"
         origin=source/filename
-        if not origin.is_file() or not origin.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        if not origin.is_file() or not origin.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
             raise SystemExit(f"Invalid cached satellite image: {filename}")
         shutil.copy2(origin,target/filename)
         count+=1
