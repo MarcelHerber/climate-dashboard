@@ -154,6 +154,27 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satShowCities").uncheck()
     assert page.locator("#satCitiesLayer").is_hidden()
     page.locator("#satShowCities").check()
+    # Actual ECMWF IFS vector data, built from real GRIB2 and served locally.
+    # The selected Meteosat UTC timestamp must have a matching past forecast.
+    page.wait_for_function(
+        "() => document.querySelector('#satIsobarSvg path')?.getAttribute('d')?.length > 30 "
+        "&& document.querySelector('#satIsobarStatus')?.textContent.includes('ECMWF IFS')",
+        timeout=25000
+    )
+    evidence["ecmwf_isobars_real_visible"]=page.locator("#satIsobarSvg").is_visible()
+    evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").inner_text()
+    assert evidence["ecmwf_isobars_real_visible"]
+    original_lines=page.locator("#satIsobarSvg path").count()
+    page.locator("#satIsobarSpacing").select_option("10")
+    ten_hpa_lines=page.locator("#satIsobarSvg path").count()
+    evidence["ecmwf_isobar_5hpa_count"]=original_lines
+    evidence["ecmwf_isobar_10hpa_count"]=ten_hpa_lines
+    assert ten_hpa_lines < original_lines, "10-hPa contours did not reduce the 5-hPa line count"
+    page.locator("#satIsobarSpacing").select_option("5")
+    page.locator("#satShowIsobars").uncheck()
+    assert page.locator("#satIsobarSvg").is_hidden()
+    page.locator("#satShowIsobars").check()
+    assert page.locator("#satIsobarSvg").is_visible()
     page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
     # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
     page.locator("#satRegion").select_option("atlantic")
