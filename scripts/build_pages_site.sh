@@ -26,6 +26,7 @@ required_root_files=(
   station_jahresanalyse.js
   station_jahresanalyse.css
   monthly_layout.js
+  monthly_climate_bars.js
   stratosphaere.html
   polar_vortex_map.js
   ssw_catalog.js
