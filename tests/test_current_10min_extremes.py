@@ -28,10 +28,10 @@ class RealExtremaTests(unittest.TestCase):
     def profile(self, include_extrema=True):
         source_rows = {
             "temperature": [
-                row("2026-11-10T23:00:00Z", temp=9.9),
-                row("2026-11-11T06:00:00Z", temp=9.0),
-                row("2026-11-11T10:00:00Z", temp=11.1),
-                row("2026-11-11T14:00:00Z", temp=15.4),
+                row("2026-11-10T23:00:00Z", temp=9.9, humidity=100, dewpoint=8.2, pressure=1050, ground_temp=10),
+                row("2026-11-11T06:00:00Z", temp=9.0, humidity=72, dewpoint=6.0, pressure=1008, ground_temp=10),
+                row("2026-11-11T10:00:00Z", temp=11.1, humidity=91, dewpoint=9.7, pressure=1005, ground_temp=12),
+                row("2026-11-11T14:00:00Z", temp=15.4, humidity=61, dewpoint=8.0, pressure=1004, ground_temp=15),
             ],
             "temperature_extrema": [
                 # The extreme of the ten minutes ending 00:00 MEZ belongs
@@ -41,9 +41,23 @@ class RealExtremaTests(unittest.TestCase):
                 row("2026-11-11T10:00:00Z", temp_max_10min=14.9, temp_min_10min=10.2),
                 row("2026-11-11T14:00:00Z", temp_max_10min=16.3, temp_min_10min=14.4),
             ] if include_extrema else [],
-            "wind": [row("2026-11-11T14:00:00Z",wind_speed=4.0)],
-            "gust": [row("2026-11-11T14:00:00Z",gust_speed=8.0)],
-            "precipitation": [row("2026-11-11T14:00:00Z",precip_10min=0.6)],
+            "wind": [
+                row("2026-11-10T23:00:00Z", wind_speed=33),
+                row("2026-11-11T06:00:00Z", wind_speed=4),
+                row("2026-11-11T10:00:00Z", wind_speed=7.5),
+                row("2026-11-11T14:00:00Z", wind_speed=3),
+            ],
+            "gust": [
+                row("2026-11-10T23:00:00Z", gust_speed=45),
+                row("2026-11-11T06:00:00Z", gust_speed=10),
+                row("2026-11-11T14:00:00Z", gust_speed=9),
+            ],
+            "precipitation": [
+                row("2026-11-10T23:00:00Z", precip_10min=99),
+                row("2026-11-11T06:00:00Z", precip_10min=0.6),
+                row("2026-11-11T10:00:00Z", precip_10min=None),
+                row("2026-11-11T14:00:00Z", precip_10min=0.9),
+            ],
         }
         old = module.fetch_source_rows
         try:
@@ -70,6 +84,21 @@ class RealExtremaTests(unittest.TestCase):
         self.assertEqual(detail["series_columns"][-3:],
             ["temp_max_10min_c","temp_min_10min_c","ground_min_10min_c"])
         self.assertEqual(detail["series"][-1][-3:-1], [16.3, 14.4])
+
+    def test_other_daily_maxima_and_only_daily_rain_sum(self):
+        summary, detail = self.profile()
+        self.assertEqual(summary["today_max_wind_ms"], 7.5)
+        self.assertEqual(summary["today_max_gust_ms"], 10)
+        self.assertEqual(summary["today_max_humidity_pct"], 91)
+        self.assertEqual(summary["today_max_dewpoint_c"], 9.7)
+        self.assertEqual(summary["today_max_pressure_hpa"], 1008)
+        self.assertEqual(summary["today_max_ground_temp_c"], 15)
+        # The first interval ends at 00:00 MEZ and belongs to the preceding
+        # day. Missing values never enter the sum or count as zero.
+        self.assertEqual(summary["today_precip_sum_mm"], 1.5)
+        self.assertEqual(summary["today_precip_count"], 2)
+        self.assertEqual(detail["today"]["max_gust_interval_end_local"][:10], "2026-11-11")
+        self.assertEqual(detail["today"]["precip_last_interval_end_local"][:10], "2026-11-11")
 
     def test_no_false_extreme_when_source_unavailable(self):
         summary, detail = self.profile(include_extrema=False)
