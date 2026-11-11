@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSlots=8}={}){
+function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAllWms=false,archiveAvailable=false,totalSlots=8}={}){
  let failed480=false,failed320=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
@@ -30,6 +30,10 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSl
    this._src=value;
    if(!value)return;
    requests.push({url:value,img:this});
+   if(String(value).startsWith("./data/satellite_cache/")){
+    setTimeout(()=>{this.naturalWidth=400;this.naturalHeight=207;this.onload?.();},7);
+    return;
+   }
    const params=new URL(value).searchParams;
    if(params.get("request")!=="GetMap")return;
    const isSmall=Number(params.get("width"))<=720;
@@ -38,6 +42,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSl
     this.naturalWidth=Number(params.get("width"));
     this.naturalHeight=Number(params.get("height"));
     if(isSmall)state.active--;
+    if(failAllWms){this.onerror?.();return;}
     if(failLargeStill&&this.naturalWidth>=1000){this.onerror?.();return;}
     if(failOne480&&!failed480&&this.naturalWidth===480){failed480=true;this.onerror?.();return;}
     if(failOne320&&!failed320&&this.naturalWidth===320){failed320=true;this.onerror?.();return;}
@@ -62,6 +67,14 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSl
   fetches.push(url);
   if(String(url).includes("GetCapabilities"))throw Error("Simulate blocked capabilities; use checked GitHub manifest");
   if(String(url).includes("satellite_wms_times.json"))return {ok:true,json:async()=>manifest};
+  if(String(url).includes("satellite_cache/index.json")){
+   if(!archiveAvailable)return {ok:false,status:404};
+   const observed=slots.at(-1);
+   const filename="geocolour_southwest_"+observed.replace(/[-:]/g,"")+".png";
+   return {ok:true,json:async()=>({schema:1,entries:{geocolour:{southwest:{
+    time:observed,url:"./data/satellite_cache/"+filename,source:"EUMETSAT WMS",width:400
+   }}}})};
+  }
   throw Error("Unexpected fetch: "+url);
  };
  const document={getElementById:id=>{assert.ok(nodes.has(id),"Unknown node "+id);return nodes.get(id);},
@@ -201,6 +214,18 @@ test("Still picture downloads a 400px preview but keeps an original-resolution l
  assert.equal(preview.searchParams.get("time"),slots.at(-1));
  assert.match(nodes.get("satStatus").textContent,/Vorschau/);
  assert.equal(nodes.get("satPng").disabled,false);
+});
+test("When all WMS images fail, a real archived GeoColour UTC snapshot is displayed without relabelling it as live",async()=>{
+ const {nodes,requests,slots}=fixture({failAllWms:true,archiveAvailable:true});
+ await waitUntil(()=>nodes.get("satTime").options.length===8,"eight UTC metadata slots");
+ await waitUntil(()=>nodes.get("satImage").src.startsWith("./data/satellite_cache/"),"archive fallback loaded",2000);
+ await waitUntil(()=>nodes.get("satValid").textContent.includes("Archivaufnahme"),"archive UTC caption",2000);
+ assert.match(nodes.get("satValid").textContent,/nicht live/);
+ assert.ok(nodes.get("satValid").textContent.includes("UTC"));
+ assert.equal(nodes.get("satProduct").value,"geocolour","do not switch product when matching archive exists");
+ assert.equal(nodes.get("satPng").disabled,false);
+ assert.ok(requests.some(r=>String(r.url).includes("geocolour_southwest_")));
+ assert.match(nodes.get("satStatus").textContent,/gespeicherte GeoColour-Aufnahme/);
 });
 test("Lightweight film controls exist and preserve original high-res export",()=>{
  for(const id of ["satTimeline","satFilmLength","satFilmQuality","satFilmSpeed","satFilmStage",
