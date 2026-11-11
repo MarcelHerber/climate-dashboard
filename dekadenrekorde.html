@@ -89,6 +89,10 @@
         await ensureSupplement(metric);
       }
       if(stationView)renderStationView();else render();
+      if(KL_EXTRA_METRICS.has(metric)||RR_EXTRA_METRICS.has(metric)){
+        const dataset=activeData(metric);
+        els.status.textContent="DWD · "+metricMeta(metric).label+" · Messzeitraum "+formatDate(dataset.data_start)+" bis "+formatDate(dataset.data_through)+" · "+dataset.complete_station_decades.toLocaleString("de-DE")+" vollständig gemessene Stationsdekaden";
+      }else els.status.textContent="DWD · Temperatur bis "+formatDate(data.data_through)+" · Schnee bis "+formatDate(snowData.data_through)+" · Niederschlag bis "+formatDate(precipData?.data_through)+" · Luftdruck bis "+formatDate(pressureData.data_through);
       if(els.status.classList.contains("error"))els.status.classList.remove("error");
     }catch(error){console.error(error);els.status.classList.add("error");els.status.textContent=error.message;}
   }
