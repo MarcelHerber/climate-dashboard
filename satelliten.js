@@ -5,7 +5,9 @@ const API="https://view.eumetsat.int/geoserver/wms";
 const PRODUCTS={
  geocolour:{layer:"mtg_fd:rgb_geocolour",name:"GeoColour",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_geocolour",credit:"© EUMETSAT · GeoColour: NASA-Hintergrund"},
  dust:{layer:"mtg_fd:rgb_dust",name:"Dust RGB",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_dust",credit:"© EUMETSAT"},
- cloudtype:{layer:"mtg_fd:rgb_cloudtype",name:"Cloud Type RGB",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_cloudtype",credit:"© EUMETSAT"}
+ cloudtype:{layer:"mtg_fd:rgb_cloudtype",name:"Cloud Type RGB",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_cloudtype",credit:"© EUMETSAT"},
+ ir105:{layer:"mtg_fd:ir105_hrfi",name:"IR 10,5 µm (HRFI)",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",credit:"© EUMETSAT"},
+ firetemperature:{layer:"mtg_fd:rgb_firetemperature",name:"Fire Temperature RGB",url:"https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",credit:"© EUMETSAT"}
 };
 const REGIONS={
  europe:{name:"Europa und Nordafrika",bbox:[-27,24,49,73],w:1300,h:850},
