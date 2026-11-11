@@ -20,6 +20,30 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    assert.match(inventory,/Temperatur/);
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===365,
      null,{timeout:90000});
+   const extremes=()=>page.evaluate(()=>{
+     const chart=window.Chart.getChart(document.getElementById("sjaChart"));
+     return chart.data.datasets.filter(d=>d.label.startsWith("Absolutes ")).map(d=>({
+       label:d.label,length:d.data.length,dash:d.borderDash,
+       observed:d.data.filter(Number.isFinite).length,
+       data:d.data,order:d.order
+     }));
+   });
+   const assertExtremes=async (size,where)=>{
+     const pair=await extremes();
+     assert.equal(pair.length,2,device+" "+where+": minimum and maximum are required");
+     assert.match(pair[0].label,/Minimum/);
+     assert.match(pair[1].label,/Maximum/);
+     for(const entry of pair){
+       assert.equal(entry.length,size,device+" "+where+" length");
+       assert.ok(entry.dash.length>0,device+" "+where+" line must be dashed");
+       assert.ok(entry.observed>0,device+" "+where+" historical bounds must be real");
+     }
+     for(let i=0;i<size;i++){
+       if(Number.isFinite(pair[0].data[i])&&Number.isFinite(pair[1].data[i]))
+         assert.ok(pair[0].data[i]<=pair[1].data[i],device+" "+where+" impossible extrema at "+i);
+     }
+   };
+   await assertExtremes(365,"daily TMK");
    const tempCount=await page.locator("#sjaYears input").count();
    assert.ok(tempCount>20,device+": historical temperature years missing");
    // One temperature year must fill to the 1991–2020 line, with red above / blue below.
@@ -49,6 +73,11 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    assert.ok((await pngDownload).suggestedFilename().endsWith(".png"));
    await page.locator("#sjaMetric").selectOption("0");
    assert.match(await page.locator("#sjaChartTitle").textContent(),/Tmax/);
+   await assertExtremes(365,"daily Tmax");
+   await page.locator("#sjaMetric").selectOption("1");
+   await assertExtremes(365,"daily Tmin");
+   await page.locator("#sjaMetric").selectOption("2");
+   await assertExtremes(365,"daily TMK after parameter change");
    await page.locator("#sjaPrecip").click();
    assert.equal(await page.locator("#sjaFillControls").isVisible(),false,"Fill picker must be temperature-only");
    try {
@@ -59,13 +88,18 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
     throw error;
    }
    assert.match(await page.locator("#sjaChartTitle").textContent(),/Niederschlag/);
+   await assertExtremes(12,"precip cumulative monthly end");
+   await page.locator("#sjaMode").selectOption("monthly");
+   await assertExtremes(12,"precip monthly");
    await page.locator("#sjaMode").selectOption("daily");
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===365,
      null,{timeout:60000});
+   assert.equal((await extremes()).length,0,"Do not invent historical precip daily records");
    await page.locator("#sjaSnow").click();
    await page.waitForFunction(()=>window.Chart?.getChart(document.querySelector("#sjaChart"))?.data?.labels?.length===366,
      null,{timeout:90000});
    assert.match(await page.locator("#sjaStatus").textContent(),/hydrologischen Jahren/);
+   await assertExtremes(366,"hydrological snow");
    assert.equal(errors.length,0,device+" JS errors: "+errors.join(" | "));
    if(device==="mobile"){
     const width=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:window.innerWidth}));
@@ -82,7 +116,7 @@ const url=process.env.STATION_JAHR_URL||"http://127.0.0.1:8769/station_jahresana
    await page.locator("#sjaCsv").click();
    const downloaded=await downloadPromise;
    assert.ok(downloaded.suggestedFilename().endsWith(".csv"));
-   console.log(device,inventory,"temperature years",tempCount,"red/blue fill, PNG, snow chart and CSV OK");
+   console.log(device,inventory,"temperature years",tempCount,"red/blue fill, historic Tmin/Tmax/TMK, RR monthly/cumulative, snow min/max, PNG and CSV OK");
    await context.close();
   }
  }finally{await browser.close();}

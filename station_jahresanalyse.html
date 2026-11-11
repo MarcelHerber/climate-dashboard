@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="station_jahresanalyse.css?v=2">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-<script defer src="station_jahresanalyse.js?v=2"></script>
+<script defer src="station_jahresanalyse.js?v=3"></script>
 </head>
 <body class="sja-page">
 <header class="sja-top">
@@ -65,9 +65,9 @@
   </section>
   <section class="sja-panel sja-notes">
     <h2>Datenbasis und Hinweise</h2>
-    <p><strong>Temperatur:</strong> DWD CDC KL-Tagesdaten, TXK/TNK/TMK. Ausgewählte historische Kalenderjahre und das laufende Jahr (vorläufig) werden auf einer 365-Tage-Achse verglichen. Der 29. Februar ist nur im Vergleichsdiagramm ausgelassen; die Originaldatei bleibt unverändert. Fehlende Tageswerte bleiben Lücken. Die rot-blaue Fläche zeigt die tägliche Abweichung des ausgewählten Jahres zum jeweiligen Tagesmittel 1991–2020.</p>
-    <p><strong>Niederschlag:</strong> DWD CDC RR (RS). Historische Jahre stehen als vollständig beobachtete Monatssummen bereit; aktuelle Tageswerte werden direkt aus dem monatlichen Stationscache geladen. Kumulierte Werte werden bei Datenlücken nicht künstlich fortgeführt. Die Vergleichslinie 1991–2020 stammt aus vollständig beobachteten Referenzjahren.</p>
-    <p><strong>Schneehöhe:</strong> DWD SHK_TAG. Hier gelten hydrologische Jahre vom 1. November bis 31. Oktober, benannt nach dem Endjahr. Historische Jahre dürfen unvollständig sein und werden entsprechend gekennzeichnet. Als Klimareferenz dient der tägliche Median der verfügbaren qualitätsgeprüften Jahre 1991–2020; daneben kann das historische Maximum dargestellt werden.</p>
+    <p><strong>Temperatur:</strong> DWD CDC KL-Tagesdaten, TXK/TNK/TMK. Ausgewählte historische Kalenderjahre und das laufende Jahr (vorläufig) werden auf einer 365-Tage-Achse verglichen. Der 29. Februar ist nur im Vergleichsdiagramm ausgelassen; die Originaldatei bleibt unverändert. Fehlende Tageswerte bleiben Lücken. Die rot-blaue Fläche zeigt die tägliche Abweichung des ausgewählten Jahres zum jeweiligen Tagesmittel 1991–2020. Die zusätzlich gestrichelten Linien zeigen je Kalendertag das absolute historische Minimum und Maximum (ohne laufendes Jahr).</p>
+    <p><strong>Niederschlag:</strong> DWD CDC RR (RS). Historische Jahre stehen als vollständig beobachtete Monatssummen bereit; aktuelle Tageswerte werden direkt aus dem monatlichen Stationscache geladen. Kumulierte Werte werden bei Datenlücken nicht künstlich fortgeführt. Die Vergleichslinie 1991–2020 stammt aus vollständig beobachteten Referenzjahren. Gestrichelte Min-/Max-Kurven zeigen den historischen Monatsrekord beziehungsweise die kumulierten Rekordwerte aus vollständig gemessenen Jahren. Für den aktuellen täglichen Niederschlag liegen noch keine historischen Tagesrekordkurven vor.</p>
+    <p><strong>Schneehöhe:</strong> DWD SHK_TAG. Hier gelten hydrologische Jahre vom 1. November bis 31. Oktober, benannt nach dem Endjahr. Historische Jahre dürfen unvollständig sein und werden entsprechend gekennzeichnet. Als Klimareferenz dient der tägliche Median der verfügbaren qualitätsgeprüften Jahre 1991–2020. Gestrichelte Linien zeigen je Tag das Minimum und Maximum aller qualitätsgeprüften historischen hydrologischen Jahre.</p>
     <p><strong>Abdeckung:</strong> Die Auswahl zeigt nur Stationen, für die im Repository entsprechende Originalarchive vorliegen. Nicht jede Station besitzt alle Messgrößen; fehlende Werte werden weder mit Null noch mit Nachbarstationen ersetzt. Die Daten stammen aus dem vorhandenen Climate-Dashboard-Archiv und werden nur bei Auswahl einer Station geladen.</p>
   </section>
 </main>

@@ -252,6 +252,31 @@ function cumulative(values){
   sum+=v;return Math.round(sum*10)/10;
  });
 }
+// Per-calendar-position all-time bounds from genuinely observed historical values.
+// No interpolation, no zeros for gaps, and no incomplete current year in records.
+function historicalExtremes(curves,size){
+ const minimum=Array(size).fill(null),maximum=Array(size).fill(null);
+ for(const curve of curves){
+  if(!Array.isArray(curve))continue;
+  for(let i=0;i<size;i++){
+   const value=curve[i];
+   if(!isNumber(value))continue;
+   if(minimum[i]===null||value<minimum[i])minimum[i]=value;
+   if(maximum[i]===null||value>maximum[i])maximum[i]=value;
+  }
+ }
+ return {minimum,maximum};
+}
+function addExtremes(datasets,values,unitLabel){
+ const {minimum,maximum}=values;
+ if(!minimum.some(isNumber)&&!maximum.some(isNumber))return false;
+ const dash=[8,5];
+ datasets.push(
+  {label:"Absolutes Minimum · "+unitLabel,data:minimum,color:"#397ab9",dash,borderWidth:1.7,order:2},
+  {label:"Absolutes Maximum · "+unitLabel,data:maximum,color:"#ba6b34",dash,borderWidth:1.7,order:2}
+ );
+ return true;
+}
 function updateTemperatureFillYear(){
  const candidates=[...selected].sort((a,b)=>b-a);
  if(!candidates.includes(fillYear))fillYear=candidates[0]??null;
@@ -282,9 +307,12 @@ function renderTemp(){
    fillConfig:year===highlightedYear?{target:0,above:WARM_FILL,below:COLD_FILL}:false
   });
  });
+ const historical=[...history.entries()].filter(([year])=>year<CURRENT)
+  .map(([,rows])=>rows.map(row=>row[k]));
+ addExtremes(datasets,historicalExtremes(historical,365),"Kalendertag");
  makeChart(AXIS.map(x=>x.slice(3)+"."+x.slice(0,2)),datasets,
   name+" · Tagesverlauf", "°C","line",
-  observed+" echte Tagesmesswerte in den gewählten Jahren. Referenzkurve aus den verfügbaren Jahren 1991–2020 (mindestens 15 Werte je Kalendertag). "+(highlightedYear===null?"":"Abweichungsfläche "+highlightedYear+": Rot = wärmer, Blau = kühler. ")+"Fehlende Werte bleiben Lücken.");
+  observed+" echte Tagesmesswerte in den gewählten Jahren. Referenzkurve aus den verfügbaren Jahren 1991–2020 (mindestens 15 Werte je Kalendertag). "+(highlightedYear===null?"":"Abweichungsfläche "+highlightedYear+": Rot = wärmer, Blau = kühler. ")+"Gestrichelt: absolutes Tagesminimum und Tagesmaximum der vorhandenen historischen Messreihe (ohne laufendes Jahr). Fehlende Werte bleiben Lücken.");
  text("sjaStats", "");
 }
 function precipBaseline(profile){
@@ -303,11 +331,12 @@ function renderPrecip(){
  const climatology=precipBaseline(profile);
  let datasets=[],labels=MONTHS,unit="mm",type="line",note="";
  const selectedYears=[...selected].sort((a,b)=>a-b);
+ const allHistorical=(profile.monthly_history||[]).filter(row=>Number(row.year)<CURRENT&&Array.isArray(row.months));
  if(mode==="daily"){
   labels=AXIS.map(md=>md.slice(3)+"."+md.slice(0,2));
   datasets=[{label:String(CURRENT)+" · Tagesniederschlag",data:daily,color:"#247bb3",type:"bar"}];
   type="bar";
-  note="Aktuelle RR-Tagesmessungen "+CURRENT+" (vorläufig). Für ältere Jahre sind in diesem Archiv nur vollständige Monatssummen verfügbar.";
+  note="Aktuelle RR-Tagesmessungen "+CURRENT+" (vorläufig). Für ältere Jahre sind in diesem Archiv nur vollständige Monatssummen verfügbar; historische Tages-Minima/-Maxima sind deshalb hier nicht seriös darstellbar.";
  }else{
   const baseline=mode==="cumulative"?cumulative(climatology):climatology;
   datasets=[{label:"1991–2020 · Mittel",data:baseline,color:"#536374",dash:[5,5],type:"line",order:4}];
@@ -317,8 +346,16 @@ function renderPrecip(){
    datasets.push({label:String(year)+(year===CURRENT?" · vorläufig":""),data:mode==="cumulative"?cumulative(raw):raw,
     color:COLORS[i%COLORS.length],type:mode==="cumulative"?"line":"bar"});
   }
+  // For running sums only full historical calendar years qualify for records;
+  // for month totals each month must be fully observed, independently.
+  const observed=mode==="cumulative"?
+   allHistorical.filter(row=>row.months.length===12&&row.months.every(isNumber))
+    .map(row=>cumulative(row.months)):
+   allHistorical.map(row=>row.months);
+  addExtremes(datasets,historicalExtremes(observed,12),
+   mode==="cumulative"?"kumuliert, Monatsende":"Kalendermonat");
   type=mode==="cumulative"?"line":"bar";
-  note="Historische Monatssummen aus vollständig beobachteten DWD-RR-Monaten. Laufende, unvollständige Monate und fehlende Monate werden nicht als vollständige Summen gerechnet.";
+  note="Historische Monatssummen aus vollständig beobachteten DWD-RR-Monaten. Gestrichelt: absolute Monats-Minima/-Maxima"+(mode==="cumulative"?" aus vollständig beobachteten Kalenderjahren":"")+" der vorhandenen Messreihe. Laufende und fehlende Monate werden nicht als vollständige Summen gerechnet.";
  }
  makeChart(labels,datasets,mode==="daily"?"Tagesniederschlag "+CURRENT:mode==="monthly"?"Monatsniederschlag":"Niederschlag · kumuliertes Kalenderjahr",unit,type,note);
  text("sjaStats","");
@@ -326,12 +363,15 @@ function renderPrecip(){
 function renderSnow(){
  const {archive,profile,current}=payload;
  const axis=archive.month_days,med=new Map((profile?.daily||[]).map(row=>[row[0],row[2]]));
- const max=new Map((profile?.daily||[]).map(row=>[row[0],row[7]]));
  const labels=axis.map(md=>md.slice(3)+"."+md.slice(0,2));
  const datasets=[
   {label:"1991–2020 · Tagesmedian",data:axis.map(md=>isNumber(med.get(md))?med.get(md):null),color:"#516577",dash:[5,5],order:3},
-  {label:"Historisches Tagesmaximum",data:axis.map(md=>isNumber(max.get(md))?max.get(md):null),color:"#a6b5c1",dash:[3,5],order:4},
  ];
+ // Consistent bounds: only quality-approved (>=98%) historical hydrological years,
+ // matching the snow climatology's accepted-year population.
+ const accepted=(archive.years||[]).filter(row=>row.accepted===true&&
+  Array.isArray(row.values)&&row.values.length===axis.length).map(row=>row.values);
+ addExtremes(datasets,historicalExtremes(accepted,axis.length),"Hydrologischer Tag");
  const yearMap=new Map(archive.years.map(row=>[Number(row.year),row]));
  const currentYear=Number(current?.hydrological_year);
  const curDays=new Map((current?.rows||[]).map(row=>[fromDate(row[0]),row[1]]));
@@ -345,7 +385,7 @@ function renderSnow(){
    data:values,color:COLORS[i%COLORS.length],order:1});
  });
  makeChart(labels,datasets,"Schneehöhe · 1. November bis 31. Oktober","cm","line",
-  count+" beobachtete Tageswerte in den gewählten hydrologischen Jahren. Median 1991–2020; unvollständige Jahre sind gekennzeichnet. Keine Lückenfüllung.");
+  count+" beobachtete Tageswerte in den gewählten hydrologischen Jahren. Median 1991–2020; gestrichelt: absolutes Tagesminimum und Tagesmaximum aus qualitätsgeprüften historischen Jahren (≥98 %). Unvollständige Jahre sind gekennzeichnet. Keine Lückenfüllung.");
  text("sjaStats","");
 }
 function render(){
