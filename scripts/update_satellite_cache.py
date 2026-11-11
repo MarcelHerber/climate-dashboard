@@ -118,7 +118,10 @@ def run() -> int:
             if not payload:
                 print(f"{product}/{region}: keeping last good image ({error})")
                 continue
-            filename = f"{product}_{region}.png"
+            # Immutable timestamped filenames prevent stale browser/CDN bytes
+            # being displayed under a newer observation time.
+            filename = f"{product}_{region}_{timestamp.replace('-', '').replace(':', '')}.png"
+            former = entries.get(product, {}).get(region, {}).get("url", "")
             (ROOT / filename).write_bytes(payload)
             entries.setdefault(product, {})[region] = {
                 "time": timestamp,
@@ -128,6 +131,10 @@ def run() -> int:
                 "source": "EUMETSAT WMS",
                 "saved_at": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
             }
+            if former.startswith(f"./data/satellite_cache/{product}_{region}_") and former.endswith(".png"):
+                previous = ROOT / former.rsplit("/", 1)[-1]
+                if previous.name != filename:
+                    previous.unlink(missing_ok=True)
             updated += 1
             print(f"{product}/{region}: archived {timestamp} ({len(payload)} bytes)")
     if updated:
