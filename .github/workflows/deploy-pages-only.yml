@@ -17,7 +17,7 @@ on:
   # Actions-authored snow profile data commits do not fire another push run.
   # Publish the rebuilt historical year curves after that workflow succeeds.
   workflow_run:
-    workflows: ["Build DWD snow-height profiles"]
+    workflows: ["Build DWD snow-height profiles", "Update satellite ECMWF isobars"]
     types: [completed]
 
 permissions:
