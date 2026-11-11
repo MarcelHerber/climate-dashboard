@@ -26,7 +26,7 @@ const filmLength=id("satFilmLength"),filmQuality=id("satFilmQuality"),filmSpeed=
 const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLabel"),filmProgressWrap=id("satFilmProgressWrap");
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
 let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPosition=0;
-let stillTimeout=null,exportBusy=false;
+let stillTimeout=null,exportBusy=false,cachedImage=null;
 const exporters=window.SatelliteFilmExport;
 const description=()=>PRODUCTS[product.value];
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
@@ -73,7 +73,7 @@ function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.v
 function drawFrame(t, fallbackDepth=0){
  const seq=token,req=++imageRequest;
  if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
- loaded=false;verified=Boolean(t);
+ loaded=false;verified=Boolean(t);cachedImage=null;
  empty.hidden=true;image.hidden=false;
  const p=description(),r=REGIONS[region.value];
  image.alt=p.name+" – "+r.name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
@@ -89,6 +89,44 @@ function drawFrame(t, fallbackDepth=0){
  const fullUrl=imageUrl(t);
  let level=0;
  const current=()=>seq===token&&req===imageRequest;
+ async function showCached(reason){
+  try{
+   const response=await fetch("./data/satellite_cache/index.json",{cache:"no-store"});
+   if(!response.ok||!current())return false;
+   const doc=await response.json();
+   const item=doc.schema===1?doc.entries?.[product.value]?.[region.value]:null;
+   const timestamp=Date.parse(item?.time);
+   const age=Date.now()-timestamp;
+   const path="./data/satellite_cache/"+product.value+"_"+region.value+".png";
+   if(!item||!Number.isFinite(timestamp)||age<0||age>7*86400000||item.url!==path||item.source!=="EUMETSAT WMS"||item.width!==400)return false;
+   if(!current())return false;
+   setStatus("Der EUMETSAT-WMS ist gestört ("+reason+"). Lade gespeicherte Aufnahme vom "+formatUTC(item.time)+" …","warning");
+   return await new Promise(resolve=>{
+    let settled=false;
+    const finish=success=>{
+     if(settled)return;
+     settled=true;clearTimeout(timer);resolve(success);
+    };
+    const timer=setTimeout(()=>{image.onload=null;image.onerror=null;finish(false);},8000);
+    image.onload=()=>{
+     if(!current()){finish(false);return;}
+     cachedImage={time:item.time,url:path};
+     loaded=true;verified=true;empty.hidden=true;image.hidden=false;
+     currentUrl=path;id("satRawImage").href=path;id("satRawImage").hidden=false;
+     id("satRawImage").textContent="Gespeichertes Archivbild öffnen ↗";
+     id("satValid").textContent="Archivaufnahme: "+formatUTC(item.time)+" · nicht live";
+     id("satImageInfo").textContent="Gespeicherter EUMETSAT-WMS-Abruf · "+image.naturalWidth+" px · UTC geprüft · kein Livestream";
+     image.alt=description().name+" – gespeicherte Satellitenaufnahme "+formatUTC(item.time);
+     window.SatelliteIsobars?.sync({time:item.time,region:region.value,source:source.value});
+     buttons();
+     setStatus("EUMETSAT vorübergehend gestört: gespeicherte "+description().name+"-Aufnahme vom "+formatUTC(item.time)+". Nicht aktuell. PNG verwendet die Archivauflösung.","warning");
+     finish(true);
+    };
+    image.onerror=()=>finish(false);
+    image.src=path;
+   });
+  }catch(_){return false;}
+ }
  function fail(reason){
   if(!current()||!filmImage.hidden)return;
   if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
@@ -106,26 +144,30 @@ function drawFrame(t, fallbackDepth=0){
    setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
    return;
   }
-  // The health check has shown intermittent HTTP 500/504 on RGB layers while
-  // IR 10.5 µm can remain available. Switch the visible product explicitly;
-  // never pretend that an infrared image is the original RGB product.
-  if(product.value!=="ir105"&&source.value==="mtgi1"){
-   const unavailable=description().name;
-   product.value="ir105";
-   stop();
-   refresh();
-   setStatus(unavailable+" ist beim EUMETSAT-WMS momentan nicht erreichbar ("+reason+"). Automatisch auf IR 10,5 µm umgeschaltet; dies ist ein anderes Satellitenprodukt. Lade IR-Aufnahme …","warning");
-   return;
-  }
-  loaded=false;image.hidden=true;empty.hidden=false;
-  empty.textContent="EUMETSAT liefert derzeit keine abrufbare Aufnahme. Originalprodukt über den offiziellen Link prüfen.";
-  buttons();setStatus("EUMETSAT liefert auch für IR 10,5 µm kein Bild ("+reason+"). Mögliche Serverstörung – das Problem lässt sich nicht allein durch kleinere Auflösungen beheben.","error");
+  // Keep the most recent *successfully downloaded* same-product image first.
+  // Only after that fails, switch explicitly to an alternative product.
+  void showCached(reason).then(archived=>{
+   if(archived||!current())return;
+   if(product.value!=="ir105"&&source.value==="mtgi1"){
+    const unavailable=description().name;
+    product.value="ir105";
+    stop();
+    refresh();
+    setStatus(unavailable+" ist beim EUMETSAT-WMS nicht erreichbar ("+reason+"). Kein geeignetes Archivbild vorhanden; versuche IR 10,5 µm als ausdrücklich anderes Produkt …","warning");
+    return;
+   }
+   loaded=false;image.hidden=true;empty.hidden=false;
+   empty.textContent="Weder aktuelle EUMETSAT-Aufnahmen noch ein geprüftes Archivbild verfügbar. Bitte offiziellen Produktlink öffnen.";
+   buttons();
+   setStatus("EUMETSAT-WMS derzeit nicht erreichbar ("+reason+"). Kein geeignetes Archivbild vorhanden.","error");
+  });
  }
  function attempt(){
   if(!current()||!filmImage.hidden)return;
   const url=imageUrl(t,widths[level]);
   currentUrl=fullUrl;
   id("satRawImage").href=fullUrl;id("satRawImage").hidden=false;
+  id("satRawImage").textContent="Originalbild beim Anbieter öffnen ↗";
   const size=widths[level]||r.w;
   image.onload=()=>{
    if(!current())return;
@@ -384,20 +426,20 @@ async function downloadPNG(){
  try{
   const img=new Image();img.crossOrigin="anonymous";
   // The preview is deliberately small; only download requests the native WMS size.
-  const exportUrl=verified&&frames[index]?imageUrl(frames[index]):imageUrl(null);
+  const exportUrl=cachedImage?.url||(verified&&frames[index]?imageUrl(frames[index]):imageUrl(null));
   await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("CORS or high-resolution WMS unavailable"));img.src=exportUrl;});
   const pad=24,header=96,footer=80,c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight+header+footer;
   const ctx=c.getContext("2d");ctx.fillStyle="#ffffff";ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle="#162f4a";
   ctx.font="bold 27px Arial";ctx.fillText("MTG / "+description().name+" · "+REGIONS[region.value].name,pad,42);
-  ctx.font="19px Arial";ctx.fillText(verified&&frames[index]?"Aufnahme: "+formatUTC(frames[index]):"Aufnahmezeit nicht verifiziert",pad,75);
+  ctx.font="19px Arial";ctx.fillText(cachedImage?"Archivaufnahme: "+formatUTC(cachedImage.time):verified&&frames[index]?"Aufnahme: "+formatUTC(frames[index]):"Aufnahmezeit nicht verifiziert",pad,75);
   ctx.drawImage(img,0,header);ctx.fillStyle="#162f4a";ctx.font="16px Arial";
   ctx.fillText("© EUMETSAT"+(product.value==="geocolour"?" / NASA":""),pad,c.height-48);
   ctx.fillText("Quelle: view.eumetsat.int · Originalprodukt / WMS",pad,c.height-22);
   const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("Export nicht zulässig")),"image/png"));
   const u=URL.createObjectURL(blob),link=document.createElement("a");link.href=u;
-  link.download="mtg_"+product.value+"_"+region.value+"_"+(verified?frames[index].replace(/[:.]/g,"-"):"zeitpunkt-unbekannt")+".png";
+  link.download="mtg_"+product.value+"_"+region.value+"_"+(cachedImage?cachedImage.time.replace(/[:.]/g,"-"):verified&&frames[index]?frames[index].replace(/[:.]/g,"-"):"zeitpunkt-unbekannt")+".png";
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);
-  setStatus("Beschriftetes PNG erstellt. Herkunft und UTC-Zeit sind im Bild enthalten.","info");
+  setStatus(cachedImage?"Gespeichertes Satellitenbild als beschriftetes PNG exportiert (Archivauflösung, keine aktuelle Aufnahme).":"Beschriftetes PNG erstellt. Herkunft und UTC-Zeit sind im Bild enthalten.",cachedImage?"warning":"info");
  }catch(_){setStatus("EUMETSAT erlaubt für diese Browseranfrage keinen direkten PNG-Canvas-Export (CORS). Öffne das Originalbild bzw. den EUMETView-Link; es wurde kein falsches Downloadbild erzeugt.","warning");}
  finally{buttons();}
 }
