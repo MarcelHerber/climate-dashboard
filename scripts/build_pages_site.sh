@@ -102,6 +102,7 @@ required_root_files=(
   satelliten.html
   satelliten.js
   satelliten.css
+  satellite_overlay.js
   wettergefahren.js
   wettergefahren.css
   wettergefahren_export.js
@@ -190,6 +191,19 @@ with path.open("w",encoding="utf-8") as handle:
 print("Stationsniederschlag-Index:",original,"->",path.stat().st_size,"Byte (verlustfrei)")
 PY
 node --check _site/dashboard_export_hq.js
+# Reuse the existing validated 1:50m Natural Earth geometry for satellite
+# coastlines and borders; local asset avoids a fragile third-party tile server.
+python - <<'PY'
+import json
+from pathlib import Path
+src=Path("data/blocking/borders_50m.json")
+obj=json.loads(src.read_text(encoding="utf-8"))
+assert obj["schema_version"]==1 and len(obj["lines"])>=300
+assert obj["coverage_bbox"][0]<=-70 and obj["coverage_bbox"][2]>=35
+assert "Natural Earth" in obj["source"]
+PY
+mkdir -p _site/data/blocking
+cp data/blocking/borders_50m.json _site/data/blocking/borders_50m.json
 # Fallback for browser CORS: only publish satellite timestamps checked by the
 # independent EUMETSAT live probe; never create fake status if absent.
 if [[ -s data/satellite_wms_times.json ]]; then
@@ -412,6 +426,8 @@ PY
 # Desktop bleibt unverändert; keine individuellen Seiteninhalte werden verändert.
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
+node --check _site/satellite_overlay.js
+node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_film.cjs
 grep -q 'src="satelliten.js"' _site/satelliten.html
