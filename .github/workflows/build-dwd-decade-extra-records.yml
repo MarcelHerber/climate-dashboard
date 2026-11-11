@@ -36,6 +36,14 @@ jobs:
       - name: Klimatologische Rekordlogik und Vollständigkeit prüfen
         run: |
           python -m py_compile scripts/build_dwd_decade_extra_records.py
+          python - <<'PY'
+          from pathlib import Path
+          text=Path("dekadenrekorde.html").read_text()
+          required=["tmk_high","tmk_low","sdk_high","sdk_sum_high","sdk_sum_low","fx_high","rs_sum_high","rs_sum_low"]
+          assert all(text.count('value="'+key+'"')==2 for key in required)
+          assert "method:\"HEAD\"" in text
+          print("Frontend-Parameter und Lazy Loading geprüft.")
+          PY
           python -m unittest discover -s tests -p 'test_dwd_decade_extra_records.py' -v
       - name: Amtliche historische und aktuelle DWD-Daten auswerten
         run: |

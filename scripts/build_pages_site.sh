@@ -678,6 +678,14 @@ done
 
 # Dekadenrekorde · Tagesniederschlag. Die Datenbasis wird in einem separaten
 # DWD-RR-Workflow erzeugt und nach erfolgreichem Lauf hier mit veröffentlicht.
+# Ergänzte Dekadenrekorde werden als separate, optional erzeugte Archive
+# kopiert; die bestehende Seite funktioniert während des Erstaufbaus weiter.
+for extra_file in data/dwd_decade_extra_kl.json data/dwd_decade_extra_rr.json; do
+  if [[ -s "$extra_file" ]]; then
+    cp "$extra_file" _site/data/
+    echo "Dekaden-Zusatzrekorde veröffentlicht: $extra_file"
+  fi
+done
 if [[ -s data/dwd_decade_precip_records.json ]]; then
   cp data/dwd_decade_precip_records.json _site/data/
   echo "Niederschlags-Dekadenrekorde in Pages-Artefakt übernommen."
