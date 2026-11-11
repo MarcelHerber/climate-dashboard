@@ -72,3 +72,13 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-city-label::before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;
  background:white;box-shadow:0 0 0 1px #142d41;margin-right:3px;vertical-align:middle}
 @media(max-width:650px){.sat-overlay-controls{gap:9px 16px}.sat-city-label{font-size:9px}}
+
+/* ECMWF IFS georeferenced 5/10-hPa isobars. A separate vector layer avoids
+   changing the WMS satellite pixel data or the Natural Earth borders. */
+.sat-overlay-controls select{font:inherit;font-size:13px;min-height:36px;border:1px solid var(--sat-border);background:var(--sat-bg);color:var(--sat-text);border-radius:7px;padding:5px 7px}
+.sat-isobar-status{font-size:12px;line-height:1.5;color:var(--sat-muted);margin:7px 0 0!important;max-width:100%!important;font-variant-numeric:tabular-nums}
+#satIsobarSvg{position:absolute;inset:0;z-index:4;width:100%;height:100%;display:block;pointer-events:none;overflow:hidden;filter:drop-shadow(0 1px 1px rgba(0,0,0,.78))}
+#satIsobarSvg[hidden]{display:none}
+#satCitiesLayer{z-index:5}
+.sat-isobar-label{font-family:Arial,sans-serif;font-weight:800;font-size:13px;fill:#fff;stroke:rgba(10,24,40,.95);stroke-width:3px;paint-order:stroke;dominant-baseline:middle;text-anchor:middle}
+@media(max-width:650px){.sat-isobar-label{font-size:11px}.sat-isobar-status{font-size:11px}.sat-overlay-controls{gap:9px 12px}}
