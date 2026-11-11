@@ -1,0 +1,115 @@
+name: IPMA Azoren · Wetterradar Echt-Daten & Browser
+
+on:
+  pull_request:
+    paths:
+      - "alpenwetter-worker/src/azores-radar-client.js"
+      - "alpenwetter-worker/src/azores-radar-lab.js"
+      - "alpenwetter-worker/src/index.js"
+      - "tests/test_ipma_azores_browser.mjs"
+      - ".github/workflows/test-ipma-azores.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-ipma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: pip install "requests>=2,<3" "pillow>=11,<13"
+      - name: Original IPMA Zeitstempel, Radarbild und Farblegende prüfen
+        run: |
+          python - <<'PY'
+          import requests,io
+          from PIL import Image
+          from datetime import datetime,timezone,timedelta
+          s=requests.Session()
+          s.headers["User-Agent"]="ClimateDashboard-Azores-Radar-Test/1.0"
+          origin="https://www.ipma.pt/resources.www/transf/radar/"
+          r=s.get(origin+"imgs-radar-az.json",timeout=35)
+          r.raise_for_status()
+          rows=r.json()["Azores"]
+          assert len(rows)>=3,"Insufficient live IPMA Azores observations"
+          times=[datetime.strptime(item["date"],"%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc) for item in rows]
+          assert len(set(times))==len(times)
+          assert datetime.now(timezone.utc)-max(times)<timedelta(minutes=95)
+          assert min(times)>datetime.now(timezone.utc)-timedelta(hours=6)
+          paths=[item["path"] for item in rows]
+          assert all(p.startswith("pcr_azo-") and p.endswith(".png") and "/" not in p for p in paths)
+          for image_name in [paths[0],paths[-1]]:
+              response=s.get(origin+"azo/"+image_name,timeout=45);response.raise_for_status()
+              with Image.open(io.BytesIO(response.content)) as im:
+                  assert im.format=="PNG" and im.width>900 and im.height>900
+                  assert im.info.get("transparency") is not None or im.mode=="RGBA"
+                  print("IPMA AÇORES ORIGINAL PNG",image_name,im.size,im.mode)
+          legend=s.get(origin+"png-geo/legenda-radar.png",timeout=35);legend.raise_for_status()
+          with Image.open(io.BytesIO(legend.content)) as im:
+              assert im.width>60 and im.height>10
+              print("IPMA ORIGINAL MM/H LEGEND",im.size)
+          print("AZORES REAL DATA PASS",len(rows),"newest",max(times).isoformat())
+          PY
+
+  cloudflare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Anmeldeschutz, Endpunkte und Browser-Skript überprüfen
+        run: |
+          node --input-type=module --check < alpenwetter-worker/src/azores-radar-lab.js
+          node --input-type=module --check < alpenwetter-worker/src/azores-radar-client.js
+          node --input-type=module --check < alpenwetter-worker/src/index.js
+          node --input-type=module <<'JS'
+          import assert from "node:assert/strict";
+          import worker from "./alpenwetter-worker/src/index.js";
+          import {azoresRadarPage,azoresRadarLoginPage,azoresRadarData} from "./alpenwetter-worker/src/azores-radar-lab.js";
+          const page=azoresRadarPage(),script=page.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+          assert.ok(script?.length>8000);new Function(script);
+          assert.doesNotMatch(script,/__name\(/);
+          assert.match(azoresRadarLoginPage(),/name="next" value="\/radarlabor\/azoren"/);
+          const env={ALPENWETTER_PASSWORD:"unit-only"};
+          for(const path of ["/radarlabor/api/azoren/current.json","/radarlabor/api/azoren/legend.png",
+            "/radarlabor/api/azoren/frames/pcr_azo-2026-11-11T1420.png"]){
+            const r=await worker.fetch(new Request("https://example.org"+path),env);
+            assert.equal(r.status,401,path+" not password protected");
+          }
+          const form=await worker.fetch(new Request("https://example.org/radarlabor/azoren"),env);
+          assert.equal(form.status,200);assert.match(await form.text(),/type="password"/);
+          const fakeHeaders=x=>new Headers(x);
+          const malicious=await azoresRadarData(new URL("https://example.org/radarlabor/api/azoren/frames/%2e%2e/danger.png"),fakeHeaders);
+          assert.equal(malicious.status,400);
+          const bad=await azoresRadarData(new URL("https://example.org/radarlabor/api/azoren/private.txt"),fakeHeaders);
+          assert.equal(bad.status,400);
+          console.log("Protected IPMA Azores radar, route, source and browser code PASS");
+          JS
+      - name: Cloudflare Worker Produktions-Bundle vorab prüfen
+        run: |
+          npm install --no-save wrangler@4
+          npx wrangler deploy --dry-run --outdir /tmp/azores-worker --config alpenwetter-worker/wrangler.toml
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Playwright Chromium
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Azoren-Karte, drei Inselgruppen, Animation, PNG, Handy
+        run: node tests/test_ipma_azores_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: azores-radar-browser-previews
+          path: /tmp/azores-radar-*.png
+          if-no-files-found: ignore

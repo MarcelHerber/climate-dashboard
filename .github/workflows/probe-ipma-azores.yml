@@ -1,0 +1,25 @@
+name: IPMA Azoren-Radar · amtliche Quellenprüfung
+
+on:
+  pull_request:
+    paths:
+      - "tests/probe_ipma_azores.py"
+      - ".github/workflows/probe-ipma-azores.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: HTML und JavaScript der amtlichen IPMA-Seiten prüfen
+        run: |
+          pip install "requests>=2,<3" "beautifulsoup4>=4,<5" "pillow>=11,<13"
+          python tests/probe_ipma_azores.py

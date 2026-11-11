@@ -1,0 +1,36 @@
+name: IPMA Azoren-Radar · Live Desktop und Handy
+
+on:
+  workflow_run:
+    workflows:
+      - "Alpenwetter Worker veröffentlichen"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      ALPENWETTER_PASSWORD: ${{ secrets.ALPENWETTER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Playwright Chromium installieren
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Echtes IPMA-Radar, feste Farblegende, Inselgruppen und Download prüfen
+        run: node tests/test_ipma_azores_live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ipma-azores-live-views
+          path: /tmp/ipma-azores-live-*.png
+          if-no-files-found: ignore

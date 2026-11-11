@@ -59,7 +59,7 @@ export function canariasRadarPage(){
  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
  '<meta name="robots" content="noindex,nofollow,noarchive"><title>AEMET-Kanaren-Radar · Privat</title><style>'+STYLES+'</style></head><body>'+
  '<header><div><small>CLIMATE DASHBOARD · PRIVATES RADARLABOR</small><strong>AEMET · Kanarische Inseln</strong></div>'+
- '<nav><a href="/radarlabor/europa">OPERA Europa / Balearen</a><a href="/radarlabor">Deutschland</a>'+
+ '<nav><a href="/radarlabor/azoren">Azoren · IPMA</a><a href="/radarlabor/europa">OPERA Europa / Balearen</a><a href="/radarlabor">Deutschland</a>'+
  '<form action="/logout" method="POST"><button>Abmelden</button></form></nav></header>'+
  '<main><h1>Radar Kanarische Inseln</h1><p class="intro">Amtliches AEMET-Kanarenradar (LPA / Com-Canarias). Reflektivität der untersten 0,5°-Elevation in dBZ, im 10-Minuten-Raster. Die GeoTIFFs werden geografisch umgerechnet und anhand der originalen AEMET-Farbklassen dargestellt.</p>'+
  '<div class="layout"><section class="card"><div class="row"><strong id="model">AEMET · Radardaten prüfen</strong><span class="tag" id="time">–</span></div>'+
