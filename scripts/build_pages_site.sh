@@ -528,6 +528,7 @@ fi
 node --check _site/dashboard_theme.js
 # MOSMIX muss auch im Haupt-Website-Deploy syntaktisch valide sein.
 node --check _site/mosmix.js
+node tests/test_current_station_daily_ui.mjs
 node --check _site/mosmix_vector_export.js
 node tests/test_mosmix_vector_exports.mjs
 node tests/test_mosmix_world.mjs
