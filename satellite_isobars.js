@@ -73,15 +73,15 @@ function update(){
  if(!active){svg.replaceChildren();note(!supported?"Isobaren für Erdscheibe/MTG-I2 nicht verfügbar (andere Projektion).":"Isobaren ausgeblendet.");return;}
  if(failed){svg.replaceChildren();note("ECMWF-IFS-Druckfeld momentan nicht verfügbar. Satellitenbilder bleiben nutzbar.");return;}
  if(!data){svg.replaceChildren();note("Lade echte ECMWF-IFS-Luftdruckdaten (0,25°) …");load();return;}
- if(!context.time){svg.replaceChildren();note("Isobaren erst nach bestätigtem Satelliten-UTC-Zeitpunkt verfügbar.");return;}
+ if(!context.time){svg.replaceChildren();svg.toggleAttribute("hidden",true);note("Isobaren erst nach bestätigtem Satelliten-UTC-Zeitpunkt verfügbar.");return;}
  const frame=frameFor(context.time),bbox=BBOX[context.region];
  if(!frame){
-  svg.replaceChildren();
+  svg.replaceChildren();svg.toggleAttribute("hidden",true);
   note("Für "+utc(context.time)+" gibt es kein passendes ECMWF-IFS-Feld innerhalb von 4 Stunden. Isobaren ausgeblendet.");
   return;
  }
  if(Date.now()-Date.parse(data.generated_at)>MAX_DATA_AGE){
-  svg.replaceChildren();
+  svg.replaceChildren();svg.toggleAttribute("hidden",true);
   note("ECMWF-Vektordaten sind älter als 30 Stunden. Kein veraltetes Druckfeld einblenden.");
   return;
  }
