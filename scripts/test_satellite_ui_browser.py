@@ -20,7 +20,7 @@ OUT = ROOT / "data/satellite_browser_check_latest.json"
 SHOTS = ROOT / "_satellite_test_screenshots"
 SHOTS.mkdir(exist_ok=True)
 WMS = "https://view.eumetsat.int/geoserver/wms"
-PROD = ("geocolour", "dust", "cloudtype")
+PROD = ("geocolour", "dust", "cloudtype", "ir105", "firetemperature")
 REMOTE = "https://marcelherber.github.io/climate-dashboard/satelliten.html"
 
 
@@ -159,7 +159,8 @@ def exercise(page, viewport_label, official_xml):
     for option in PROD:
         page.locator("#satProduct").select_option(option)
         page.wait_for_timeout(250)
-        evidence[option+"_url"]="mtg_fd%3Argb_"+option in page.locator("#satImage").get_attribute("src")
+        expected=("mtg_fd%3Air105_hrfi" if option=="ir105" else "mtg_fd%3Argb_"+option)
+        evidence[option+"_url"]=expected in page.locator("#satImage").get_attribute("src")
         assert evidence[option+"_url"], "Wrong WMS layer for "+option
     # Source switch cannot falsely identify commissioning images as a stream.
     page.locator("#satSource").select_option("mtgi2")
