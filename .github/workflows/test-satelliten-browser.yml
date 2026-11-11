@@ -36,7 +36,9 @@ jobs:
       - name: Install headless Chromium automation
         run: |
           python -m pip install playwright
-          python -m playwright install --with-deps chromium
+          # Hosted Ubuntu runners already provide the usual headless browser libraries.
+          # Avoid apt-get --with-deps: Ubuntu mirror DNS failures prevented the UI test.
+          python -m playwright install chromium
       - name: Run real-data desktop and mobile acceptance tests
         id: test
         continue-on-error: true
