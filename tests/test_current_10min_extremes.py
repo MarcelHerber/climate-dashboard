@@ -28,7 +28,8 @@ class RealExtremaTests(unittest.TestCase):
     def profile(self, include_extrema=True):
         source_rows = {
             "temperature": [
-                row("2026-11-10T23:00:00Z", temp=9.9, humidity=100, dewpoint=8.2, pressure=1050, ground_temp=10),
+                # Instantaneous TT_10 reading at 23:50 MEZ belongs to the preceding day.
+                row("2026-11-10T22:50:00Z", temp=9.9, humidity=100, dewpoint=8.2, pressure=1050, ground_temp=10),
                 row("2026-11-11T06:00:00Z", temp=9.0, humidity=72, dewpoint=6.0, pressure=1008, ground_temp=10),
                 row("2026-11-11T10:00:00Z", temp=11.1, humidity=91, dewpoint=9.7, pressure=1005, ground_temp=12),
                 row("2026-11-11T14:00:00Z", temp=15.4, humidity=61, dewpoint=8.0, pressure=1004, ground_temp=15),
