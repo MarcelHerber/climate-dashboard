@@ -214,7 +214,7 @@ function drawPdf(pdf,scene){
   };
   function draw(item){
     if(item.kind==="text"){
-      colorize(item.color||[51,65,85],true);
+      pdf.setTextColor(...(item.color||[51,65,85]));
       pdf.setFont("helvetica",item.bold?"bold":"normal");
       pdf.setFontSize(item.size*scale*72/25.4);
       pdf.text(String(item.text).replace(/[–—]/g,"-"),x(item.x),y(item.y),
