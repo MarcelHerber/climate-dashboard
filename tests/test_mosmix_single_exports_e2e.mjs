@@ -27,11 +27,13 @@ try{
     ids.map(id=>'<canvas id="'+id+'" width="720" height="300"></canvas>').join("")+
     '<button id="single-temp-png">Nur Temperatur PNG</button>'+
     '<button id="single-rain-pdf">Nur Regen PDF</button>'+
+    '<button id="single-temp-svg">Nur Temperatur SVG</button>'+
     '<button id="all-png">Alle PNG</button>'+
     '</body></html>';
   await page.setContent(html);
   await page.addScriptTag({path:scripts.chartjs});
   await page.addScriptTag({path:scripts.jspdf});
+  await page.addScriptTag({path:"mosmix_vector_export.js"});
   await page.evaluate(code=>{
     const ids=["mosmixTempChart","mosmixRainChart","mosmixWindChart","mosmixPressureChart","mosmixSunChart","mosmixSunDailyChart"];
     const charts=ids.map((id,i)=>{
@@ -60,11 +62,12 @@ try{
     });
     const dependencies={
       document,window,meteogramCharts:charts,currentDetail:{parameters:{TTT:[8]}},
-      data:{issue_time:"2026-11-11T12:00:00Z",stations:[]},
+      data:{issue_time:"2026-11-11T12:00:00Z",stations:[],
+        timesteps:Array.from({length:72},(_,j)=>new Date(Date.parse("2026-11-11T12:00:00Z")+3600000*j).toISOString())},
       selectedStation:{name:"Frankfurt am Main"},selectedStationKey:"FFM",
       rainPeriod:3,gustPeriod:12,
       fmtTime:date=>"11.11.2026 12 UTC",
-      ensurePdfLibrary:async()=>{}
+      ensurePdfLibrary:async()=>{},ensureVectorExport:async()=>{}
     };
     const make=new Function(...Object.keys(dependencies),code+
       "\nreturn {downloadMeteogram,meteogramExportSections};");
@@ -72,11 +75,13 @@ try{
     window.mosmixExportTest=api;
     document.getElementById("single-temp-png").addEventListener("click",()=>api.downloadMeteogram("png","temp"));
     document.getElementById("single-rain-pdf").addEventListener("click",()=>api.downloadMeteogram("pdf","rain"));
+    document.getElementById("single-temp-svg").addEventListener("click",()=>api.downloadMeteogram("svg","temp"));
     document.getElementById("all-png").addEventListener("click",()=>api.downloadMeteogram("png"));
   },code);
   for(const [button,suffix,prefix] of [
     ["#single-temp-png","_temp.png","single-temp"],
     ["#single-rain-pdf","_rain.pdf","single-rain"],
+    ["#single-temp-svg","_temp.svg","single-temp-svg"],
     ["#all-png",".png","all-meteograms"]
   ]){
     const [download]=await Promise.all([
@@ -85,15 +90,20 @@ try{
     ]);
     const filename=download.suggestedFilename();
     assert.ok(filename.endsWith(suffix),filename+" wrong suffix "+suffix);
-    const path="/tmp/mosmix-real-"+vp.name+"-"+prefix+(suffix.endsWith(".pdf")?".pdf":".png");
+    const path="/tmp/mosmix-real-"+vp.name+"-"+prefix+(suffix.endsWith(".pdf")?".pdf":suffix.endsWith(".svg")?".svg":".png");
     await download.saveAs(path);
-    assert.ok(statSync(path).size>8000,"Export output empty: "+path);
+    assert.ok(statSync(path).size>(path.endsWith(".png")?8000:1500),"Export output empty: "+path);
     if(path.endsWith(".pdf"))assert.equal(readFile(path).subarray(0,5).toString(),"%PDF-");
-    else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
+    else if(path.endsWith(".svg")){
+      const svg=readFile(path,"utf8");
+      assert.match(svg,/<svg\b/);
+      assert.match(svg,/inkscape:label=/);
+      assert.doesNotMatch(svg,/<image\b/);
+    }else assert.deepEqual([...readFile(path).subarray(0,8)],[137,80,78,71,13,10,26,10]);
     console.log("MOSMIX CHARTJS EXPORT",vp.name,filename,statSync(path).size,"bytes");
   }
   assert.deepEqual(errors,[],"Browser JS errors "+errors.join(";"));
   await context.close();
  }
 }finally{await browser.close()}
-console.log("PASS: Chart.js 4 real renders and jsPDF 4 PDF exports on desktop and mobile");
+console.log("PASS: Chart.js 4 real renders, jsPDF 4 vector PDF and SVG exports on desktop and mobile");
