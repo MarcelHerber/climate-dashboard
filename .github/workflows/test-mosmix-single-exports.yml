@@ -1,9 +1,12 @@
-name: MOSMIX Einzel-Diagramm-Downloads · PNG PDF
+name: MOSMIX Einzel-Diagramm-Downloads · PNG Vektor-PDF SVG
 
 on:
   pull_request:
     paths:
       - "mosmix.js"
+      - "mosmix_vector_export.js"
+      - "scripts/build_pages_site.sh"
+      - "tests/test_mosmix_vector_exports.mjs"
       - "tests/test_mosmix_single_exports.mjs"
       - "tests/test_mosmix_single_exports_browser.mjs"
       - "tests/test_mosmix_single_exports_e2e.mjs"
@@ -25,6 +28,7 @@ jobs:
       - name: Einzelexporte, PDF, Zeitintervalle und Gesamtexport prüfen
         run: |
           node tests/test_mosmix_single_exports.mjs
+          node tests/test_mosmix_vector_exports.mjs
           node tests/test_mosmix_sun_daily.mjs
           node tests/test_mosmix_map_layers.mjs
           node tests/test_mosmix_loader.mjs
@@ -39,9 +43,9 @@ jobs:
         run: |
           npm install --no-save playwright@1 chart.js@4.4.1 jspdf@4.2.1
           npx playwright install --with-deps chromium
-      - name: Sechs individuelle PNG/PDF-Aktionen auf Desktop und Handy
+      - name: Sechs individuelle PNG/PDF/SVG-Aktionen auf Desktop und Handy
         run: node tests/test_mosmix_single_exports_browser.mjs
-      - name: Echte Chart.js-/jsPDF-Downloads für zwei Bildschirmgrößen
+      - name: Echte Chart.js-/jsPDF-/SVG-Downloads für zwei Bildschirmgrößen
         run: node tests/test_mosmix_single_exports_e2e.mjs
       - uses: actions/upload-artifact@v4
         if: always()
