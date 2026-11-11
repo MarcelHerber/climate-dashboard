@@ -680,7 +680,7 @@
     if (Number.isNaN(d.getTime())) return null;
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone:"Europe/Berlin",
-      year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hour12:false
+      year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",hourCycle:"h23"
     }).formatToParts(d);
     const get = function(type) {
       const hit = parts.find(function(part){ return part.type === type; });
@@ -706,6 +706,10 @@
   const mosmixAxisCache = new Map();
 
   function mosmixAxisTime(index) {
+    // Chart.js category ticks hold the ORIGINAL data index in tick.value.
+    // ctx.index (and the callback's second argument) counts visible ticks
+    // from zero after x.min/x.max clipping, shifting dates by 5-6 hours.
+    if (!Number.isInteger(index) || index < 0) return null;
     const iso = data && data.timesteps && data.timesteps[index];
     if (!iso) return null;
     if (mosmixAxisCache.has(iso)) return mosmixAxisCache.get(iso);
@@ -737,8 +741,10 @@
           ticks:{
             autoSkip:false,maxRotation:0,minRotation:0,padding:8,
             font:{size:11},
-            callback:function(value,index) {
-              const t = mosmixAxisTime(index);
+            callback:function(value) {
+              // CategoryScale passes the absolute timestep index as value,
+              // not as the tick ordinal. This also holds in 3/5-day views.
+              const t = mosmixAxisTime(value);
               if (!t) return "";
               // Show the date once per day, and 00/12 local time only.
               if (t.hour === 0) return [t.dayLabel,"00 Uhr"];
@@ -750,12 +756,12 @@
           grid:{
             drawTicks:true,
             color:function(ctx) {
-              const t = mosmixAxisTime(ctx.index);
+              const t = mosmixAxisTime(ctx.tick && ctx.tick.value);
               return t && t.hour === 0 ? "rgba(100,116,139,.38)" :
                 t && t.hour === 12 ? "rgba(148,163,184,.16)" : "rgba(0,0,0,0)";
             },
             lineWidth:function(ctx) {
-              const t = mosmixAxisTime(ctx.index);
+              const t = mosmixAxisTime(ctx.tick && ctx.tick.value);
               return t && t.hour === 0 ? 1.5 : 0.8;
             }
           }
