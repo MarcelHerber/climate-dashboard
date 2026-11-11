@@ -106,9 +106,20 @@ function drawFrame(t, fallbackDepth=0){
    setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
    return;
   }
+  // The health check has shown intermittent HTTP 500/504 on RGB layers while
+  // IR 10.5 µm can remain available. Switch the visible product explicitly;
+  // never pretend that an infrared image is the original RGB product.
+  if(product.value!=="ir105"&&source.value==="mtgi1"){
+   const unavailable=description().name;
+   product.value="ir105";
+   stop();
+   refresh();
+   setStatus(unavailable+" ist beim EUMETSAT-WMS momentan nicht erreichbar ("+reason+"). Automatisch auf IR 10,5 µm umgeschaltet; dies ist ein anderes Satellitenprodukt. Lade IR-Aufnahme …","warning");
+   return;
+  }
   loaded=false;image.hidden=true;empty.hidden=false;
-  empty.textContent="Satellitenbild derzeit nicht erreichbar. Bitte später erneut laden oder den offiziellen Produktlink öffnen.";
-  buttons();setStatus("EUMETSAT liefert momentan auch mit kleinerer Auflösung kein Bild ("+reason+").","error");
+  empty.textContent="EUMETSAT liefert derzeit keine abrufbare Aufnahme. Originalprodukt über den offiziellen Link prüfen.";
+  buttons();setStatus("EUMETSAT liefert auch für IR 10,5 µm kein Bild ("+reason+"). Mögliche Serverstörung – das Problem lässt sich nicht allein durch kleinere Auflösungen beheben.","error");
  }
  function attempt(){
   if(!current()||!filmImage.hidden)return;
