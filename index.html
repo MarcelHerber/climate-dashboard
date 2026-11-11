@@ -15046,6 +15046,8 @@ function currentDayIso(value){
 }
 function currentDayValue(s,key){
   if(!s||s.today_date&&s.today_date!==currentDayIso(Date.now()))return null;
+  // Schema 4 only estimates temperature extremes from momentary TT_10.
+  if((key==="today_max_c"||key==="today_min_c")&&currentLiveIndex?.schema_version<5)return null;
   return currentHasNumber(s[key])?Number(s[key]):null;
 }
 function currentNewerIso(a,b){
@@ -15384,11 +15386,12 @@ function currentMapBuildCandidates(metric){
   const threshold=currentMapClimateDayThreshold();
   return currentFilteredStations()
     .filter(station=>Number.isFinite(Number(station.lat))&&Number.isFinite(Number(station.lon)))
-    .filter(station=>threshold===null || (Number.isFinite(Number(station.today_max_c)) && Number(station.today_max_c)>=threshold))
+    .filter(station=>threshold===null || (currentDayValue(station,"today_max_c")!==null && currentDayValue(station,"today_max_c")>=threshold))
     .map(station=>({station,value:currentMapMetricValue(station,metric)}))
     .filter(item=>item.value!==null);
 }
 function currentRankingTitle(metric){
+  if(String(metric).startsWith("today_"))return currentMapMetricSpec(metric).label;
   switch(metric){
     case "wind":return "Stärkster Wind aktuell";
     case "gust":return "Stärkste Böen aktuell";
@@ -15603,13 +15606,12 @@ function currentWindCompass(value){
   return names[Math.round((((deg%360)+360)%360)/22.5)%16];
 }
 function currentMsToKmh(value){
-  const n=Number(value);
-  return Number.isFinite(n)?n*3.6:null;
+  return currentHasNumber(value)?Number(value)*3.6:null;
 }
 function renderCurrentEmpty(message){
   document.getElementById("currentStationHeading").textContent=message;
   ["currentTemp","currentMinMax","currentHumidity","currentDewpoint","currentPressure","currentGroundTemp","currentWind","currentWindDirection","currentGust","currentPrecip"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
-  ["currentWindDetail","currentWindDirectionDetail","currentGustDetail","currentPrecipDetail"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
+  ["currentWindDetail","currentWindDirectionDetail","currentGustDetail","currentPrecipDetail","currentHumidityMax","currentDewpointMax","currentPressureMax","currentGroundTempMax"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent="–";});
   const tbody=document.querySelector("#currentTodayTable tbody");
   if(tbody) tbody.innerHTML=`<tr><td colspan="10">${message}</td></tr>`;
   if(currentConditionsChart){currentConditionsChart.destroy();currentConditionsChart=null;}
@@ -15635,13 +15637,15 @@ function renderCurrentLiveStatus(){
   const fastLatest=currentLiveIndex.fast_live_latest_measurement_utc;
   const fastAge=currentAgeMinutes(fastLatest);
   const counts=currentLiveIndex.availability_counts||{};
-  const extras=currentLiveIndex.schema_version>=2?` · CDC: Wind ${counts.wind||0}, Böen ${counts.gust||0}, Niederschlag ${counts.precipitation||0}`:"";
+  const extras=currentLiveIndex.schema_version>=2?` · CDC: Temperaturextreme ${counts.temperature_extrema||0}, Wind ${counts.wind||0}, Böen ${counts.gust||0}, Niederschlag ${counts.precipitation||0}`:"";
+  const statusNote=cdcAge!==null&&cdcAge>90?" · Achtung: CDC-Werte veraltet":"";
+  const precisionNote=currentLiveIndex.schema_version<5?" · Tages-TX/TN noch nicht aus Original-Extremen":"";
   if(currentLiveIndex.fast_live_available){
-    status.textContent=`Fast Live SYNOP: ${currentLiveIndex.fast_live_station_count||0} Stationen · ${currentDateTime(fastLatest)}${fastAge!==null?` · ${fastAge} min alt`:""} · CDC-Stand ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras}`;
+    status.textContent=`Fast Live SYNOP: ${currentLiveIndex.fast_live_station_count||0} Stationen · ${currentDateTime(fastLatest)}${fastAge!==null?` · ${fastAge} min alt`:""} · CDC-Stand ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras}${statusNote}${precisionNote}`;
   }else{
-    status.textContent=`CDC Live: ${currentLiveIndex.station_count||0} Temperaturstationen · ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras} · Fast Live noch nicht verfügbar`;
+    status.textContent=`CDC Live: ${currentLiveIndex.station_count||0} Temperaturstationen · ${currentDateTime(cdcLatest)}${cdcAge!==null?` · ${cdcAge} min alt`:""}${extras}${statusNote}${precisionNote} · Fast Live noch nicht verfügbar`;
   }
-  dot.className="current-live-dot"+(overallAge!==null&&overallAge>45?" stale":"");
+  dot.className="current-live-dot"+(cdcAge!==null&&cdcAge>90||overallAge!==null&&overallAge>45?" stale":"");
 }
 async function ensureCurrentConditions(force=false){
   const now=Date.now();
