@@ -605,7 +605,7 @@ def main() -> int:
         "availability_counts": availability_counts,
         "source_error_counts": source_error_counts,
         "source": "DWD CDC 10-minute now: air_temperature + extreme_temperature + wind + extreme_wind + precipitation",
-        "source_note": "Temperatur-Tagesextreme ausschließlich aus TX_10/TN_10 (originale 10-Minuten-Extrema), nicht aus TT_10-Momentanwerten; 00:00-Intervallende zählt zum Vortag. Fehlende Extreme bleiben fehlend. DWD-now unter einer Stunde aktualisiert, Messwerte vorläufig; Zusatzprodukte treffen teils zeitversetzt ein.",
+        "source_note": "Temperatur-Tagesextreme für den lokalen Kalendertag (00–24 Uhr Europe/Berlin) ausschließlich aus TX_10/TN_10 (originale 10-Minuten-Extrema), nicht aus TT_10-Momentanwerten; 00:00-Intervallende zählt zum Vortag. Dieser Zeitraum kann vom amtlichen DWD-Klimatag abweichen. Fehlende Extreme bleiben fehlend. DWD-now unter einer Stunde aktualisiert, Messwerte vorläufig; Zusatzprodukte treffen teils zeitversetzt ein.",
         "stations": stations,
         "failures": failures[:50],
     }
