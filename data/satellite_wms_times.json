@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-11T16:22:29Z",
+  "generated_at": "2026-11-11T16:48:10Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,8 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-11T08:10:00Z",
-        "2026-11-11T08:20:00Z",
         "2026-11-11T08:30:00Z",
         "2026-11-11T08:40:00Z",
         "2026-11-11T08:50:00Z",
@@ -55,42 +53,42 @@
         "2026-11-11T15:30:00Z",
         "2026-11-11T15:40:00Z",
         "2026-11-11T15:50:00Z",
-        "2026-11-11T16:00:00Z"
+        "2026-11-11T16:00:00Z",
+        "2026-11-11T16:10:00Z",
+        "2026-11-11T16:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-11T16:00:00Z",
-      "latest_verified_time": "2026-11-11T16:00:00Z",
+      "latest_advertised_time": "2026-11-11T16:20:00Z",
+      "latest_verified_time": "2026-11-11T16:20:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 439793,
+      "bytes": 435681,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.5,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 314715,
+      "full_disk_bytes": 312484,
       "atlantic_ok": true,
-      "atlantic_bytes": 932954,
+      "atlantic_bytes": 930120,
       "southwest_ok": true,
-      "southwest_bytes": 1685685,
+      "southwest_bytes": 1676118,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 282269
+          "bytes": 281482
         },
         {
           "width": 480,
-          "bytes": 281894
+          "bytes": 280787
         }
       ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-11T08:10:00Z",
-        "2026-11-11T08:20:00Z",
         "2026-11-11T08:30:00Z",
         "2026-11-11T08:40:00Z",
         "2026-11-11T08:50:00Z",
@@ -136,42 +134,35 @@
         "2026-11-11T15:30:00Z",
         "2026-11-11T15:40:00Z",
         "2026-11-11T15:50:00Z",
-        "2026-11-11T16:00:00Z"
+        "2026-11-11T16:00:00Z",
+        "2026-11-11T16:10:00Z",
+        "2026-11-11T16:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-11T16:00:00Z",
-      "latest_verified_time": "2026-11-11T16:00:00Z",
-      "map_ok": true,
-      "error": null,
-      "ok": true,
-      "bytes": 546090,
-      "http_status": 200,
-      "content_type": "image/png",
-      "cors_allow_origin": "*",
-      "age_minutes": 22.5,
-      "fresh": true,
+      "latest_advertised_time": "2026-11-11T16:20:00Z",
+      "latest_verified_time": null,
+      "map_ok": false,
+      "error": "HTTP Error 500: Internal Server Error",
       "full_disk_ok": true,
-      "full_disk_bytes": 259571,
+      "full_disk_bytes": 294702,
       "atlantic_ok": true,
-      "atlantic_bytes": 1056507,
+      "atlantic_bytes": 1056234,
       "southwest_ok": true,
-      "southwest_bytes": 1991255,
+      "southwest_bytes": 1993342,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 311740
+          "bytes": 312113
         },
         {
           "width": 480,
-          "bytes": 311749
+          "bytes": 312552
         }
       ]
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
       "available_times": [
-        "2026-11-11T08:10:00Z",
-        "2026-11-11T08:20:00Z",
         "2026-11-11T08:30:00Z",
         "2026-11-11T08:40:00Z",
         "2026-11-11T08:50:00Z",
@@ -217,42 +208,42 @@
         "2026-11-11T15:30:00Z",
         "2026-11-11T15:40:00Z",
         "2026-11-11T15:50:00Z",
-        "2026-11-11T16:00:00Z"
+        "2026-11-11T16:00:00Z",
+        "2026-11-11T16:10:00Z",
+        "2026-11-11T16:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-11T16:00:00Z",
-      "latest_verified_time": "2026-11-11T16:00:00Z",
+      "latest_advertised_time": "2026-11-11T16:20:00Z",
+      "latest_verified_time": "2026-11-11T16:20:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 63251,
+      "bytes": 19064,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.5,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 248926,
+      "full_disk_bytes": 234413,
       "atlantic_ok": true,
-      "atlantic_bytes": 714899,
+      "atlantic_bytes": 662876,
       "southwest_ok": true,
-      "southwest_bytes": 1636123,
+      "southwest_bytes": 1439723,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 270241
+          "bytes": 240902
         },
         {
           "width": 480,
-          "bytes": 255645
+          "bytes": 226575
         }
       ]
     },
     "ir105": {
       "layer": "mtg_fd:ir105_hrfi",
       "available_times": [
-        "2026-11-11T08:10:00Z",
-        "2026-11-11T08:20:00Z",
         "2026-11-11T08:30:00Z",
         "2026-11-11T08:40:00Z",
         "2026-11-11T08:50:00Z",
@@ -298,42 +289,42 @@
         "2026-11-11T15:30:00Z",
         "2026-11-11T15:40:00Z",
         "2026-11-11T15:50:00Z",
-        "2026-11-11T16:00:00Z"
+        "2026-11-11T16:00:00Z",
+        "2026-11-11T16:10:00Z",
+        "2026-11-11T16:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-11T16:00:00Z",
-      "latest_verified_time": "2026-11-11T16:00:00Z",
+      "latest_advertised_time": "2026-11-11T16:20:00Z",
+      "latest_verified_time": "2026-11-11T16:20:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 71331,
+      "bytes": 70835,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.5,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 73799,
+      "full_disk_bytes": 74094,
       "atlantic_ok": true,
-      "atlantic_bytes": 164849,
+      "atlantic_bytes": 165344,
       "southwest_ok": true,
-      "southwest_bytes": 265160,
+      "southwest_bytes": 264479,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 55401
+          "bytes": 55242
         },
         {
           "width": 480,
-          "bytes": 55372
+          "bytes": 55373
         }
       ]
     },
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
       "available_times": [
-        "2026-11-11T08:10:00Z",
-        "2026-11-11T08:20:00Z",
         "2026-11-11T08:30:00Z",
         "2026-11-11T08:40:00Z",
         "2026-11-11T08:50:00Z",
@@ -379,34 +370,36 @@
         "2026-11-11T15:30:00Z",
         "2026-11-11T15:40:00Z",
         "2026-11-11T15:50:00Z",
-        "2026-11-11T16:00:00Z"
+        "2026-11-11T16:00:00Z",
+        "2026-11-11T16:10:00Z",
+        "2026-11-11T16:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-11T16:00:00Z",
-      "latest_verified_time": "2026-11-11T16:00:00Z",
+      "latest_advertised_time": "2026-11-11T16:20:00Z",
+      "latest_verified_time": "2026-11-11T16:20:00Z",
       "map_ok": true,
       "error": null,
       "ok": true,
-      "bytes": 11063,
+      "bytes": 4908,
       "http_status": 200,
       "content_type": "image/png",
       "cors_allow_origin": "*",
-      "age_minutes": 22.5,
+      "age_minutes": 28.2,
       "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 208462,
+      "full_disk_bytes": 202284,
       "atlantic_ok": true,
-      "atlantic_bytes": 488745,
+      "atlantic_bytes": 462922,
       "southwest_ok": true,
-      "southwest_bytes": 910926,
+      "southwest_bytes": 808694,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 172298
+          "bytes": 157801
         },
         {
           "width": 480,
-          "bytes": 165144
+          "bytes": 150482
         }
       ]
     }
