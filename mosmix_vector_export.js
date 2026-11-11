@@ -135,11 +135,14 @@ function drawScene(chart,info){
       const thickness=Math.min(18,plot.w/(maxX-minX+1)*.72);
       const base=yAt(clamp(0,s.min,s.max),s);
       const points=getPoints(ds,s);
-      points.forEach(p=>{
+      points.forEach((p,j)=>{
         if(!p)return;
         const x=clamp(p[0]-thickness/2,plot.x,RIGHT),end=clamp(p[0]+thickness/2,plot.x,RIGHT);
         if(end<=x)return;
-        items.push({kind:"rect",x,y:Math.min(base,p[1]),w:end-x,h:Math.max(.1,Math.abs(base-p[1])),fill,stroke:null});
+        const barIndex=Math.ceil(minX)+j;
+        const barFill=Array.isArray(ds.backgroundColor)?
+          color(ds.backgroundColor[barIndex],"#f2b01e"):fill;
+        items.push({kind:"rect",x,y:Math.min(base,p[1]),w:end-x,h:Math.max(.1,Math.abs(base-p[1])),fill:barFill,stroke:null});
       });
     }else{
       const points=getPoints(ds,s);
@@ -203,7 +206,7 @@ function toSvg(scene){
 function drawPdf(pdf,scene){
   if(typeof pdf.path!=="function")throw Error("PDF-Bibliothek unterstützt keine Vektorpfade.");
   const margin=10,scale=(pdf.internal.pageSize.getWidth()-2*margin)/scene.width;
-  const offY=8;
+  const offY=(pdf.internal.pageSize.getHeight()-scene.height*scale)/2;
   const x=v=>margin+v*scale,y=v=>offY+v*scale;
   const colorize=(rgb,isFill)=>{
     if(isFill)pdf.setFillColor(...rgb);
