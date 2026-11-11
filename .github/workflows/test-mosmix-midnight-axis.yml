@@ -1,0 +1,31 @@
+name: MOSMIX Zeitachsen · Tagesstriche um 00 Uhr
+
+on:
+  pull_request:
+    paths:
+      - "mosmix.js"
+      - "mosmix.html"
+      - "tests/test_mosmix_midnight_axis.mjs"
+      - ".github/workflows/test-mosmix-midnight-axis.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  berlin-midnight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: MOSMIX JavaScript prüfen
+        run: node --check mosmix.js
+      - name: 3- und 5-Tage-Zeitachse samt MEZ/MESZ überprüfen
+        run: node tests/test_mosmix_midnight_axis.mjs
+      - name: Frühere MOSMIX-Funktionen prüfen
+        run: |
+          node tests/test_mosmix_sun_daily.mjs
+          node tests/test_mosmix_single_exports.mjs
