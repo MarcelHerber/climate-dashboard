@@ -212,14 +212,14 @@
       '<div id="mosmixMeteogramStatus" class="mosmix-meteogram-status">Noch keine Station ausgewählt.</div>',
       '<div class="mosmix-chart-toolbar"><label>Zweite Station <input id="mosmixCompareStationSearch" list="mosmixStationList" type="search" placeholder="z. B. Saarbrücken" style="min-width:170px;padding:7px;border:1px solid #cbd5df;border-radius:6px"><button class="mosmix-button" id="mosmixCompareStationBtn" type="button">Station vergleichen</button><button class="mosmix-button" id="mosmixClearComparison" type="button" disabled>Vergleich entfernen</button></label><span id="mosmixSecondStationStatus"></span></div>',
       '<div class="mosmix-chart-toolbar"><label>Diagrammzeitraum <select id="mosmixDiagramRange"><option value="all">Alle Tage</option><option value="72">Ab jetzt · 3 Tage</option><option value="120">Ab jetzt · 5 Tage</option></select></label><label><input type="checkbox" id="mosmixComparePrevious" disabled> Vorherigen Lauf vergleichen (Temperatur, TX/TN)</label><span id="mosmixCompareStatus">Vorheriger Lauf noch nicht geladen</span></div>',
-      '<div class="mosmix-meteogram-actions"><span class="mosmix-export-status" id="mosmixExportStatus" role="status">Export für ausgewählte Station</span><button class="mosmix-button" id="mosmixDiagramPng" type="button" disabled>⬇ Alle Diagramme PNG</button><button class="mosmix-button" id="mosmixDiagramPdf" type="button" disabled>⬇ Alle Diagramme PDF</button></div>',
+      '<div class="mosmix-meteogram-actions"><span class="mosmix-export-status" id="mosmixExportStatus" role="status">Export für ausgewählte Station</span><button class="mosmix-button" id="mosmixDiagramPng" type="button" disabled>⬇ Alle Diagramme PNG</button><button class="mosmix-button" id="mosmixDiagramPdf" type="button" disabled title="Sechs Seiten mit unabhängigen, editierbaren Vektorpfaden">⬇ Alle Diagramme PDF (Vektor)</button></div>',
       '<div class="mosmix-chart-grid">',
-      '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Temperatur und Taupunkt herunterladen"><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
-      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Niederschlag und Bewölkung herunterladen"><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
-      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Wind und Böen herunterladen"><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
-      '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Luftdruck herunterladen"><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
-      '<div class="mosmix-chart-card"><h4>Sonnenschein pro Stunde &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1-Stundenbalken (Minuten), gleitende 24-h-Summe (Stunden) und optionale Globalstrahlung.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Stündlicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
-      '<div class="mosmix-chart-card mosmix-chart-wide"><h4>Sonnenscheindauer pro Tag</h4><div class="mosmix-period-hint">Balken in Stunden für vollständige Kalendertage (00–24 Uhr Europe/Berlin). Unvollständige Prognosetage und fehlende Werte werden nicht als Null dargestellt.</div><div class="mosmix-chart-wrap mosmix-chart-short"><canvas id="mosmixSunDailyChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Täglicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF</button></div></div>',
+      '<div class="mosmix-chart-card"><h4>Temperatur &amp; Taupunkt</h4><div class="mosmix-chart-wrap"><canvas id="mosmixTempChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Temperatur und Taupunkt herunterladen"><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="temp" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Niederschlag &amp; Bewölkung</h4><div class="mosmix-period-group" role="group" aria-label="Niederschlagssumme Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="rain" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="6" type="button">6 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="12" type="button">12 h</button><button class="mosmix-period-button" data-mosmix-period="rain" data-hours="24" type="button">24 h</button></div></div><div class="mosmix-period-hint" id="mosmixRainPeriodInfo">DWD-Niederschlagssumme der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixRainChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Niederschlag und Bewölkung herunterladen"><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="rain" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card"><div class="mosmix-period-head"><h4>Wind &amp; Böen</h4><div class="mosmix-period-group" role="group" aria-label="Windböen Maximum Zeitraum"><button class="mosmix-period-button active" data-mosmix-period="gust" data-hours="1" type="button">1 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="3" type="button">3 h</button><button class="mosmix-period-button" data-mosmix-period="gust" data-hours="12" type="button">12 h</button></div></div><div class="mosmix-period-hint" id="mosmixGustPeriodInfo">Maximale DWD-Windböe der letzten 1 Stunde</div><div class="mosmix-chart-wrap"><canvas id="mosmixWindChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Wind und Böen herunterladen"><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="wind" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card"><h4>Luftdruck</h4><div class="mosmix-chart-wrap"><canvas id="mosmixPressureChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Luftdruck herunterladen"><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="pressure" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card"><h4>Sonnenschein pro Stunde &amp; Globalstrahlung</h4><div class="mosmix-period-hint">SunD1-Stundenbalken (Minuten), gleitende 24-h-Summe (Stunden) und optionale Globalstrahlung.</div><div class="mosmix-chart-wrap"><canvas id="mosmixSunChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Stündlicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="sun" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
+      '<div class="mosmix-chart-card mosmix-chart-wide"><h4>Sonnenscheindauer pro Tag</h4><div class="mosmix-period-hint">Balken in Stunden für vollständige Kalendertage (00–24 Uhr Europe/Berlin). Unvollständige Prognosetage und fehlende Werte werden nicht als Null dargestellt.</div><div class="mosmix-chart-wrap mosmix-chart-short"><canvas id="mosmixSunDailyChart"></canvas></div><div class="mosmix-chart-export-actions" role="group" aria-label="Täglicher Sonnenschein herunterladen"><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="png" type="button" disabled title="Nur dieses Diagramm als PNG exportieren">⬇ PNG</button><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="pdf" type="button" disabled title="Nur dieses Diagramm als PDF exportieren">⬇ PDF (Vektor)</button><button class="mosmix-button" data-mosmix-export-chart="sunDaily" data-mosmix-export-format="svg" type="button" disabled title="Benannte Einzelkurven als SVG-Vektorgruppen für Illustrator und After Effects">⬇ SVG</button></div></div>',
       '</div>',
       '<p class="mosmix-note">TTT zeigt stündliche 2-m-Temperaturwerte. TX/TN sind eigenständige 12-h-Extremprognosen. Niederschlag: originale DWD-Summen, Böen: originale DWD-Maxima (jeweils rückblickender Zeitraum bis zum Gültigkeitstermin). Wind in km/h, Niederschlag in mm. Ausgegraute Zeiträume sind im geladenen Lauf nicht verfügbar.</p>',
       '</div></div></div>'
@@ -449,6 +449,18 @@
         if(!window.jspdf?.jsPDF)throw new Error("PDF-Bibliothek konnte nicht initialisiert werden.");
       }).finally(function(){pdfLoadPromise=null;});
     return pdfLoadPromise;
+  }
+
+  let vectorLoadPromise=null;
+  function ensureVectorExport(){
+    if(window.MosmixVectorExport)return Promise.resolve();
+    if(!vectorLoadPromise)vectorLoadPromise=loadLibrary(
+      "./mosmix_vector_export.js?v=20261111-vector-v1",
+      "MOSMIX-Vektorexport").then(function(){
+        if(!window.MosmixVectorExport)
+          throw new Error("MOSMIX-Vektorexport konnte nicht initialisiert werden.");
+      }).finally(function(){vectorLoadPromise=null;});
+    return vectorLoadPromise;
   }
 
   function makeMap() {
@@ -1211,33 +1223,44 @@
     document.body.appendChild(link);link.click();link.remove();
   }
 
+  // PDFs and SVGs use native independent vector objects, never chart PNGs.
+  function vectorMeteogramEntries(onlyKey) {
+    if(!currentDetail || meteogramCharts.length!==6)
+      throw new Error("Bitte zuerst eine Station mit sechs Diagrammen laden.");
+    const specs=[
+      ["temp",0,"Temperatur und Taupunkt"],
+      ["rain",1,"Niederschlag und Bewölkung · "+rainPeriod+" h"],
+      ["wind",2,"Wind und maximale Böen · "+gustPeriod+" h"],
+      ["pressure",3,"Luftdruck"],
+      ["sun",4,"Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
+      ["sunDaily",5,"Sonnenscheindauer pro Kalendertag (h)"]
+    ];
+    const chosen=onlyKey ? specs.filter(item=>item[0]===onlyKey) : specs;
+    if(!chosen.length)throw new Error("Unbekanntes MOSMIX-Diagramm.");
+    return chosen.map(function(item){
+      const chart=meteogramCharts[item[1]];
+      if(!chart||!chart.scales?.x||!chart.scales?.y)
+        throw new Error("Diagramm noch nicht fertig gezeichnet.");
+      return {key:item[0],title:item[2],chart:chart};
+    });
+  }
+
+  function mosmixVectorScene(entry,meta){
+    return window.MosmixVectorExport.buildScene(entry.chart,{
+      key:entry.key,title:entry.title,station:meta.station,issue:meta.issue,
+      range:singleMeteogramLabel(),timesteps:data.timesteps
+    });
+  }
+
   function exportCombinedPdf() {
-    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("PDF-Bibliothek ist nicht geladen.");
-    const sections = meteogramExportSections();
-    const meta = meteogramExportMeta();
-    const pdf = new window.jspdf.jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-    const pageWidth = 210, margin = 12, width = pageWidth - 2*margin;
-    let y = 0, pageNumber = 0;
-    function startPage() {
-      if (pageNumber) pdf.addPage();
-      pageNumber++;
-      pdf.setFont("helvetica","bold");pdf.setFontSize(14);
-      pdf.text("DWD MOSMIX-L · Meteogramme",margin,17);
-      pdf.setFont("helvetica","normal");pdf.setFontSize(9);
-      pdf.text((meta.station+" · Lauf "+meta.issue).slice(0,92),margin,24);
-      pdf.setDrawColor(210,218,225);pdf.line(margin,28,pageWidth-margin,28);
-      pdf.setFontSize(8);
-      pdf.text("Quelle: DWD MOSMIX-L · Originalwerte, Zeitsummen und Böen",margin,287);
-      y = 34;
-    }
-    startPage();
-    sections.forEach(function(section) {
-      const h = section.height / section.width * width;
-      if (y+h>279) startPage();
-      const scaledHeight = Math.min(h,240);
-      const scaledWidth = width * (scaledHeight/h);
-      pdf.addImage(section.toDataURL("image/png"),"PNG",margin,y,scaledWidth,scaledHeight);
-      y += scaledHeight + 6;
+    if(!window.jspdf?.jsPDF || !window.MosmixVectorExport)
+      throw new Error("Vektor-PDF-Bibliotheken sind nicht geladen.");
+    const meta=meteogramExportMeta();
+    const entries=vectorMeteogramEntries();
+    const pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+    entries.forEach(function(entry,i){
+      if(i)pdf.addPage("a4","landscape");
+      window.MosmixVectorExport.drawPdf(pdf,mosmixVectorScene(entry,meta));
     });
     pdf.save(meta.filename+".pdf");
   }
@@ -1276,37 +1299,37 @@
   }
 
   function exportSinglePdf(which) {
-    if (!window.jspdf?.jsPDF) throw new Error("PDF-Bibliothek ist nicht geladen.");
-    const section = meteogramExportSections(which)[0];
-    const meta = meteogramExportMeta();
-    const pdf = new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 12;
-    pdf.setFont("helvetica","bold");pdf.setFontSize(15);
-    pdf.text("DWD MOSMIX-L · "+section.mosmixExportTitle,margin,16,{maxWidth:pageWidth-2*margin});
-    pdf.setFont("helvetica","normal");pdf.setFontSize(10);
-    pdf.text((meta.station+" · Lauf "+meta.issue).slice(0,115),margin,24);
-    pdf.text(("Diagrammzeitraum: "+singleMeteogramLabel()).slice(0,105),margin,30);
-    pdf.setDrawColor(210,218,225);pdf.line(margin,33,pageWidth-margin,33);
-    const maxWidth = pageWidth-2*margin;
-    const maxHeight = pageHeight-53;
-    const ratio = Math.min(maxWidth/section.width,maxHeight/section.height);
-    const imageWidth = section.width*ratio, imageHeight = section.height*ratio;
-    pdf.addImage(section.toDataURL("image/png"),"PNG",margin+(maxWidth-imageWidth)/2,36,imageWidth,imageHeight);
-    pdf.setFontSize(9);
-    pdf.text("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Prognosewerte",margin,pageHeight-9);
-    pdf.save(singleMeteogramFilename(meta,section)+".pdf");
+    if(!window.jspdf?.jsPDF || !window.MosmixVectorExport)
+      throw new Error("Vektor-PDF-Bibliotheken sind nicht geladen.");
+    const meta=meteogramExportMeta();
+    const entry=vectorMeteogramEntries(which)[0];
+    const pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+    window.MosmixVectorExport.drawPdf(pdf,mosmixVectorScene(entry,meta));
+    pdf.save(meta.filename+"_"+which+".pdf");
+  }
+
+  function exportSingleSvg(which) {
+    if(!window.MosmixVectorExport)throw new Error("SVG-Export noch nicht geladen.");
+    const meta=meteogramExportMeta();
+    const entry=vectorMeteogramEntries(which)[0];
+    const scene=mosmixVectorScene(entry,meta);
+    window.MosmixVectorExport.downloadSvg(
+      window.MosmixVectorExport.toSvg(scene),meta.filename+"_"+which
+    );
   }
 
   async function downloadMeteogram(format, onlyKey) {
     const status = document.getElementById("mosmixExportStatus");
     try {
       if (format === "pdf") {
-        if(status)status.textContent="PDF-Bibliothek laden …";
-        await ensurePdfLibrary();
+        if(status)status.textContent="Echte Vektor-PDF erstellen …";
+        await Promise.all([ensurePdfLibrary(),ensureVectorExport()]);
         if (onlyKey) exportSinglePdf(onlyKey);
         else exportCombinedPdf();
+      } else if (format === "svg" && onlyKey) {
+        if(status)status.textContent="SVG mit getrennten Datenreihen erstellen …";
+        await ensureVectorExport();
+        exportSingleSvg(onlyKey);
       } else if (format === "png") {
         if (onlyKey) exportSinglePng(onlyKey);
         else exportCombinedPng();
@@ -1314,7 +1337,7 @@
         throw new Error("Unbekanntes Exportformat.");
       }
       if (status) status.textContent = (onlyKey ? "Einzel-" : "Gesamt-")+
-        (format === "pdf" ? "PDF" : "PNG")+"-Export vorbereitet.";
+        (format === "pdf" ? "Vektor-PDF" : format==="svg" ? "SVG" : "PNG")+"-Export vorbereitet.";
     } catch(err) {
       console.error("MOSMIX-Export:",err);
       if (status) status.textContent = "Download fehlgeschlagen: "+err.message;
