@@ -17,8 +17,8 @@ spec.loader.exec_module(isobars)
 
 class IsobarTests(unittest.TestCase):
     def setUp(self):
-        self.lon=np.arange(-75,40.01,.25,dtype=float)
-        self.lat=np.arange(12,78.01,.25,dtype=float)
+        self.lon=np.arange(-75,55.01,.25,dtype=float)
+        self.lat=np.arange(12,80.01,.25,dtype=float)
         xx,yy=np.meshgrid(self.lon,self.lat)
         # Analytical, deterministic pressure field for algorithm tests ONLY.
         self.p=1010+0.33*(xx+26)+0.26*(yy-45)+9*np.exp(-((xx+37)**2+(yy-53)**2)/120)
@@ -30,7 +30,7 @@ class IsobarTests(unittest.TestCase):
         self.assertTrue(all(row["hpa"]%5==0 for row in levels))
         self.assertTrue(all(len(line)>=4 for row in levels for line in row["lines"]))
         pts=[pt for v in levels for line in v["lines"] for pt in line]
-        self.assertTrue(all(-75.1<=p[0]<=40.1 and 11.9<=p[1]<=78.1 for p in pts))
+        self.assertTrue(all(-75.1<=p[0]<=55.1 and 11.9<=p[1]<=80.1 for p in pts))
         self.assertGreater(len(pts),100)
 
     def test_forecast_validity_preserves_run_and_utc(self):
