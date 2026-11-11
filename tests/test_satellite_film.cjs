@@ -113,7 +113,7 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  assert.equal(nodes.get("satFilmStage").hidden,true);
  await waitUntil(()=>requests.length>count,"single still frame requested on seek");
  const latest=new URL(requests.at(-1).url);
- assert.equal(latest.searchParams.get("width"),"1200","still image is full resolution");
+ assert.equal(latest.searchParams.get("width"),"400","still image uses compact WMS preview");
  assert.equal(latest.searchParams.get("bbox"),"-37,24,19,53");
  const before=fetches.length;
  nodes.get("satRegion").value="germany";
@@ -186,22 +186,20 @@ test("48-frame movie covers every available timestamp without duplicate download
  assert.equal(requests.length,before,"48-frame playback uses cached frames only");
  nodes.get("satPlay").dispatch("click");
 });
-test("Oversized EUMETSAT still-image failure automatically retries same time and bbox at 800px",async()=>{
+test("Still picture downloads a 400px preview but keeps an original-resolution link",async()=>{
  const {nodes,requests,slots}=fixture({failLargeStill:true});
  await waitUntil(()=>nodes.get("satTime").options.length===8,"verified UTC axis");
- await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"recovered smaller still image",1500);
- const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="800");
- assert.ok(previews.length>=1,"800px backup not requested");
- const fallback=new URL(previews.at(-1).url);
- const first=new URL(requests.find(r=>{
-  const q=new URL(r.url).searchParams;
-  return q.get("width")==="1200" && q.get("time")===fallback.searchParams.get("time");
- }).url);
- assert.equal(first.searchParams.get("bbox"),fallback.searchParams.get("bbox"));
- assert.equal(first.searchParams.get("time"),fallback.searchParams.get("time"));
- assert.equal(fallback.searchParams.get("bbox"),"-37,24,19,53");
- assert.ok(fallback.searchParams.get("time")===slots.at(-1));
- assert.match(nodes.get("satStatus").textContent,/höhere Auflösung nicht rechtzeitig/);
+ await waitUntil(()=>nodes.get("satImage").naturalWidth===400,"compact preview loaded",1500);
+ const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="400");
+ assert.ok(previews.length>=1,"400px preview not requested");
+ const preview=new URL(previews.at(-1).url);
+ const original=new URL(nodes.get("satRawImage").href);
+ assert.equal(original.searchParams.get("width"),"1200","native source link retained");
+ assert.equal(original.searchParams.get("bbox"),preview.searchParams.get("bbox"));
+ assert.equal(original.searchParams.get("time"),preview.searchParams.get("time"));
+ assert.equal(preview.searchParams.get("bbox"),"-37,24,19,53");
+ assert.equal(preview.searchParams.get("time"),slots.at(-1));
+ assert.match(nodes.get("satStatus").textContent,/Vorschau/);
  assert.equal(nodes.get("satPng").disabled,false);
 });
 test("Lightweight film controls exist and preserve original high-res export",()=>{
