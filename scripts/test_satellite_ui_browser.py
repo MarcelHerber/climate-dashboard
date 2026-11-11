@@ -10,10 +10,12 @@ import http.server
 import json
 import threading
 import traceback
+import struct
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlsplit
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +65,19 @@ def check_remote():
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
+
+
+def test_preview_png(width, height, index):
+    """Deterministic decodable RGB PNG for the encoder test; UTC metadata stays real."""
+    def chunk(kind, payload):
+        data=kind+payload
+        return struct.pack("!I",len(payload))+data+struct.pack("!I",zlib.crc32(data)&0xffffffff)
+    pixel=bytes([45+(index*27)%160,60+(index*17)%150,85+(index*13)%150])
+    rows=(b"\x00"+pixel*width)*height
+    return (b"\x89PNG\r\n\x1a\n"
+            +chunk(b"IHDR",struct.pack("!IIBBBBB",width,height,8,2,0,0,0))
+            +chunk(b"IDAT",zlib.compress(rows,6))
+            +chunk(b"IEND",b""))
 
 
 def exercise(page, viewport_label, official_xml):
@@ -214,6 +229,56 @@ def exercise(page, viewport_label, official_xml):
       webCodecs: typeof VideoEncoder==='function',
       createImageBitmap: typeof createImageBitmap==='function'
     })""")
+    # Actual export integration: synthetic small PNG pixels, but genuine
+    # EUMETSAT UTC times and the real browser MediaRecorder/GIF implementation.
+    # Register only AFTER real WMS still-image tests to avoid false availability.
+    frame_requests=[]
+    def intercept_previews(route):
+        query=parse_qs(urlsplit(route.request.url).query)
+        width=int(query.get("width",["9000"])[0])
+        if query.get("request",[""])[0]=="GetMap" and width<=720:
+            height=int(query.get("height",["1"])[0])
+            frame_requests.append(route.request.url)
+            route.fulfill(status=200,
+                body=test_preview_png(width,height,len(frame_requests)),
+                content_type="image/png",
+                headers={"Access-Control-Allow-Origin":"*"})
+        else:
+            route.fallback()
+    page.route("**/geoserver/wms?*",intercept_previews)
+    page.wait_for_function("() => document.querySelector('#satTime').options.length>=6",timeout=25000)
+    page.locator("#satRegion").select_option("southwest")
+    page.locator("#satFilmLength").select_option("8")
+    page.locator("#satFilmQuality").select_option("320")
+    page.locator("#satFilmSpeed").select_option("420")
+    page.locator("#satPlay").click()
+    page.locator("#satGif").wait_for(state="visible")
+    page.wait_for_function("() => !document.getElementById('satGif').disabled",timeout=30000)
+    evidence["mocked_frame_requests"]=len(frame_requests)
+    assert 2<=evidence["mocked_frame_requests"]<=8
+    with page.expect_download(timeout=30000) as download_info:
+        page.locator("#satGif").click()
+    gif=download_info.value
+    gif_path=SHOTS/(viewport_label+"-film.gif")
+    gif.save_as(gif_path)
+    gif_bytes=gif_path.read_bytes()
+    evidence["gif_export"]={"filename":gif.suggested_filename,"size":len(gif_bytes),
+        "gif89a":gif_bytes.startswith(b"GIF89a"),"source":"synthetic image pixels; official WMS UTC metadata"}
+    assert gif.suggested_filename.endswith(".gif") and gif_bytes.startswith(b"GIF89a") and len(gif_bytes)>1000
+    if evidence["film_export_capabilities"]["mp4H264"]:
+        with page.expect_download(timeout=45000) as mp4_info:
+            page.locator("#satMp4").click()
+        movie=mp4_info.value
+        mp4_path=SHOTS/(viewport_label+"-film.mp4")
+        movie.save_as(mp4_path)
+        data=mp4_path.read_bytes()
+        evidence["mp4_export"]={"filename":movie.suggested_filename,"size":len(data),
+            "iso_bmff":data[4:8]==b"ftyp",
+            "source":"synthetic image pixels; real Chromium MP4/H264 encoder"}
+        assert movie.suggested_filename.endswith(".mp4") and data[4:8]==b"ftyp" and len(data)>1000
+    else:
+        evidence["mp4_export"]="Codec im Browser nicht verfügbar; Button deaktiviert"
+        assert page.locator("#satMp4").is_disabled()
     page.screenshot(path=str(SHOTS/(viewport_label+".png")),full_page=True)
     evidence["screenshot"]=viewport_label+".png"
     return evidence
