@@ -69,7 +69,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
   if(String(url).includes("satellite_wms_times.json"))return {ok:true,json:async()=>manifest};
   if(String(url).includes("satellite_cache/index.json")){
    if(!archiveAvailable)return {ok:false,status:404};
-   const observed=slots.at(-1);
+   const observed=slots.at(-1).replace(".000Z","Z");
    const filename="geocolour_southwest_"+observed.replace(/[-:]/g,"")+".png";
    return {ok:true,json:async()=>({schema:1,entries:{geocolour:{southwest:{
     time:observed,url:"./data/satellite_cache/"+filename,source:"EUMETSAT WMS",width:400
