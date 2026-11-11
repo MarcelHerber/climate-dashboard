@@ -15,7 +15,8 @@ function node(){
   fire(type){for(const fn of this.listeners[type]||[])fn()},
   replaceChildren(...items){this.children=items},
   appendChild(el){this.children.push(el)},
-  setAttribute(k,v){this.attrs[k]=v}
+  setAttribute(k,v){this.attrs[k]=v},
+  toggleAttribute(k,force){if(force){this.attrs[k]="";if(k==="hidden")this.hidden=true;}else{delete this.attrs[k];if(k==="hidden")this.hidden=false;}return Boolean(force)}
  };
 }
 async function fixture(){
