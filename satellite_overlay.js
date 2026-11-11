@@ -36,7 +36,9 @@ function update(){
  const supported=isGeographic();
  borderToggle.disabled=!supported;
  cityToggle.disabled=!supported;
- borders.hidden=!supported||!borderToggle.checked||!lines;
+ // SVG elements do not expose the HTMLElement.hidden reflection reliably.
+ // Toggle the real DOM attribute so CSS #satBordersSvg[hidden] works.
+ borders.toggleAttribute("hidden",!supported||!borderToggle.checked||!lines);
  cities.hidden=!supported||!cityToggle.checked;
  borders.replaceChildren();
  cities.replaceChildren();
