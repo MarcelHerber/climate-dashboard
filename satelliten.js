@@ -20,12 +20,14 @@ const REGIONS={
 const id=x=>document.getElementById(x);
 const source=id("satSource"),product=id("satProduct"),region=id("satRegion"),time=id("satTime"),image=id("satImage"),empty=id("satEmpty"),status=id("satStatus");
 const prev=id("satPrev"),next=id("satNext"),play=id("satPlay"),png=id("satPng");
+const gif=id("satGif"),mp4=id("satMp4");
 const timeline=id("satTimeline"),timelineLabel=id("satTimelineLabel"),filmImage=id("satFilmStage");
 const filmLength=id("satFilmLength"),filmQuality=id("satFilmQuality"),filmSpeed=id("satFilmSpeed");
 const filmProgress=id("satFilmProgress"),filmProgressLabel=id("satFilmProgressLabel"),filmProgressWrap=id("satFilmProgressWrap");
 let frames=[],index=-1,frameTimer=null,token=0,imageRequest=0,currentUrl="",loaded=false,verified=false,abort=null,metadataSource="";
 let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPosition=0;
-let stillTimeout=null;
+let stillTimeout=null,exportBusy=false;
+const exporters=window.SatelliteFilmExport;
 const description=()=>PRODUCTS[product.value];
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
 function updateTimeline(){
@@ -52,7 +54,10 @@ function buttons(){
  const ready=source.value==="mtgi1"&&frames.length>1;
  prev.disabled=!ready||index<=0;
  next.disabled=!ready||index>=frames.length-1;
- play.disabled=!ready||index<1;
+ play.disabled=!ready||index<1||exportBusy;
+ gif.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy;
+ mp4.disabled=filmItems.length<2||source.value!=="mtgi1"||filmLoading||exportBusy||!exporters?.supportsMP4();
+ mp4.title=exporters?.supportsMP4()?"Echten MP4/H.264-Film herunterladen":"MP4/H.264 in diesem Browser nicht unterstützt";
  time.disabled=!frames.length||source.value!=="mtgi1";
  png.disabled=!loaded||source.value!=="mtgi1";
  updateTimeline();
@@ -215,7 +220,7 @@ function show(i){
 }
 function previewAttempt(t,width,ordinal){
  return new Promise(resolve=>{
-  const im=new Image();im.decoding="async";let complete=false;
+  const im=new Image();im.crossOrigin="anonymous";im.decoding="async";let complete=false;
   const finish=reason=>{
    if(complete)return;
    complete=true;clearTimeout(timeout);im.onload=null;im.onerror=null;
@@ -320,6 +325,34 @@ function startPause(){
  if(filmItems.length>=2){playReady();return;}
  prepareFilm();
 }
+async function exportFilm(format){
+ if(exportBusy||filmLoading||filmItems.length<2||!exporters)return;
+ if(format==="mp4"&&!exporters.supportsMP4()){
+  setStatus("Dieser Browser bietet keinen echten MP4/H.264-Encoder. GIF ist weiterhin verfügbar.","warning");
+  return;
+ }
+ if(filmPlaying)stop(false);
+ const images=filmItems.slice();
+ const opt={
+  frames:images,
+  width:format==="gif"?Math.min(480,Number(filmQuality.value)||320):Math.min(720,Number(filmQuality.value)||480),
+  delayMs:Number(filmSpeed.value)||750,
+  product:product.value,productName:description().name,
+  region:region.value,credit:description().credit,
+  progress:(done,total)=>setStatus((format==="gif"?"GIF":"MP4")+"-Export · Bild "+done+"/"+total+" · "+formatUTC(images[Math.min(done-1,images.length-1)].time),"info")
+ };
+ exportBusy=true;buttons();
+ setStatus("Erzeuge "+format.toUpperCase()+" aus "+images.length+" bereits vorgeladenen Satellitenbildern …","info");
+ try{
+  const result=format==="gif"?await exporters.exportGIF(opt):await exporters.exportMP4(opt);
+  const bytes=exporters.download(result);
+  setStatus(format.toUpperCase()+"-Film gespeichert: "+images.length+" bestätigte UTC-Zeitpunkte · "+
+    (bytes/1048576).toFixed(1)+" MB · "+result.name,"info");
+ }catch(error){
+  setStatus("Filmexport nicht möglich: "+(error?.message||error)+
+   ". Bitte erneut starten; der Anbieter muss Bilddaten mit CORS freigeben.","error");
+ }finally{exportBusy=false;buttons();}
+}
 async function downloadPNG(){
  if(!loaded||!currentUrl)return;
  png.disabled=true;setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
@@ -367,6 +400,8 @@ filmSpeed.addEventListener("change",()=>{
  clearTimeout(frameTimer);frameTimer=setTimeout(filmTick,Number(filmSpeed.value));
 });
 png.addEventListener("click",downloadPNG);
+gif.addEventListener("click",()=>exportFilm("gif"));
+mp4.addEventListener("click",()=>exportFilm("mp4"));
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
 refresh();
