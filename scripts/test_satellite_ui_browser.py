@@ -101,21 +101,28 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satRegion").select_option("southwest")
     evidence["southwest_bbox"]="-37%2C24%2C19%2C53" in (page.locator("#satImage").get_attribute("src") or "")
     assert evidence["southwest_bbox"], "Southwest-Europe extent is not applied"
+    # A WMS outage must be reported as a data failure, not suppress all
+    # independent tests of SVG borders, city labels, dark mode and controls.
     try:
         page.wait_for_function(
             "() => { const img=document.getElementById('satImage'); "
-            "return img.src.includes('-37%2C24%2C19%2C53') && img.complete && img.naturalWidth>0; }",
-            timeout=45000
+            "const fail=document.getElementById('satStatus').dataset.kind==='error'; "
+            "return fail || (img.src.includes('-37%2C24%2C19%2C53') "
+            "&& img.complete && img.naturalWidth>0); }",
+            timeout=55000
         )
     except Exception as error:
+        evidence["southwest_load_timeout"]=str(error)[:200]
+    evidence["southwest_real_image_loaded"]=page.locator("#satImage").evaluate(
+        "(img)=>img.complete && img.naturalWidth>0 && img.src.includes('-37%2C24%2C19%2C53')"
+    )
+    if not evidence["southwest_real_image_loaded"]:
         evidence["southwest_diagnostics"] = {
             "status": page.locator("#satStatus").inner_text(),
             "image": page.locator("#satImage").evaluate(
                 "(img)=>({src:img.src,complete:img.complete,width:img.naturalWidth,height:img.naturalHeight})")
         }
         page.screenshot(path=str(SHOTS/(viewport_label+"-southwest-error.png")),full_page=True)
-        raise AssertionError("Southwest PNG load failed: "+str(evidence["southwest_diagnostics"])) from error
-    evidence["southwest_real_image_loaded"]=True
     page.wait_for_function(
         "() => document.querySelector('#satBordersSvg path')?.getAttribute('d')?.length>1000 "
         "&& document.querySelector('#satCitiesLayer')?.textContent.includes('Ponta Delgada')",
@@ -136,12 +143,21 @@ def exercise(page, viewport_label, official_xml):
     page.locator("#satRegion").select_option("atlantic")
     evidence["atlantic_bbox"]="-70%2C15%2C35%2C75" in (page.locator("#satImage").get_attribute("src") or "")
     assert evidence["atlantic_bbox"], "North Atlantic extent is not applied"
-    page.wait_for_function(
-        "() => { const img=document.getElementById('satImage'); "
-        "return img.src.includes('-70%2C15%2C35%2C75') && img.complete && img.naturalWidth>0; }",
-        timeout=45000
+    try:
+        page.wait_for_function(
+            "() => { const img=document.getElementById('satImage'); "
+            "const fail=document.getElementById('satStatus').dataset.kind==='error'; "
+            "return fail || (img.src.includes('-70%2C15%2C35%2C75') "
+            "&& img.complete && img.naturalWidth>0); }",
+            timeout=55000
+        )
+    except Exception as error:
+        evidence["atlantic_load_timeout"]=str(error)[:200]
+    evidence["atlantic_real_image_loaded"]=page.locator("#satImage").evaluate(
+        "(img)=>img.complete && img.naturalWidth>0 && img.src.includes('-70%2C15%2C35%2C75')"
     )
-    evidence["atlantic_real_image_loaded"]=True
+    if not evidence["atlantic_real_image_loaded"]:
+        evidence["atlantic_wms_warning"]=page.locator("#satStatus").inner_text()
     # Select the native geostationary projection for full disk.
     page.locator("#satRegion").select_option("disk")
     page.wait_for_timeout(350)
