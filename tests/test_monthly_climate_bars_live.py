@@ -81,12 +81,31 @@ def audit_view(browser,label,width,height):
     page.goto(BASE+"?tab=monthly",wait_until="domcontentloaded",timeout=120000)
     page.wait_for_function("() => typeof Chart !== 'undefined' && typeof switchTab === 'function'",timeout=90000)
     page.evaluate("switchTab('monthly')")
-    page.wait_for_function("""() => {
-      const c=document.getElementById("monthlyChart");
-      const v=document.getElementById("monthlyDeviationChart");
-      return c&&v&&Chart.getChart(c)?.data?.datasets?.[0]?.data?.length>40 &&
-             Chart.getChart(v)?.$climateBarsStyled;
-    }""",timeout=180000)
+    try:
+        page.wait_for_function("""() => {
+          const c=document.getElementById("monthlyChart");
+          const v=document.getElementById("monthlyDeviationChart");
+          return c&&v&&Chart.getChart(c)?.data?.datasets?.[0]?.data?.length>40 &&
+                 Chart.getChart(v)?.$climateBarsStyled;
+        }""",timeout=75000)
+    except Exception:
+        diagnostic=page.evaluate("""() => ({
+            path:location.href,readyState:document.readyState,
+            tab:document.getElementById("monthly")?.className,
+            chartLoaded:typeof Chart,chartRegistered:typeof Chart!=="undefined"&&
+                Chart.registry.plugins.items.monthlyClimateBars2026!==undefined,
+            main:typeof Chart!=="undefined"&&!!Chart.getChart(document.getElementById("monthlyChart")),
+            deviation:typeof Chart!=="undefined"&&!!Chart.getChart(document.getElementById("monthlyDeviationChart")),
+            monthlyDataLength:typeof monthlyData==="undefined"?"undefined":monthlyData.length,
+            areaOptions:document.getElementById("monthlyAreaSelect")?.options.length,
+            status:document.querySelector(".data-status")?.textContent,
+            errors:document.querySelector(".error-box")?.textContent?.slice(0,350),
+            bodyText:document.body.innerText.slice(0,300)
+        })""")
+        print("CHART LIVE DIAGNOSTIC",json.dumps(diagnostic,ensure_ascii=False),flush=True)
+        print("BROWSER PAGE ERRORS",errs[-12:],flush=True)
+        page.screenshot(path=str(REPORT/("diagnostic_"+label+".png")),full_page=False)
+        raise
     values={}
     for parameter in ("temp","rain","sun"):
         values[parameter]=verify_parameter(page,parameter)
