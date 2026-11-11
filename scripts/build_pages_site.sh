@@ -103,6 +103,7 @@ required_root_files=(
   satelliten.js
   satelliten.css
   satellite_overlay.js
+  satellite_isobars.js
   satellite_film_export.js
   wettergefahren.js
   wettergefahren.css
@@ -151,6 +152,14 @@ for file in "${required_root_files[@]}"; do
   fi
   cp "$file" _site/
 done
+
+# Publish only verified ECMWF forecast-derived pressure contours; if its
+# independent data workflow has not succeeded yet, keep the satellite
+# control visible but explicitly unavailable (never fabricate a pressure map).
+if [[ -s data/satellite_mslp/latest.json ]]; then
+  mkdir -p _site/data/satellite_mslp
+  cp data/satellite_mslp/latest.json _site/data/satellite_mslp/latest.json
+fi
 
 # MOSMIX UI cache version: the main dashboard and the standalone view must
 # load the same newly published JS. Merely updating the standalone page is
@@ -447,7 +456,9 @@ PY
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
 node --check _site/satellite_overlay.js
+node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
+node --test tests/test_satellite_isobars.cjs
 node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
