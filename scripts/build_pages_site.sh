@@ -151,6 +151,24 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+# MOSMIX UI cache version: the main dashboard and the standalone view must
+# load the same newly published JS. Merely updating the standalone page is
+# insufficient when visitors reach MOSMIX from index.html.
+python - <<'PY'
+from pathlib import Path
+import re
+for name in ("index.html","mosmix.html"):
+    page=Path("_site")/name
+    html=page.read_text(encoding="utf-8")
+    updated,count=re.subn(r"mosmix\\.js(?:\\?v=[A-Za-z0-9_.-]+)?",
+                           "mosmix.js?v=20261111-svg-vector-live-v2",html)
+    if count:
+        page.write_text(updated,encoding="utf-8")
+        print(f"MOSMIX cache version in {name}: {count} reference(s)")
+    else:
+        print(f"MOSMIX: no direct script reference in {name}; dynamic loader unaffected.")
+PY
+
 # Phase 1: compact station-year catalogue and independent comparison page.
 # Avoid loading 4+ MB of station indices just to show station suggestions.
 python scripts/build_station_jahresanalyse_catalog.py _site/station_jahresanalyse_catalog.json
