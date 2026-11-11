@@ -100,7 +100,7 @@ function drawFrame(t, fallbackDepth=0){
    const path="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
     (typeof item?.time==="string"?item.time.replace(/[-:]/g,""):"")+".png";
    if(!item||!Number.isFinite(timestamp)||age<0||age>7*86400000||
-      !/^\\d{8}T\\d{6}Z$/.test(item.time.replace(/[-:]/g,""))||
+      !/^\d{8}T\d{6}Z$/.test(item.time.replace(/[-:]/g,""))||
       item.url!==path||item.source!=="EUMETSAT WMS"||item.width!==400)return false;
    if(!current())return false;
    setStatus("Der EUMETSAT-WMS ist gestört ("+reason+"). Lade gespeicherte Aufnahme vom "+formatUTC(item.time)+" …","warning");
