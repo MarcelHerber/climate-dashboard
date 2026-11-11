@@ -153,7 +153,7 @@
         },
         formatter:value=>number(value)===null?"":format(value),
         anchor:"end",align:"end",offset:5,clamp:true,clip:false,
-        backgroundColor:"rgba(255,255,255,.95)",color:"#192d45",
+        backgroundColor:"rgba(255,255,255,.95)",color:()=>"#192d45",
         borderRadius:5,padding:{top:3,right:5,bottom:3,left:5},
         font:{family:"system-ui, sans-serif",size:11,weight:"700"}
       };

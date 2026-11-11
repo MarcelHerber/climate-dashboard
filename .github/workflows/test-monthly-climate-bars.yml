@@ -1,0 +1,70 @@
+name: Gebietsmittel · Climate Bars 2.0 Desktop und Handy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - monthly_climate_bars.js
+      - dashboard_cleanup.css
+      - scripts/build_pages_site.sh
+      - tests/test_monthly_climate_bars.cjs
+      - tests/test_monthly_climate_bars_live.py
+      - .github/workflows/test-monthly-climate-bars.yml
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            index.html
+            monthly_climate_bars.js
+            dashboard_cleanup.css
+            monthly_layout.js
+            scripts/build_pages_site.sh
+            tests/test_monthly_climate_bars.cjs
+            tests/test_monthly_observed_chart.cjs
+            tests/test_gebietsmittel_layout.py
+      - name: JavaScript syntax
+        run: |
+          node --check monthly_climate_bars.js
+          node --check tests/test_monthly_climate_bars.cjs
+      - name: Styles, Farben, Orientierung, Datenerhalt und Export
+        run: |
+          node --test tests/test_monthly_climate_bars.cjs
+          node --test tests/test_monthly_observed_chart.cjs
+          python -m unittest discover -s tests -p test_gebietsmittel_layout.py -v
+  browser:
+    needs: static
+    runs-on: ubuntu-24.04
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/test_monthly_climate_bars_live.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Playwright Chromium installieren
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Mit echten DWD-Gebietsmitteln Desktop und Handy prüfen
+        run: python -u tests/test_monthly_climate_bars_live.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gebietsmittel-climate-bars-live
+          path: climate_bars_audit/
+          if-no-files-found: warn

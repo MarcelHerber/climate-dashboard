@@ -67,6 +67,7 @@ test("positive negative missing values and hover dimming",()=>{
   plugin.beforeUpdate(dev);
   assert.equal(dev.options.scales.x.grid.display,false);
   assert.equal(dev.options.plugins.tooltip.enabled,true);
+  assert.equal(dev.options.plugins.datalabels.color(),"#192d45");
   assert.doesNotThrow(()=>plugin.afterDraw(dev));
 });
 test("responsive styling and asset publication preserve original chart markup",()=>{
