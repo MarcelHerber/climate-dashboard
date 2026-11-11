@@ -1,0 +1,50 @@
+name: Discover additional official Meteosat imagery
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit_satellite_layers.py"
+      - ".github/workflows/audit-satellite-layers.yml"
+  schedule:
+    - cron: "39 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: satellite-wms-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Check official GetCapabilities and real PNG requests
+        run: python scripts/audit_satellite_layers.py
+      - name: Save observational audit without claiming untested products
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/satellite_layer_discovery_latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record EUMETSAT additional-layer discovery"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Explain candidate status
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open("data/satellite_layer_discovery_latest.json"))
+          print("## Official EUMETSAT additional-layer discovery")
+          print("GetCapabilities:", d["capabilities_ok"], " · MTG layers:",d["mtg_layer_count"])
+          for cat,items in d["categories"].items():
+              ok=[v["layer"] for v in items if v["map_ok"] and v.get("recent")]
+              print("*",cat,":",", ".join(ok) or "nothing verified yet")
+          if d["errors"]: print("Errors:",d["errors"])
+          PY
