@@ -15299,6 +15299,9 @@ function currentMapDisplayValue(metric,value){
 }
 function currentMapMetricTime(station,metric=null){
   if(!station) return null;
+  // Daily extrema and totals are CDC-derived, even when fast SYNOP is newer.
+  if(String(metric||"").startsWith("today_"))
+    return station.cdc_latest_utc||station.temperature_utc||station.latest_utc||station.latest_local||null;
   if(metric==='precip_10min' || metric==='today_precip') return station.cdc_latest_utc||station.cdc_latest_local||station.latest_utc||station.latest_local||null;
   if(metric==='temperature' && station.fast_live_temperature) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
   if(metric==='humidity' && station.fast_live_humidity) return station.fast_live_time_utc||station.latest_utc||station.latest_local||null;
