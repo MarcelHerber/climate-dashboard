@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact near-real-time DWD 10-minute station data (v13.6.3).
+"""Build compact near-real-time DWD 10-minute station data (v13.7.0).
 
 Primary station network:
 - DWD CDC 10-minute air_temperature/now
