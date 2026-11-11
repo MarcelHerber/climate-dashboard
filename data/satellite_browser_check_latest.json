@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-11T15:13:10+00:00",
+  "generated_at": "2026-11-11T16:10:49+00:00",
   "remote": {
     "http_status": 200,
     "satellite_markup": true,
@@ -11,9 +11,13 @@
   },
   "capabilities_fixture": "actual EUMETSAT GetCapabilities XML",
   "desktop": {
-    "error": ""
+    "error": "AssertionError()",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 250, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 138, in exercise\n    assert page.locator(\"#satBordersSvg\").is_visible()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "last_url": "http://127.0.0.1:18873/satelliten.html"
   },
   "mobile": {
-    "error": ""
+    "error": "AssertionError()",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 250, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 138, in exercise\n    assert page.locator(\"#satBordersSvg\").is_visible()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "last_url": "http://127.0.0.1:18873/satelliten.html"
   }
 }
