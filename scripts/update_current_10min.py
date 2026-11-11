@@ -3,6 +3,7 @@
 
 Primary station network:
 - DWD CDC 10-minute air_temperature/now
+- DWD CDC 10-minute extreme_temperature/now: TX_10, TN_10 as ACTUAL interval extrema
 
 Additional parameters are joined by the same DWD station ID where available:
 - wind/now: FF_10, DD_10
@@ -10,7 +11,7 @@ Additional parameters are joined by the same DWD station ID where available:
 - precipitation/now: RWS_10, RWS_DAU_10, RWS_IND_10
 
 The script is designed for the force-replaced ``live-data`` branch. It checks
-all four DWD now-directory listings every run. If none of the listings (or the
+all five DWD now-directory listings every run. If none of the listings (or the
 station metadata) changed, no new snapshot is published.
 """
 from __future__ import annotations
@@ -37,11 +38,12 @@ import time
 TEMP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/now/"
 WIND_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/wind/now/"
 GUST_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/extreme_wind/now/"
+EXTREME_TEMP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/extreme_temperature/now/"
 PRECIP_BASE = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/precipitation/now/"
 META_URL = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/10_minutes/air_temperature/historical/zehn_min_tu_Beschreibung_Stationen.txt"
 
 BERLIN = ZoneInfo("Europe/Berlin")
-USER_AGENT = "climate-dashboard-current/13.6.3 (+GitHub Actions; DWD Open Data)"
+USER_AGENT = "climate-dashboard-current/13.7.0 (+GitHub Actions; DWD Open Data)"
 GERMAN_STATES = sorted([
     "Baden-Württemberg", "Bayern", "Berlin", "Brandenburg", "Bremen", "Hamburg",
     "Hessen", "Mecklenburg-Vorpommern", "Niedersachsen", "Nordrhein-Westfalen",
@@ -49,7 +51,7 @@ GERMAN_STATES = sorted([
     "Schleswig-Holstein", "Thüringen",
 ], key=len, reverse=True)
 
-LIVE_SCHEMA_VERSION = 4
+LIVE_SCHEMA_VERSION = 5
 AUX_SEMAPHORE = threading.Semaphore(4)
 
 SOURCE_CONFIG = {
@@ -63,6 +65,16 @@ SOURCE_CONFIG = {
             "dewpoint": "TD_10",
             "pressure": "PP_10",
             "ground_temp": "TM5_10",
+        },
+    },
+    "temperature_extrema": {
+        "base": EXTREME_TEMP_BASE,
+        "pattern": re.compile(r"10minutenwerte_extrema_temp_(\d{5})_now\.zip"),
+        "filename": "10minutenwerte_extrema_temp_{id}_now.zip",
+        "fields": {
+            "temp_max_10min": "TX_10",
+            "temp_min_10min": "TN_10",
+            "ground_min_10min": "TN5_10",
         },
     },
     "wind": {
@@ -277,7 +289,7 @@ def build_station_profile(
 
     # Auxiliary sources are optional per station. A single failed source must not
     # hide an otherwise valid temperature station from the live dashboard.
-    for source in ("wind", "gust", "precipitation"):
+    for source in ("temperature_extrema", "wind", "gust", "precipitation"):
         if station_id not in available_files[source]:
             source_rows[source] = []
             continue
@@ -288,20 +300,33 @@ def build_station_profile(
             source_errors[source] = str(exc)[:180]
 
     temp_latest = latest_with_value(source_rows["temperature"], ("temp", "humidity", "dewpoint", "pressure", "ground_temp"))
+    extrema_latest = latest_with_value(source_rows["temperature_extrema"], ("temp_max_10min", "temp_min_10min", "ground_min_10min"))
     wind_latest = latest_with_value(source_rows["wind"], ("wind_speed", "wind_direction"))
     gust_latest = latest_with_value(source_rows["gust"], ("gust_speed", "gust_direction"))
     precip_latest = latest_with_value(source_rows["precipitation"], ("precip_10min", "precip_duration", "precip_indicator"))
 
-    all_latest = [row for row in (temp_latest, wind_latest, gust_latest, precip_latest) if row]
+    all_latest = [row for row in (temp_latest, extrema_latest, wind_latest, gust_latest, precip_latest) if row]
     overall_latest = max(all_latest, key=lambda item: item["dt"]) if all_latest else temp_latest
 
     today_local = now_utc.astimezone(BERLIN).date()
     today_temp = [row for row in source_rows["temperature"] if row["dt"].astimezone(BERLIN).date() == today_local]
+    # TX_10/TN_10, FX_10 and RWS_10 describe the PRECEDING ten minutes.
+    # A sample ending at 00:00 belongs to the preceding local calendar day.
+    def interval_day(row: dict[str, Any]):
+        return (row["dt"] - timedelta(microseconds=1)).astimezone(BERLIN).date()
+
+    today_extrema = [row for row in source_rows["temperature_extrema"] if interval_day(row) == today_local]
     today_wind = [row for row in source_rows["wind"] if row["dt"].astimezone(BERLIN).date() == today_local]
-    today_gust = [row for row in source_rows["gust"] if row["dt"].astimezone(BERLIN).date() == today_local]
-    today_precip = [row for row in source_rows["precipitation"] if row["dt"].astimezone(BERLIN).date() == today_local]
+    today_gust = [row for row in source_rows["gust"] if interval_day(row) == today_local]
+    today_precip = [row for row in source_rows["precipitation"] if interval_day(row) == today_local]
 
     today_temps = [float(row["temp"]) for row in today_temp if row.get("temp") is not None]
+    today_maxima = [row for row in today_extrema if row.get("temp_max_10min") is not None]
+    today_minima = [row for row in today_extrema if row.get("temp_min_10min") is not None]
+    today_ground_minima = [row for row in today_extrema if row.get("ground_min_10min") is not None]
+    maximum = max(today_maxima, key=lambda row: row["temp_max_10min"]) if today_maxima else None
+    minimum = min(today_minima, key=lambda row: row["temp_min_10min"]) if today_minima else None
+    ground_minimum = min(today_ground_minima, key=lambda row: row["ground_min_10min"]) if today_ground_minima else None
     today_winds = [float(row["wind_speed"]) for row in today_wind if row.get("wind_speed") is not None]
     today_gusts = [float(row["gust_speed"]) for row in today_gust if row.get("gust_speed") is not None]
     today_precip_values = [max(0.0, float(row["precip_10min"])) for row in today_precip if row.get("precip_10min") is not None]
@@ -329,6 +354,7 @@ def build_station_profile(
             item.get("temp"), item.get("humidity"), item.get("dewpoint"), item.get("pressure"), item.get("ground_temp"),
             item.get("wind_speed"), item.get("wind_direction"), item.get("gust_speed"), item.get("gust_direction"),
             item.get("precip_10min"), item.get("precip_duration"), item.get("precip_indicator"),
+            item.get("temp_max_10min"), item.get("temp_min_10min"), item.get("ground_min_10min"),
         ])
 
     latest = {
@@ -341,6 +367,10 @@ def build_station_profile(
         "dewpoint_c": temp_latest.get("dewpoint") if temp_latest else None,
         "pressure_hpa": temp_latest.get("pressure") if temp_latest else None,
         "ground_temp_c": temp_latest.get("ground_temp") if temp_latest else None,
+        "temperature_extrema_local": iso_local(extrema_latest),
+        "temperature_extrema_utc": iso_utc(extrema_latest),
+        "temp_max_10min_c": extrema_latest.get("temp_max_10min") if extrema_latest else None,
+        "temp_min_10min_c": extrema_latest.get("temp_min_10min") if extrema_latest else None,
         "wind_local": iso_local(wind_latest),
         "wind_utc": iso_utc(wind_latest),
         "wind_speed_ms": wind_latest.get("wind_speed") if wind_latest else None,
@@ -355,6 +385,7 @@ def build_station_profile(
         "precip_duration_min": precip_latest.get("precip_duration") if precip_latest else None,
         "precip_indicator": precip_latest.get("precip_indicator") if precip_latest else None,
         "quality_temperature": temp_latest.get("quality") if temp_latest else None,
+        "quality_temperature_extrema": extrema_latest.get("quality") if extrema_latest else None,
         "quality_wind": wind_latest.get("quality") if wind_latest else None,
         "quality_gust": gust_latest.get("quality") if gust_latest else None,
         "quality_precipitation": precip_latest.get("quality") if precip_latest else None,
@@ -362,8 +393,19 @@ def build_station_profile(
 
     today = {
         "date": today_local.isoformat(),
-        "min_c": round(min(today_temps), 2) if today_temps else None,
-        "max_c": round(max(today_temps), 2) if today_temps else None,
+        # NEVER substitute the highest/lowest instant TT_10 value for a
+        # genuine ten-minute extreme. Missing source remains missing.
+        "min_c": minimum["temp_min_10min"] if minimum else None,
+        "max_c": maximum["temp_max_10min"] if maximum else None,
+        "min_interval_end_local": iso_local(minimum),
+        "max_interval_end_local": iso_local(maximum),
+        "min_ground_c": ground_minimum["ground_min_10min"] if ground_minimum else None,
+        "min_ground_interval_end_local": iso_local(ground_minimum),
+        "extreme_temperature_source": "DWD TX_10/TN_10 (10-Minuten-Extrema, vorläufig)",
+        "extreme_temperature_max_count": len(today_maxima),
+        "extreme_temperature_min_count": len(today_minima),
+        "sample_min_10min_c": round(min(today_temps), 2) if today_temps else None,
+        "sample_max_10min_c": round(max(today_temps), 2) if today_temps else None,
         "mean_10min_c": average(today_temps),
         "temperature_count": len(today_temps),
         "mean_wind_ms": average(today_winds),
@@ -376,6 +418,7 @@ def build_station_profile(
 
     availability = {
         "temperature": bool(source_rows["temperature"]),
+        "temperature_extrema": bool(source_rows["temperature_extrema"]),
         "wind": bool(source_rows["wind"]),
         "gust": bool(source_rows["gust"]),
         "precipitation": bool(source_rows["precipitation"]),
@@ -396,6 +439,11 @@ def build_station_profile(
         "precip_10min_mm": latest["precip_10min_mm"],
         "today_min_c": today["min_c"],
         "today_max_c": today["max_c"],
+        "today_min_interval_end_local": today["min_interval_end_local"],
+        "today_max_interval_end_local": today["max_interval_end_local"],
+        "today_min_ground_c": today["min_ground_c"],
+        "today_extreme_source": today["extreme_temperature_source"],
+        "today_extreme_count": min(len(today_maxima), len(today_minima)),
         "today_mean_10min_c": today["mean_10min_c"],
         "today_max_gust_ms": today["max_gust_ms"],
         "today_precip_sum_mm": today["precip_sum_mm"],
@@ -414,6 +462,7 @@ def build_station_profile(
             "time_local", "temperature_c", "humidity_pct", "dewpoint_c", "pressure_hpa", "ground_temp_c",
             "wind_speed_ms", "wind_direction_deg", "gust_speed_ms", "gust_direction_deg",
             "precip_10min_mm", "precip_duration_min", "precip_indicator",
+            "temp_max_10min_c", "temp_min_10min_c", "ground_min_10min_c",
         ],
         "series": series,
     }
@@ -445,7 +494,7 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
     now_utc = datetime.now(timezone.utc)
 
-    print("Prüfe DWD-now-Verzeichnisse: Temperatur, Wind, Böen, Niederschlag …")
+    print("Prüfe DWD-now-Verzeichnisse: Temperatur, Temperaturextrema, Wind, Böen, Niederschlag …")
     listings = {source: request_text(config["base"]) for source, config in SOURCE_CONFIG.items()}
     metadata_text = request_text(META_URL)
     available_files = source_file_sets(listings)
@@ -454,7 +503,7 @@ def main() -> int:
         raise RuntimeError("Im DWD-now-Verzeichnis wurden keine TU-Stationsdateien gefunden")
 
     # The HTML directory listings contain filename, modification time and size.
-    # Hashing all four listings makes asynchronous DWD product updates visible.
+    # Hashing all five listings makes asynchronous DWD product updates visible.
     source_hash_payload = "\n---SOURCE---\n".join(
         [f"{source}\n{listings[source]}" for source in sorted(listings)] + [f"metadata\n{metadata_text}"]
     )
@@ -481,6 +530,7 @@ def main() -> int:
     print(
         "DWD-now-Bestand geändert: "
         f"{len(temp_station_ids)} Temperaturstationen; passende Zusatzquellen: "
+        f"Temperaturextreme {len(available_files['temperature_extrema'] & available_files['temperature'])}, "
         f"Wind {len(available_files['wind'] & available_files['temperature'])}, "
         f"Böen {len(available_files['gust'] & available_files['temperature'])}, "
         f"Niederschlag {len(available_files['precipitation'] & available_files['temperature'])}."
@@ -526,13 +576,13 @@ def main() -> int:
 
     availability_counts = {
         source: sum(1 for station in stations if station.get("availability", {}).get(source))
-        for source in ("temperature", "wind", "gust", "precipitation")
+        for source in ("temperature", "temperature_extrema", "wind", "gust", "precipitation")
     }
 
     # Diagnostic summary is intentionally printed into the Actions log. It makes
     # it obvious whether a source is missing from the DWD listing or failed while
     # downloading/parsing.
-    source_error_counts = {source: 0 for source in ("wind", "gust", "precipitation")}
+    source_error_counts = {source: 0 for source in ("temperature_extrema", "wind", "gust", "precipitation")}
     source_error_samples: dict[str, list[str]] = {source: [] for source in source_error_counts}
     for profile in profiles.values():
         for source, message in (profile.get("source_errors") or {}).items():
@@ -554,8 +604,8 @@ def main() -> int:
         "failed_station_count": len(failures),
         "availability_counts": availability_counts,
         "source_error_counts": source_error_counts,
-        "source": "DWD CDC 10-minute now: air_temperature + wind + extreme_wind + precipitation",
-        "source_note": "10-Minuten-Messwerte; DWD-now-Produkte werden in Abständen unter einer Stunde aktualisiert; aktuelle Werte sind vorläufig. Zusatzparameter werden über dieselbe Stations-ID verknüpft und können zeitversetzt zum Temperaturprodukt eintreffen.",
+        "source": "DWD CDC 10-minute now: air_temperature + extreme_temperature + wind + extreme_wind + precipitation",
+        "source_note": "Temperatur-Tagesextreme ausschließlich aus TX_10/TN_10 (originale 10-Minuten-Extrema), nicht aus TT_10-Momentanwerten; 00:00-Intervallende zählt zum Vortag. Fehlende Extreme bleiben fehlend. DWD-now unter einer Stunde aktualisiert, Messwerte vorläufig; Zusatzprodukte treffen teils zeitversetzt ein.",
         "stations": stations,
         "failures": failures[:50],
     }
@@ -571,6 +621,7 @@ def main() -> int:
 
     print(
         f"Live-Datensatz erstellt: {len(stations)} Stationen, {len(failures)} Fehler, "
+        f"Temperaturextreme {availability_counts['temperature_extrema']}, "
         f"Wind {availability_counts['wind']}, Böen {availability_counts['gust']}, "
         f"Niederschlag {availability_counts['precipitation']}, letzter Messzeitpunkt {latest_source}"
     )
