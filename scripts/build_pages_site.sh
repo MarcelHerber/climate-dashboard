@@ -160,7 +160,7 @@ import re
 for name in ("index.html","mosmix.html"):
     page=Path("_site")/name
     html=page.read_text(encoding="utf-8")
-    updated,count=re.subn(r"mosmix\\.js(?:\\?v=[A-Za-z0-9_.-]+)?",
+    updated,count=re.subn(r"mosmix\.js(?:\?v=[A-Za-z0-9_.-]+)?",
                            "mosmix.js?v=20261111-svg-vector-live-v2",html)
     if count:
         page.write_text(updated,encoding="utf-8")
