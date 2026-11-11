@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-11T20:17:31+00:00",
+  "generated_at": "2026-11-11T20:58:47+00:00",
   "remote": {
     "http_status": 200,
     "satellite_markup": true,
@@ -11,155 +11,13 @@
   },
   "capabilities_fixture": "actual EUMETSAT GetCapabilities XML",
   "desktop": {
-    "viewport": "desktop",
-    "initial_product": "geocolour",
-    "times": 48,
-    "time_select_enabled": true,
-    "image_initial_loaded": {
-      "error": "Page.wait_for_function: Timeout 35000ms exceeded."
-    },
-    "image_status": "EUMETSAT-Bild nicht verfügbar (Timeout bei 800 px). Versuche dieselbe Aufnahme mit 600 px …",
-    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=600&height=392&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
-    "viewport_overflow": false,
-    "mobile_menu_visible": false,
-    "time_before": "47",
-    "time_after_prev": "46",
-    "southwest_bbox": true,
-    "southwest_real_image_loaded": false,
-    "southwest_diagnostics": {
-      "status": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
-      "image": {
-        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
-        "complete": false,
-        "width": 0,
-        "height": 0
-      }
-    },
-    "southwest_real_borders": true,
-    "southwest_city_label": "Ponta Delgada\nFunchal\nLas Palmas\nLissabon\nMadrid\nParis\nLondon\nFrankfurt\nRom\nCasablanca\nBrest",
-    "border_toggle_off": true,
-    "ecmwf_isobars_real_visible": true,
-    "ecmwf_isobar_metadata": "ECMWF IFS 2026-11-11 12:00 UTC · +6 h Vorhersage · gültig 2026-11-11 18:00 UTC · Satellit 2026-11-11 19:50 UTC (110 min später) · 0,25° · 5 hPa · © ECMWF (CC BY 4.0)",
-    "ecmwf_isobar_5hpa_count": 38,
-    "ecmwf_isobar_10hpa_count": 11,
-    "atlantic_bbox": true,
-    "atlantic_real_image_loaded": false,
-    "atlantic_wms_warning": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
-    "full_disk_native_projection": true,
-    "disk_overlays_disabled": true,
-    "germany_bbox": true,
-    "geocolour_url": true,
-    "dust_url": true,
-    "cloudtype_url": true,
-    "ir105_url": true,
-    "firetemperature_url": true,
-    "mtgi2_no_live": true,
-    "mtgi2_product_disabled": true,
-    "mtgi1_product_enabled": true,
-    "long_film_36": true,
-    "automatic_320px": true,
-    "long_film_48": true,
-    "theme_toggle_present": true,
-    "theme_control_visible": true,
-    "dark_theme_on": true,
-    "film_export_capabilities": {
-      "canvasCapture": true,
-      "mediaRecorder": true,
-      "mp4H264": true,
-      "mp4Generic": true,
-      "webmVp9": true,
-      "webCodecs": true,
-      "createImageBitmap": true
-    },
-    "mocked_frame_requests": 8,
-    "gif_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_195000Z.gif",
-      "size": 18515,
-      "gif89a": true,
-      "source": "synthetic image pixels; official WMS UTC metadata"
-    },
-    "mp4_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_195000Z.mp4",
-      "size": 10446,
-      "iso_bmff": true,
-      "source": "synthetic image pixels; real Chromium MP4/H264 encoder"
-    },
-    "screenshot": "desktop.png"
+    "error": "AssertionError()",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 336, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 279, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "last_url": "http://127.0.0.1:18873/satelliten.html"
   },
   "mobile": {
-    "viewport": "mobile",
-    "initial_product": "geocolour",
-    "times": 48,
-    "time_select_enabled": true,
-    "image_initial_loaded": {
-      "error": "Page.wait_for_function: Timeout 35000ms exceeded."
-    },
-    "image_status": "EUMETSAT-Bild nicht verfügbar (Bildfehler). Versuche dieselbe Aufnahme mit 600 px …",
-    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=600&height=392&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
-    "viewport_overflow": false,
-    "mobile_menu_visible": true,
-    "time_before": "47",
-    "time_after_prev": "46",
-    "southwest_bbox": true,
-    "southwest_real_image_loaded": false,
-    "southwest_diagnostics": {
-      "status": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
-      "image": {
-        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
-        "complete": false,
-        "width": 0,
-        "height": 0
-      }
-    },
-    "southwest_real_borders": true,
-    "southwest_city_label": "Ponta Delgada\nFunchal\nLas Palmas\nLissabon\nMadrid\nParis\nLondon\nFrankfurt\nRom\nCasablanca\nBrest",
-    "border_toggle_off": true,
-    "ecmwf_isobars_real_visible": true,
-    "ecmwf_isobar_metadata": "ECMWF IFS 2026-11-11 12:00 UTC · +6 h Vorhersage · gültig 2026-11-11 18:00 UTC · Satellit 2026-11-11 19:50 UTC (110 min später) · 0,25° · 5 hPa · © ECMWF (CC BY 4.0)",
-    "ecmwf_isobar_5hpa_count": 38,
-    "ecmwf_isobar_10hpa_count": 11,
-    "atlantic_bbox": true,
-    "atlantic_real_image_loaded": false,
-    "atlantic_wms_warning": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
-    "full_disk_native_projection": true,
-    "disk_overlays_disabled": true,
-    "germany_bbox": true,
-    "geocolour_url": true,
-    "dust_url": true,
-    "cloudtype_url": true,
-    "ir105_url": true,
-    "firetemperature_url": true,
-    "mtgi2_no_live": true,
-    "mtgi2_product_disabled": true,
-    "mtgi1_product_enabled": true,
-    "long_film_36": true,
-    "automatic_320px": true,
-    "long_film_48": true,
-    "theme_toggle_present": true,
-    "theme_control_visible": true,
-    "dark_theme_on": true,
-    "film_export_capabilities": {
-      "canvasCapture": true,
-      "mediaRecorder": true,
-      "mp4H264": true,
-      "mp4Generic": true,
-      "webmVp9": true,
-      "webCodecs": true,
-      "createImageBitmap": true
-    },
-    "mocked_frame_requests": 8,
-    "gif_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_195000Z.gif",
-      "size": 18515,
-      "gif89a": true,
-      "source": "synthetic image pixels; official WMS UTC metadata"
-    },
-    "mp4_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_195000Z.mp4",
-      "size": 10446,
-      "iso_bmff": true,
-      "source": "synthetic image pixels; real Chromium MP4/H264 encoder"
-    },
-    "screenshot": "mobile.png"
+    "error": "AssertionError()",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 336, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 279, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "last_url": "http://127.0.0.1:18873/satelliten.html"
   }
 }
