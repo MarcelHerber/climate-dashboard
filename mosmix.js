@@ -147,7 +147,7 @@
       ".mosmix-meteogram-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-end;margin-bottom:12px}",
       ".mosmix-station-search{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.mosmix-station-search input{min-width:280px;padding:9px 10px;border:1px solid #bcc6cf;border-radius:7px;font:inherit}",
       ".mosmix-meteogram-status{margin:0 0 12px;padding:10px 12px;border-radius:7px;background:#f5f8fa;border:1px solid #dde4e9;color:#475569;font-size:12px}",
-      ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
+      ".mosmix-meteogram-actions{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px;margin:0 0 12px}",
       ".mosmix-chart-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0 12px;font-size:12px;color:#475569}",
       ".mosmix-chart-toolbar select{padding:6px 8px;border:1px solid #cbd5df;border-radius:6px}",
       ".mosmix-chart-toolbar label{display:flex;gap:5px;align-items:center}",
@@ -159,14 +159,19 @@
       ".mosmix-period-button{border:1px solid #cbd5df;border-radius:5px;background:#fff;color:#334155;font-size:11px;font-weight:700;line-height:1.2;padding:5px 7px;cursor:pointer}",
       ".mosmix-period-button.active{background:#10213d;color:#fff;border-color:#10213d}",
       ".mosmix-period-hint{font-size:10px;color:#64748b;margin:0 0 4px}",
-      ".mosmix-export-status{font-size:11px;color:#475569;margin-right:auto}",
-      ".mosmix-chart-export-actions{display:flex;justify-content:flex-end;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid #edf1f5}",
+      ".mosmix-export-status{font-size:11px;color:#475569;flex:0 0 100%;margin-right:0}",
+      ".mosmix-chart-export-actions{display:flex;justify-content:flex-start;align-items:center;gap:7px;flex-wrap:wrap;margin:4px 0 8px;padding:0;border:0}",
       ".mosmix-chart-export-actions .mosmix-button{padding:5px 9px;font-size:11px;font-weight:650;line-height:1.4}",
       ".mosmix-chart-export-actions .mosmix-button:focus-visible{outline:2px solid #2478b5;outline-offset:2px}",
       ".mosmix-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}",
       ".mosmix-chart-card.mosmix-chart-wide{grid-column:1/-1}",
       ".mosmix-chart-wrap.mosmix-chart-short{height:230px}",
-      ".mosmix-chart-card{min-width:0;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
+      ".mosmix-meteogram-card,.mosmix-chart-grid,.mosmix-chart-card{min-width:0;max-width:100%}",
+      ".mosmix-chart-card{display:flex;flex-direction:column;border:1px solid #dce3e8;border-radius:8px;padding:10px 12px;background:#fff}.mosmix-chart-card h4{margin:0 0 7px;font-size:13px;color:#334155}",
+      ".mosmix-chart-card>h4,.mosmix-chart-card>.mosmix-period-head{order:0}",
+      ".mosmix-chart-card>.mosmix-period-hint{order:1}",
+      ".mosmix-chart-card>.mosmix-chart-export-actions{order:2}",
+      ".mosmix-chart-card>.mosmix-chart-wrap{order:3}",
       ".mosmix-chart-wrap{position:relative;height:280px}.mosmix-chart-wrap canvas{width:100%!important;height:100%!important}",
       "@media(max-width:900px){.mosmix-chart-grid{grid-template-columns:1fr}.mosmix-station-search{width:100%}.mosmix-station-search input{min-width:0;flex:1}}",
       "@media(max-width:1050px){.mosmix-controls{grid-template-columns:1fr 1fr 1fr}.mosmix-mode-group,.mosmix-slider-wrap{grid-column:1/-1}}",
@@ -703,27 +708,47 @@
     ].join("-");
   }
 
-  const mosmixAxisCache = new Map();
-
-  function mosmixAxisTime(index) {
-    // Chart.js category ticks hold the ORIGINAL data index in tick.value.
-    // ctx.index (and the callback's second argument) counts visible ticks
-    // from zero after x.min/x.max clipping, shifting dates by 5-6 hours.
-    if (!Number.isInteger(index) || index < 0) return null;
-    const iso = data && data.timesteps && data.timesteps[index];
-    if (!iso) return null;
-    if (mosmixAxisCache.has(iso)) return mosmixAxisCache.get(iso);
-    const parts = berlinDateParts(iso);
-    if (!parts) return null;
-    const weekday = new Intl.DateTimeFormat("de-DE", {
-      timeZone:"Europe/Berlin",weekday:"short"
-    }).format(new Date(iso)).replace(/\.$/, "");
-    const day = String(parts.day).padStart(2,"0");
-    const month = String(parts.month).padStart(2,"0");
-    const result = {hour:parts.hour,dayLabel:weekday+" "+day+"."+month+"."};
-    mosmixAxisCache.set(iso,result);
-    return result;
-  }
+  // Place all midnight marks using the plotted MOSMIX timestep index, not
+  // Chart.js category tick ordinals. This also holds when the 3/5-day views
+  // set x.min/x.max, and across CET/CEST clock changes.
+  const mosmixBerlinMidnightPlugin = {
+    id:"mosmixBerlinMidnight",
+    afterDraw:function(chart) {
+      if (!chart.options?.plugins?.mosmixBerlinMidnight || !data?.timesteps?.length) return;
+      const xAxis=chart.scales?.x, area=chart.chartArea;
+      if (!xAxis || !area) return;
+      const first=Math.max(0,Math.ceil(xAxis.min));
+      const last=Math.min(data.timesteps.length-1,Math.floor(xAxis.max));
+      const ctx=chart.ctx;
+      ctx.save();
+      ctx.font="11px Arial";
+      ctx.textAlign="center";
+      ctx.textBaseline="alphabetic";
+      for(let i=first;i<=last;i++){
+        const time=berlinDateParts(data.timesteps[i]);
+        if(!time || time.hour!==0)continue;
+        const x=xAxis.getPixelForValue(i);
+        if(!Number.isFinite(x) || x<area.left-0.5 || x>area.right+0.5)continue;
+        ctx.strokeStyle="rgba(100,116,139,.42)";
+        ctx.lineWidth=1.25;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x)+0.5,area.top);
+        ctx.lineTo(Math.round(x)+0.5,area.bottom);
+        ctx.stroke();
+        // Only omit edge-clipped text; never shift the date away from its line.
+        if(x<area.left+34 || x>area.right-34)continue;
+        const weekday=new Intl.DateTimeFormat("de-DE",{
+          timeZone:"Europe/Berlin",weekday:"short"
+        }).format(new Date(data.timesteps[i])).replace(/\\.$/,"");
+        ctx.fillStyle="#64748b";
+        ctx.fillText(weekday+" "+String(time.day).padStart(2,"0")+"."+
+          String(time.month).padStart(2,"0")+".",x,area.bottom+15);
+        ctx.fillText("00 Uhr",x,area.bottom+28);
+      }
+      ctx.restore();
+    }
+  };
+  let mosmixMidnightPluginRegistered=false;
 
   function baseChartOptions(yTitle) {
     return {
@@ -731,40 +756,18 @@
       maintainAspectRatio:false,
       animation:false,
       interaction:{mode:"index",intersect:false},
+      layout:{padding:{bottom:36}},
       plugins:{
         legend:{display:true,labels:{boxWidth:18,usePointStyle:true}},
         tooltip:{enabled:true},
-        datalabels:{display:false}
+        datalabels:{display:false},
+        mosmixBerlinMidnight:true
       },
       scales:{
         x:{
-          ticks:{
-            autoSkip:false,maxRotation:0,minRotation:0,padding:8,
-            font:{size:11},
-            callback:function(value) {
-              // CategoryScale passes the absolute timestep index as value,
-              // not as the tick ordinal. This also holds in 3/5-day views.
-              const t = mosmixAxisTime(value);
-              if (!t) return "";
-              // Show the date once per day, and 00/12 local time only.
-              if (t.hour === 0) return [t.dayLabel,"00 Uhr"];
-              if (t.hour === 12 && window.innerWidth >= 700 &&
-                  data.timesteps.length <= 120) return "12 Uhr";
-              return "";
-            }
-          },
-          grid:{
-            drawTicks:true,
-            color:function(ctx) {
-              const t = mosmixAxisTime(ctx.tick && ctx.tick.value);
-              return t && t.hour === 0 ? "rgba(100,116,139,.38)" :
-                t && t.hour === 12 ? "rgba(148,163,184,.16)" : "rgba(0,0,0,0)";
-            },
-            lineWidth:function(ctx) {
-              const t = mosmixAxisTime(ctx.tick && ctx.tick.value);
-              return t && t.hour === 0 ? 1.5 : 0.8;
-            }
-          }
+          ticks:{display:false},
+          grid:{display:false},
+          border:{display:false}
         },
         y:{title:{display:true,text:yTitle}}
       }
@@ -822,6 +825,10 @@
 
   function createMeteogram(detail) {
     if (!window.Chart) throw new Error("Chart.js ist nicht verfügbar.");
+    if(!mosmixMidnightPluginRegistered){
+      window.Chart.register(mosmixBerlinMidnightPlugin);
+      mosmixMidnightPluginRegistered=true;
+    }
     destroyMeteogramCharts();
 
     currentDetail = detail;
@@ -965,6 +972,8 @@
     const dayValues=dayFrames.map(frame=>sunDayValue(sunshine,frame));
     const dayOptions=baseChartOptions("Sonnenscheindauer (h pro Tag)");
     dayOptions.plugins.legend.display=false;
+    dayOptions.plugins.mosmixBerlinMidnight=false;
+    dayOptions.layout.padding.bottom=0;
     dayOptions.scales.y.min=0;
     dayOptions.scales.y.suggestedMax=12;
     dayOptions.scales.x={ticks:{autoSkip:true,maxTicksLimit:10,minRotation:0,maxRotation:0},
