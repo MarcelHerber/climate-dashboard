@@ -6,7 +6,7 @@ const vm=require("node:vm");
 const source=fs.readFileSync("satelliten.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 
-function fixture({failOne480=false,failOne320=false,totalSlots=8}={}){
+function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSlots=8}={}){
  let failed480=false,failed320=false;
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
@@ -38,6 +38,7 @@ function fixture({failOne480=false,failOne320=false,totalSlots=8}={}){
     this.naturalWidth=Number(params.get("width"));
     this.naturalHeight=Number(params.get("height"));
     if(isSmall)state.active--;
+    if(failLargeStill&&this.naturalWidth>=1000){this.onerror?.();return;}
     if(failOne480&&!failed480&&this.naturalWidth===480){failed480=true;this.onerror?.();return;}
     if(failOne320&&!failed320&&this.naturalWidth===320){failed320=true;this.onerror?.();return;}
     this.onload?.();
@@ -182,6 +183,21 @@ test("48-frame movie covers every available timestamp without duplicate download
  await delay(100);
  assert.equal(requests.length,before,"48-frame playback uses cached frames only");
  nodes.get("satPlay").dispatch("click");
+});
+test("Oversized EUMETSAT still-image failure automatically retries same time and bbox at 800px",async()=>{
+ const {nodes,requests,slots}=fixture({failLargeStill:true});
+ await waitUntil(()=>nodes.get("satTime").options.length===8,"verified UTC axis");
+ await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"recovered smaller still image",1500);
+ const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="800");
+ assert.ok(previews.length>=1,"800px backup not requested");
+ const first=new URL(requests.find(r=>new URL(r.url).searchParams.get("width")==="1200").url);
+ const fallback=new URL(previews.at(-1).url);
+ assert.equal(first.searchParams.get("bbox"),fallback.searchParams.get("bbox"));
+ assert.equal(first.searchParams.get("time"),fallback.searchParams.get("time"));
+ assert.equal(fallback.searchParams.get("bbox"),"-37,24,19,53");
+ assert.ok(fallback.searchParams.get("time")===slots.at(-1));
+ assert.match(nodes.get("satStatus").textContent,/höhere Auflösung nicht rechtzeitig/);
+ assert.equal(nodes.get("satPng").disabled,false);
 });
 test("Lightweight film controls exist and preserve original high-res export",()=>{
  for(const id of ["satTimeline","satFilmLength","satFilmQuality","satFilmSpeed","satFilmStage",
