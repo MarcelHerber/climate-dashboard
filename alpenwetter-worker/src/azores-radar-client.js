@@ -200,4 +200,6 @@ fetch("/radarlabor/api/borders_europe.geojson").then(response=>{if(!response.ok)
  .then(data=>{state.geo=data;if(state.m)render();else{base();outlines();labels()}})
  .catch(()=>{});
 base();labels();boot();
+// Only refresh while the user is viewing the most recent frame and not animating.
+setInterval(()=>{if(!state.playing&&state.m&&state.idx===frames().length-1)boot();},300000);
 })();`;
