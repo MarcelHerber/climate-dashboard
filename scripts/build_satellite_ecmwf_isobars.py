@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 UTC = dt.timezone.utc
-BBOX = (-75.0, 12.0, 40.0, 78.0)
+BBOX = (-75.0, 12.0, 55.0, 80.0)
 LEADS = (0, 3, 6, 9, 12)
 LEVELS = tuple(range(900, 1071, 5))
 SOURCE_URL = "https://www.ecmwf.int/en/forecasts/datasets/open-data"
@@ -83,7 +83,7 @@ def decode_grib(path, run):
                 # then sort to avoid discontinuity at the 0/360 seam.
                 r = np.flatnonzero((lat[:, 0] >= BBOX[1]) & (lat[:, 0] <= BBOX[3]))
                 c = np.flatnonzero((lon[0, :] >= BBOX[0]) & (lon[0, :] <= BBOX[2]))
-                if len(r) < 200 or len(c) < 300:
+                if len(r) < 200 or len(c) < 400:
                     raise ValueError(f"Incomplete Atlantic/European coverage: {len(r)}×{len(c)}")
                 rows = r[np.argsort(lat[r, 0])]
                 cols = c[np.argsort(lon[0, c])]
