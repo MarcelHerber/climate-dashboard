@@ -13,7 +13,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,totalSl
    "satPrev","satNext","satPlay","satPng","satTimeline","satTimelineLabel","satFilmStage",
    "satFilmLength","satFilmQuality","satFilmSpeed","satFilmProgress","satFilmProgressLabel",
    "satFilmProgressWrap","satRawImage","satMapTitle","satValid","satImageInfo",
-   "satOfficial","satAttribution","satReload"];
+   "satOfficial","satAttribution","satReload","satGif","satMp4"];
  class Element{
   constructor(){this.hidden=false;this.disabled=false;this.value="";this.textContent="";this.options=[];
     this.children=[];this.listeners=new Map();this.attrs={};this.dataset={};}
@@ -90,6 +90,8 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  assert.equal(previewRequests.length,6,"six miniature images downloaded exactly once");
  assert.ok(state.maxActive<=2,"at most two parallel WMS preloads");
  assert.ok(state.maxActive>=1);
+ assert.equal(nodes.get("satGif").disabled,false,"GIF available after preloading");
+ assert.equal(nodes.get("satMp4").disabled,true,"MP4 disabled in mock without codec");
  assert.equal(nodes.get("satFilmStage").children.length,1);
  assert.equal(nodes.get("satFilmStage").children[0],previewRequests[0].img,"preloaded DOM image reused");
  assert.match(nodes.get("satStatus").textContent,/Satellitenfilm/);
