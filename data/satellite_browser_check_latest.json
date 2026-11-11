@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-11T16:50:05+00:00",
+  "generated_at": "2026-11-11T20:17:31+00:00",
   "remote": {
     "http_status": 200,
     "satellite_markup": true,
@@ -15,9 +15,11 @@
     "initial_product": "geocolour",
     "times": 48,
     "time_select_enabled": true,
-    "image_initial_loaded": true,
-    "image_status": "Lade EUMETSAT-Bild; prüfe verfügbare UTC-Zeitpunkte …",
-    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=1300&height=850&bgcolor=0x000000&time=2026-11-11T16%3A30%3A00Z",
+    "image_initial_loaded": {
+      "error": "Page.wait_for_function: Timeout 35000ms exceeded."
+    },
+    "image_status": "EUMETSAT-Bild nicht verfügbar (Timeout bei 800 px). Versuche dieselbe Aufnahme mit 600 px …",
+    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=600&height=392&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
     "viewport_overflow": false,
     "mobile_menu_visible": false,
     "time_before": "47",
@@ -27,15 +29,19 @@
     "southwest_diagnostics": {
       "status": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
       "image": {
-        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T16%3A30%3A00Z",
+        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
         "complete": false,
-        "width": 600,
-        "height": 310
+        "width": 0,
+        "height": 0
       }
     },
     "southwest_real_borders": true,
     "southwest_city_label": "Ponta Delgada\nFunchal\nLas Palmas\nLissabon\nMadrid\nParis\nLondon\nFrankfurt\nRom\nCasablanca\nBrest",
     "border_toggle_off": true,
+    "ecmwf_isobars_real_visible": true,
+    "ecmwf_isobar_metadata": "ECMWF IFS 2026-11-11 12:00 UTC · +6 h Vorhersage · gültig 2026-11-11 18:00 UTC · Satellit 2026-11-11 19:50 UTC (110 min später) · 0,25° · 5 hPa · © ECMWF (CC BY 4.0)",
+    "ecmwf_isobar_5hpa_count": 38,
+    "ecmwf_isobar_10hpa_count": 11,
     "atlantic_bbox": true,
     "atlantic_real_image_loaded": false,
     "atlantic_wms_warning": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
@@ -67,14 +73,14 @@
     },
     "mocked_frame_requests": 8,
     "gif_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_163000Z.gif",
-      "size": 18508,
+      "filename": "mtg_firetemperature_southwest_20261111_195000Z.gif",
+      "size": 18515,
       "gif89a": true,
       "source": "synthetic image pixels; official WMS UTC metadata"
     },
     "mp4_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_163000Z.mp4",
-      "size": 10463,
+      "filename": "mtg_firetemperature_southwest_20261111_195000Z.mp4",
+      "size": 10446,
       "iso_bmff": true,
       "source": "synthetic image pixels; real Chromium MP4/H264 encoder"
     },
@@ -85,9 +91,11 @@
     "initial_product": "geocolour",
     "times": 48,
     "time_select_enabled": true,
-    "image_initial_loaded": true,
-    "image_status": "EUMETSAT-Bild lädt zu langsam (Bildfehler). Versuche dieselbe Aufnahme mit 800 px …",
-    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=800&height=523&bgcolor=0x000000&time=2026-11-11T16%3A30%3A00Z",
+    "image_initial_loaded": {
+      "error": "Page.wait_for_function: Timeout 35000ms exceeded."
+    },
+    "image_status": "EUMETSAT-Bild nicht verfügbar (Bildfehler). Versuche dieselbe Aufnahme mit 600 px …",
+    "image_url": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-27%2C24%2C49%2C73&width=600&height=392&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
     "viewport_overflow": false,
     "mobile_menu_visible": true,
     "time_before": "47",
@@ -97,15 +105,19 @@
     "southwest_diagnostics": {
       "status": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
       "image": {
-        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T16%3A30%3A00Z",
+        "src": "https://view.eumetsat.int/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=mtg_fd%3Argb_geocolour&styles=&format=image%2Fpng&transparent=false&srs=EPSG%3A4326&bbox=-37%2C24%2C19%2C53&width=600&height=310&bgcolor=0x000000&time=2026-11-11T19%3A50%3A00Z",
         "complete": false,
-        "width": 600,
-        "height": 310
+        "width": 0,
+        "height": 0
       }
     },
     "southwest_real_borders": true,
     "southwest_city_label": "Ponta Delgada\nFunchal\nLas Palmas\nLissabon\nMadrid\nParis\nLondon\nFrankfurt\nRom\nCasablanca\nBrest",
     "border_toggle_off": true,
+    "ecmwf_isobars_real_visible": true,
+    "ecmwf_isobar_metadata": "ECMWF IFS 2026-11-11 12:00 UTC · +6 h Vorhersage · gültig 2026-11-11 18:00 UTC · Satellit 2026-11-11 19:50 UTC (110 min später) · 0,25° · 5 hPa · © ECMWF (CC BY 4.0)",
+    "ecmwf_isobar_5hpa_count": 38,
+    "ecmwf_isobar_10hpa_count": 11,
     "atlantic_bbox": true,
     "atlantic_real_image_loaded": false,
     "atlantic_wms_warning": "EUMETSAT liefert für diesen Zeitpunkt auch mit kleinerer Auflösung kein Bild (Timeout bei 600 px).",
@@ -137,14 +149,14 @@
     },
     "mocked_frame_requests": 8,
     "gif_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_163000Z.gif",
-      "size": 18508,
+      "filename": "mtg_firetemperature_southwest_20261111_195000Z.gif",
+      "size": 18515,
       "gif89a": true,
       "source": "synthetic image pixels; official WMS UTC metadata"
     },
     "mp4_export": {
-      "filename": "mtg_firetemperature_southwest_20261111_163000Z.mp4",
-      "size": 10463,
+      "filename": "mtg_firetemperature_southwest_20261111_195000Z.mp4",
+      "size": 10446,
       "iso_bmff": true,
       "source": "synthetic image pixels; real Chromium MP4/H264 encoder"
     },
