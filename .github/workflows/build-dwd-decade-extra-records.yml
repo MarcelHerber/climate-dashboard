@@ -1,0 +1,81 @@
+name: DWD Dekadenrekorde · TMK Sonne Böen Regen-Summen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_dwd_decade_extra_records.py
+      - tests/test_dwd_decade_extra_records.py
+      - .github/workflows/build-dwd-decade-extra-records.yml
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  records:
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [kl, rr]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    concurrency:
+      group: decade-extra-${{ matrix.network }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Klimatologische Rekordlogik und Vollständigkeit prüfen
+        run: |
+          python -m py_compile scripts/build_dwd_decade_extra_records.py
+          python -m unittest discover -s tests -p 'test_dwd_decade_extra_records.py' -v
+      - name: Amtliche historische und aktuelle DWD-Daten auswerten
+        run: |
+          python scripts/build_dwd_decade_extra_records.py \
+            --network "${{ matrix.network }}" \
+            --output "data/dwd_decade_extra_${{ matrix.network }}.json" \
+            --max-workers 14
+      - name: Gebiete und Rekorde gegenprüfen
+        env:
+          NETWORK: ${{ matrix.network }}
+        run: |
+          python - <<'PY'
+          import os,json
+          network=os.environ["NETWORK"]
+          d=json.load(open(f"data/dwd_decade_extra_{network}.json"))
+          assert d["version"]==1 and len(d["areas"])==17 and len(d["periods"])==36
+          assert d["complete_station_decades"]>0
+          for metric in d["metrics"]:
+              assert any(d["leaders"][metric]["Deutschland"].values()),metric
+          print("OK",network,d["complete_station_decades"],list(d["metrics"]))
+          PY
+      - name: Rekorde nach main veröffentlichen und Pages neu bauen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "climate-dashboard-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "data/dwd_decade_extra_${{ matrix.network }}.json"
+          if git diff --cached --quiet; then
+            echo "Rekorde unverändert."
+            exit 0
+          fi
+          git commit -m "DWD Dekaden-Zusatzrekorde ${{ matrix.network }} aktualisiert [skip ci]"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then
+              gh workflow run deploy-pages-only.yml --ref main
+              exit 0
+            fi
+            sleep 9
+          done
+          exit 1
