@@ -22,13 +22,15 @@ test("Meteosat viewer assets included in Pages deployment",()=>{
  assert.ok(html.includes("dashboard_theme.js"));
 });
 test("Meteosat viewer shows only documented official products and honest source status",()=>{
- for(const layer of ["mtg_fd:rgb_geocolour","mtg_fd:rgb_dust","mtg_fd:rgb_cloudtype"])assert.ok(js.includes(layer),layer);
+ for(const layer of ["mtg_fd:rgb_geocolour","mtg_fd:rgb_dust","mtg_fd:rgb_cloudtype","mtg_fd:ir105_hrfi","mtg_fd:rgb_firetemperature"])assert.ok(js.includes(layer),layer);
  assert.ok(js.includes('request:"GetCapabilities"'));
  assert.ok(js.includes('layerTimes(xml,description().layer)'));
  assert.ok(js.includes("Der Aufnahmezeitpunkt ist noch nicht verifiziert"));
  assert.ok(js.includes('source.value==="mtgi2"'));
  assert.ok(html.includes("kein Livestream"));
  assert.ok(html.includes("ESA-Erstbilder"));
+ assert.ok(html.includes('<option value="ir105">'));
+ assert.ok(html.includes('<option value="firetemperature">'));
  assert.ok(js.includes('if(t)params.set("time",t)'));
  assert.ok(js.includes('transparent:"false"'));
  assert.ok(js.includes('version:"1.1.1"'));
