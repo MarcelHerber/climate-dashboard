@@ -250,6 +250,32 @@ else
 fi
 
 
+# Last-good EUMETSAT images: only publish actual verified PNG files and their
+# manifest. Never create a placeholder or substitute made-up satellite data.
+if [[ -s data/satellite_cache/index.json ]]; then
+  mkdir -p _site/data/satellite_cache
+  cp data/satellite_cache/index.json _site/data/satellite_cache/index.json
+  python - <<'PY'
+import json, shutil
+from pathlib import Path
+source=Path("data/satellite_cache")
+target=Path("_site/data/satellite_cache")
+doc=json.loads((source/"index.json").read_text(encoding="utf-8"))
+assert doc.get("schema")==1 and doc.get("provider")=="EUMETSAT WMS"
+count=0
+for product, regions in doc.get("entries",{}).items():
+    for region,entry in regions.items():
+        filename=f"{product}_{region}.png"
+        assert entry.get("url")==f"./data/satellite_cache/{filename}"
+        origin=source/filename
+        if not origin.is_file() or not origin.read_bytes().startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+            raise SystemExit(f"Invalid cached satellite image: {filename}")
+        shutil.copy2(origin,target/filename)
+        count+=1
+print(f"EUMETSAT: {count} real last-good PNG snapshots in Pages artifact.")
+PY
+fi
+
 # Arktischer DMI-Index wird im täglichen Spezialworkflow erzeugt.
 # Die erste Veröffentlichung darf nicht durch eine noch ausstehende
 # Datenberechnung blockiert werden; die Seite zeigt den Status transparent.
