@@ -49,3 +49,36 @@ for url in SITES:
       print("JS_MATCH",js[max(0,m.start()-95):m.end()+190].replace("\n"," ")[:330])
     except Exception as e:print("SCRIPT_ERROR",script,str(e)[:120])
  except Exception as e:print("ERROR",url,str(e)[:220])
+
+
+# The official Azores MapBuilder references:
+#  image overlay bounds [[32.83497,-35.01827],[44.06629,-21.19264]]
+#  source folder /resources.www/transf/radar/azo/
+import io,json
+from PIL import Image
+for end in ["imgs-radar-az.json","imgs-radar-azo.json","imgs-radar.json"]:
+ url="https://www.ipma.pt/resources.www/transf/radar/"+end
+ try:
+  rr=s.get(url,timeout=27)
+  print("RADAR_INDEX",end,rr.status_code,len(rr.content),rr.headers.get("content-type"),"BODY",rr.text[:320])
+  if not rr.ok:continue
+  d=rr.json()
+  print("INDEX_KEYS",list(d),"SAMPLE",str({k:(len(v) if isinstance(v,list) else type(v).__name__) for k,v in d.items()})[:1500])
+  if isinstance(d.get("Azores"),list):
+   entries=d["Azores"]
+   print("AZORES_COUNT",len(entries),"FIRST",json.dumps(entries[:2],ensure_ascii=False)[:1000],
+         "LAST",json.dumps(entries[-3:],ensure_ascii=False)[:1800])
+   nonempty=[x for x in entries if isinstance(x,dict) and x.get("path")]
+   if nonempty:
+    p=nonempty[-1]["path"]
+    u="https://www.ipma.pt/resources.www/transf/radar/azo/"+p
+    response=s.get(u,timeout=55)
+    print("RADAR_IMAGE",response.status_code,len(response.content),response.headers.get("content-type"),u)
+    if response.ok:
+     im=Image.open(io.BytesIO(response.content))
+     print("RADAR_IMAGE_META",im.format,im.size,im.mode,"bbox",im.getbbox(),"info",str(im.info)[:350])
+     if im.mode in ("RGBA","LA"):
+      alpha=im.getchannel("A")
+      print("RADAR_ALPHA","bbox",alpha.getbbox(),"extrema",alpha.getextrema())
+     print("RADAR_PIXEL",im.convert("RGBA").getpixel((im.width//2,im.height//2)))
+ except Exception as e:print("RADAR_INDEX_ERROR",end,repr(e)[:350])
