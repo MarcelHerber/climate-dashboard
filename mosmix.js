@@ -739,7 +739,7 @@
         if(x<area.left+34 || x>area.right-34)continue;
         const weekday=new Intl.DateTimeFormat("de-DE",{
           timeZone:"Europe/Berlin",weekday:"short"
-        }).format(new Date(data.timesteps[i])).replace(/\\.$/,"");
+        }).format(new Date(data.timesteps[i])).replace(/\.$/,"");
         ctx.fillStyle="#64748b";
         ctx.fillText(weekday+" "+String(time.day).padStart(2,"0")+"."+
           String(time.month).padStart(2,"0")+".",x,area.bottom+15);
