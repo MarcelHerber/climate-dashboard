@@ -1084,21 +1084,77 @@
     };
   }
 
-  function meteogramExportSections() {
-    if (!currentDetail || meteogramCharts.length !== 6) throw new Error("Bitte zuerst eine Station mit fünf Diagrammen laden.");
+  // Individual exports are re-rendered offscreen at higher resolution.
+  // The existing six-panel export keeps its established layout.
+  function highResolutionMeteogramSource(spec, source) {
+    const chart = meteogramCharts.find(function(item){return item.canvas === source;});
+    if (!chart || !window.Chart) return source;
+    const offscreen = document.createElement("canvas");
+    offscreen.width = 1540;
+    offscreen.height = spec[0] === "sunDaily" ? 440 : 585;
+    let copyChart = null;
+    try {
+      const options = chart.config.options || {};
+      const scales = Object.assign({}, options.scales || {});
+      const displayX = chart.options?.scales?.x;
+      if (displayX) {
+        scales.x = Object.assign({}, scales.x || {}, {
+          min:displayX.min,
+          max:displayX.max
+        });
+      }
+      copyChart = new window.Chart(offscreen, {
+        type:chart.config.type,
+        data:{
+          labels:Array.isArray(chart.data.labels) ? chart.data.labels.slice() : chart.data.labels,
+          datasets:chart.data.datasets.map(function(dataset,index) {
+            return Object.assign({}, dataset, {hidden:!chart.isDatasetVisible(index)});
+          })
+        },
+        options:Object.assign({}, options, {
+          responsive:false,
+          maintainAspectRatio:false,
+          animation:false,
+          devicePixelRatio:2,
+          events:[],
+          scales:scales
+        })
+      });
+      copyChart.update("none");
+      const snapshot = document.createElement("canvas");
+      snapshot.width = offscreen.width;
+      snapshot.height = offscreen.height;
+      snapshot.getContext("2d").drawImage(offscreen,0,0,snapshot.width,snapshot.height);
+      return snapshot;
+    } catch(error) {
+      console.warn("MOSMIX Einzel-Export: Originaldiagramm als Fallback.",error);
+      return source;
+    } finally {
+      if (copyChart) copyChart.destroy();
+    }
+  }
+
+  function meteogramExportSections(onlyKey) {
+    if (!currentDetail || meteogramCharts.length !== 6)
+      throw new Error("Bitte zuerst eine Station mit sechs Diagrammen laden.");
     const specs = [
-      ["mosmixTempChart","Temperatur und Taupunkt"],
-      ["mosmixRainChart","Niederschlag und Bewölkung · "+rainPeriod+" h"],
-      ["mosmixWindChart","Wind und maximale Böen · "+gustPeriod+" h"],
-      ["mosmixPressureChart","Luftdruck"],
-      ["mosmixSunChart","Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
-      ["mosmixSunDailyChart","Sonnenscheindauer pro Kalendertag (h)"]
+      ["temp","mosmixTempChart","Temperatur und Taupunkt"],
+      ["rain","mosmixRainChart","Niederschlag und Bewölkung · "+rainPeriod+" h"],
+      ["wind","mosmixWindChart","Wind und maximale Böen · "+gustPeriod+" h"],
+      ["pressure","mosmixPressureChart","Luftdruck"],
+      ["sun","mosmixSunChart","Stündlicher Sonnenschein und Globalstrahlung · SunD1 / Rad1h"],
+      ["sunDaily","mosmixSunDailyChart","Sonnenscheindauer pro Kalendertag (h)"]
     ];
-    return specs.map(function(spec) {
-      const source = document.getElementById(spec[0]);
-      if (!source || !source.width || !source.height) throw new Error("Diagramm noch nicht fertig gezeichnet.");
-      const width = 1100, pad = 24, innerWidth = width - 2*pad;
-      const plotHeight = Math.round(innerWidth * source.height/source.width);
+    const selected = onlyKey ? specs.filter(function(spec){return spec[0] === onlyKey;}) : specs;
+    if (!selected.length) throw new Error("Unbekanntes MOSMIX-Diagramm.");
+    return selected.map(function(spec) {
+      const original = document.getElementById(spec[1]);
+      if (!original || !original.width || !original.height)
+        throw new Error("Diagramm noch nicht fertig gezeichnet.");
+      const source = onlyKey ? highResolutionMeteogramSource(spec,original) : original;
+      const width = onlyKey ? 1600 : 1100;
+      const pad = 24, innerWidth = width - 2*pad;
+      const plotHeight = Math.round(innerWidth * source.height / source.width);
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = plotHeight + 74;
@@ -1107,10 +1163,12 @@
       ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.font = "700 24px Arial";
       ctx.fillStyle = "#172033";
-      ctx.fillText(spec[1],pad,33);
+      ctx.fillText(spec[2],pad,33,width-2*pad);
       ctx.strokeStyle = "#e2e8f0";
       ctx.beginPath();ctx.moveTo(pad,51);ctx.lineTo(width-pad,51);ctx.stroke();
       ctx.drawImage(source,pad,65,innerWidth,plotHeight);
+      canvas.mosmixExportTitle = spec[2];
+      canvas.mosmixExportKey = spec[0];
       return canvas;
     });
   }
@@ -1169,16 +1227,79 @@
     pdf.save(meta.filename+".pdf");
   }
 
-  async function downloadMeteogram(format) {
+  function singleMeteogramFilename(meta, section) {
+    return meta.filename+"_"+section.mosmixExportKey;
+  }
+
+  function singleMeteogramLabel() {
+    const menu = document.getElementById("mosmixDiagramRange");
+    return menu?.selectedOptions?.[0]?.textContent?.trim() || "Alle Tage";
+  }
+
+  function exportSinglePng(which) {
+    const section = meteogramExportSections(which)[0];
+    const meta = meteogramExportMeta();
+    const pad = 34, top = 140, bottom = 72;
+    const out = document.createElement("canvas");
+    out.width = section.width;
+    out.height = top + section.height + bottom;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#ffffff";ctx.fillRect(0,0,out.width,out.height);
+    ctx.fillStyle = "#0f172a";ctx.font = "bold 33px Arial";
+    ctx.fillText("DWD MOSMIX-L · "+section.mosmixExportTitle,pad,48,out.width-2*pad);
+    ctx.fillStyle = "#475569";ctx.font = "20px Arial";
+    ctx.fillText(meta.station+" · Lauf "+meta.issue,pad,85,out.width-2*pad);
+    ctx.font = "18px Arial";
+    ctx.fillText("Diagrammzeitraum: "+singleMeteogramLabel(),pad,113,out.width-2*pad);
+    ctx.drawImage(section,0,top);
+    ctx.fillStyle = "#64748b";ctx.font = "18px Arial";
+    ctx.fillText("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Prognosewerte",pad,out.height-27,out.width-2*pad);
+    const link = document.createElement("a");
+    link.download = singleMeteogramFilename(meta,section)+".png";
+    link.href = out.toDataURL("image/png");
+    document.body.appendChild(link);link.click();link.remove();
+  }
+
+  function exportSinglePdf(which) {
+    if (!window.jspdf?.jsPDF) throw new Error("PDF-Bibliothek ist nicht geladen.");
+    const section = meteogramExportSections(which)[0];
+    const meta = meteogramExportMeta();
+    const pdf = new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    pdf.setFont("helvetica","bold");pdf.setFontSize(15);
+    pdf.text("DWD MOSMIX-L · "+section.mosmixExportTitle,margin,16,{maxWidth:pageWidth-2*margin});
+    pdf.setFont("helvetica","normal");pdf.setFontSize(10);
+    pdf.text((meta.station+" · Lauf "+meta.issue).slice(0,115),margin,24);
+    pdf.text(("Diagrammzeitraum: "+singleMeteogramLabel()).slice(0,105),margin,30);
+    pdf.setDrawColor(210,218,225);pdf.line(margin,33,pageWidth-margin,33);
+    const maxWidth = pageWidth-2*margin;
+    const maxHeight = pageHeight-53;
+    const ratio = Math.min(maxWidth/section.width,maxHeight/section.height);
+    const imageWidth = section.width*ratio, imageHeight = section.height*ratio;
+    pdf.addImage(section.toDataURL("image/png"),"PNG",margin+(maxWidth-imageWidth)/2,36,imageWidth,imageHeight);
+    pdf.setFontSize(9);
+    pdf.text("Quelle: Deutscher Wetterdienst (DWD), MOSMIX-L · Prognosewerte",margin,pageHeight-9);
+    pdf.save(singleMeteogramFilename(meta,section)+".pdf");
+  }
+
+  async function downloadMeteogram(format, onlyKey) {
     const status = document.getElementById("mosmixExportStatus");
     try {
       if (format === "pdf") {
         if(status)status.textContent="PDF-Bibliothek laden …";
         await ensurePdfLibrary();
-        exportCombinedPdf();
+        if (onlyKey) exportSinglePdf(onlyKey);
+        else exportCombinedPdf();
+      } else if (format === "png") {
+        if (onlyKey) exportSinglePng(onlyKey);
+        else exportCombinedPng();
+      } else {
+        throw new Error("Unbekanntes Exportformat.");
       }
-      else exportCombinedPng();
-      if (status) status.textContent = (format === "pdf" ? "PDF" : "PNG")+"-Export vorbereitet.";
+      if (status) status.textContent = (onlyKey ? "Einzel-" : "Gesamt-")+
+        (format === "pdf" ? "PDF" : "PNG")+"-Export vorbereitet.";
     } catch(err) {
       console.error("MOSMIX-Export:",err);
       if (status) status.textContent = "Download fehlgeschlagen: "+err.message;
