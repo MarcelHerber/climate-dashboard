@@ -17,7 +17,7 @@ for(const needle of [
 const dailyHelpers=source.slice(source.indexOf("  function sunDayFramesFromTimesteps"),
   source.indexOf("  function destroyMeteogramCharts"));
 const dateHelpers=source.slice(source.indexOf("  function berlinDateParts"),
-  source.indexOf("  const mosmixAxisCache"));
+  source.indexOf("  const mosmixBerlinMidnightPlugin"));
 assert.ok(dailyHelpers.startsWith("  function sunDayFramesFromTimesteps"));
 assert.ok(dateHelpers.startsWith("  function berlinDateParts"));
 const {sunDayFramesFromTimesteps,sunDayValue}=new Function(
