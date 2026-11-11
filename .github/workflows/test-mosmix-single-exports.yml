@@ -1,0 +1,47 @@
+name: MOSMIX Einzel-Diagramm-Downloads · PNG PDF
+
+on:
+  pull_request:
+    paths:
+      - "mosmix.js"
+      - "tests/test_mosmix_single_exports.mjs"
+      - "tests/test_mosmix_single_exports_browser.mjs"
+      - ".github/workflows/test-mosmix-single-exports.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chart-export-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Einzelexporte, PDF, Zeitintervalle und Gesamtexport prüfen
+        run: |
+          node tests/test_mosmix_single_exports.mjs
+          node tests/test_mosmix_sun_daily.mjs
+          node tests/test_mosmix_map_layers.mjs
+          node tests/test_mosmix_loader.mjs
+  responsive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - name: Playwright Chromium einrichten
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Sechs individuelle PNG/PDF-Aktionen auf Desktop und Handy
+        run: node tests/test_mosmix_single_exports_browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mosmix-single-export-responsive-previews
+          path: /tmp/mosmix-single-export-*.png
+          if-no-files-found: ignore
