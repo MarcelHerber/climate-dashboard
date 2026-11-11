@@ -2624,7 +2624,7 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
     <div class="current-overview-grid">
       <div class="current-overview-card"><h4>Wärmste Station aktuell</h4><div id="currentOverviewWarmest" class="value">–</div><div id="currentOverviewWarmestDetail" class="detail">–</div></div>
       <div class="current-overview-card"><h4>Höchstes Tmax heute</h4><div id="currentOverviewTmax" class="value">–</div><div id="currentOverviewTmaxDetail" class="detail">–</div></div>
-      <div class="current-overview-card"><h4>Stärkste Böe aktuell</h4><div id="currentOverviewGust" class="value">–</div><div id="currentOverviewGustDetail" class="detail">–</div></div>
+      <div class="current-overview-card"><h4>Stärkste Böe heute</h4><div id="currentOverviewGust" class="value">–</div><div id="currentOverviewGustDetail" class="detail">–</div></div>
       <div class="current-overview-card"><h4>Höchster Tagesniederschlag</h4><div id="currentOverviewRain" class="value">–</div><div id="currentOverviewRainDetail" class="detail">–</div></div>
       <div class="current-overview-card threshold"><h4>Sommertage heute</h4><div id="currentOverviewSummer" class="value">–</div><div class="detail">Stationen mit Tmax ≥ 25 °C</div></div>
       <div class="current-overview-card threshold"><h4>Hitzetage heute</h4><div id="currentOverviewHot" class="value">–</div><div class="detail">Stationen mit Tmax ≥ 30 °C</div></div>
@@ -2655,7 +2655,15 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
       <div class="control-group">
         <label for="currentMapMetricSelect">Kartenparameter</label>
         <select id="currentMapMetricSelect">
-          <option value="temperature">Temperatur</option>
+          <option value="temperature">Temperatur aktuell</option>
+          <option value="today_temp_max">Temperatur Tagesmaximum</option>
+          <option value="today_temp_min">Temperatur Tagesminimum</option>
+          <option value="today_wind">Wind Tagesmaximum</option>
+          <option value="today_gust">Böe Tagesmaximum</option>
+          <option value="today_humidity">Feuchte Tagesmaximum</option>
+          <option value="today_dewpoint">Taupunkt Tagesmaximum</option>
+          <option value="today_pressure">Luftdruck Tagesmaximum</option>
+          <option value="today_ground_temp">5-cm-Temperatur Tagesmaximum</option>
           <option value="wind">Wind</option>
           <option value="gust">Böe</option>
           <option value="precip_10min">Niederschlag letzte 10 Min.</option>
@@ -2713,14 +2721,14 @@ details.hyras-rank-card > summary.hyras-rank-summary:focus-visible{outline:3px s
   <div class="stat-grid" style="margin-bottom:18px">
     <div class="stat-card"><h4>Temperatur</h4><div id="currentTemp" class="current-value">–</div><div id="currentTempDetail" class="daily-stat-detail">letzter 10-Minuten-Wert</div></div>
     <div class="stat-card"><h4>Heute bisher</h4><div id="currentMinMax" class="current-value">–</div><div id="currentMean" class="daily-stat-detail">10-Minuten-Minimum / Maximum</div></div>
-    <div class="stat-card"><h4>Relative Feuchte</h4><div id="currentHumidity" class="current-value">–</div><div class="daily-stat-detail">RF_10</div></div>
-    <div class="stat-card"><h4>Taupunkt</h4><div id="currentDewpoint" class="current-value">–</div><div class="daily-stat-detail">TD_10</div></div>
-    <div class="stat-card"><h4>Luftdruck</h4><div id="currentPressure" class="current-value">–</div><div class="daily-stat-detail">Stationshöhe · PP_10</div></div>
-    <div class="stat-card"><h4>Temperatur 5 cm</h4><div id="currentGroundTemp" class="current-value">–</div><div class="daily-stat-detail">TM5_10</div></div>
+    <div class="stat-card"><h4>Relative Feuchte</h4><div id="currentHumidity" class="current-value">–</div><div class="daily-stat-detail" id="currentHumidityMax">Tagesmaximum: –</div></div>
+    <div class="stat-card"><h4>Taupunkt</h4><div id="currentDewpoint" class="current-value">–</div><div class="daily-stat-detail" id="currentDewpointMax">Tagesmaximum: –</div></div>
+    <div class="stat-card"><h4>Luftdruck</h4><div id="currentPressure" class="current-value">–</div><div class="daily-stat-detail" id="currentPressureMax">Tagesmaximum: –</div></div>
+    <div class="stat-card"><h4>Temperatur 5 cm</h4><div id="currentGroundTemp" class="current-value">–</div><div class="daily-stat-detail" id="currentGroundTempMax">Tagesmaximum: –</div></div>
     <div class="stat-card"><h4>Wind</h4><div id="currentWind" class="current-value">–</div><div id="currentWindDetail" class="daily-stat-detail">FF_10 · 10-Minuten-Mittel</div></div>
     <div class="stat-card"><h4>Windrichtung</h4><div id="currentWindDirection" class="current-value">–</div><div id="currentWindDirectionDetail" class="daily-stat-detail">DD_10</div></div>
     <div class="stat-card"><h4>Böe</h4><div id="currentGust" class="current-value">–</div><div id="currentGustDetail" class="daily-stat-detail">FX_10 · Maximum der letzten 10 Minuten</div></div>
-    <div class="stat-card"><h4>Niederschlag</h4><div id="currentPrecip" class="current-value">–</div><div id="currentPrecipDetail" class="daily-stat-detail">RWS_10 · Summe der letzten 10 Minuten</div></div>
+    <div class="stat-card"><h4>Niederschlag heute</h4><div id="currentPrecip" class="current-value">–</div><div id="currentPrecipDetail" class="daily-stat-detail">RWS_10 · Summe der letzten 10 Minuten</div></div>
   </div>
 
   <h3>Temperatur · letzte 24 Stunden</h3>
@@ -15031,6 +15039,15 @@ async function currentFetchFastJson(path){
   if(!response.ok) throw new Error(`Fast-Live-Datei ${path} nicht erreichbar (${response.status})`);
   return response.json();
 }
+function currentHasNumber(v){return v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v));}
+function currentDayIso(value){
+  const date=new Date(value);
+  return Number.isFinite(date.getTime())?date.toLocaleDateString("sv-SE",{timeZone:"Europe/Berlin"}):null;
+}
+function currentDayValue(s,key){
+  if(!s||s.today_date&&s.today_date!==currentDayIso(Date.now()))return null;
+  return currentHasNumber(s[key])?Number(s[key]):null;
+}
 function currentNewerIso(a,b){
   if(!a) return b||null;
   if(!b) return a||null;
@@ -15057,22 +15074,28 @@ function currentMergeFastIntoIndex(base,fast){
     out.fast_live_wmo_id=f.wmo_id||null;
     out.cdc_latest_utc=station.latest_utc||null;
     out.cdc_latest_local=station.latest_local||null;
-    out.fast_live_temperature=Number.isFinite(Number(f.temperature_c));
-    out.fast_live_humidity=Number.isFinite(Number(f.humidity_pct));
-    out.fast_live_wind=Number.isFinite(Number(f.wind_speed_ms));
-    out.fast_live_gust=Number.isFinite(Number(f.gust_speed_ms));
-    if(Number.isFinite(Number(f.temperature_c))){
-      out.temperature_c=Number(f.temperature_c);
-      const oldMax=Number(out.today_max_c),oldMin=Number(out.today_min_c),v=Number(f.temperature_c);
-      if(!Number.isFinite(oldMax)||v>oldMax) out.today_max_c=v;
-      if(!Number.isFinite(oldMin)||v<oldMin) out.today_min_c=v;
+    const fastStamp=Date.parse(f.time_utc||"");
+    const sourceIsOlder=(reference)=>{
+      const base=Date.parse(reference||"");
+      return !Number.isFinite(fastStamp)||(Number.isFinite(base)&&fastStamp<=base);
+    };
+    const tempNew=!sourceIsOlder(out.temperature_utc||out.latest_utc);
+    const windNew=!sourceIsOlder(out.wind_utc||out.latest_utc);
+    const gustNew=!sourceIsOlder(out.gust_utc||out.latest_utc);
+    out.fast_live_temperature=tempNew&&currentHasNumber(f.temperature_c);
+    out.fast_live_humidity=tempNew&&currentHasNumber(f.humidity_pct);
+    out.fast_live_wind=windNew&&currentHasNumber(f.wind_speed_ms);
+    out.fast_live_gust=gustNew&&currentHasNumber(f.gust_speed_ms);
+    // Fast SYNOP only updates latest measurements, never TX_10/TN_10/FX_10 day peaks.
+    if(out.fast_live_temperature)out.temperature_c=Number(f.temperature_c);
+    if(tempNew&&currentHasNumber(f.dewpoint_c))out.dewpoint_c=Number(f.dewpoint_c);
+    if(out.fast_live_humidity)out.humidity_pct=Number(f.humidity_pct);
+    if(tempNew&&currentHasNumber(f.pressure_hpa))out.pressure_hpa=Number(f.pressure_hpa);
+    if(out.fast_live_wind){
+      out.wind_speed_ms=Number(f.wind_speed_ms);
+      if(currentHasNumber(f.wind_direction_deg))out.wind_direction_deg=Number(f.wind_direction_deg);
     }
-    if(Number.isFinite(Number(f.dewpoint_c))) out.dewpoint_c=Number(f.dewpoint_c);
-    if(Number.isFinite(Number(f.humidity_pct))) out.humidity_pct=Number(f.humidity_pct);
-    if(Number.isFinite(Number(f.pressure_hpa))) out.pressure_hpa=Number(f.pressure_hpa);
-    if(Number.isFinite(Number(f.wind_speed_ms))) out.wind_speed_ms=Number(f.wind_speed_ms);
-    if(Number.isFinite(Number(f.wind_direction_deg))) out.wind_direction_deg=Number(f.wind_direction_deg);
-    if(Number.isFinite(Number(f.gust_speed_ms))) out.gust_speed_ms=Number(f.gust_speed_ms);
+    if(out.fast_live_gust)out.gust_speed_ms=Number(f.gust_speed_ms);
     const mergedLatest=currentNewerIso(out.latest_utc,f.time_utc);
     if(mergedLatest===f.time_utc){out.latest_utc=f.time_utc;out.latest_local=null;}
     else out.latest_utc=mergedLatest;
@@ -15100,25 +15123,20 @@ function currentMergeFastProfile(profile){
     if(!cdcTime) return true;
     return new Date(fastTime).getTime()>new Date(cdcTime).getTime();
   };
-  if(Number.isFinite(Number(fast.temperature_c)) && isNewer(baseTemperatureTime)){
+  if(currentHasNumber(fast.temperature_c) && isNewer(baseTemperatureTime)){
     latest.temperature_c=Number(fast.temperature_c);latest.temperature_utc=fastTime;latest.temperature_local=null;latest.temperature_source='synop';
   }
-  if(Number.isFinite(Number(fast.dewpoint_c)) && isNewer(baseTemperatureTime)){latest.dewpoint_c=Number(fast.dewpoint_c);latest.dewpoint_source='synop';}
-  if(Number.isFinite(Number(fast.humidity_pct)) && isNewer(baseTemperatureTime)){latest.humidity_pct=Number(fast.humidity_pct);latest.humidity_source='synop';}
-  if(Number.isFinite(Number(fast.pressure_hpa)) && isNewer(baseTemperatureTime)){latest.pressure_hpa=Number(fast.pressure_hpa);latest.pressure_source='synop';}
-  if(Number.isFinite(Number(fast.wind_speed_ms)) && isNewer(baseWindTime)){
-    latest.wind_speed_ms=Number(fast.wind_speed_ms);latest.wind_direction_deg=Number.isFinite(Number(fast.wind_direction_deg))?Number(fast.wind_direction_deg):latest.wind_direction_deg;latest.wind_utc=fastTime;latest.wind_local=null;latest.wind_source='synop';
+  if(currentHasNumber(fast.dewpoint_c) && isNewer(baseTemperatureTime)){latest.dewpoint_c=Number(fast.dewpoint_c);latest.dewpoint_source='synop';}
+  if(currentHasNumber(fast.humidity_pct) && isNewer(baseTemperatureTime)){latest.humidity_pct=Number(fast.humidity_pct);latest.humidity_source='synop';}
+  if(currentHasNumber(fast.pressure_hpa) && isNewer(baseTemperatureTime)){latest.pressure_hpa=Number(fast.pressure_hpa);latest.pressure_source='synop';}
+  if(currentHasNumber(fast.wind_speed_ms) && isNewer(baseWindTime)){
+    latest.wind_speed_ms=Number(fast.wind_speed_ms);latest.wind_direction_deg=currentHasNumber(fast.wind_direction_deg)?Number(fast.wind_direction_deg):latest.wind_direction_deg;latest.wind_utc=fastTime;latest.wind_local=null;latest.wind_source='synop';
   }
-  if(Number.isFinite(Number(fast.gust_speed_ms)) && isNewer(baseGustTime)){
-    latest.gust_speed_ms=Number(fast.gust_speed_ms);latest.gust_direction_deg=Number.isFinite(Number(fast.gust_direction_deg))?Number(fast.gust_direction_deg):latest.gust_direction_deg;latest.gust_utc=fastTime;latest.gust_local=null;latest.gust_source='synop';
+  if(currentHasNumber(fast.gust_speed_ms) && isNewer(baseGustTime)){
+    latest.gust_speed_ms=Number(fast.gust_speed_ms);latest.gust_direction_deg=currentHasNumber(fast.gust_direction_deg)?Number(fast.gust_direction_deg):latest.gust_direction_deg;latest.gust_utc=fastTime;latest.gust_local=null;latest.gust_source='synop';
   }
   latest.utc=currentNewerIso(latest.utc,fastTime);
-  const fastDate=fastTime?new Date(fastTime).toLocaleDateString('sv-SE',{timeZone:'Europe/Berlin'}):null;
-  if(fastDate && (!today.date || fastDate===today.date) && Number.isFinite(Number(fast.temperature_c))){
-    const v=Number(fast.temperature_c),mn=Number(today.min_c),mx=Number(today.max_c);
-    if(!Number.isFinite(mn)||v<mn) today.min_c=v;
-    if(!Number.isFinite(mx)||v>mx) today.max_c=v;
-  }
+  // Daily extrema remain from original DWD CDC intervals, not SYNOP snapshots.
   return merged;
 }
 const CURRENT_GERMAN_STATES=["Baden-Württemberg","Bayern","Berlin","Brandenburg","Bremen","Hamburg","Hessen","Mecklenburg-Vorpommern","Niedersachsen","Nordrhein-Westfalen","Rheinland-Pfalz","Saarland","Sachsen-Anhalt","Sachsen","Schleswig-Holstein","Thüringen"];
@@ -15150,8 +15168,9 @@ function currentOverviewStations(){
 function currentOverviewMax(stations,getter){
   let best=null;
   for(const station of stations){
-    const value=Number(getter(station));
-    if(!Number.isFinite(value)) continue;
+    const raw=getter(station);
+    if(!currentHasNumber(raw))continue;
+    const value=Number(raw);
     if(!best || value>best.value) best={station,value};
   }
   return best;
@@ -15171,9 +15190,9 @@ function renderCurrentOverview(){
   if(subtitle) subtitle.textContent=`${stations.length.toLocaleString("de-DE")} Live-Temperaturstationen · Kenntage zählen Stationen, die die Schwelle heute bereits erreicht haben.`;
 
   const warmest=currentOverviewMax(stations,s=>s.temperature_c);
-  const tmax=currentOverviewMax(stations,s=>s.today_max_c);
-  const gust=currentOverviewMax(stations,s=>s.gust_speed_ms);
-  const rain=currentOverviewMax(stations,s=>s.today_precip_sum_mm);
+  const tmax=currentOverviewMax(stations,s=>currentDayValue(s,"today_max_c"));
+  const gust=currentOverviewMax(stations,s=>currentDayValue(s,"today_max_gust_ms"));
+  const rain=currentOverviewMax(stations,s=>currentDayValue(s,"today_precip_sum_mm"));
 
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
   set("currentOverviewWarmest",warmest?`${warmest.value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} °C`:"–");
@@ -15185,7 +15204,10 @@ function renderCurrentOverview(){
   set("currentOverviewRain",rain?`${rain.value.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})} mm`:"–");
   set("currentOverviewRainDetail",currentOverviewStationDetail(rain));
 
-  const count=threshold=>stations.reduce((sum,s)=>sum+(Number.isFinite(Number(s.today_max_c))&&Number(s.today_max_c)>=threshold?1:0),0);
+  const count=threshold=>stations.reduce((sum,s)=>{
+    const value=currentDayValue(s,"today_max_c");
+    return sum+(value!==null&&value>=threshold?1:0);
+  },0);
   set("currentOverviewSummer",count(25).toLocaleString("de-DE"));
   set("currentOverviewHot",count(30).toLocaleString("de-DE"));
   set("currentOverviewDesert",count(35).toLocaleString("de-DE"));
@@ -15223,11 +15245,22 @@ function populateCurrentStations(preserve=true){
   renderCurrentMap();
 }
 function currentMapMetricSpec(metric){
+  const tempColors=["#313695","#4575b4","#74add1","#abd9e9","#fee090","#fdae61","#f46d43","#d73027"];
+  const windColors=["#f1f5f9","#cfe8f3","#9fd0e0","#6fb6ca","#3f98b2","#1f6f93","#0d4f6b","#08354a"];
+  const gustColors=["#fff4dd","#ffe0a6","#ffc46d","#f99e3a","#eb7a12","#cb5a04","#a24102","#7f3200"];
   switch(metric){
+    case "today_temp_max":return {label:"Temperatur-Tagesmaximum",unit:"°C",digits:1,getter:s=>currentDayValue(s,"today_max_c"),breaks:[-5,0,10,20,25,30,35],colors:tempColors};
+    case "today_temp_min":return {label:"Temperatur-Tagesminimum",unit:"°C",digits:1,getter:s=>currentDayValue(s,"today_min_c"),breaks:[-15,-10,-5,0,5,10,15],colors:tempColors};
+    case "today_wind":return {label:"Wind-Tagesmaximum",unit:"m/s",digits:1,getter:s=>currentDayValue(s,"today_max_wind_ms"),breaks:[0,2,4,6,8,12,16],colors:windColors};
+    case "today_gust":return {label:"Böen-Tagesmaximum",unit:"m/s",digits:1,getter:s=>currentDayValue(s,"today_max_gust_ms"),breaks:[0,4,8,12,16,20,25],colors:gustColors};
+    case "today_humidity":return {label:"Tagesmaximum Feuchte",unit:"%",digits:0,getter:s=>currentDayValue(s,"today_max_humidity_pct"),breaks:[20,30,40,50,60,70,85],colors:["#fff7fb","#ece7f2","#d0d1e6","#a6bddb","#74a9cf","#3690c0","#0570b0","#034e7b"]};
+    case "today_dewpoint":return {label:"Tagesmaximum Taupunkt",unit:"°C",digits:1,getter:s=>currentDayValue(s,"today_max_dewpoint_c"),breaks:[-10,-5,0,5,10,15,20],colors:tempColors};
+    case "today_pressure":return {label:"Tagesmaximum Luftdruck",unit:"hPa",digits:1,getter:s=>currentDayValue(s,"today_max_pressure_hpa"),breaks:[950,970,990,1000,1010,1020,1035],colors:windColors};
+    case "today_ground_temp":return {label:"Tagesmaximum 5-cm-Temperatur",unit:"°C",digits:1,getter:s=>currentDayValue(s,"today_max_ground_temp_c"),breaks:[-5,0,10,20,25,30,35],colors:tempColors};
     case "wind":return {label:"Wind",unit:"m/s",digits:1,getter:s=>s.wind_speed_ms,breaks:[0,2,4,6,8,12,16],colors:["#f1f5f9","#cfe8f3","#9fd0e0","#6fb6ca","#3f98b2","#1f6f93","#0d4f6b","#08354a"]};
     case "gust":return {label:"Böe",unit:"m/s",digits:1,getter:s=>s.gust_speed_ms,breaks:[0,4,8,12,16,20,25],colors:["#fff4dd","#ffe0a6","#ffc46d","#f99e3a","#eb7a12","#cb5a04","#a24102","#7f3200"]};
     case "precip_10min":return {label:"Niederschlag letzte 10 Min.",unit:"mm",digits:1,getter:s=>s.precip_10min_mm,breaks:[0,0.1,0.5,1,2,5,10],colors:["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#08306b"]};
-    case "today_precip":return {label:"Niederschlag heute",unit:"mm",digits:1,getter:s=>s.today_precip_sum_mm,breaks:[0,1,5,10,20,40,60],colors:["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#08306b"]};
+    case "today_precip":return {label:"Niederschlag heute",unit:"mm",digits:1,getter:s=>currentDayValue(s,"today_precip_sum_mm"),breaks:[0,1,5,10,20,40,60],colors:["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#08306b"]};
     case "humidity":return {label:"Relative Feuchte",unit:"%",digits:0,getter:s=>s.humidity_pct,breaks:[20,30,40,50,60,70,85],colors:["#fff7fb","#ece7f2","#d0d1e6","#a6bddb","#74a9cf","#3690c0","#0570b0","#034e7b"]};
     case "temperature":
     default:return {label:"Temperatur",unit:"°C",digits:1,getter:s=>s.temperature_c,breaks:[-5,0,10,20,25,30,35],colors:["#313695","#4575b4","#74add1","#abd9e9","#fee090","#fdae61","#f46d43","#d73027"]};
@@ -15235,8 +15268,8 @@ function currentMapMetricSpec(metric){
 }
 function currentMapMetricValue(station,metric){
   const spec=currentMapMetricSpec(metric);
-  const value=Number(spec.getter(station));
-  return Number.isFinite(value)?value:null;
+  const value=spec.getter(station);
+  return currentHasNumber(value)?Number(value):null;
 }
 function currentMapColor(metric,value){
   const spec=currentMapMetricSpec(metric);
@@ -15659,7 +15692,7 @@ function renderCurrentStation(profile){
   profile=currentMergeFastProfile(profile);
   const station=currentNormalizeStationMeta(profile.station||{});
   const latest=profile.latest||{};
-  const today=profile.today||{};
+  const today=profile.today?.date&&profile.today.date!==currentDayIso(Date.now())?{}:(profile.today||{});
   const availability=profile.availability||{};
   const availableLabels=[availability.wind?"Wind":null,availability.gust?"Böen":null,availability.precipitation?"Niederschlag":null].filter(Boolean);
   const fastInfo=profile._fast_live?.time_utc?`Fast Live SYNOP ${currentTimeOnly(profile._fast_live.time_utc)}`:"";
@@ -15673,18 +15706,22 @@ function renderCurrentStation(profile){
   document.getElementById("currentDewpoint").textContent=currentNum(latest.dewpoint_c,"°C",1);
   document.getElementById("currentPressure").textContent=currentNum(latest.pressure_hpa,"hPa",1);
   document.getElementById("currentGroundTemp").textContent=currentNum(latest.ground_temp_c,"°C",1);
+  document.getElementById("currentHumidityMax").textContent="Tagesmaximum: "+currentNum(today.max_humidity_pct,"%",0);
+  document.getElementById("currentDewpointMax").textContent="Tagesmaximum: "+currentNum(today.max_dewpoint_c,"°C",1);
+  document.getElementById("currentPressureMax").textContent="Tagesmaximum: "+currentNum(today.max_pressure_hpa,"hPa",1);
+  document.getElementById("currentGroundTempMax").textContent="Tagesmaximum: "+currentNum(today.max_ground_temp_c,"°C",1);
 
   document.getElementById("currentWind").textContent=currentNum(latest.wind_speed_ms,"m/s",1);
   const windKmh=currentMsToKmh(latest.wind_speed_ms);
-  document.getElementById("currentWindDetail").textContent=Number.isFinite(windKmh)?`${latest.wind_source==='synop'?'Fast Live SYNOP · ':''}${currentNum(windKmh,"km/h",1)} · ${currentDateTime(latest.wind_local||latest.wind_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentWindDetail").textContent=`Tagesmaximum: ${currentNum(today.max_wind_ms,"m/s",1)} · aktuell ${currentNum(latest.wind_speed_ms,"m/s",1)} (${currentNum(windKmh,"km/h",1)}) · ${currentDateTime(latest.wind_local||latest.wind_utc)}`;
   const windDir=Number(latest.wind_direction_deg);
   document.getElementById("currentWindDirection").textContent=Number.isFinite(windDir)?`${currentWindCompass(windDir)} · ${Math.round(windDir)}°`:"–";
   document.getElementById("currentWindDirectionDetail").textContent=Number.isFinite(windDir)?"DD_10 · 10-Minuten-Mittel":"an dieser Stations-ID nicht verfügbar";
   document.getElementById("currentGust").textContent=currentNum(latest.gust_speed_ms,"m/s",1);
   const gustKmh=currentMsToKmh(latest.gust_speed_ms);
-  document.getElementById("currentGustDetail").textContent=Number.isFinite(gustKmh)?`${latest.gust_source==='synop'?'Fast Live SYNOP · ':''}${currentNum(gustKmh,"km/h",1)} · Tagesmaximum ${currentNum(today.max_gust_ms,"m/s",1)} · ${currentDateTime(latest.gust_local||latest.gust_utc)}`:"an dieser Stations-ID nicht verfügbar";
-  document.getElementById("currentPrecip").textContent=currentNum(latest.precip_10min_mm,"mm",1);
-  document.getElementById("currentPrecipDetail").textContent=latest.precip_10min_mm!==null&&latest.precip_10min_mm!==undefined?`letzte 10 Min · heute ${currentNum(today.precip_sum_mm,"mm",1)} · ${currentDateTime(latest.precipitation_local||latest.precipitation_utc)}`:"an dieser Stations-ID nicht verfügbar";
+  document.getElementById("currentGustDetail").textContent=`Tagesmaximum: ${currentNum(today.max_gust_ms,"m/s",1)} (${currentNum(currentMsToKmh(today.max_gust_ms),"km/h",1)}) · aktuell ${currentNum(latest.gust_speed_ms,"m/s",1)} · ${currentDateTime(latest.gust_local||latest.gust_utc)}`;
+  document.getElementById("currentPrecip").textContent=currentNum(today.precip_sum_mm,"mm",1);
+  document.getElementById("currentPrecipDetail").textContent=`Summe seit 00 Uhr · letzte 10 Min ${currentNum(latest.precip_10min_mm,"mm",1)} · Datenstand ${currentDateTime(latest.precipitation_local||latest.precipitation_utc)}`;
 
   const liveNumber=value=>value===null||value===undefined||value===""?null:Number(value);
   const series=(profile.series||[]).map(row=>({
