@@ -36,6 +36,7 @@ function updateTimeline(){
 }
 function stop(reset=true){
  if(frameTimer!==null){clearTimeout(frameTimer);frameTimer=null;}
+ if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
  filmPlaying=false;
  if(reset){
   filmGeneration++;filmLoading=false;filmItems=[];filmPosition=0;
