@@ -4,6 +4,7 @@ import { shapiroLabPage, shapiroLoginPage, shapiroData } from "./shapiro-lab.js"
 import { radarLabPage, radarLoginPage, radarLabData } from "./radar-lab.js";
 import {operaRadarPage,operaRadarLoginPage,operaRadarData} from "./opera-radar-lab.js";
 import {canariasRadarPage,canariasRadarLoginPage,canariasRadarData} from "./canarias-radar-lab.js";
+import {azoresRadarPage,azoresRadarLoginPage,azoresRadarData} from "./azores-radar-lab.js";
 import { europeTmaxPage } from "./europe-tmax.js";
 import { europeTminPage } from "./europe-tmin.js";
 
@@ -37,6 +38,9 @@ export default {
       if (url.pathname.startsWith("/radarlabor/api/")) {
         return jsonResponse({ error: "Radarbilder nur nach Anmeldung abrufbar" }, 401);
       }
+      if (url.pathname === "/radarlabor/azoren" || url.pathname === "/radarlabor/azoren/") {
+        return htmlResponse(azoresRadarLoginPage());
+      }
       if (url.pathname === "/radarlabor/kanaren" || url.pathname === "/radarlabor/kanaren/") {
         return htmlResponse(canariasRadarLoginPage());
       }
@@ -68,6 +72,12 @@ export default {
     }
 
     // Protected laboratory is served by Cloudflare, NOT published via GitHub Pages.
+    if (url.pathname === "/radarlabor/azoren" || url.pathname === "/radarlabor/azoren/") {
+      return htmlResponse(azoresRadarPage());
+    }
+    if (url.pathname.startsWith("/radarlabor/api/azoren/")) {
+      return azoresRadarData(url,securityHeaders);
+    }
     if (url.pathname === "/radarlabor/kanaren" || url.pathname === "/radarlabor/kanaren/") {
       return htmlResponse(canariasRadarPage());
     }
@@ -165,7 +175,7 @@ async function handleLogin(request, env) {
   const cookie = await createSessionCookie(env.ALPENWETTER_PASSWORD);
   // Allow only the known laboratory path; never redirect to external hosts.
   const next = String(form.get("next") || "");
-  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor","/radarlabor/europa","/radarlabor/kanaren"].includes(next) ? next : "/";
+  const target = ["/wolkenlabor","/dynamik","/dynamik/shapiro","/radarlabor","/radarlabor/europa","/radarlabor/kanaren","/radarlabor/azoren"].includes(next) ? next : "/";
   return redirect(target, cookie);
 }
 
