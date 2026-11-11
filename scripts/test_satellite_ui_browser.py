@@ -58,6 +58,7 @@ def check_remote():
                     "southwest_published":b'value="southwest"' in head,
                     "buffered_film_published":b'id="satFilmLength"' in head,
                     "long_film_published":b'<option value="36">' in head and b'<option value="48">' in head,
+                    "overlay_published":b'id="satBordersSvg"' in head and b'satellite_overlay.js' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
@@ -115,6 +116,21 @@ def exercise(page, viewport_label, official_xml):
         page.screenshot(path=str(SHOTS/(viewport_label+"-southwest-error.png")),full_page=True)
         raise AssertionError("Southwest PNG load failed: "+str(evidence["southwest_diagnostics"])) from error
     evidence["southwest_real_image_loaded"]=True
+    page.wait_for_function(
+        "() => document.querySelector('#satBordersSvg path')?.getAttribute('d')?.length>1000 "
+        "&& document.querySelector('#satCitiesLayer')?.textContent.includes('Ponta Delgada')",
+        timeout=12000
+    )
+    evidence["southwest_real_borders"]=True
+    evidence["southwest_city_label"]=page.locator("#satCitiesLayer").inner_text()
+    page.locator("#satShowBorders").uncheck()
+    evidence["border_toggle_off"]=page.locator("#satBordersSvg").is_hidden()
+    assert evidence["border_toggle_off"]
+    page.locator("#satShowBorders").check()
+    assert page.locator("#satBordersSvg").is_visible()
+    page.locator("#satShowCities").uncheck()
+    assert page.locator("#satCitiesLayer").is_hidden()
+    page.locator("#satShowCities").check()
     page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
     # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
     page.locator("#satRegion").select_option("atlantic")
@@ -131,6 +147,12 @@ def exercise(page, viewport_label, official_xml):
     page.wait_for_timeout(350)
     evidence["full_disk_native_projection"]="AUTO%3A97004" in page.locator("#satImage").get_attribute("src")
     assert evidence["full_disk_native_projection"], "Full-disc projection is not geostationary"
+    evidence["disk_overlays_disabled"]=(
+        page.locator("#satBordersSvg").is_hidden()
+        and page.locator("#satShowBorders").is_disabled()
+        and page.locator("#satCitiesLayer").is_hidden()
+    )
+    assert evidence["disk_overlays_disabled"], "Geographic borders wrongly placed on full disk"
     page.locator("#satRegion").select_option("germany")
     evidence["germany_bbox"]="5%2C47%2C16%2C56" in page.locator("#satImage").get_attribute("src")
     assert evidence["germany_bbox"], "Germany selection did not change bounding box"
@@ -164,6 +186,16 @@ def exercise(page, viewport_label, official_xml):
     evidence["dark_theme_on"]=page.evaluate(
         "()=>document.documentElement.dataset.theme === 'dark'")
     assert evidence["dark_theme_on"], "Dark mode did not toggle"
+    # Assess codec availability rather than promising MP4 support everywhere.
+    evidence["film_export_capabilities"]=page.evaluate("""() => ({
+      canvasCapture: typeof HTMLCanvasElement.prototype.captureStream==='function',
+      mediaRecorder: typeof MediaRecorder==='function',
+      mp4H264: typeof MediaRecorder==='function' && MediaRecorder.isTypeSupported('video/mp4;codecs=avc1.42E01E'),
+      mp4Generic: typeof MediaRecorder==='function' && MediaRecorder.isTypeSupported('video/mp4'),
+      webmVp9: typeof MediaRecorder==='function' && MediaRecorder.isTypeSupported('video/webm;codecs=vp9'),
+      webCodecs: typeof VideoEncoder==='function',
+      createImageBitmap: typeof createImageBitmap==='function'
+    })""")
     page.screenshot(path=str(SHOTS/(viewport_label+".png")),full_page=True)
     evidence["screenshot"]=viewport_label+".png"
     return evidence
