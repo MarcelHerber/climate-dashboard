@@ -129,7 +129,7 @@
       }
       const legend=opts.plugins.legend||{};
       legend.position="bottom";
-      legend.labels=legend.labels||{};
+      if(!legend.labels)legend.labels={};
       legend.labels.usePointStyle=true;
       legend.labels.pointStyle="rectRounded";
       legend.labels.boxWidth=11;
