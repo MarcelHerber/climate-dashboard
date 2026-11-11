@@ -32,7 +32,7 @@ function fixture(){
  ]});
  const data={schema_version:1,generated_at:iso(now),run_utc:iso(run),
   model:"ECMWF IFS Open Data",units:"hPa",field:"mean sea-level pressure",
-  resolution_degrees:.25,interval_hpa:5,bbox:[-75,12,40,78],
+  resolution_degrees:.25,interval_hpa:5,bbox:[-75,12,55,80],
   frames:[0,3,6,9,12].map(frame)};
  const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
