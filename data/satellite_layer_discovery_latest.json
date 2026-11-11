@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-11-11T14:36:41+00:00",
+  "provider": "EUMETSAT EUMETView",
+  "wms": "https://view.eumetsat.int/geoserver/wms",
+  "capabilities_ok": true,
+  "mtg_layer_count": 13,
+  "categories": {
+    "airmass": [],
+    "night_microphysics": [],
+    "infrared_105": [
+      {
+        "layer": "mtg_fd:ir105_hrfi",
+        "title": "FCI HRFI IR10.5 μm Image - MTG-I - 0 degree",
+        "latest_advertised_time": "2026-11-11T14:10:00Z",
+        "map_ok": true,
+        "tested": true,
+        "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",
+        "bytes": 82316,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-11T14:10:00Z",
+        "age_minutes": 26.9,
+        "recent": true
+      }
+    ],
+    "convection": [],
+    "fire_temperature": [
+      {
+        "layer": "mtg_fd:rgb_firetemperature",
+        "title": "Fire Temperature RGB - MTG-I - 0 degree",
+        "latest_advertised_time": "2026-11-11T14:10:00Z",
+        "map_ok": true,
+        "tested": true,
+        "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",
+        "bytes": 183167,
+        "http_status": 200,
+        "cors_allow_origin": "*",
+        "latest_verified_time": "2026-11-11T14:10:00Z",
+        "age_minutes": 27.2,
+        "recent": true
+      }
+    ],
+    "water_vapour": []
+  },
+  "errors": [],
+  "caution": "Nur amtlich gelistete Layer mit gültigem PNG und passendem UTC-Zeitpunkt in die UI übernehmen.",
+  "cors_allow_origin": "*"
+}
