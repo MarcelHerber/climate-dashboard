@@ -9,6 +9,7 @@ from __future__ import annotations
 import http.server
 import json
 import threading
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -248,7 +249,11 @@ def main():
                     try:
                         report[name]=exercise(page,name,xml)
                     except Exception as error:
-                        report[name]={"error":str(error)[:450]}
+                        report[name]={
+                            "error":repr(error)[:700],
+                            "traceback":traceback.format_exc(limit=7)[-2000:],
+                            "last_url":page.url,
+                        }
                     finally:
                         context.close()
             finally:
