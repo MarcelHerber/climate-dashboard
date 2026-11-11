@@ -79,6 +79,7 @@ function drawFrame(t){
  image.alt=p.name+" – "+r.name+(t?", "+formatUTC(t):", Zeitpunkt nicht überprüft");
  id("satMapTitle").textContent=p.name+" · "+r.name;
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
+ window.SatelliteIsobars?.sync({time:t,region:region.value,source:source.value});
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
  const note=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
  id("satImageInfo").textContent=note;
@@ -191,6 +192,7 @@ async function refresh(){
  id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
  product.disabled=source.value==="mtgi2";region.disabled=source.value==="mtgi2";id("satAttribution").textContent=source.value==="mtgi2"?"ESA · erste MTG-I2-Aufnahmen":description().credit;
  if(source.value==="mtgi2"){
+  window.SatelliteIsobars?.sync({time:null,region:region.value,source:source.value});
   id("satRawImage").hidden=true;
   image.hidden=true;empty.hidden=false;empty.textContent="MTG-I2: erste Aufnahmen und die 2,5-Minuten-Animation sind über den ESA-Link abrufbar. Noch keine reguläre Livequelle.";
   id("satMapTitle").textContent="MTG-I2 · Erstaufnahmen (November 2026)";
@@ -256,6 +258,7 @@ function showFilmFrame(){
  filmImage.hidden=false;image.hidden=true;empty.hidden=true;
  id("satMapTitle").textContent=description().name+" · "+REGIONS[region.value].name;
  id("satValid").textContent="Beobachtung: "+formatUTC(item.time);
+ window.SatelliteIsobars?.sync({time:item.time,region:region.value,source:source.value});
  id("satImageInfo").textContent="Vorgeladener Film · "+item.img.naturalWidth+" px · UTC aus geprüften WMS-Metadaten; PNG in voller Auflösung";
  setStatus("Satellitenfilm · Bild "+(filmPosition+1)+" von "+filmItems.length+" · "+formatUTC(item.time),"info");
  buttons();
