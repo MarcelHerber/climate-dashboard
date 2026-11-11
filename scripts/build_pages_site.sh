@@ -265,7 +265,7 @@ assert doc.get("schema")==1 and doc.get("provider")=="EUMETSAT WMS"
 count=0
 for product, regions in doc.get("entries",{}).items():
     for region,entry in regions.items():
-        filename=f"{product}_{region}.png"
+        filename=f"{product}_{region}_{entry['time'].replace('-', '').replace(':', '')}.png"
         assert entry.get("url")==f"./data/satellite_cache/{filename}"
         origin=source/filename
         if not origin.is_file() or not origin.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
