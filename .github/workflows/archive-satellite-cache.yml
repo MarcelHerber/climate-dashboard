@@ -1,0 +1,58 @@
+name: Preserve last good EUMETSAT satellite previews
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update_satellite_cache.py"
+      - ".github/workflows/archive-satellite-cache.yml"
+  schedule:
+    - cron: "47 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: satellite-last-good-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Validate archival script
+        run: python -m py_compile scripts/update_satellite_cache.py
+      - name: Request compact verified UTC images from official EUMETSAT WMS
+        run: python scripts/update_satellite_cache.py
+      - name: Save only successfully downloaded image assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/satellite_cache/
+          if ! git diff --cached --quiet; then
+            git commit -m "Preserve last successful EUMETSAT satellite previews"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "No new valid EUMETSAT PNG; previous cached images preserved."
+          fi
+      - name: Summarize archive
+        if: always()
+        run: |
+          echo "### EUMETSAT snapshot archive" >> "$GITHUB_STEP_SUMMARY"
+          if test -s data/satellite_cache/index.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          doc=json.load(open("data/satellite_cache/index.json"))
+          for name,regions in doc.get("entries",{}).items():
+              for region,item in regions.items():
+                  print(f"- {name} / {region}: {item['time']} — last verified saved PNG")
+          PY
+          else
+            echo "No cached images yet; no synthetic fallback created." >> "$GITHUB_STEP_SUMMARY"
+          fi
