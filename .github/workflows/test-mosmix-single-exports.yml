@@ -6,6 +6,8 @@ on:
       - "mosmix.js"
       - "tests/test_mosmix_single_exports.mjs"
       - "tests/test_mosmix_single_exports_browser.mjs"
+      - "tests/test_mosmix_single_exports_e2e.mjs"
+      - "mosmix.html"
       - ".github/workflows/test-mosmix-single-exports.yml"
   workflow_dispatch:
 
@@ -35,13 +37,18 @@ jobs:
         with: {node-version: "24"}
       - name: Playwright Chromium einrichten
         run: |
-          npm install --no-save playwright@1
+          npm install --no-save playwright@1 chart.js@4.4.1 jspdf@4.2.1
           npx playwright install --with-deps chromium
       - name: Sechs individuelle PNG/PDF-Aktionen auf Desktop und Handy
         run: node tests/test_mosmix_single_exports_browser.mjs
+      - name: Echte Chart.js-/jsPDF-Downloads für zwei Bildschirmgrößen
+        run: node tests/test_mosmix_single_exports_e2e.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mosmix-single-export-responsive-previews
-          path: /tmp/mosmix-single-export-*.png
+          path: |
+            /tmp/mosmix-single-export-*.png
+            /tmp/mosmix-real-*.png
+            /tmp/mosmix-real-*.pdf
           if-no-files-found: ignore
