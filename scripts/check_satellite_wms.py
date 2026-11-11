@@ -21,6 +21,8 @@ LAYERS = {
     "geocolour": "mtg_fd:rgb_geocolour",
     "dust": "mtg_fd:rgb_dust",
     "cloudtype": "mtg_fd:rgb_cloudtype",
+    "ir105": "mtg_fd:ir105_hrfi",
+    "firetemperature": "mtg_fd:rgb_firetemperature",
 }
 TIMEOUT = 45
 MAX_XML = 64 * 1024 * 1024
