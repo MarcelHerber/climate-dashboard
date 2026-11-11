@@ -121,7 +121,7 @@
       }
       const opts=chart.options;
       opts.layout=opts.layout||{};
-      opts.layout.padding=Object.assign({},opts.layout.padding||{}, {top:17,bottom:7});
+      opts.layout.padding={top:17,bottom:7};
       opts.plugins=opts.plugins||{};
       if(opts.plugins.title){
         opts.plugins.title.font={family:"system-ui, sans-serif",size:15,weight:"600"};
@@ -129,10 +129,13 @@
       }
       const legend=opts.plugins.legend||{};
       legend.position="bottom";
-      legend.labels=Object.assign({},legend.labels||{},{
-        usePointStyle:true,pointStyle:"rectRounded",boxWidth:11,boxHeight:11,
-        padding:18,font:{family:"system-ui, sans-serif",size:12,weight:"500"}
-      });
+      legend.labels=legend.labels||{};
+      legend.labels.usePointStyle=true;
+      legend.labels.pointStyle="rectRounded";
+      legend.labels.boxWidth=11;
+      legend.labels.boxHeight=11;
+      legend.labels.padding=18;
+      legend.labels.font={family:"system-ui, sans-serif",size:12,weight:"500"};
       opts.plugins.legend=legend;
       const tooltip=opts.plugins.tooltip||{};
       Object.assign(tooltip,{
@@ -165,7 +168,8 @@
         scales.x.ticks.maxRotation=0;
         scales.x.ticks.autoSkip=true;
         scales.x.ticks.font={family:"system-ui, sans-serif",size:11};
-        scales.x.border={...(scales.x.border||{}),display:false};
+        scales.x.border=scales.x.border||{};
+        scales.x.border.display=false;
       }
       if(scales.y){
         scales.y.grid=scales.y.grid||{};
@@ -173,7 +177,8 @@
         scales.y.ticks=scales.y.ticks||{};
         scales.y.ticks.padding=10;
         scales.y.ticks.font={family:"system-ui, sans-serif",size:11};
-        scales.y.border={...(scales.y.border||{}),display:false};
+        scales.y.border=scales.y.border||{};
+        scales.y.border.display=false;
         if(scales.y.title)scales.y.title.font={size:12,weight:"600"};
       }
     },
