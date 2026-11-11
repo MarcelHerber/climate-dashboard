@@ -70,7 +70,7 @@ function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.v
  if(t)params.set("time",t);
  return API+"?"+params.toString();
 }
-function drawFrame(t, fallbackDepth=0){
+function drawFrame(t, fallbackDepth=0, requestedTime=t){
  const seq=token,req=++imageRequest;
  if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
  loaded=false;verified=Boolean(t);cachedImage=null;
@@ -100,6 +100,7 @@ function drawFrame(t, fallbackDepth=0){
    const path="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
     (typeof item?.time==="string"?item.time.replace(/[-:]/g,""):"")+".png";
    if(!item||!Number.isFinite(timestamp)||age<0||age>7*86400000||
+      (requestedTime&&timestamp>Date.parse(requestedTime))||
       !/^\d{8}T\d{6}Z$/.test(item.time.replace(/[-:]/g,""))||
       item.url!==path||item.source!=="EUMETSAT WMS"||item.width!==400)return false;
    if(!current())return false;
@@ -143,7 +144,7 @@ function drawFrame(t, fallbackDepth=0){
   const previous=t?frames.indexOf(t)-1:-1;
   if(previous>=0&&fallbackDepth<2){
    index=previous;time.value=String(index);
-   drawFrame(frames[index],fallbackDepth+1);
+   drawFrame(frames[index],fallbackDepth+1,requestedTime);
    setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
    return;
   }
