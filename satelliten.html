@@ -11,6 +11,7 @@
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
 <script defer src="satellite_overlay.js"></script>
+<script defer src="satellite_film_export.js"></script>
 <script defer src="satelliten.js"></script>
 </head>
 <body>
@@ -44,12 +45,14 @@
 <button id="satNext" type="button" disabled aria-label="Nächstes Satellitenbild">Nächstes →</button>
 <button id="satReload" type="button">↻ Aktualisieren</button>
 <button id="satPng" type="button" disabled>PNG mit Beschriftung ↓</button>
+<button id="satGif" type="button" disabled aria-label="Filmanimation als GIF herunterladen">GIF-Film ↓</button>
+<button id="satMp4" type="button" disabled aria-label="Filmanimation als MP4 herunterladen">MP4-Film ↓</button>
 </div>
 <div class="sat-film-progress" id="satFilmProgressWrap" hidden>
 <progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
 <output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
 </div>
-<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbild und PNG bleiben hochauflösend.</p>
+<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbild und PNG bleiben hochauflösend. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
