@@ -102,7 +102,7 @@ async function load(){
       d.field!=="mean sea-level pressure"||d.units!=="hPa"||
       d.resolution_degrees!==0.25||d.interval_hpa!==5||
       !Array.isArray(d.frames)||d.frames.length<1||
-      !Array.isArray(d.bbox)||d.bbox[0]>-70||d.bbox[2]<35||
+      !Array.isArray(d.bbox)||d.bbox[0]>-70||d.bbox[2]<49||d.bbox[3]<75||
       !Number.isFinite(Date.parse(d.run_utc))||
       !Number.isFinite(Date.parse(d.generated_at)))throw Error("Ungültiges ECMWF-Isobarenformat");
    for(const f of d.frames){
