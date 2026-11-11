@@ -54,7 +54,7 @@
 <progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
 <output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
 </div>
-<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbild und PNG bleiben hochauflösend. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar.</p>
+<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbilder werden kompakt vorgeladen; der PNG-Export fordert bei verfügbaren WMS-Daten die native Auflösung an. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
@@ -63,9 +63,18 @@
 <div class="sat-caption"><span id="satAttribution">Bilddaten: © EUMETSAT / GeoColour-Hintergrund: NASA</span><span id="satImageInfo">WMS · EPSG:4326 · verifiziertes UTC-Datum nur bei bestätigter Zeitdimension</span></div>
 <div class="sat-links"><a id="satRawImage" href="#" target="_blank" rel="noopener noreferrer" hidden>Originales Satelliten-PNG öffnen ↗</a><a id="satOfficial" href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_geocolour" target="_blank" rel="noopener noreferrer">Produkt bei EUMETView öffnen ↗</a><a href="https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images" target="_blank" rel="noopener noreferrer">MTG-I2: ESA-Erstbilder ↗</a></div>
 </section>
+<section class="sat-panel" aria-labelledby="noaaGoesTitle">
+<h2 id="noaaGoesTitle">Weitere offizielle Satellitenquelle · NOAA GOES-19</h2>
+<p>GOES-19 (GOES-East) bietet einen unabhängigen Blick auf Nord- und Mittelamerika sowie den westlichen Atlantik. Dieser geostationäre Bildausschnitt ist <strong>kein Ersatz für Meteosat-Aufnahmen von Europa oder den Azoren</strong>. NOAA aktualisiert die Originaldateien; deren exakter Aufnahmezeitpunkt wird hier nicht unabhängig geprüft.</p>
+<div class="sat-noaa-grid">
+<figure><img loading="lazy" decoding="async" width="678" height="678" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/GEOCOLOR/678x678.jpg" alt="GOES-19 offizielle NOAA GeoColor Erdscheibenaufnahme des amerikanischen Sektors und westlichen Atlantiks"><figcaption><strong>GOES-19 · GeoColor</strong> · NOAA/CIRA · Aufnahmezeit nicht verifiziert<br><a href="https://www.star.nesdis.noaa.gov/GOES/fulldisk.php?sat=G19" target="_blank" rel="noopener noreferrer">Original und Zeitnavigation bei NOAA ↗</a></figcaption></figure>
+<figure><img loading="lazy" decoding="async" width="678" height="678" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/16/678x678.jpg" alt="GOES-19 offizielle NOAA Infrarotaufnahme im ABI Kanal 16"><figcaption><strong>GOES-19 · IR 13,3 µm (Band 16)</strong> · NOAA/NESDIS · Aufnahmezeit nicht verifiziert<br><a href="https://www.star.nesdis.noaa.gov/GOES/fulldisk_band.php?band=16&amp;sat=G19" target="_blank" rel="noopener noreferrer">Original und Zeitnavigation bei NOAA ↗</a></figcaption></figure>
+</div>
+<p class="sat-film-hint">Die NOAA-Vorschauen laufen unabhängig vom EUMETSAT-WMS. Die MTG-Film-, Karten- und Downloadsteuerung oben steuert diese zusätzlichen NOAA-Abbildungen nicht.</p>
+</section>
 <section class="sat-panel">
 <h2>MTG-I1 und MTG-I2 – Datenstatus</h2>
-<p><strong>MTG-I1:</strong> Die drei hier auswählbaren Produkte stammen aus dem regulären EUMETView-Angebot. Die Seite kennzeichnet einen Bildzeitpunkt nur nach Prüfung der WMS-Zeitdimension; ohne diese Prüfung wird niemals ein angeblich aktueller Zeitpunkt erfunden.</p>
+<p><strong>MTG-I1:</strong> Die fünf hier auswählbaren Produkte stammen aus dem regulären EUMETView-Angebot. Die Seite kennzeichnet einen Bildzeitpunkt nur nach Prüfung der WMS-Zeitdimension; ohne diese Prüfung wird niemals ein angeblich aktueller Zeitpunkt erfunden.</p>
 <p><strong>Zusätzliche verifizierte FCI-Produkte:</strong> IR 10,5 µm (HRFI) zeigt die infrarote Wolkenstruktur; Fire Temperature RGB hebt heiße Brandherde hervor. Für beide Produkte wurden reale EUMETSAT-WMS-PNGs bestätigt. Die RGB-Farben sind keine direkt ablesbaren Temperaturwerte.</p>
 <p><strong>MTG-I2:</strong> Die am 6. November 2026 veröffentlichten Erstaufnahmen entstanden während der Inbetriebnahme. Ein öffentlicher, automatisch aktualisierter MTG-I2-Livestream ist hier noch nicht eingebunden. Der Regelbetrieb ist laut ESA für das zweite Quartal 2027 vorgesehen.</p>
 <p>Für wissenschaftliche Vergleiche bitte Bildzeitpunkt, Produkt und Projektion beachten. Der Dienst kann ohne Vorankündigung einzelne Produkte oder Zeitpunkte aussetzen. Farben von RGB-Produkten sind qualitative Darstellungen, keine direkt messbaren Staub- oder Wolkenkonzentrationen.</p>
