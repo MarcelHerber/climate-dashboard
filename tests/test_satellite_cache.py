@@ -49,12 +49,12 @@ class SatelliteCacheTests(unittest.TestCase):
         time1 = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=40)).isoformat(timespec="seconds").replace("+00:00", "Z")
         time2 = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=20)).isoformat(timespec="seconds").replace("+00:00", "Z")
         self.write_status(self.status(time1))
-        png = b"\\x89PNG\\r\\n\\x1a\\n" + b"x" * 600
+        png = b"\x89PNG\r\n\x1a\n" + b"x" * 600
         with patch.object(cache, "request_png", return_value=png):
             self.assertEqual(cache.run(), 0)
         manifest = json.loads(cache.INDEX.read_text(encoding="utf-8"))
         self.assertEqual(manifest["entries"]["geocolour"]["europe"]["time"], time1)
-        self.assertEqual((cache.ROOT / "geocolour_europe.png").read_bytes(), png)
+        self.assertEqual((cache.ROOT / ("geocolour_europe_" + time1.replace("-", "").replace(":", "") + ".png")).read_bytes(), png)
         self.write_status(self.status(time2))
         with patch.object(cache, "request_png", side_effect=RuntimeError("HTTP 500")):
             self.assertEqual(cache.run(), 0)
