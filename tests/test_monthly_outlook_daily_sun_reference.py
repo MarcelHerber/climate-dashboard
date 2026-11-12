@@ -19,7 +19,7 @@ import build_monthly_outlook_daily_sun_reference as sun
 
 class HistoricalSunTests(unittest.TestCase):
     def test_daily_sdk_rows_and_missing_hours(self):
-        rows=["STATIONS_ID;MESS_DATUM;SDK"]
+        rows=["STATIONS_ID;MESS_DATUM; SDK"]
         rows += [f"12345;{year}1101;5.0" for year in range(1991,2021)]
         rows += ["12345;19911102;-999","12345;19921102;25.0"]
         rows += [f"12345;{year}0229;3.0" for year in (1992,1996,2000,2004,2008,2012,2016,2020)]
