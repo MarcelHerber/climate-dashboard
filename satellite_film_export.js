@@ -78,31 +78,35 @@ function filename(input,extension){
 }
 function renderer(input,width){
  const first=input.frames[0]?.img;
- const ratio=first?.naturalHeight/first?.naturalWidth;
+ const ratio=(first?.naturalHeight||first?.height)/(first?.naturalWidth||first?.width);
  if(!Number.isFinite(ratio)||ratio<=0)throw new Error("Filmbilder nicht bereit");
- const mapHeight=Math.round(width*ratio),header=44,footer=input.isobarOverlays?52:32;
+ const fullHD=Boolean(input.fullHD);
+ const header=44,footer=input.isobarOverlays?52:32;
+ const mapWidth=fullHD?Math.min(width,Math.floor((1080-header-footer)/ratio)):width;
+ const mapHeight=Math.round(mapWidth*ratio);
+ const mapX=fullHD?Math.round((width-mapWidth)/2):0;
  const canvas=document.createElement("canvas");
- canvas.width=width;canvas.height=header+mapHeight+footer;
+ canvas.width=width;canvas.height=fullHD?1080:header+mapHeight+footer;
  const ctx=canvas.getContext("2d",{willReadFrequently:true});
  if(!ctx)throw new Error("Canvas fehlt");
  function draw(frame,frameIndex=0){
   if(!frame.time||!Number.isFinite(Date.parse(frame.time)))throw new Error("Kein gültiger UTC-Zeitpunkt");
   ctx.fillStyle="#12263d";ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(frame.img,0,header,width,mapHeight);
+  ctx.drawImage(frame.img,mapX,header,mapWidth,mapHeight);
   if(input.isobarOverlays){
    const pressure=input.isobarOverlays[frameIndex];
    if(!pressure||pressure.satelliteUTC!==frame.time)
     throw new Error("Keine zum Filmzeitpunkt passenden Isobaren vorhanden.");
    if(!window.SatelliteMapExport?.paintIsobars)
     throw new Error("Isobaren-Zeichner für GIF-Export fehlt.");
-   window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,{x:0,y:header,width,height:mapHeight});
+   window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,{x:mapX,y:header,width:mapWidth,height:mapHeight});
   }
   ctx.fillStyle="#ffffff";
   ctx.font="bold "+Math.max(12,Math.round(width/23))+"px Arial,sans-serif";
   ctx.fillText("MTG · "+input.productName,12,Math.round(header*.65),width-24);
   ctx.font=Math.max(10,Math.round(width/34))+"px Arial,sans-serif";
-  ctx.fillText(new Date(frame.time).toISOString().replace(".000Z"," UTC"),12,header+mapHeight+20,width-24);
-  ctx.fillText(input.credit||"© EUMETSAT",Math.max(12,width-175),header+mapHeight+20,170);
+  ctx.fillText(new Date(frame.time).toISOString().replace(".000Z"," UTC"),12,fullHD?canvas.height-15:header+mapHeight+20,width-24);
+  ctx.fillText(input.credit||"© EUMETSAT",Math.max(12,width-175),fullHD?canvas.height-15:header+mapHeight+20,170);
   if(input.isobarOverlays){
    const layer=input.isobarOverlays[frameIndex];
    ctx.fillStyle="#ff4fcf";
@@ -130,10 +134,10 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function exportMP4(input){
  if(!supportsMP4())throw new Error("MP4/H.264 wird von diesem Browser nicht unterstützt");
  const mime=["video/mp4;codecs=avc1.42E01E","video/mp4"].find(x=>MediaRecorder.isTypeSupported(x));
- const {canvas,draw}=renderer(input,Math.min(720,Math.max(160,Math.round(input.width||480))));
+ const {canvas,draw}=renderer(input,input.fullHD?1920:Math.min(720,Math.max(160,Math.round(input.width||480))));
  const stream=canvas.captureStream(0),track=stream.getVideoTracks()[0];
  let recorder;
- try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:1500000});}
+ try{recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:input.fullHD?8000000:1500000});}
  catch(error){track?.stop();throw error;}
  const parts=[];
  const done=new Promise((resolve,reject)=>{
