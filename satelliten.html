@@ -7,11 +7,11 @@
 <title>Satelliten · MTG | Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="mobile_navigation.css">
-<link rel="stylesheet" href="satelliten.css?v=20261112-isobars-localfix-v5">
+<link rel="stylesheet" href="satelliten.css?v=20261112-mslp-10min-v6">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
 <script defer src="satellite_overlay.js"></script>
-<script defer src="satellite_isobars.js?v=20261112-isobars-localfix-v5"></script>
+<script defer src="satellite_isobars.js?v=20261112-mslp-10min-v6"></script>
 <script defer src="satellite_film_export.js"></script>
 <script defer src="satelliten.js?v=20261112-fastcache-v1"></script>
 </head>
@@ -31,7 +31,7 @@
 </div>
 <div class="sat-overlay-controls"><label><input id="satShowBorders" type="checkbox" checked> Küsten- und Ländergrenzen</label><label><input id="satShowCities" type="checkbox" checked> Städtenamen</label><label><input id="satShowIsobars" type="checkbox" checked> ECMWF-Isobaren</label><label for="satIsobarSpacing">Abstand <select id="satIsobarSpacing"><option value="5" selected>5 hPa</option><option value="10">10 hPa</option></select></label><button id="satRetryIsobars" class="sat-isobar-retry" type="button" title="ECMWF-Druckdaten unabhängig vom Satellitenbild neu laden">↻ Isobaren neu laden</button></div>
 <p id="satIsobarStatus" class="sat-isobar-status" role="status" aria-live="polite">Prüfe ECMWF-IFS-Luftdruckdaten …</p>
-<p class="sat-isobar-explainer">Isobaren sind unabhängig vom EUMETSAT-Bildserver. Falls keine Aufnahme angezeigt werden kann, siehst du stattdessen das jüngste zeitlich gültige ECMWF-Druckfeld mit eigenem Modell-Zeitstempel auf neutralem Kartenhintergrund.</p>
+<p class="sat-isobar-explainer">Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-cyan" aria-hidden="true"></i>5 hPa · Zwischenlinien</span><span><i class="sat-isobar-legend-line sat-isobar-legend-orange" aria-hidden="true"></i>10 hPa · Hauptlinien</span></div>
 <p id="satOverlayHint" class="sat-overlay-hint">Natural Earth 1:50m · Vektorgrenzen werden lokal geladen.</p>
 <div class="sat-timeline">
 <label for="satTimeline">Zeitverlauf <output id="satTimelineLabel" for="satTimeline">Keine Beobachtungen</output></label>
