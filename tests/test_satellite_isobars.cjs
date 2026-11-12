@@ -144,7 +144,7 @@ test("When fast local preview fails, the full GitHub pressure contours still app
  const {api,map,getCalls}=fixture({failFirstOnly:true});
  await ready(api);
  assert.equal(map.get("satIsobarSvg").hidden,false);
- assert.match(map.get("satIsobarStatus").textContent,/veröffentlichtes Kartenarchiv/);
+ assert.match(map.get("satIsobarStatus").textContent,/ECMWF-Originalkonturen|3-h-Original-Isobaren/, "fallback must be honestly labelled as full ECMWF contours");
  assert.ok(getCalls()>=2,"Fallback must use second source once");
 });
 
