@@ -105,6 +105,7 @@ def qtile(values: Iterable[float], q: float) -> float | None:
 
 
 def running(values: list[float | None]) -> list[float | None]:
+    """Running arithmetic mean; missing samples are not converted to zero."""
     total = 0.0
     count = 0
     out: list[float | None] = []
@@ -115,6 +116,26 @@ def running(values: list[float | None]) -> list[float | None]:
         total += float(value)
         count += 1
         out.append(total / count if count else None)
+    return out
+
+
+def running_sum(values: list[float | None]) -> list[float | None]:
+    """Cumulative daily precipitation (mm) or sunshine (h), preserving gaps.
+
+    The caller must verify complete observed days before using the final value
+    as a forecast starting point. Missing data is not a dry/overcast day.
+    """
+    total = 0.0
+    out: list[float | None] = []
+    for value in values:
+        daily = finite(value)
+        if daily is None:
+            out.append(None)
+            continue
+        if daily < 0:
+            raise ValueError("A daily precipitation/sunshine total cannot be negative")
+        total += daily
+        out.append(round(total, 6))
     return out
 
 
@@ -234,8 +255,8 @@ def chunks(seq: list[Any], n: int) -> Iterable[list[Any]]:
         yield seq[i : i + n]
 
 
-def member_keys(daily: dict[str, Any]) -> list[str]:
-    base = "temperature_2m_mean"
+def member_keys(daily: dict[str, Any], variable: str = "temperature_2m_mean") -> list[str]:
+    base = variable
     keys = [
         k for k, v in daily.items()
         if k != "time" and isinstance(v, list) and (k == base or k.startswith(base + "_member"))
@@ -251,16 +272,104 @@ def member_keys(daily: dict[str, Any]) -> list[str]:
     return sorted(keys, key=rank)
 
 
-def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[LocationRef], list[dict[str, Any]]]:
+def hourly_sunshine_to_daily(location: dict[str, Any]) -> dict[str, Any]:
+    """Convert hourly sunshine seconds to complete DWD-like UTC synoptic days.
+
+    Open-Meteo timestamps label the *end* of the previous-hour sum.
+    DWD DUETT synoptic intervals end at HH:50, so a given DUETT day
+    (00:50..23:50) aligns most closely with Open-Meteo hours ending
+    01:00..next-day 00:00 (10 minute shift). Incomplete days are omitted.
+    """
+    hourly = location.get("hourly") or {}
+    times = [str(t) for t in hourly.get("time", [])]
+    if not times or len(times) != len(set(times)):
+        raise ValueError("Missing/duplicate Open-Meteo hourly sunshine timestamps")
+    units = (location.get("hourly_units") or {}).get("sunshine_duration")
+    if units not in ("s", "seconds", "second"):
+        raise ValueError(f"Unexpected sunshine-duration unit: {units!r} (expected seconds)")
+    days: dict[str, list[int]] = defaultdict(list)
+    for idx, timestamp in enumerate(times):
+        if len(timestamp) != 16 or timestamp[10] != "T":
+            raise ValueError(f"Open-Meteo sunshine hour has unexpected UTC timestamp {timestamp}")
+        end_time = datetime.fromisoformat(timestamp)
+        if end_time.minute != 0 or end_time.second != 0:
+            raise ValueError(f"Unexpected Open-Meteo non-hourly timestamp {timestamp}")
+        # A 00:00-end timestamp belongs to the preceding synoptic day.
+        synoptic_day = (end_time - timedelta(minutes=1)).date().isoformat()
+        days[synoptic_day].append(idx)
+    complete = [
+        day for day, idx in sorted(days.items())
+        if len(idx) == 24
+        and {times[i][11:] for i in idx} == {f"{hour:02d}:00" for hour in range(24)}
+    ]
+    fields: dict[str, list[float | None]] = {}
+    for key in member_keys(hourly, "sunshine_duration"):
+        values = hourly.get(key) or []
+        daily_values = []
+        for day in complete:
+            indices = days[day]
+            samples = [finite(values[i]) if i < len(values) else None for i in indices]
+            if any(v is None or v < 0 or v > 3600.01 for v in samples):
+                daily_values.append(None)
+            else:
+                daily_values.append(round(sum(samples) / 3600, 6))
+        fields[key] = daily_values
+    return {**location, "daily": {"time": complete, **fields}}
+
+
+def hourly_precipitation_to_hyras_day(location: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate hourly preceding-hour precipitation to HYRAS 06–06 UTC days.
+
+    HYRAS-DE-PR labels a day by its starting calendar date and integrates
+    station precipitation from 06 UTC to 06 UTC of the following day.
+    Open-Meteo hourly precipitation timestamps are end-times; HYRAS day D
+    therefore uses model hours ending D 07:00 through D+1 06:00.
+    """
+    hourly = location.get("hourly") or {}
+    times = [str(t) for t in hourly.get("time", [])]
+    if not times or len(times) != len(set(times)):
+        raise ValueError("Missing/duplicate hourly precipitation timestamps")
+    units = (location.get("hourly_units") or {}).get("precipitation")
+    if units not in ("mm", "millimeter", "millimetres", "millimeters"):
+        raise ValueError(f"Unexpected hourly precipitation unit {units!r}")
+    days: dict[str, list[int]] = defaultdict(list)
+    for idx, stamp in enumerate(times):
+        if len(stamp) != 16 or stamp[10] != "T":
+            raise ValueError(f"Invalid hourly precipitation timestamp: {stamp}")
+        end_time = datetime.fromisoformat(stamp)
+        if end_time.minute != 0 or end_time.second != 0:
+            raise ValueError(f"Not an hourly precipitation timestamp: {stamp}")
+        hyras_day = (end_time - timedelta(hours=7)).date().isoformat()
+        days[hyras_day].append(idx)
+    complete = [
+        day for day, indices in sorted(days.items())
+        if len(indices) == 24
+        and {times[i][11:] for i in indices} == {f"{hour:02d}:00" for hour in range(24)}
+    ]
+    fields: dict[str, list[float | None]] = {}
+    for key in member_keys(hourly, "precipitation"):
+        samples = hourly.get(key) or []
+        daily_values = []
+        for day in complete:
+            vals = [finite(samples[i]) if i < len(samples) else None for i in days[day]]
+            if any(v is None or v < 0 or v > 1000 for v in vals):
+                daily_values.append(None)
+            else:
+                daily_values.append(round(sum(vals), 6))
+        fields[key] = daily_values
+    return {**location, "daily": {"time": complete, **fields}}
+
+
+def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean", *, time_resolution: str = "daily") -> tuple[list[LocationRef], list[dict[str, Any]]]:
     cfg = MODEL_CONFIG[model_key]
     params = {
         "latitude": ",".join(f"{r.latitude:.4f}" for r in refs),
         "longitude": ",".join(f"{r.longitude:.4f}" for r in refs),
-        "daily": "temperature_2m_mean",
+        time_resolution: variable,
         "models": cfg["api_model"],
         "forecast_days": str(cfg["forecast_days"]),
         "past_days": "3",
-        "timezone": "Europe/Berlin",
+        "timezone": "GMT" if time_resolution == "hourly" else "Europe/Berlin",
         "cell_selection": "land",
     }
     try:
@@ -277,8 +386,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[L
             f"teile in {mid}+{len(refs)-mid}.",
             flush=True,
         )
-        left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
-        right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
+        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
         return left_refs + right_refs, left_locations + right_locations
 
     locations = data if isinstance(data, list) else [data]
@@ -290,10 +399,14 @@ def request_model_chunk(model_key: str, refs: list[LocationRef]) -> tuple[list[L
                 f"teile Batch in {mid}+{len(refs)-mid}.",
                 flush=True,
             )
-            left_refs, left_locations = request_model_chunk(model_key, refs[:mid])
-            right_refs, right_locations = request_model_chunk(model_key, refs[mid:])
+            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
+            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
             return left_refs + right_refs, left_locations + right_locations
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
+    if time_resolution == "hourly" and variable == "sunshine_duration":
+        locations = [hourly_sunshine_to_daily(loc) for loc in locations]
+    elif time_resolution == "hourly" and variable == "precipitation":
+        locations = [hourly_precipitation_to_hyras_day(loc) for loc in locations]
     return refs, locations
 
 
@@ -313,7 +426,7 @@ def model_run_time(model_key: str) -> str | None:
         return None
 
 
-def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24) -> dict[str, Any]:
+def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean", time_resolution: str = "daily") -> dict[str, Any]:
     refs = flatten_support_points(support)
     responses: list[tuple[LocationRef, dict[str, Any]]] = []
 
@@ -324,7 +437,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
     batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
     with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
-        futures = [pool.submit(request_model_chunk, model_key, batch) for batch in batches]
+        futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution) for batch in batches]
         for future in as_completed(futures):
             batch_refs, locations = future.result()
             responses.extend(zip(batch_refs, locations))
@@ -344,7 +457,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         for _, payload in items:
             daily = payload.get("daily") or {}
             times = [str(t) for t in daily.get("time", [])]
-            keys = member_keys(daily)
+            keys = member_keys(daily, variable)
             if not times or not keys:
                 raise RuntimeError(f"{model_key}/{region}: keine Ensemble-Tageswerte")
             if all_times is None:
@@ -385,6 +498,8 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         "model": model_key,
         "label": MODEL_CONFIG[model_key]["label"],
         "api_model": MODEL_CONFIG[model_key]["api_model"],
+        "daily_variable": variable,
+        "time_resolution": time_resolution,
         "forecast_days": MODEL_CONFIG[model_key]["forecast_days"],
         "run": model_run_time(model_key),
         "member_count": global_member_count,
@@ -460,7 +575,22 @@ def merge_running_outlook(
     observed_values: list[float],
     model_region: dict[str, Any],
     period_dates: list[str],
+    *,
+    aggregation: str = "mean",
 ) -> dict[str, Any]:
+    """Join observed days to ensemble members without double counting.
+
+    Temperature keeps the running mean. Precipitation and sunshine use
+    aggregation='sum' with independently accumulated daily amounts.
+    """
+    if aggregation not in ("mean", "sum"):
+        raise ValueError(f"Unknown aggregation: {aggregation}")
+    if not observed_dates or len(observed_dates) != len(observed_values):
+        raise ValueError("Observed dates and values must be nonempty and aligned")
+    if any(finite(v) is None for v in observed_values):
+        raise ValueError("Observed series contains missing days")
+    if aggregation == "sum" and any(float(v) < 0 for v in observed_values):
+        raise ValueError("Observed accumulated quantity cannot be negative")
     obs_through = observed_dates[-1]
     obs_sum = sum(observed_values)
     obs_n = len(observed_values)
@@ -486,9 +616,11 @@ def merge_running_outlook(
             value = finite(values[idx] if idx < len(values) else None)
             if value is None:
                 break
+            if aggregation == "sum" and value < 0:
+                break
             total += value
             count += 1
-            curve[i] = total / count
+            curve[i] = total if aggregation == "sum" else total / count
         member_curves.append(curve)
         member_names.append(key)
 

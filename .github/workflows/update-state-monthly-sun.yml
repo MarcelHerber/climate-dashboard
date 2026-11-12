@@ -1,0 +1,155 @@
+name: Monatsausblick DUETT Sonnenschein aktualisieren
+
+on:
+  schedule:
+    - cron: "38 4,10,16,22 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_monthly_outlook_duett.py"
+      - "scripts/check_duett_station_sun.py"
+      - "scripts/build_state_monthly_sun_outlook.py"
+      - "scripts/build_state_monthly_ensemble_outlook.py"
+      - "tests/test_monthly_outlook_duett.py"
+      - "tests/test_state_monthly_sun_outlook.py"
+      - ".github/workflows/update-state-monthly-sun.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-sunshine-outlook-data
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+
+      - name: Offline-Validierung
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_duett.py scripts/build_state_monthly_sun_outlook.py
+          python -m unittest discover -s tests -p test_monthly_outlook_duett.py -v
+          python -m unittest discover -s tests -p test_check_duett_station_sun.py -v
+          python -m unittest discover -s tests -p test_state_monthly_sun_outlook.py -v
+          python -m unittest discover -s tests -p test_state_monthly_hydro_sum.py -v
+
+      - name: Alten Sonnen-Datenstand zur Wiederverwendung holen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/monthly-sun/observed /tmp/monthly-sun/forecast
+          if git ls-remote --exit-code --heads origin state-monthly-sun-obs >/dev/null 2>&1; then
+            git fetch origin state-monthly-sun-obs --depth=1
+            git show origin/state-monthly-sun-obs:observed_sun.json > /tmp/monthly-sun/previous.json
+          fi
+
+      - name: DUETT Stunden zu vollständigen Tages-Sonnenscheinstunden aggregieren
+        run: |
+          python scripts/build_monthly_outlook_duett.py \
+            --previous /tmp/monthly-sun/previous.json \
+            --work /tmp/monthly-sun/work \
+            --output /tmp/monthly-sun/observed/observed_sun.json \
+            --workers 8
+
+      - name: DUETT-Beobachtungen prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/monthly-sun/observed/observed_sun.json').read_text())
+          assert d['forecast'] is False and d['unit'] == 'h'
+          assert len(d['regions_order'])==17
+          assert len(d['dates'])>=1
+          for r in d['regions_order']:
+              samples=d['regions'][r]['daily']
+              assert len(samples)==len(d['dates'])
+              assert all(0<=value<=24 for value in samples)
+          print('DUETT regions',len(d['regions_order']),'through',d['data_through'])
+          PY
+
+      - name: Stations-SDK als Qualitätsvergleich einlesen (ohne Doppelzählung)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin hyras-data >/dev/null 2>&1; then
+            git fetch origin hyras-data --depth=1
+            git show origin/hyras-data:monthly_current_provisional.json > /tmp/monthly-sun/stations.json || true
+          fi
+          python scripts/check_duett_station_sun.py \
+            --observed /tmp/monthly-sun/observed/observed_sun.json \
+            --stations /tmp/monthly-sun/stations.json
+
+      - name: DUETT-Beobachtungsbranch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/monthly-sun/observed
+          git init
+          git checkout -b state-monthly-sun-obs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add observed_sun.json
+          git commit -m "DUETT Sonnenschein Tagesgebietsmittel aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-sun-obs
+
+      - name: Vier Sonnen-Ensembles berechnen
+        run: |
+          python scripts/build_state_monthly_sun_outlook.py \
+            --observed /tmp/monthly-sun/observed/observed_sun.json \
+            --output /tmp/monthly-sun/forecast/state_monthly_sun.json \
+            --batch-size 8
+
+      - name: Sonnen-Ensembleergebnis prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('/tmp/monthly-sun/forecast/state_monthly_sun.json').read_text())
+          assert d['schema_version']==1 and d['parameter']=='sunshine' and d['unit']=='h'
+          assert len(d['regions_order'])==17 and len(d['models_order'])>=1
+          for region in d['regions_order']:
+              series=d['regions'][region]
+              assert series['observed_current']>=0
+              assert len(series['observed_running'])==len(d['dates'])
+              for model in series['models'].values():
+                  assert len(model['stats']['mean'])==len(d['dates'])
+          print('Sonnenensemble',d['year'],d['month'],'Modelle',d['models_order'])
+          PY
+
+      - name: Sonnen-Ensemble-Datenbranch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/monthly-sun/forecast
+          git init
+          git checkout -b state-monthly-sun
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state_monthly_sun.json
+          git commit -m "Monatsausblick DUETT Sonnen-Ensembles aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-sun

@@ -7,11 +7,20 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261011-3"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
-NEW_SELECTORS='''    <div class="control-group">
+PARAM_SELECTOR='''    <div class="control-group">
+      <label for="stateMonthlyParameter">Parameter</label>
+      <select id="stateMonthlyParameter">
+        <option value="temperature" selected>Temperatur</option>
+        <option value="precipitation">Niederschlag</option>
+        <option value="sunshine">Sonnenscheindauer</option>
+      </select>
+    </div>
+'''
+NEW_SELECTORS=PARAM_SELECTOR+'''    <div class="control-group">
       <label for="stateMonthlyPeriod">Zeitraum</label>
       <select id="stateMonthlyPeriod">
         <option value="month" selected>Laufender Monat</option>
@@ -34,7 +43,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
 <div id="state-monthly-ensemble" class="tab-content">
   <div class="section-header state-monthly-header">
     <h2>Monatsausblick · Deutschland & Bundesländer</h2>
-    <p>Laufendes 2-m-Temperaturmittel für Monat, Jahreszeit und Jahr: HYRAS-Beobachtungen mit Ensemble-Fortschreibung und Abweichung vom Klimamittel 1991–2020.</p>
+    <p>Temperatur, Niederschlag und Sonnenscheindauer: Beobachtete Gebietswerte und Ensembleprognosen für Deutschland und alle Bundesländer.</p>
     <span class="section-status">HYRAS-DE-TAS · 1991–2020 · Ensemble-Prognose für den laufenden Monat</span>
   </div>
 
@@ -67,7 +76,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
     <div class="state-monthly-export-head">
       <div>
         <h2 id="stateMonthlyTitle">Deutschland · laufender Monat</h2>
-        <p>Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>
+        <p id="stateMonthlyExportDescription">Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>
       </div>
     </div>
 
@@ -92,7 +101,7 @@ PANEL=r'''<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -
     <div id="stateMonthlyLegend" class="state-monthly-legend"></div>
   </div>
 
-  <p class="state-monthly-note">
+  <p id="stateMonthlyDataNote" class="state-monthly-note">
     Beobachtung und Klimareferenz sind echte HYRAS-DE-TAS-Flächenmittel auf dem 1-km-Gitter.
     Die Ensemble-Prognosen werden in der ersten Version aus mehreren räumlich verteilten Modell-Stützpunkten je Gebiet gemittelt;
     damit ist die Bundesland-Prognose bereits flächenrepräsentativ, aber noch kein natives Modellraster-Flächenmittel.
@@ -119,6 +128,22 @@ def patch_index(text: str) -> str:
         if footer not in text:
             raise RuntimeError("Dashboard-Footer fehlt")
         text=text.replace(footer,PANEL+"\n\n"+footer,1)
+
+    # Add the parameter switcher to an existing published monthly panel.
+    # The initial PANEL already has it through NEW_SELECTORS.
+    if 'id="stateMonthlyParameter"' not in text:
+        param_anchor='    <div class="control-group">\n      <label for="stateMonthlyPeriod">Zeitraum</label>'
+        if param_anchor not in text:
+            raise RuntimeError("Monatsausblick Zeitraumanker für Parameterauswahl fehlt")
+        text=text.replace(param_anchor,PARAM_SELECTOR+param_anchor,1)
+
+    if 'id="stateMonthlyExportDescription"' not in text:
+        text=text.replace(
+            '<p>Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>',
+            '<p id="stateMonthlyExportDescription">Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie</p>',1,
+        )
+    if 'id="stateMonthlyDataNote"' not in text:
+        text=text.replace('<p class="state-monthly-note">','<p id="stateMonthlyDataNote" class="state-monthly-note">',1)
 
     # Bereits veröffentlichte Tabs um die neuen Auswahlfelder ergänzen.
     if 'id="stateMonthlyPeriod"' not in text:
