@@ -31,7 +31,8 @@ class TenMinuteMSLPTests(unittest.TestCase):
         self.assertAlmostEqual(fraction,1/18)
         self.assertAlmostEqual(p[0,0],1000+3/18)
         self.assertEqual(m.interpolate_field(self.fields,180)[3],(3,6))
-        self.assertEqual(m.interpolate_field(self.fields,720)[3],(12,12))
+        self.assertEqual(m.interpolate_field(self.fields,720)[3],(12,15))
+        self.assertEqual(m.interpolate_field(self.fields,1080)[3],(18,18))
         for minute in (-10,725,730,11):
             with self.assertRaises(ValueError):
                 m.interpolate_field(self.fields,minute)
