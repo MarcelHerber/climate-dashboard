@@ -901,7 +901,7 @@ PY
 fi
 
 # NOAA/CPC extended archive as before.
-if false; then
+if [[ -s climate_indices/index.json ]]; then
   echo "NOAA-Zirkulations- und ENSO-Indizes in Pages-Artefakt übernommen."
 else
   echo "HINWEIS: NOAA-Indexarchiv noch nicht erstellt."
