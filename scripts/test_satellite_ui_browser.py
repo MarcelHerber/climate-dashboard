@@ -125,8 +125,6 @@ def exercise(page, viewport_label, official_xml):
     evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
     assert evidence["standard_quality_selected"] and evidence["hd_script_available"] and evidence["hd_tiles_present"], "HD source controls not active"
     evidence["default_still_width_requested"]=page.locator("#satImage").evaluate(
-        "(img)=>new URL(img.src).searchParams.get('width') if img.src.startsWith('https://view.eumetsat.int/') else ''"
-    ) if False else page.locator("#satImage").evaluate(
         "(img)=>img.src.startsWith('https://view.eumetsat.int/')?new URL(img.src).searchParams.get('width'):''"
     )
     assert evidence["default_still_width_requested"] in ("800","400","320",""), "Unexpected image width"
