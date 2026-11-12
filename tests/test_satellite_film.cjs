@@ -143,7 +143,7 @@ test("Film player reuses small WMS PNGs and never requests each frame again",asy
  assert.equal(nodes.get("satFilmStage").hidden,true);
  await waitUntil(()=>requests.length>count,"single still frame requested on seek");
  const latest=new URL(requests.at(-1).url);
- assert.equal(latest.searchParams.get("width"),"400","still image uses compact WMS preview");
+ assert.equal(latest.searchParams.get("width"),"800","still image uses 800px WMS default preview");
  assert.equal(latest.searchParams.get("bbox"),"-37,24,19,53");
  const before=fetches.length;
  nodes.get("satRegion").value="germany";
@@ -216,12 +216,12 @@ test("48-frame movie covers every available timestamp without duplicate download
  assert.equal(requests.length,before,"48-frame playback uses cached frames only");
  nodes.get("satPlay").dispatch("click");
 });
-test("Still picture downloads a 400px preview but keeps an original-resolution link",async()=>{
+test("Still picture loads 800px but keeps native image link",async()=>{
  const {nodes,requests,slots}=fixture({failLargeStill:true});
  await waitUntil(()=>nodes.get("satTime").options.length===8,"verified UTC axis");
- await waitUntil(()=>nodes.get("satImage").naturalWidth===400,"compact preview loaded",1500);
- const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="400");
- assert.ok(previews.length>=1,"400px preview not requested");
+ await waitUntil(()=>nodes.get("satImage").naturalWidth===800,"sharper still preview loaded",1500);
+ const previews=requests.filter(r=>new URL(r.url).searchParams.get("width")==="800");
+ assert.ok(previews.length>=1,"800px preview not requested");
  const preview=new URL(previews.at(-1).url);
  const original=new URL(nodes.get("satRawImage").href);
  assert.equal(original.searchParams.get("width"),"1200","native source link retained");
@@ -232,13 +232,14 @@ test("Still picture downloads a 400px preview but keeps an original-resolution l
  assert.match(nodes.get("satStatus").textContent,/Vorschau/);
  assert.equal(nodes.get("satPng").disabled,false);
 });
-test("Same-product verified cache avoids extra WMS retries on first still failure",async()=>{
+test("Same-product cache is used after the 800→400 fallback fails",async()=>{
  const {nodes,requests}=fixture({failAllWms:true,archiveAvailable:true});
  await waitUntil(()=>nodes.get("satTime").options.length===8,"UTC metadata");
  await waitUntil(()=>nodes.get("satValid").textContent.includes("Archivaufnahme"),"early archive",2000);
  const attempted=requests.filter(r=>r.url.startsWith("https://")&&new URL(r.url).searchParams.get("request")==="GetMap");
- assert.equal(attempted.length,1,"one failing 400px WMS attempt should precede the verified snapshot");
- assert.equal(new URL(attempted[0].url).searchParams.get("width"),"400");
+ assert.equal(attempted.length,2,"one failing 800px and one failing 400px attempt should precede the verified snapshot");
+ assert.equal(new URL(attempted[0].url).searchParams.get("width"),"800");
+ assert.equal(new URL(attempted[1].url).searchParams.get("width"),"400");
  assert.match(nodes.get("satStatus").textContent,/Nicht aktuell/);
  assert.equal(nodes.get("satProduct").value,"geocolour");
 });
