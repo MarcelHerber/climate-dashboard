@@ -89,7 +89,8 @@ class TenMinuteMSLPTests(unittest.TestCase):
                     "valid_utc":(run+dt.timedelta(minutes=minute)).isoformat(timespec="seconds").replace("+00:00","Z"),
                     "forecast_minute":minute,
                     "interpolated":minute%180!=0,
-                    "contours":[{"hpa":1010,"lines":[[[-30,40],[-29,41]]]}],\n                    "fine_contours":[{"hpa":1012,"lines":[[[-30,40],[-29,41]]]}]
+                    "contours":[{"hpa":1010,"lines":[[[-30,40],[-29,41]]]}],
+                    "fine_contours":[{"hpa":1012,"lines":[[[-30,40],[-29,41]]]}]
                 }
             with patch.object(m,"frame_from_grids",side_effect=synthetic):
                 index=m.build_10min(self.fields,self.run,self.run+dt.timedelta(hours=7),Path(tmp))
