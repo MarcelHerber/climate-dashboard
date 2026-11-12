@@ -19,6 +19,8 @@ const MAX_STANDALONE_AGE=12*3600*1000; // older forecasts may be shown, clearly 
 const ns="http://www.w3.org/2000/svg";
 const TEN_MS=10*60*1000;
 const TEN_INDEX_URL="./data/satellite_mslp/ten_minute/index.json";
+const FINE_REGIONS=new Set(["europe","southwest","central","germany"]);
+const isFineRegion=place=>FINE_REGIONS.has(place);
 let tenIndex=null,tenLoading=null,tenChecked=0;
 const tenChunks=new Map(),tenPending=new Map(),tenFailed=new Map();
 const ENDPOINTS=["./data/satellite_mslp/preview.json","./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
@@ -64,6 +66,14 @@ async function loadTenIndex(force=false){
       !Number.isFinite(Date.parse(idx.generated_at))||
       !idx.hours||![13,19].includes(Object.keys(idx.hours).length))throw Error("Unsupported 10-minute pressure metadata");
    if(data&&Date.parse(idx.run_utc)<Date.parse(data.run_utc))return;
+   // Legacy manifests without a fine_hours map still work in default 5 hPa.
+   const fine=idx.fine_hours;
+   if(fine!==undefined&&(
+      idx.fine_interval_hpa!==2||
+      !Array.isArray(idx.fine_regions)||
+      ![13,19].includes(Object.keys(fine).length)||
+      !Object.values(fine).every(x=>typeof x==="string"&&/^r\d{10}\/h\d{2}_2hpa\.json$/.test(x))))
+       throw Error("Ungültige 2-hPa-Metadaten");
    if(tenIndex?.run_utc!==idx.run_utc){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
   }catch(err){console.warn("Optional ECMWF ten-minute pressure overlay",err?.message||err);}
@@ -71,7 +81,7 @@ async function loadTenIndex(force=false){
  })();
  return tenLoading;
 }
-function tenFrameAt(target){
+function tenFrameAt(target,gap=5){
  if(!tenIndex)return null;
  const run=Date.parse(tenIndex.run_utc),requested=Date.parse(target);
  if(!Number.isFinite(run)||!Number.isFinite(requested)||
@@ -81,9 +91,13 @@ function tenFrameAt(target){
  const lastHour=Object.keys(tenIndex.hours).length-1;
  if(slot<0||slot>lastHour*6||Math.abs(run+slot*TEN_MS-requested)>5*60000)return null;
  const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
- const file=tenIndex.hours?.[key];
- if(typeof file!=="string"||!/^r\d{10}\/h\d{2}\.json$/.test(file))return null;
- const cacheKey=tenIndex.run_utc+"|"+key;
+ const fine=Number(gap)===2;
+ const lookup=fine?tenIndex.fine_hours:tenIndex.hours;
+ const file=lookup?.[key];
+ if(fine&&!isFineRegion(context.region))return null;
+ const expected=fine?/^r\d{10}\/h\d{2}_2hpa\.json$/:/^r\d{10}\/h\d{2}\.json$/;
+ if(typeof file!=="string"||!expected.test(file))return null;
+ const cacheKey=tenIndex.run_utc+"|"+(fine?"2":"5")+"|"+key;
  const chunk=tenChunks.get(cacheKey);
  if(chunk){
   const f=chunk.frames[slot%6];
@@ -96,9 +110,11 @@ function tenFrameAt(target){
    try{
     const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file);
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
+       (fine&&(d.interval_hpa!==2||!d.regions?.includes(context.region)))||
        d.hour!==hour||!Array.isArray(d.frames)||
        d.frames.length!==(hour===lastHour?1:6)||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
+        (fine&&f.contours.some(group=>group.hpa%2!==0))||
         Date.parse(f.valid_utc)!==run+(hour*6+i)*TEN_MS||
         f.interpolated!==((hour*6+i)%18!==0))){
       throw Error("Ten-minute pressure chunk failed UTC provenance validation");
@@ -131,8 +147,8 @@ function draw(frame,bbox,gap){
    count++;
    return points.map((p,i)=>(i?"L":"M")+px(p[0])+" "+py(p[1])).join(" ");
   }).join(" ");
-  const inner=group.heavy?"1.55":"0.9";
-  const outer=group.heavy?"2.95":"2.3";
+  const inner=Number(gap)===2?"0.75":group.heavy?"1.55":"0.9";
+  const outer=Number(gap)===2?"1.85":group.heavy?"2.95":"2.3";
   const halo=document.createElementNS(ns,"path");
   halo.setAttribute("d",d);halo.setAttribute("fill","none");
   halo.setAttribute("stroke","#061522");halo.setAttribute("stroke-opacity","0.93");
@@ -187,7 +203,14 @@ function draw(frame,bbox,gap){
  svg.replaceChildren(batch);
  return count;
 }
+function refreshSpacing(){
+ const permitted=isFineRegion(context.region)&&context.source==="mtgi1";
+ const fineOption=spacing.querySelector?.('option[value="2"]');
+ if(fineOption){fineOption.hidden=!permitted;fineOption.disabled=!permitted;}
+ if(!permitted&&spacing.value==="2")spacing.value="5";
+}
 function update(){
+ refreshSpacing();
  const supported=context.source==="mtgi1"&&Boolean(BBOX[context.region]);
  toggle.disabled=!supported;
  spacing.disabled=!supported||!toggle.checked;
@@ -204,15 +227,19 @@ function update(){
  }
  const requested=Number.isFinite(Date.parse(context.time))?context.time:new Date().toISOString();
  const satelliteTime=Number.isFinite(Date.parse(context.time))?context.time:null;
- const ten=tenFrameAt(requested);
- let frame=ten||((satelliteTime?frameFor(satelliteTime):null)||latestIndependentFrame());
+ const gap=Number(spacing.value)||5;
+ const ten=tenFrameAt(requested,gap);
+ let frame=ten||(gap===2?null:
+  ((satelliteTime?frameFor(satelliteTime):null)||latestIndependentFrame()));
  const aligned=Boolean(satelliteTime&&frame&&(!ten?frameFor(satelliteTime):true));
  if(!frame){
   svg.replaceChildren();
-  note("Kein ausreichend aktuelles ECMWF-Druckfeld verfügbar. Letzter gültiger Modelllauf bleibt angegeben, statt falsche Isobaren zu zeigen.");
+  note(gap===2?
+   "2-hPa-Isobaren für diesen ECMWF-Lauf noch nicht bereitgestellt oder werden geladen. Keine 5-hPa-Ersatzlinien als 2 hPa ausgeben.":
+   "Kein ausreichend aktuelles ECMWF-Druckfeld verfügbar. Letzter gültiger Modelllauf bleibt angegeben, statt falsche Isobaren zu zeigen.");
   return;
  }
- const lines=draw(frame,BBOX[context.region],Number(spacing.value)||5);
+ const lines=draw(frame,BBOX[context.region],gap);
  if(!lines){note("ECMWF-Daten vorhanden, aber keine sichtbaren "+spacing.value+"-hPa-Isobaren in diesem Ausschnitt.");return;}
  svg.toggleAttribute("hidden",false);
  const interpolated=Boolean(ten?.interpolated);
@@ -280,19 +307,23 @@ async function load(force=false){
 // Expose only genuine, time-provenanced grid-derived lines for map exports.
 // Await the correct ten-minute chunk; never silently export an empty overlay.
 async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
+ gap=Number(gap)||5;
+ if(gap===2&&!isFineRegion(place))
+  throw Error("2-hPa-Isobaren gibt es nur für Europa, Südwesteuropa, Mitteleuropa und Deutschland.");
  if(!BBOX[place])throw Error("Für diesen Kartenausschnitt gibt es keine georeferenzierten Isobaren.");
  if(!Number.isFinite(Date.parse(time)))throw Error("Kein verifizierter Satellitenzeitpunkt für den Isobarenexport.");
  if(!data&&!loading)await load();
  else if(loading)await loading;
  if(!tenIndex)await loadTenIndex();
- let frame=tenFrameAt(time);
+ let frame=tenFrameAt(time,gap);
  if(!frame&&tenIndex){
   const run=Date.parse(tenIndex.run_utc),slot=Math.round((Date.parse(time)-run)/TEN_MS);
   const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
-  const promise=tenPending.get(tenIndex.run_utc+"|"+key);
+  const promise=tenPending.get(tenIndex.run_utc+"|"+(gap===2?"2":"5")+"|"+key);
   if(promise)await promise;
-  frame=tenFrameAt(time);
+  frame=tenFrameAt(time,gap);
  }
+ if(gap===2&&!frame)throw Error("Für "+utc(time)+" fehlen die berechneten 2-hPa-Konturen. Export nicht erstellt.");
  if(strictTenMinute&&!frame)
   throw Error("Für "+utc(time)+" fehlen die passenden 10-Minuten-Isobaren. GIF mit Isobaren nicht erzeugt.");
  if(!frame)frame=frameFor(time);
@@ -303,7 +334,7 @@ async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
  if(!Array.isArray(frame.contours)||!frame.contours.length)throw Error("Isobaren-Konturen fehlen.");
  return {contours:frame.contours,validUTC:frame.valid_utc,runUTC:run,
   satelliteUTC:time,method,interpolated:exact10&&Boolean(frame.interpolated),
-  spacing:Number(gap)||5,region:place,exact10};
+  spacing:gap,region:place,exact10};
 }
 function sync(next){
  context={time:next?.time||null,region:next?.region||region.value,source:next?.source||source.value};
