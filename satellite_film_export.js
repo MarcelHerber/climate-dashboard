@@ -106,7 +106,7 @@ function renderer(input,width){
   if(input.isobarOverlays){
    const layer=input.isobarOverlays[frameIndex];
    ctx.fillStyle="#ff4fcf";
-   ctx.fillText("ECMWF IFS · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
+   ctx.fillText("ECMWF IFS · "+(layer.spacing||5)+" hPa · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
   }
  }
  return {canvas,ctx,draw};
