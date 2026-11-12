@@ -87,7 +87,7 @@ function hydroReferenceDatasets(){
   const daily=dailyHydroRunning(regionName);
   const out=[];
   if(daily&&daily.some(v=>v!=null))out.push({
-    label:"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
+    label:selectedParameter()==="sunshine"?"Stationsbasierte 1991–2020-Tagesreferenz · kumuliert (DWD SDK, 6 km)":"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
     data:daily,borderColor:"#b044d6",borderWidth:2.4,pointRadius:0,tension:.1,spanGaps:false
   });
   if(normal!==null)out.push({
@@ -186,7 +186,7 @@ function renderLegend(){
   const currentRegion=el("stateMonthlyRegion")?.value||"Deutschland";
   const daily=hydroMode()?dailyHydroRunning(currentRegion):null;
   const monthly=hydroMode()?historicalMonthNormal(selectedParameter(),currentRegion):null;
-  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag (2 km)</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
+  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
   if(!data&&!parameterDoc())return;
@@ -225,7 +225,7 @@ function renderHeader(r){
     const normalText=normal===null?"Klimareferenz 1991–2020 noch nicht verfügbar":`1991–2020: Monatsgesamtwert ${fmt(normal,1)} ${config.unit}`;
     if(info){
       info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
-      if(selectedParameter()==="precipitation"){
+      if(hydroMode()){
         const daily=dailyHydroRunning(reg);
         const index=(d.dates||[]).indexOf(r.observed_through);
         const reference=index>=0?num(daily?.[index]):null;
@@ -233,7 +233,7 @@ function renderHeader(r){
           const diff=num(r.observed_current)-reference;
           const item=document.createElement("span");
           const percent=reference>0?` (${fmt(num(r.observed_current)/reference*100,0)} % des Mittels)`:"";
-          item.textContent=`Klimasumme bis ${dateShort(r.observed_through)}: ${fmt(reference,1)} mm · Abweichung ${diff>=0?"+":""}${fmt(diff,1)} mm${percent}`;
+          item.textContent=`Klimasumme bis ${dateShort(r.observed_through)}: ${fmt(reference,1)} ${config.unit} · Abweichung ${diff>=0?"+":""}${fmt(diff,1)} ${config.unit}${percent}`;
           info.appendChild(item);
         }
       }
@@ -266,9 +266,11 @@ function renderHeader(r){
     if(note){
       const dayAvailable=dailyHydroRunning(reg)?.some(v=>v!=null);
       const refNote=dayAvailable?
-        "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich.":
+        (selectedParameter()==="sunshine"?
+         "Die durchgezogene violette Linie zeigt die aus DWD-SDK-Tagesstationswerten 1991–2020 rekonstruierte Tagesklimatologie (6-km-IDW-Gitter, monatsweise an die amtlichen 1-km-Normalwerte angepasst). Sie ist KEIN amtliches tägliches DWD-Raster und keine DUETT-Klimatologie.":
+         "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich."):
         normal===null?"Noch keine Klimareferenz geladen.":"Die gestrichelte Klimareferenz zeigt die volle Monatssumme; dies ist keine Tagesklimatologie.";
-      note.textContent=`${config.source} · ${config.unit} · kumulierte Gebietssummen. ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Eine belastbare tagesgenaue Sonnenscheinreferenz fehlt noch.":""} Fehlende Tage werden nicht zu null.`;
+      note.textContent=`${config.source} · ${config.unit} · kumulierte Gebietssummen. ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Die historische Sonnenschein-Tagesreferenz ist eine stationsbasierte Rekonstruktion und methodisch nicht identisch mit DUETT.":""} Fehlende Tage werden nicht zu null.`;
     }
     return;
   }
