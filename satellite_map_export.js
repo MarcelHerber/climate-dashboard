@@ -92,7 +92,7 @@ function utc(t){return new Date(t).toISOString().slice(0,16).replace("T"," ")+" 
 function titleLine(options){return "MTG "+options.productName+" | "+options.regionName;}
 function provenance(options){const o=options.overlay;
  return "Satellit: "+utc(o.satelliteUTC)+" | ECMWF IFS "+utc(o.runUTC)+
-  " | Isobaren: "+utc(o.validUTC)+" | "+o.method;}
+  " | Isobaren: "+utc(o.validUTC)+" | Abstand "+o.spacing+" hPa | "+o.method;}
 function footerLine(o){return "Bild: EUMETSAT | Druckprognose: ECMWF CC BY 4.0 | Interpolierte Modellwerte, keine Messung";}
 function rasterCanvas(image){
  const w=image.naturalWidth||image.width,h=image.naturalHeight||image.height;
