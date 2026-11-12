@@ -142,10 +142,36 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
    const area=Math.abs(area2)/2;
    if(area<220||area>600000)continue;
    const center=polygonCenter(r.normalized);
-   if(center)rings.push({hpa,center,outline:r.normalized,area});
+   // The ECMWF/contourpy generator preserves line winding. For these
+   // lon/lat contours, anticlockwise positive area encloses HIGHER pressure,
+   // clockwise negative area encloses LOWER pressure. Unlike the display
+   // projection (inverted y), this sign is measured in geographical coords.
+   let geoArea2=0;
+   for(let i=0;i<r.points.length;i++){
+    const a=r.points[i],b=r.points[(i+1)%r.points.length];
+    geoArea2+=a[0]*b[1]-b[0]*a[1];
+   }
+   if(center)rings.push({hpa,center,outline:r.normalized,area,
+    higherInside:geoArea2>0});
   }
  }
  const options=[];
+ // Strict 3-ring nesting is excellent for deep lows but misses common broad,
+ // relatively flat highs. A sufficiently large, COMPLETE anticlockwise
+ // contour at >=1015 hPa is a genuine MSLP high by source contour winding,
+ // even when the next 5-hPa threshold is not reached (e.g. 1020-1024 hPa).
+ // Do not mark small islands/noise, clipped systems, or a low's outer edge.
+ for(const ring of rings){
+  if(!ring.higherInside||ring.hpa<1015||
+     ring.area<4500||Math.sqrt(ring.area)<60)continue;
+  const smallerLower=rings.some(inner=>inner!==ring&&
+   inner.area<ring.area*.85&&inner.hpa<ring.hpa&&
+   insidePolygon(inner.center,ring.outline));
+  if(smallerLower)continue;
+  options.push({type:"H",hpa:ring.hpa,
+   score:25+Math.min(24,Math.sqrt(ring.area)/10)+Math.max(0,ring.hpa-1015),
+   center:ring.center,rings:1,windingVerified:true});
+ }
  for(const inner of rings){
   for(const type of ["T","H"]){
    // Highs have lower-pressure outer contours; lows have higher outer ones.
