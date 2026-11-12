@@ -93,15 +93,23 @@ def run() -> int:
         metadata = status.get("products", {}).get(product, {})
         if metadata.get("layer") != layer:
             continue
-        # "available_times" is metadata only. Archive the last image that
-        # was actually decoded and checked by the independent WMS monitor.
-        # This avoids wasting retries on advertised-but-broken newest frames.
-        verified = metadata.get("latest_verified_time")
-        moments = set(metadata.get("available_times", []))
-        if (not metadata.get("map_ok") or verified not in moments
-                or not valid_utc(verified) or valid_utc(verified) > now):
+        # If the central probe succeeded, try that same checked timestamp
+        # first. If it failed, individual regional 400px renders may still
+        # succeed: every such result goes through request_png() verification.
+        # Metadata alone never creates an archived image.
+        moments = {
+            t for t in metadata.get("available_times", [])
+            if valid_utc(t) and valid_utc(t) <= now
+        }
+        if not moments:
             continue
-        latest = verified
+        verified = metadata.get("latest_verified_time")
+        if metadata.get("map_ok"):
+            if verified not in moments:
+                continue
+            latest = verified
+        else:
+            latest = max(moments)
         # WMS may advertise a good timestamp while a region-specific render
         # fails. After one failed verified frame, try up to three earlier
         # advertised timestamps, accepting only a fully validated real PNG.
@@ -109,7 +117,7 @@ def run() -> int:
             (t for t in moments if valid_utc(t) and t < latest
              and valid_utc(latest) - valid_utc(t) <= dt.timedelta(minutes=90)),
             reverse=True,
-        )[:3]
+        )[:2]
         for region in REGIONS:
             previous = entries.get(product, {}).get(region, {})
             candidates = [
