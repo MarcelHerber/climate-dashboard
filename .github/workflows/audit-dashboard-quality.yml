@@ -25,7 +25,6 @@ on:
   # many identical browser audits. Keep one genuine daily live test instead.
   schedule:
     - cron: "37 4 * * *"
-    branches: [main]
 
 permissions:
   contents: read
