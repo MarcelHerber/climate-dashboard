@@ -120,6 +120,16 @@ def exercise(page, viewport_label, official_xml):
         "() => document.getElementById('satImage').naturalWidth > 0",timeout=35000) is not None)
     evidence["image_status"]=page.locator("#satStatus").inner_text()
     evidence["image_url"]=page.locator("#satImage").get_attribute("src")
+    evidence["standard_quality_selected"]=page.locator("#satStillQuality").input_value()=="standard"
+    evidence["hd_script_available"]=page.evaluate("() => typeof window.SatelliteHD?.sync === 'function'")
+    evidence["hd_tiles_present"]=page.locator("#satHDTiles").count()==1
+    assert evidence["standard_quality_selected"] and evidence["hd_script_available"] and evidence["hd_tiles_present"], "HD source controls not active"
+    evidence["default_still_width_requested"]=page.locator("#satImage").evaluate(
+        "(img)=>new URL(img.src).searchParams.get('width') if img.src.startsWith('https://view.eumetsat.int/') else ''"
+    ) if False else page.locator("#satImage").evaluate(
+        "(img)=>img.src.startsWith('https://view.eumetsat.int/')?new URL(img.src).searchParams.get('width'):''"
+    )
+    assert evidence["default_still_width_requested"] in ("800","400","320",""), "Unexpected image width"
     evidence["viewport_overflow"]=page.evaluate(
         "()=>document.documentElement.scrollWidth > window.innerWidth+3"
     )
