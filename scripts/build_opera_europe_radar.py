@@ -61,7 +61,10 @@ def discover(session:requests.Session,kind:str,now:datetime,count:int) -> list[d
         raise ValueError(f"OPERA ORD returned only {len(ordered)} {kind.upper()} timestamps")
     if (now-ordered[-1]).total_seconds()>MAX_AGE[kind]*60:
         raise ValueError(f"Stale OPERA {kind} latest UTC {iso(ordered[-1])}")
-    selected=ordered[-count:]
+    # MeteoGate may advertise the newest COGs before S3 actually hosts them.
+    # Search a modest older candidate pool; only successfully decoded files
+    # become frames, and the last verified timestamp is checked separately.
+    selected=ordered[-max(count+12,count*2):]
     interval=PRODUCTS[kind]["cadence_minutes"]
     # Warn, do not silently make or interpolate missing observed radar frames.
     gaps=[(selected[i]-selected[i-1]).total_seconds()/60 for i in range(1,len(selected))]
@@ -155,12 +158,14 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
         stamps=discover(session,kind,now,counts[kind])
         previous={f["utc"]:f for f in old.get("products",{}).get(kind,{}).get("frames",[])}
         rows=[]
-        for stamp in stamps:
+        for stamp in reversed(stamps):
             relative=f"frames/{kind}_{stamp:%Y%m%d%H%M}.png"
             target=out/relative
             prior=previous.get(iso(stamp))
             if prior and target.is_file() and target.stat().st_size>250 and "stats" in prior:
-                rows.append(prior);continue
+                rows.append(prior)
+                if len(rows)>=counts[kind]:break
+                continue
             url=s3url(stamp,kind)
             try:
                 response=session.get(url,timeout=85)
@@ -180,6 +185,8 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
             rows.append({"utc":iso(stamp),"image":relative,"stats":stats})
             LOG.info("OPERA %s %s coverage=%.3f min/max=%s/%s",kind,iso(stamp),
                      stats["coverage"],stats["min_physical"],stats["max_physical"])
+            if len(rows)>=counts[kind]:break
+        rows.sort(key=lambda row:row["utc"])
         if len(rows)<min(4,counts[kind]):
             raise ValueError(f"Insufficient verified {kind} frames")
         last_verified=datetime.fromisoformat(rows[-1]["utc"].replace("Z","+00:00"))
