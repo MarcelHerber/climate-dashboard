@@ -17,21 +17,10 @@ function pathsFor(overlay,region){
  const bbox=BBOX[region];
  if(!bbox||!overlay||!Array.isArray(overlay.contours)||!overlay.contours.length)
   throw Error("Keine realen ECMWF-Konturen für den Kartenexport verfügbar.");
- const groups=[];
- for(const level of overlay.contours){
-  if(level.hpa%Number(overlay.spacing||5)!==0)continue;
-  const runs=[];let label=null,longest=0;
-  for(const line of level.lines){
-   if(!Array.isArray(line)||line.length<2)continue;
-   const local=line.filter(p=>inBounds(p,bbox));
-   if(local.length<2)continue;
-   runs.push(line);
-   if(local.length>longest){longest=local.length;label=local[Math.floor(local.length/2)];}
-  }
-  if(runs.length)groups.push({hpa:level.hpa,heavy:level.hpa===1015,runs,
-   label:(level.hpa===1015||level.hpa%10===0)&&longest>6?label:null});
- }
- if(!groups.length)throw Error("Im Kartenausschnitt liegen keine Isobaren.");
+ if(!window.SatelliteIsobarGeometry?.prepare)
+  throw Error("Gemeinsamer Isobarenfilter fehlt.");
+ const groups=window.SatelliteIsobarGeometry.prepare(overlay.contours,bbox,overlay.spacing||5);
+ if(!groups.length)throw Error("Keine ausreichend langen, sauberen Isobaren in diesem Kartenausschnitt.");
  return groups;
 }
 function project(point,region,x,y,w,h){
@@ -45,7 +34,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
-  const stroke=heavy=>heavy?3.1*unit:1.8*unit;
+  const stroke=heavy=>heavy?1.55*unit:0.9*unit;
   const draw=()=>{
    ctx.beginPath();
    for(const run of group.runs){
@@ -56,7 +45,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
    }
    ctx.stroke();
   };
-  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=stroke(group.heavy)+2.8*unit;draw();
+  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=(group.heavy?2.95:2.3)*unit;draw();
   ctx.strokeStyle=PINK;ctx.globalAlpha=1;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
@@ -66,7 +55,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.font="bold "+size+"px Arial,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
   const tw=ctx.measureText(label).width+12*unit,th=size+8*unit;
   ctx.globalAlpha=.94;ctx.fillStyle="#07182a";ctx.fillRect(p[0]-tw/2,p[1]-th/2,tw,th);
-  ctx.globalAlpha=1;ctx.strokeStyle=PINK;ctx.lineWidth=1.1*unit;
+  ctx.globalAlpha=1;ctx.strokeStyle=PINK;ctx.lineWidth=.65*unit;
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
@@ -137,8 +126,8 @@ function drawPDFVectors(overlay,region,w,h,bottom){
    });
   }
   const d=path.join("\n");
-  const line=(group.heavy?3.1:1.8)*unit;
-  out.push(pdfRGB(HALO)+" RG",fmt(line+2.8*unit)+" w",d,"S");
+  const line=(group.heavy?1.55:.9)*unit;
+  out.push(pdfRGB(HALO)+" RG",fmt((group.heavy?2.95:2.3)*unit)+" w",d,"S");
   out.push(pdfRGB(PINK)+" RG",fmt(line)+" w",d,"S");
  }
  for(const group of groups){
@@ -146,7 +135,7 @@ function drawPDFVectors(overlay,region,w,h,bottom){
   const xy=pt(group.label),fs=12*unit;
   out.push("0.027 0.094 0.165 rg",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re f",
-   pdfRGB(PINK)+" RG",fmt(1.1*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
+   pdfRGB(PINK)+" RG",fmt(.65*unit)+" w",fmt(xy[0]-24*unit)+" "+fmt(xy[1]-10*unit)+
    " "+fmt(48*unit)+" "+fmt(20*unit)+" re S",
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
