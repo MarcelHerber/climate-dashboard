@@ -41,8 +41,8 @@ class IsobarTests(unittest.TestCase):
         self.assertEqual(report["interval_hpa"],5)
         self.assertEqual(report["run_utc"],"2026-11-11T12:00:00Z")
         self.assertEqual(report["frames"][0]["valid_utc"],"2026-11-11T12:00:00Z")
-        self.assertEqual(report["frames"][-1]["valid_utc"],"2026-11-12T00:00:00Z")
-        self.assertEqual([f["forecast_hour"] for f in report["frames"]],[0,3,6,9,12])
+        self.assertEqual(report["frames"][-1]["valid_utc"],"2026-11-12T06:00:00Z")
+        self.assertEqual([f["forecast_hour"] for f in report["frames"]],[0,3,6,9,12,15,18])
         self.assertTrue(all(f["contours"] for f in report["frames"]))
         json.dumps(report,allow_nan=False)
 
