@@ -7,7 +7,7 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-daily-sun-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-hydro-metrics-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
@@ -33,6 +33,7 @@ NEW_SELECTORS=PARAM_SELECTOR+'''    <div class="control-group">
       <select id="stateMonthlyMetric">
         <option value="absolute" selected>Temperaturmittel (°C)</option>
         <option value="anomaly">Abweichung 1991–2020 (K)</option>
+        <option value="percent">Prozent des Klimamittels (%)</option>
       </select>
     </div>
 '''
@@ -150,6 +151,21 @@ def patch_index(text: str) -> str:
         if VIEW_ANCHOR not in text:
             raise RuntimeError("Monats-Ensemble-Auswahl für Zeitraum nicht gefunden")
         text=text.replace(VIEW_ANCHOR,NEW_SELECTORS+VIEW_ANCHOR,1)
+
+    # Existing published panel: insert the third selector option once.
+    # The original static HTML is also upgraded by this idempotent patch.
+    if 'id="stateMonthlyMetric"' in text:
+        def patch_metric(match):
+            body=match.group(2)
+            if 'value="percent"' not in body:
+                body+='\n        <option value="percent">Prozent des Klimamittels (%)</option>\n'
+            return match.group(1)+body+match.group(3)
+        text,count=re.subn(
+            r'(<select\s+id="stateMonthlyMetric"[^>]*>)(.*?)(</select>)',
+            patch_metric,text,count=1,flags=re.DOTALL,
+        )
+        if count!=1:
+            raise RuntimeError("Monatsausblick Darstellungs-Auswahl konnte nicht erweitert werden")
 
     text=text.replace(
         "Laufendes Monatsmittel · Beobachtung + Ensemble-Fortschreibung",
