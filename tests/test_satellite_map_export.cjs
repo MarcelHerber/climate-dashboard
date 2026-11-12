@@ -5,6 +5,7 @@ const fs=require("node:fs");
 const vm=require("node:vm");
 
 const content=fs.readFileSync("satellite_map_export.js","utf8");
+const geometry=fs.readFileSync("satellite_isobar_geometry.js","utf8");
 const film=fs.readFileSync("satellite_film_export.js","utf8");
 const html=fs.readFileSync("satelliten.html","utf8");
 const site=fs.readFileSync("satelliten.js","utf8");
@@ -34,6 +35,7 @@ function loaded(){
   document:{createElement:()=>canvas()},
   console
  };
+ vm.runInNewContext(geometry,scope,{timeout:5000});
  vm.runInNewContext(content,scope,{timeout:5000});
  vm.runInNewContext(film,scope,{timeout:5000});
  return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls};
