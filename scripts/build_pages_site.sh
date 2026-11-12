@@ -106,6 +106,9 @@ required_root_files=(
   satelliten.js
   satelliten.css
   satellite_overlay.js
+  satellite_lightning.js
+  satellite_radar.js
+  satellite_view_options.js
   satellite_isobar_geometry.js
   satellite_isobars.js
   satellite_map_export.js
@@ -284,6 +287,9 @@ mkdir -p _site/data/blocking
 cp data/blocking/borders_50m.json _site/data/blocking/borders_50m.json
 # Fallback for browser CORS: only publish satellite timestamps checked by the
 # independent EUMETSAT live probe; never create fake status if absent.
+if [[ -s data/satellite_layer_discovery_latest.json ]]; then
+  cp data/satellite_layer_discovery_latest.json _site/data/satellite_layer_discovery_latest.json
+fi
 if [[ -s data/satellite_wms_times.json ]]; then
   cp data/satellite_wms_times.json _site/data/satellite_wms_times.json
   python - <<'PY'
@@ -531,12 +537,16 @@ PY
 python scripts/inject_mobile_navigation.py _site
 node --check _site/satelliten.js
 node --check _site/satellite_overlay.js
+node --check _site/satellite_lightning.js
+node --check _site/satellite_radar.js
+node --check _site/satellite_view_options.js
 node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
 node --test tests/test_satellite_isobars.cjs
 node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
+node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_film.cjs
 grep -Eq 'src="satelliten[.]js([?][^"]*)?"' _site/satelliten.html
 node --check _site/saharastaub.js

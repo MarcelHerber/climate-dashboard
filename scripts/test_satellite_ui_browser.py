@@ -202,11 +202,11 @@ def exercise(page, viewport_label, official_xml):
         assert evidence["ecmwf_ten_minute_pink"]>0 and evidence["ecmwf_ten_minute_not_amber"]==0 and evidence["ecmwf_ten_minute_halo"]>0, "Single pink contours not rendered"
         stroke_widths=page.eval_on_selector_all(
             "#satIsobarSvg path[stroke='#ff4fcf']",
-            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]")
+            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]"
         )
         halo_widths=page.eval_on_selector_all(
             "#satIsobarSvg path[stroke='#061522']",
-            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]")
+            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]"
         )
         evidence["pink_line_widths"]=stroke_widths
         evidence["dark_halo_widths"]=halo_widths

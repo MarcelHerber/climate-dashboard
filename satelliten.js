@@ -30,6 +30,42 @@ let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPositi
 let stillTimeout=null,exportBusy=false,cachedImage=null;
 const exporters=window.SatelliteFilmExport;
 const description=()=>PRODUCTS[product.value];
+/* Only release additional FCI products after the daily official capabilities
+ * audit has checked a real PNG and a recent matching UTC timestamp. */
+async function enableAuditedProducts(){
+ let status,group;
+ try{status=document.getElementById("satAdditionalStatus");group=document.getElementById("satAdditionalProducts");}
+ catch(_){return;} // Optional panel must not affect legacy film-only test DOMs.
+ if(!group||!status)return;
+ const titles={
+  airmass:"Airmass RGB",night_microphysics:"Night Microphysics RGB",
+  convection:"Convection RGB",water_vapour:"Wasserdampf (WV)",
+  ash:"Ash RGB",cloud_phase:"Cloud Phase RGB"
+ };
+ let count=0;
+ try{
+  const response=await fetch("./data/satellite_layer_discovery_latest.json",{cache:"no-store"});
+  if(!response.ok)throw Error("Audit nicht vorhanden");
+  const report=await response.json();
+  const age=Date.now()-Date.parse(report.checked_at);
+  if(!report.capabilities_ok||!Number.isFinite(age)||age<0||age>30*3600000)
+   throw Error("Auditbericht nicht frisch");
+  for(const [key,label] of Object.entries(titles)){
+   const entry=(report.categories?.[key]||[]).find(x=>x.map_ok&&x.tested&&x.recent&&
+     typeof x.layer==="string"&&/^mtg_fd:[a-z0-9_]+$/.test(x.layer)&&
+     Date.parse(x.latest_verified_time)>Date.parse(report.checked_at)-90*60000);
+   if(!entry)continue;
+   const code="extra_"+key;
+   PRODUCTS[code]={layer:entry.layer,name:label,url:entry.product_page,
+    credit:"© EUMETSAT"};
+   group.add(new Option(label+" · verifiziert",code));
+   count++;
+  }
+  status.textContent=count?count+" zusätzliche MTG-Produkte beim letzten offiziellen WMS-Audit geprüft und auswählbar. Die aktuellen UTC-Zeiten werden beim Öffnen neu geprüft.":
+   "Noch keine weiteren FCI-Produkte mit bestätigten PNGs und aktuellen UTC-Daten.";
+ }catch(error){status.textContent="Zusätzliche Produkte nicht freigeschaltet: "+error.message+".";}
+}
+
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
 function updateTimeline(){
  timeline.max=String(Math.max(0,frames.length-1));
@@ -84,6 +120,8 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  id("satMapTitle").textContent=p.name+" · "+r.name;
  id("satValid").textContent=t?"Beobachtung: "+formatUTC(t):"Beobachtungszeit: nicht überprüft";
  window.SatelliteIsobars?.sync({time:t,region:region.value,source:source.value});
+ window.SatelliteLightning?.sync({time:t,region:region.value,source:source.value});
+ window.SatelliteRadar?.sync({time:t,region:region.value,source:source.value});
  const projection=region.value==="disk"?"AUTO:97004 (geostationär)":"EPSG:4326";
  const note=t?"WMS · "+projection+" · UTC aus GetCapabilities":"WMS · "+projection+" · serverseitiger Standardzeitpunkt, nicht als live bestätigt";
  id("satImageInfo").textContent=note;
@@ -126,6 +164,8 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
      id("satImageInfo").textContent="Gespeicherter EUMETSAT-WMS-Abruf · "+image.naturalWidth+" px · UTC geprüft · kein Livestream";
      image.alt=description().name+" – gespeicherte Satellitenaufnahme "+formatUTC(item.time);
      window.SatelliteIsobars?.sync({time:item.time,region:region.value,source:source.value});
+  window.SatelliteLightning?.sync({time:item.time,region:region.value,source:source.value});
+  window.SatelliteRadar?.sync({time:item.time,region:region.value,source:source.value});
      buttons();
      setStatus("EUMETSAT vorübergehend gestört: gespeicherte "+description().name+"-Aufnahme vom "+formatUTC(item.time)+". Nicht aktuell. PNG verwendet die Archivauflösung.","warning");
      finish(true);
@@ -166,6 +206,8 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
    loaded=false;image.hidden=true;empty.hidden=false;
    id("satValid").textContent="Kein Satellitenbild · unabhängige ECMWF-Modellprognose";
    window.SatelliteIsobars?.sync({time:null,region:region.value,source:source.value});
+   window.SatelliteLightning?.sync({time:null,region:region.value,source:source.value});
+   window.SatelliteRadar?.sync({time:null,region:region.value,source:source.value});
    empty.textContent="Weder aktuelle EUMETSAT-Aufnahmen noch ein geprüftes Archivbild verfügbar. Die ECMWF-Isobaren können unabhängig angezeigt werden.";
    buttons();
    setStatus("EUMETSAT-WMS derzeit nicht erreichbar ("+reason+"). Kein geeignetes Archivbild vorhanden.","error");
@@ -638,5 +680,6 @@ gif.addEventListener("click",()=>exportFilm("gif"));
 mp4.addEventListener("click",()=>exportFilm("mp4"));
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
+enableAuditedProducts();
 refresh();
 })();

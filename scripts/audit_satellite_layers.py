@@ -24,6 +24,9 @@ PATTERNS={
     "infrared_105": re.compile(r"ir[_ -]?10[._-]?5|10[.,]5.?m|infrared.?10",re.I),
     "convection": re.compile(r"convect|severe.?storm",re.I),
     "fire_temperature": re.compile(r"fire.?temp",re.I),
+    "lightning": re.compile(r"li_afa|accumulated.?flash.?area",re.I),
+    "ash": re.compile(r"rgb_ash|ash.?rgb",re.I),
+    "cloud_phase": re.compile(r"rgb_cloudphase|cloud.?phase",re.I),
     "water_vapour": re.compile(r"water.?vapou?r|(^|[^a-z])wv[_ ]?[67]",re.I),
 }
 MAX_PROBES=7
