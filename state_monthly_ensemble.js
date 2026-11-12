@@ -166,7 +166,15 @@ function renderHeader(r){
     if(info)info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>Referenz 1991–2020 noch in Vorbereitung</span>`;
     const generated=new Date(d.generated_at);
     const label=Number.isNaN(generated.getTime())?d.generated_at:generated.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${Object.keys(r.models||{}).length}/4 Ensemblemodelle`,Object.keys(r.models||{}).length===4?"ok":"warn");
+    const qc=d.station_quality;
+    const qcWarning=selectedParameter()==="sunshine"?qc?.warnings?.find(item=>item.region===reg):null;
+    const qcText=qc?.complete?` · SDK-Plausibilitätsvergleich ${qc.evaluated?.length||0} Gebiete`:"";
+    if(qcWarning&&info){
+      const chip=document.createElement("span");
+      chip.textContent=`Stationsvergleich: Differenz ${qcWarning.difference_h>=0?"+":""}${fmt(qcWarning.difference_h,1)} h (nur Qualitätskontrolle)`;
+      info.appendChild(chip);
+    }
+    setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${Object.keys(r.models||{}).length}/4 Ensemblemodelle${qcText}`,Object.keys(r.models||{}).length===4&&!qcWarning?"ok":"warn");
     const note=el("stateMonthlyDataNote");if(note)note.textContent=`${config.source} · ${config.unit} · tägliche Gebietssummen (Monat). Ensembleprognosen sind Flächenannäherungen aus Modell-Stützpunkten. 1991–2020-Abweichungen folgen mit einer eigenständigen historischen Referenz. Fehlende Tage werden nicht als null gewertet.`;
     return;
   }
