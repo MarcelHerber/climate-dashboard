@@ -25,6 +25,14 @@ jobs:
         with:
           ref: main
           persist-credentials: true
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/update_satellite_cache.py
+            tests/test_satellite_cache.py
+            satelliten.js
+            data/satellite_wms_times.json
+            data/satellite_cache/
       - name: Validate archival script and offline regression tests
         run: |
           python -m py_compile scripts/update_satellite_cache.py
