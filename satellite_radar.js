@@ -91,11 +91,16 @@ async function update(input){
   const data=await manifest();
   if(mine!==serial)return;
   const candidates=data.radar.past.filter(x=>Number.isInteger(x.time)&&
-   /^\/v2\/radar\/\d+$/.test(x.path)&&x.time*1000<=date)
+   /^\/v2\/radar\/(?:\d{10}|[a-f0-9]{12,16})$/i.test(x.path)&&x.time*1000<=date)
    .sort((a,b)=>b.time-a.time);
   const best=candidates[0];
-  if(!best||date-best.time*1000>20*60000)
-   throw Error("Kein Radarbild innerhalb der letzten 20 Minuten zum Satellitenzeitpunkt");
+  if(!best||date-best.time*1000>20*60000){
+   const stamp=d=>new Date(d).toISOString().slice(0,16).replace("T"," ")+" UTC";
+   const first=data.radar.past[0],last=data.radar.past.at(-1);
+   const range=first&&last?(" (Radararchiv "+stamp(first.time*1000)+" bis "+stamp(last.time*1000)+
+    "; Satellitenbild "+stamp(date)+")"):"";
+   throw Error("Kein Radarbild innerhalb der letzten 20 Minuten zum Satellitenzeitpunkt"+range);
+  }
   const rendered=await renderFrame(best,data,area);
   if(mine!==serial)return;
   overlay.src=rendered.url;overlay.hidden=false;
