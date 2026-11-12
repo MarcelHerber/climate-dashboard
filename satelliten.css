@@ -90,3 +90,13 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-noaa-grid figcaption{font-size:13px;line-height:1.65;padding:8px 2px 1px}
 .sat-noaa-grid figcaption a{color:var(--accent,#1473b6)}
 @media(max-width:680px){.sat-noaa-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* ECMWF remains visible even if the satellite WMS image fails. */
+.sat-isobar-retry{font:inherit;font-size:12px;font-weight:700;min-height:36px;padding:6px 10px;color:var(--sat-text);background:var(--sat-button);border:1px solid var(--sat-border);border-radius:8px;cursor:pointer}
+.sat-isobar-retry:disabled{opacity:.55;cursor:not-allowed}
+.sat-isobar-retry:not(:disabled):hover{border-color:var(--sat-link)}
+.sat-isobar-explainer{font-size:12px;color:var(--sat-muted);margin:4px 0 0!important;max-width:100%!important}
+.sat-image-stack{background:linear-gradient(145deg,#172b42,#0b1829);border-radius:6px}
+.sat-picture-frame .sat-empty{position:absolute;z-index:6;bottom:10px;left:10px;right:10px;padding:12px 16px;background:rgba(9,23,38,.88);border:1px solid rgba(225,238,250,.28);border-radius:8px;text-align:center;pointer-events:none}
+.sat-picture-frame:has(#satIsobarSvg:not([hidden])) .sat-empty{display:none}
+@media(max-width:650px){.sat-isobar-retry{width:100%}.sat-picture-frame .sat-empty{font-size:12px;padding:8px}}
