@@ -115,3 +115,20 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-isobar-legend-pink{background:#ff4fcf}
 .sat-actions button[id$="Isobars"]{border-color:#ff4fcf88}
 .sat-actions button[id$="Isobars"]:not(:disabled):hover{border-color:#ff4fcf}
+
+/* Sparse, model-verified pressure centers: positioned in the shared 1000 SVG projection. */
+.sat-pressure-center{
+  font-family:Arial,Helvetica,sans-serif;
+  font-weight:900;
+  font-size:39px;
+  letter-spacing:0;
+  text-anchor:middle;
+  dominant-baseline:central;
+  stroke:#0c1931;
+  stroke-width:3.8px;
+  stroke-linejoin:round;
+  paint-order:stroke fill;
+  opacity:.95;
+  pointer-events:none;
+}
+@media(max-width:650px){.sat-pressure-center{font-size:36px}}
