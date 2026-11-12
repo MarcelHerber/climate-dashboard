@@ -169,6 +169,11 @@
     const note='Ausgeblendete Datenreihen sind im Bild und in der Legende nicht enthalten.';
     ctx.fillText(note,margin,footerY,width-2*margin);
     if(opts.source) ctx.fillText(opts.source,margin,footerY+Math.round(19*scale),width-2*margin);
+    // Match the shared high-resolution chart exports: explicit provenance,
+    // white printable background, UTC-independent creation label, no chart mutation.
+    const stamp='Erstellt: '+new Date().toLocaleString('de-DE')
+      +' · Climate Dashboard Deutschland · Werte und Einheiten unverändert';
+    ctx.fillText(stamp,margin,footerY+Math.round(38*scale),width-2*margin);
   }
 
   function compose(base, charts, opts={}) {
