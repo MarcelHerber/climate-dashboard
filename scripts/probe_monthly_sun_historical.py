@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Small real DWD KL historical SDK smoke test, without 30-year area build."""
 from __future__ import annotations
+import io
+import zipfile
 from build_monthly_outlook_daily_sun_reference import (
     HIST, available_station_zips, get, parse_sdk_zip, stations_metadata
 )
@@ -16,7 +18,17 @@ def main():
     parsed=[]
     for station in chosen:
         try:
-            norm=parse_sdk_zip(get(HIST+files[station],timeout=110))
+            blob=get(HIST+files[station],timeout=110)
+            if station==chosen[0]:
+                with zipfile.ZipFile(io.BytesIO(blob)) as z:
+                    name=next((n for n in z.namelist() if "produkt_klima_tag" in n.lower() and n.endswith(".txt")),None)
+                    print("LIVE DWD FILE",files[station],"name",name,flush=True)
+                    if name:
+                        rows=z.read(name).decode("latin-1").splitlines()
+                        print("LIVE CSV HEADER:",rows[0][:350] if rows else "empty",flush=True)
+                        print("LIVE CSV FIRST ROW:",rows[1][:350] if len(rows)>1 else "empty",flush=True)
+                        print("LIVE CSV LAST ROW:",rows[-1][:350] if len(rows)>1 else "empty",flush=True)
+            norm=parse_sdk_zip(blob)
             valid=sum(v is not None for v in norm["daily_h"])
             print(station,valid,"valid historical SDK calendar-day means",flush=True)
             if valid>=330:parsed.append(station)
