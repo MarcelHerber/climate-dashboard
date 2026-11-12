@@ -165,6 +165,21 @@ if [[ -s data/satellite_mslp/latest.json ]]; then
   python scripts/build_satellite_isobar_preview.py \
     --input data/satellite_mslp/latest.json \
     --output _site/data/satellite_mslp/preview.json
+  # 10-minute MSLP isobars are generated from official IFS pressure fields,
+  # then pre-contoured and partitioned by hour for instant satellite playback.
+  if [[ -s data/satellite_mslp/ten_minute/index.json ]]; then
+    python - <<'PY'
+import json
+from pathlib import Path
+p=Path("data/satellite_mslp/ten_minute")
+idx=json.loads((p/"index.json").read_text(encoding="utf-8"))
+raw=json.loads(Path("data/satellite_mslp/latest.json").read_text(encoding="utf-8"))
+assert idx["schema_version"]==2 and idx["run_utc"]==raw["run_utc"]
+assert len(idx["hours"])==13 and idx["time_resolution_minutes"]==10
+assert all((p/file).is_file() for file in idx["hours"].values())
+PY
+    cp -R data/satellite_mslp/ten_minute _site/data/satellite_mslp/
+  fi
 fi
 
 # MOSMIX UI cache version: the main dashboard and the standalone view must
