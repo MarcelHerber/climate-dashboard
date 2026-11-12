@@ -40,6 +40,28 @@ def run(browser,width):
             return !!window.DashboardExportHQ && c && !!window.Chart?.getChart?.(c) &&
               !document.getElementById("stationSnowContent")?.hidden;
         }""",timeout=120000)
+        # The newly published shared export system must be used rather than
+        # a browser-cached pre-Phase-2 script.
+        exporter=page.locator('script[src*="dashboard_export_hq.js?v=20261112-phase2-print-v1"]')
+        assert exporter.count()==1,"Updated HQ exporter is not deployed"
+        if width<600:
+            page.wait_for_function("""() => {
+              const canvas=document.getElementById("stationSnowChart");
+              return !!canvas && canvas.tabIndex===0 &&
+                (canvas.getAttribute("aria-describedby")||"").includes("cdm-chart-tip-") &&
+                !!document.getElementById("cdm-chart-tip-"+canvas.id);
+            }""",timeout=16000)
+            page.locator("#stationSnowChart").focus()
+            page.keyboard.press("ArrowRight")
+            page.wait_for_function("""() => {
+              const chart=Chart.getChart(document.getElementById("stationSnowChart"));
+              return chart?.getActiveElements?.()?.length>0;
+            }""",timeout=12000)
+            entry["checks"].append({"mobile_year_navigation":True,
+              "touch_hint":True})
+            page.keyboard.press("Escape")
+            assert page.evaluate("""() => Chart.getChart(
+                document.getElementById("stationSnowChart")).getActiveElements().length""")==0
         panel=page.locator('.chart-export-tools[data-canvas-id="stationSnowChart"]')
         panel.wait_for(state="visible",timeout=30000)
         for kind in ("png","pdf"):
