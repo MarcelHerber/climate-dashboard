@@ -87,6 +87,14 @@ def run(page, output: Path, label: str) -> None:
     })""")
     # Verify chart does not cause horizontal mobile overflow.
     assert metrics["plot"] <= metrics["panel"]+1, metrics
+    if metrics["body"] > metrics["screen"]+4:
+        offenders=page.evaluate("""() => [...document.querySelectorAll("body *")].map(el=>({
+          node:el.tagName, id:el.id, className:String(el.className).slice(0,80),
+          text:(el.textContent||"").slice(0,60),
+          left:Math.round(el.getBoundingClientRect().left),right:Math.round(el.getBoundingClientRect().right),
+          width:Math.round(el.getBoundingClientRect().width)
+        })).filter(x=>x.right>window.innerWidth+3 || x.left< -3).sort((a,b)=>b.right-a.right).slice(0,25)""")
+        print("MOBILE_OVERFLOW",json.dumps(offenders,ensure_ascii=False),flush=True)
     assert metrics["body"] <= metrics["screen"]+4, metrics
     assert not errors, errors[:5]
     print(json.dumps({"viewport":label,"chart":state,"metrics":metrics,"downloads":True}))
