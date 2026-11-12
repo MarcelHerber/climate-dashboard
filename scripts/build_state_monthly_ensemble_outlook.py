@@ -272,16 +272,54 @@ def member_keys(daily: dict[str, Any], variable: str = "temperature_2m_mean") ->
     return sorted(keys, key=rank)
 
 
-def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean") -> tuple[list[LocationRef], list[dict[str, Any]]]:
+def hourly_sunshine_to_daily(location: dict[str, Any]) -> dict[str, Any]:
+    """Convert Open-Meteo hourly member sunshine seconds to complete UTC days.
+
+    Each UTC date must have 00:00...23:00 exactly once. Incomplete days are
+    omitted and no null/invalid hours count as overcast sunshine.
+    """
+    hourly = location.get("hourly") or {}
+    times = [str(t) for t in hourly.get("time", [])]
+    if not times or len(times) != len(set(times)):
+        raise ValueError("Missing/duplicate Open-Meteo hourly sunshine timestamps")
+    units = (location.get("hourly_units") or {}).get("sunshine_duration")
+    if units not in ("s", "seconds", "second"):
+        raise ValueError(f"Unexpected sunshine-duration unit: {units!r} (expected seconds)")
+    days: dict[str, list[int]] = defaultdict(list)
+    for idx, timestamp in enumerate(times):
+        if len(timestamp) != 16 or timestamp[10] != "T":
+            raise ValueError(f"Open-Meteo sunshine hour has unexpected UTC timestamp {timestamp}")
+        days[timestamp[:10]].append(idx)
+    complete = [
+        day for day, idx in sorted(days.items())
+        if len(idx) == 24
+        and {times[i][11:] for i in idx} == {f"{hour:02d}:00" for hour in range(24)}
+    ]
+    fields: dict[str, list[float | None]] = {}
+    for key in member_keys(hourly, "sunshine_duration"):
+        values = hourly.get(key) or []
+        daily_values = []
+        for day in complete:
+            indices = days[day]
+            samples = [finite(values[i]) if i < len(values) else None for i in indices]
+            if any(v is None or v < 0 or v > 3600.01 for v in samples):
+                daily_values.append(None)
+            else:
+                daily_values.append(round(sum(samples) / 3600, 6))
+        fields[key] = daily_values
+    return {**location, "daily": {"time": complete, **fields}}
+
+
+def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str = "temperature_2m_mean", *, time_resolution: str = "daily") -> tuple[list[LocationRef], list[dict[str, Any]]]:
     cfg = MODEL_CONFIG[model_key]
     params = {
         "latitude": ",".join(f"{r.latitude:.4f}" for r in refs),
         "longitude": ",".join(f"{r.longitude:.4f}" for r in refs),
-        "daily": variable,
+        time_resolution: variable,
         "models": cfg["api_model"],
         "forecast_days": str(cfg["forecast_days"]),
         "past_days": "3",
-        "timezone": "Europe/Berlin",
+        "timezone": "GMT" if time_resolution == "hourly" else "Europe/Berlin",
         "cell_selection": "land",
     }
     try:
@@ -298,8 +336,8 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
             f"teile in {mid}+{len(refs)-mid}.",
             flush=True,
         )
-        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable)
-        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable)
+        left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
+        right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
         return left_refs + right_refs, left_locations + right_locations
 
     locations = data if isinstance(data, list) else [data]
@@ -311,10 +349,12 @@ def request_model_chunk(model_key: str, refs: list[LocationRef], variable: str =
                 f"teile Batch in {mid}+{len(refs)-mid}.",
                 flush=True,
             )
-            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable)
-            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable)
+            left_refs, left_locations = request_model_chunk(model_key, refs[:mid], variable, time_resolution=time_resolution)
+            right_refs, right_locations = request_model_chunk(model_key, refs[mid:], variable, time_resolution=time_resolution)
             return left_refs + right_refs, left_locations + right_locations
         raise RuntimeError(f"{model_key}: {len(locations)} Antworten für {len(refs)} Punkte")
+    if time_resolution == "hourly" and variable == "sunshine_duration":
+        locations = [hourly_sunshine_to_daily(loc) for loc in locations]
     return refs, locations
 
 
@@ -334,7 +374,7 @@ def model_run_time(model_key: str) -> str | None:
         return None
 
 
-def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean") -> dict[str, Any]:
+def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], batch_size: int = 24, *, variable: str = "temperature_2m_mean", time_resolution: str = "daily") -> dict[str, Any]:
     refs = flatten_support_points(support)
     responses: list[tuple[LocationRef, dict[str, Any]]] = []
 
@@ -345,7 +385,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
     batches = list(chunks(refs, model_batch_size))
     print(f"{model_key}: {len(refs)} Stützpunkte in {len(batches)} API-Batches", flush=True)
     with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as pool:
-        futures = [pool.submit(request_model_chunk, model_key, batch, variable) for batch in batches]
+        futures = [pool.submit(request_model_chunk, model_key, batch, variable, time_resolution=time_resolution) for batch in batches]
         for future in as_completed(futures):
             batch_refs, locations = future.result()
             responses.extend(zip(batch_refs, locations))
@@ -407,6 +447,7 @@ def collect_model(model_key: str, support: dict[str, list[dict[str, float]]], ba
         "label": MODEL_CONFIG[model_key]["label"],
         "api_model": MODEL_CONFIG[model_key]["api_model"],
         "daily_variable": variable,
+        "time_resolution": time_resolution,
         "forecast_days": MODEL_CONFIG[model_key]["forecast_days"],
         "run": model_run_time(model_key),
         "member_count": global_member_count,
