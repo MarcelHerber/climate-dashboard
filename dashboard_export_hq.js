@@ -61,7 +61,7 @@
     for(let i=0;i<Math.min(2,lines.length);i++)
       line(ctx,lines[i],MARGIN,HEIGHT-FOOTER+27+i*25,ctxWidth,19,false);
     ctx.fillStyle="#52677b";
-    line(ctx,"Climate Dashboard Deutschland · erstellt: "+new Date().toLocaleString("de-DE")
+    line(ctx,"Erstellt: "+new Date().toLocaleString("de-DE")+" · Climate Dashboard Deutschland"
       +" · Werte und Einheiten unverändert",
       MARGIN,HEIGHT-FOOTER+83,ctxWidth,16,false);
     return out;
