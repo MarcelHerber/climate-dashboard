@@ -81,6 +81,15 @@ def atomic_json(path: Path, payload: dict) -> None:
         raise
 
 
+def cds_reports_unavailable_day(error: Exception) -> bool:
+    """A definite CDS availability rejection is not a transient download error."""
+    message = str(error).lower()
+    return (
+        "none of the data you have requested is available yet" in message
+        or "latest date available for this dataset is" in message
+    )
+
+
 def retrieve(client: cdsapi.Client, dataset: str, request: dict, target: Path, label: str, attempts: int = 3) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     delays = (10, 30, 60)
@@ -99,6 +108,11 @@ def retrieve(client: cdsapi.Client, dataset: str, request: dict, target: Path, l
                 target.unlink()
             except FileNotFoundError:
                 pass
+            # Copernicus explicitly says the requested day is not published:
+            # repeating an identical request cannot make those data appear.
+            if cds_reports_unavailable_day(exc):
+                print(f"CDS: {label} noch nicht veröffentlicht; keine unnötigen Wiederholungen.")
+                raise
             if attempt < attempts:
                 time.sleep(delays[min(attempt - 1, len(delays) - 1)])
     assert last is not None
