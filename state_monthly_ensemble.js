@@ -227,13 +227,24 @@ function chartOptions(bounds){
 function destroyCharts(){Object.values(charts).forEach(c=>c?.destroy());charts={};}
 function renderLegend(){
   const n=el("stateMonthlyLegend");if(!n)return;
-  const currentRegion=el("stateMonthlyRegion")?.value||"Deutschland";
-  const daily=hydroMode()?dailyHydroRunning(currentRegion):null;
-  const monthly=hydroMode()?historicalMonthNormal(selectedParameter(),currentRegion):null;
-  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
+  const regionName=el("stateMonthlyRegion")?.value||"Deutschland";
+  const daily=hydroMode()?dailyHydroRunning(regionName):null;
+  const monthly=hydroMode()?historicalMonthNormal(selectedParameter(),regionName):null;
+  const metric=selectedMetric();
+  let climateLegend="";
+  if(hydroMode()){
+    if(metric!=="absolute"&&daily?.some(v=>v!=null)){
+      climateLegend=`<span><i class="sm-swatch climate"></i>${metric==="percent"?"1991–2020 · 100 %":"1991–2020 · 0 "+paramConfig().unit}</span>`;
+    }else if(metric==="absolute"){
+      climateLegend=(daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag</span>':"")+
+        (monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"");
+    }
+  }else climateLegend=`<span><i class="sm-swatch climate"></i>${metric==="anomaly"?"0 K Referenz":"1991–2020"}</span>`;
+  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${climateLegend}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
   if(!data&&!parameterDoc())return;
+  syncParameterControls();
   destroyCharts();
   const r=region();
   if(!r){
@@ -474,14 +485,34 @@ function syncParameterControls(){
     if(monthly)period.value="month";
   }
   if(metric){
-    metric.querySelectorAll("option").forEach(option=>{option.disabled=monthly&&option.value==="anomaly";});
-    if(monthly)metric.value="absolute";
-    metric.disabled=monthly;
+    const regionName=el("stateMonthlyRegion")?.value||"Deutschland";
+    const reference=monthly?dailyHydroRunning(regionName):null;
+    const hasDaily=Array.isArray(reference)&&reference.some(v=>num(v)!==null&&v>0);
+    const options={
+      absolute:monthly?`Gesamtsumme (${paramConfig().unit})`:"Temperaturmittel (°C)",
+      anomaly:monthly?`Abweichung 1991–2020 (${paramConfig().unit})`:"Abweichung 1991–2020 (K)",
+      percent:"Prozent des Klimamittels (%)"
+    };
+    metric.querySelectorAll("option").forEach(option=>{
+      if(Object.hasOwn(options,option.value))option.textContent=options[option.value];
+      option.disabled=option.value==="percent"&&!monthly||
+        monthly&&option.value!=="absolute"&&!hasDaily;
+    });
+    const selected=metric.querySelector(`option[value="${metric.value}"]`);
+    if(!selected||selected.disabled)metric.value="absolute";
+    metric.disabled=false;
+    metric.title=monthly&&!hasDaily?"Abweichung/Prozent nach Laden der tagesgenauen 1991–2020-Referenz verfügbar":"";
   }
   const description=el("stateMonthlyExportDescription");
-  if(description)description.textContent=monthly?
-    "Kumulierte Monatssumme · Beobachtung + Ensemble-Prognose · "+paramConfig().unit:
-    "Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie";
+  if(description){
+    if(monthly){
+      const mode=selectedMetric();
+      const metricText=mode==="percent"?"Prozent des Klimamittels [%]":
+        mode==="anomaly"?`Abweichung von der täglichen Klimareferenz [${paramConfig().unit}]`:
+        `Kumulierte Monatssumme [${paramConfig().unit}]`;
+      description.textContent=`${metricText} · Beobachtung + Ensemble-Prognose · Klimareferenz 1991–2020`;
+    }else description.textContent="Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie";
+  }
 }
 function onParameterChange(){
   syncParameterControls();
