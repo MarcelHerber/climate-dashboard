@@ -17,7 +17,7 @@ const MAX_SEPARATION=4*3600*1000; // never show a 12h old "matching" isobar fiel
 const MAX_DATA_AGE=30*3600*1000;
 const MAX_STANDALONE_AGE=12*3600*1000; // older forecasts may be shown, clearly labelled
 const ns="http://www.w3.org/2000/svg";
-const ENDPOINTS=["./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
+const ENDPOINTS=["https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json","./data/satellite_mslp/latest.json"];
 function note(s){status.textContent=s;}
 function utc(time){return new Date(time).toISOString().slice(0,16).replace("T"," ")+" UTC";}
 function frameFor(time){
@@ -138,10 +138,10 @@ async function load(){
         throw Error("Ungültiger UTC- oder Konturendatensatz");
      }
 
-     data=d;failed=false;errorDetail="";dataOrigin=i===0?"pages":"github";
+     data=d;failed=false;errorDetail="";dataOrigin=i===0?"github":"pages";
      break;
     }catch(err){
-     problems.push((i===0?"GitHub Pages":"GitHub Rohdaten")+": "+(err?.message||String(err)));
+     problems.push((i===0?"GitHub Rohdaten":"GitHub Pages")+": "+(err?.message||String(err)));
     }
    }
    if(!data)throw Error(problems.join(" | "));
