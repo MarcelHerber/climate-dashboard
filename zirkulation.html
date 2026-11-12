@@ -1,8 +1,70 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=1"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=1"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script><script defer src="nao_ao_forecast.js?v=20261112-v1"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
 <label>Darstellung<select id="climateMode"><option value="daily">Tageswerte</option><option value="monthly">Monatsmittel (aus Tageswerten)</option></select></label>
 <label>Zeitraum<select id="climateRange"><option value="1">Letztes Jahr</option><option value="5" selected>Letzte 5 Jahre</option><option value="10">Letzte 10 Jahre</option><option value="all">Gesamte Zeitreihe ab 1950</option></select></label>
 <label>Index<select id="climateIndex"><option value="both">NAO + AO</option><option value="nao">Nur NAO</option><option value="ao">Nur AO</option></select></label>
 <div class="right"><button class="btn" id="climatePNG" disabled>PNG</button><button class="btn" id="climatePDF" disabled>PDF</button><button class="btn" id="climateCSV" disabled>CSV</button></div>
 </div><div class="status" id="climateStatus" role="status">NOAA-Indexdaten werden geladen …</div><div class="kpis" id="climateKpis"></div><div class="chart-box"><canvas id="climateChart" aria-label="NAO und AO Zeitreihe" role="img"></canvas></div><p class="small">Positive und negative Phasen sind Vorzeichen der normalisierten Indizes. Die Monatsmittel dieser Seite werden aus den beobachteten CPC-Tagesindizes gebildet; das sind nicht die separat veröffentlichten CPC-Monatsreihen. Zeitreihen enthalten keine Modellprognose.</p></section>
+
+<section class="panel" id="naoAoForecast" aria-labelledby="teleHeading">
+  <h2 id="teleHeading">NAO-/AO-Prognosemonitor · NOAA/CPC</h2>
+  <p class="intro">Echte tägliche GEFS-Ensembleprognosen und GFS-Hauptlauf für 0–15 Tage, unmittelbar mit den CPC-Beobachtungen vergleichbar. Die 31 Ensemblemitglieder, das 10.–90. Perzentil und die Wahrscheinlichkeiten werden aus den offiziellen Zahlen berechnet – keine Schätzungen aus Prognosebildern.</p>
+  <div class="toolbar tele-toolbar">
+    <label>Index<select id="teleIndex"><option value="nao">NAO · Nordatlantik</option><option value="ao">AO · Arktis</option></select></label>
+    <label>Ansicht<select id="teleView">
+      <option value="ensemble">Ensemble mit Streuung</option>
+      <option value="probability">Phasen-Wahrscheinlichkeiten</option>
+      <option value="models">GFS gegenüber GEFS</option>
+      <option value="runs">Vergleich der Modellläufe</option>
+    </select></label>
+    <label>Prognosezeitraum<select id="teleDays">
+      <option value="7">7 Tage</option><option value="10">10 Tage</option><option value="15" selected>15 Tage</option>
+      <option value="35" disabled>35 Tage · noch keine Daten</option>
+    </select></label>
+    <label id="teleRunCompare" hidden>Modellläufe<select id="teleCompareRuns">
+      <option value="4">4 Läufe</option><option value="8" selected>8 Läufe</option>
+    </select></label>
+    <label id="teleDayWrap">Wahrscheinlichkeit für<select id="teleDay">
+      <option value="1">Tag +1</option><option value="2">Tag +2</option><option value="3">Tag +3</option>
+      <option value="4">Tag +4</option><option value="5">Tag +5</option><option value="6">Tag +6</option>
+      <option value="7" selected>Tag +7</option><option value="8">Tag +8</option><option value="9">Tag +9</option>
+      <option value="10">Tag +10</option><option value="11">Tag +11</option>
+      <option value="12">Tag +12</option><option value="13">Tag +13</option>
+      <option value="14">Tag +14</option><option value="15">Tag +15</option>
+    </select></label>
+    <div class="right">
+      <button class="btn" id="teleReload" type="button">Neu laden</button>
+      <button class="btn" id="telePNG" type="button" disabled>PNG</button>
+      <button class="btn" id="telePDF" type="button" disabled>Vektor-PDF</button>
+      <button class="btn" id="teleCSV" type="button" disabled>CSV</button>
+    </div>
+  </div>
+  <div class="tele-options">
+    <label id="teleMembersWrap"><input type="checkbox" id="teleMembers" checked> Einzelne GEFS-Mitglieder anzeigen</label>
+    <label id="teleGfsWrap"><input type="checkbox" id="teleGfs" checked> GFS-Hauptlauf anzeigen</label>
+  </div>
+  <div class="status" id="teleStatus" role="status" aria-live="polite">NOAA-Prognosearchiv wird geprüft …</div>
+  <div class="kpis" id="teleKpis"></div>
+  <div class="chart-box tele-chart"><canvas id="teleChart" role="img" aria-label="NOAA NAO AO Ensemble-Vorhersage"></canvas></div>
+  <p class="small" id="teleMeta">Prognosedaten werden aus offiziellen CPC-CSV-Dateien bei erfolgreicher Datenprüfung veröffentlicht.</p>
+  <p class="small">Zur Prognosegüte: NAO nutzt eine Projektion von 500-hPa-Geopotenzialanomalien, AO von 1000-hPa-Geopotenzialanomalien. GEFS und GFS nutzen hier die gemeinsame NOAA/CPC-Indexdefinition. Ein direkter ECMWF-/EPS-Vergleich wird erst nach einer nachvollziehbar angeglichenen Indexberechnung angeboten. Null bedeutet Index-neutral, nicht automatisch schwaches Blocking.</p>
+  <p class="small">Quelle: <a target="_blank" rel="noopener" href="https://ftp.cpc.ncep.noaa.gov/cwlinks/">NOAA/CPC · offizielle Ensemble- und Analyse-CSV</a>. Einheiten: standardisierter CPC-Index. Werte können revidiert werden, Laufzeiten sind als Datum ausgewiesen (keine nicht belegten Uhrzeiten). PDF-Kurven werden als getrennte Vektorelemente erzeugt.</p>
+</section>
+<section class="panel" id="teleMaps">
+  <h2>Zirkulationskarten zur meteorologischen Einordnung</h2>
+  <div class="grid-two">
+    <div>
+      <h3>500 hPa · Nordatlantik / Europa</h3>
+      <p class="small"><strong>ERA5-Analyse, keine Prognose:</strong> die bestehende Blocking-Karte zeigt Höhenfeld und persistente Zirkulationsanomalien. Sie ist ein räumlicher Kontext für die NAO, aber keine aus dem NAO-Wert abgeleitete Wetterkarte.</p>
+      <a href="blocking.html"><img class="tele-context-map" src="data/blocking/blocking_z500_current.png" alt="Jüngste veröffentlichte ERA5 Blocking-Analyse für Nordatlantik und Europa" loading="lazy" onerror="this.hidden=true"></a>
+      <p class="small"><a href="blocking.html">Blocking-Karte und genaues Analysedatum öffnen</a></p>
+    </div>
+    <div>
+      <h3>1000 hPa · arktische Oszillation</h3>
+      <p class="small">Die AO wird vom CPC aus großräumigen 1000-hPa-Geopotenzialanomalien bestimmt. Die numerische Ensemblevorhersage ist oben enthalten; eine separate georeferenzierte <strong>1000-hPa-Prognose-Anomalienkarte</strong> ist noch nicht verifiziert und wird daher nicht als fertige Karte ausgegeben.</p>
+      <div class="notice">Zusätzliche echte Karten benötigen geopotenzielle Modellfelder und eine zur CPC-Methode passende Referenzperiode. Sie dürfen nicht aus dem Indexwert allein konstruiert werden.</div>
+      <p class="small"><a target="_blank" rel="noopener" href="https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/ao_body.html">NOAA/CPC: AO-Methode und weitere Zirkulationsanalysen</a></p>
+    </div>
+  </div>
+</section>
 <div class="grid-two"><section class="panel"><h2>Was ist die NAO?</h2><p>Die Nordatlantische Oszillation beschreibt charakteristische Schwankungen der atmosphärischen Zirkulation über dem Nordatlantik. Eine positive NAO-Phase ist häufig mit ausgeprägter Westdrift in den mittleren Breiten verbunden, besonders im Winter.</p><p class="small">Die Wirkung auf einzelne Regionen und Jahreszeiten ist nicht deterministisch.</p></section><section class="panel"><h2>Was ist die AO?</h2><p>Die Arktische Oszillation erfasst einen großräumigen Modus der atmosphärischen Zirkulation der Nordhemisphäre. AO und NAO sind verwandt, aber nicht identisch.</p><p class="small">Dargestellt sind die vom NOAA CPC veröffentlichten standardisierten Beobachtungsindizes.</p></section></div>
 <section class="panel"><h2>Blocking-Monitor</h2><p>Neu: <a href="blocking.html">500-hPa-Blocking-Karte für Nordatlantik und Europa</a> mit täglicher ERA5-Analyse, objektiven Gradienten-Indikatoren und fünf Tagen Persistenz. NAO, AO und GBI bleiben unabhängige Zirkulationsindizes.</p></section><section class="panel"><h2>Weitere Analysen</h2><p class="small">Mögliche nächste Stufe: Tage mit AO−/NAO− gegen Deutschland-Temperaturanomalien und ERA5-Zirkulationskarten vergleichen. Eine solche Verknüpfung erfordert saubere, zeitsynchrone Tagesdaten und ist hier noch nicht als fertige Statistik enthalten.</p></section></main><footer>Quelle: <a href="https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/ao.shtml">NOAA/CPC AO</a> · <a href="https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/nao_body.html">NOAA/CPC NAO</a> · <span id="climateUpdated">Datenstand wird geladen</span></footer></body></html>
