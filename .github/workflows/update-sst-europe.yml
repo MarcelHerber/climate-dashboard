@@ -80,7 +80,7 @@ jobs:
             git -C /tmp/sst-archive rm -rf .
           fi
 
-      - name: Neuesten MUR-Tag und Lücken der letzten 21 Tage bauen
+      - name: Neuesten MUR-Tag und Lücken der letzten 45 Tage bauen
         shell: bash
         run: |
           set -euo pipefail
@@ -127,7 +127,7 @@ jobs:
                       existing.add(iso)
 
           latest = latest_available_mur_date(date.today(), lookback_days=10)
-          start = latest - timedelta(days=20)
+          start = latest - timedelta(days=44)  # Auch längere Importausfälle nachholen.
           failures = []
           built = []
           skipped = []
