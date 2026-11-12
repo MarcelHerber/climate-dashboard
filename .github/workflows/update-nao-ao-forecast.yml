@@ -1,0 +1,130 @@
+name: NOAA CPC NAO AO Ensemble Prognose
+on:
+  schedule:
+    - cron: "35 15 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-nao-ao-forecast.yml"
+      - "scripts/update_nao_ao_forecast.py"
+      - "tests/test_nao_ao_forecast.py"
+      - "nao_ao_forecast.js"
+      - "zirkulation.html"
+      - "scripts/build_pages_site.sh"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noaa-cpc-nao-ao-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - name: Repository main auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: CSV-Parser und Frontend prüfen
+        run: |
+          python -m unittest discover -s tests -p test_nao_ao_forecast.py -v
+          node --check nao_ao_forecast.js
+          grep -q 'id="naoAoForecast"' zirkulation.html
+          grep -q 'nao_ao_forecast.js' zirkulation.html
+          grep -q 'nao_ao_forecast.js' scripts/build_pages_site.sh
+      - name: Echte GEFS/GFS Prognosen und Beobachtungen von NOAA CPC laden
+        run: python scripts/update_nao_ao_forecast.py
+      - name: Prognosedaten validieren
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import date,timedelta
+          from pathlib import Path
+          p=Path("data/nao_ao_forecast/latest.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["schema"]==1 and d["ready"] is True
+          assert d["models"]==["GEFS","GFS"]
+          for index in ("nao","ao"):
+              row=d["indices"][index];latest=row["latest"]
+              assert len(latest["members"])==31
+              assert len(latest["mean"])==len(latest["p10"])==len(latest["p90"])==16
+              assert all(25<=n<=31 for n in latest["member_count"])
+              assert len(latest["probability"]["positive"])==16
+              assert all(abs(a+b-100)<0.11 for a,b in zip(
+                  latest["probability"]["positive"],latest["probability"]["negative"]))
+              assert 1<=len(row["previous_runs"])<=7
+              assert date.fromisoformat(latest["init_date"])>=date.today()-timedelta(days=4)
+              assert date.fromisoformat(row["observation_latest_date"])>=date.today()-timedelta(days=10)
+              print(index.upper(),latest["init_date"],"31 Mitglieder",row["available_run_count"],"Läufe geprüft")
+          print("NOAA/CPC Forecast JSON verifiziert:", p.stat().st_size, "bytes")
+          PY
+      - name: Verifizierte Prognose committen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/nao_ao_forecast/latest.json /tmp/noaa-forecast-verified.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/nao_ao_forecast
+            cp /tmp/noaa-forecast-verified.json data/nao_ao_forecast/latest.json
+            git add data/nao_ao_forecast/latest.json
+            if git diff --cached --quiet; then
+              echo "Forecast-Daten unverändert."; exit 0
+            fi
+            git commit -m "Publish verified NOAA CPC NAO AO GEFS and GFS forecasts"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt * 4))
+          done
+          exit 1
+
+  deploy:
+    needs: forecast
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-dashboard-v2
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Aktuellen main Stand auschecken
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Geprüftes Pages-Artefakt erstellen
+        run: |
+          test -s data/nao_ao_forecast/latest.json
+          node --check nao_ao_forecast.js
+          bash scripts/build_pages_site.sh
+          test -s _site/data/nao_ao_forecast/latest.json
+          test -s _site/nao_ao_forecast.js
+      - name: Pages konfigurieren
+        uses: actions/configure-pages@v5
+      - name: Artefakt hochladen
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "github-pages-naoao-${{ github.run_id }}"
+      - name: Pages veröffentlichen
+        uses: actions/deploy-pages@v5
+        id: deployment
+        with:
+          reporting_interval: "10000"
+          artifact_name: "github-pages-naoao-${{ github.run_id }}"
