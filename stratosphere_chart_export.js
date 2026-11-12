@@ -113,7 +113,7 @@
       blocks.push({section,cells,headingY:position - Math.round(19 * scale)});
       position = rowEnd + Math.round(10 * scale);
     }
-    const footer = Math.round(58 * scale);
+    const footer = Math.round(78 * scale); // enough room for source + creation date
     return {scale,margin,colWidth,font,lineHeight,swatch,blocks,height:position+footer,columns};
   }
 
