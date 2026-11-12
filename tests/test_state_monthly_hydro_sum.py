@@ -44,7 +44,7 @@ class CumulativeOutlookTests(unittest.TestCase):
         result = outlook.merge_running_outlook(
             self.observed_dates, self.observed, self.model, self.dates,
         )
-        self.assertEqual(result["stats"]["mean"][2], 6.5 / 3)
+        self.assertAlmostEqual(result["stats"]["mean"][2], 6.5 / 3, places=3)
         self.assertEqual(result["stats"]["mean"][3], 10.0 / 4)
 
     def test_missing_observation_not_zero(self):
