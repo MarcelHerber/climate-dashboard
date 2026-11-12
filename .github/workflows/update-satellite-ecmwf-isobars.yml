@@ -73,12 +73,30 @@ jobs:
               assert chunk["hour"]==int(hour[1:])
               allframes.extend(chunk["frames"])
           assert len(allframes)==109
+          assert index.get("fine_interval_hpa")==2
+          assert set(index.get("fine_regions",[]))=={"europe","southwest","central","germany"}
+          assert len(index.get("fine_hours",{}))==19
+          fineframes=[]
+          for hour,path in index["fine_hours"].items():
+              chunk=json.loads((base/path).read_text())
+              assert chunk["schema_version"]==2 and chunk["run_utc"]==d["run_utc"]
+              assert chunk["interval_hpa"]==2 and chunk["hour"]==int(hour[1:])
+              assert set(chunk["regions"])==set(index["fine_regions"])
+              fineframes.extend(chunk["frames"])
+          assert len(fineframes)==109
+          for i,frame in enumerate(fineframes):
+              assert dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))==run+dt.timedelta(minutes=i*10)
+              assert frame["forecast_minute"]==i*10
+              assert frame["interpolated"]==(i%18!=0)
+              assert frame["contours"]
+              assert all(level["hpa"]%2==0 and level["lines"] for level in frame["contours"])
           for i,frame in enumerate(allframes):
               assert dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))==run+dt.timedelta(minutes=i*10)
               assert frame["forecast_minute"]==i*10
               assert frame["interpolated"]==(i%18!=0)
               assert frame["contours"]
               assert all(level["hpa"]%5==0 and level["lines"] for level in frame["contours"])
+          print("Confirmed 109 real 2-hPa European and 109 original 5-hPa forecast contours")
           print("Confirmed real ECMWF IFS MSLP:", d["run_utc"], p.stat().st_size,
                 "bytes +", len(allframes), "verified 10-minute steps")
           PY
@@ -105,6 +123,6 @@ jobs:
           print("Run (UTC):",d["run_utc"])
           for f in d["frames"]:
               print("*",f["valid_utc"],"forecast +"+str(f["forecast_hour"])+"h",len(f["contours"]),"pressure levels")
-          print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames in 19 hourly files")
+          print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames for 5 hPa + 109 European 2-hPa frames")
           print("© ECMWF · CC BY 4.0 · interpolated forecast, not observation")
           PY
