@@ -65,7 +65,7 @@
   function composeData(index,view,horizon) {
     const data=validIndex(), current=data.latest, observations=data.observations;
     const lastValid = current.valid_dates[horizon];
-    const observed = observations.filter(r=>r[0]>=
+    const observed = (view==="ensemble"||view==="models"?observations:[]).filter(r=>r[0]>=
       new Date(Date.parse(current.init_date+"T00:00:00Z")-35*86400000).toISOString().slice(0,10)
       && r[0]<=lastValid);
     const dateSet = new Set([...observed.map(r=>r[0]),...current.valid_dates.slice(0,horizon+1)]);
@@ -140,6 +140,8 @@
         throw Error("Die NOAA-Prognose ist nicht mehr aktuell: "+lastDate);
       const data=composeData(index,view,horizon);
       switchChart(data.dates,data.sets,data.axisLabel,view==="probability");
+      for(const option of $("teleDay").options)option.disabled=Number(option.value)>horizon;
+      if(Number(selection("teleDay"))>horizon)$("teleDay").value=String(horizon);
       const day=Number(selection("teleDay"));
       const p=entry.latest.probability;
       $("teleKpis").innerHTML=
