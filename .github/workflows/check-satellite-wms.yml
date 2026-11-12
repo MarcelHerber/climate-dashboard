@@ -26,6 +26,8 @@ jobs:
         with:
           ref: main
           persist-credentials: true
+      - name: Check WMS monitor syntax
+        run: python -m py_compile scripts/check_satellite_wms.py
       - name: Probe official WMS metadata and five verified imagery layers
         run: python scripts/check_satellite_wms.py
       - name: Save status in repository for same-origin browser fallback
