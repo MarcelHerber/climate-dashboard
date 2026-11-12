@@ -207,6 +207,62 @@ async function load(force=false){
   loading=fetchData(force).then(j=>{data=j;fillRegions();render();return j;}).catch(e=>{console.error(e);setStatus("Monats-Ensembles konnten nicht geladen werden: "+e.message,"error");throw e;}).finally(()=>{loading=null;});
   return loading;
 }
+async function fetchHydro(param,force=false){
+  const cfg=HYDRO_CONFIG[param];
+  if(!cfg)return null;
+  if(hydroLoading[param])return hydroLoading[param];
+  const task=(async()=>{
+    let last=null;
+    for(const base of cfg.urls){
+      try{
+        const url=base+(force?"?t="+Date.now():"");
+        const response=await fetch(url,{cache:force?"no-store":"default"});
+        if(!response.ok)throw new Error("HTTP "+response.status);
+        const json=await response.json();
+        if(json.schema_version!==1||json.parameter!==param||!Array.isArray(json.dates)||!json.regions)throw new Error("Ungültiges Datenformat");
+        if(json.unit!==cfg.unit)throw new Error("Unerwartete Einheit: "+json.unit);
+        const now=new Date();
+        const currentMonth=now.toLocaleDateString("en-CA",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).slice(0,7);
+        const datasetMonth=`${json.year}-${String(json.month).padStart(2,"0")}`;
+        if(datasetMonth!==currentMonth)throw new Error("Letzter Datenstand "+datasetMonth+" (aktueller Monat "+currentMonth+")");
+        hydro[param]=json;
+        delete hydroErrors[param];
+        if(selectedParameter()===param)render();
+        return json;
+      }catch(error){last=error;console.warn("Monatsausblick",param,base,error);}
+    }
+    hydroErrors[param]=last?.message||"Daten nicht veröffentlicht";
+    if(selectedParameter()===param)render();
+    throw last||new Error("Datensatz fehlt");
+  })();
+  hydroLoading[param]=task;
+  try{return await task;}finally{delete hydroLoading[param];}
+}
+function syncParameterControls(){
+  const monthly=hydroMode(),period=el("stateMonthlyPeriod"),metric=el("stateMonthlyMetric");
+  if(period){
+    period.querySelectorAll("option").forEach(option=>{option.disabled=monthly&&option.value!=="month";});
+    if(monthly)period.value="month";
+  }
+  if(metric){
+    metric.querySelectorAll("option").forEach(option=>{option.disabled=monthly&&option.value==="anomaly";});
+    if(monthly)metric.value="absolute";
+    metric.disabled=monthly;
+  }
+  const description=el("stateMonthlyExportDescription");
+  if(description)description.textContent=monthly?
+    "Kumulierte Monatssumme · Beobachtung + Ensemble-Prognose · "+paramConfig().unit:
+    "Laufendes Periodenmittel · Beobachtung + Ensemble-Fortschreibung · Temperatur oder Anomalie";
+}
+function onParameterChange(){
+  syncParameterControls();
+  render();
+  if(hydroMode()&&!parameterDoc())fetchHydro(selectedParameter()).catch(()=>{});
+}
+function reloadActive(){
+  if(hydroMode())fetchHydro(selectedParameter(),true).catch(()=>{});
+  else load(true);
+}
 function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():data;return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
 function saveBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 async function exportPng(){try{if(!window.html2canvas)throw new Error("html2canvas fehlt");const c=await window.captureDashboardWithWhiteBackground(el("stateMonthlyExportArea"),{backgroundColor:"#fff",scale:2,useCORS:true,logging:false});c.toBlob(b=>b&&saveBlob(b,filename("png")),"image/png");}catch(e){alert("PNG konnte nicht erstellt werden: "+e.message);}}
@@ -214,11 +270,13 @@ async function exportPdf(){try{if(!window.html2canvas||!window.jspdf?.jsPDF)thro
 function mount(){
   if(!el("state-monthly-ensemble"))return;
   el("stateMonthlyRegion")?.addEventListener("change",render);el("stateMonthlyView")?.addEventListener("change",applyView);
+  el("stateMonthlyParameter")?.addEventListener("change",onParameterChange);
   el("stateMonthlyPeriod")?.addEventListener("change",render);
   el("stateMonthlyMetric")?.addEventListener("change",render);
-  el("stateMonthlyReload")?.addEventListener("click",()=>load(true));el("stateMonthlyPng")?.addEventListener("click",exportPng);el("stateMonthlyPdf")?.addEventListener("click",exportPdf);
+  el("stateMonthlyReload")?.addEventListener("click",reloadActive);el("stateMonthlyPng")?.addEventListener("click",exportPng);el("stateMonthlyPdf")?.addEventListener("click",exportPdf);
   const panel=el("state-monthly-ensemble");
   new MutationObserver(()=>{if(panel.classList.contains("active")){if(!data)load(false);window.setTimeout(()=>Object.values(charts).forEach(c=>c?.resize()),80);}}).observe(panel,{attributes:true,attributeFilter:["class"]});
+  syncParameterControls();
   if(panel.classList.contains("active"))load(false);
 }
 window.ensureStateMonthlyEnsembleLoaded=function(){return data?Promise.resolve(data):load(false);};
