@@ -550,6 +550,7 @@ node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
+node --test tests/test_satellite_hd.cjs
 node --test tests/test_satellite_film.cjs
 grep -Eq 'src="satelliten[.]js([?][^"]*)?"' _site/satelliten.html
 node --check _site/saharastaub.js
