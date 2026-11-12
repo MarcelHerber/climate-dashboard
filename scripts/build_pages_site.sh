@@ -69,6 +69,7 @@ required_root_files=(
   climate_advanced.js
   climate_indices.js
   nao_ao_forecast.js
+  nao_ao_maps.js
   climate_indices.css
   stratosphere_temperature.js
   stratosphere_ensemble.js
@@ -913,6 +914,33 @@ print("NOAA/CPC Ensemble-Archiv geprüft.")
 PY
   mkdir -p _site/data/nao_ao_forecast
   cp data/nao_ao_forecast/latest.json _site/data/nao_ao_forecast/latest.json
+fi
+
+# IFS ENS spatial context: publish only actual verified PNGs from ECMWF Open Data.
+if [[ -s data/nao_ao_forecast/ecmwf_maps/index.json ]]; then
+  python - <<'PY'
+import json
+from datetime import datetime,timedelta,timezone
+from pathlib import Path
+root=Path("data/nao_ao_forecast/ecmwf_maps")
+doc=json.loads((root/"index.json").read_text(encoding="utf-8"))
+assert doc.get("schema")==1 and doc.get("ready") is True
+assert doc.get("is_anomaly") is False and doc.get("is_index_forecast") is False
+assert doc.get("parameter")=="absolute_geopotential_height"
+assert doc.get("unit")=="gpm" and doc.get("licence")=="CC BY 4.0"
+assert len(doc.get("maps",[]))==6
+assert {(int(x["level_hpa"]),int(x["step_hours"])) for x in doc["maps"]}=={
+ (h,t) for h in (500,1000) for t in (72,144,240)
+}
+for row in doc["maps"]:
+ p=root/row["file"]
+ assert p.name==f'ifs_ens_gh_{row["level_hpa"]}hpa_f{row["step_hours"]:03d}.png'
+ assert p.is_file() and p.stat().st_size>50000
+ assert p.read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+print("ECMWF spatial forecast maps validated: 6 real PNGs")
+PY
+  mkdir -p _site/data/nao_ao_forecast/ecmwf_maps
+  cp data/nao_ao_forecast/ecmwf_maps/*.png data/nao_ao_forecast/ecmwf_maps/index.json _site/data/nao_ao_forecast/ecmwf_maps/
 fi
 
 # NOAA/CPC extended archive as before.
