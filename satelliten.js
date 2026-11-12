@@ -346,7 +346,18 @@ function playReady(){
 }
 async function prepareFilm(){
  if(filmLoading||frames.length<2)return;
- stop();filmLoading=true;
+ stop();
+ // Starting a film cancels an unfinished single-frame WMS request before
+ // the two preview workers start; otherwise three maps load concurrently.
+ if(!loaded){
+  imageRequest++;
+  image.onload=null;image.onerror=null;
+  image.removeAttribute("src");
+  image.hidden=true;
+  empty.hidden=false;
+  empty.textContent="Vorladen der Satellitenfilm-Aufnahmen …";
+ }
+ filmLoading=true;
  const generation=filmGeneration;
  const maxCount=Math.min(frames.length,Math.max(2,Number(filmLength.value)||8));
  // The current UTC selection is the END of the film, not its start.
@@ -361,7 +372,7 @@ async function prepareFilm(){
  filmProgress.max=clip.length;filmProgress.value=0;
  filmProgressLabel.textContent="Lade 0 von "+clip.length+" verkleinerten Bildern …";
  play.textContent="✕ Laden abbrechen";play.setAttribute("aria-label","Filmladen abbrechen");
- setStatus("Lade kompakte Filmbilder (maximal zwei gleichzeitige Anfragen). Die Einzelbildkarte bleibt sichtbar.","info");
+ setStatus("Lade kompakte Filmbilder (maximal zwei gleichzeitige Anfragen). Eine noch laufende Einzelbild-Anfrage wird dafür beendet.","info");
  const worker=async()=>{
   while(cursor<clip.length&&generation===filmGeneration){
    const i=cursor++;
