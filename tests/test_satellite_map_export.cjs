@@ -54,9 +54,26 @@ test("Only 1015 hPa is bold; all visible isobars remain pink with a dark halo",(
  api.paintIsobars(ctx,sourceOverlay,"southwest",{width:900,height:400});
  const pink=calls.filter(x=>x.color==="#ff4fcf"),halo=calls.filter(x=>x.color==="#061522");
  assert.equal(pink.length,3);assert.equal(halo.length,3);
+ assert.deepEqual(pink.map(s=>s.width),[0.9,0.9,1.55],
+  "Pink: normal 0.9px, 1015 hPa 1.55px at reference scale");
+ assert.deepEqual(halo.map(s=>s.width),[2.3,2.3,2.95],
+  "Dark halo: normal 2.3px, 1015 hPa 2.95px at reference scale");
  assert.ok(pink[2].width>pink[1].width);
  assert.equal(pink[0].width,pink[1].width);
  assert.ok(!calls.some(x=>["#ffb447","#3bdeff"].includes(x.color)));
+});
+test("The same shared filter removes tiny isobar loops in PNG/GIF/PDF vector geometry",()=>{
+ const {api}=loaded();
+ const ring=(lon,lat,dx,dy)=>[
+  [lon-dx,lat], [lon,lat+dy], [lon+dx,lat], [lon,lat-dy], [lon-dx,lat]
+ ];
+ const extra={...sourceOverlay,contours:[{hpa:1015,lines:[
+  ...sourceOverlay.contours[2].lines,
+  ring(-8,37,.17,.1)
+ ]}]};
+ const clean=api.pathsFor(extra,"southwest");
+ assert.equal(clean.length,1);
+ assert.equal(clean[0].runs.length,1,"Micro-loop must not enter the PDF, PNG or GIF compositor");
 });
 test("PNG with time-provenanced isobars produces downloadable PNG bytes",async()=>{
  const {api}=loaded();
