@@ -1,0 +1,62 @@
+name: Monatsausblick Hydro/Sonne PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_monthly_outlook_duett.py"
+      - "scripts/build_monthly_outlook_precip_series.py"
+      - "scripts/build_state_monthly_ensemble_outlook.py"
+      - "scripts/build_state_monthly_precip_outlook.py"
+      - "scripts/build_state_monthly_sun_outlook.py"
+      - "state_monthly_ensemble.js"
+      - "scripts/patch_state_monthly_ensemble_frontend.py"
+      - "tests/test_monthly_outlook_duett.py"
+      - "tests/test_monthly_outlook_precip_series.py"
+      - "tests/test_state_monthly_hydro_sum.py"
+      - "tests/test_state_monthly_precip_outlook.py"
+      - "tests/test_state_monthly_sun_outlook.py"
+      - ".github/workflows/test-state-monthly-hydro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: PR-Branch auschecken
+        uses: actions/checkout@v6
+      - name: Python vorbereiten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Benötigte Pakete installieren
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Python Syntax prüfen
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_duett.py scripts/build_monthly_outlook_precip_series.py
+          python -m py_compile scripts/build_state_monthly_ensemble_outlook.py scripts/build_state_monthly_precip_outlook.py scripts/build_state_monthly_sun_outlook.py
+          python -m py_compile scripts/patch_state_monthly_ensemble_frontend.py
+      - name: Offline Unit-Tests
+        run: |
+          for file in test_monthly_outlook_duett.py test_monthly_outlook_precip_series.py test_state_monthly_hydro_sum.py test_state_monthly_precip_outlook.py test_state_monthly_sun_outlook.py; do
+            python -m unittest discover -s tests -p "$file" -v
+          done
+      - name: Frontend-Syntax testen
+        run: node --check state_monthly_ensemble.js
+      - name: Frontend-Integration und Idempotenz testen
+        run: |
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          grep -q 'id="stateMonthlyParameter"' index.html
+          grep -q 'id="stateMonthlyDataNote"' index.html
+          grep -q 'id="stateMonthlyExportDescription"' index.html
+          cp index.html /tmp/monthly-hydro-index1.html
+          cp scripts/build_pages_site.sh /tmp/monthly-hydro-build1.sh
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          cmp -s /tmp/monthly-hydro-index1.html index.html
+          cmp -s /tmp/monthly-hydro-build1.sh scripts/build_pages_site.sh
