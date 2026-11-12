@@ -195,9 +195,13 @@ def main():
                 if (previous.get("run_utc")==valid_run and manifest.get("run_utc")==valid_run
                         and manifest.get("schema_version")==2
                         and len(manifest.get("hours", {}))==19
-                        and all((args.ten_minute_dir/path).is_file() for path in manifest["hours"].values())):
+                        and manifest.get("fine_interval_hpa")==2
+                        and set(manifest.get("fine_regions",[]))=={"europe","southwest","central","germany"}
+                        and len(manifest.get("fine_hours",{}))==19
+                        and all((args.ten_minute_dir/path).is_file()
+                                for path in list(manifest["hours"].values())+list(manifest["fine_hours"].values()))):
                     print(json.dumps({"status":"unchanged","run_utc":valid_run,
-                                      "ten_minute_frames":109}))
+                                      "ten_minute_frames":109,"fine_2hpa":True}))
                     return 0
             with tempfile.TemporaryDirectory(prefix="sat-mslp-") as tmp:
                 path = Path(tmp)/"ifs_msl.grib2"
@@ -216,7 +220,7 @@ def main():
                          run.isoformat(),len(payload["frames"]),args.out.stat().st_size)
             print(json.dumps({"status":"ok","run_utc":payload["run_utc"],
                               "frames":[v["valid_utc"] for v in payload["frames"]],
-                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":109, "chunks":len(ten_index["hours"])}))
+                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":109, "chunks":len(ten_index["hours"]),"fine_2hpa_chunks":len(ten_index["fine_hours"])}))
             return 0
         except Exception as exc:
             errors.append(f"{run:%Y-%m-%dT%H:%MZ}: {type(exc).__name__}: {str(exc)[:160]}")
