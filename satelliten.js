@@ -502,10 +502,19 @@ async function exportFilm(format){
   return;
  }
  if(filmPlaying)stop(false);
- const images=filmItems.slice();
+ let images=filmItems.slice();
+ const fullHD=format==="mp4"&&id("satMp4Quality")?.value==="fhd";
+ if(fullHD){
+  if(images.length>12){setStatus("Full-HD-MP4 ist auf maximal 12 Aufnahmen begrenzt. Wähle einen kürzeren Film.","warning");return;}
+  if(region.value==="disk"){setStatus("Full-HD benötigt einen geografischen Ausschnitt, nicht die Erdscheibe.","warning");return;}
+  if(!window.SatelliteFHD?.loadFrames){setStatus("Full-HD-WMS-Modul nicht geladen.","error");return;}
+ }
+ const generation=token,place=region.value,code=product.value;
+ const validSelection=()=>generation===token&&region.value===place&&product.value===code&&source.value==="mtgi1";
  const opt={
   frames:images,
-  width:format==="gif"?Math.min(480,Number(filmQuality.value)||320):Math.min(720,Number(filmQuality.value)||480),
+  width:format==="gif"?Math.min(480,Number(filmQuality.value)||320):fullHD?1920:Math.min(720,Number(filmQuality.value)||480),
+  fullHD,
   delayMs:Number(filmSpeed.value)||750,
   product:product.value,productName:description().name,
   region:region.value,credit:description().credit,
@@ -514,6 +523,15 @@ async function exportFilm(format){
  exportBusy=true;buttons();
  setStatus("Erzeuge "+format.toUpperCase()+" aus "+images.length+" bereits vorgeladenen Satellitenbildern …","info");
  try{
+  if(fullHD){
+   setStatus("Lade "+images.length+" echte 1920-px-WMS-Satellitenbilder kachelweise für den Full-HD-Film …","info");
+   const hdFrames=await window.SatelliteFHD.loadFrames({
+    frames:images,region:place,layer:description().layer,validate:validSelection,
+    progress:(done,total)=>setStatus("Full-HD-Quellbilder · "+done+"/"+total+" fertig · "+formatUTC(images[Math.min(done-1,images.length-1)].time),"info")
+   });
+   images=hdFrames;opt.frames=hdFrames;
+   if(!validSelection())throw Error("Aufnahme, Produkt oder Karte während des Exports gewechselt");
+  }
   const result=format==="gif"?await exporters.exportGIF(opt):await exporters.exportMP4(opt);
   const bytes=exporters.download(result);
   setStatus(format.toUpperCase()+"-Film gespeichert: "+images.length+" bestätigte UTC-Zeitpunkte · "+
