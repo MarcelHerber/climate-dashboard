@@ -153,3 +153,7 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-lightning-overlay{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 .sat-lightning-overlay[hidden]{display:none}
 .sat-lightning-overlay img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill;mix-blend-mode:screen}
+
+/* Reprojected radar is behind borders, pressure contours and city labels. */
+#satRadarOverlay{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill;z-index:2;pointer-events:none}
+#satRadarOverlay[hidden]{display:none}
