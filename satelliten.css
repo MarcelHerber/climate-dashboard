@@ -110,3 +110,8 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-isobar-legend-line{display:inline-block;width:30px;height:4px;border-radius:9px;box-shadow:0 0 0 2px #061522}
 .sat-isobar-legend-cyan{background:#3bdeff}
 .sat-isobar-legend-orange{background:#ffb447}
+
+/* One colour for all pressure isolines; only 1015 hPa has extra weight. */
+.sat-isobar-legend-pink{background:#ff4fcf}
+.sat-actions button[id$="Isobars"]{border-color:#ff4fcf88}
+.sat-actions button[id$="Isobars"]:not(:disabled):hover{border-color:#ff4fcf}
