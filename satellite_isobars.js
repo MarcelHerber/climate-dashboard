@@ -63,7 +63,7 @@ function draw(frame,bbox,gap){
    batch.appendChild(shape);count++;
    if(local.length>labelLen){labelLen=local.length;labelCandidate=local[Math.floor(local.length/2)];}
   }
-  if(hpa%10===0&&labelCandidate&&labelLen>15){
+  if(hpa%10===0&&labelCandidate&&labelLen>6){
    const [lon,lat]=labelCandidate;
    const text=document.createElementNS(ns,"text");
    text.setAttribute("x",px(lon));text.setAttribute("y",py(lat));
@@ -118,7 +118,10 @@ async function load(force=false){
  loading=(async()=>{
   const problems=[];
   try{
-   for(const [i,url] of ENDPOINTS.entries()){
+   // On first load use the small Pages preview. On manual/periodic refresh
+   // ask GitHub for the newest full dataset without blanking the visible map.
+   const choices=force&&data?[ENDPOINTS[1],ENDPOINTS[0],ENDPOINTS[2]]:ENDPOINTS;
+   for(const url of choices){
     try{
      const r=await fetch(url,{cache:"no-store"});
      if(!r.ok)throw Error("HTTP "+r.status);
@@ -139,10 +142,10 @@ async function load(force=false){
      }
 
      if(data&&Date.parse(d.run_utc)<Date.parse(data.run_utc))throw Error("Älterer ECMWF-Lauf als der bereits geladene Stand");
-     data=d;failed=false;errorDetail="";dataOrigin=i===0?"preview":i===1?"github":"pages";
+     data=d;failed=false;errorDetail="";dataOrigin=url===ENDPOINTS[0]?"preview":url===ENDPOINTS[1]?"github":"pages";
      break;
     }catch(err){
-     problems.push((i===0?"Schnelle Isobaren":"GitHub Druckdaten")+": "+(err?.message||String(err)));
+     problems.push((url===ENDPOINTS[0]?"Schnelle Isobaren":"GitHub Druckdaten")+": "+(err?.message||String(err)));
     }
    }
    if(!data)throw Error(problems.join(" | "));
