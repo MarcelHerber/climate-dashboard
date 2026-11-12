@@ -102,18 +102,33 @@ def run() -> int:
                 or not valid_utc(verified) or valid_utc(verified) > now):
             continue
         latest = verified
+        # WMS may advertise a good timestamp while a region-specific render
+        # fails. After one failed verified frame, try up to three earlier
+        # advertised timestamps, accepting only a fully validated real PNG.
+        older = sorted(
+            (t for t in moments if valid_utc(t) and t < latest
+             and valid_utc(latest) - valid_utc(t) <= dt.timedelta(minutes=90)),
+            reverse=True,
+        )[:3]
         for region in REGIONS:
             previous = entries.get(product, {}).get(region, {})
-            if previous.get("time") and latest <= previous["time"]:
-                continue
-            jobs.append((product, region, latest))
+            candidates = [
+                t for t in [latest, *older]
+                if not previous.get("time") or t > previous["time"]
+            ]
+            if candidates:
+                jobs.append((product, region, candidates))
 
     def download(job):
-        product, region, timestamp = job
-        try:
-            return (product, region, timestamp, request_png(product, region, timestamp), None)
-        except Exception as exc:
-            return (product, region, timestamp, None, str(exc))
+        product, region, candidates = job
+        last_error = None
+        for timestamp in candidates:
+            try:
+                payload = request_png(product, region, timestamp)
+                return (product, region, timestamp, payload, None)
+            except Exception as exc:
+                last_error = str(exc)
+        return (product, region, candidates[0], None, last_error)
 
     updated = 0
     ROOT.mkdir(parents=True, exist_ok=True)
