@@ -11,7 +11,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
  const nodes=new Map(),requests=[],fetches=[],preloaded=[],state={active:0,maxActive:0};
  const options=["satSource","satProduct","satRegion","satTime","satImage","satEmpty","satStatus",
    "satPrev","satNext","satPlay","satPng","satTimeline","satTimelineLabel","satFilmStage",
-   "satFilmLength","satFilmQuality","satFilmSpeed","satFilmProgress","satFilmProgressLabel",
+   "satFilmLength","satFilmQuality","satMp4Quality","satFilmSpeed","satFilmProgress","satFilmProgressLabel",
    "satFilmProgressWrap","satRawImage","satMapTitle","satValid","satImageInfo",
    "satOfficial","satAttribution","satReload","satGif","satMp4","satPngIsobars","satPdfIsobars","satGifIsobars"];
  class Element{
@@ -72,6 +72,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
  nodes.get("satRegion").value="southwest";
  nodes.get("satFilmLength").value="6";
  nodes.get("satFilmQuality").value="480";
+ nodes.get("satMp4Quality").value="preview";
  nodes.get("satFilmSpeed").value="40"; // accelerate simulated clock; site presets are >=420 ms
  const now=Date.now();
  const slots=Array.from({length:totalSlots},(_,i)=>new Date(Math.floor((now-(totalSlots-i)*600000)/600000)*600000).toISOString());
