@@ -24,6 +24,7 @@ LAYERS = {
     "cloudtype": "mtg_fd:rgb_cloudtype",
     "ir105": "mtg_fd:ir105_hrfi",
     "firetemperature": "mtg_fd:rgb_firetemperature",
+    "lightning": "mtg_fd:li_afa",
 }
 TIMEOUT = 18
 MAX_XML = 64 * 1024 * 1024
@@ -181,6 +182,10 @@ def main():
                 entry["fresh"] = 0 <= age <= 90
         except Exception as error:
             entry["error"] = str(error)[:350]
+        # Lightning AFA is only an EPSG:4326 overlay. Skip unrelated RGB
+        # full-disk, regional and film probes to protect the upstream WMS.
+        if key == "lightning":
+            return key, entry
         try:
             native = test_png(layer, available[-1] if available else None, full_disk=True)
             entry["full_disk_ok"] = bool(native.get("ok"))
