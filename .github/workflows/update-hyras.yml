@@ -160,6 +160,25 @@ jobs:
             --reference-cache /tmp/hyras-temperature-reference-cache \
             --parameter all
 
+      - name: Monatsausblick Niederschlag Tagesbeobachtungen erstellen
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/build_monthly_outlook_precip_series.py
+          python -m unittest discover -s tests -p test_monthly_outlook_precip_series.py -v
+          python scripts/build_monthly_outlook_precip_series.py \
+            --data-root /tmp/hyras-data \
+            --work /tmp/hyras-work
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("/tmp/hyras-data/monthly_outlook/observed_precip.json").read_text())
+          assert d["schema_version"] == 1 and d["forecast"] is False
+          assert len(d["regions_order"]) == 17 and d["dates"]
+          assert all(len(d["regions"][r]["daily"]) == len(d["dates"]) for r in d["regions_order"])
+          assert all(d["regions"][r]["minimum_coverage"] >= 0.9 for r in d["regions_order"])
+          print("HYRAS-Monatsausblick:", d["month"], d["data_through"])
+          PY
+
       - name: Vorläufige aktuelle Monats-Gebietsmittel aus echten Tageswerten bauen
         run: |
           set -euo pipefail
