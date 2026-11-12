@@ -1,0 +1,55 @@
+name: SST Europa Archiv-Recovery und Datumsanzeige PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/update-sst-europe.yml"
+      - ".github/workflows/publish-state-monthly-ensemble.yml"
+      - ".github/workflows/test-sst-daily-recovery.yml"
+      - "scripts/patch_sst_frontend.py"
+      - "sst_europe.js"
+      - "tests/test_sst_daily_recovery.py"
+      - "tests/test_sst_region_date.cjs"
+      - "tests/test_sst_frontend_static.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: GitHub-Workflow und Python-Syntax
+        run: |
+          python -m pip install pyyaml
+          python - <<'PY'
+          import yaml
+          from pathlib import Path
+          for file in [".github/workflows/update-sst-europe.yml",".github/workflows/publish-state-monthly-ensemble.yml"]:
+              doc=yaml.safe_load(Path(file).read_text(encoding="utf-8"))
+              assert isinstance(doc["jobs"],dict) and doc["jobs"],file
+              print("Workflow YAML valid",file)
+          PY
+          python -m py_compile scripts/patch_sst_frontend.py
+      - name: Browser-Datumsanzeige und SST-Frontend testen
+        run: |
+          node --check sst_europe.js
+          node --check tests/test_sst_region_date.cjs
+          node tests/test_sst_region_date.cjs
+          python -m unittest discover -s tests -p test_sst_frontend_static.py -v
+          python -m unittest discover -s tests -p test_sst_daily_recovery.py -v
+      - name: SST-Frontend in GitHub Pages idempotent integrieren
+        run: |
+          python scripts/patch_sst_frontend.py --file index.html
+          grep -q 'src="sst_europe.js?v=20261112-sst-recovery-1"' index.html
+          cp index.html /tmp/sst-recovery-index.html
+          python scripts/patch_sst_frontend.py --file index.html
+          cmp -s /tmp/sst-recovery-index.html index.html
