@@ -1,6 +1,9 @@
 name: NAO AO Prognose - Live Browser QA
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["ECMWF ENS NAO AO Geopotenzial Prognosekarten"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -12,6 +15,7 @@ permissions:
 
 jobs:
   desktop-mobile:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
