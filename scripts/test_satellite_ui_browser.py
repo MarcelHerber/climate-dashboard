@@ -12,7 +12,7 @@ import threading
 import traceback
 import struct
 import zlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode, parse_qs, urlsplit
@@ -176,6 +176,26 @@ def exercise(page, viewport_label, official_xml):
     evidence["ecmwf_isobars_real_visible"]=page.locator("#satIsobarSvg").is_visible()
     evidence["ecmwf_isobar_metadata"]=page.locator("#satIsobarStatus").inner_text()
     assert evidence["ecmwf_isobars_real_visible"]
+    # Real 10-minute interpolated ECMWF MSLP, matched to satellite UTC.
+    # Skip cleanly if this is the first run before the new GRIB job finishes.
+    ten_manifest=ROOT/"data/satellite_mslp/ten_minute/index.json"
+    if ten_manifest.is_file():
+        meta=json.loads(ten_manifest.read_text(encoding="utf-8"))
+        source_run=datetime.fromisoformat(meta["run_utc"].replace("Z","+00:00"))
+        target=(source_run+timedelta(hours=3,minutes=20)).isoformat(timespec="seconds").replace("+00:00","Z")
+        page.evaluate("(time) => window.SatelliteIsobars.sync({time,region:'southwest',source:'mtgi1'})",target)
+        page.wait_for_function(
+            "() => document.querySelector('#satIsobarStatus')?.textContent.includes('10-Minuten-Interpolation') "
+            "&& !document.querySelector('#satIsobarSvg').hasAttribute('hidden')",
+            timeout=20000
+        )
+        evidence["ecmwf_ten_minute_utc"]=target
+        evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").inner_text()
+        evidence["ecmwf_ten_minute_cyan"]=page.locator("#satIsobarSvg path[stroke='#3bdeff']").count()
+        evidence["ecmwf_ten_minute_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
+        evidence["ecmwf_ten_minute_halo"]=page.locator("#satIsobarSvg path[stroke='#061522']").count()
+        assert min(evidence["ecmwf_ten_minute_cyan"],evidence["ecmwf_ten_minute_amber"],
+                   evidence["ecmwf_ten_minute_halo"])>0, "High-contrast contours not rendered"
     original_lines=page.locator("#satIsobarSvg path").count()
     page.locator("#satIsobarSpacing").select_option("10")
     ten_hpa_lines=page.locator("#satIsobarSvg path").count()
