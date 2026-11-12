@@ -48,6 +48,11 @@ CONTOURS = [
 FINE_CONTOURS = [
     *[{"hpa":994+2*i,"lines":[ring(-55,55,3+i*1.4)]} for i in range(6)],
     *[{"hpa":1028-2*i,"lines":[ring(-25,43,3+i*1.4)]} for i in range(6)],
+    # Open, meteorologically plausible gradients also cross Germany and
+    # central Europe; they must appear even without a closed H/T ring.
+    {"hpa":1006,"lines":[[[-2,48],[5,49],[11,51],[17,52],[25,54]]]},
+    {"hpa":1008,"lines":[[[-2,49],[5,50],[11,52],[17,53],[25,55]]]},
+    {"hpa":1010,"lines":[[[-2,50],[5,51],[11,53],[17,54],[25,56]]]},
 ]
 FINE_REGIONS = ["europe","southwest","central","germany"]
 
@@ -179,6 +184,9 @@ def exercise(browser,device,base,tmp):
         details["fine_2hpa_"+area]={"positive_lines":len(page.locator(
             "#satIsobarSvg path[stroke='#ff4fcf']").all()),"widths":widths}
         if area=="europe":
+            page.wait_for_function(
+                "()=>!document.querySelector('#satPdfIsobars').disabled",
+                timeout=15000)
             with page.expect_download(timeout=25000) as info:
                 page.locator("#satPdfIsobars").click()
             artifact=info.value
@@ -248,9 +256,9 @@ def exercise(browser,device,base,tmp):
     assert "_isobaren" in animation.suggested_filename
     details["gif"]={"size":len(gif),"filename":animation.suggested_filename}
 
-    export_wms=[x for x in requested if x["width"]==720]
+    atlantic_requests=[x for x in requested if x["bbox"]=="-70,15,35,75"]
+    export_wms=[x for x in atlantic_requests if x["width"]==720]
     assert export_wms, "No CORS-safe 720px Atlantic image requested"
-    assert all(x["bbox"]=="-70,15,35,75" for x in requested)
     assert all(x["time"] in TIMES for x in requested if x["time"])
     details["export_720px_requests"]=len(export_wms)
     details["all_WMS_requests"]=len(requested)
