@@ -1,0 +1,64 @@
+name: Satellite Atlantic downloads and pressure centers - deterministic Chromium
+on:
+  push:
+    branches: [main]
+    paths:
+      - "satelliten.js"
+      - "satelliten.html"
+      - "satelliten.css"
+      - "satellite_isobar_geometry.js"
+      - "satellite_isobars.js"
+      - "satellite_map_export.js"
+      - "satellite_film_export.js"
+      - "scripts/test_satellite_atlantic_export_browser.py"
+      - "tests/test_satellite_atlantic_download.cjs"
+      - "tests/test_satellite_isobar_geometry.cjs"
+      - "tests/test_satellite_map_export.cjs"
+      - ".github/workflows/test-atlantic-pressure-exports.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mtg-atlantic-pressure-export-tests
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Chromium browser automation
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium
+      - name: Check Python syntax before opening browser
+        run: python -m py_compile scripts/test_satellite_atlantic_export_browser.py
+      - name: Run actual PNG, PDF and GIF downloads in desktop/mobile Chromium
+        run: python scripts/test_satellite_atlantic_export_browser.py
+      - name: Upload export assertions and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtg-atlantic-pressure-export-evidence
+          path: data/satellite_atlantic_export_test_latest.json
+          if-no-files-found: ignore
+      - name: Summarize evidence
+        if: always()
+        run: |
+          if test -s data/satellite_atlantic_export_test_latest.json; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open("data/satellite_atlantic_export_test_latest.json"))
+          print("### North Atlantic PNG/PDF/GIF with H/T overlays")
+          print("Test uses simulated CORS-enabled satellite PNGs and synthetic nested pressure fields.")
+          for device in ("desktop","mobile"):
+              r=d.get(device,{})
+              print(f"- {device}: " + ("FAILED: "+r["error"] if "error" in r else
+                    f"PASSED: {len(r.get('pressure_letters',[]))} H/T, PNG/PDF/GIF {r.get('export_720px_requests',0)} CORS-safe 720px request(s)"))
+          PY
+          fi
