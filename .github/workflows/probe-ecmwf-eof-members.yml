@@ -36,8 +36,17 @@ jobs:
               print("NCEP sample",arr.shape,float(np.nanmin(arr)),float(np.nanmax(arr)),flush=True)
               ds.close()
           except Exception as e:print("NCEP OPeNDAP ERROR",repr(e),flush=True)
+          url="https://data.ecmwf.int/forecasts/20261111/00z/ifs/0p25/enfo/20261111000000-72h-enfo-ef.index"
+          try:
+              index_text=requests.get(url,timeout=30).text
+              lines=[__import__("json").loads(x) for x in index_text.splitlines() if x.strip().startswith("{")]
+              print("ECMWF index status",len(lines),"first",lines[:2],flush=True)
+              subset=[x for x in lines if str(x.get("levelist")) in ("500","1000") and str(x.get("param")) in ("z","gh","129") and x.get("type")=="pf"]
+              print("ECMWF z member pattern",len(subset),subset[:8],flush=True)
+              print("ECMWF level params", sorted({(str(x.get("param")),str(x.get("levelist")),str(x.get("type"))) for x in lines if str(x.get("levelist")) in ("500","1000")})[:25],flush=True)
+          except Exception as e:print("INDEX probe error",repr(e),flush=True)
           c=Client(source="ecmwf",model="ifs",resol="0p25",maximum_retries=2,retry_after=4)
-          for typ, kwargs in [("pf",{"number":[1,2,50]}),("fc",{})]:
+          for typ, kwargs in [("pf",{"number":[1,2,50]}),("pf",{"number":1}),("pf",{}),("fc",{})]:
               with tempfile.TemporaryDirectory() as d:
                   p=d+"/test.grib2"
                   try:
