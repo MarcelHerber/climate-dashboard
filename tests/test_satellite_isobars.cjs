@@ -16,7 +16,7 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false}={}){
+function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false,tenHours=13}={}){
  const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
@@ -45,7 +45,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false}={}){
      schema_version:2,model:"ECMWF IFS Open Data",
      time_resolution_minutes:10,source_interval_hours:3,
      run_utc:iso(run),generated_at:iso(now),
-     hours:Object.fromEntries(Array.from({length:13},(_,h)=>[
+     hours:Object.fromEntries(Array.from({length:tenHours},(_,h)=>[
       "h"+String(h).padStart(2,"0"),
       "r"+run.toISOString().slice(0,13).replace(/[-T:]/g,"")+"/h"+String(h).padStart(2,"0")+".json"
      ]))
@@ -54,7 +54,7 @@ function fixture({failOnce=false,failFirstOnly=false,tenMinutes=false}={}){
    if(tenMinutes&&String(url).includes("/ten_minute/r")){
     const match=String(url).match(/h(\d{2})\.json$/);
     const hour=Number(match[1]);
-    const frames=Array.from({length:hour===12?1:6},(_,i)=>{
+    const frames=Array.from({length:hour===tenHours-1?1:6},(_,i)=>{
      const minute=(hour*6+i)*10;
      return {valid_utc:iso(new Date(run.getTime()+minute*60000)),
       forecast_minute:minute,interpolated:minute%180!==0,
@@ -167,4 +167,18 @@ test("Every 10-minute satellite image picks its own recomputed MSLP contours",as
  const frame=api.tenFrameAt(at);
  assert.equal(frame.forecast_minute,200);
  assert.equal(frame.interpolated,true);
+});
+
+test("18-hour model coverage permits 10-minute overlays across an entire refresh window",async()=>{
+ const {map,api,run}=fixture({tenMinutes:true,tenHours:19});
+ await ready(api);
+ const target=new Date(run.getTime()+18*3600000).toISOString();
+ api.sync({time:target,region:"europe",source:"mtgi1"});
+ for(let i=0;i<50&&!api.tenFrameAt(target);i++)await new Promise(ok=>setTimeout(ok,3));
+ const selected=api.tenFrameAt(target);
+ assert.ok(selected,"No final forecast frame after +18 h");
+ assert.equal(selected.forecast_minute,1080);
+ assert.equal(selected.interpolated,false);
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ assert.match(map.get("satIsobarStatus").textContent,/Original-IFS-Druckfeld/);
 });
