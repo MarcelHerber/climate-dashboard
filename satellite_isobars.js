@@ -184,7 +184,7 @@ function draw(frame,bbox,gap){
  // H/T only for significant, fully closed nested IFS isobars.
  const limits={atlantic:8,europe:6,southwest:5,central:3,germany:2};
  const systems=geometry.detectVisiblePressureSystems?.(frame.contours,bbox,{
-  maxSystems:limits[context.region]||5,minRings:3,minSeparation:94
+  maxSystems:limits[context.region]||5,minRings:Number(gap)===2?6:3,minSeparation:94
  })||[];
  for(const center of systems){
   const lon=((center.lon-minX)/(maxX-minX))*1000;
