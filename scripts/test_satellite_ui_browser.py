@@ -195,6 +195,19 @@ def exercise(page, viewport_label, official_xml):
         evidence["ecmwf_ten_minute_not_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
         evidence["ecmwf_ten_minute_halo"]=page.locator("#satIsobarSvg path[stroke='#061522']").count()
         assert evidence["ecmwf_ten_minute_pink"]>0 and evidence["ecmwf_ten_minute_not_amber"]==0 and evidence["ecmwf_ten_minute_halo"]>0, "Single pink contours not rendered"
+        stroke_widths=page.eval_on_selector_all(
+            "#satIsobarSvg path[stroke='#ff4fcf']",
+            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]")
+        )
+        halo_widths=page.eval_on_selector_all(
+            "#satIsobarSvg path[stroke='#061522']",
+            "(paths) => [...new Set(paths.map(p => Number(p.getAttribute('stroke-width'))))]")
+        )
+        evidence["pink_line_widths"]=stroke_widths
+        evidence["dark_halo_widths"]=halo_widths
+        assert all(w in (0.9,1.55) for w in stroke_widths), "Pink isolines must be approximately half as thick"
+        assert all(w in (2.3,2.95) for w in halo_widths), "Dark halos must be approximately half as thick"
+
     original_lines=page.locator("#satIsobarSvg path").count()
     page.locator("#satIsobarSpacing").select_option("10")
     ten_hpa_lines=page.locator("#satIsobarSvg path").count()
