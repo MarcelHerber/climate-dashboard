@@ -49,3 +49,12 @@ footer{max-width:1240px;margin:auto;padding:0 18px 32px;color:var(--muted);font-
  #naoAoForecast .toolbar .right button{flex:1 1 70px}
  .tele-context-map{max-height:280px}
 }
+
+/* Keep the wide historical Chart.js canvas from expanding the mobile NAO/AO page.
+   The forecasting plot itself already fits its panel; do not clip the plot. */
+@media(max-width:700px){
+  html:has(body[data-climate-module="nao-ao"]),
+  body[data-climate-module="nao-ao"]{max-width:100%;overflow-x:clip}
+  body[data-climate-module="nao-ao"] main,
+  body[data-climate-module="nao-ao"] .panel{min-width:0}
+}
