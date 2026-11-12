@@ -19,7 +19,7 @@ import numpy as np
 
 UTC = dt.timezone.utc
 BBOX = (-75.0, 12.0, 55.0, 80.0)
-LEADS = (0, 3, 6, 9, 12)
+LEADS = (0, 3, 6, 9, 12, 15, 18)
 LEVELS = tuple(range(900, 1071, 5))
 SOURCE_URL = "https://www.ecmwf.int/en/forecasts/datasets/open-data"
 MAX_AGE_HOURS = 36
@@ -194,10 +194,10 @@ def main():
                 valid_run = run.isoformat(timespec="seconds").replace("+00:00", "Z")
                 if (previous.get("run_utc")==valid_run and manifest.get("run_utc")==valid_run
                         and manifest.get("schema_version")==2
-                        and len(manifest.get("hours", {}))==13
+                        and len(manifest.get("hours", {}))==19
                         and all((args.ten_minute_dir/path).is_file() for path in manifest["hours"].values())):
                     print(json.dumps({"status":"unchanged","run_utc":valid_run,
-                                      "ten_minute_frames":73}))
+                                      "ten_minute_frames":109}))
                     return 0
             with tempfile.TemporaryDirectory(prefix="sat-mslp-") as tmp:
                 path = Path(tmp)/"ifs_msl.grib2"
@@ -216,7 +216,7 @@ def main():
                          run.isoformat(),len(payload["frames"]),args.out.stat().st_size)
             print(json.dumps({"status":"ok","run_utc":payload["run_utc"],
                               "frames":[v["valid_utc"] for v in payload["frames"]],
-                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":73, "chunks":len(ten_index["hours"])}))
+                              "size_bytes":args.out.stat().st_size, "ten_minute_frames":109, "chunks":len(ten_index["hours"])}))
             return 0
         except Exception as exc:
             errors.append(f"{run:%Y-%m-%dT%H:%MZ}: {type(exc).__name__}: {str(exc)[:160]}")
