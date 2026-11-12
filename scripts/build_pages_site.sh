@@ -68,6 +68,7 @@ required_root_files=(
   ace_spatial.js
   climate_advanced.js
   climate_indices.js
+  nao_ao_forecast.js
   climate_indices.css
   stratosphere_temperature.js
   stratosphere_ensemble.js
@@ -877,6 +878,30 @@ fi
 if [[ -s climate_indices/index.json ]]; then
   mkdir -p _site/climate_indices
   cp climate_indices/index.json _site/climate_indices/index.json
+fi
+
+# Only publish CPC forecasts when the official CSV ingestion passed its checks.
+# The browser must show an explicit unavailable state until a verified run exists.
+if [[ -s data/nao_ao_forecast/latest.json ]]; then
+  python - <<'PY'
+import json
+from pathlib import Path
+d=json.loads(Path("data/nao_ao_forecast/latest.json").read_text(encoding="utf-8"))
+assert d["schema"]==1 and d["ready"] is True
+for key in ("nao","ao"):
+    entry=d["indices"][key]
+    assert len(entry["latest"]["mean"])==16
+    assert len(entry["latest"]["members"])==31
+    assert len(entry["latest"]["probability"]["negative"])==16
+    assert entry["observations"]
+print("NOAA/CPC Ensemble-Archiv geprüft.")
+PY
+  mkdir -p _site/data/nao_ao_forecast
+  cp data/nao_ao_forecast/latest.json _site/data/nao_ao_forecast/latest.json
+fi
+
+# NOAA/CPC extended archive as before.
+if false; then
   echo "NOAA-Zirkulations- und ENSO-Indizes in Pages-Artefakt übernommen."
 else
   echo "HINWEIS: NOAA-Indexarchiv noch nicht erstellt."
