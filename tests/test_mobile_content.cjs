@@ -123,3 +123,59 @@ test("no chart values or export pipelines overwritten, breakpoints are scoped",(
  assert.ok(CSS.includes(".t850-export"));
  assert.ok(CSS.includes("font-size:max(16px,1em)"));
 });
+
+test("Phase 2: mobile chart arrow navigation, visible tooltip and touch hint are idempotent",()=>{
+ const h=harness(),plugin=h.plugins[0],events={},nodes={},host={inserted:[]};
+ host.insertAdjacentElement=(where,node)=>{
+  assert.equal(where,"afterend");host.inserted.push(node);nodes[node.id]=node;
+ };
+ h.doc.getElementById=id=>nodes[id]||null;
+ const attrs={};
+ const canvas={
+  id:"stratoPanelChart",parentElement:host,tabIndex:-1,
+  closest(){return host},
+  addEventListener(name,callback){events[name]=callback},
+  hasAttribute(name){return Object.hasOwn(attrs,name)},
+  getAttribute(name){return attrs[name]??null},
+  setAttribute(name,value){attrs[name]=value}
+ };
+ const labels=Array.from({length:10},(_,i)=>"Day "+i);
+ const data0=[null,...Array(9).fill(null)];
+ const data1=[...Array(9).fill(3),9];
+ const instances=[];
+ const chart={
+  canvas,config:{type:"line"},
+  data:{labels,datasets:[{data:data0},{data:data1}]},
+  isDatasetVisible(i){return i!==0},
+  getDatasetMeta(){return {data:labels.map((_,i)=>({tooltipPosition:()=>({x:i,y:10})}))}},
+  setActiveElements(elements){this.selected=elements},
+  tooltip:{setActiveElements(elements,position){instances.push({elements,position})}},
+  update(){this.updateCalls=(this.updateCalls||0)+1}
+ };
+ plugin.afterUpdate(chart);
+ assert.equal(canvas.tabIndex,0);
+ assert.equal(host.inserted.length,1);
+ assert.match(host.inserted[0].textContent,/Diagramm antippen/);
+ assert.match(attrs["aria-describedby"],/cdm-chart-tip-stratoPanelChart/);
+ plugin.afterUpdate(chart);
+ assert.equal(host.inserted.length,1,"No duplicate hint on repeated updates");
+ let prevented=0;
+ events.keydown({key:"ArrowLeft",preventDefault(){prevented++}});
+ assert.equal(chart.selected[0].index,9,"First left arrow selects latest point");
+ events.keydown({key:"ArrowRight",preventDefault(){prevented++}});
+ assert.equal(chart.selected[0].index,0,"Wraps across the first point");
+ events.keydown({key:"Escape",preventDefault(){prevented++}});
+ assert.equal(chart.selected.length,0);
+ assert.equal(prevented,3);
+ assert.equal(instances.length,3);
+ assert.equal(data0[0],null);
+ assert.equal(data1[9],9);
+ assert.match(CSS,/cdm-chart-touch-hint/);
+ assert.match(CSS,/chart-export-tools/);
+});
+
+test("Phase 2: chart-specific month-year keyboard shortcuts are not rebound",()=>{
+ const h=harness(),plugin=h.plugins[0];
+ const canvas={id:"monthlyChart",addEventListener(){throw Error("Double-binding would change existing navigation")}};
+ plugin.afterUpdate({canvas,data:{labels:Array(15).fill("x"),datasets:[{data:Array(15).fill(1)}]},$climateKeyboardBound:true});
+});
