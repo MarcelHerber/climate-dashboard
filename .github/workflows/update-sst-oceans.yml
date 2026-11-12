@@ -81,7 +81,7 @@ jobs:
           from pathlib import Path
 
           from scripts.sst.config import OCEAN_REGIONS
-          from scripts.sst.ocean_build import build_ocean_date
+          from scripts.sst.ocean_build import build_ocean_date, _region_complete
           from scripts.sst.ocean_sources import latest_available_oisst_date, oisst_date_available
 
           archive_root = Path('/tmp/sst-archive')
@@ -91,14 +91,20 @@ jobs:
           complete = set()
           if manifest_path.exists():
               manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-              required = set(OCEAN_REGIONS)
-              for iso, entry in manifest.get('dates', {}).items():
-                  regions = entry.get('regions', {}) if isinstance(entry, dict) else {}
-                  if isinstance(regions, dict) and required.issubset(regions):
+              for iso in manifest.get('dates', {}):
+                  try:
+                      day = date.fromisoformat(iso)
+                  except ValueError:
+                      continue
+                  # Check real image files, regional statistics and dimensions.
+                  # A manifest entry alone must never hide a missing map.
+                  if all(_region_complete(manifest, day, archive_root, region_id)
+                         for region_id in OCEAN_REGIONS):
                       complete.add(iso)
 
           latest = latest_available_oisst_date(date.today(), lookback_days=14)
-          start = latest - timedelta(days=20)
+          # Cover outages longer than the former 21-day window.
+          start = latest - timedelta(days=44)
           failures = []
           built = []
           skipped = []
