@@ -30,6 +30,40 @@ let filmGeneration=0,filmLoading=false,filmPlaying=false,filmItems=[],filmPositi
 let stillTimeout=null,exportBusy=false,cachedImage=null;
 const exporters=window.SatelliteFilmExport;
 const description=()=>PRODUCTS[product.value];
+/* Only release additional FCI products after the daily official capabilities
+ * audit has checked a real PNG and a recent matching UTC timestamp. */
+async function enableAuditedProducts(){
+ const status=id("satAdditionalStatus"),group=id("satAdditionalProducts");
+ if(!group||!status)return;
+ const titles={
+  airmass:"Airmass RGB",night_microphysics:"Night Microphysics RGB",
+  convection:"Convection RGB",water_vapour:"Wasserdampf (WV)",
+  ash:"Ash RGB",cloud_phase:"Cloud Phase RGB"
+ };
+ let count=0;
+ try{
+  const response=await fetch("./data/satellite_layer_discovery_latest.json",{cache:"no-store"});
+  if(!response.ok)throw Error("Audit nicht vorhanden");
+  const report=await response.json();
+  const age=Date.now()-Date.parse(report.checked_at);
+  if(!report.capabilities_ok||!Number.isFinite(age)||age<0||age>6*3600000)
+   throw Error("Auditbericht nicht frisch");
+  for(const [key,label] of Object.entries(titles)){
+   const entry=(report.categories?.[key]||[]).find(x=>x.map_ok&&x.tested&&x.recent&&
+     typeof x.layer==="string"&&/^mtg_fd:[a-z0-9_]+$/.test(x.layer)&&
+     Date.parse(x.latest_verified_time)>Date.now()-90*60000);
+   if(!entry)continue;
+   const code="extra_"+key;
+   PRODUCTS[code]={layer:entry.layer,name:label,url:entry.product_page,
+    credit:"© EUMETSAT"};
+   group.add(new Option(label+" · verifiziert",code));
+   count++;
+  }
+  status.textContent=count?count+" zusätzliche MTG-Produkte erfolgreich geprüft und auswählbar.":
+   "Noch keine weiteren FCI-Produkte mit bestätigten PNGs und aktuellen UTC-Daten.";
+ }catch(error){status.textContent="Zusätzliche Produkte nicht freigeschaltet: "+error.message+".";}
+}
+
 function setStatus(message,kind="info"){status.textContent=message;status.dataset.kind=kind;}
 function updateTimeline(){
  timeline.max=String(Math.max(0,frames.length-1));
@@ -641,5 +675,6 @@ gif.addEventListener("click",()=>exportFilm("gif"));
 mp4.addEventListener("click",()=>exportFilm("mp4"));
 window.addEventListener("keydown",event=>{if(document.activeElement?.matches("input,select,textarea,button"))return;if(event.key==="ArrowLeft"&&frames.length){event.preventDefault();stop();show(index-1);}if(event.key==="ArrowRight"&&frames.length){event.preventDefault();stop();show(index+1);}});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
+enableAuditedProducts();
 refresh();
 })();
