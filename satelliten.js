@@ -33,7 +33,9 @@ const description=()=>PRODUCTS[product.value];
 /* Only release additional FCI products after the daily official capabilities
  * audit has checked a real PNG and a recent matching UTC timestamp. */
 async function enableAuditedProducts(){
- const status=document.getElementById("satAdditionalStatus"),group=document.getElementById("satAdditionalProducts");
+ let status,group;
+ try{status=document.getElementById("satAdditionalStatus");group=document.getElementById("satAdditionalProducts");}
+ catch(_){return;} // Optional panel must not affect legacy film-only test DOMs.
  if(!group||!status)return;
  const titles={
   airmass:"Airmass RGB",night_microphysics:"Night Microphysics RGB",
