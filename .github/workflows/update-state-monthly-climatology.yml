@@ -1,0 +1,89 @@
+name: Monatsausblick Klimareferenz 1991-2020 aktualisieren
+
+on:
+  schedule:
+    - cron: "28 5 1 1,4,7,10 *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_monthly_outlook_climatology.py"
+      - "tests/test_monthly_outlook_climatology.py"
+      - ".github/workflows/update-state-monthly-climatology.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-outlook-climatology
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Python vorbereiten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Abhängigkeiten
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Regressionen
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_climatology.py
+          python -m unittest discover -s tests -p test_monthly_outlook_climatology.py -v
+      - name: DWD Monatsdateien cachen
+        uses: actions/cache@v4
+        with:
+          path: /tmp/state-monthly-climate-cache
+          key: state-monthly-dwd-normals-1991-2020-v1
+      - name: Vollständige 12 Referenzmonate erstellen
+        run: |
+          python scripts/build_monthly_outlook_climatology.py \
+            --months all \
+            --cache /tmp/state-monthly-climate-cache \
+            --output /tmp/monthly-reference-out/monthly_reference_1991_2020.json
+      - name: Klimareferenz validieren
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          path = Path("/tmp/monthly-reference-out/monthly_reference_1991_2020.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          assert data["schema_version"] == 1
+          assert data["reference_period"] == "1991-2020"
+          assert len(data["months"]) == 12
+          assert len(data["regions_order"]) == 17
+          for month in data["months"].values():
+              for parameter in ("precipitation", "sunshine"):
+                  regions = month[parameter]
+                  assert set(regions) == set(data["regions_order"])
+                  for region, stats in regions.items():
+                      assert math.isfinite(stats["month_total"]) and stats["month_total"] >= 0
+                      assert stats["coverage"] >= 0.9
+          assert data["daily_climatology_available"] is False
+          print("Klimareferenz OK: 12 Monate, 17 Gebiete, beide Parameter ·",path.stat().st_size,"bytes")
+          PY
+      - name: Nur vollständige geprüfte Klimareferenz veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/monthly-reference-out
+          git init
+          git checkout -b state-monthly-reference
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monthly_reference_1991_2020.json
+          git commit -m "DWD Klimareferenz 1991-2020 für 12 Monate aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-reference
