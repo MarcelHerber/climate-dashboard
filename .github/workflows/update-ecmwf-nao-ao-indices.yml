@@ -1,0 +1,93 @@
+name: ECMWF EPS EOF NAO AO 50 Mitglieder
+on:
+  schedule:
+    - cron: "17 09 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-ecmwf-nao-ao-indices.yml"
+      - "scripts/update_ecmwf_nao_ao_indices.py"
+      - "tests/test_ecmwf_nao_ao_indices.py"
+permissions:
+  contents: write
+concurrency:
+  group: ecmwf-eps-nao-ao-50members
+  cancel-in-progress: false
+jobs:
+  indices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Schlanker Checkout der EOF-Muster und Prognoseauswertung
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/update_ecmwf_nao_ao_indices.py
+            tests/test_ecmwf_nao_ao_indices.py
+            data/nao_ao_forecast/eof_reference.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF ecCodes und Berechnungspakete installieren
+        run: python -m pip -q install "numpy<3" "ecmwf-opendata>=0.3" eccodes
+      - name: EOF-Rechenweg und Mitglieder-Wahrscheinlichkeiten prüfen
+        run: |
+          python -m unittest discover -s tests -p test_ecmwf_nao_ao_indices.py -v
+      - name: 50 echte EPS-Member auf 500 und 1000 hPa bis Tag 15 auswerten
+        run: |
+          OPENBLAS_NUM_THREADS=1 python scripts/update_ecmwf_nao_ao_indices.py
+      - name: Vorhersagedaten fachlich und technisch validieren
+        run: |
+          python - <<'PY'
+          import json,math
+          from datetime import date,timedelta
+          from pathlib import Path
+          p=Path("data/nao_ao_forecast/ecmwf_indices.json")
+          d=json.loads(p.read_text())
+          assert d["schema"]==1 and d["ready"] is True
+          assert d["expected_members"]==50 and d["lead_days"]==list(range(16))
+          assert d["is_official_cpc"] is False and d["nao_is_cpc_exact_method"] is False
+          assert date.fromisoformat(d["run_utc"][:10])>=date.today()-timedelta(days=2)
+          for key in ("nao","ao"):
+            item=d["indices"][key]
+            assert len(item["members"])==50 and len(item["mean"])==16
+            assert len(item["valid_dates"])==16
+            assert all(n==50 for n in item["member_count"])
+            assert len(item["p10"])==len(item["p90"])==16
+            assert all(a<=b for a,b in zip(item["p10"],item["p90"]))
+            assert all(-15<x<15 for x in item["mean"])
+            for i in range(16):
+              obs=[item["members"][str(m)][i] for m in range(1,51)]
+              assert len(obs)==50 and all(math.isfinite(x) for x in obs)
+              assert abs(sum(obs)/50-item["mean"][i])<.002
+              p0=item["probability"]["negative"][i]
+              p1=item["probability"]["positive"][i]
+              assert abs((p0+p1)-100)<0.1
+            assert item["quality"]["holdout_correlation"]>.55
+            print(key.upper(), "50 member x16 days",item["mean"][7],"model run",item["init_date"])
+          assert p.stat().st_size>8000
+          print("Independent EPS NAO/AO data validated",p.stat().st_size)
+          PY
+      - name: Bestätigten EPS-Datensatz in main veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/nao_ao_forecast/ecmwf_indices.json /tmp/ecmwf-eof-validated.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/nao_ao_forecast
+            cp /tmp/ecmwf-eof-validated.json data/nao_ao_forecast/ecmwf_indices.json
+            git add data/nao_ao_forecast/ecmwf_indices.json
+            if git diff --cached --quiet; then echo "Unveränderte EPS-Vorhersage"; exit 0; fi
+            git commit -m "Publish independently verified 50-member ECMWF EPS NAO AO indices"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt*4))
+          done
+          exit 1
