@@ -7,15 +7,15 @@
 <title>Satelliten · MTG | Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="mobile_navigation.css">
-<link rel="stylesheet" href="satelliten.css?v=20261112-smooththin-v1">
+<link rel="stylesheet" href="satelliten.css?v=20261112-pressure-centers-atlantic-v1">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
 <script defer src="satellite_overlay.js"></script>
-<script defer src="satellite_isobar_geometry.js?v=20261112-smooththin-v1"></script>
-<script defer src="satellite_isobars.js?v=20261112-smooththin-v1"></script>
-<script defer src="satellite_map_export.js?v=20261112-smooththin-v1"></script>
-<script defer src="satellite_film_export.js?v=20261112-smooththin-v1"></script>
-<script defer src="satelliten.js?v=20261112-pink-vector-export-v2"></script>
+<script defer src="satellite_isobar_geometry.js?v=20261112-pressure-centers-atlantic-v1"></script>
+<script defer src="satellite_isobars.js?v=20261112-pressure-centers-atlantic-v1"></script>
+<script defer src="satellite_map_export.js?v=20261112-pressure-centers-atlantic-v1"></script>
+<script defer src="satellite_film_export.js?v=20261112-pressure-centers-atlantic-v1"></script>
+<script defer src="satelliten.js?v=20261112-pressure-centers-atlantic-v1"></script>
 </head>
 <body>
 <header class="sat-header"><a href="./index.html">← Climate Dashboard Deutschland</a><div class="sat-header-actions"><span>Atmosphäre · Satelliten</span><button id="dashboardThemeToggle" type="button" aria-label="Dark Mode einschalten" aria-pressed="false"><span class="header-icon" aria-hidden="true"></span><span class="action-label">Dunkel</span></button></div></header>
@@ -33,7 +33,7 @@
 </div>
 <div class="sat-overlay-controls"><label><input id="satShowBorders" type="checkbox" checked> Küsten- und Ländergrenzen</label><label><input id="satShowCities" type="checkbox" checked> Städtenamen</label><label><input id="satShowIsobars" type="checkbox" checked> ECMWF-Isobaren</label><label for="satIsobarSpacing">Abstand <select id="satIsobarSpacing"><option value="5" selected>5 hPa</option><option value="10">10 hPa</option></select></label><button id="satRetryIsobars" class="sat-isobar-retry" type="button" title="ECMWF-Druckdaten unabhängig vom Satellitenbild neu laden">↻ Isobaren neu laden</button></div>
 <p id="satIsobarStatus" class="sat-isobar-status" role="status" aria-live="polite">Prüfe ECMWF-IFS-Luftdruckdaten …</p>
-<p class="sat-isobar-explainer">Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-pink" aria-hidden="true"></i>Alle Isobaren pink · nur 1015 hPa kräftiger</span></div>
+<p class="sat-isobar-explainer">Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Markante geschlossene Druckzentren erhalten automatisch ein <strong>H</strong> oder <strong>T</strong>; schwache und uneindeutige Systeme bleiben unmarkiert. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-pink" aria-hidden="true"></i>Alle Isobaren pink · nur 1015 hPa kräftiger</span></div>
 <p id="satOverlayHint" class="sat-overlay-hint">Natural Earth 1:50m · Vektorgrenzen werden lokal geladen.</p>
 <div class="sat-timeline">
 <label for="satTimeline">Zeitverlauf <output id="satTimelineLabel" for="satTimeline">Keine Beobachtungen</output></label>
