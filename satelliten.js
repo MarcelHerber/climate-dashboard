@@ -478,23 +478,22 @@ async function downloadPNG(){
  if(!loaded||!currentUrl)return;
  png.disabled=true;setStatus("Erstelle PNG mit UTC- und Quellenbeschriftung …");
  try{
-  const img=new Image();img.crossOrigin="anonymous";
-  // The preview is deliberately small; only download requests the native WMS size.
-  const exportUrl=cachedImage?.url||(verified&&frames[index]?imageUrl(frames[index]):imageUrl(null));
-  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("CORS or high-resolution WMS unavailable"));img.src=exportUrl;});
+  const selected=exportTime();
+  if(!selected)throw Error("Keine bestätigte Satellitenzeit verfügbar.");
+  const img=await exportPixels(selected);
   const pad=24,header=96,footer=80,c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight+header+footer;
   const ctx=c.getContext("2d");ctx.fillStyle="#ffffff";ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle="#162f4a";
   ctx.font="bold 27px Arial";ctx.fillText("MTG / "+description().name+" · "+REGIONS[region.value].name,pad,42);
   ctx.font="19px Arial";ctx.fillText(cachedImage?"Archivaufnahme: "+formatUTC(cachedImage.time):verified&&frames[index]?"Aufnahme: "+formatUTC(frames[index]):"Aufnahmezeit nicht verifiziert",pad,75);
   ctx.drawImage(img,0,header);ctx.fillStyle="#162f4a";ctx.font="16px Arial";
   ctx.fillText("© EUMETSAT"+(product.value==="geocolour"?" / NASA":""),pad,c.height-48);
-  ctx.fillText("Quelle: view.eumetsat.int · Originalprodukt / WMS",pad,c.height-22);
+  ctx.fillText("Quelle: EUMETSAT WMS / Archiv · Exportbild "+img.naturalWidth+" px",pad,c.height-22);
   const blob=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error("Export nicht zulässig")),"image/png"));
   const u=URL.createObjectURL(blob),link=document.createElement("a");link.href=u;
   link.download="mtg_"+product.value+"_"+region.value+"_"+(cachedImage?cachedImage.time.replace(/[:.]/g,"-"):verified&&frames[index]?frames[index].replace(/[:.]/g,"-"):"zeitpunkt-unbekannt")+".png";
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);
   setStatus(cachedImage?"Gespeichertes Satellitenbild als beschriftetes PNG exportiert (Archivauflösung, keine aktuelle Aufnahme).":"Beschriftetes PNG erstellt. Herkunft und UTC-Zeit sind im Bild enthalten.",cachedImage?"warning":"info");
- }catch(_){setStatus("EUMETSAT erlaubt für diese Browseranfrage keinen direkten PNG-Canvas-Export (CORS). Öffne das Originalbild bzw. den EUMETView-Link; es wurde kein falsches Downloadbild erzeugt.","warning");}
+ }catch(err){setStatus("PNG-Download nicht möglich: "+(err?.message||err)+". Kein falsches Downloadbild erzeugt.","warning");}
  finally{buttons();}
 }
 // Extra composite exports preserve the original PNG/GIF buttons.
@@ -504,41 +503,56 @@ function exportTime(){
  if(cachedImage?.time)return cachedImage.time;
  return verified&&frames[index]?frames[index]:null;
 }
+// Atlantic WMS 1400px GetMap has often timed out even when 400-720px maps
+// render fine. Prefer a still-useful 720px CORS-safe source for composites,
+// then attempt 480/400px and a strictly exact-UTC same-origin cache snapshot.
+// Never fall back to an unverified no-CORS <img> that taints the PDF/PNG canvas.
+function loadCORSImage(url,deadline){
+ return new Promise((resolve,reject)=>{
+  const img=new Image();img.crossOrigin="anonymous";img.decoding="async";
+  let settled=false;
+  const finish=err=>{
+   if(settled)return;
+   settled=true;clearTimeout(timer);img.onload=null;img.onerror=null;
+   if(err){img.src="";reject(err);}else resolve(img);
+  };
+  const timer=setTimeout(()=>finish(Error("Bildabruf-Zeitlimit")),deadline);
+  img.onload=()=>img.naturalWidth>0?finish():finish(Error("Leeres Satellitenbild"));
+  img.onerror=()=>finish(Error("WMS-Bildfehler oder CORS-Sperre"));
+  img.src=url;
+ });
+}
 async function exportPixels(t){
  const visible=!filmImage.hidden?filmItems[filmPosition]?.img:image;
- if(cachedImage?.time===t&&visible?.naturalWidth)return visible;
- try{
-  return await new Promise((resolve,reject)=>{
-   const img=new Image();img.crossOrigin="anonymous";img.decoding="async";
-   let done=false;const finish=err=>{if(done)return;done=true;clearTimeout(timer);
-    img.onload=null;img.onerror=null;err?reject(err):resolve(img);};
-   const timer=setTimeout(()=>finish(Error("WMS-Hochauflösung zu langsam.")),10000);
-   img.onload=()=>finish();img.onerror=()=>finish(Error("WMS-PNG nicht erreichbar."));
-   img.src=imageUrl(t);
-  });
- }catch(error){
-  // Same-product, same-region, exact-UTC official PNG cache is a reliable
-  // same-origin fallback if the native EUMETSAT WMS denies canvas access.
-  try{
-   const reply=await fetch("./data/satellite_cache/index.json",{cache:"no-store"});
-   if(reply.ok){
-    const manifest=await reply.json(),item=manifest.entries?.[product.value]?.[region.value];
-    if(item&&Date.parse(item.time)===Date.parse(t)&&
-       item.url==="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
-        item.time.replace(/[-:]/g,"")+".png"){
-     return await new Promise((resolve,reject)=>{
-      const cached=new Image();cached.crossOrigin="anonymous";
-      const timer=setTimeout(()=>reject(Error("Archivbild nicht erreichbar.")),5000);
-      cached.onload=()=>{clearTimeout(timer);resolve(cached);};
-      cached.onerror=()=>{clearTimeout(timer);reject(Error("Archivbild beschädigt."));};
-      cached.src=item.url;
-     });
-    }
-   }
-  }catch(_){/* The verified source image may still be canvas-exportable. */}
-  if(visible?.naturalWidth)return visible;
-  throw error;
+ // Preloaded film images use CORS and are already verified for this region.
+ if(!filmImage.hidden&&filmItems[filmPosition]?.time===t&&
+    visible?.naturalWidth>0&&visible.crossOrigin==="anonymous")return visible;
+ if(cachedImage?.time===t&&visible?.naturalWidth>0)return visible;
+ const widths=region.value==="atlantic"?[720,480,400]:
+  [REGIONS[region.value].w,720,480];
+ const errors=[];
+ for(const w of [...new Set(widths)]){
+  try{return await loadCORSImage(imageUrl(t,w),w>720?6500:w>400?4800:3600);}
+  catch(err){errors.push(w+" px: "+err.message);}
  }
+ // Verify the same product, exact requested UTC, and the correct region;
+ // cached 11:00 UTC is NEVER presented as an 11:20 UTC acquisition.
+ try{
+  const response=await fetch("./data/satellite_cache/index.json",{cache:"no-store"});
+  if(response.ok){
+   const doc=await response.json(),item=doc.schema===1?
+    doc.entries?.[product.value]?.[region.value]:null;
+   const url="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
+    String(item?.time||"").replace(/[-:]/g,"")+".png";
+   if(item?.source==="EUMETSAT WMS"&&item?.url===url&&
+      Date.parse(item.time)===Date.parse(t)&&item.width===400){
+    return await loadCORSImage(url,5000);
+   }
+  }
+ }catch(err){errors.push("exakter Archivabruf: "+err.message);}
+ throw Error("Satellitenpixel konnten nicht exportfähig geladen werden. "+
+  (region.value==="atlantic"?"Atlantik: ":"")+errors.join(" · ")+
+  ". Das angezeigte WMS-Bild ist nicht automatisch für Canvas freigegeben.");
 }
 async function downloadComposite(format){
  if(exportBusy||!composite||!window.SatelliteIsobars?.exportAt)return;
