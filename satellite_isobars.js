@@ -17,7 +17,7 @@ const MAX_SEPARATION=4*3600*1000; // never show a 12h old "matching" isobar fiel
 const MAX_DATA_AGE=30*3600*1000;
 const MAX_STANDALONE_AGE=12*3600*1000; // older forecasts may be shown, clearly labelled
 const ns="http://www.w3.org/2000/svg";
-const ENDPOINTS=["https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json","./data/satellite_mslp/latest.json"];
+const ENDPOINTS=["./data/satellite_mslp/preview.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json","./data/satellite_mslp/latest.json"];
 function note(s){status.textContent=s;}
 function utc(time){return new Date(time).toISOString().slice(0,16).replace("T"," ")+" UTC";}
 function frameFor(time){
@@ -50,7 +50,7 @@ function draw(frame,bbox,gap){
   if(hpa%gap!==0)continue;
   let labelCandidate=null,labelLen=0;
   for(const coords of lineSet.lines){
-   if(coords.length<4)continue;
+   if(coords.length<2)continue;
    const local=coords.filter(p=>within(p,bbox));
    if(local.length===0)continue;
    const shape=document.createElementNS(ns,"path");
@@ -104,7 +104,7 @@ function update(){
  svg.toggleAttribute("hidden",false);
  const headline="ECMWF IFS Lauf "+utc(data.run_utc)+" · +"+frame.forecast_hour+" h Prognose · gültig "+utc(frame.valid_utc);
  const age=Math.round((Date.now()-Date.parse(frame.valid_utc))/60000);
- const origin=dataOrigin==="github"?"GitHub-Originaldaten (Ersatzabruf)":"veröffentlichtes Kartenarchiv";
+ const origin=dataOrigin==="preview"?"kompakte Originalkonturen":dataOrigin==="github"?"GitHub-Originaldaten (Ersatzabruf)":"veröffentlichtes Kartenarchiv";
  if(satelliteTime&&aligned){
   const lag=Math.round((Date.parse(satelliteTime)-Date.parse(frame.valid_utc))/60000);
   note(headline+" · "+lines+" Linien · Satellit "+utc(satelliteTime)+" ("+lag+" min später) · "+spacing.value+" hPa · "+origin+" · © ECMWF");
@@ -139,10 +139,10 @@ async function load(force=false){
      }
 
      if(data&&Date.parse(d.run_utc)<Date.parse(data.run_utc))throw Error("Älterer ECMWF-Lauf als der bereits geladene Stand");
-     data=d;failed=false;errorDetail="";dataOrigin=i===0?"github":"pages";
+     data=d;failed=false;errorDetail="";dataOrigin=i===0?"preview":i===1?"github":"pages";
      break;
     }catch(err){
-     problems.push((i===0?"GitHub Rohdaten":"GitHub Pages")+": "+(err?.message||String(err)));
+     problems.push((i===0?"Schnelle Isobaren":"GitHub Druckdaten")+": "+(err?.message||String(err)));
     }
    }
    if(!data)throw Error(problems.join(" | "));
