@@ -69,3 +69,48 @@ test("Preparation preserves real ECMWF source contours and hides only display fr
  assert.equal(groups[1].heavy,true);
  assert.ok(g.settings.minLoopDiagonal>0);
 });
+
+test("Nested closed contours infer significant T and H, not guessed labels",()=>{
+ const g=shared(),b=[-70,15,35,75];
+ function ring(lon,lat,r){
+  return Array.from({length:65},(_,i)=>{
+   const t=2*Math.PI*i/64;return [lon+r*Math.cos(t),lat+r*.6*Math.sin(t)];
+  });
+ }
+ const original=[
+  {hpa:995,lines:[ring(-53,55,3)]},
+  {hpa:1000,lines:[ring(-53,55,6)]},
+  {hpa:1005,lines:[ring(-53,55,10)]},
+  {hpa:1030,lines:[ring(-20,43,3)]},
+  {hpa:1025,lines:[ring(-20,43,6)]},
+  {hpa:1020,lines:[ring(-20,43,10)]}
+ ];
+ const snapshot=JSON.stringify(original);
+ const detected=g.detectPressureSystems(original,b);
+ assert.equal(detected.length,2);
+ const low=detected.find(x=>x.type==="T");
+ const high=detected.find(x=>x.type==="H");
+ assert.ok(low&&high);
+ assert.equal(low.hpa,995);
+ assert.equal(high.hpa,1030);
+ assert.ok(Math.abs(low.lon+53)<.4&&Math.abs(low.lat-55)<.4);
+ assert.ok(Math.abs(high.lon+20)<.4&&Math.abs(high.lat-43)<.4);
+ assert.equal(low.rings,3);assert.equal(high.rings,3);
+ assert.equal(JSON.stringify(original),snapshot,"scientific contours must remain unchanged");
+});
+test("Single pressure rings, noise and clipped boundary contours never create imaginary H/T",()=>{
+ const g=shared(),b=[-70,15,35,75];
+ const ring=(cx,cy,r)=>Array.from({length:49},(_,i)=>{
+  const a=2*Math.PI*i/48;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];
+ });
+ const one=[{hpa:990,lines:[ring(-30,50,6)]}];
+ assert.equal(g.detectPressureSystems(one,b).length,0);
+ const nearEdge=[{hpa:995,lines:[ring(31,44,3)]},
+  {hpa:1000,lines:[ring(31,44,6)]},
+  {hpa:1005,lines:[ring(31,44,10)]}];
+ assert.equal(g.detectPressureSystems(nearEdge,b).length,0);
+ const tiny=[{hpa:995,lines:[ring(-20,40,.2)]},
+  {hpa:1000,lines:[ring(-20,40,.3)]},
+  {hpa:1005,lines:[ring(-20,40,.4)]}];
+ assert.equal(g.detectPressureSystems(tiny,b).length,0);
+});
