@@ -17,10 +17,10 @@ const sourceOverlay={validUTC:"2026-11-12T03:20:00Z",satelliteUTC:"2026-11-12T03
   {hpa:1015,lines:[[[-30,40],[-26,41],[-22,42],[-18,43],[-14,43],[-10,44],[-5,44],[-2,45]]]}
  ]};
 function loaded(){
- const calls=[];
+ const calls=[],textCalls=[];
  const ctx={
   save(){},restore(){},beginPath(){},rect(){},clip(){},moveTo(){},lineTo(){},fillRect(){},
-  strokeRect(){},fillText(){},drawImage(){},stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
+  strokeRect(){},fillText(s){textCalls.push(String(s));},strokeText(s){textCalls.push("outline:"+String(s));},drawImage(){},stroke(){calls.push({width:this.lineWidth,color:this.strokeStyle});},
   measureText(s){return {width:s.length*7};},
   getImageData(x,y,w,h){return {data:new Uint8ClampedArray(w*h*4).fill(127)}}
  };
@@ -38,7 +38,7 @@ function loaded(){
  vm.runInNewContext(geometry,scope,{timeout:5000});
  vm.runInNewContext(content,scope,{timeout:5000});
  vm.runInNewContext(film,scope,{timeout:5000});
- return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls};
+ return {api:scope.window.SatelliteMapExport,film:scope.window.SatelliteFilmExport,calls,textCalls};
 }
 const options={image:{naturalWidth:180,naturalHeight:100},
  overlay:sourceOverlay,region:"southwest",regionName:"Südwesteuropa",
@@ -122,4 +122,45 @@ test("Controls and publication contain all three new composite downloads",()=>{
  assert.match(site,/downloadComposite\("png"\)/);
  assert.match(site,/downloadGIFIsobars/);
  assert.match(html,/1015 hPa/);
+});
+
+test("Atlantic PNG, vector PDF and GIF contain only verified H/T letters",async()=>{
+ const {api,film,textCalls}=loaded();
+ const ring=(lon,lat,r)=>Array.from({length:65},(_,i)=>{
+  const rad=Math.PI*2*i/64;return [lon+r*Math.cos(rad),lat+r*.6*Math.sin(rad)];
+ });
+ const layer={...sourceOverlay,region:"atlantic",contours:[
+  {hpa:1005,lines:[ring(-55,55,10)]},
+  {hpa:1000,lines:[ring(-55,55,6)]},
+  {hpa:995,lines:[ring(-55,55,3)]},
+  {hpa:1020,lines:[ring(-20,43,10)]},
+  {hpa:1025,lines:[ring(-20,43,6)]},
+  {hpa:1030,lines:[ring(-20,43,3)]}
+ ]};
+ const found=api.pressureCenters(layer,"atlantic");
+ assert.deepEqual(Array.from(found,x=>x.type).sort(),["H","T"]);
+ const item={...options,region:"atlantic",regionName:"Nordatlantik & Europa",overlay:layer};
+ const png=await api.renderPNG(item);
+ assert.equal(png.blob.type,"image/png");
+ assert.ok(png.name.includes("_atlantic_")&&png.name.endsWith("_isobaren.png"));
+ assert.ok(textCalls.includes("H")&&textCalls.includes("T"),
+  "PNG must render both meteorologically verified system letters");
+ const pdf=await api.renderPDF(item);
+ const body=Buffer.from(await pdf.blob.arrayBuffer()).toString("latin1");
+ assert.match(body,/\(H\) Tj ET/);
+ assert.match(body,/\(T\) Tj ET/);
+ assert.ok(pdf.name.includes("_atlantic_"));
+ assert.match(body,/\/Subtype \/Image/);
+ const second=new Date(Date.parse(layer.satelliteUTC)+600000).toISOString().replace(".000Z","Z");
+ const gif=await film.exportGIF({
+  frames:[{time:layer.satelliteUTC,img:{naturalWidth:180,naturalHeight:100}},
+          {time:second,img:{naturalWidth:180,naturalHeight:100}}],
+  isobarOverlays:[layer,{...layer,satelliteUTC:second,validUTC:second}],
+  region:"atlantic",product:"geocolour",productName:"GeoColour",
+  width:160,delayMs:360,credit:"EUMETSAT"
+ });
+ const bytes=Buffer.from(await gif.blob.arrayBuffer());
+ assert.equal(bytes.subarray(0,6).toString(),"GIF89a");
+ assert.ok(textCalls.filter(x=>x==="H").length>=3&&textCalls.filter(x=>x==="T").length>=3,
+  "GIF must include the same H/T letters frame by frame");
 });
