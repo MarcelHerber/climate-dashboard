@@ -43,12 +43,12 @@
     ctx.beginPath();ctx.moveTo(MARGIN,HEIGHT-FOOTER+12);
     ctx.lineTo(WIDTH-MARGIN,HEIGHT-FOOTER+12);ctx.stroke();
     ctx.fillStyle="#405369";
-    const source=String(metadata.source||"Quelle und Bezugszeitraum: siehe Diagramm/Kartenlegende.");
+    const provenance=String(metadata.source||"Quelle und Bezugszeitraum: siehe Diagramm/Kartenlegende.");
     // Keep provenance readable, even for very long station or model names:
     // split into at most two short lines instead of horizontally squashing text.
     const lines=[];
     const ctxWidth=WIDTH-MARGIN*2;
-    const words=source.split(/\s+/).filter(Boolean);
+    const words=provenance.split(/\s+/).filter(Boolean);
     let current="";
     ctx.font="400 19px Arial, Helvetica, sans-serif";
     for(const word of words){
