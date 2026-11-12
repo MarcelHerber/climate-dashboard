@@ -58,3 +58,10 @@ footer{max-width:1240px;margin:auto;padding:0 18px 32px;color:var(--muted);font-
   body[data-climate-module="nao-ao"] main,
   body[data-climate-module="nao-ao"] .panel{min-width:0}
 }
+
+/* Verified ECMWF ensemble geopotential-map viewer */
+.tele-map-frame{display:flex;align-items:center;justify-content:center;min-height:150px;border:1px solid var(--line);background:#f5f8fc;border-radius:11px;overflow:hidden;margin-bottom:12px}
+.tele-map-frame img{display:block;width:100%;height:auto;max-height:720px;object-fit:contain}
+.tele-map-frame img[hidden]{display:none}
+#teleMaps > h3{font-size:16px;margin:0 0 6px}
+@media(max-width:700px){.tele-map-frame{min-height:90px}#teleMaps .toolbar .right{margin-left:0;width:100%}}
