@@ -8,9 +8,16 @@ on:
   schedule:
     - cron: "17 11 * * *"
   workflow_dispatch:
+    inputs:
+      continuation_index:
+        description: "Automatische Fortsetzung der stückweisen MUR-SST-Nachberechnung (0–10)"
+        required: false
+        default: "0"
+        type: string
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sst-archive-writer
@@ -77,7 +84,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f /tmp/sst-backfill-failures.txt
+          rm -f /tmp/sst-backfill-failures.txt /tmp/sst-europe-continue.flag
           python - <<'PY'
           import json
           import os
@@ -100,7 +107,23 @@ jobs:
               required_regions = set(REGIONS)
               for iso, entry in manifest.get('dates', {}).items():
                   regions = entry.get('regions', {}) if isinstance(entry, dict) else {}
-                  if isinstance(regions, dict) and required_regions.issubset(regions):
+                  stats = entry.get('statistics', {}) if isinstance(entry, dict) else {}
+                  # Do not treat a manifest-only date as already published.
+                  # All four European regions need both existing image files,
+                  # their two views, and their regional statistics.
+                  if not isinstance(regions, dict) or not isinstance(stats, dict):
+                      continue
+                  if all(
+                      isinstance(regions.get(region), dict)
+                      and isinstance(stats.get(region), dict)
+                      and all(
+                          isinstance(regions[region].get(view), str)
+                          and (archive_root / regions[region][view]).is_file()
+                          and isinstance(stats[region].get(view), dict)
+                          for view in ('absolute', 'anomaly')
+                      )
+                      for region in required_regions
+                  ):
                       existing.add(iso)
 
           latest = latest_available_mur_date(date.today(), lookback_days=10)
@@ -108,6 +131,7 @@ jobs:
           failures = []
           built = []
           skipped = []
+          max_new_dates = 2  # Checkpoint within runner lifetime; never lose 3+ days.
 
           current = start
           while current <= latest:
@@ -140,7 +164,21 @@ jobs:
                   print(f"{iso}: Nachholen fehlgeschlagen: {exc!r}", flush=True)
 
               current += timedelta(days=1)
+              if len(built) >= max_new_dates:
+                  print(
+                      f"SST: {max_new_dates} neue Tage fertig; "
+                      f"schreibe zuerst einen sicheren Archiv-Snapshot.",
+                      flush=True,
+                  )
+                  break
 
+          if built and current <= latest and not failures:
+              # Dispatch another bounded batch only AFTER this batch was
+              # successfully committed and pushed to the archive branch.
+              Path('/tmp/sst-europe-continue.flag').write_text(
+                  f"{current.isoformat()} bis {latest.isoformat()} noch prüfen\n",
+                  encoding='utf-8',
+              )
           print(
               f"SST Datenstand geprüft bis {latest.isoformat()} · "
               f"neu gebaut={len(built)} · bereits vorhanden={len(skipped)} · "
@@ -186,3 +224,28 @@ jobs:
             exit 1
           fi
           echo "Keine fehlgeschlagenen SST-Nachholversuche."
+
+      - name: Weitere fehlende MUR-Tage in einem neuen, begrenzten Lauf nachholen
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTINUATION_INDEX: ${{ inputs.continuation_index || '0' }}
+        run: |
+          set -euo pipefail
+          if [[ ! -s /tmp/sst-europe-continue.flag ]]; then
+            echo "Kein weiterer SST-Nachhollauf erforderlich."
+            exit 0
+          fi
+          if [[ ! "$CONTINUATION_INDEX" =~ ^[0-9]+$ ]]; then
+            echo "Ungültiger Fortsetzungsindex: $CONTINUATION_INDEX"
+            exit 1
+          fi
+          if (( CONTINUATION_INDEX >= 10 )); then
+            echo "Maximal zehn automatische Fortsetzungen erreicht; der tägliche Zeitplan übernimmt verbleibende Tage."
+            exit 0
+          fi
+          NEXT=$((CONTINUATION_INDEX + 1))
+          echo "SST-Nachholen: Archiv-Snapshot veröffentlicht; starte begrenzte Fortsetzung $NEXT/10."
+          cat /tmp/sst-europe-continue.flag
+          gh workflow run update-sst-europe.yml --ref main -f continuation_index="$NEXT"

@@ -6,6 +6,8 @@ on:
     paths:
       - "state_monthly_ensemble.js"
       - "state_monthly_ensemble.css"
+      - "sst_europe.js"
+      - "scripts/patch_sst_frontend.py"
       - "scripts/patch_state_monthly_ensemble_frontend.py"
       - "scripts/build_pages_site.sh"
       - ".github/workflows/publish-state-monthly-ensemble.yml"
@@ -35,8 +37,10 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Monatsensemble-Frontend einbauen
-        run: python scripts/patch_state_monthly_ensemble_frontend.py
+      - name: Monatsensemble und SST-Frontend einbauen
+        run: |
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          python scripts/patch_sst_frontend.py --file index.html
 
       - name: Integration prüfen
         shell: bash
@@ -47,12 +51,16 @@ jobs:
           grep -q 'href="state_monthly_ensemble.css' index.html
           grep -q 'src="state_monthly_ensemble.js' index.html
           grep -q 'state_monthly_ensemble.js' scripts/build_pages_site.sh
+          grep -q 'src="sst_europe.js?v=20261112-sst-recovery-1"' index.html
+          grep -q 'sst_europe.js' scripts/build_pages_site.sh
+          node --check sst_europe.js
           node --check state_monthly_ensemble.js
           python -m py_compile scripts/patch_state_monthly_ensemble_frontend.py
 
           cp index.html /tmp/state-monthly-index-once.html
           cp scripts/build_pages_site.sh /tmp/state-monthly-build-once.sh
           python scripts/patch_state_monthly_ensemble_frontend.py
+          python scripts/patch_sst_frontend.py --file index.html
           cmp -s /tmp/state-monthly-index-once.html index.html
           cmp -s /tmp/state-monthly-build-once.sh scripts/build_pages_site.sh
 

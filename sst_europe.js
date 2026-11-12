@@ -93,7 +93,13 @@ async function sstLoadManifestFrom(base){
 }
 async function loadSstManifest(){
   if(!sstManifestPromise){
-    sstManifestPromise=Promise.any(SST_ARCHIVE_BASES.map(base=>sstLoadManifestFrom(base)))
+    // The fastest CDN may hold an older manifest for hours. Read the raw
+    // repository source first; use the mirrored endpoints only as fallback.
+    sstManifestPromise=sstLoadManifestFrom(SST_ARCHIVE_BASES[0])
+      .catch(primaryError=>{
+        console.warn("SST GitHub-Roharchiv vorübergehend nicht erreichbar:",primaryError);
+        return Promise.any(SST_ARCHIVE_BASES.slice(1).map(base=>sstLoadManifestFrom(base)));
+      })
       .then(({payload,base})=>{
         sstArchiveBase=base;
         return payload;
@@ -119,8 +125,8 @@ function sstPopulateRegions(){
 function sstUpdateDateBounds(){
   const input=sstEl("sstDate");if(!input||!sstManifest)return;
   input.min=sstManifest.archive_start||"2020-01-01";
-  input.max=sstManifest.data_through||"";
-  input.value=sstState.date||sstManifest.data_through||"";
+  input.max=sstLatestDateForRegion()||sstManifest.data_through||"";
+  input.value=sstState.date||input.max||"";
 }
 
 function sstRenderTimeline(){
@@ -172,7 +178,10 @@ function sstRenderMap(){
   const stats=manifest.dates?.[date]?.statistics?.[region]?.[view];
   const image=sstEl("sstMapImage");
   const dataThrough=sstEl("sstDataThrough");
-  if(dataThrough)dataThrough.textContent=`Datenstand: ${sstManifest.data_through||"–"}`;
+  // Manifest.data_through is GLOBAL and may belong to Pacific OISST rather
+  // than the selected MUR European region. Always show the region's last map.
+  const latestInRegion=sstLatestDateForRegion(region,view);
+  if(dataThrough)dataThrough.textContent=`Datenstand ${sstRegionLabel(region)}: ${latestInRegion||"–"}`;
   sstRenderStats(stats,view);
   if(!image)return;
   if(!rel){
