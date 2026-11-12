@@ -1,0 +1,111 @@
+name: Monatsausblick Tagesreferenz HYRAS Niederschlag 1991-2020
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "18 6 2 1,4,7,10 *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_monthly_outlook_daily_precip_reference.py"
+      - "tests/test_monthly_outlook_daily_precip_reference.py"
+      - ".github/workflows/update-state-monthly-daily-precip-reference.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-outlook-daily-precip-reference
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python einrichten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Pakete installieren
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+
+      - name: Vorhandene echte HYRAS-Tagesreferenz aus Actions-Cache laden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hyras-reference-cache
+          key: hyras-daily-reference-1991-2020-v6-web2-v1
+          fail-on-cache-miss: true
+
+      - name: Jahrescache und Unit-Tests prüfen
+        run: |
+          set -euo pipefail
+          test -s /tmp/hyras-reference-cache/hyras_daily_reference_1991_2020_web2_v1.npz
+          python -m py_compile scripts/build_monthly_outlook_daily_precip_reference.py
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_precip_reference.py -v
+
+      - name: Offizielle vollständige DWD-Monatsnormalwerte abrufen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin state-monthly-reference --depth=1
+          mkdir -p /tmp/monthly-daily-reference-out
+          git show origin/state-monthly-reference:monthly_reference_1991_2020.json > /tmp/monthly-daily-reference-out/monthly_reference_1991_2020.json
+
+      - name: Tagesgenaue Gebietskurven aus HYRAS 1991-2020 erzeugen
+        run: |
+          python scripts/build_monthly_outlook_daily_precip_reference.py \
+            --cache /tmp/hyras-reference-cache/hyras_daily_reference_1991_2020_web2_v1.npz \
+            --monthly /tmp/monthly-daily-reference-out/monthly_reference_1991_2020.json \
+            --work /tmp/monthly-daily-reference-work \
+            --output /tmp/monthly-daily-reference-out/daily_precip_reference_1991_2020.json
+
+      - name: 12 Monate, 17 Regionen und 366 echte Tage validieren
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          p=Path("/tmp/monthly-daily-reference-out/daily_precip_reference_1991_2020.json")
+          j=json.loads(p.read_text(encoding="utf-8"))
+          assert j["schema_version"]==1 and j["reference_period"]=="1991-2020"
+          assert j["daily_climatology_available"] is True
+          assert set(j["months"])=={f"{m:02d}" for m in range(1,13)}
+          assert len(j["regions_order"])==17
+          n=0
+          for month,data in j["months"].items():
+              for region in j["regions_order"]:
+                  rows=data["regions"][region]
+                  assert len(rows["daily_mm"])==len(rows["running_mm"])==len(data["dates"])
+                  assert all(math.isfinite(x) and x>=0 for x in rows["daily_mm"])
+                  assert all(rows["running_mm"][i]<=rows["running_mm"][i+1]+1e-4 for i in range(len(rows["running_mm"])-1))
+                  n+=len(rows["daily_mm"])
+          assert n==366*17
+          print("HYRAS daily reference validated:",n,"regional daily values")
+          PY
+
+      - name: Separaten geprüften Tagesdaten-Branch veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/monthly-daily-reference-out
+          rm -f monthly_reference_1991_2020.json
+          git init
+          git checkout -b state-monthly-daily-reference
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add daily_precip_reference_1991_2020.json
+          git commit -m "Tagesgenaue HYRAS Niederschlagsreferenz 1991–2020 aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-daily-reference
