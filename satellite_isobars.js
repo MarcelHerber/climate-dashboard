@@ -110,7 +110,10 @@ function tenFrameAt(target,gap=5){
    try{
     const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file);
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
-       (fine&&(d.interval_hpa!==2||!d.regions?.includes(context.region)))||
+       (fine&&(d.interval_hpa!==2||
+        !Array.isArray(d.regions)||
+        d.regions.length!==FINE_REGIONS.size||
+        !d.regions.every(place=>isFineRegion(place))))||
        d.hour!==hour||!Array.isArray(d.frames)||
        d.frames.length!==(hour===lastHour?1:6)||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
