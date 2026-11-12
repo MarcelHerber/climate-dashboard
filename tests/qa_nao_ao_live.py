@@ -96,6 +96,7 @@ def run(page, output: Path, label: str) -> None:
             }""",timeout=30000)
             source=page.locator("#teleMapImage").get_attribute("src")
             assert f"{level}hpa_f{int(lead):03d}.png" in source, source
+    assert "Keine Anomalie, kein CPC-NAO/AO-Index" in page.locator("#teleMapInfo").inner_text()
     with page.expect_download(timeout=30000) as map_download:
         page.locator("#teleMapDownload").click()
     map_file=output/f"{label}_ecmwf_map.png"
