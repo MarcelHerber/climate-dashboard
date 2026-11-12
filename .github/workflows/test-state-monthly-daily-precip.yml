@@ -1,0 +1,79 @@
+name: Monatsausblick Tagesreferenz HYRAS PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_monthly_outlook_daily_precip_reference.py"
+      - "tests/test_monthly_outlook_daily_precip_reference.py"
+      - ".github/workflows/update-state-monthly-daily-precip-reference.yml"
+      - ".github/workflows/test-state-monthly-daily-precip.yml"
+      - "state_monthly_ensemble.js"
+      - "scripts/patch_state_monthly_ensemble_frontend.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Regressionen und Frontend
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_daily_precip_reference.py
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_precip_reference.py -v
+          node --check state_monthly_ensemble.js
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          grep -q "stateMonthlyParameter" index.html
+          grep -q 'state_monthly_ensemble.js?v=20261112-daily-precip-1' index.html
+
+  live-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Historischen offiziellen HYRAS-Cache wiederverwenden
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/hyras-reference-cache
+          key: hyras-daily-reference-1991-2020-v6-web2-v1
+          fail-on-cache-miss: true
+      - name: Monatsnormen abrufen
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin state-monthly-reference --depth=1
+          git show origin/state-monthly-reference:monthly_reference_1991_2020.json > /tmp/reference_monthly.json
+      - name: Alle 366 Tage und alle Bundesländer aus echten historischen Rastern testen
+        run: |
+          python scripts/build_monthly_outlook_daily_precip_reference.py \
+            --cache /tmp/hyras-reference-cache/hyras_daily_reference_1991_2020_web2_v1.npz \
+            --monthly /tmp/reference_monthly.json \
+            --output /tmp/daily_precip_reference_1991_2020.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          j=json.loads(Path('/tmp/daily_precip_reference_1991_2020.json').read_text())
+          assert j['daily_climatology_available'] is True
+          assert len(j['regions_order'])==17 and len(j['months'])==12
+          print('LIVE: HYRAS 1991–2020 full-year 366-day reference OK, DE Nov cumulative',
+                j['months']['11']['regions']['Deutschland']['running_mm'][-1],'mm')
+          PY
