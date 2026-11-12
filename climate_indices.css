@@ -29,3 +29,23 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 11px;
 .grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 footer{max-width:1240px;margin:auto;padding:0 18px 32px;color:var(--muted);font-size:12px}
 @media(max-width:700px){main{padding-top:16px}.panel{padding:13px}.chart-box{height:315px}.grid-two{grid-template-columns:1fr}header nav{margin-left:0}.toolbar .right{margin-left:0}select{min-width:115px}}
+
+/* GEFS NAO/AO forecast monitor */
+#naoAoForecast [hidden]{display:none!important}
+.tele-toolbar{gap:10px}
+.tele-options{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:2px 0 14px}
+.tele-options label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink);font-weight:550;cursor:pointer}
+.tele-options input{width:16px;height:16px;accent-color:#236ab4}
+.tele-chart{height:480px;min-height:320px}
+.tele-error{color:#aa292e;font-weight:700}
+.tele-context-map{display:block;width:100%;max-height:380px;object-fit:contain;background:#f5f8fc;border:1px solid var(--line);border-radius:9px}
+#teleMaps h3{font-size:15px;margin:0 0 8px}
+#teleMaps .grid-two > div{min-width:0}
+@media(max-width:700px){
+ .tele-chart{height:390px}
+ .tele-options{gap:12px}
+ #naoAoForecast .toolbar label,#naoAoForecast .toolbar select{min-width:0;flex:1 1 135px}
+ #naoAoForecast .toolbar .right{flex:1 1 100%}
+ #naoAoForecast .toolbar .right button{flex:1 1 70px}
+ .tele-context-map{max-height:280px}
+}
