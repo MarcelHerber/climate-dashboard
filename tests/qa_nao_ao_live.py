@@ -29,7 +29,7 @@ def run(page, output: Path, label: str) -> None:
     }""", timeout=45000)
     assert "Prognose nicht verfügbar" not in page.locator("#teleStatus").inner_text()
     canvas = page.locator("#teleChart")
-    assert canvas.bounding_box()["width"] >= 275
+    assert canvas.bounding_box()["width"] >= (225 if page.viewport_size["width"] <= 360 else 275)
 
     def chart_state():
         return page.evaluate("""() => {
@@ -133,7 +133,13 @@ def main():
     with sync_playwright() as pw:
         browser=pw.chromium.launch(headless=True,args=["--no-sandbox"])
         try:
-            for label,size in (("desktop",{"width":1440,"height":900}),("mobile",{"width":390,"height":844})):
+            for label,size in (
+                ("desktop",{"width":1440,"height":900}),
+                ("mobile320",{"width":320,"height":740}),
+                ("mobile360",{"width":360,"height":780}),
+                ("mobile390",{"width":390,"height":844}),
+                ("mobile430",{"width":430,"height":932}),
+            ):
                 page=browser.new_page(viewport=size,accept_downloads=True,device_scale_factor=1)
                 try:run(page,args.output,label)
                 finally:page.close()
