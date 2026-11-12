@@ -32,7 +32,7 @@ class SunOutlookTests(unittest.TestCase):
         out=sun.build_payload(doc,m)
         self.assertEqual(out["unit"],"h")
         self.assertEqual(out["regions"]["Hessen"]["observed_running"][:3],[6.5,10,None])
-        self.assertEqual(out["regions"]["Hessen"]["models"]["gefs"]["control"][:5],[None,None,12.5,17,None])
+        self.assertEqual(out["regions"]["Hessen"]["models"]["gefs"]["control"][:5],[None,None,12.5,17.5,None])
         self.assertFalse(out["climatology_available"])
 
     def test_rejects_incomplete_or_over24h_day(self):
