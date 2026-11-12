@@ -91,6 +91,27 @@ class SatelliteCacheTests(unittest.TestCase):
             self.assertEqual(cache.run(), 0)
         self.assertFalse(cache.INDEX.exists())
 
+    def test_try_older_real_frame_when_latest_wms_render_fails(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        latest = (now - dt.timedelta(minutes=10)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        older = (now - dt.timedelta(minutes=20)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        status = self.status(latest)
+        status["products"]["geocolour"]["available_times"] = [older, latest]
+        self.write_status(status)
+        attempts = []
+
+        def request(product, region, timestamp):
+            attempts.append((region, timestamp))
+            if timestamp == latest:
+                raise TimeoutError("newest image did not render")
+            return b"archived real older PNG"
+
+        with patch.object(cache, "request_png", side_effect=request):
+            self.assertEqual(cache.run(), 0)
+        self.assertEqual(len(attempts), len(cache.REGIONS) * 2)
+        doc = json.loads(cache.INDEX.read_text(encoding="utf-8"))
+        self.assertTrue(all(row["time"] == older for row in doc["entries"]["geocolour"].values()))
+
     def test_rejects_bad_utc(self):
         self.assertIsNone(cache.valid_utc("bad"))
         self.assertIsNone(cache.valid_utc("2026-11-11T19:40:00"))
