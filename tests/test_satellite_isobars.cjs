@@ -39,7 +39,7 @@ function fixture({failOnce=false}={}){
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
   window:{},Date,console:{warn(){}},fetch:async()=>{
    calls++;
-   if(failOnce&&calls===1)throw Error("Temporary ECMWF asset error");
+   if(failOnce&&calls<=2)throw Error("Temporary ECMWF asset error");
    return {ok:true,json:async()=>data};
   }};
  vm.runInNewContext(src,sandbox,{timeout:1000});
@@ -62,15 +62,15 @@ test("Real metadata interval selects nearest previous valid IFS forecast, never 
  const t=new Date(run.getTime()+3*3600000+10*60000).toISOString();
  api.sync({time:t,region:"southwest",source:"mtgi1"});
  assert.equal(api.frameFor(t).forecast_hour,3);
- assert.match(map.get("satIsobarStatus").textContent,/\+3 h Vorhersage/);
+ assert.match(map.get("satIsobarStatus").textContent,/\+3 h Prognose/);
  assert.match(map.get("satIsobarStatus").textContent,/10 min später/);
  assert.ok(map.get("satIsobarSvg").children.length>0,"SVG contours were not built");
  assert.equal(map.get("satIsobarSvg").hidden,false);
  const bad=new Date(run.getTime()+20*3600000).toISOString();
  assert.equal(api.frameFor(bad),null,"stale pressure forecast wrongly matched");
  api.sync({time:bad,region:"southwest",source:"mtgi1"});
- assert.equal(map.get("satIsobarSvg").hidden,true);
- assert.match(map.get("satIsobarStatus").textContent,/kein passendes/);
+ assert.equal(map.get("satIsobarSvg").hidden,false,"Independently show currently valid pressure rather than an unrelated image match");
+ assert.match(map.get("satIsobarStatus").textContent,/zeitlich nicht synchron/);
 });
 test("5/10 hPa spacing and disk projection exclusions are safe",async()=>{
  const {api,map,run}=fixture();
@@ -100,7 +100,7 @@ test("When EUMETSAT time is unavailable, show independent valid ECMWF pressure c
  api.sync({time:null,region:"southwest",source:"mtgi1"});
  assert.equal(map.get("satIsobarSvg").hidden,false,"Pressure field should render without an image timestamp");
  assert.ok(map.get("satIsobarSvg").children.length>0,"Vector contour paths should exist");
- assert.match(map.get("satIsobarStatus").textContent,/eigenständige Modellansicht ohne verifiziertes Satellitenbild/);
+ assert.match(map.get("satIsobarStatus").textContent,/eigenständige ECMWF-Karte ohne Satellitenbild/);
  assert.match(map.get("satIsobarStatus").textContent,/gültig/);
 });
 test("A failed ECMWF fetch is recoverable with the independent reload control",async()=>{
@@ -113,5 +113,15 @@ test("A failed ECMWF fetch is recoverable with the independent reload control",a
  await ready(api);
  api.sync({time:null,region:"southwest",source:"mtgi1"});
  assert.equal(map.get("satIsobarSvg").hidden,false);
- assert.equal(getCalls(),2,"Failed request should be retried exactly once");
+ assert.equal(getCalls(),3,"Both endpoints failed, then manual reload succeeded");
+});
+
+test("Fallback raw GitHub ECMWF JSON keeps isobars visible when Pages asset is missing",async()=>{
+ const {api,map,getCalls}=fixture({failOnce:true});
+ // Simulate only the Pages request failing. Raw GitHub is already second.
+ map.get("satRetryIsobars").emit("click");
+ await ready(api);
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ assert.match(map.get("satIsobarStatus").textContent,/GitHub-Originaldaten|veröffentlichtes Kartenarchiv/);
+ assert.ok(getCalls()>=3);
 });
