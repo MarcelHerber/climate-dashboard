@@ -1,4 +1,4 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=20261112-maps-v2"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script><script defer src="nao_ao_forecast.js?v=20261112-v2"></script><script defer src="nao_ao_maps.js?v=20261112-v1"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=20261112-maps-v2"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script><script defer src="nao_ao_forecast.js?v=20261112-v2"></script><script defer src="nao_ao_maps.js?v=20261112-v1"></script><script defer src="ecmwf_teleconnections.js?v=20261112-v1"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
 <label>Darstellung<select id="climateMode"><option value="daily">Tageswerte</option><option value="monthly">Monatsmittel (aus Tageswerten)</option></select></label>
 <label>Zeitraum<select id="climateRange"><option value="1">Letztes Jahr</option><option value="5" selected>Letzte 5 Jahre</option><option value="10">Letzte 10 Jahre</option><option value="all">Gesamte Zeitreihe ab 1950</option></select></label>
 <label>Index<select id="climateIndex"><option value="both">NAO + AO</option><option value="nao">Nur NAO</option><option value="ao">Nur AO</option></select></label>
@@ -48,6 +48,42 @@
   <p class="small" id="teleMeta">Prognosedaten werden aus offiziellen CPC-CSV-Dateien bei erfolgreicher Datenprüfung veröffentlicht.</p>
   <p class="small">Zur Prognosegüte: NAO nutzt eine Projektion von 500-hPa-Geopotenzialanomalien, AO von 1000-hPa-Geopotenzialanomalien. GEFS und GFS nutzen hier die gemeinsame NOAA/CPC-Indexdefinition. Ein direkter ECMWF-/EPS-Vergleich wird erst nach einer nachvollziehbar angeglichenen Indexberechnung angeboten. Null bedeutet Index-neutral, nicht automatisch schwaches Blocking.</p>
   <p class="small">Quelle: <a target="_blank" rel="noopener" href="https://ftp.cpc.ncep.noaa.gov/cwlinks/">NOAA/CPC · offizielle Ensemble- und Analyse-CSV</a>. Einheiten: standardisierter CPC-Index. Werte können revidiert werden, Laufzeiten sind als Datum ausgewiesen (keine nicht belegten Uhrzeiten). PDF-Kurven werden als getrennte Vektorelemente erzeugt.</p>
+</section>
+<section class="panel" id="epsEofPanel" aria-labelledby="epsEofHeading">
+  <h2 id="epsEofHeading">ECMWF EPS · NAO- und AO-Ensemble (50 Mitglieder)</h2>
+  <p class="intro">Eigenständige tägliche Prognoseindizes aus den echten ECMWF-ENS-Geopotenzialfeldern auf 500 und 1000 hPa. Die Felder werden auf klimatologisch kalibrierte NCEP/NCAR-EOF-Muster projiziert und mit historischen NOAA/CPC-Beobachtungen geprüft. <strong>Wichtig:</strong> NAO ist eine vereinfachte Atlantik-EOF, nicht die originale CPC-REOF-Berechnung. Unterschiedliche Verfahren bedeuten, dass ähnliche Indizes nicht exakt identisch sein müssen.</p>
+  <div class="toolbar">
+    <label>Oszillation<select id="epsIndex">
+      <option value="nao">NAO · 500 hPa</option>
+      <option value="ao">AO · 1000 hPa</option>
+    </select></label>
+    <label>Darstellung<select id="epsMode">
+      <option value="ensemble">EPS · Einzelmember &amp; Streuung</option>
+      <option value="probability">Phasen-Wahrscheinlichkeiten</option>
+    </select></label>
+    <label>Prognosezeitraum<select id="epsDays">
+      <option value="7">7 Tage</option>
+      <option value="10">10 Tage</option>
+      <option value="15" selected>15 Tage</option>
+      <option value="46" disabled>46 Tage · Datenzugang noch offen</option>
+    </select></label>
+    <div class="right">
+      <button class="btn" id="epsReload" type="button">Aktualisieren</button>
+      <button class="btn" id="epsPNG" type="button" disabled>PNG</button>
+      <button class="btn" id="epsPDF" type="button" disabled>Vektor-PDF</button>
+      <button class="btn" id="epsCSV" type="button" disabled>CSV</button>
+    </div>
+  </div>
+  <div class="tele-options" id="epsOptionRow">
+    <label id="epsMembersRow"><input id="epsMembers" type="checkbox" checked> Alle 50 EPS-Einzelmember anzeigen</label>
+    <label><input id="epsCompare" type="checkbox" checked> NOAA GEFS gleichzeitig einblenden</label>
+  </div>
+  <div id="epsStatus" class="status" role="status" aria-live="polite">Prüfe verifizierte ECMWF-Ensembleindizes …</div>
+  <div class="kpis" id="epsKpis"></div>
+  <div class="chart-box tele-chart"><canvas id="epsChart" role="img" aria-label="ECMWF EPS NAO AO 50-Member Ensembleprognose"></canvas></div>
+  <p id="epsMeta" class="small">Es werden ausschließlich verifizierte Original-ENS-Einzelmitglieder angezeigt; fehlende Prognosen werden nicht interpoliert oder erfunden.</p>
+  <p class="small"><strong>Einordnung:</strong> Die 2001–2020-Validierung bezieht sich auf unabhängige <em>historische Monatsindizes</em> aus NCEP/NCAR-Reanalyse und NOAA/CPC, nicht auf die zukünftige Prognosegüte des ECMWF-Modells. EPS/GEFS verwenden verschiedene Modelle und teilweise unterschiedliche Indexberechnungen. Wahrscheinlichkeiten sind relative Anteile der 50 EPS-Mitglieder, keine objektiv kalibrierten Eintrittswahrscheinlichkeiten.</p>
+  <p class="small">Quellen: <a target="_blank" rel="noopener" href="https://www.ecmwf.int/en/forecasts/datasets/open-data">ECMWF IFS ENS Open Data · CC BY 4.0</a> · <a href="https://www.psl.noaa.gov/data/gridded/data.ncep.reanalysis.html" target="_blank" rel="noopener">NOAA PSL NCEP/NCAR Reanalyse 1</a> · <a target="_blank" rel="noopener" href="https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/history/method.shtml">NOAA/CPC Indexmethoden</a>.</p>
 </section>
 <section class="panel" id="teleMaps">
   <h2>Zirkulationskarten zur meteorologischen Einordnung</h2>
