@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T10:27:44+00:00",
+  "generated_at": "2026-11-12T10:38:43+00:00",
   "remote": {
     "http_status": 200,
     "satellite_markup": true,
@@ -12,12 +12,12 @@
   "capabilities_fixture": "actual EUMETSAT GetCapabilities XML",
   "desktop": {
     "error": "AssertionError()",
-    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 336, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 279, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 348, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 291, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
     "last_url": "http://127.0.0.1:18873/satelliten.html"
   },
   "mobile": {
     "error": "AssertionError()",
-    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 336, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 279, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 348, in main\n    report[name]=exercise(page,name,xml)\n                 ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/climate-dashboard/climate-dashboard/scripts/test_satellite_ui_browser.py\", line 291, in exercise\n    assert 2<=evidence[\"mocked_frame_requests\"]<=8\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
     "last_url": "http://127.0.0.1:18873/satelliten.html"
   }
 }
