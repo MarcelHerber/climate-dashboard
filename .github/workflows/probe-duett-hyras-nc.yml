@@ -1,0 +1,50 @@
+name: Analyse DUETT und HYRAS NetCDF Format
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/probe-duett-hyras-nc.yml"]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q requests netCDF4 numpy
+      - name: Echte Stundenfelder, Stationsdatei und Niederschlagsraster untersuchen
+        run: |
+          python - <<'PY'
+          import requests,netCDF4,tempfile,os,re,zipfile,io
+          s=requests.Session()
+          src={
+          "DUETT_M":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/duett/sunshine_duration/recent/SDU_duett_1km_DE_month_202610.nc",
+          "DUETT_H":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/hourly/duett/sunshine_duration/recent/SDU_duett_2km_DE_60min_202611100950_007.nc",
+          "HYRAS_P":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/hyras_de/precipitation/pr_hyras_1_2026_v6-1_de.nc",
+          }
+          for name,url in src.items():
+              try:
+                  r=s.get(url,timeout=90)
+                  print("FILE",name,r.status_code,len(r.content),flush=True)
+                  r.raise_for_status()
+                  with tempfile.NamedTemporaryFile(suffix=".nc") as tmp:
+                      tmp.write(r.content);tmp.flush()
+                      with netCDF4.Dataset(tmp.name) as d:
+                          print("NETCDF",name,"dim",{k:len(v) for k,v in d.dimensions.items()},
+                            "vars",{k:{"shape":v.shape,"units":getattr(v,"units",None),"_FillValue":getattr(v,"_FillValue",None),"grid_mapping":getattr(v,"grid_mapping",None)} for k,v in d.variables.items()},flush=True)
+              except Exception as e:
+                  print("FILE_ERROR",name,repr(e),flush=True)
+          url="https://opendata.dwd.de/climate_environment/CDC/derived_germany/climate/hourly/duett/sunshine_duration/recent/stundenwerte_duett_SD_18000_akt.zip"
+          try:
+              r=s.get(url,timeout=30);r.raise_for_status()
+              z=zipfile.ZipFile(io.BytesIO(r.content))
+              print("ZIPFILES",z.namelist(),flush=True)
+              for f in z.namelist():
+                  if f.endswith(".txt"):
+                      raw=z.read(f)
+                      print("ZIP_SAMPLE",f,raw[:700].decode("latin-1","replace"),flush=True)
+          except Exception as e:print("ZIP_ERROR",repr(e),flush=True)
+          PY
