@@ -62,6 +62,9 @@ def check_remote():
                     "buffered_film_published":b'id="satFilmLength"' in head,
                     "long_film_published":b'<option value="36">' in head and b'<option value="48">' in head,
                     "overlay_published":b'id="satBordersSvg"' in head and b'satellite_overlay.js' in head,
+                    "fine_2hpa_published":b'<option value="2">' in head,
+                    "fine_assets_published":b'20261112-isobars-fine2-v2' in head,
+                    "pressures_h_t_present":b'sat-isobar-explainer' in head and b'Druckzentren' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
         return {"error":str(error)[:300]}
@@ -82,6 +85,8 @@ def test_preview_png(width, height, index):
 
 def exercise(page, viewport_label, official_xml):
     evidence = {"viewport": viewport_label}
+    js_errors=[]
+    page.on("pageerror",lambda error: js_errors.append(str(error)[:500]))
     # Only replace the capabilities XML response. Satellite PNGs are loaded
     # directly from the actual EUMETSAT host by Chromium.
     def intercept(route):
@@ -386,6 +391,8 @@ def exercise(page, viewport_label, official_xml):
         assert page.locator("#satMp4").is_disabled()
     page.screenshot(path=str(SHOTS/(viewport_label+".png")),full_page=True)
     evidence["screenshot"]=viewport_label+".png"
+    evidence["uncaught_javascript_errors"]=js_errors
+    assert not js_errors, "Unhandled page JavaScript exception(s): "+repr(js_errors[:5])
     return evidence
 
 
