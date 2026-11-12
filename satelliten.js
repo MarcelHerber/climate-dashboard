@@ -517,6 +517,25 @@ async function exportPixels(t){
    img.src=imageUrl(t);
   });
  }catch(error){
+  // Same-product, same-region, exact-UTC official PNG cache is a reliable
+  // same-origin fallback if the native EUMETSAT WMS denies canvas access.
+  try{
+   const reply=await fetch("./data/satellite_cache/index.json",{cache:"no-store"});
+   if(reply.ok){
+    const manifest=await reply.json(),item=manifest.entries?.[product.value]?.[region.value];
+    if(item&&Date.parse(item.time)===Date.parse(t)&&
+       item.url==="./data/satellite_cache/"+product.value+"_"+region.value+"_"+
+        item.time.replace(/[-:]/g,"")+".png"){
+     return await new Promise((resolve,reject)=>{
+      const cached=new Image();cached.crossOrigin="anonymous";
+      const timer=setTimeout(()=>reject(Error("Archivbild nicht erreichbar.")),5000);
+      cached.onload=()=>{clearTimeout(timer);resolve(cached);};
+      cached.onerror=()=>{clearTimeout(timer);reject(Error("Archivbild beschädigt."));};
+      cached.src=item.url;
+     });
+    }
+   }
+  }catch(_){/* The verified source image may still be canvas-exportable. */}
   if(visible?.naturalWidth)return visible;
   throw error;
  }
