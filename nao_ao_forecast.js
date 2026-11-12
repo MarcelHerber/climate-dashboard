@@ -52,7 +52,11 @@
             filter:item=>!item.text.startsWith("GEFS-Mitglied "),
             usePointStyle:true,boxWidth:12
           }},
-          tooltip:{callbacks:{
+          tooltip:{
+            // Do not flood mobile touch tooltips with 31 individual members;
+            // the complete member values remain available in the CSV export.
+            filter:item=>!item.dataset.label.startsWith("GEFS-Mitglied "),
+            callbacks:{
             title:a=>a?.[0]?.label?stamp(a[0].label):"",
             label:c=>c.dataset.label+": "+num(c.parsed.y)+(probability?" %":"")
           }}
