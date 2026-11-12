@@ -166,7 +166,7 @@ import re
 page=Path("_site/index.html")
 html=page.read_text(encoding="utf-8")
 for name in ("dashboard_cleanup.css","monthly_climate_bars.js"):
-    suffix="20261112-phase2-climate-key-v2"
+    suffix="20261112-phase2-climate-key-v3"
     expression=re.escape(name)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
     html,count=re.subn(expression,name+"?v="+suffix,html)
     if count!=1:
