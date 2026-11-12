@@ -1,0 +1,44 @@
+name: Probe ECMWF ENS Z500 Z1000 maps
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/probe-ecmwf-nao-maps.yml"]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Install ECMWF GRIB libraries
+        run: python -m pip install -q ecmwf-opendata eccodes numpy
+      - name: Inspect actual IFS ensemble-mean heights at 500 and 1000 hPa
+        run: |
+          python - <<'PY'
+          import os, tempfile
+          from ecmwf.opendata import Client
+          import eccodes
+          c=Client(source="ecmwf",model="ifs",resol="0p25",maximum_retries=2,retry_after=3)
+          with tempfile.TemporaryDirectory() as tmp:
+              path=os.path.join(tmp,"ecmwf_ens_gh.grib2")
+              c.retrieve(time=0,stream="enfo",type="em",step=72,param="gh",levelist=[500,1000],target=path)
+              assert os.path.getsize(path)>10000
+              print("GRIB size",os.path.getsize(path),flush=True)
+              frames=[]
+              with open(path,"rb") as f:
+                  while True:
+                      gid=eccodes.codes_grib_new_from_file(f)
+                      if gid is None:break
+                      info={k:eccodes.codes_get(gid,k) for k in [
+                         "shortName","typeOfLevel","level","dataDate","dataTime",
+                         "step","gridType","numberOfDataPoints","latitudeOfFirstGridPointInDegrees",
+                         "longitudeOfFirstGridPointInDegrees","Ni","Nj"]}
+                      import numpy as np
+                      data=eccodes.codes_get_values(gid)
+                      info["min"]=float(np.nanmin(data));info["max"]=float(np.nanmax(data))
+                      frames.append(info)
+                      eccodes.codes_release(gid)
+              print("FIELDS",frames,flush=True)
+              assert {f["level"] for f in frames}=={500,1000}
+              assert all(f["shortName"] in ("gh","z") and f["numberOfDataPoints"]>=100000 for f in frames)
+          PY
