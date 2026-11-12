@@ -148,13 +148,13 @@ def parse_enso_seasons(text: str, name: str) -> list[list[str | float]]:
     return rows
 
 
-def construct(fetch=download) -> dict:
+def construct(fetch=download, previous=None) -> dict:
     ao = parse_daily_csv(fetch(SOURCES["ao"]), "AO")
     nao = parse_daily_csv(fetch(SOURCES["nao"]), "NAO")
     oni = parse_enso_seasons(fetch(SOURCES["oni"]), "ONI")
     roni = parse_enso_seasons(fetch(SOURCES["roni"]), "RONI")
     from update_climate_indices_extra import load_all
-    extra = load_all(fetch)
+    extra = load_all(fetch, previous=previous)
     return {
         "ready": True,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -181,7 +181,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args()
-    payload = construct()
+    previous = None
+    if OUTPUT.is_file():
+        try:
+            previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    payload = construct(previous=previous)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temp = args.output.with_suffix(".json.tmp")
     temp.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n", encoding="utf-8")

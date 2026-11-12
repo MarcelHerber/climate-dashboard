@@ -16,7 +16,7 @@ class NOAAIndicesTests(unittest.TestCase):
         def short_parse(text):
             # Validation needs >=25000 readings: pad using real calendar days
             start=date(1950,1,4)
-            extra="\n".join((start+timedelta(days=i)).isoformat()+",0.25" for i in range(28000))
+            extra="\n".join((start+timedelta(days=i)).isoformat()+",0.25" for i in range((date.today()-start).days+1))
             return mod.parse_daily_csv(text+extra+"\n", "AO")
         rows=short_parse(first)
         self.assertEqual(rows[0],["1950-01-01",-1.25])
