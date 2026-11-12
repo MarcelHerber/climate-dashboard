@@ -91,7 +91,99 @@ function prepare(contours,bbox,spacing=5){
  }
  return groups;
 }
-window.SatelliteIsobarGeometry={prepare,clean,smooth,project,
+// Identify synoptically significant CLOSED, nested model contours, not
+// geographic coastlines or a pixel-derived pressure estimate.
+// Two DISTINCT surrounding contour levels are required in the correct
+// pressure direction. Otherwise a high/low is deliberately unlabelled.
+function insidePolygon(point,ring){
+ let hit=false;
+ for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+  const a=ring[i],b=ring[j];
+  if((a[1]>point[1])!==(b[1]>point[1])&&
+     point[0]<(b[0]-a[0])*(point[1]-a[1])/(b[1]-a[1])+a[0])hit=!hit;
+ }
+ return hit;
+}
+function polygonCenter(ring){
+ let twice=0,sx=0,sy=0;
+ for(let i=0;i<ring.length;i++){
+  const a=ring[i],b=ring[(i+1)%ring.length],cross=a[0]*b[1]-b[0]*a[1];
+  twice+=cross;sx+=(a[0]+b[0])*cross;sy+=(a[1]+b[1])*cross;
+ }
+ if(Math.abs(twice)<.001)return null;
+ const center=[sx/(3*twice),sy/(3*twice)];
+ if(insidePolygon(center,ring))return center;
+ // Irregular rings may have a centroid outside; sample inside their
+ // bounding box rather than guessing from the outline midpoint.
+ let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+ for(const p of ring){minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);
+  minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);}
+ const proposals=[[(minX+maxX)/2,(minY+maxY)/2]];
+ for(let x=1;x<=5;x++)for(let y=1;y<=5;y++)
+  proposals.push([minX+(maxX-minX)*x/6,minY+(maxY-minY)*y/6]);
+ return proposals.find(p=>insidePolygon(p,ring))||null;
+}
+function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparation=94}={}){
+ if(!Array.isArray(contours)||!Array.isArray(bbox)||bbox.length!==4)return [];
+ const rings=[];
+ for(const level of contours){
+  const hpa=Number(level?.hpa);
+  if(!Number.isFinite(hpa)||!Array.isArray(level.lines))continue;
+  for(const line of level.lines){
+   const r=clean(line,bbox);
+   if(!r?.closed||r.diameter<32)continue;
+   // Do not infer a center from an incomplete ring clipped by the map edge.
+   if(r.normalized.some(p=>p[0]<7||p[0]>993||p[1]<7||p[1]>993))continue;
+   let area2=0;
+   for(let i=0;i<r.normalized.length;i++){
+    const a=r.normalized[i],b=r.normalized[(i+1)%r.normalized.length];
+    area2+=a[0]*b[1]-b[0]*a[1];
+   }
+   const area=Math.abs(area2)/2;
+   if(area<220||area>600000)continue;
+   const center=polygonCenter(r.normalized);
+   if(center)rings.push({hpa,center,outline:r.normalized,area});
+  }
+ }
+ const options=[];
+ for(const inner of rings){
+  for(const type of ["T","H"]){
+   // Highs have lower-pressure outer contours; lows have higher outer ones.
+   const surrounding=rings.filter(outer=>outer!==inner&&
+    outer.area>inner.area*1.12&&
+    (type==="T"?outer.hpa>inner.hpa:outer.hpa<inner.hpa)&&
+    insidePolygon(inner.center,outer.outline));
+   const levels=[...new Set(surrounding.map(r=>r.hpa))];
+   const ringCount=levels.length+1;
+   if(ringCount<minRings)continue;
+   // A lower-count, opposite-sign nested system means an ambiguous
+   // saddle: do not draw an unjustified H/T marker there.
+   const opposite=rings.filter(outer=>outer!==inner&&
+    outer.area>inner.area*1.12&&
+    (type==="T"?outer.hpa<inner.hpa:outer.hpa>inner.hpa)&&
+    insidePolygon(inner.center,outer.outline)).length;
+   if(opposite>=levels.length)continue;
+   const score=levels.length*18+
+    Math.min(25,Math.sqrt(inner.area)/7)+
+    Math.min(16,Math.abs(inner.hpa-1013)/3);
+   options.push({type,hpa:inner.hpa,score,center:inner.center,
+    rings:ringCount});
+  }
+ }
+ options.sort((a,b)=>b.score-a.score||a.hpa-b.hpa);
+ const chosen=[];
+ for(const p of options){
+  if(chosen.some(q=>distance(q.center,p.center)<minSeparation))continue;
+  const [x,y]=p.center;
+  if(x<35||x>965||y<35||y>965)continue;
+  const lon=bbox[0]+x/1000*(bbox[2]-bbox[0]);
+  const lat=bbox[3]-y/1000*(bbox[3]-bbox[1]);
+  chosen.push({type:p.type,lon,lat,hpa:p.hpa,score:p.score,rings:p.rings});
+  if(chosen.length>=maxSystems)break;
+ }
+ return chosen;
+}
+window.SatelliteIsobarGeometry={detectPressureSystems,prepare,clean,smooth,project,
  settings:{minLoopDiagonal:MIN_LOOP_DIAGONAL,minLoopArea:MIN_LOOP_AREA,
   minOpenLength:MIN_OPEN_LENGTH,smoothing:SMOOTHING,maxShift:MAX_SHIFT}};
 })();
