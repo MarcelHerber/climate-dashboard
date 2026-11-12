@@ -32,7 +32,7 @@ function pressureCenters(overlay,region){
  if(!b||!geo?.detectVisiblePressureSystems||!Array.isArray(overlay?.contours))return [];
  const caps={atlantic:8,europe:6,southwest:5,central:3,germany:2};
  return geo.detectVisiblePressureSystems(overlay.contours,b,{
-  minRings:3,maxSystems:caps[region]||5,minSeparation:94
+  minRings:Number(overlay.spacing)===2?6:3,maxSystems:caps[region]||5,minSeparation:94
  });
 }
 function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
