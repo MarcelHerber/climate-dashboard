@@ -44,7 +44,7 @@ jobs:
           node --check satellite_isobars.js
           node --check satellite_film_export.js
       - name: Python syntax
-        run: python -m py_compile scripts/check_satellite_wms.py scripts/audit_satellite_layers.py
+        run: python -m py_compile scripts/check_satellite_wms.py scripts/audit_satellite_layers.py scripts/test_satellite_ui_browser.py
       - name: Satellite regression tests
         run: |
           node --test tests/test_satelliten_ui.cjs
