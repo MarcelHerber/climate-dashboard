@@ -7,7 +7,7 @@ INDEX=ROOT/"index.html"
 BUILD=ROOT/"scripts/build_pages_site.sh"
 
 CSS_TAG='<link rel="stylesheet" href="state_monthly_ensemble.css?v=20261011-1">'
-JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-daily-precip-1"></script>'
+JS_TAG='<script src="state_monthly_ensemble.js?v=20261112-daily-sun-1"></script>'
 NAV_ANCHOR='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'t850-ensembles\')">Ensembles</button>'
 NAV_BUTTON='<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'state-monthly-ensemble\')">Monatsausblick</button>'
 MARKER='<!-- ================= BUNDESLAND MONATS-ENSEMBLES ================= -->'
