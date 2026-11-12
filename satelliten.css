@@ -148,3 +148,8 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-image-stack[data-ir-preset="monochrome"] > #satImage,.sat-image-stack[data-ir-preset="monochrome"] #satFilmStage img{filter:grayscale(1) contrast(1.16)}
 .sat-image-stack[data-ir-preset="negative"] > #satImage,.sat-image-stack[data-ir-preset="negative"] #satFilmStage img{filter:grayscale(1) invert(1) contrast(1.25)}
 @media(max-width:650px){.sat-view-controls{gap:6px}.sat-view-controls label{width:100%;justify-content:space-between}.sat-view-controls select{max-width:60%}}
+
+/* Lightning accumulations in the same native EPSG:4326 projection as the FCI scene. */
+.sat-lightning-overlay{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.sat-lightning-overlay[hidden]{display:none}
+.sat-lightning-overlay img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill;mix-blend-mode:screen}
