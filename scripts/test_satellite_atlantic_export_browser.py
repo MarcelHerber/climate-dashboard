@@ -39,9 +39,9 @@ CONTOURS = [
     {"hpa":995,"lines":[ring(-55,55,3)]},
     {"hpa":1000,"lines":[ring(-55,55,6)]},
     {"hpa":1005,"lines":[ring(-55,55,10)]},
+    # Deliberately a broad SHALLOW high with just one closed 1020 hPa
+    # contour, matching the previously missing real Iceland/Azores highs.
     {"hpa":1020,"lines":[ring(-25,43,10)]},
-    {"hpa":1025,"lines":[ring(-25,43,6)]},
-    {"hpa":1030,"lines":[ring(-25,43,3)]},
 ]
 
 
