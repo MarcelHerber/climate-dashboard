@@ -86,6 +86,7 @@ function chartBounds(datasets){
   let max=Math.ceil((mx+pad)*2)/2;
   if(hydroMode())min=Math.max(0,min);
   if(max-min<2){min-=1;max+=1;}
+  if(hydroMode())min=0;
   return{min,max};
 }
 function bandDataset(label,dataArr,bg,fill,target,borderWidth=0){return{label,data:dataArr,borderColor:"rgba(0,0,0,0)",backgroundColor:bg,borderWidth,pointRadius:0,fill:fill?target:false,tension:.15,spanGaps:false};}
@@ -210,6 +211,7 @@ async function load(force=false){
 async function fetchHydro(param,force=false){
   const cfg=HYDRO_CONFIG[param];
   if(!cfg)return null;
+  if(force)hydro[param]=null;
   if(hydroLoading[param])return hydroLoading[param];
   const task=(async()=>{
     let last=null;
@@ -222,7 +224,8 @@ async function fetchHydro(param,force=false){
         if(json.schema_version!==1||json.parameter!==param||!Array.isArray(json.dates)||!json.regions)throw new Error("Ungültiges Datenformat");
         if(json.unit!==cfg.unit)throw new Error("Unerwartete Einheit: "+json.unit);
         const now=new Date();
-        const currentMonth=now.toLocaleDateString("en-CA",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).slice(0,7);
+        const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit"}).formatToParts(now);
+        const currentMonth=parts.find(p=>p.type==="year").value+"-"+parts.find(p=>p.type==="month").value;
         const datasetMonth=`${json.year}-${String(json.month).padStart(2,"0")}`;
         if(datasetMonth!==currentMonth)throw new Error("Letzter Datenstand "+datasetMonth+" (aktueller Monat "+currentMonth+")");
         hydro[param]=json;
