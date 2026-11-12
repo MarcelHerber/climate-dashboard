@@ -171,13 +171,14 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
   }
  }
  options.sort((a,b)=>b.score-a.score||a.hpa-b.hpa);
- const chosen=[];
+ const chosen=[],selectedCenters=[];
  for(const p of options){
-  if(chosen.some(q=>distance(q.center,p.center)<minSeparation))continue;
+  if(selectedCenters.some(q=>distance(q,p.center)<minSeparation))continue;
   const [x,y]=p.center;
   if(x<35||x>965||y<35||y>965)continue;
   const lon=bbox[0]+x/1000*(bbox[2]-bbox[0]);
   const lat=bbox[3]-y/1000*(bbox[3]-bbox[1]);
+  selectedCenters.push(p.center);
   chosen.push({type:p.type,lon,lat,hpa:p.hpa,score:p.score,rings:p.rings});
   if(chosen.length>=maxSystems)break;
  }
