@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 CSS_TAG = '<link rel="stylesheet" href="sst_europe.css">'
-JS_TAG = '<script src="sst_europe.js"></script>'
+JS_TAG = '<script src="sst_europe.js?v=20261112-sst-recovery-1"></script>'
 LEGACY_BUTTON = '  <button class="tab-button" onclick="switchTab(\'sst-europe\')">Meere / SST</button>\n'
 CURRENT_BUTTON_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'sst-europe\')">Meere / SST</button>'
 CURRENT_NAV_HTML = '<button class="tab-button" data-nav-group="europe" onclick="switchTab(\'era5Europe\')">ERA5-Land Europa</button>'
@@ -49,6 +49,11 @@ PANEL = '''<!-- ================= MEERE / SST ================= -->
 
 
 def patch_html(text: str) -> str:
+    # An existing SST panel may still have an older script URL. Replace its
+    # single script rather than adding a second one (important for idempotency).
+    old_script = r'<script src="sst_europe\\.js(?:\\?[^"]*)?"></script>'
+    if re.search(old_script, text):
+        text = re.sub(old_script, lambda _: JS_TAG, text, count=1)
     if all(marker in text for marker in (CSS_TAG, JS_TAG, 'id="sst-europe"', "switchTab('sst-europe')")):
         return text
 
