@@ -80,21 +80,34 @@ function renderer(input,width){
  const first=input.frames[0]?.img;
  const ratio=first?.naturalHeight/first?.naturalWidth;
  if(!Number.isFinite(ratio)||ratio<=0)throw new Error("Filmbilder nicht bereit");
- const mapHeight=Math.round(width*ratio),header=44,footer=32;
+ const mapHeight=Math.round(width*ratio),header=44,footer=input.isobarOverlays?52:32;
  const canvas=document.createElement("canvas");
  canvas.width=width;canvas.height=header+mapHeight+footer;
  const ctx=canvas.getContext("2d",{willReadFrequently:true});
  if(!ctx)throw new Error("Canvas fehlt");
- function draw(frame){
+ function draw(frame,frameIndex=0){
   if(!frame.time||!Number.isFinite(Date.parse(frame.time)))throw new Error("Kein gültiger UTC-Zeitpunkt");
   ctx.fillStyle="#12263d";ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(frame.img,0,header,width,mapHeight);
+  if(input.isobarOverlays){
+   const pressure=input.isobarOverlays[frameIndex];
+   if(!pressure||pressure.satelliteUTC!==frame.time)
+    throw new Error("Keine zum Filmzeitpunkt passenden Isobaren vorhanden.");
+   if(!window.SatelliteMapExport?.paintIsobars)
+    throw new Error("Isobaren-Zeichner für GIF-Export fehlt.");
+   window.SatelliteMapExport.paintIsobars(ctx,pressure,input.region,{x:0,y:header,width,height:mapHeight});
+  }
   ctx.fillStyle="#ffffff";
   ctx.font="bold "+Math.max(12,Math.round(width/23))+"px Arial,sans-serif";
   ctx.fillText("MTG · "+input.productName,12,Math.round(header*.65),width-24);
   ctx.font=Math.max(10,Math.round(width/34))+"px Arial,sans-serif";
   ctx.fillText(new Date(frame.time).toISOString().replace(".000Z"," UTC"),12,header+mapHeight+20,width-24);
   ctx.fillText(input.credit||"© EUMETSAT",Math.max(12,width-175),header+mapHeight+20,170);
+  if(input.isobarOverlays){
+   const layer=input.isobarOverlays[frameIndex];
+   ctx.fillStyle="#ff4fcf";
+   ctx.fillText("ECMWF IFS · "+layer.method+" · "+new Date(layer.validUTC).toISOString().slice(11,16)+" UTC",12,header+mapHeight+39,width-24);
+  }
  }
  return {canvas,ctx,draw};
 }
@@ -102,7 +115,7 @@ async function exportGIF(input){
  const width=Math.min(480,Math.max(160,Math.round(input.width||320)));
  const {canvas,ctx,draw}=renderer(input,width),frames=[];
  for(let n=0;n<input.frames.length;n++){
-  draw(input.frames[n]);
+  draw(input.frames[n],n);
   const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
   const indexed=new Uint8Array(canvas.width*canvas.height);
   for(let k=0,i=0;k<indexed.length;k++,i+=4)indexed[k]=rgb332(rgba[i],rgba[i+1],rgba[i+2]);
@@ -132,7 +145,7 @@ async function exportMP4(input){
   recorder.start();
   const step=Math.max(150,Math.min(1500,Number(input.delayMs)||750));
   for(let n=0;n<input.frames.length;n++){
-   draw(input.frames[n]);track?.requestFrame?.();
+   draw(input.frames[n],n);track?.requestFrame?.();
    input.progress?.(n+1,input.frames.length);
    await wait(step);
   }
