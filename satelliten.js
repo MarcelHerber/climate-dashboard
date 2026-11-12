@@ -134,7 +134,9 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  function fail(reason){
   if(!current()||!filmImage.hidden)return;
   if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
-  if(level+1<widths.length){
+  // HTTP image errors are usually upstream 500/504, not a size problem.
+  // Only a real timeout justifies one smaller retry.
+  if(level+1<widths.length&&reason.startsWith("Timeout")){
    level++;
    setStatus("EUMETSAT-Bild "+(level===1?"lädt zu langsam":"nicht verfügbar")+
      " ("+reason+"). Versuche dieselbe Aufnahme mit "+widths[level]+" px …","warning");
@@ -142,7 +144,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
   }
   // Try at most two earlier WMS-advertised observations; never relabel their timestamps.
   const previous=t?frames.indexOf(t)-1:-1;
-  if(previous>=0&&fallbackDepth<2){
+  if(previous>=0&&fallbackDepth<1){
    index=previous;time.value=String(index);
    drawFrame(frames[index],fallbackDepth+1,requestedTime);
    setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
@@ -190,7 +192,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
   };
   image.onerror=()=>fail("Bildfehler");
   image.src=url;
-  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?12000:10000);
+  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?6500:4000);
   buttons();
  }
  attempt();
@@ -255,6 +257,36 @@ async function manifestFallback(mine,reason){
   drawFrame(null);
  }
 }
+// Fast start: the small GitHub Pages manifest contains *actual WMS-advertised*
+// observation times. Its map_ok flag is a separate completed-image probe.
+// Never wait for the multi-megabyte EUMETSAT GetCapabilities before showing a map.
+async function tryFastManifest(mine){
+ const request=new AbortController();
+ const timer=setTimeout(()=>request.abort(),2500);
+ try{
+  const response=await fetch("./data/satellite_wms_times.json",{signal:request.signal,cache:"no-store"});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const doc=await response.json();
+  if(mine!==token)return true;
+  const age=Date.now()-Date.parse(doc.generated_at);
+  const layer=doc.products?.[product.value];
+  if(!doc.capabilities_ok||!Number.isFinite(age)||age<0||age>3*3600000||
+     !Array.isArray(layer?.available_times)||layer.available_times.length<1)return false;
+  const values=layer.available_times.filter(x=>Number.isFinite(Date.parse(x))&&Date.parse(x)<=Date.now()+600000);
+  frames=[...new Set(values)].sort().slice(-48);
+  if(!frames.length)return false;
+  metadataSource="manifest";
+  fillTimes();
+  drawFrame(frames[index]);
+  const confirmed=Boolean(layer.map_ok&&layer.latest_verified_time===frames[index]);
+  setStatus(confirmed
+    ?"Zeitachse direkt aus dem letzten erfolgreichen WMS-Bildcheck geladen. Lade Satellitenvorschau …"
+    :"Zeitachse aus der echten WMS-Liste geladen. Bildabruf noch nicht bestätigt …",
+    confirmed?"info":"warning");
+  return true;
+ }catch(_){return false;}
+ finally{clearTimeout(timer);}
+}
 async function refresh(){
  stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";fillTimes();
  id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
@@ -272,9 +304,13 @@ async function refresh(){
  setStatus("Lade EUMETSAT-Bild; prüfe verfügbare UTC-Zeitpunkte …");
  // Avoid a concurrent unverified GetMap request while fetching WMS timestamps.
  image.hidden=true;empty.hidden=false;
- empty.textContent="Ermittle verfügbare Satellitenzeitpunkte …";
+ empty.textContent="Lade verfügbare UTC-Aufnahmen aus dem lokalen Status …";
+ if(await tryFastManifest(mine))return;
+ if(mine!==token)return;
+ setStatus("Lokale WMS-Zeitliste fehlt oder ist veraltet. Prüfe EUMETSAT direkt …","warning");
+ empty.textContent="EUMETSAT-Zeitpunkte werden direkt überprüft …";
  const caps=API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetCapabilities"}).toString();
- const timeout=setTimeout(()=>controller.abort(),16000);
+ const timeout=setTimeout(()=>controller.abort(),8000);
  try{
   const response=await fetch(caps,{signal:controller.signal,mode:"cors",cache:"no-store"});
   if(!response.ok)throw new Error("HTTP "+response.status);
@@ -299,7 +335,7 @@ function previewAttempt(t,width,ordinal){
    if(reason!=="ok")im.src="";
    resolve(reason==="ok"?{item:{time:t,img:im,index:ordinal},reason}:{item:null,reason});
   };
-  const timeout=setTimeout(()=>finish("timeout"),12000);
+  const timeout=setTimeout(()=>finish("timeout"),6500);
   im.onload=()=>finish(im.naturalWidth>0?"ok":"error");
   im.onerror=()=>finish("error");
   im.src=imageUrl(t,width);
@@ -308,10 +344,10 @@ function previewAttempt(t,width,ordinal){
 async function loadedPreview(t,width,ordinal){
  const first=await previewAttempt(t,width,ordinal);
  if(first.item)return first.item;
- // EUMETSAT occasionally responds with HTTP 500 to a particular image
- // size. Try one alternate preview size on a quick error, not on timeout.
+ // If a small WMS image is rejected quickly, try an even smaller one
+ // instead of the former 720px fallback that amplified server work.
  if(first.reason==="error"&&(width===480||width===320)){
-  const fallback=await previewAttempt(t,720,ordinal);
+  const fallback=await previewAttempt(t,width===480?320:240,ordinal);
   return fallback.item;
  }
  return null;
@@ -390,7 +426,7 @@ async function prepareFilm(){
  if(generation!==filmGeneration)return;
  filmLoading=false;
  filmItems=results.filter(Boolean);
- filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px"+(filmItems.some(item=>item.img.naturalWidth>size)?", einzelne Ersatzbilder 720 px":"")+")";
+ filmProgressLabel.textContent=filmItems.length+" von "+clip.length+" Filmbildern bereit ("+size+" px"+(filmItems.some(item=>item.img.naturalWidth<size)?", einzelne Bilder nochmals reduziert":"")+")";
  if(filmItems.length<2){
   play.textContent="▶ Erneut versuchen";
   setStatus("Für den Film konnten nicht mindestens zwei Satellitenbilder geladen werden. Bitte kleinere Filmlänge wählen oder erneut versuchen.","warning");
