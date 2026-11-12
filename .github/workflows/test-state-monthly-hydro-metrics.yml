@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Veröffentlichte 2026-Modell- und echte Tagesreferenzdaten abrufen
         shell: bash
         run: |
