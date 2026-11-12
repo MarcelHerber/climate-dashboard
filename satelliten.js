@@ -112,6 +112,7 @@ function imageUrl(t,previewWidth=0){const layer=description(),r=REGIONS[region.v
 }
 function drawFrame(t, fallbackDepth=0, requestedTime=t){
  const seq=token,req=++imageRequest;
+ window.SatelliteHD?.cancel("Neuer Aufnahmezeitpunkt · HD-Kacheln werden zurückgesetzt.");
  if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
  loaded=false;verified=Boolean(t);cachedImage=null;
  empty.hidden=true;image.hidden=false;
@@ -127,7 +128,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  id("satImageInfo").textContent=note;
  // Display light previews first. Only the explicit raw-image/PNG action requests full resolution.
  // Keep geographic bounds and the verified UTC unchanged across size retries.
- const widths=[400,320];
+ const widths=[800,400,320];
  const fullUrl=imageUrl(t);
  let level=0;
  const current=()=>seq===token&&req===imageRequest;
@@ -161,7 +162,8 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
      currentUrl=path;id("satRawImage").href=path;id("satRawImage").hidden=false;
      id("satRawImage").textContent="Gespeichertes Archivbild öffnen ↗";
      id("satValid").textContent="Archivaufnahme: "+formatUTC(item.time)+" · nicht live";
-     id("satImageInfo").textContent="Gespeicherter EUMETSAT-WMS-Abruf · "+image.naturalWidth+" px · UTC geprüft · kein Livestream";
+     id("satImageInfo").textContent="Gespeicherter EUMETSAT-WMS-Abruf · "+image.naturalWidth+" × "+image.naturalHeight+" px · UTC geprüft · kein Livestream";
+     window.SatelliteHD?.cancel("Archivbild in "+image.naturalWidth+" px · keine vermeintlichen HD-Nachladebilder.");
      image.alt=description().name+" – gespeicherte Satellitenaufnahme "+formatUTC(item.time);
      window.SatelliteIsobars?.sync({time:item.time,region:region.value,source:source.value});
   window.SatelliteLightning?.sync({time:item.time,region:region.value,source:source.value});
@@ -178,12 +180,12 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  function fail(reason){
   if(!current()||!filmImage.hidden)return;
   if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
-  // The upstream WMS sometimes takes several sequential timeouts.
-  // Prefer a same-product, UTC-labelled real snapshot after the FIRST failed
-  // still request. Only if none is cached do we retry 320px/older frames.
+  // Step down once from 800px to 400px before using an older archive.
+  // Preserve the verified UTC/bbox while avoiding an unnecessary stale image.
+  if(level===0){level=1;setStatus("800-px-Vorschau nicht erreichbar ("+reason+"). Versuche 400 px mit gleichem UTC-Zeitpunkt …","warning");attempt();return;}
   void showCached(reason).then(archived=>{
    if(archived||!current())return;
-   if(level+1<widths.length&&reason.startsWith("Timeout")){
+   if(level+1<widths.length&&(reason.startsWith("Timeout")||reason==="Bildfehler")){
     level++;
     setStatus("EUMETSAT langsam ("+reason+"). Kein passendes Archivbild vorhanden; versuche "+widths[level]+" px …","warning");
     attempt();return;
@@ -224,18 +226,20 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
    if(!current())return;
    if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
    loaded=true;empty.hidden=true;image.hidden=!filmImage.hidden;
-   id("satImageInfo").textContent=note+(level?" · Ersatzbild "+image.naturalWidth+" px":"");
+   id("satImageInfo").textContent=note+" · tatsächlich geladen: "+image.naturalWidth+" × "+image.naturalHeight+" px"+(level?" · reduzierte Vorschau":"");
+   window.SatelliteHD?.sync({time:t,region:region.value,source:source.value,
+     product:product.value,layer:p.layer,ready:true,cached:false});
    buttons();
    if(!filmImage.hidden)return;
    if(level||fallbackDepth)setStatus("Bild für "+(t?formatUTC(t):"unbekannte Zeit")+" in "+image.naturalWidth+
      " px geladen"+(fallbackDepth?" · ältere bestätigte Aufnahme":" · reduzierte Vorschau")+". Originalauflösung über Bildlink oder PNG-Download.","warning");
-   else if(t)setStatus("Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" px) · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
+   else if(t)setStatus("Schärfere Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" × "+image.naturalHeight+" px) · HD/4K über Kacheln auswählbar · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
        (metadataSource==="manifest"?"WMS-Zeitliste im GitHub-Datenstatus":"WMS-Metadaten")+".","info");
    else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");
   };
   image.onerror=()=>fail("Bildfehler");
   image.src=url;
-  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?6500:4000);
+  stillTimeout=setTimeout(()=>fail("Timeout bei "+size+" px"),level===0?8500:level===1?6500:4000);
   buttons();
  }
  attempt();
@@ -331,6 +335,7 @@ async function tryFastManifest(mine){
  finally{clearTimeout(timer);}
 }
 async function refresh(){
+ window.SatelliteHD?.cancel("Satellitenauswahl geändert · keine HD-Kacheln aktiv.");
  stop();token++;const mine=token;abort?.abort();const controller=new AbortController();abort=controller;frames=[];index=-1;loaded=false;metadataSource="";fillTimes();
  id("satOfficial").href=source.value==="mtgi2"?"https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images":description().url;
  id("satOfficial").textContent=source.value==="mtgi2"?"MTG-I2-Erstbilder bei ESA öffnen ↗":"Produkt bei EUMETView öffnen ↗";
@@ -397,6 +402,7 @@ async function loadedPreview(t,width,ordinal){
 }
 function showFilmFrame(){
  const item=filmItems[filmPosition];if(!item)return;
+ window.SatelliteHD?.cancel("Film nutzt die gewählte sparsame Vorschau; HD-Kacheln pausiert.");
  index=item.index;
  time.value=String(index);
  currentUrl=imageUrl(item.time);
@@ -427,6 +433,7 @@ function playReady(){
 }
 async function prepareFilm(){
  if(filmLoading||frames.length<2)return;
+ window.SatelliteHD?.cancel("Filmbilder werden vorgeladen · HD-Kacheln pausiert.");
  stop();
  // Starting a film cancels an unfinished single-frame WMS request before
  // the two preview workers start; otherwise three maps load concurrently.

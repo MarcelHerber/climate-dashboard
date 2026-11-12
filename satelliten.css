@@ -157,3 +157,16 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 /* Reprojected radar is behind borders, pressure contours and city labels. */
 #satRadarOverlay{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill;z-index:2;pointer-events:none}
 #satRadarOverlay[hidden]{display:none}
+
+/* Geographic HD tiles: fixed pixel alignment with the parent EPSG:4326
+   image and every sibling vector layer, even while CSS zooming/panning. */
+.sat-hd-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+.sat-hd-controls label{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:13px;font-weight:700}
+.sat-hd-controls select,.sat-hd-controls button{font:inherit;min-height:42px;background:var(--sat-button);border:1px solid var(--sat-border);color:var(--sat-text);border-radius:8px;padding:7px 11px}
+.sat-hd-controls button{cursor:pointer;font-size:13px;font-weight:700}
+.sat-hd-controls button:disabled{opacity:.5;cursor:not-allowed}
+.sat-hd-status{font-size:12px;color:var(--sat-muted);font-variant-numeric:tabular-nums;max-width:100%!important;margin:0 0 12px}
+.sat-hd-tiles{position:absolute;inset:0;overflow:hidden;z-index:1;pointer-events:none}
+.sat-hd-tiles[hidden]{display:none}
+.sat-hd-tiles img.sat-hd-tile{position:absolute;display:block;height:100%;max-width:none;object-fit:fill;pointer-events:none}
+@media(max-width:650px){.sat-hd-controls{display:grid;grid-template-columns:1fr}.sat-hd-controls label{justify-content:space-between}.sat-hd-controls select{max-width:65%}.sat-hd-controls button{width:100%}}

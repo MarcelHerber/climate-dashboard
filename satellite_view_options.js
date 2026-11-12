@@ -22,6 +22,7 @@ function apply(){
  zoomReset.disabled=!active||scale===1&&x===0&&y===0;
  value.textContent=Math.round(scale*100)+" %";
  frame.classList.toggle("sat-pannable",active&&scale>1);
+ window.SatelliteHD?.viewChanged({scale,x,y});
 }
 function setZoom(next){
  const old=scale;
