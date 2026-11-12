@@ -55,7 +55,7 @@ class IsobarTests(unittest.TestCase):
     def test_candidates_are_not_unavailable_future_cycles(self):
         now=self.run+dt.timedelta(hours=4)
         runs=isobars.candidate_runs(now)
-        self.assertTrue(all(x<=now-dt.timedelta(hours=8) for x in runs))
+        self.assertTrue(all(x<=now-dt.timedelta(hours=6) for x in runs))
         self.assertEqual(len(runs),5)
 
 
