@@ -1,5 +1,13 @@
 name: Satellite browser desktop/mobile test
 on:
+  pull_request:
+    paths:
+      - "satelliten.html"
+      - "satelliten.js"
+      - "satelliten.css"
+      - "satellite_*.js"
+      - "scripts/test_satellite_ui_browser.py"
+      - ".github/workflows/test-satelliten-browser.yml"
   push:
     branches: [main]
     paths:
@@ -7,6 +15,9 @@ on:
       - "satelliten.js"
       - "satelliten.css"
       - "satellite_overlay.js"
+      - "satellite_lightning.js"
+      - "satellite_radar.js"
+      - "satellite_view_options.js"
       - "satellite_isobars.js"
       - "satellite_isobar_geometry.js"
       - "tests/test_satellite_isobar_geometry.cjs"
@@ -36,8 +47,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: main
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
