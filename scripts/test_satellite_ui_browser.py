@@ -215,6 +215,27 @@ def exercise(page, viewport_label, official_xml):
     evidence["ecmwf_isobar_10hpa_count"]=ten_hpa_lines
     assert ten_hpa_lines < original_lines, "10-hPa contours did not reduce the 5-hPa line count"
     page.locator("#satIsobarSpacing").select_option("5")
+    # Real-data regression for the optional European 2-hPa grid. Unlike a
+    # synthetic line interpolation, this uses the exact ECMWF fine sidecar.
+    if ten_manifest.is_file():
+        fine_index=json.loads(ten_manifest.read_text(encoding="utf-8"))
+        if fine_index.get("fine_interval_hpa")==2:
+            assert page.locator('#satIsobarSpacing option[value="2"]').is_enabled()
+            page.locator("#satIsobarSpacing").select_option("2")
+            page.wait_for_function(
+                "() => document.querySelector('#satIsobarStatus').textContent.includes('2 hPa') "
+                "&& !document.querySelector('#satIsobarSvg').hasAttribute('hidden')",
+                timeout=20000)
+            fine_widths=page.eval_on_selector_all(
+                "#satIsobarSvg path[stroke='#ff4fcf']",
+                "(paths) => [...new Set(paths.map(p=>Number(p.getAttribute('stroke-width'))))]")
+            evidence["two_hpa_lines"]=page.locator(
+                "#satIsobarSvg path[stroke='#ff4fcf']").count()
+            evidence["two_hpa_widths"]=fine_widths
+            evidence["two_hpa_status"]=page.locator("#satIsobarStatus").inner_text()
+            assert evidence["two_hpa_lines"]>0 and fine_widths==[0.75], (
+                "Fine ECMWF pressure contours did not use separate 2-hPa geometry")
+            page.locator("#satIsobarSpacing").select_option("5")
     page.locator("#satShowIsobars").uncheck()
     assert page.locator("#satIsobarSvg").is_hidden()
     page.locator("#satShowIsobars").check()
@@ -222,6 +243,9 @@ def exercise(page, viewport_label, official_xml):
     page.screenshot(path=str(SHOTS/(viewport_label+"-southwest.png")),full_page=True)
     # Real EUMETSAT GeoColour request for the new North Atlantic coverage.
     page.locator("#satRegion").select_option("atlantic")
+    evidence["atlantic_two_hpa_disabled"]=not page.locator(
+        '#satIsobarSpacing option[value="2"]').is_enabled()
+    assert evidence["atlantic_two_hpa_disabled"], "Atlantic must not offer 2-hPa contour maps"
     evidence["atlantic_bbox"]="-70%2C15%2C35%2C75" in (page.locator("#satImage").get_attribute("src") or "")
     assert evidence["atlantic_bbox"], "North Atlantic extent is not applied"
     try:
@@ -241,6 +265,7 @@ def exercise(page, viewport_label, official_xml):
         evidence["atlantic_wms_warning"]=page.locator("#satStatus").inner_text()
     # Select the native geostationary projection for full disk.
     page.locator("#satRegion").select_option("disk")
+    assert page.locator("#satIsobarSpacing").is_disabled(), "Disk must not expose geographic pressure contours"
     page.wait_for_timeout(350)
     evidence["full_disk_native_projection"]="AUTO%3A97004" in page.locator("#satImage").get_attribute("src")
     assert evidence["full_disk_native_projection"], "Full-disc projection is not geostationary"
