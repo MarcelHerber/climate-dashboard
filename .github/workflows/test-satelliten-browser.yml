@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: mtg-browser-test
@@ -56,18 +56,23 @@ jobs:
             data/satellite_browser_check_latest.json
             _satellite_test_screenshots/*.png
           if-no-files-found: ignore
-      - name: Save latest browser report (including failures)
+      - name: Summarize browser checks without creating a Pages-triggering commit
         if: always()
         run: |
           if test -s data/satellite_browser_check_latest.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add data/satellite_browser_check_latest.json
-            if ! git diff --cached --quiet; then
-              git commit -m "Update satellite browser test status"
-              git pull --rebase origin main
-              git push origin HEAD:main
-            fi
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          p=Path("data/satellite_browser_check_latest.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          print("## MTG Desktop & Mobile")
+          for kind in ("desktop","mobile"):
+              result=d.get(kind,{})
+              print(f"- {kind}: {'FEHLER: '+str(result['error']) if 'error' in result else 'Tests protokolliert'}")
+              if "mocked_frame_unique_utc" in result:
+                  print(f"  - Film-UTC-Zeitpunkte: {result['mocked_frame_unique_utc']}")
+          print("Vollständige Browserbelege und Screenshots: Workflow-Artefakt.")
+          PY
           fi
       - name: Expose test failure
         if: steps.test.outcome == 'failure'
