@@ -161,8 +161,8 @@ test("Every 10-minute satellite image picks its own recomputed MSLP contours",as
  assert.match(status,/gültig/);
  assert.equal(map.get("satIsobarSvg").hidden,false);
  const paths=map.get("satIsobarSvg").children[0]?.children.filter(n=>n.attrs.d)||[];
- assert.ok(paths.some(p=>p.attrs.stroke==="#3bdeff"),"cyan 5-hPa line");
- assert.ok(paths.some(p=>p.attrs.stroke==="#ffb447"),"amber 10-hPa line");
+ assert.ok(paths.some(p=>p.attrs.stroke==="#ff4fcf"),"single pink isobar colour");
+ assert.ok(!paths.some(p=>["#ffb447","#3bdeff"].includes(p.attrs.stroke)),"old cyan/amber colours removed");
  assert.ok(paths.some(p=>p.attrs.stroke==="#061522"),"dark halo");
  const frame=api.tenFrameAt(at);
  assert.equal(frame.forecast_minute,200);
