@@ -527,7 +527,12 @@ async function exportPixels(t){
  // Preloaded film images use CORS and are already verified for this region.
  if(!filmImage.hidden&&filmItems[filmPosition]?.time===t&&
     visible?.naturalWidth>0&&visible.crossOrigin==="anonymous")return visible;
- if(cachedImage?.time===t&&visible?.naturalWidth>0)return visible;
+ // Same-origin cached imagery is safe, but it must still be the exact
+ // archived image currently displayed, not a film frame or an earlier WMS.
+ const archiveVisible=cachedImage?.time===t&&filmImage.hidden&&image?.naturalWidth>0&&
+  (image.getAttribute?.("src")===cachedImage.url||
+   (typeof image.src==="string"&&image.src.endsWith(cachedImage.url.replace(/^\.\//,"/"))));
+ if(archiveVisible)return image;
  const widths=region.value==="atlantic"?[720,480,400]:
   [REGIONS[region.value].w,720,480];
  const errors=[];
