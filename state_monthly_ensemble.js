@@ -88,9 +88,12 @@ function hydroReferenceDatasets(){
   const out=[];
   if(daily&&daily.some(v=>v!=null))out.push({
     label:selectedParameter()==="sunshine"?"Stationsbasierte 1991–2020-Tagesreferenz · kumuliert (DWD SDK, 6 km)":"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
-    data:daily,borderColor:"#b044d6",borderWidth:2.4,pointRadius:0,tension:.1,spanGaps:false
+    data:daily,borderColor:"#b044d6",borderWidth:2.4,pointRadius:0,tension:.1,spanGaps:false,
+    isDailyClimate:true
   });
-  if(normal!==null)out.push({
+  // The official whole-month normal is a horizontal guide ONLY in the
+  // absolute view; subtracting/dividing it at every day is scientifically wrong.
+  if(normal!==null&&selectedMetric()==="absolute")out.push({
     label:`Klimasumme 1991–2020 · vollständiger Monat ${fmt(normal,1)} ${paramConfig().unit}`,
     data:periodDates().map(()=>normal),borderColor:"rgba(176,68,214,.65)",
     borderWidth:1.6,borderDash:[3,6],pointRadius:0,tension:0,spanGaps:false
@@ -134,14 +137,14 @@ function chartBounds(datasets){
       if(value!==null)values.push(value);
     }
   }
-  if(!values.length)return hydroMode()?{min:0,max:10}:{min:-5,max:20};
+  if(!values.length)return hydroMode()?(selectedMetric()==="anomaly"?{min:-5,max:5}:{min:0,max:10}):{min:-5,max:20};
   const mn=Math.min(...values),mx=Math.max(...values);
   const pad=Math.max(.25,(mx-mn)*.08);
   let min=Math.floor((mn-pad)*2)/2;
   let max=Math.ceil((mx+pad)*2)/2;
-  if(hydroMode())min=Math.max(0,min);
+  if(hydroMode()&&selectedMetric()!=="anomaly")min=Math.max(0,min);
   if(max-min<2){min-=1;max+=1;}
-  if(hydroMode())min=0;
+  if(hydroMode()&&selectedMetric()!=="anomaly")min=0;
   return{min,max};
 }
 function bandDataset(label,dataArr,bg,fill,target,borderWidth=0){return{label,data:dataArr,borderColor:"rgba(0,0,0,0)",backgroundColor:bg,borderWidth,pointRadius:0,fill:fill?target:false,tension:.15,spanGaps:false};}
@@ -163,9 +166,36 @@ function datasetsFor(modelKey,r){
     {label:"Kontroll-/Basislauf",data:ctl,borderColor:p.control,borderWidth:2,pointRadius:0,tension:.12,spanGaps:false}
   ];
 }
+// Every ensemble quantile, control run and observation must be compared with
+// the *same calendar-day cumulative climate*. Never use whole-month normals
+// for within-month anomalies. Missing/zero reference points fail closed.
+function transformHydroValue(value,reference,metric){
+  const observed=num(value),climate=num(reference);
+  if(observed===null||climate===null||climate<0)return null;
+  if(metric==="absolute")return observed;
+  if(metric==="anomaly")return Number((observed-climate).toFixed(3));
+  if(metric==="percent")return climate>0?Number((observed/climate*100).toFixed(3)):null;
+  return null;
+}
 function displayDatasets(modelKey,r){
-  const datasets=datasetsFor(modelKey,r);
-  if(selectedMetric()!=="anomaly"||hydroMode())return datasets;
+  const datasets=datasetsFor(modelKey,r),metric=selectedMetric();
+  if(hydroMode()){
+    if(metric==="absolute")return datasets;
+    const regionName=el("stateMonthlyRegion")?.value||"Deutschland";
+    const daily=dailyHydroRunning(regionName);
+    // Show no calculated anomalies if a real daily reference has not loaded
+    // yet; the selector also disables anomaly/percent until it has.
+    return datasets.map(dataset=>({
+      ...dataset,
+      label:dataset.isDailyClimate?
+        (metric==="percent"?"Klimareferenz 1991–2020 · 100 %":
+         "Klimareferenz 1991–2020 · 0 "+paramConfig().unit):
+        dataset.label,
+      data:(dataset.data||[]).map((v,i)=>transformHydroValue(
+        v,Array.isArray(daily)?daily[i]:null,metric))
+    }));
+  }
+  if(metric!=="anomaly")return datasets;
   const clim=r.climatology_running||[];
   return datasets.map((d,i)=>({
     ...d,
@@ -177,9 +207,23 @@ function displayDatasets(modelKey,r){
     })
   }));
 }
-function chartOptions(bounds){const anomaly=selectedMetric()==="anomaly"&&!hydroMode(),unit=hydroMode()?paramConfig().unit:(anomaly?"K":"°C");return{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
-  scales:{x:{grid:{color:"rgba(120,130,140,.18)"},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:16,font:{size:11}},title:{display:true,text:"Tag"}},y:{min:bounds.min,max:bounds.max,grid:{color:"rgba(120,130,140,.28)"},title:{display:true,text:hydroMode()?`kumulierte ${paramConfig().label} [${unit}]`:(anomaly?"Abweichung 1991–2020 [K]":"laufendes Mittel [°C]")},ticks:{callback:v=>Number(v).toFixed(1)}}},
-  plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label(ctx){const v=num(ctx.raw);if(v===null)return null;return `${ctx.dataset.label}: ${v>0&&anomaly?"+":""}${fmt(v,2)} ${unit}`;}}}}};}
+function chartOptions(bounds){
+  const metric=selectedMetric(),anomaly=metric==="anomaly";
+  const unit=hydroMode()?(metric==="percent"?"%":paramConfig().unit):(anomaly?"K":"°C");
+  const hydroAxis=metric==="percent"?"Prozent der Tagesklimareferenz [%]":
+    anomaly?`Abweichung zur Tagesklimareferenz [${unit}]`:
+    `kumulierte ${paramConfig().label} [${unit}]`;
+  return{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
+    scales:{x:{grid:{color:"rgba(120,130,140,.18)"},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:16,font:{size:11}},title:{display:true,text:"Tag"}},
+      y:{min:bounds.min,max:bounds.max,grid:{color:"rgba(120,130,140,.28)"},
+        title:{display:true,text:hydroMode()?hydroAxis:(anomaly?"Abweichung 1991–2020 [K]":"laufendes Mittel [°C]")},
+        ticks:{callback:v=>Number(v).toFixed(metric==="percent"?0:1)}}},
+    plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label(ctx){
+      const v=num(ctx.raw);if(v===null)return null;
+      return `${ctx.dataset.label}: ${v>0&&anomaly?"+":""}${fmt(v,metric==="percent"?1:2)} ${unit}`;
+    }}}}
+  };
+}
 function destroyCharts(){Object.values(charts).forEach(c=>c?.destroy());charts={};}
 function renderLegend(){
   const n=el("stateMonthlyLegend");if(!n)return;
