@@ -23,7 +23,7 @@ class TenMinuteMSLPTests(unittest.TestCase):
         self.run = dt.datetime(2026, 11, 12, 0, tzinfo=UTC)
         x = np.array([-30.0,-29.5,-29.0])
         y = np.array([40.0,40.5,41.0])
-        self.fields = {h:(x,y,np.full((3,3),1000.0+h)) for h in (0,3,6,9,12)}
+        self.fields = {h:(x,y,np.full((3,3),1000.0+h)) for h in (0,3,6,9,12,15,18)}
 
     def test_grid_interpolated_before_contouring(self):
         x,y,p,steps,fraction = m.interpolate_field(self.fields, 10)
@@ -50,7 +50,7 @@ class TenMinuteMSLPTests(unittest.TestCase):
         xgrid,ygrid=np.meshgrid(xx,yy)
         base=1000+.25*xgrid+.13*ygrid
         field2=base+2
-        grids = {h:(xx,yy,base+h*field2*0+2*h/3) for h in (0,3,6,9,12)}
+        grids = {h:(xx,yy,base+h*field2*0+2*h/3) for h in (0,3,6,9,12,15,18)}
         # 0 and +3 fields differ; 10-minute interpolated contour must shift.
         p0=m.interpolate_field(grids,0)[2]
         p1=m.interpolate_field(grids,10)[2]
@@ -74,18 +74,18 @@ class TenMinuteMSLPTests(unittest.TestCase):
                 index=m.build_10min(self.fields,self.run,self.run+dt.timedelta(hours=7),Path(tmp))
             self.assertEqual(index["time_resolution_minutes"],10)
             self.assertEqual(index["source_interval_hours"],3)
-            self.assertEqual(len(index["hours"]),13)
+            self.assertEqual(len(index["hours"]),19)
             self.assertIn("interpolated",index["note"])
             frames=[]
             for path in index["hours"].values():
                 blob=json.loads((Path(tmp)/path).read_text(encoding="utf-8"))
                 self.assertEqual(blob["run_utc"],index["run_utc"])
                 frames.extend(blob["frames"])
-            self.assertEqual(len(frames),73)
+            self.assertEqual(len(frames),109)
             self.assertEqual(frames[0]["valid_utc"],"2026-11-12T00:00:00Z")
             self.assertEqual(frames[1]["valid_utc"],"2026-11-12T00:10:00Z")
-            self.assertEqual(frames[-1]["valid_utc"],"2026-11-12T12:00:00Z")
-            self.assertEqual(sum(not f["interpolated"] for f in frames),5)
+            self.assertEqual(frames[-1]["valid_utc"],"2026-11-12T18:00:00Z")
+            self.assertEqual(sum(not f["interpolated"] for f in frames),7)
 
 
 if __name__ == "__main__":
