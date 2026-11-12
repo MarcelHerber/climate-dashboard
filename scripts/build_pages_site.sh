@@ -157,6 +157,24 @@ for file in "${required_root_files[@]}"; do
   cp "$file" _site/
 done
 
+# Phase 2: bust old cached Gebietsmittel styles/scripts in published Pages.
+# The source index stays intact for unrelated work and its huge file need not
+# be rewritten by this update. Only the built artifact receives the new tag.
+python - <<'PY'
+from pathlib import Path
+import re
+page=Path("_site/index.html")
+html=page.read_text(encoding="utf-8")
+for name in ("dashboard_cleanup.css","monthly_climate_bars.js"):
+    suffix="20261112-phase2-climate-key-v2"
+    expression=re.escape(name)+r"(?:\?v=[A-Za-z0-9_.-]+)?"
+    html,count=re.subn(expression,name+"?v="+suffix,html)
+    if count!=1:
+        raise SystemExit(f"Phase 2 asset reference ambiguous: {name} ({count})")
+page.write_text(html,encoding="utf-8")
+print("Phase 2: Klimarot & Blau samt neuer Farb-Legende und Tastaturnavigation veröffentlicht.")
+PY
+
 # Publish only verified ECMWF forecast-derived pressure contours; if its
 # independent data workflow has not succeeded yet, keep the satellite
 # control visible but explicitly unavailable (never fabricate a pressure map).
