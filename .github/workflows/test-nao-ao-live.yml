@@ -1,0 +1,39 @@
+name: NAO AO Prognose - Live Browser QA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tests/qa_nao_ao_live.py"
+      - ".github/workflows/test-nao-ao-live.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/qa_nao_ao_live.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Browser vorbereiten
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Live UI Desktop Mobil und Exporte testen
+        run: python tests/qa_nao_ao_live.py --output /tmp/nao-ao-e2e
+      - name: Testergebnisse und Screenshots speichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nao-ao-live-qa-${{ github.run_id }}
+          path: /tmp/nao-ao-e2e
+          if-no-files-found: warn
+          retention-days: 7
