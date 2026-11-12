@@ -31,7 +31,8 @@
     ctx.fillStyle="#19324a";
     line(ctx,metadata.title||"Climate Dashboard Deutschland",MARGIN,46,WIDTH-MARGIN*2,39,true);
     ctx.fillStyle="#58697c";
-    line(ctx,"Climate Dashboard Deutschland · hochauflösender Export",MARGIN,105,WIDTH-MARGIN*2,20,false);
+    line(ctx,metadata.subtitle||"Climate Dashboard Deutschland · hochauflösender Export",
+      MARGIN,105,WIDTH-MARGIN*2,20,false);
     ctx.strokeStyle="#cfd9e4";ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(MARGIN,145);ctx.lineTo(WIDTH-MARGIN,145);ctx.stroke();
     const availableW=WIDTH-MARGIN*2,availableH=HEIGHT-HEADER-FOOTER;
@@ -42,10 +43,27 @@
     ctx.beginPath();ctx.moveTo(MARGIN,HEIGHT-FOOTER+12);
     ctx.lineTo(WIDTH-MARGIN,HEIGHT-FOOTER+12);ctx.stroke();
     ctx.fillStyle="#405369";
-    line(ctx,metadata.source||"Quelle und Bezugszeitraum: siehe Diagramm/Kartenlegende.",
-      MARGIN,HEIGHT-FOOTER+30,WIDTH-MARGIN*2,19,false);
-    line(ctx,"Erstellt: "+new Date().toLocaleString("de-DE")+" · Werte und Einheiten unverändert",
-      MARGIN,HEIGHT-FOOTER+65,WIDTH-MARGIN*2,17,false);
+    const source=String(metadata.source||"Quelle und Bezugszeitraum: siehe Diagramm/Kartenlegende.");
+    // Keep provenance readable, even for very long station or model names:
+    // split into at most two short lines instead of horizontally squashing text.
+    const lines=[];
+    const ctxWidth=WIDTH-MARGIN*2;
+    const words=source.split(/\s+/).filter(Boolean);
+    let current="";
+    ctx.font="400 19px Arial, Helvetica, sans-serif";
+    for(const word of words){
+      const next=current?current+" "+word:word;
+      if(current&&ctx.measureText?.(next).width>ctxWidth){
+        lines.push(current);current=word;
+      }else current=next;
+    }
+    if(current)lines.push(current);
+    for(let i=0;i<Math.min(2,lines.length);i++)
+      line(ctx,lines[i],MARGIN,HEIGHT-FOOTER+27+i*25,ctxWidth,19,false);
+    ctx.fillStyle="#52677b";
+    line(ctx,"Climate Dashboard Deutschland · erstellt: "+new Date().toLocaleString("de-DE")
+      +" · Werte und Einheiten unverändert",
+      MARGIN,HEIGHT-FOOTER+83,ctxWidth,16,false);
     return out;
   }
   function renderChart(chart,metadata){
