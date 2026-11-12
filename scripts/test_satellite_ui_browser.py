@@ -63,7 +63,7 @@ def check_remote():
                     "long_film_published":b'<option value="36">' in head and b'<option value="48">' in head,
                     "overlay_published":b'id="satBordersSvg"' in head and b'satellite_overlay.js' in head,
                     "fine_2hpa_published":b'<option value="2">' in head,
-                    "fine_assets_published":b'20261112-isobars-fine2-v2' in head,
+                    "fine_assets_published":b'20261112-satellite-qa-v3' in head,
                     "pressures_h_t_present":b'sat-isobar-explainer' in head and b'Druckzentren' in head,
                     "content_type":res.headers.get("Content-Type", "")}
     except Exception as error:
