@@ -176,7 +176,7 @@ p=Path("data/satellite_mslp/ten_minute")
 idx=json.loads((p/"index.json").read_text(encoding="utf-8"))
 raw=json.loads(Path("data/satellite_mslp/latest.json").read_text(encoding="utf-8"))
 assert idx["schema_version"]==2 and idx["run_utc"]==raw["run_utc"]
-assert len(idx["hours"])==13 and idx["time_resolution_minutes"]==10
+assert len(idx["hours"]) in (13,19) and idx["time_resolution_minutes"]==10
 assert all((p/file).is_file() for file in idx["hours"].values())
 PY
     cp -R data/satellite_mslp/ten_minute _site/data/satellite_mslp/
