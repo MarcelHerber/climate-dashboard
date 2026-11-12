@@ -10,8 +10,10 @@ assert.ok(start>=0&&end>start);
 const pixelCode=source.slice(start,end);
 const UTC="2026-11-12T11:20:00Z";
 const BOX="-70,15,35,75";
-function fixture({failWidths=[],cacheTime=null,cacheWorks=false}={}){
+function fixture({failWidths=[],cacheTime=null,cacheWorks=false,displayedCache=null,filmActive=false}={}){
  const requests=[],fetches=[],photo={naturalWidth:400,crossOrigin:"",src:"https://view.eumetsat.int/old-image.png"};
+ if(displayedCache)photo.src=displayedCache.src||"https://dashboard.example/data/satellite_cache/"+
+  "geocolour_atlantic_"+UTC.replace(/[-:]/g,"")+".png";
  const region={value:"atlantic"},product={value:"geocolour"};
  class Image {
   constructor(){this.crossOrigin="";this.naturalWidth=0;this.naturalHeight=0;this.onload=null;this.onerror=null;this._src="";}
@@ -43,8 +45,11 @@ function fixture({failWidths=[],cacheTime=null,cacheWorks=false}={}){
   })};
  };
  const window={};
- const sandbox={window,Image,region,product,filmImage:{hidden:true},
-  filmItems:[],filmPosition:0,image:photo,cachedImage:null,fetch,
+ const sandbox={window,Image,region,product,filmImage:{hidden:!filmActive},
+  filmItems:filmActive?[{time:UTC,img:{naturalWidth:400,src:"https://other.example/wrong-film.png",crossOrigin:""}}]:[],
+  filmPosition:0,image:photo,cachedImage:displayedCache?{
+   time:displayedCache.time||UTC,url:cachePath(displayedCache.time||UTC)
+  }:null,fetch,
   setTimeout,clearTimeout,URL,Date,
   REGIONS:{atlantic:{w:1400,h:850,bbox:[-70,15,35,75]}},
   imageUrl:(time,width)=>"https://view.eumetsat.int/geoserver/wms?"+
@@ -95,4 +100,22 @@ test("Atlantic export regression: PNG, PDF, GIF buttons remain and call their ow
  assert.match(source,/composite\.renderPNG\(arg\)/);
  assert.match(source,/exporters\.exportGIF\(/);
  assert.match(source,/\[720,480,400\]/);
+});
+
+test("Same-origin verified archive can be reused only while it is actually displayed",async()=>{
+ const f=fixture({displayedCache:{}});
+ const result=await f.run(UTC);
+ assert.equal(result,f.photo);
+ assert.equal(f.requests.length,0,"No redundant WMS request for correct displayed archive");
+});
+test("A stale preview or a film frame cannot be mistaken for a correctly cached satellite export",async()=>{
+ const wrong=fixture({displayedCache:{src:"https://view.eumetsat.int/other.png"}});
+ const rendered=await wrong.run(UTC);
+ assert.equal(rendered.naturalWidth,720);
+ assert.notEqual(rendered,wrong.photo);
+ assert.equal(wrong.requests.length,1,"Mismatched preview must reload CORS-safe WMS");
+ const playing=fixture({displayedCache:{},filmActive:true});
+ const film=await playing.run(UTC);
+ assert.equal(film.naturalWidth,720);
+ assert.equal(playing.requests.length,1,"Non-CORS film image must not bypass WMS validation");
 });
