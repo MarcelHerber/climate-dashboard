@@ -59,7 +59,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
-  const stroke=heavy=>heavy?1.55*unit:0.9*unit;
+  const stroke=heavy=>Number(overlay.spacing)===2?.75*unit:(heavy?1.55:0.9)*unit;
   const draw=()=>{
    ctx.beginPath();
    for(const run of group.runs){
@@ -70,7 +70,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
    }
    ctx.stroke();
   };
-  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=(group.heavy?2.95:2.3)*unit;draw();
+  ctx.strokeStyle=HALO;ctx.globalAlpha=.94;ctx.lineWidth=(Number(overlay.spacing)===2?1.85:(group.heavy?2.95:2.3))*unit;draw();
   ctx.strokeStyle=PINK;ctx.globalAlpha=1;ctx.lineWidth=stroke(group.heavy);draw();
  }
  for(const group of groups){
@@ -152,8 +152,9 @@ function drawPDFVectors(overlay,region,w,h,bottom){
    });
   }
   const d=path.join("\n");
-  const line=(group.heavy?1.55:.9)*unit;
-  out.push(pdfRGB(HALO)+" RG",fmt((group.heavy?2.95:2.3)*unit)+" w",d,"S");
+  const fine=Number(overlay.spacing)===2;
+  const line=(fine?.75:(group.heavy?1.55:.9))*unit;
+  out.push(pdfRGB(HALO)+" RG",fmt((fine?1.85:(group.heavy?2.95:2.3))*unit)+" w",d,"S");
   out.push(pdfRGB(PINK)+" RG",fmt(line)+" w",d,"S");
  }
  for(const group of groups){
