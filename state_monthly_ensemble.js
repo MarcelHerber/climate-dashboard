@@ -131,7 +131,7 @@ function renderLegend(){
   n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?"":`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
-  if(!data)return;
+  if(!data&&!parameterDoc())return;
   destroyCharts();
   const r=region();
   if(!r){
@@ -208,8 +208,9 @@ function applyView(){
   window.setTimeout(()=>Object.values(charts).forEach(c=>c?.resize()),60);
 }
 function fillRegions(){
-  const s=el("stateMonthlyRegion");if(!s||!data)return;const old=s.value||"Deutschland";s.innerHTML="";
-  data.regions_order.forEach(name=>{const o=document.createElement("option");o.value=name;o.textContent=name;s.appendChild(o);});s.value=data.regions_order.includes(old)?old:"Deutschland";
+  const s=el("stateMonthlyRegion"),order=data?.regions_order||parameterDoc()?.regions_order;
+  if(!s||!order)return;const old=s.value||"Deutschland";s.innerHTML="";
+  order.forEach(name=>{const o=document.createElement("option");o.value=name;o.textContent=name;s.appendChild(o);});s.value=order.includes(old)?old:"Deutschland";
 }
 async function load(force=false){
   if(loading)return loading;setStatus("Bundesland-Monatsensembles werden geladen …","info");
@@ -238,6 +239,7 @@ async function fetchHydro(param,force=false){
         if(datasetMonth!==currentMonth)throw new Error("Letzter Datenstand "+datasetMonth+" (aktueller Monat "+currentMonth+")");
         hydro[param]=json;
         delete hydroErrors[param];
+        if(!data)fillRegions();
         if(selectedParameter()===param)render();
         return json;
       }catch(error){last=error;console.warn("Monatsausblick",param,base,error);}
