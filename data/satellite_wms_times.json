@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-12T11:03:57Z",
+  "generated_at": "2026-11-12T11:39:09Z",
   "provider": "EUMETSAT",
   "service": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -8,9 +8,6 @@
     "geocolour": {
       "layer": "mtg_fd:rgb_geocolour",
       "available_times": [
-        "2026-11-12T02:50:00Z",
-        "2026-11-12T03:00:00Z",
-        "2026-11-12T03:10:00Z",
         "2026-11-12T03:20:00Z",
         "2026-11-12T03:30:00Z",
         "2026-11-12T03:40:00Z",
@@ -55,44 +52,36 @@
         "2026-11-12T10:10:00Z",
         "2026-11-12T10:20:00Z",
         "2026-11-12T10:30:00Z",
-        "2026-11-12T10:40:00Z"
+        "2026-11-12T10:40:00Z",
+        "2026-11-12T10:50:00Z",
+        "2026-11-12T11:00:00Z",
+        "2026-11-12T11:10:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T10:40:00Z",
-      "latest_verified_time": "2026-11-12T10:40:00Z",
-      "map_ok": true,
-      "error": null,
-      "ok": true,
-      "bytes": 334839,
-      "http_status": 200,
-      "content_type": "image/png",
-      "cors_allow_origin": "*",
-      "age_minutes": 24.0,
-      "fresh": true,
-      "full_disk_ok": true,
-      "full_disk_bytes": 313491,
+      "latest_advertised_time": "2026-11-12T11:10:00Z",
+      "latest_verified_time": null,
+      "map_ok": false,
+      "error": "HTTP Error 500: Internal Server Error",
+      "full_disk_ok": false,
+      "full_disk_error": "<urlopen error timed out>",
       "atlantic_ok": false,
-      "atlantic_error": "The read operation timed out",
-      "southwest_ok": true,
-      "southwest_bytes": 1586261,
+      "atlantic_error": "<urlopen error timed out>",
+      "southwest_ok": false,
+      "southwest_error": "HTTP Error 500: Internal Server Error",
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 264022
+          "bytes": 261919
         },
         {
-          "width": 720,
-          "bytes": 606020
+          "width": 480,
+          "bytes": 261076
         }
       ]
     },
     "dust": {
       "layer": "mtg_fd:rgb_dust",
       "available_times": [
-        "2026-11-12T02:50:00Z",
-        "2026-11-12T03:00:00Z",
-        "2026-11-12T03:10:00Z",
-        "2026-11-12T03:20:00Z",
         "2026-11-12T03:30:00Z",
         "2026-11-12T03:40:00Z",
         "2026-11-12T03:50:00Z",
@@ -136,28 +125,35 @@
         "2026-11-12T10:10:00Z",
         "2026-11-12T10:20:00Z",
         "2026-11-12T10:30:00Z",
-        "2026-11-12T10:40:00Z"
+        "2026-11-12T10:40:00Z",
+        "2026-11-12T10:50:00Z",
+        "2026-11-12T11:00:00Z",
+        "2026-11-12T11:10:00Z",
+        "2026-11-12T11:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T10:40:00Z",
-      "latest_verified_time": null,
-      "map_ok": false,
-      "error": "The read operation timed out",
+      "latest_advertised_time": "2026-11-12T11:20:00Z",
+      "latest_verified_time": "2026-11-12T11:20:00Z",
+      "map_ok": true,
+      "error": null,
+      "ok": true,
+      "bytes": 554698,
+      "http_status": 200,
+      "content_type": "image/png",
+      "cors_allow_origin": "*",
+      "age_minutes": 19.2,
+      "fresh": true,
       "full_disk_ok": true,
-      "full_disk_bytes": 254978,
-      "atlantic_ok": false,
-      "atlantic_error": "The read operation timed out",
-      "southwest_ok": true,
-      "southwest_bytes": 1965116,
+      "full_disk_bytes": 287893,
+      "atlantic_ok": true,
+      "atlantic_bytes": 1021527,
+      "southwest_ok": false,
+      "southwest_error": "<urlopen error timed out>",
       "film_preview_ok": false,
-      "film_preview_error": "The read operation timed out"
+      "film_preview_error": "<urlopen error timed out>"
     },
     "cloudtype": {
       "layer": "mtg_fd:rgb_cloudtype",
       "available_times": [
-        "2026-11-12T02:50:00Z",
-        "2026-11-12T03:00:00Z",
-        "2026-11-12T03:10:00Z",
-        "2026-11-12T03:20:00Z",
         "2026-11-12T03:30:00Z",
         "2026-11-12T03:40:00Z",
         "2026-11-12T03:50:00Z",
@@ -201,37 +197,28 @@
         "2026-11-12T10:10:00Z",
         "2026-11-12T10:20:00Z",
         "2026-11-12T10:30:00Z",
-        "2026-11-12T10:40:00Z"
+        "2026-11-12T10:40:00Z",
+        "2026-11-12T10:50:00Z",
+        "2026-11-12T11:00:00Z",
+        "2026-11-12T11:10:00Z",
+        "2026-11-12T11:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T10:40:00Z",
+      "latest_advertised_time": "2026-11-12T11:20:00Z",
       "latest_verified_time": null,
       "map_ok": false,
       "error": "The read operation timed out",
       "full_disk_ok": true,
-      "full_disk_bytes": 339252,
+      "full_disk_bytes": 342427,
       "atlantic_ok": false,
       "atlantic_error": "The read operation timed out",
       "southwest_ok": false,
       "southwest_error": "The read operation timed out",
-      "film_preview_ok": true,
-      "film_preview_bytes": [
-        {
-          "width": 480,
-          "bytes": 323715
-        },
-        {
-          "width": 480,
-          "bytes": 323013
-        }
-      ]
+      "film_preview_ok": false,
+      "film_preview_error": "The read operation timed out"
     },
     "ir105": {
       "layer": "mtg_fd:ir105_hrfi",
       "available_times": [
-        "2026-11-12T02:50:00Z",
-        "2026-11-12T03:00:00Z",
-        "2026-11-12T03:10:00Z",
-        "2026-11-12T03:20:00Z",
         "2026-11-12T03:30:00Z",
         "2026-11-12T03:40:00Z",
         "2026-11-12T03:50:00Z",
@@ -275,44 +262,37 @@
         "2026-11-12T10:10:00Z",
         "2026-11-12T10:20:00Z",
         "2026-11-12T10:30:00Z",
-        "2026-11-12T10:40:00Z"
+        "2026-11-12T10:40:00Z",
+        "2026-11-12T10:50:00Z",
+        "2026-11-12T11:00:00Z",
+        "2026-11-12T11:10:00Z",
+        "2026-11-12T11:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T10:40:00Z",
-      "latest_verified_time": "2026-11-12T10:40:00Z",
-      "map_ok": true,
-      "error": null,
-      "ok": true,
-      "bytes": 72710,
-      "http_status": 200,
-      "content_type": "image/png",
-      "cors_allow_origin": "*",
-      "age_minutes": 24.0,
-      "fresh": true,
-      "full_disk_ok": true,
-      "full_disk_bytes": 70853,
-      "atlantic_ok": false,
-      "atlantic_error": "The read operation timed out",
+      "latest_advertised_time": "2026-11-12T11:20:00Z",
+      "latest_verified_time": null,
+      "map_ok": false,
+      "error": "<urlopen error timed out>",
+      "full_disk_ok": false,
+      "full_disk_error": "The read operation timed out",
+      "atlantic_ok": true,
+      "atlantic_bytes": 158496,
       "southwest_ok": true,
-      "southwest_bytes": 245863,
+      "southwest_bytes": 243046,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
           "width": 480,
-          "bytes": 51912
+          "bytes": 51131
         },
         {
           "width": 480,
-          "bytes": 51769
+          "bytes": 51184
         }
       ]
     },
     "firetemperature": {
       "layer": "mtg_fd:rgb_firetemperature",
       "available_times": [
-        "2026-11-12T02:50:00Z",
-        "2026-11-12T03:00:00Z",
-        "2026-11-12T03:10:00Z",
-        "2026-11-12T03:20:00Z",
         "2026-11-12T03:30:00Z",
         "2026-11-12T03:40:00Z",
         "2026-11-12T03:50:00Z",
@@ -356,27 +336,31 @@
         "2026-11-12T10:10:00Z",
         "2026-11-12T10:20:00Z",
         "2026-11-12T10:30:00Z",
-        "2026-11-12T10:40:00Z"
+        "2026-11-12T10:40:00Z",
+        "2026-11-12T10:50:00Z",
+        "2026-11-12T11:00:00Z",
+        "2026-11-12T11:10:00Z",
+        "2026-11-12T11:20:00Z"
       ],
-      "latest_advertised_time": "2026-11-12T10:40:00Z",
+      "latest_advertised_time": "2026-11-12T11:20:00Z",
       "latest_verified_time": null,
       "map_ok": false,
-      "error": "The read operation timed out",
-      "full_disk_ok": false,
-      "full_disk_error": "<urlopen error timed out>",
+      "error": "HTTP Error 504: Gateway Time-out",
+      "full_disk_ok": true,
+      "full_disk_bytes": 273391,
       "atlantic_ok": false,
       "atlantic_error": "The read operation timed out",
-      "southwest_ok": false,
-      "southwest_error": "<urlopen error timed out>",
+      "southwest_ok": true,
+      "southwest_bytes": 1570117,
       "film_preview_ok": true,
       "film_preview_bytes": [
         {
-          "width": 720,
-          "bytes": 558527
+          "width": 480,
+          "bytes": 253990
         },
         {
           "width": 480,
-          "bytes": 247946
+          "bytes": 254930
         }
       ]
     }
