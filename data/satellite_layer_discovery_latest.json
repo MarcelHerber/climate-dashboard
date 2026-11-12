@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-12T17:31:39+00:00",
+  "checked_at": "2026-11-12T18:35:40+00:00",
   "provider": "EUMETSAT EUMETView",
   "wms": "https://view.eumetsat.int/geoserver/wms",
   "capabilities_ok": true,
@@ -11,16 +11,11 @@
       {
         "layer": "mtg_fd:ir105_hrfi",
         "title": "FCI HRFI IR10.5 μm Image - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T17:10:00Z",
-        "map_ok": true,
+        "latest_advertised_time": "2026-11-12T18:10:00Z",
+        "map_ok": false,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Air105_hrfi",
-        "bytes": 81729,
-        "http_status": 200,
-        "cors_allow_origin": "*",
-        "latest_verified_time": "2026-11-12T17:10:00Z",
-        "age_minutes": 21.9,
-        "recent": true
+        "error": "The read operation timed out"
       }
     ],
     "convection": [],
@@ -28,18 +23,18 @@
       {
         "layer": "mtg_fd:rgb_firetemperature",
         "title": "Fire Temperature RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T17:10:00Z",
+        "latest_advertised_time": "2026-11-12T18:10:00Z",
         "map_ok": false,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_firetemperature",
-        "error": "The read operation timed out"
+        "error": "HTTP Error 504: Gateway Time-out"
       }
     ],
     "lightning": [
       {
         "layer": "mtg_fd:li_afa",
         "title": "LI Accumulated Flash Area - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T17:20:00Z",
+        "latest_advertised_time": "2026-11-12T18:25:00Z",
         "map_ok": false,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Ali_afa",
@@ -51,11 +46,11 @@
       {
         "layer": "mtg_fd:rgb_cloudphase",
         "title": "Cloud Phase RGB - MTG-I - 0 degree",
-        "latest_advertised_time": "2026-11-12T17:10:00Z",
+        "latest_advertised_time": "2026-11-12T18:10:00Z",
         "map_ok": false,
         "tested": true,
         "product_page": "https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_cloudphase",
-        "error": "HTTP Error 504: Gateway Time-out"
+        "error": "The read operation timed out"
       }
     ],
     "water_vapour": []
