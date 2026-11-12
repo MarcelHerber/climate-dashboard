@@ -8,7 +8,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 BASE="https://marcelherber.github.io/climate-dashboard/"
-MARKER="monthly_climate_bars.js?v=20261111-climatebars1"
+MARKER="monthly_climate_bars.js?v=20261112-phase2-climate-key-v2"
 REPORT=Path("climate_bars_audit")
 REPORT.mkdir(exist_ok=True)
 
@@ -43,7 +43,11 @@ def chart_state(page):
         png:a?.toBase64Image?.().startsWith("data:image/png")||false,
         canvasWidth:document.getElementById("monthlyChart").getBoundingClientRect().width,
         containerWidth:document.querySelector("#monthlyTimeSeries > .chart-container")?.getBoundingClientRect().width,
-        viewport:innerWidth
+        viewport:innerWidth,
+        colorKeys:[...document.querySelectorAll("#monthly .monthly-climate-key")].map(n=>({
+            parameter:n.dataset.parameter,text:n.innerText,role:n.getAttribute("role")
+        })),
+        keyboardReady:document.getElementById("monthlyChart").tabIndex===0
       };
     }""")
 
@@ -66,6 +70,11 @@ def verify_parameter(page,parameter):
     assert state["bars"]>=40 and state["deviationBars"]>=40,state
     assert state["png"] and state["baselineOpts"],state
     assert state["canvasWidth"]>50 and state["canvasWidth"]<=state["containerWidth"]+3,state
+    assert len(state["colorKeys"])==2,state
+    assert all(k["parameter"]==parameter and k["role"]=="note" for k in state["colorKeys"]),state
+    assert state["keyboardReady"],state
+    positive={"temp":"Wärmer als Mittel","rain":"Nasser als Mittel","sun":"Sonniger als Mittel"}[parameter]
+    assert all(positive in k["text"] for k in state["colorKeys"]),state
     expected={"temp":("199,62,69","39,103,190"),
               "rain":("39,111,184","180,113,57"),
               "sun":("221,159,46","86,120,167")}[parameter]
@@ -110,6 +119,15 @@ def audit_view(browser,label,width,height):
     for parameter in ("temp","rain","sun"):
         values[parameter]=verify_parameter(page,parameter)
     verify_parameter(page,"temp")
+    page.locator("#monthlyChart").focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("""() => Chart.getChart(document.getElementById("monthlyChart")).$climateFocus>=0""",timeout=15000)
+    selected=page.evaluate("""() => Chart.getChart(document.getElementById("monthlyChart")).$climateFocus""")
+    page.keyboard.press("ArrowRight")
+    moved=page.evaluate("""() => Chart.getChart(document.getElementById("monthlyChart")).$climateFocus""")
+    assert moved>selected, (selected,moved)
+    page.keyboard.press("Escape")
+    assert page.evaluate("""() => Chart.getChart(document.getElementById("monthlyChart")).$climateFocus""")==-1
     original=page.evaluate("""() => [...Chart.getChart(document.getElementById("monthlyChart")).data.datasets[0].data]""")
     page.evaluate("""() => document.getElementById("dashboardThemeToggle").click()""")
     page.wait_for_function("""() => document.documentElement.dataset.theme==="dark" """,timeout=30000)
