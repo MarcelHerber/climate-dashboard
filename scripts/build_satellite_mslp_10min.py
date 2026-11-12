@@ -17,9 +17,9 @@ import numpy as np
 
 UTC = dt.timezone.utc
 TEN_MINUTES = 600
-MODEL_STEPS_HOURS = (0, 3, 6, 9, 12)
+MODEL_STEPS_HOURS = (0, 3, 6, 9, 12, 15, 18)
 PREFIX = "r"
-MAX_HOURS = 12
+MAX_HOURS = 18
 # Crop derived contours only for viewer; don't change raw GRIB-based contours.
 # Natural Earth/FCI geographic views span this range.
 DISPLAY_BBOX = (-70.5, 14.5, 49.5, 75.5)
