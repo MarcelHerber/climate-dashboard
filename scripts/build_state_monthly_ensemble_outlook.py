@@ -105,6 +105,7 @@ def qtile(values: Iterable[float], q: float) -> float | None:
 
 
 def running(values: list[float | None]) -> list[float | None]:
+    """Running arithmetic mean; missing samples are not converted to zero."""
     total = 0.0
     count = 0
     out: list[float | None] = []
@@ -115,6 +116,26 @@ def running(values: list[float | None]) -> list[float | None]:
         total += float(value)
         count += 1
         out.append(total / count if count else None)
+    return out
+
+
+def running_sum(values: list[float | None]) -> list[float | None]:
+    """Cumulative daily precipitation (mm) or sunshine (h), preserving gaps.
+
+    The caller must verify complete observed days before using the final value
+    as a forecast starting point. Missing data is not a dry/overcast day.
+    """
+    total = 0.0
+    out: list[float | None] = []
+    for value in values:
+        daily = finite(value)
+        if daily is None:
+            out.append(None)
+            continue
+        if daily < 0:
+            raise ValueError("A daily precipitation/sunshine total cannot be negative")
+        total += daily
+        out.append(round(total, 6))
     return out
 
 
@@ -460,7 +481,22 @@ def merge_running_outlook(
     observed_values: list[float],
     model_region: dict[str, Any],
     period_dates: list[str],
+    *,
+    aggregation: str = "mean",
 ) -> dict[str, Any]:
+    """Join observed days to ensemble members without double counting.
+
+    Temperature keeps the running mean. Precipitation and sunshine use
+    aggregation='sum' with independently accumulated daily amounts.
+    """
+    if aggregation not in ("mean", "sum"):
+        raise ValueError(f"Unknown aggregation: {aggregation}")
+    if not observed_dates or len(observed_dates) != len(observed_values):
+        raise ValueError("Observed dates and values must be nonempty and aligned")
+    if any(finite(v) is None for v in observed_values):
+        raise ValueError("Observed series contains missing days")
+    if aggregation == "sum" and any(float(v) < 0 for v in observed_values):
+        raise ValueError("Observed accumulated quantity cannot be negative")
     obs_through = observed_dates[-1]
     obs_sum = sum(observed_values)
     obs_n = len(observed_values)
@@ -486,9 +522,11 @@ def merge_running_outlook(
             value = finite(values[idx] if idx < len(values) else None)
             if value is None:
                 break
+            if aggregation == "sum" and value < 0:
+                break
             total += value
             count += 1
-            curve[i] = total / count
+            curve[i] = total if aggregation == "sum" else total / count
         member_curves.append(curve)
         member_names.append(key)
 
