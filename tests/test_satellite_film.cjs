@@ -13,7 +13,7 @@ function fixture({failOne480=false,failOne320=false,failLargeStill=false,failAll
    "satPrev","satNext","satPlay","satPng","satTimeline","satTimelineLabel","satFilmStage",
    "satFilmLength","satFilmQuality","satFilmSpeed","satFilmProgress","satFilmProgressLabel",
    "satFilmProgressWrap","satRawImage","satMapTitle","satValid","satImageInfo",
-   "satOfficial","satAttribution","satReload","satGif","satMp4"];
+   "satOfficial","satAttribution","satReload","satGif","satMp4","satPngIsobars","satPdfIsobars","satGifIsobars"];
  class Element{
   constructor(){this.hidden=false;this.disabled=false;this.value="";this.textContent="";this.options=[];
     this.children=[];this.listeners=new Map();this.attrs={};this.dataset={};}
