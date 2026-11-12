@@ -137,8 +137,8 @@ function draw(frame,bbox,gap){
   }
   if(!paths.length)continue;
   const d=paths.join(" ");
-  const major=level.hpa%10===0;
-  const accent=major?"#ffb447":"#3bdeff";
+  const major=level.hpa===1015;
+  const accent="#ff4fcf";
   const halo=document.createElementNS(ns,"path");
   halo.setAttribute("d",d);halo.setAttribute("fill","none");
   halo.setAttribute("stroke","#061522");halo.setAttribute("stroke-opacity","0.93");
@@ -154,7 +154,7 @@ function draw(frame,bbox,gap){
   line.setAttribute("stroke-linejoin","round");
   line.setAttribute("vector-effect","non-scaling-stroke");
   batch.appendChild(line);
-  if(major&&candidate&&longest>6){
+  if((level.hpa%10===0||level.hpa===1015)&&candidate&&longest>6){
    const x=Number(px(candidate[0])),y=Number(py(candidate[1]));
    const rect=document.createElementNS(ns,"rect");
    rect.setAttribute("x",String(x-21));rect.setAttribute("y",String(y-10));
@@ -263,6 +263,34 @@ async function load(force=false){
  })();
  return loading;
 }
+// Expose only genuine, time-provenanced grid-derived lines for map exports.
+// Await the correct ten-minute chunk; never silently export an empty overlay.
+async function exportAt(time,place,gap=5,{strictTenMinute=false}={}){
+ if(!BBOX[place])throw Error("Für diesen Kartenausschnitt gibt es keine georeferenzierten Isobaren.");
+ if(!Number.isFinite(Date.parse(time)))throw Error("Kein verifizierter Satellitenzeitpunkt für den Isobarenexport.");
+ if(!data&&!loading)await load();
+ else if(loading)await loading;
+ if(!tenIndex)await loadTenIndex();
+ let frame=tenFrameAt(time);
+ if(!frame&&tenIndex){
+  const run=Date.parse(tenIndex.run_utc),slot=Math.round((Date.parse(time)-run)/TEN_MS);
+  const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
+  const promise=tenPending.get(tenIndex.run_utc+"|"+key);
+  if(promise)await promise;
+  frame=tenFrameAt(time);
+ }
+ if(strictTenMinute&&!frame)
+  throw Error("Für "+utc(time)+" fehlen die passenden 10-Minuten-Isobaren. GIF mit Isobaren nicht erzeugt.");
+ if(!frame)frame=frameFor(time);
+ if(!frame)throw Error("Keine gültigen ECMWF-Isobaren zu "+utc(time)+". Kein Export ohne Drucklinien.");
+ const exact10=Boolean(tenIndex&&frame.forecast_minute!==undefined);
+ const run=exact10?tenIndex.run_utc:data.run_utc;
+ const method=exact10?(frame.interpolated?"10-Minuten-Interpolation des MSLP-Gitterfeldes":"Original-IFS-Druckfeld"):"3-h-IFS-Druckfeld (Ersatz)";
+ if(!Array.isArray(frame.contours)||!frame.contours.length)throw Error("Isobaren-Konturen fehlen.");
+ return {contours:frame.contours,validUTC:frame.valid_utc,runUTC:run,
+  satelliteUTC:time,method,interpolated:exact10&&Boolean(frame.interpolated),
+  spacing:Number(gap)||5,region:place,exact10};
+}
 function sync(next){
  context={time:next?.time||null,region:next?.region||region.value,source:next?.source||source.value};
  update();
@@ -283,5 +311,5 @@ if(typeof setInterval==="function"){
   }
  },15*60*1000);
 }
-window.SatelliteIsobars={sync,frameFor,tenFrameAt};
+window.SatelliteIsobars={sync,frameFor,tenFrameAt,exportAt};
 })();
