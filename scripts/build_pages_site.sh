@@ -495,7 +495,7 @@ node --test tests/test_satellite_film_export.cjs
 node --test tests/test_satellite_overlay.cjs
 node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_film.cjs
-grep -q 'src="satelliten.js"' _site/satelliten.html
+grep -Eq 'src="satelliten[.]js([?][^"]*)?"' _site/satelliten.html
 node --check _site/saharastaub.js
 node --test tests/test_saharastaub_ui.cjs
 node --test tests/test_monthly_observed_chart.cjs
