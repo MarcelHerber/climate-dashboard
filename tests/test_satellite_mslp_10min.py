@@ -62,6 +62,26 @@ class TenMinuteMSLPTests(unittest.TestCase):
         self.assertNotEqual(json.dumps(first),json.dumps(second))
         self.assertTrue(all(x["hpa"]%5==0 for x in first))
 
+    def test_genuine_two_hpa_contours_are_computed_from_the_pressure_grid(self):
+        # A pressure gradient with 1010, 1012 and 1014 hPa contours.
+        # 1015 hPa is never invented in the 2-hPa mode.
+        x=np.linspace(-40,50,181)
+        y=np.linspace(20,76,113)
+        xx,yy=np.meshgrid(x,y)
+        pressure=1012+0.16*xx+0.045*yy
+        fine=m.concise_contours(x,y,pressure,spacing=2,bbox=m.EUROPE_BBOX)
+        coarse=m.concise_contours(x,y,pressure,spacing=5)
+        fine_levels={g["hpa"] for g in fine}
+        self.assertTrue(fine_levels)
+        self.assertTrue(all(level%2==0 for level in fine_levels))
+        self.assertNotIn(1015,fine_levels)
+        self.assertTrue(any(level%5!=0 for level in fine_levels))
+        self.assertTrue(coarse)
+        self.assertTrue(all(g["hpa"]%5==0 for g in coarse))
+        self.assertEqual(m.FINE_REGIONS,("europe","southwest","central","germany"))
+        with self.assertRaises(ValueError):
+            m.concise_contours(x,y,pressure,spacing=3)
+
     def test_index_has_73_correct_utc_frames_and_attribution(self):
         with tempfile.TemporaryDirectory() as tmp:
             def synthetic(_, run, minute):
@@ -69,13 +89,16 @@ class TenMinuteMSLPTests(unittest.TestCase):
                     "valid_utc":(run+dt.timedelta(minutes=minute)).isoformat(timespec="seconds").replace("+00:00","Z"),
                     "forecast_minute":minute,
                     "interpolated":minute%180!=0,
-                    "contours":[{"hpa":1010,"lines":[[[-30,40],[-29,41]]]}]
+                    "contours":[{"hpa":1010,"lines":[[[-30,40],[-29,41]]]}],\n                    "fine_contours":[{"hpa":1012,"lines":[[[-30,40],[-29,41]]]}]
                 }
             with patch.object(m,"frame_from_grids",side_effect=synthetic):
                 index=m.build_10min(self.fields,self.run,self.run+dt.timedelta(hours=7),Path(tmp))
             self.assertEqual(index["time_resolution_minutes"],10)
             self.assertEqual(index["source_interval_hours"],3)
             self.assertEqual(len(index["hours"]),19)
+            self.assertEqual(index["fine_interval_hpa"],2)
+            self.assertEqual(set(index["fine_regions"]),{"europe","southwest","central","germany"})
+            self.assertEqual(len(index["fine_hours"]),19)
             self.assertIn("interpolated",index["note"])
             frames=[]
             for path in index["hours"].values():
@@ -87,6 +110,16 @@ class TenMinuteMSLPTests(unittest.TestCase):
             self.assertEqual(frames[1]["valid_utc"],"2026-11-12T00:10:00Z")
             self.assertEqual(frames[-1]["valid_utc"],"2026-11-12T18:00:00Z")
             self.assertEqual(sum(not f["interpolated"] for f in frames),7)
+            fine_frames=[]
+            for path in index["fine_hours"].values():
+                blob=json.loads((Path(tmp)/path).read_text(encoding="utf-8"))
+                self.assertEqual(blob["interval_hpa"],2)
+                self.assertEqual(blob["run_utc"],index["run_utc"])
+                fine_frames.extend(blob["frames"])
+            self.assertEqual(len(fine_frames),109)
+            self.assertEqual(fine_frames[1]["valid_utc"],"2026-11-12T00:10:00Z")
+            self.assertEqual(fine_frames[-1]["valid_utc"],"2026-11-12T18:00:00Z")
+            self.assertTrue(all(group["hpa"]%2==0 for frame in fine_frames for group in frame["contours"]))
 
 
 if __name__ == "__main__":
