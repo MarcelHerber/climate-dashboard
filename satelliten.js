@@ -134,32 +134,29 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
  function fail(reason){
   if(!current()||!filmImage.hidden)return;
   if(stillTimeout!==null){clearTimeout(stillTimeout);stillTimeout=null;}
-  // HTTP image errors are usually upstream 500/504, not a size problem.
-  // Only a real timeout justifies one smaller retry.
-  if(level+1<widths.length&&reason.startsWith("Timeout")){
-   level++;
-   setStatus("EUMETSAT-Bild "+(level===1?"lädt zu langsam":"nicht verfügbar")+
-     " ("+reason+"). Versuche dieselbe Aufnahme mit "+widths[level]+" px …","warning");
-   attempt();return;
-  }
-  // Try at most two earlier WMS-advertised observations; never relabel their timestamps.
-  const previous=t?frames.indexOf(t)-1:-1;
-  if(previous>=0&&fallbackDepth<1){
-   index=previous;time.value=String(index);
-   drawFrame(frames[index],fallbackDepth+1,requestedTime);
-   setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
-   return;
-  }
-  // Keep the most recent *successfully downloaded* same-product image first.
-  // Only after that fails, switch explicitly to an alternative product.
+  // The upstream WMS sometimes takes several sequential timeouts.
+  // Prefer a same-product, UTC-labelled real snapshot after the FIRST failed
+  // still request. Only if none is cached do we retry 320px/older frames.
   void showCached(reason).then(archived=>{
    if(archived||!current())return;
+   if(level+1<widths.length&&reason.startsWith("Timeout")){
+    level++;
+    setStatus("EUMETSAT langsam ("+reason+"). Kein passendes Archivbild vorhanden; versuche "+widths[level]+" px …","warning");
+    attempt();return;
+   }
+   const previous=t?frames.indexOf(t)-1:-1;
+   if(previous>=0&&fallbackDepth<1){
+    index=previous;time.value=String(index);
+    drawFrame(frames[index],fallbackDepth+1,requestedTime);
+    setStatus("EUMETSAT-Bild für "+formatUTC(t)+" nicht erreichbar ("+reason+"). Versuche die ältere Aufnahme vom "+formatUTC(frames[index])+" …","warning");
+    return;
+   }
    if(product.value!=="ir105"&&source.value==="mtgi1"){
     const unavailable=description().name;
     product.value="ir105";
     stop();
     refresh();
-    setStatus(unavailable+" ist beim EUMETSAT-WMS nicht erreichbar ("+reason+"). Kein geeignetes Archivbild vorhanden; versuche IR 10,5 µm als ausdrücklich anderes Produkt …","warning");
+    setStatus(unavailable+" beim EUMETSAT-WMS nicht erreichbar ("+reason+"). Kein geeignetes Archivbild; versuche IR 10,5 µm als ausdrücklich anderes Produkt …","warning");
     return;
    }
    loaded=false;image.hidden=true;empty.hidden=false;
