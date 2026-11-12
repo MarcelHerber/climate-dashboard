@@ -397,6 +397,32 @@ async function fetchDailyRainReference(force=false){
   })();
   try{return await dailyRainLoading;}finally{dailyRainLoading=null;}
 }
+async function fetchDailySunReference(force=false){
+  if(dailySunReference&&!force)return dailySunReference;
+  if(dailySunLoading)return dailySunLoading;
+  dailySunLoading=(async()=>{
+    let last=null;
+    for(const base of DAILY_SUN_REFERENCE_URLS){
+      try{
+        const response=await fetch(base+(force?"?t="+Date.now():""),{cache:force?"no-store":"default"});
+        if(!response.ok)throw new Error("HTTP "+response.status);
+        const doc=await response.json();
+        if(doc.schema_version!==1||doc.parameter!=="sunshine"||
+           doc.reference_period!=="1991-2020"||doc.daily_climatology_available!==true||
+           doc.product!=="state_monthly_daily_sunshine_climatology_station_reconstruction"||
+           !doc.months||doc.regions_order?.length!==17)throw new Error("Tagesreferenz-Datenformat ungültig");
+        dailySunReference=doc;
+        dailySunError=null;
+        if(selectedParameter()==="sunshine")render();
+        return doc;
+      }catch(error){last=error;console.warn("DWD SDK-Sonnen-Tagesklima 1991–2020",base,error);}
+    }
+    dailySunError=last?.message||"Sonnen-Tagesreferenz noch nicht veröffentlicht";
+    if(selectedParameter()==="sunshine")render();
+    return null;
+  })();
+  try{return await dailySunLoading;}finally{dailySunLoading=null;}
+}
 function syncParameterControls(){
   const monthly=hydroMode(),period=el("stateMonthlyPeriod"),metric=el("stateMonthlyMetric");
   if(period){
@@ -419,12 +445,14 @@ function onParameterChange(){
   if(hydroMode()&&!parameterDoc())fetchHydro(selectedParameter()).catch(()=>{});
   if(hydroMode()&&!monthlyNormals)fetchMonthlyNormals().catch(()=>{});
   if(selectedParameter()==="precipitation"&&!dailyRainReference)fetchDailyRainReference().catch(()=>{});
+  if(selectedParameter()==="sunshine"&&!dailySunReference)fetchDailySunReference().catch(()=>{});
 }
 function reloadActive(){
   if(hydroMode()){
     fetchHydro(selectedParameter(),true).catch(()=>{});
     fetchMonthlyNormals(true).catch(()=>{});
     if(selectedParameter()==="precipitation")fetchDailyRainReference(true).catch(()=>{});
+    if(selectedParameter()==="sunshine")fetchDailySunReference(true).catch(()=>{});
   }else load(true);
 }
 function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():data;return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}
