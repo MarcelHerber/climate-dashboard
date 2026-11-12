@@ -46,12 +46,12 @@ jobs:
               print("ECMWF level params", sorted({(str(x.get("param")),str(x.get("levelist")),str(x.get("type"))) for x in lines if str(x.get("levelist")) in ("500","1000")})[:25],flush=True)
           except Exception as e:print("INDEX probe error",repr(e),flush=True)
           c=Client(source="ecmwf",model="ifs",resol="0p25",maximum_retries=2,retry_after=4)
-          for typ, kwargs in [("pf",{"number":[1,2,50]}),("pf",{"number":1}),("pf",{}),("fc",{})]:
+          for typ, kwargs in [("pf",{"number":list(range(1,51))}),("pf",{"number":[1,2,50]})]:
               with tempfile.TemporaryDirectory() as d:
                   p=d+"/test.grib2"
                   try:
                       c.retrieve(time=0,stream="enfo" if typ=="pf" else "oper",type=typ,step=72,
-                                 param="z",levelist=[500,1000],target=p,**kwargs)
+                                 param="gh",levelist=[500,1000],target=p,**kwargs)
                       print("ECMWF filesize",typ,os.path.getsize(p),flush=True)
                       entries=[]
                       with open(p,"rb") as f:
