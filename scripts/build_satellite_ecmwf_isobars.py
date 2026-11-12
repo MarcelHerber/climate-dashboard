@@ -26,33 +26,43 @@ MAX_AGE_HOURS = 36
 
 
 def candidate_runs(now: dt.datetime):
-    """Operational cycles, with 8h availability buffer for the free feed."""
+    """Try newest operational cycles with a 6h buffer; fetch checks real availability."""
     now = now.astimezone(UTC)
     out = []
     for days in range(4):
         day = now.date() - dt.timedelta(days=days)
         for hour in (18, 12, 6, 0):
             t = dt.datetime.combine(day, dt.time(hour), tzinfo=UTC)
-            if t <= now - dt.timedelta(hours=8):
+            if t <= now - dt.timedelta(hours=6):
                 out.append(t)
     return sorted(out, reverse=True)[:5]
 
 
 def fetch_grib(run, path):
+    """Read the freshest actually available GRIB, with an official AWS mirror."""
     from ecmwf.opendata import Client
-    client = Client(source="ecmwf", model="ifs", resol="0p25")
-    client.retrieve(
-        date=run.strftime("%Y-%m-%d"),
-        time=run.hour,
-        stream="oper",
-        type="fc",
-        param="msl",
-        step=list(LEADS),
-        target=str(path),
-    )
-    if not path.exists() or path.stat().st_size < 100_000:
-        raise ValueError("Downloaded GRIB too small or missing")
-    return path
+    errors = []
+    for backend in ("ecmwf", "aws"):
+        try:
+            path.unlink(missing_ok=True)
+            client = Client(source=backend, model="ifs", resol="0p25")
+            client.retrieve(
+                date=run.strftime("%Y-%m-%d"),
+                time=run.hour,
+                stream="oper",
+                type="fc",
+                param="msl",
+                step=list(LEADS),
+                target=str(path),
+            )
+            if not path.exists() or path.stat().st_size < 100_000:
+                raise ValueError("Downloaded GRIB too small or missing")
+            logging.info("ECMWF GRIB %s: %s from %s", run.isoformat(), path.stat().st_size, backend)
+            return path
+        except Exception as exc:
+            errors.append(f"{backend}: {type(exc).__name__}: {exc}")
+            logging.warning("IFS source %s for %s unavailable: %s", backend, run, exc)
+    raise RuntimeError("Both official ECMWF sources unavailable: " + "; ".join(errors))
 
 
 def decode_grib(path, run):
