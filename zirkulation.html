@@ -1,4 +1,4 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=20261112-forecast"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script><script defer src="nao_ao_forecast.js?v=20261112-v1"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><link rel="stylesheet" href="climate_indices.css?v=20261112-maps-v2"><title>NAO & AO · Atmosphärische Indizes</title><script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script><script defer src="climate_indices.js?v=1"></script><script defer src="climate_advanced.js?v=20261014-tele-mjo-v2"></script><script defer src="nao_ao_forecast.js?v=20261112-v1"></script><script defer src="nao_ao_maps.js?v=20261112-v1"></script></head><body data-climate-module="nao-ao"><header><strong>Climate Dashboard · Deutschland & Europa</strong><nav><a href="index.html">Startseite</a><a href="zirkulation.html">NAO / AO</a><a href="enso.html">ENSO</a><a href="qbo.html">QBO</a><a href="mjo.html">MJO</a><a href="blocking.html">Blocking</a><a href="stratosphaere.html">Stratosphäre</a></nav></header><main><h1>Nordatlantische & Arktische Oszillation</h1><p class="intro">Die täglichen NAO- und AO-Indizes des NOAA Climate Prediction Center seit 1950. Vergleiche positive und negative Phasen, beobachte die langfristige Variabilität und untersuche beide Zirkulationsindizes gemeinsam.</p><section class="panel"><h2>Verlauf der Zirkulationsindizes</h2><div class="toolbar">
 <label>Darstellung<select id="climateMode"><option value="daily">Tageswerte</option><option value="monthly">Monatsmittel (aus Tageswerten)</option></select></label>
 <label>Zeitraum<select id="climateRange"><option value="1">Letztes Jahr</option><option value="5" selected>Letzte 5 Jahre</option><option value="10">Letzte 10 Jahre</option><option value="all">Gesamte Zeitreihe ab 1950</option></select></label>
 <label>Index<select id="climateIndex"><option value="both">NAO + AO</option><option value="nao">Nur NAO</option><option value="ao">Nur AO</option></select></label>
@@ -51,6 +51,27 @@
 </section>
 <section class="panel" id="teleMaps">
   <h2>Zirkulationskarten zur meteorologischen Einordnung</h2>
+  <h3>ECMWF IFS-ENS · reale räumliche Prognosefelder</h3>
+  <p class="small">Direkt aus dem 0,25°-Ensemble-Mittelfeld von ECMWF: 500-hPa-Geopotenzial über dem Nordatlantik und Europa, 1000-hPa-Geopotenzial über der Nordhemisphäre. <strong>Gezeigt werden absolute Geopotenzialhöhen in gpm und keine NAO-/AO-Indexanomalien.</strong> Die Farbskala bleibt je Niveau für alle Vorhersagetermine gleich.</p>
+  <div class="toolbar">
+    <label>Karte und Druckniveau<select id="teleMapLevel">
+      <option value="500">500 hPa · Nordatlantik/Europa</option>
+      <option value="1000">1000 hPa · Nordhemisphäre</option>
+    </select></label>
+    <label>Prognosezeitraum<select id="teleMapLead">
+      <option value="72">+72 Stunden</option>
+      <option value="144" selected>+144 Stunden</option>
+      <option value="240">+240 Stunden</option>
+    </select></label>
+    <div class="right">
+      <button class="btn" id="teleMapReload" type="button">Karten prüfen</button>
+      <button class="btn" id="teleMapDownload" type="button" disabled>Karten-PNG</button>
+    </div>
+  </div>
+  <div class="status" id="teleMapStatus" role="status" aria-live="polite">Prüfe ECMWF-Kartenarchiv …</div>
+  <div class="tele-map-frame"><img hidden id="teleMapImage" alt="IFS ENS prognostizierte absolute Geopotenzialhöhe auf ausgewähltem Druckniveau" loading="eager"></div>
+  <p class="small" id="teleMapInfo">Nur überprüfte reale ECMWF-Modelldaten werden eingeblendet. Ohne verfügbare Karte bleibt die Darstellung leer.</p>
+
   <div class="grid-two">
     <div>
       <h3>500 hPa · Nordatlantik / Europa</h3>
@@ -60,8 +81,8 @@
     </div>
     <div>
       <h3>1000 hPa · arktische Oszillation</h3>
-      <p class="small">Die AO wird vom CPC aus großräumigen 1000-hPa-Geopotenzialanomalien bestimmt. Die numerische Ensemblevorhersage ist oben enthalten; eine separate georeferenzierte <strong>1000-hPa-Prognose-Anomalienkarte</strong> ist noch nicht verifiziert und wird daher nicht als fertige Karte ausgegeben.</p>
-      <div class="notice">Zusätzliche echte Karten benötigen geopotenzielle Modellfelder und eine zur CPC-Methode passende Referenzperiode. Sie dürfen nicht aus dem Indexwert allein konstruiert werden.</div>
+      <p class="small">Die AO wird vom CPC aus großräumigen 1000-hPa-Geopotenzialanomalien bestimmt. Die numerische Ensemblevorhersage ist oben enthalten; das oben auswählbare ECMWF-1000-hPa-Mittelfeld dient als zusätzlicher räumlicher Kontext. Es ist <strong>keine Indexprojektion und keine Anomalienkarte</strong>.</p>
+      <div class="notice">Für echte standardisierte Anomalien und direkt vergleichbare ECMWF-NAO/AO-Indizes ist zusätzlich ein methodisch passender klimatologischer Referenzdatensatz nötig.</div>
       <p class="small"><a target="_blank" rel="noopener" href="https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/ao_body.html">NOAA/CPC: AO-Methode und weitere Zirkulationsanalysen</a></p>
     </div>
   </div>
