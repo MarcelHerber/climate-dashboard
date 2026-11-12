@@ -1,0 +1,51 @@
+name: ECMWF EPS NAO AO Daten als Pages veröffentlichen
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "ECMWF EPS EOF NAO AO 50 Mitglieder"
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-ecmwf-eof-teleconnections
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Reale EPS Indizes und Frontend-Module prüfen
+        run: |
+          test -s data/nao_ao_forecast/ecmwf_indices.json
+          node --check ecmwf_teleconnections.js
+          grep -q 'id="epsEofPanel"' zirkulation.html
+          grep -q 'ecmwf_teleconnections.js' scripts/build_pages_site.sh
+      - name: Vollständiges Dashboard mit gültigen ECMWF-Daten bauen
+        run: |
+          bash scripts/build_pages_site.sh
+          test -s _site/data/nao_ao_forecast/ecmwf_indices.json
+          test -s _site/ecmwf_teleconnections.js
+          grep -q 'id="epsChart"' _site/zirkulation.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+          name: github-pages-eof-${{ github.run_id }}
+      - uses: actions/deploy-pages@v5
+        id: deployment
+        with:
+          reporting_interval: "10000"
+          artifact_name: github-pages-eof-${{ github.run_id }}
