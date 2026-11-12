@@ -232,6 +232,16 @@ test("Still picture downloads a 400px preview but keeps an original-resolution l
  assert.match(nodes.get("satStatus").textContent,/Vorschau/);
  assert.equal(nodes.get("satPng").disabled,false);
 });
+test("Same-product verified cache avoids extra WMS retries on first still failure",async()=>{
+ const {nodes,requests}=fixture({failAllWms:true,archiveAvailable:true});
+ await waitUntil(()=>nodes.get("satTime").options.length===8,"UTC metadata");
+ await waitUntil(()=>nodes.get("satValid").textContent.includes("Archivaufnahme"),"early archive",2000);
+ const attempted=requests.filter(r=>r.url.startsWith("https://")&&new URL(r.url).searchParams.get("request")==="GetMap");
+ assert.equal(attempted.length,1,"one failing 400px WMS attempt should precede the verified snapshot");
+ assert.equal(new URL(attempted[0].url).searchParams.get("width"),"400");
+ assert.match(nodes.get("satStatus").textContent,/Nicht aktuell/);
+ assert.equal(nodes.get("satProduct").value,"geocolour");
+});
 test("When all WMS images fail, a real archived GeoColour UTC snapshot is displayed without relabelling it as live",async()=>{
  const {nodes,requests,slots}=fixture({failAllWms:true,archiveAvailable:true});
  await waitUntil(()=>nodes.get("satTime").options.length===8,"eight UTC metadata slots");
