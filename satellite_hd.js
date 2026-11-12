@@ -56,7 +56,9 @@ function ready(input){
   scene=null;clear(input?.cached?"Archivbild · keine nachladbaren HD-Daten.":"Keine aktuelle Einzelbild-Vorlage für HD.");return;
  }
  scene={time:input.time,source:input.source,region:input.region,product:input.product,layer:input.layer};
+ window.SatelliteQualityCompare?.invalidate("Neues Satellitenbild geladen.");
  clear("Standardbild geprüft · HD-Kacheln bei Bedarf verfügbar.");
+ window.SatelliteQualityCompare?.availability(true);
  schedule();
 }
 function viewChanged(state){
@@ -70,7 +72,7 @@ function visible(){
  return {left:clamp((f.left-r.left)/r.width-margin,0,1),right:clamp((f.right-r.left)/r.width+margin,0,1),
   top:clamp((f.top-r.top)/r.height-margin,0,1),bottom:clamp((f.bottom-r.top)/r.height+margin,0,1)};
 }
-function tileUrl(tile,area,grid){
+function tileUrl(tile,area,grid,selectedScene=scene){
  // Geographic bounds use the EXACT output-pixel fractions. A final tile may
  // be one pixel narrower/shorter than earlier tiles: equally divided lon/lat
  // would otherwise create seams and slight overlay displacement.
@@ -82,8 +84,8 @@ function tileUrl(tile,area,grid){
   west+(east-west)*(x0+w)/grid.width,
   north-(north-south)*y0/grid.height];
  return API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",
-  layers:scene.layer,styles:"",format:"image/png",transparent:"false",srs:"EPSG:4326",
-  bbox:box.join(","),width:String(w),height:String(h),bgcolor:"0x000000",time:scene.time}).toString();
+  layers:selectedScene.layer,styles:"",format:"image/png",transparent:"false",srs:"EPSG:4326",
+  bbox:box.join(","),width:String(w),height:String(h),bgcolor:"0x000000",time:selectedScene.time}).toString();
 }
 function display(tile){
  if(!tile.ok||tile.node)return;
@@ -173,6 +175,8 @@ function render(){
 function schedule(){clearTimeout(timer);timer=setTimeout(render,180);}
 function cancel(reason){
  scene=null;clear(reason||"HD-Kacheln für Film/Wechsel ausgeblendet.");
+ window.SatelliteQualityCompare?.invalidate("Film oder Bildauswahl geändert; Vergleich zurückgesetzt.");
+ window.SatelliteQualityCompare?.availability(false);
 }
 quality.addEventListener("change",()=>{
  clear();
@@ -299,6 +303,29 @@ if(pdfButton)pdfButton.addEventListener("click",()=>exportImage("pdf"));
 if(isobarChoice)isobarChoice.addEventListener("change",()=>{
  if(pdfButton)pdfButton.disabled=downloadBusy||quality.value==="standard"||!scene||!isobarChoice.checked;
 });
-window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage};
+/* Read-only verified scene plan for the opt-in, like-for-like comparison.
+ * Uses the SAME pixel-aligned tileUrl and grid geometry as HD/4K download.
+ * No hidden WMS network requests until comparison is started explicitly. */
+function comparisonPlan(mode){
+ if(!scene||scene.source!=="mtgi1"||!regions[scene.region]||
+    typeof scene.time!=="string"||!Number.isFinite(Date.parse(scene.time)))
+  throw Error("Kein verifiziertes geografisches Satellitenbild zum Vergleich.");
+ if(mode!=="hd"&&mode!=="4k")throw Error("Ungültige Vergleichsauflösung.");
+ const selectedScene={...scene},grid=specs(mode,1,regions[scene.region]);
+ const gridKey=[scene.time,scene.layer,scene.region,grid.width,grid.height].join("|");
+ const images=Array.from({length:grid.cols*grid.rows},(_,i)=>{
+  const col=i%grid.cols,row=Math.floor(i/grid.cols),key=col+"_"+row;
+  const native=layout?.key===gridKey?tiles.get(key):null;
+  return {
+   col,row,x:col*grid.tw,y:row*grid.th,
+   width:Math.min(grid.tw,grid.width-col*grid.tw),
+   height:Math.min(grid.th,grid.height-row*grid.th),
+   url:tileUrl({col,row},regions[scene.region],grid,selectedScene),
+   cached:native?.ok?native.img:null
+  };
+ });
+ return {scene:selectedScene,width:grid.width,height:grid.height,tiles:images};
+}
+window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage,comparisonPlan};
 setInfo("Standard · 800 px Einzelbild; echte HD-Kacheln bei Zoom oder Moduswechsel.");
 })();
