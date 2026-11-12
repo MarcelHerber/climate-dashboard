@@ -62,7 +62,83 @@ function adjustChart(chart){
   }
  }
 }
-const plugin={id:CHART_ID,beforeUpdate(chart){adjustChart(chart)}};
+// Phase 2: keyboard selection and a one-time touch hint for the other
+// scientific Chart.js diagrams. Values, visibility, zoom, color scales and
+// export rendering are intentionally not changed.
+const enhanced=new WeakSet();
+function chartPoint(chart,index){
+ const sets=chart.data?.datasets||[];
+ for(let datasetIndex=0;datasetIndex<sets.length;datasetIndex++){
+  if(chart.isDatasetVisible?.(datasetIndex)===false)continue;
+  const value=sets[datasetIndex]?.data?.[index];
+  if(value===null||value===undefined)return null;
+  if(typeof value==="number"&&!Number.isFinite(value))continue;
+  if(typeof value==="object"&&value!==null&&
+     !Object.values(value).some(v=>typeof v==="number"&&Number.isFinite(v)))continue;
+  return {datasetIndex,index};
+ }
+ return null;
+}
+function touchHint(chart){
+ if(!match(MOBILE_WIDE)||!chart.canvas?.id||!document.getElementById)return;
+ const container=chart.canvas.closest?.(".chart-container,.chart-box,.t850-chart-shell,.strato-diagnostic-chart,.strato-trend-chart,.mosmix-chart-wrap")
+   ||chart.canvas.parentElement;
+ if(!container?.insertAdjacentElement)return;
+ const id="cdm-chart-tip-"+chart.canvas.id;
+ if(document.getElementById(id))return;
+ const hint=document.createElement("p");
+ hint.id=id;
+ hint.className="cdm-chart-touch-hint";
+ hint.textContent="Diagramm antippen: Werte anzeigen. Mit ← und → durch Termine wechseln.";
+ container.insertAdjacentElement("afterend",hint);
+ const old=chart.canvas.getAttribute?.("aria-describedby")||"";
+ chart.canvas.setAttribute?.("aria-describedby",(old+" "+id).trim());
+}
+function improveChartInteraction(chart){
+ if(!match(MOBILE_WIDE)||!chart?.canvas||enhanced.has(chart))return;
+ const canvas=chart.canvas;
+ // The Gebietsmittel already has a dedicated year/tooltip keyboard handler.
+ if(chart.$climateKeyboardBound||/^(monthlyChart|monthlyDeviationChart)$/.test(canvas.id||""))return;
+ if(!canvas.addEventListener||!chart.data?.datasets?.length||!chart.data.labels?.length)return;
+ if(chart.data.labels.length<8||/^(pie|doughnut|polarArea)$/.test(chart.config?.type||""))return;
+ enhanced.add(chart);
+ if(!canvas.hasAttribute?.("tabindex"))canvas.tabIndex=0;
+ if(!canvas.hasAttribute?.("aria-label"))
+  canvas.setAttribute?.("aria-label","Meteorologisches Diagramm. Pfeiltasten wählen Datenpunkte, Escape beendet die Auswahl.");
+ let active=-1;
+ const select=index=>{
+  active=index;
+  const point=index<0?null:chartPoint(chart,index);
+  const elements=point?[point]:[];
+  chart.setActiveElements?.(elements);
+  let position={x:0,y:0};
+  if(point)position=chart.getDatasetMeta?.(point.datasetIndex)?.data?.[index]?.tooltipPosition?.()||position;
+  chart.tooltip?.setActiveElements?.(elements,position);
+  chart.update?.("none");
+ };
+ canvas.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&active>=0){
+   event.preventDefault();select(-1);return;
+  }
+  if(event.key!=="ArrowRight"&&event.key!=="ArrowLeft")return;
+  const length=chart.data?.labels?.length||0;
+  if(!length)return;
+  const delta=event.key==="ArrowRight"?1:-1;
+  for(let step=0;step<length;step++){
+   const index=(active+(delta===1?0:length)+delta*(step+1)+length)%length;
+   if(chartPoint(chart,index)){
+    event.preventDefault();select(index);return;
+   }
+  }
+ });
+ canvas.addEventListener("blur",()=>{if(active>=0)select(-1);});
+ touchHint(chart);
+}
+const plugin={
+ id:CHART_ID,
+ beforeUpdate(chart){adjustChart(chart)},
+ afterUpdate(chart){improveChartInteraction(chart)}
+};
 function bindCharts(){
  const C=window.Chart;
  if(!C||typeof C.register!=="function")return false;
