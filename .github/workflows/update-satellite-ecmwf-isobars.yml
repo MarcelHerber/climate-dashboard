@@ -52,7 +52,7 @@ jobs:
           assert d["schema_version"]==1 and d["model"]=="ECMWF IFS Open Data"
           assert d["interval_hpa"]==5 and d["resolution_degrees"]==0.25
           run=dt.datetime.fromisoformat(d["run_utc"].replace("Z","+00:00"))
-          assert len(d["frames"])>=5
+          assert len(d["frames"])>=7
           for frame in d["frames"]:
               valid=dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))
               assert valid==run+dt.timedelta(hours=frame["forecast_hour"])
@@ -64,7 +64,7 @@ jobs:
           assert index["schema_version"]==2
           assert index["run_utc"]==d["run_utc"]
           assert index["time_resolution_minutes"]==10
-          assert len(index["hours"])==13
+          assert len(index["hours"])==19
           allframes=[]
           for hour,path in index["hours"].items():
               chunk=json.loads((base/path).read_text())
@@ -72,7 +72,7 @@ jobs:
               assert chunk["schema_version"]==2
               assert chunk["hour"]==int(hour[1:])
               allframes.extend(chunk["frames"])
-          assert len(allframes)==73
+          assert len(allframes)==109
           for i,frame in enumerate(allframes):
               assert dt.datetime.fromisoformat(frame["valid_utc"].replace("Z","+00:00"))==run+dt.timedelta(minutes=i*10)
               assert frame["forecast_minute"]==i*10
@@ -105,6 +105,6 @@ jobs:
           print("Run (UTC):",d["run_utc"])
           for f in d["frames"]:
               print("*",f["valid_utc"],"forecast +"+str(f["forecast_hour"])+"h",len(f["contours"]),"pressure levels")
-          print("Ten-minute pressure interpolation: +0 through +12 h, 73 frames in 13 hourly files")
+          print("Ten-minute pressure interpolation: +0 through +18 h, 109 frames in 19 hourly files")
           print("© ECMWF · CC BY 4.0 · interpolated forecast, not observation")
           PY
