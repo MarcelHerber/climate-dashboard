@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/build_monthly_outlook_duett.py"
+      - "scripts/probe_monthly_outlook_sources.py"
       - "scripts/check_duett_station_sun.py"
       - "tests/test_check_duett_station_sun.py"
       - "scripts/build_monthly_outlook_precip_series.py"
@@ -62,3 +63,7 @@ jobs:
           python scripts/patch_state_monthly_ensemble_frontend.py
           cmp -s /tmp/monthly-hydro-index1.html index.html
           cmp -s /tmp/monthly-hydro-build1.sh scripts/build_pages_site.sh
+      - name: Echte DUETT-/Ensemblequellen prüfen (ein Raster, ein Stützpunkt)
+        run: |
+          python -m py_compile scripts/probe_monthly_outlook_sources.py
+          python scripts/probe_monthly_outlook_sources.py
