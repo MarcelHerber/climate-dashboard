@@ -20,7 +20,7 @@ const ns="http://www.w3.org/2000/svg";
 const TEN_MS=10*60*1000;
 const TEN_INDEX_URL="./data/satellite_mslp/ten_minute/index.json";
 let tenIndex=null,tenLoading=null,tenChecked=0;
-const tenChunks=new Map(),tenPending=new Map();
+const tenChunks=new Map(),tenPending=new Map(),tenFailed=new Map();
 const ENDPOINTS=["./data/satellite_mslp/preview.json","./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
 function note(s){status.textContent=s;}
 function utc(time){return new Date(time).toISOString().slice(0,16).replace("T"," ")+" UTC";}
@@ -64,7 +64,7 @@ async function loadTenIndex(force=false){
       !Number.isFinite(Date.parse(idx.generated_at))||
       !idx.hours||Object.keys(idx.hours).length!==13)throw Error("Unsupported 10-minute pressure metadata");
    if(data&&Date.parse(idx.run_utc)<Date.parse(data.run_utc))return;
-   if(tenIndex?.run_utc!==idx.run_utc)tenChunks.clear();
+   if(tenIndex?.run_utc!==idx.run_utc){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
   }catch(err){console.warn("Optional ECMWF ten-minute pressure overlay",err?.message||err);}
   finally{tenLoading=null;update();}
@@ -89,6 +89,7 @@ function tenFrameAt(target){
   if(f&&Date.parse(f.valid_utc)===run+slot*TEN_MS)return f;
   return null;
  }
+ if(tenFailed.has(cacheKey)&&Date.now()-tenFailed.get(cacheKey)<5*60000)return null;
  if(!tenPending.has(cacheKey)){
   const task=(async()=>{
    try{
@@ -102,9 +103,10 @@ function tenFrameAt(target){
       throw Error("Ten-minute pressure chunk failed UTC provenance validation");
     }
     tenChunks.set(cacheKey,d);
+    tenFailed.delete(cacheKey);
     // LRU bounded to 4 hourly chunks, never load the entire 73-frame film.
     while(tenChunks.size>4)tenChunks.delete(tenChunks.keys().next().value);
-   }catch(err){console.warn("10-minute isobars chunk",err?.message||err);}
+   }catch(err){tenFailed.set(cacheKey,Date.now());console.warn("10-minute isobars chunk",err?.message||err);}
    finally{tenPending.delete(cacheKey);update();}
   })();
   tenPending.set(cacheKey,task);
@@ -262,7 +264,7 @@ function sync(next){
  update();
 }
 toggle.addEventListener("change",update);
-if(retry)retry.addEventListener("click",()=>{if(loading)return;failed=false;errorDetail="";void load(true);void loadTenIndex(true);});
+if(retry)retry.addEventListener("click",()=>{if(loading)return;failed=false;errorDetail="";tenFailed.clear();void load(true);void loadTenIndex(true);});
 spacing.addEventListener("change",update);
 region.addEventListener("change",()=>{context.region=region.value;update();});
 source.addEventListener("change",()=>{context.source=source.value;update();});
