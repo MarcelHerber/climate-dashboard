@@ -12,7 +12,7 @@ import numpy as np
 import requests
 
 from build_monthly_outlook_duett import BASE, get, load_sdu, source_index
-from build_state_monthly_ensemble_outlook import MODEL_CONFIG, hourly_sunshine_to_daily, member_keys
+from build_state_monthly_ensemble_outlook import MODEL_CONFIG, hourly_sunshine_to_daily, hourly_precipitation_to_hyras_day, member_keys
 
 API="https://ensemble-api.open-meteo.com/v1/ensemble"
 
@@ -45,25 +45,22 @@ def smoke_model(key):
               "forecast_days":2,"past_days":0,"timezone":"GMT",
               "cell_selection":"land"}
     result={}
-    for field,variable in [("hourly","sunshine_duration"),("daily","precipitation_sum")]:
-        params={**location,field:variable}
+    for variable in ("sunshine_duration", "precipitation"):
+        params={**location,"hourly":variable}
         r=requests.get(API,params=params,timeout=75,
                        headers={"User-Agent":"climate-dashboard-source-smoke/1.0"})
         r.raise_for_status()
         payload=r.json()
         if isinstance(payload,list):
             payload=payload[0]
-        if field=="hourly":
+        if variable=="sunshine_duration":
             day=hourly_sunshine_to_daily(payload).get("daily",{})
-            keys=member_keys(day,"sunshine_duration")
-            if not keys or not day.get("time") or not any(v is not None for v in day[keys[0]]):
-                raise RuntimeError(f"{key} returned no complete sunshine member days")
         else:
-            daily=payload.get("daily") or {}
-            keys=member_keys(daily,"precipitation_sum")
-            if not keys or not daily.get("time"):
-                raise RuntimeError(f"{key} returned no precipitation ensemble days")
-        result[field]={"members":len(keys),"days":len((day if field=="hourly" else daily)["time"])}
+            day=hourly_precipitation_to_hyras_day(payload).get("daily",{})
+        keys=member_keys(day,variable)
+        if not keys or not day.get("time") or not any(v is not None for v in day[keys[0]]):
+            raise RuntimeError(f"{key} returned no complete {variable} member days")
+        result[variable]={"members":len(keys),"days":len(day["time"])}
     print("LIVE ENSEMBLE",key,json.dumps(result),flush=True)
 
 
