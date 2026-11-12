@@ -22,6 +22,8 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "data/satellite_atlantic_export_test_latest.json"
+SHOTS = ROOT / "_satellite_test_screenshots"
+SHOTS.mkdir(exist_ok=True)
 UTC = timezone.utc
 RUN = (datetime.now(UTC)-timedelta(hours=6)).replace(minute=0,second=0,microsecond=0)
 
@@ -184,6 +186,9 @@ def exercise(browser,device,base,tmp):
         details["fine_2hpa_"+area]={"positive_lines":len(page.locator(
             "#satIsobarSvg path[stroke='#ff4fcf']").all()),"widths":widths}
         if area=="europe":
+            screenshot=SHOTS/(device+"-europe-2hpa-synthetic.png")
+            page.screenshot(path=str(screenshot))
+            details["europe_2hpa_screenshot"]=screenshot.name
             page.wait_for_function(
                 "()=>!document.querySelector('#satPdfIsobars').disabled",
                 timeout=15000)
@@ -212,6 +217,9 @@ def exercise(browser,device,base,tmp):
     letters=page.locator("#satIsobarSvg .sat-pressure-center").all_text_contents()
     assert "T" in letters and "H" in letters,letters
     details["pressure_letters"]=letters
+    screenshot=SHOTS/(device+"-atlantic-ht-synthetic.png")
+    page.screenshot(path=str(screenshot))
+    details["atlantic_ht_screenshot"]=screenshot.name
 
     # The native 1400px WMS request is deliberately broken. Our fix must use
     # smaller CORS-safe imagery, preserving the original bbox and selected UTC.
