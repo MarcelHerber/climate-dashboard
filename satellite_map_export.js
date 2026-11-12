@@ -59,7 +59,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
  ctx.lineJoin="round";ctx.lineCap="round";
  for(const group of groups){
-  const stroke=heavy=>Number(overlay.spacing)===2?.75*unit:(heavy?1.55:0.9)*unit;
+  const stroke=heavy=>Number(overlay.spacing)===2 ? 0.75*unit : (heavy?1.55:0.9)*unit;
   const draw=()=>{
    ctx.beginPath();
    for(const run of group.runs){
@@ -153,7 +153,7 @@ function drawPDFVectors(overlay,region,w,h,bottom){
   }
   const d=path.join("\n");
   const fine=Number(overlay.spacing)===2;
-  const line=(fine?.75:(group.heavy?1.55:.9))*unit;
+  const line=(fine?0.75:(group.heavy?1.55:0.9))*unit;
   out.push(pdfRGB(HALO)+" RG",fmt((fine?1.85:(group.heavy?2.95:2.3))*unit)+" w",d,"S");
   out.push(pdfRGB(PINK)+" RG",fmt(line)+" w",d,"S");
  }
