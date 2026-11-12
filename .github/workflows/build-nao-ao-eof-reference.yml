@@ -1,0 +1,73 @@
+name: NAO AO EOF Referenz aufbauen und validieren
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_nao_ao_eof_reference.py"
+      - ".github/workflows/build-nao-ao-eof-reference.yml"
+permissions:
+  contents: write
+concurrency:
+  group: nao-ao-eof-calibration
+  cancel-in-progress: false
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/build_nao_ao_eof_reference.py
+            scripts/update_climate_indices.py
+            data/nao_ao_forecast/eof_reference.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Original-Reanalyse und EOF-Berechnung vorbereiten
+        run: python -m pip -q install "numpy<3" "netCDF4>=1.7"
+      - name: NCEP 1950-2020 laden, AO/NAO EOF ableiten, an CPC kalibrieren und 2001-2020 prüfen
+        run: OPENBLAS_NUM_THREADS=2 python scripts/build_nao_ao_eof_reference.py
+      - name: Eigenberechnete Referenzmuster prüfen
+        run: |
+          python - <<'PY'
+          import json,math
+          from pathlib import Path
+          p=Path("data/nao_ao_forecast/eof_reference.json")
+          d=json.loads(p.read_text())
+          assert d["schema"]==1 and d["ready"] is True
+          assert "NICHT" in d["provenance"]
+          assert set(d["indices"])=={"nao","ao"}
+          for name in d["indices"]:
+              obj=d["indices"][name];q=obj["quality"]
+              assert q["holdout_correlation"]>=0.55
+              assert q["holdout_rmse"]<=1.3
+              assert len(obj["climatology_gpm"])==12
+              assert all(len(x)==29 for x in obj["climatology_gpm"])
+              assert len(obj["weighted_eof"])==29
+              assert len(obj["longitude_deg_e"])>=50
+              print(name.upper(),q)
+          print("CPC-calibrated EOF references validated",p.stat().st_size)
+          PY
+      - name: Nur verifizierte EOF-Basis veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/nao_ao_forecast/eof_reference.json /tmp/noaa-eof-validated.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/nao_ao_forecast
+            cp /tmp/noaa-eof-validated.json data/nao_ao_forecast/eof_reference.json
+            git add data/nao_ao_forecast/eof_reference.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Publish validated NCEP monthly EOF patterns for ECMWF AO NAO indices"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt*3))
+          done
+          exit 1
