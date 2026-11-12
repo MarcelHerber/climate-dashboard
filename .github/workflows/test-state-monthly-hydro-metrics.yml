@@ -1,0 +1,66 @@
+name: Monatsausblick HYRAS DUETT Anomalie und Prozent PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - "state_monthly_ensemble.js"
+      - "scripts/patch_state_monthly_ensemble_frontend.py"
+      - "tests/test_state_monthly_hydro_metrics.cjs"
+      - ".github/workflows/test-state-monthly-hydro-metrics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: JavaScript-Syntax und numerische Transformation testen
+        run: |
+          node --check state_monthly_ensemble.js
+          node --check tests/test_state_monthly_hydro_metrics.cjs
+          node tests/test_state_monthly_hydro_metrics.cjs
+      - name: Alte und neue Monatsausblick-Auswahl idempotent einbauen
+        run: |
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          grep -q 'id="stateMonthlyMetric"' index.html
+          grep -q 'value="percent"' index.html
+          grep -q 'state_monthly_ensemble.js?v=20261112-hydro-metrics-1' index.html
+          cp index.html /tmp/hydro-metrics-index.html
+          cp scripts/build_pages_site.sh /tmp/hydro-metrics-build.sh
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          cmp /tmp/hydro-metrics-index.html index.html
+          cmp /tmp/hydro-metrics-build.sh scripts/build_pages_site.sh
+
+  live-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Veröffentlichte 2026-Modell- und echte Tagesreferenzdaten abrufen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/monthly-metrics-live
+          for branch in state-monthly-precip state-monthly-sun state-monthly-daily-reference state-monthly-daily-sun; do
+            git fetch origin "$branch" --depth=1
+          done
+          git show origin/state-monthly-precip:state_monthly_precip.json > /tmp/monthly-metrics-live/precip.json
+          git show origin/state-monthly-sun:state_monthly_sun.json > /tmp/monthly-metrics-live/sun.json
+          git show origin/state-monthly-daily-reference:daily_precip_reference_1991_2020.json > /tmp/monthly-metrics-live/precip_reference.json
+          git show origin/state-monthly-daily-sun:daily_sun_reference_1991_2020.json > /tmp/monthly-metrics-live/sun_reference.json
+      - name: 17 Regionen gegen echte HYRAS DUETT und Ensembleprognosen vergleichen
+        run: |
+          node tests/test_state_monthly_hydro_metrics.cjs \
+            /tmp/monthly-metrics-live/precip.json \
+            /tmp/monthly-metrics-live/precip_reference.json \
+            /tmp/monthly-metrics-live/sun.json \
+            /tmp/monthly-metrics-live/sun_reference.json
