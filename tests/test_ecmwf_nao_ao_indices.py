@@ -41,8 +41,8 @@ class EOFIndexTest(unittest.TestCase):
         self.assertEqual(len(result["members"]),50)
         self.assertEqual(result["probability"]["negative"][0],48.0)
         self.assertEqual(result["probability"]["positive"][0],52.0)
-        self.assertEqual(result["probability"]["strong_negative"][0],12.0)
-        self.assertEqual(result["probability"]["strong_positive"][0],10.0)
+        self.assertEqual(result["probability"]["strong_negative"][0],10.0)
+        self.assertEqual(result["probability"]["strong_positive"][0],12.0)
 
     def test_missing_ensemble_member_not_fabricated(self):
         raw=[{member:1. for member in range(1,51)} for _ in range(16)]
