@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Projektion und Open Radar Data
-        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3"
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3" "h5py>=3.11,<4" "pyproj>=3.7,<4"
       - name: Europäische OPERA-Datenbranch vorbereiten
         shell: bash
         env:
