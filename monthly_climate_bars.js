@@ -68,6 +68,95 @@
       }
     };
   }
+  const COLOR_KEYS={
+    temp:["Wärmer als Mittel","Kälter als Mittel"],
+    rain:["Nasser als Mittel","Trockener als Mittel"],
+    sun:["Sonniger als Mittel","Weniger Sonne als im Mittel"]
+  };
+  // A chart-local key explains the anomalous coloring without replacing
+  // Chart.js datasets, changing their direction, or creating new values.
+  function ensureColorKey(chart,parameter){
+    const host=chart.canvas?.closest?.(".chart-container")||chart.canvas?.parentElement;
+    if(!host||typeof document.createElement!=="function")return;
+    let key=chart.$climateKey;
+    if(!key){
+      key=document.createElement("div");
+      key.className="monthly-climate-key";
+      key.setAttribute("role","note");
+      host.appendChild(key);
+      chart.$climateKey=key;
+    }
+    if(key.dataset.parameter===parameter)return;
+    key.dataset.parameter=parameter;
+    const names=COLOR_KEYS[parameter]||COLOR_KEYS.temp;
+    const explain=document.createElement("span");
+    explain.className="monthly-climate-key-title";
+    explain.textContent=isDeviation(chart)?"Abweichung zum Klimamittel":"Farben zeigen die Abweichung";
+    const makeEntry=(polarity,label)=>{
+      const entry=document.createElement("span");
+      entry.className="monthly-climate-key-entry";
+      const dot=document.createElement("span");
+      dot.className="monthly-climate-key-dot";
+      dot.dataset.polarity=polarity;
+      dot.setAttribute("aria-hidden","true");
+      const copy=document.createElement("span");
+      copy.textContent=label;
+      entry.append(dot,copy);
+      return entry;
+    };
+    key.replaceChildren(explain,makeEntry("positive",names[0]),makeEntry("negative",names[1]));
+    key.setAttribute("aria-label",explain.textContent+". "+names.join(". "));
+  }
+  // The long year series can be inspected with keyboard arrows as well as
+  // mouse/touch. Chart.js keeps drawing its own tooltip and bar geometry.
+  function keyboardFocus(chart,index){
+    const data=chart.data?.datasets?.[0]?.data||[];
+    if(index<0){
+      chart.$climateFocus=-1;
+      chart.setActiveElements?.([]);
+      chart.tooltip?.setActiveElements?.([],{x:0,y:0});
+      chart.update("none");
+      return;
+    }
+    chart.$climateFocus=index;
+    const elements=[{datasetIndex:0,index}];
+    chart.setActiveElements?.(elements);
+    const bar=chart.getDatasetMeta?.(0)?.data?.[index];
+    const position=bar?.tooltipPosition?.()||{x:0,y:0};
+    chart.tooltip?.setActiveElements?.(elements,position);
+    chart.update("none");
+  }
+  function setupKeyboard(chart){
+    if(chart.$climateKeyboardBound)return;
+    chart.$climateKeyboardBound=true;
+    if(!chart.canvas?.addEventListener)return;
+    chart.canvas.tabIndex=0;
+    chart.canvas.setAttribute?.("aria-label",
+      "Gebietsmittel-Balkendiagramm. Mit Pfeiltasten Jahre auswählen; Escape beendet die Auswahl.");
+    chart.canvas.addEventListener("keydown",event=>{
+      if(event.key==="Escape" && chart.$climateFocus>=0){
+        event.preventDefault();
+        keyboardFocus(chart,-1);
+        return;
+      }
+      if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
+      const data=chart.data?.datasets?.[0]?.data||[];
+      if(!data.length)return;
+      const shift=event.key==="ArrowRight"?1:-1;
+      let index=chart.$climateFocus<0?(shift===1?-1:0):chart.$climateFocus;
+      for(let n=0;n<data.length;n++){
+        index=(index+shift+data.length)%data.length;
+        if(number(data[index])!==null){
+          event.preventDefault();
+          keyboardFocus(chart,index);
+          break;
+        }
+      }
+    });
+    chart.canvas.addEventListener("blur",()=>{
+      if(chart.$climateFocus>=0)keyboardFocus(chart,-1);
+    });
+  }
   function setupHover(chart){
     if(chart.$climateBarsStyled)return;
     chart.$climateBarsStyled=true;
@@ -93,6 +182,8 @@
     beforeUpdate(chart){
       if(!isTarget(chart))return;
       setupHover(chart);
+      setupKeyboard(chart);
+      ensureColorKey(chart,param());
       const datasets=chart.data.datasets;
       const bars=datasets[0];
       if(!bars)return;
