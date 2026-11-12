@@ -10,8 +10,9 @@ from pathlib import Path
 import re
 
 VERSION="20261030-mobile-categories-v2"
+CONTENT_VERSION="20261112-phase2-touchcharts-v1"
 STYLE=f'<link rel="stylesheet" href="mobile_navigation.css?v={VERSION}">'
-CONTENT_STYLE=f'<link rel="stylesheet" href="mobile_content.css?v={VERSION}">'
+CONTENT_STYLE=f'<link rel="stylesheet" href="mobile_content.css?v={CONTENT_VERSION}">'
 SCRIPT=f'<script defer src="mobile_navigation.js?v={VERSION}"></script>'
 SATELLITE_SHORTCUT=(
     '<nav class="cdm-satellite-quicknav" aria-label="Direktzugang zu Satellitenbildern">'
@@ -36,7 +37,7 @@ def inject_satellite_shortcut(content: str) -> str:
         raise ValueError("Could not add satellite homepage shortcut: missing body")
     return content[:body.end()] + "\n" + SATELLITE_SHORTCUT + content[body.end():]
 
-CONTENT_SCRIPT=f'<script defer src="mobile_content.js?v={VERSION}"></script>'
+CONTENT_SCRIPT=f'<script defer src="mobile_content.js?v={CONTENT_VERSION}"></script>'
 
 
 def inject(content: str) -> str:
