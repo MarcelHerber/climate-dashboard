@@ -113,8 +113,8 @@ function update(){
    (age>180?" · Modellgültigkeit liegt "+age+" Minuten zurück":"")+" · "+spacing.value+" hPa · "+origin+" · © ECMWF");
  }
 }
-async function load(){
- if(loading||data||failed)return loading;
+async function load(force=false){
+ if(loading||(!force&&(data||failed)))return loading;
  loading=(async()=>{
   const problems=[];
   try{
@@ -138,6 +138,7 @@ async function load(){
         throw Error("Ungültiger UTC- oder Konturendatensatz");
      }
 
+     if(data&&Date.parse(d.run_utc)<Date.parse(data.run_utc))throw Error("Älterer ECMWF-Lauf als der bereits geladene Stand");
      data=d;failed=false;errorDetail="";dataOrigin=i===0?"github":"pages";
      break;
     }catch(err){
@@ -147,7 +148,7 @@ async function load(){
    if(!data)throw Error(problems.join(" | "));
   }catch(err){
    console.warn("ECMWF isobar overlay",err);
-   failed=true;errorDetail=(err?.message||String(err)).slice(0,240);
+   failed=!data;errorDetail=(err?.message||String(err)).slice(0,240);
   }finally{loading=null;update();}
  })();
  return loading;
@@ -157,10 +158,19 @@ function sync(next){
  update();
 }
 toggle.addEventListener("change",update);
-if(retry)retry.addEventListener("click",()=>{if(loading)return;data=null;failed=false;errorDetail="";svg.replaceChildren();void load();});
+if(retry)retry.addEventListener("click",()=>{if(loading)return;failed=false;errorDetail="";void load(true);});
 spacing.addEventListener("change",update);
 region.addEventListener("change",()=>{context.region=region.value;update();});
 source.addEventListener("change",()=>{context.source=source.value;update();});
 sync({time:null,region:region.value,source:source.value});
+// Periodically retrieve newer committed ECMWF runs without removing working contours
+// during transient network errors or downgrading to an older model cycle.
+if(typeof setInterval==="function"){
+ setInterval(()=>{
+  if(source.value==="mtgi1"&&toggle.checked&&!document.hidden&&!loading){
+   failed=false;void load(true);
+  }
+ },15*60*1000);
+}
 window.SatelliteIsobars={sync,frameFor};
 })();
