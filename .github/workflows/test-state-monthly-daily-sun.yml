@@ -1,0 +1,55 @@
+name: Monatsausblick Tagesklima Sonnenschein PR-Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/build_monthly_outlook_daily_sun_reference.py"
+      - "scripts/probe_monthly_sun_historical.py"
+      - "tests/test_monthly_outlook_daily_sun_reference.py"
+      - "state_monthly_ensemble.js"
+      - "scripts/patch_state_monthly_ensemble_frontend.py"
+      - ".github/workflows/update-state-monthly-daily-sun-reference.yml"
+      - ".github/workflows/test-state-monthly-daily-sun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Python-Abhängigkeiten
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Offline-Tests und Frontend integrieren
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_daily_sun_reference.py scripts/probe_monthly_sun_historical.py
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_sun_reference.py -v
+          node --check state_monthly_ensemble.js
+          python scripts/patch_state_monthly_ensemble_frontend.py
+          grep -q 'id="stateMonthlyParameter"' index.html
+          grep -q 'state_monthly_ensemble.js?v=20261112-daily-sun-1' index.html
+
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Python-Abhängigkeiten
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+      - name: Echte DWD Stationshistorie, Metadaten und SDK aus ZIP prüfen
+        run: python scripts/probe_monthly_sun_historical.py
