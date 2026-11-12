@@ -1,0 +1,36 @@
+name: Probe CPC NAO AO CSV schema
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/probe-cpc-nao-ao.yml"]
+permissions:
+  contents: read
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Sample official CPC CSV and NetCDF metadata
+        run: |
+          python -m pip -q install xarray netCDF4
+          python - <<'PY'
+          import urllib.request,tempfile,os
+          import xarray as xr
+          for model in ('gefs','gfs'):
+              for index,level in [('nao','z500'),('ao','z1000')]:
+                  url=f'https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.{index}.{model}.{level}.120days'
+                  print('SOURCE',url,flush=True)
+                  for ext in ('csv','nc'):
+                      try:
+                          with urllib.request.urlopen(urllib.request.Request(url+'.'+ext,headers={'User-Agent':'climate-dashboard/1.0'}),timeout=25) as resp:
+                              data=resp.read()
+                          if ext=='csv':
+                              print('CSV bytes',len(data),'HEAD',repr(data[:1500].decode('utf-8-sig','replace')),flush=True)
+                          else:
+                              with tempfile.NamedTemporaryFile(suffix='.nc') as f:
+                                  f.write(data);f.flush()
+                                  ds=xr.open_dataset(f.name,decode_times=False)
+                                  print('NETCDF',dict(ds.sizes),[(k,list(v.dims),str(v.dtype),dict(v.attrs)) for k,v in ds.variables.items()],flush=True)
+                                  ds.close()
+                      except Exception as ex: print('ERROR',str(ex),flush=True)
+          PY
