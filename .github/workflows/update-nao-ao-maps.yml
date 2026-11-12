@@ -1,0 +1,117 @@
+name: ECMWF ENS NAO AO Geopotenzial Prognosekarten
+on:
+  schedule:
+    - cron: "48 06 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-nao-ao-maps.yml"
+      - "scripts/update_nao_ao_maps.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ecmwf-nao-ao-spatial
+  cancel-in-progress: false
+
+jobs:
+  maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/update_nao_ao_maps.py
+            data/nao_ao_forecast/ecmwf_maps/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: ECMWF Kartenbibliotheken
+        run: |
+          python -m pip install -q "numpy<3" "matplotlib>=3.9" "cartopy>=0.24" eccodes ecmwf-opendata
+      - name: Echte 0.25-Grad ENS-Mittelfelder laden und sechs Prognosekarten erzeugen
+        run: python scripts/update_nao_ao_maps.py
+      - name: Kartenmetadaten und PNG-Dateien prüfen
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import date,timedelta
+          root=Path("data/nao_ao_forecast/ecmwf_maps")
+          obj=json.loads((root/"index.json").read_text(encoding="utf-8"))
+          assert obj["schema"]==1 and obj["ready"] is True
+          assert obj["parameter"]=="absolute_geopotential_height"
+          assert obj["is_index_forecast"] is False and obj["is_anomaly"] is False
+          assert obj["unit"]=="gpm" and obj["licence"]=="CC BY 4.0"
+          assert len(obj["maps"])==6
+          assert set((x["level_hpa"],x["step_hours"]) for x in obj["maps"])=={
+            (p,t) for p in (500,1000) for t in (72,144,240)
+          }
+          assert date.fromisoformat(obj["model_run_utc"][:10])>=date.today()-timedelta(days=3)
+          for row in obj["maps"]:
+            path=root/row["file"]
+            assert path.is_file() and path.stat().st_size>50000
+            assert path.read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+          print("ECMWF: all six real ensemble maps checked",sum(x["size_bytes"] for x in obj["maps"]),"bytes")
+          PY
+      - name: Nur verifizierte Karten veröffentlichen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a data/nao_ao_forecast/ecmwf_maps /tmp/nao-ao-maps-verified
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/nao_ao_forecast/ecmwf_maps
+            cp /tmp/nao-ao-maps-verified/* data/nao_ao_forecast/ecmwf_maps/
+            git add data/nao_ao_forecast/ecmwf_maps/
+            if git diff --cached --quiet; then echo "Unveränderte ECMWF Karten"; exit 0; fi
+            git commit -m "Publish verified ECMWF IFS ENS Z500 Z1000 forecast maps"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt*4))
+          done
+          exit 1
+
+  pages:
+    needs: maps
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-ecmwf-nao-maps
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Volles Dashboard mit geprüften ECMWF Karten bauen
+        run: |
+          test -s data/nao_ao_forecast/ecmwf_maps/index.json
+          node --check nao_ao_maps.js
+          bash scripts/build_pages_site.sh
+          test -s _site/data/nao_ao_forecast/ecmwf_maps/ifs_ens_gh_500hpa_f144.png
+          test -s _site/data/nao_ao_forecast/ecmwf_maps/ifs_ens_gh_1000hpa_f144.png
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: "_site"
+          name: "pages-nao-spatial-${{ github.run_id }}"
+      - uses: actions/deploy-pages@v5
+        id: deployment
+        with:
+          reporting_interval: "10000"
+          artifact_name: "pages-nao-spatial-${{ github.run_id }}"
