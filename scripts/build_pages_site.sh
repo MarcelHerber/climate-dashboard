@@ -176,8 +176,14 @@ for name in ("dashboard_cleanup.css","monthly_climate_bars.js"):
     html,count=re.subn(expression,name+"?v="+suffix,html)
     if count!=1:
         raise SystemExit(f"Phase 2 asset reference ambiguous: {name} ({count})")
+# Both HQ chart exports and the model-specific exports use the same
+# readable source/date imprint regardless of desktop/mobile or dark mode.
+html,hq_refs=re.subn(r"dashboard_export_hq[.]js(?:[?]v=[A-Za-z0-9_.-]+)?",
+                      "dashboard_export_hq.js?v=20261112-phase2-print-v1",html)
+if not hq_refs:
+    raise SystemExit("Phase 2: HQ chart exporter is not referenced in the main dashboard")
 page.write_text(html,encoding="utf-8")
-print("Phase 2: Klimarot & Blau samt neuer Farb-Legende und Tastaturnavigation veröffentlicht.")
+print("Phase 2: Klimarot & Blau and branded HQ exporter published.")
 PY
 
 # Publish only verified ECMWF forecast-derived pressure contours; if its
