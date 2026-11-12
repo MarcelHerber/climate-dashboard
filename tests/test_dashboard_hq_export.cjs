@@ -65,6 +65,17 @@ test("map compositor has white background, geographic source and export timestam
   assert.ok(text.some(t=>t.includes("DWD ICON-EU")));
   assert.ok(text.some(t=>t.startsWith("Erstellt:")));
 });
+test("Phase 2 export uses a parameter subtitle and wraps long source notes",()=>{
+  const {api,text,images}=setup();
+  const note=("Quelle DWD und ECMWF mit unveränderter Zeitreferenz. ").repeat(8);
+  const output=api.composeCanvas({width:900,height:500},
+    {title:"Vergleich",subtitle:"DWD-Gebietsmittel · 1991–2020",source:note});
+  assert.equal(output.width,2200);
+  assert.ok(text.includes("DWD-Gebietsmittel · 1991–2020"));
+  assert.ok(text.filter(t=>t.startsWith("Quelle DWD")).length>=1);
+  assert.ok(text.some(t=>t.startsWith("Erstellt:")&&t.includes("Climate Dashboard Deutschland")));
+  assert.equal(images.length,1);
+});
 test("snow selector retains shared years instead of resetting on station change",()=>{
   const html=fs.readFileSync("index.html","utf8");
   const body=html.slice(html.indexOf("function stationSnowPopulateYearPicker("),
