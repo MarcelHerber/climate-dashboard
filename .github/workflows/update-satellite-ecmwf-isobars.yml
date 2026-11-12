@@ -3,7 +3,8 @@ name: Update satellite ECMWF isobars
 on:
   workflow_dispatch:
   schedule:
-    - cron: "27 1,4,7,10,13,16,19,22 * * *"
+    - cron: "50 0,7,12,19 * * *"
+    - cron: "30 1,8,13,20 * * *"
   push:
     branches: [main]
     paths:
