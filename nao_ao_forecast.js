@@ -235,13 +235,16 @@
       const c=rgb(set.borderColor||"#60738a");p.setDrawColor(...c);
       p.setLineWidth(set.label.startsWith("GEFS-Mitglied")?.12:set.borderWidth>=3?.7:.38);
       if(set.borderDash?.length)p.setLineDashPattern([1.4,1.0],0);else p.setLineDashPattern([],0);
-      let prev=null;
+      // One continuous stroke per uninterrupted member curve. This preserves
+      // a selectable/editable vector path rather than hundreds of line segments.
+      const commands=[];let contiguous=false;
       set.data.forEach((v,j)=>{
-        if(!Number.isFinite(v)){prev=null;return;}
-        const point=[sx(j),sy(v)];
-        if(prev)p.line(prev[0],prev[1],point[0],point[1]);
-        prev=point;
+        if(!Number.isFinite(v)){contiguous=false;return;}
+        const xy=[sx(j),sy(v)];
+        commands.push({op:contiguous?"l":"m",c:xy});
+        contiguous=true;
       });
+      if(commands.some(x=>x.op==="l"))p.path(commands,"S");
     });
     p.setLineDashPattern([],0);
     p.setFontSize(8);p.setTextColor(80,90,108);
