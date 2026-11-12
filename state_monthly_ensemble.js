@@ -183,7 +183,22 @@ function renderHeader(r){
     const info=el("stateMonthlyInfo");
     const normal=historicalMonthNormal(selectedParameter(),reg);
     const normalText=normal===null?"Klimareferenz 1991–2020 noch nicht verfügbar":`1991–2020: Monatsgesamtwert ${fmt(normal,1)} ${config.unit}`;
-    if(info)info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
+    if(info){
+      info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
+      // A monthly anomaly is meaningful only if an ensemble reaches the final
+      // day of the month. Do not infer a month-end outcome from 7/15-day runs.
+      if(normal!==null&&normal>0){
+        const lastIndex=(d.dates||[]).length-1;
+        for(const modelKey of MODEL_ORDER){
+          const value=num(r.models?.[modelKey]?.stats?.mean?.[lastIndex]);
+          if(value===null)continue;
+          const delta=value-normal,percentage=100*value/normal;
+          const chip=document.createElement("span");
+          chip.textContent=`${MODEL_LABELS[modelKey]||modelKey}: Monatsende ${fmt(value,1)} ${config.unit} · ${delta>=0?"+":""}${fmt(delta,1)} ${config.unit} (${fmt(percentage,0)} % vom Mittel)`;
+          info.appendChild(chip);
+        }
+      }
+    }
     const generated=new Date(d.generated_at);
     const label=Number.isNaN(generated.getTime())?d.generated_at:generated.toLocaleString("de-DE",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
     const qc=d.station_quality;
