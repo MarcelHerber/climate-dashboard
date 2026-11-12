@@ -114,3 +114,41 @@ test("Single pressure rings, noise and clipped boundary contours never create im
   {hpa:1005,lines:[ring(-20,40,.4)]}];
  assert.equal(g.detectPressureSystems(tiny,b).length,0);
 });
+
+test("A broad shallow high with one closed oriented 1020-hPa contour receives an H",()=>{
+ const g=shared(),b=[-70,15,35,75];
+ function ccw(lon,lat,rx,ry){
+  return Array.from({length:65},(_,i)=>{
+   const a=2*Math.PI*i/64;return [lon+rx*Math.cos(a),lat+ry*Math.sin(a)];
+  });
+ }
+ const ring=ccw(-41,27.5,9,4.4);
+ const one=[{hpa:1020,lines:[ring]}];
+ const result=g.detectVisiblePressureSystems(one,b);
+ assert.equal(result.length,1,"An Atlantic high does not require three 5-hPa contours");
+ assert.equal(result[0].type,"H");
+ assert.equal(result[0].hpa,1020);
+ assert.ok(Math.abs(result[0].lon+41)<.5);
+ const reversed=[{hpa:1020,lines:[ring.slice().reverse()]}];
+ assert.equal(g.detectVisiblePressureSystems(reversed,b).length,0,
+  "A clockwise pressure ring must not be mislabelled as a high");
+});
+test("The real source-domain ring may cross the viewport edge while the H center stays visible",()=>{
+ const g=shared(),europe=[-27,24,49,73];
+ const ring=Array.from({length:65},(_,i)=>{
+  const a=2*Math.PI*i/64;
+  return [-21.5+7*Math.cos(a),57.4+2.9*Math.sin(a)];
+ });
+ const result=g.detectVisiblePressureSystems([{hpa:1020,lines:[ring]}],europe);
+ assert.equal(result.length,1);
+ assert.equal(result[0].type,"H");
+ assert.ok(result[0].lon>-27&&result[0].lon<49);
+ assert.ok(result[0].lat>24&&result[0].lat<73);
+});
+test("A tiny anticlockwise closed loop is still suppressed as a high",()=>{
+ const g=shared(),atlantic=[-70,15,35,75];
+ const ring=Array.from({length:65},(_,i)=>{
+  const a=2*Math.PI*i/64;return [-25+.5*Math.cos(a),48+.2*Math.sin(a)];
+ });
+ assert.equal(g.detectVisiblePressureSystems([{hpa:1020,lines:[ring]}],atlantic).length,0);
+});
