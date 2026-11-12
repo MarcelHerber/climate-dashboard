@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from pyproj import CRS
 
 from build_hyras_tmean_regions import EXPECTED_STATES, build_masks, load_states
 
@@ -43,7 +44,7 @@ def load_reference(cache_file: Path):
         dates = list(zip(npz["months"].astype(int).tolist(), npz["days"].astype(int).tolist()))
         x, y = np.asarray(npz["x"], dtype=float), np.asarray(npz["y"], dtype=float)
         crs = str(np.asarray(npz["crs"]).item())
-        if crs not in ("EPSG:3035", "ETRS89-extended / LAEA Europe"):
+        if CRS.from_user_input(crs).to_epsg() != 3035:
             raise ValueError(f"Unexpected HYRAS projected CRS: {crs}")
         if not (x.ndim == y.ndim == 1 and np.isfinite(x).all() and np.isfinite(y).all()):
             raise ValueError("Invalid HYRAS projected coordinates")
