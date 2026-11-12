@@ -94,7 +94,7 @@ def build_payload(doc: dict, models: dict) -> dict:
         "regions": regions,
         "method": {
             "observation": "DUETT per-hour region means in minutes, accumulated to complete 24-hour UTC days and converted to hours",
-            "forecast": "Hourly sunshine_duration per ensemble member (seconds), 24 complete UTC hours per day, converted to hours, area support-point means",
+            "forecast": "Hourly sunshine_duration per ensemble member (seconds), 24 hours ending 01:00 through next-day 00:00 UTC (closest to DUETT :50 synoptic hours), converted to hours; area support-point means",
             "gap_policy": "Missing observed hours or model hours are never counted as zero",
             "reference": "Climatology 1991-2020 will be added from a separate historical product",
         },
