@@ -96,6 +96,18 @@ def exercise(page, viewport_label, official_xml):
         "() => document.getElementById('satTime').options.length > 1 || document.getElementById('satStatus').textContent.includes('nicht')",
         timeout=25000
     )
+    # Reproduce the reported screenshot: GeoColour/Europe with unverified
+    # observation UTC must still allow independent, real ECMWF contours.
+    page.evaluate("() => window.SatelliteIsobars?.sync({time:null,region:'europe',source:'mtgi1'})")
+    page.wait_for_function(
+        "() => document.querySelectorAll('#satIsobarSvg path').length>0 "
+        "&& !document.getElementById('satIsobarSvg').hasAttribute('hidden')",
+        timeout=15000
+    )
+    evidence["europe_independent_ecmwf_paths"]=page.locator("#satIsobarSvg path").count()
+    evidence["europe_isobar_status"]=page.locator("#satIsobarStatus").inner_text()
+    page.screenshot(path=str(SHOTS/(viewport_label+"-europe-independent-isobars.png")))
+    assert evidence["europe_independent_ecmwf_paths"]>=1, "ECMWF Europe overlay absent"
     evidence["initial_product"]="geocolour"
     evidence["times"]=page.locator("#satTime option").count()
     evidence["time_select_enabled"]=page.locator("#satTime").is_enabled()
