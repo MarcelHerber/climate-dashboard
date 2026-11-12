@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "scripts/build_monthly_outlook_duett.py"
+      - "scripts/check_duett_station_sun.py"
       - "scripts/build_state_monthly_sun_outlook.py"
       - "scripts/build_state_monthly_ensemble_outlook.py"
       - "tests/test_monthly_outlook_duett.py"
@@ -83,6 +84,18 @@ jobs:
               assert all(0<=value<=24 for value in samples)
           print('DUETT regions',len(d['regions_order']),'through',d['data_through'])
           PY
+
+      - name: Stations-SDK als Qualitätsvergleich einlesen (ohne Doppelzählung)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin hyras-data >/dev/null 2>&1; then
+            git fetch origin hyras-data --depth=1
+            git show origin/hyras-data:monthly_current_provisional.json > /tmp/monthly-sun/stations.json || true
+          fi
+          python scripts/check_duett_station_sun.py \
+            --observed /tmp/monthly-sun/observed/observed_sun.json \
+            --stations /tmp/monthly-sun/stations.json
 
       - name: DUETT-Beobachtungsbranch veröffentlichen
         env:
