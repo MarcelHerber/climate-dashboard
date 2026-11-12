@@ -7,13 +7,14 @@
 <title>Satelliten · MTG | Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="mobile_navigation.css">
-<link rel="stylesheet" href="satelliten.css?v=20261112-mslp-10min-v7">
+<link rel="stylesheet" href="satelliten.css?v=20261112-pink-vector-export-v1">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
 <script defer src="satellite_overlay.js"></script>
 <script defer src="satellite_isobars.js?v=20261112-mslp-10min-v7"></script>
-<script defer src="satellite_film_export.js"></script>
-<script defer src="satelliten.js?v=20261112-fastcache-v1"></script>
+<script defer src="satellite_map_export.js?v=20261112-pink-vector-export-v1"></script>
+<script defer src="satellite_film_export.js?v=20261112-pink-vector-export-v1"></script>
+<script defer src="satelliten.js?v=20261112-pink-vector-export-v1"></script>
 </head>
 <body>
 <header class="sat-header"><a href="./index.html">← Climate Dashboard Deutschland</a><div class="sat-header-actions"><span>Atmosphäre · Satelliten</span><button id="dashboardThemeToggle" type="button" aria-label="Dark Mode einschalten" aria-pressed="false"><span class="header-icon" aria-hidden="true"></span><span class="action-label">Dunkel</span></button></div></header>
@@ -31,7 +32,7 @@
 </div>
 <div class="sat-overlay-controls"><label><input id="satShowBorders" type="checkbox" checked> Küsten- und Ländergrenzen</label><label><input id="satShowCities" type="checkbox" checked> Städtenamen</label><label><input id="satShowIsobars" type="checkbox" checked> ECMWF-Isobaren</label><label for="satIsobarSpacing">Abstand <select id="satIsobarSpacing"><option value="5" selected>5 hPa</option><option value="10">10 hPa</option></select></label><button id="satRetryIsobars" class="sat-isobar-retry" type="button" title="ECMWF-Druckdaten unabhängig vom Satellitenbild neu laden">↻ Isobaren neu laden</button></div>
 <p id="satIsobarStatus" class="sat-isobar-status" role="status" aria-live="polite">Prüfe ECMWF-IFS-Luftdruckdaten …</p>
-<p class="sat-isobar-explainer">Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-cyan" aria-hidden="true"></i>5 hPa · Zwischenlinien</span><span><i class="sat-isobar-legend-line sat-isobar-legend-orange" aria-hidden="true"></i>10 hPa · Hauptlinien</span></div>
+<p class="sat-isobar-explainer">Die 10-Minuten-Isobaren werden aus echten ECMWF-IFS-Bodendruckfeldern interpoliert und für jeden Zeitpunkt neu berechnet. Das sind <strong>Modellprognosen, keine 10-minütigen Messungen</strong>. Wenn die neue Datenserie fehlt, bleiben die 3-Stunden-Konturen ausdrücklich als Ersatz sichtbar.</p><div class="sat-isobar-legend" aria-label="Farblegende Isobaren"><span><i class="sat-isobar-legend-line sat-isobar-legend-pink" aria-hidden="true"></i>Alle Isobaren pink · nur 1015 hPa kräftiger</span></div>
 <p id="satOverlayHint" class="sat-overlay-hint">Natural Earth 1:50m · Vektorgrenzen werden lokal geladen.</p>
 <div class="sat-timeline">
 <label for="satTimeline">Zeitverlauf <output id="satTimelineLabel" for="satTimeline">Keine Beobachtungen</output></label>
@@ -47,15 +48,18 @@
 <button id="satPlay" type="button" disabled aria-label="Satellitenfilm starten">▶ Film starten</button>
 <button id="satNext" type="button" disabled aria-label="Nächstes Satellitenbild">Nächstes →</button>
 <button id="satReload" type="button">↻ Aktualisieren</button>
-<button id="satPng" type="button" disabled>PNG mit Beschriftung ↓</button>
-<button id="satGif" type="button" disabled aria-label="Filmanimation als GIF herunterladen">GIF-Film ↓</button>
+<button id="satPng" type="button" disabled>PNG ohne Isobaren ↓</button>
+<button id="satPngIsobars" type="button" disabled>PNG mit Isobaren ↓</button>
+<button id="satPdfIsobars" type="button" disabled>PDF mit Vektor-Isobaren ↓</button>
+<button id="satGif" type="button" disabled aria-label="Filmanimation als GIF herunterladen">GIF ohne Isobaren ↓</button>
+<button id="satGifIsobars" type="button" disabled aria-label="Filmanimation mit Isobaren als GIF herunterladen">GIF mit Isobaren ↓</button>
 <button id="satMp4" type="button" disabled aria-label="Filmanimation als MP4 herunterladen">MP4-Film ↓</button>
 </div>
 <div class="sat-film-progress" id="satFilmProgressWrap" hidden>
 <progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
 <output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
 </div>
-<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbilder werden kompakt vorgeladen; der PNG-Export fordert bei verfügbaren WMS-Daten die native Auflösung an. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar.</p>
+<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbilder werden kompakt vorgeladen; der PNG-Export fordert bei verfügbaren WMS-Daten die native Auflösung an. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar. Zusätzlich gibt es PNG, vektorbasierte PDF und GIF mit pinken Isobaren. Für den Isobarenexport müssen ein echtes Satellitenbild mit CORS-Freigabe und die zum Aufnahmezeitpunkt passenden ECMWF-Konturen verfügbar sein.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
