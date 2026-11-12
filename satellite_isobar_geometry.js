@@ -210,7 +210,30 @@ function detectPressureSystems(contours,bbox,{minRings=3,maxSystems=7,minSeparat
  }
  return chosen;
 }
-window.SatelliteIsobarGeometry={detectPressureSystems,prepare,clean,smooth,project,
+// Detect on the full ECMWF geographic domain rather than only the visible
+// map crop. A synoptic high may have its CENTER in Europe while its closing
+// ring extends a little beyond the European viewport (e.g. west of Iceland).
+// Only place the resulting letter if its true center is inside the viewer.
+const MODEL_VIEW_BBOX=[-70.5,14.5,49.5,75.5];
+function detectVisiblePressureSystems(contours,viewport,{
+ minRings=3,maxSystems=7,minSeparation=94
+}={}){
+ const opts={minRings,maxSystems:16,minSeparation:55};
+ const candidates=[
+  ...detectPressureSystems(contours,MODEL_VIEW_BBOX,opts),
+  ...detectPressureSystems(contours,viewport,opts)
+ ].sort((a,b)=>b.score-a.score);
+ const selected=[];
+ for(const p of candidates){
+  const at=project([p.lon,p.lat],viewport);
+  if(at[0]<35||at[0]>965||at[1]<35||at[1]>965)continue;
+  if(selected.some(q=>distance(project([q.lon,q.lat],viewport),at)<minSeparation))continue;
+  selected.push(p);
+  if(selected.length>=maxSystems)break;
+ }
+ return selected;
+}
+window.SatelliteIsobarGeometry={detectVisiblePressureSystems,detectPressureSystems,prepare,clean,smooth,project,
  settings:{minLoopDiagonal:MIN_LOOP_DIAGONAL,minLoopArea:MIN_LOOP_AREA,
   minOpenLength:MIN_OPEN_LENGTH,smoothing:SMOOTHING,maxShift:MAX_SHIFT}};
 })();
