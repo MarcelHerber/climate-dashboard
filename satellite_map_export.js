@@ -27,6 +27,31 @@ function project(point,region,x,y,w,h){
  const [minX,minY,maxX,maxY]=BBOX[region];
  return [x+(point[0]-minX)/(maxX-minX)*w,y+(maxY-point[1])/(maxY-minY)*h];
 }
+function pressureCenters(overlay,region){
+ const b=BBOX[region],geo=window.SatelliteIsobarGeometry;
+ if(!b||!geo?.detectPressureSystems||!Array.isArray(overlay?.contours))return [];
+ const caps={atlantic:8,europe:6,southwest:5,central:3,germany:2};
+ return geo.detectPressureSystems(overlay.contours,b,{
+  minRings:3,maxSystems:caps[region]||5,minSeparation:94
+ });
+}
+function paintPressureCenters(ctx,overlay,region,{x=0,y=0,width,height}){
+ if(!width||!height)return [];
+ const markers=pressureCenters(overlay,region);
+ const size=Math.max(23,Math.min(52,Math.round(width*.031)));
+ ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.font="900 "+size+"px Arial,Helvetica,sans-serif";
+ ctx.lineJoin="round";ctx.lineWidth=Math.max(2.2,size*.12);
+ for(const m of markers){
+  const p=project([m.lon,m.lat],region,x,y,width,height);
+  ctx.strokeStyle="#0c1931";ctx.globalAlpha=.96;
+  if(typeof ctx.strokeText==="function")ctx.strokeText(m.type,p[0],p[1]);
+  ctx.fillStyle=m.type==="T"?"#cf4baf":"#9750c4";
+  ctx.fillText(m.type,p[0],p[1]);
+ }
+ ctx.restore();
+ return markers;
+}
 function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
  const groups=pathsFor(overlay,region);
  if(!width||!height)throw Error("Kartenmaße fehlen.");
@@ -59,6 +84,7 @@ function paintIsobars(ctx,overlay,region,{x=0,y=0,width,height}){
   ctx.strokeRect(p[0]-tw/2,p[1]-th/2,tw,th);
   ctx.fillStyle="#ffffff";ctx.fillText(label,p[0],p[1]);
  }
+ paintPressureCenters(ctx,overlay,region,{x,y,width,height});
  ctx.restore();
  return groups;
 }
@@ -140,6 +166,18 @@ function drawPDFVectors(overlay,region,w,h,bottom){
    "1 1 1 rg","BT /F1 "+fmt(fs)+" Tf "+fmt(xy[0]-14*unit)+" "+fmt(xy[1]-4*unit)+
     " Td ("+esc(String(group.hpa))+") Tj ET");
  }
+ // Keep H/T as editable text within the vector layer, not raster pixels.
+ for(const m of pressureCenters(overlay,region)){
+  const [cx,cy]=pt([m.lon,m.lat]);
+  const fs=Math.max(24,Math.min(48,w*.031));
+  out.push("q",
+   pdfRGB("#0c1931")+" RG",
+   pdfRGB(m.type==="T"?"#cf4baf":"#9750c4")+" rg",
+   fmt(Math.max(2.2,fs*.12))+" w",
+   "BT /F1 "+fmt(fs)+" Tf 2 Tr "+
+    fmt(cx-fs*.35)+" "+fmt(cy-fs*.34)+" Td ("+m.type+") Tj ET",
+   "Q");
+ }
  out.push("Q");
  return out.join("\n");
 }
@@ -194,5 +232,5 @@ function download(result){
  setTimeout(()=>URL.revokeObjectURL(u),60000);
  return result.blob.size;
 }
-window.SatelliteMapExport={paintIsobars,pathsFor,renderPNG,renderPDF,download};
+window.SatelliteMapExport={paintIsobars,paintPressureCenters,pressureCenters,pathsFor,renderPNG,renderPDF,download};
 })();
