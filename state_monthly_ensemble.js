@@ -325,7 +325,12 @@ function renderHeader(r){
          "Die durchgezogene violette Linie zeigt die aus DWD-SDK-Tagesstationswerten 1991–2020 rekonstruierte Tagesklimatologie (6-km-IDW-Gitter, monatsweise an die amtlichen 1-km-Normalwerte angepasst). Sie ist KEIN amtliches tägliches DWD-Raster und keine DUETT-Klimatologie.":
          "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich."):
         normal===null?"Noch keine Klimareferenz geladen.":"Die gestrichelte Klimareferenz zeigt die volle Monatssumme; dies ist keine Tagesklimatologie.";
-      note.textContent=`${config.source} · ${config.unit} · kumulierte Gebietssummen. ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Die historische Sonnenschein-Tagesreferenz ist eine stationsbasierte Rekonstruktion und methodisch nicht identisch mit DUETT.":""} Fehlende Tage werden nicht zu null.`;
+      const metricDescription=selectedMetric()==="percent"?
+        "Diese Darstellung zeigt 100 % als kumuliertes Tagesklimamittel; bei Klimawert 0 bleibt der Prozentwert leer.":
+        selectedMetric()==="anomaly"?
+        "Diese Darstellung zeigt Abweichungen vom kumulierten Tagesklimamittel; die Nulllinie bedeutet genau im Mittel.":
+        "Diese Darstellung zeigt absolute kumulierte Gebietssummen.";
+      note.textContent=`${config.source} · ${config.unit} · ${metricDescription} ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Die historische Sonnenschein-Tagesreferenz ist eine stationsbasierte Rekonstruktion und methodisch nicht identisch mit DUETT.":""} Fehlende Tage werden nicht zu null.`;
     }
     return;
   }
