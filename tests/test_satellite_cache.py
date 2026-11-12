@@ -38,6 +38,8 @@ class SatelliteCacheTests(unittest.TestCase):
                 "geocolour": {
                     "layer": "mtg_fd:rgb_geocolour",
                     "available_times": [when],
+                    "latest_verified_time": when,
+                    "map_ok": True,
                 }
             },
         }
@@ -60,7 +62,34 @@ class SatelliteCacheTests(unittest.TestCase):
             self.assertEqual(cache.run(), 0)
         unchanged = json.loads(cache.INDEX.read_text(encoding="utf-8"))
         self.assertEqual(unchanged, manifest)
-        self.assertEqual((cache.ROOT / "geocolour_europe.png").read_bytes(), png)
+        self.assertEqual((cache.ROOT / ("geocolour_europe_" + time1.replace("-", "").replace(":", "") + ".png")).read_bytes(), png)
+
+    def test_archives_only_verified_timestamp(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        advertised = (now - dt.timedelta(minutes=10)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        verified = (now - dt.timedelta(minutes=20)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        status = self.status(advertised)
+        status["products"]["geocolour"].update({
+            "available_times": [verified, advertised],
+            "latest_verified_time": verified,
+            "map_ok": True,
+        })
+        self.write_status(status)
+        with patch.object(cache, "request_png", return_value=b"valid PNG bytes") as mock:
+            self.assertEqual(cache.run(), 0)
+        self.assertEqual(mock.call_count, len(cache.REGIONS))
+        self.assertTrue(all(args.args[2] == verified for args in mock.call_args_list))
+        manifest = json.loads(cache.INDEX.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["entries"]["geocolour"]["atlantic"]["time"], verified)
+
+    def test_unverified_frames_do_not_trigger_downloads(self):
+        advertised = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        status = self.status(advertised)
+        status["products"]["geocolour"]["map_ok"] = False
+        self.write_status(status)
+        with patch.object(cache, "request_png", side_effect=AssertionError("unverified request")):
+            self.assertEqual(cache.run(), 0)
+        self.assertFalse(cache.INDEX.exists())
 
     def test_rejects_bad_utc(self):
         self.assertIsNone(cache.valid_utc("bad"))
