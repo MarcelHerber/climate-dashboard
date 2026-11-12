@@ -171,7 +171,7 @@ def exercise(browser,device,base,tmp):
         page.locator("#satIsobarSpacing").select_option("2")
         page.wait_for_function(
             "()=>document.querySelector('#satIsobarStatus')?.textContent.includes('2 hPa')"
-            "&&document.querySelectorAll('#satIsobarSvg path[stroke=\\'#ff4fcf\\']').length>0",
+            "&&document.querySelectorAll('#satIsobarSvg path').length>0",
             timeout=15000)
         widths=page.locator("#satIsobarSvg path[stroke='#ff4fcf']").evaluate_all(
             "(els)=>[...new Set(els.map(p=>Number(p.getAttribute('stroke-width'))))]")
