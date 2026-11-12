@@ -2,8 +2,11 @@ name: Europa Tmax · MOSMIX + ICON-EU (privates Wolkenlabor)
 
 on:
   workflow_dispatch:
+  # At 22 UTC, the current 00Z ICON run still starts with a past 18Z
+  # daily maximum, which the rolling MOSMIX-L forecast no longer contains.
+  # The next five-day 00Z cycle becomes usable the following morning.
   schedule:
-    - cron: "45 4,10,16,22 * * *"
+    - cron: "45 4,10,16 * * *"
   push:
     branches: [main]
     paths:
