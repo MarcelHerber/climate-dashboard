@@ -78,14 +78,16 @@
   function ensureColorKey(chart,parameter){
     const host=chart.canvas?.closest?.(".chart-container")||chart.canvas?.parentElement;
     if(!host||typeof document.createElement!=="function")return;
-    let key=chart.$climateKey;
+    // updateMonthly may destroy and recreate Chart.js instances. Reuse the
+    // existing DOM legend, otherwise each parameter switch adds another one.
+    let key=chart.$climateKey||host.querySelector?.(".monthly-climate-key");
     if(!key){
       key=document.createElement("div");
       key.className="monthly-climate-key";
       key.setAttribute("role","note");
       host.appendChild(key);
-      chart.$climateKey=key;
     }
+    chart.$climateKey=key;
     if(key.dataset.parameter===parameter)return;
     key.dataset.parameter=parameter;
     const names=COLOR_KEYS[parameter]||COLOR_KEYS.temp;
