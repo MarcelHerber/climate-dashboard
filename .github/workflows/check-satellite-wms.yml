@@ -26,6 +26,11 @@ jobs:
         with:
           ref: main
           persist-credentials: true
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/check_satellite_wms.py
+            data/satellite_wms_times.json
       - name: Check WMS monitor syntax
         run: python -m py_compile scripts/check_satellite_wms.py
       - name: Probe official WMS metadata and five verified imagery layers
