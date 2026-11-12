@@ -110,6 +110,7 @@ required_root_files=(
   satellite_radar.js
   satellite_view_options.js
   satellite_hd.js
+  satellite_fullhd_film.js
   satellite_isobar_geometry.js
   satellite_isobars.js
   satellite_map_export.js
@@ -548,6 +549,7 @@ node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
 node --check _site/satellite_view_options.js
 node --check _site/satellite_hd.js
+node --check _site/satellite_fullhd_film.js
 node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
 node --test tests/test_satellite_isobars.cjs
@@ -557,6 +559,7 @@ node --test tests/test_satelliten_ui.cjs
 node --test tests/test_satellite_phase12.cjs
 node --test tests/test_satellite_source_alignment.cjs
 node --test tests/test_satellite_hd.cjs
+node --test tests/test_satellite_fullhd_film.cjs
 node --test tests/test_satellite_film.cjs
 grep -Eq 'src="satelliten[.]js([?][^"]*)?"' _site/satelliten.html
 node --check _site/saharastaub.js

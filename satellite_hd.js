@@ -8,6 +8,7 @@
 const byId=id=>document.getElementById(id);
 const stage=byId("satHDTiles"),frame=byId("satPictureFrame"),stack=byId("satImageStack");
 const quality=byId("satStillQuality"),info=byId("satHDStatus"),download=byId("satHDDownload");
+const pdfButton=byId("satHDPdf"),borderChoice=byId("satHDExportBorders"),cityChoice=byId("satHDExportCities"),isobarChoice=byId("satHDExportIsobars");
 const source=byId("satSource"),product=byId("satProduct"),region=byId("satRegion");
 if(!stage||!frame||!stack||!quality||!info||!download)return;
 const API="https://view.eumetsat.int/geoserver/wms";
@@ -47,6 +48,7 @@ function clear(reason){
  stage.replaceChildren();stage.hidden=true;
  if(reason)setInfo(reason);
  download.disabled=!scene||quality.value==="standard"||downloadBusy||source.value!=="mtgi1"||region.value==="disk";
+ if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
 }
 function ready(input){
  if(!input?.ready||input.cached||!input.time||input.source!=="mtgi1"||!regions[input.region]||
@@ -69,9 +71,16 @@ function visible(){
   top:clamp((f.top-r.top)/r.height-margin,0,1),bottom:clamp((f.bottom-r.top)/r.height+margin,0,1)};
 }
 function tileUrl(tile,area,grid){
- const box=boundsForTile(tile.col,tile.row,grid.cols,grid.rows,area.slice(0,4));
- const w=tile.col===grid.cols-1?grid.width-(grid.cols-1)*grid.tw:grid.tw;
- const h=tile.row===grid.rows-1?grid.height-(grid.rows-1)*grid.th:grid.th;
+ // Geographic bounds use the EXACT output-pixel fractions. A final tile may
+ // be one pixel narrower/shorter than earlier tiles: equally divided lon/lat
+ // would otherwise create seams and slight overlay displacement.
+ const [west,south,east,north]=area;
+ const x0=tile.col*grid.tw,y0=tile.row*grid.th;
+ const w=Math.min(grid.tw,grid.width-x0),h=Math.min(grid.th,grid.height-y0);
+ const box=[west+(east-west)*x0/grid.width,
+  north-(north-south)*(y0+h)/grid.height,
+  west+(east-west)*(x0+w)/grid.width,
+  north-(north-south)*y0/grid.height];
  return API+"?"+new URLSearchParams({service:"WMS",version:"1.1.1",request:"GetMap",
   layers:scene.layer,styles:"",format:"image/png",transparent:"false",srs:"EPSG:4326",
   bbox:box.join(","),width:String(w),height:String(h),bgcolor:"0x000000",time:scene.time}).toString();
@@ -80,10 +89,10 @@ function display(tile){
  if(!tile.ok||tile.node)return;
  const img=tile.img;
  img.className="sat-hd-tile";
- img.style.left=(tile.col/layout.cols*100)+"%";
- img.style.top=(tile.row/layout.rows*100)+"%";
- img.style.width=(100/layout.cols)+"%";
- img.style.height=(100/layout.rows)+"%";
+ img.style.left=(tile.col*layout.tw/layout.width*100)+"%";
+ img.style.top=(tile.row*layout.th/layout.height*100)+"%";
+ img.style.width=(Math.min(layout.tw,layout.width-tile.col*layout.tw)/layout.width*100)+"%";
+ img.style.height=(Math.min(layout.th,layout.height-tile.row*layout.th)/layout.height*100)+"%";
  img.style.position="absolute";
  img.style.maxWidth="none";
  img.style.objectFit="fill";
@@ -152,6 +161,7 @@ function render(){
  try{grid=specs(quality.value,zoom,area);}
  catch(error){clear("HD nicht möglich: "+error.message);return;}
  download.disabled=quality.value==="standard"||downloadBusy;
+ if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
  if(!grid){clear("Standard · hochauflösende Kacheln werden ab 135 % Zoom automatisch geladen.");return;}
  const key=[scene.time,scene.layer,scene.region,grid.width,grid.height].join("|");
  if(layout?.key!==key){
@@ -168,42 +178,127 @@ quality.addEventListener("change",()=>{
  clear();
  if(scene)schedule();
 });
-async function downloadPNG(){
+
+/* Output requires a complete, exact-time collection. Missing/failed WMS
+ * tiles NEVER generate a misleading interpolated HD or 4K composite. */
+async function prepareFullRaster(gen,ctxScene,grid){
+ ensureTiles(true);
+ const deadline=Date.now()+160000;
+ while(Date.now()<deadline){
+  if(gen!==epoch||!scene||scene.time!==ctxScene.time||scene.layer!==ctxScene.layer||
+     region.value!==ctxScene.region||product.value!==ctxScene.product||
+     layout?.key!==grid.key)throw Error("Kartenauswahl wurde während des Exports geändert");
+  const list=Array.from({length:grid.cols*grid.rows},(_,i)=>
+   tiles.get((i%grid.cols)+"_"+Math.floor(i/grid.cols)));
+  if(list.every(t=>t&&(t.ok||t.failed))){
+   if(list.some(t=>!t.ok))throw Error("Eine oder mehrere HD-Kacheln konnten nicht geladen werden. Es wird kein künstlich vergrößertes Ersatzbild ausgegeben.");
+   const canvas=document.createElement("canvas");
+   canvas.width=grid.width;canvas.height=grid.height;
+   const ctx=canvas.getContext("2d");
+   if(!ctx)throw Error("Canvas nicht verfügbar.");
+   // Pixel-aligned placement prevents seams from rounded tile dimensions.
+   for(const tile of list){
+    const x=tile.col*grid.tw,y=tile.row*grid.th;
+    ctx.drawImage(tile.img,x,y,Math.min(grid.tw,grid.width-x),
+      Math.min(grid.th,grid.height-y));
+   }
+   return {canvas,ctx};
+  }
+  await new Promise(resolve=>setTimeout(resolve,150));
+ }
+ throw Error("HD-Bildabruf nicht rechtzeitig abgeschlossen");
+}
+function stamp(ctx,sceneData,grid,options){
+ const size=Math.max(13,Math.round(grid.width/145));
+ const h=Math.max(32,Math.round(size*2.25));
+ ctx.save();
+ ctx.fillStyle="rgba(9,23,38,.88)";
+ ctx.fillRect(0,grid.height-h,grid.width,h);
+ ctx.fillStyle="#ffffff";ctx.font="700 "+size+"px Arial,sans-serif";
+ const title="MTG · "+sceneData.product+" · "+fmt(sceneData.time)+
+   " · "+grid.width+" × "+grid.height+" px · © EUMETSAT";
+ ctx.fillText(title,Math.round(h*.32),grid.height-Math.round(h*.40),grid.width-h*.64);
+ ctx.restore();
+}
+async function compositeLayers(ctx,sceneData,grid,choice){
+ const area={x:0,y:0,width:grid.width,height:grid.height};
+ let overlay=null;
+ if(choice.borders){
+  if(!window.SatelliteOverlay?.paintBorders)throw Error("Natural-Earth-Grenzfunktion ist nicht bereit.");
+  window.SatelliteOverlay.paintBorders(ctx,sceneData.region,area);
+ }
+ if(choice.cities){
+  if(!window.SatelliteOverlay?.paintCities)throw Error("Städtefunktion ist nicht bereit.");
+  window.SatelliteOverlay.paintCities(ctx,sceneData.region,area);
+ }
+ if(choice.isobars){
+  if(!window.SatelliteIsobars?.exportAt||!window.SatelliteMapExport?.paintIsobars)
+   throw Error("ECMWF-Vektorisobaren sind für den Download nicht geladen.");
+  const spacing=Number(byId("satIsobarSpacing")?.value)||5;
+  overlay=await window.SatelliteIsobars.exportAt(sceneData.time,sceneData.region,spacing);
+  if(overlay?.satelliteUTC!==sceneData.time||!overlay?.validUTC)
+   throw Error("Die ECMWF-Isobaren passen nicht zum ausgewählten Satellitenzeitpunkt.");
+  if(choice.format==="png")
+   window.SatelliteMapExport.paintIsobars(ctx,overlay,sceneData.region,area);
+ }
+ return overlay;
+}
+async function exportImage(format="png"){
  if(downloadBusy||!scene||quality.value==="standard")return;
- const gen=epoch,ctxScene={...scene},area=regions[scene.region];
- const grid=layout;
+ const gen=epoch,ctxScene={...scene},grid=layout;
  if(!grid||grid.width!==({hd:2048,"4k":4096}[quality.value])){
   setInfo("Für den Download bitte zunächst das gewählte HD-/4K-Bild laden.");return;
  }
- downloadBusy=true;download.disabled=true;
+ const choice={format,borders:Boolean(borderChoice?.checked),cities:Boolean(cityChoice?.checked),
+  isobars:Boolean(isobarChoice?.checked)};
+ if(format==="pdf"&&!choice.isobars){
+  setInfo("Für ein PDF mit echten Vektor-Isobaren bitte die Isobaren im HD-Export aktivieren.");return;
+ }
+ downloadBusy=true;download.disabled=true;if(pdfButton)pdfButton.disabled=true;
  try{
-  ensureTiles(true);
-  const deadline=Date.now()+160000;
-  while(Date.now()<deadline){
-   if(gen!==epoch||scene.time!==ctxScene.time)throw Error("Kartenauswahl wurde geändert");
-   const list=Array.from({length:layout.cols*layout.rows},(_,i)=>tiles.get((i%layout.cols)+"_"+Math.floor(i/layout.cols)));
-   if(list.every(t=>t&&(t.ok||t.failed))){
-    if(list.some(t=>!t.ok))throw Error("Mindestens eine HD-Kachel wurde nicht übertragen. Kein hochskaliertes Ersatzbild erzeugt.");
-    const canvas=document.createElement("canvas");canvas.width=grid.width;canvas.height=grid.height;
-    const ctx=canvas.getContext("2d");
-    for(const tile of list){
-     const x=tile.col*grid.tw,y=tile.row*grid.th;
-     ctx.drawImage(tile.img,x,y,Math.min(grid.tw,grid.width-x),Math.min(grid.th,grid.height-y));
-    }
-    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error("Canvas nicht exportierbar")),"image/png"));
-    const url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download="mtg_"+ctxScene.product+"_"+ctxScene.region+"_"+grid.width+"px_"+ctxScene.time.replace(/[:.]/g,"-")+".png";
-    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-    setInfo("Echte "+grid.width+" × "+grid.height+" px WMS-Kacheln als PNG gespeichert · "+fmt(ctxScene.time));
-    return;
-   }
-   await new Promise(resolve=>setTimeout(resolve,150));
+  const {canvas,ctx}=await prepareFullRaster(gen,ctxScene,grid);
+  const overlay=await compositeLayers(ctx,ctxScene,grid,choice);
+  if(gen!==epoch||!scene||scene.time!==ctxScene.time)
+   throw Error("Aufnahme wurde während der Beschriftung gewechselt");
+  if(format==="pdf"){
+   if(!window.SatelliteMapExport?.renderPDF||!window.SatelliteMapExport?.download)
+    throw Error("Vektor-PDF-Modul nicht verfügbar.");
+   // Raster base: original full-resolution WMS pixels plus selectable
+   // Natural Earth and city annotations; Isobars stay editable PDF paths.
+   const productName=byId("satProduct")?.selectedOptions?.[0]?.textContent||ctxScene.product;
+   const regionName=byId("satRegion")?.selectedOptions?.[0]?.textContent||ctxScene.region;
+   const exported=await window.SatelliteMapExport.renderPDF({
+    image:canvas,overlay,region:ctxScene.region,regionName,product:ctxScene.product,productName});
+   window.SatelliteMapExport.download({
+    blob:exported.blob,name:exported.name.replace("_isobaren.pdf","_"+grid.width+"px_hd_vektoren.pdf")});
+   setInfo("HD-/4K-PDF aus vollständigen WMS-Kacheln · ECMWF-Isobaren bleiben als Vektoren bearbeitbar · "+fmt(ctxScene.time));
+  }else{
+   stamp(ctx,ctxScene,grid,choice);
+   const blob=await new Promise((resolve,reject)=>{
+    try{canvas.toBlob(b=>b?resolve(b):reject(Error("Canvas nicht exportierbar")),"image/png");}
+    catch(err){reject(err);}
+   });
+   const url=URL.createObjectURL(blob),a=document.createElement("a");
+   a.href=url;a.download="mtg_"+ctxScene.product+"_"+ctxScene.region+"_"+grid.width+"px_"+
+    ctxScene.time.replace(/[:.]/g,"-")+(choice.isobars?"_isobaren":"")+".png";
+   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   setInfo("Echte "+grid.width+" × "+grid.height+" px WMS-Kacheln exportiert · "+
+    (choice.isobars?"ECMWF-Isobaren · ":"")+(choice.borders?"Grenzen · ":"")+
+    (choice.cities?"Städte · ":"")+fmt(ctxScene.time));
   }
-  throw Error("HD-Bildabruf nicht rechtzeitig abgeschlossen");
- }catch(error){setInfo("HD-/4K-Export nicht möglich: "+error.message);}
- finally{downloadBusy=false;download.disabled=!scene||quality.value==="standard";}
+ }catch(error){
+  setInfo("HD-/4K-"+format.toUpperCase()+" nicht möglich: "+(error?.message||String(error)));
+ }finally{
+  downloadBusy=false;
+  download.disabled=!scene||quality.value==="standard";
+  if(pdfButton)pdfButton.disabled=download.disabled||!isobarChoice?.checked;
+ }
 }
-download.addEventListener("click",downloadPNG);
-window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile};
+download.addEventListener("click",()=>exportImage("png"));
+if(pdfButton)pdfButton.addEventListener("click",()=>exportImage("pdf"));
+if(isobarChoice)isobarChoice.addEventListener("change",()=>{
+ if(pdfButton)pdfButton.disabled=downloadBusy||quality.value==="standard"||!scene||!isobarChoice.checked;
+});
+window.SatelliteHD={sync:ready,cancel,viewChanged,boundsForTile,exportImage};
 setInfo("Standard · 800 px Einzelbild; echte HD-Kacheln bei Zoom oder Moduswechsel.");
 })();

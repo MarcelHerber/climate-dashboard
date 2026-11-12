@@ -86,7 +86,7 @@ test("Overlays are togglable and are suppressed on geostationary disk and MTG-I2
  assert.match(e.satOverlayHint.textContent,/südlich 25°N/);
 });
 test("Satellite overlay assets are built and mobile controls remain accessible",()=>{
- assert.ok(html.includes('<script defer src="satellite_overlay.js"></script>'));
+ assert.match(html,/<script defer src="satellite_overlay\.js(?:\?[^"]+)?"><\/script>/);
  for(const k of ["satImageStack","satBordersSvg","satCitiesLayer","satShowBorders","satShowCities"]){
   assert.ok(html.includes('id="'+k+'"'));
  }

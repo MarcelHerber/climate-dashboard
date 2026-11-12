@@ -5,9 +5,9 @@ const shell=fs.readFileSync("scripts/build_pages_site.sh","utf8");
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(ok,what,ms=3600){const end=Date.now()+ms;while(!ok()){if(Date.now()>end)throw Error("Timeout: "+what);await delay(15);}}
 function setup(){
- const requests=[],els=new Map(),alerts={downloads:0},view={scale:1};
+ const requests=[],els=new Map(),alerts={downloads:0,pdf:0,paintBorders:0,paintCities:0,paintIsobars:0},view={scale:1};
  class Element{
-  constructor(id){this.id=id;this.value="";this.disabled=false;this.hidden=false;this.style={};this.children=[];this.listeners={};this.textContent="";this.attrs={};}
+  constructor(id){this.id=id;this.value="";this.disabled=false;this.hidden=false;this.style={};this.children=[];this.listeners={};this.textContent="";this.attrs={};this.checked=false;}
   addEventListener(key,cb){this.listeners[key]=cb;}
   fire(key){this.listeners[key]?.();}
   replaceChildren(...items){this.children=items;}
@@ -18,13 +18,17 @@ function setup(){
    return {left:0,right:1,top:0,bottom:1,width:1,height:1};
   }
  }
- for(const key of ["satHDTiles","satPictureFrame","satImageStack","satStillQuality","satHDStatus","satHDDownload","satSource","satProduct","satRegion"]){
+ for(const key of ["satHDTiles","satPictureFrame","satImageStack","satStillQuality","satHDStatus","satHDDownload","satHDPdf","satHDExportBorders","satHDExportCities","satHDExportIsobars","satIsobarSpacing","satSource","satProduct","satRegion"]){
   els.set(key,new Element(key));
  }
  els.get("satStillQuality").value="standard";
  els.get("satSource").value="mtgi1";els.get("satProduct").value="geocolour";els.get("satRegion").value="europe";
+ els.get("satIsobarSpacing").value="5";
  const document={getElementById:id=>els.get(id),createElement(name){
-  if(name==="canvas")return {width:0,height:0,getContext(){return {drawImage(){}}},toBlob(cb){cb({size:12345})}};
+  if(name==="canvas")return {width:0,height:0,getContext(){return {
+   drawImage(){},save(){},restore(){},fillRect(){},fillText(){},beginPath(){},rect(){},clip(){},
+   strokeText(){},strokeRect(){},moveTo(){},lineTo(){},stroke(){},measureText(t){return {width:t.length*10}},
+   arc(){},fill(){}}},toBlob(cb){cb({size:12345})}};
   if(name==="a")return {click(){alerts.downloads++},remove(){},set href(v){},set download(v){}};
   throw Error("Unexpected element "+name);
  },body:{appendChild(){}}};
@@ -35,6 +39,17 @@ function setup(){
   removeAttribute(name){if(name==="src")this._src="";}
  }
  const context={document,Image,window:{},URLSearchParams,URL:{createObjectURL:()=>"blob:test",revokeObjectURL(){}},Date,Math,Number,String,Array,Map,Set,Promise,Error,setTimeout,clearTimeout};
+ context.window.SatelliteOverlay={
+  paintBorders(){alerts.paintBorders++},paintCities(){alerts.paintCities++}
+ };
+ context.window.SatelliteIsobars={
+  exportAt:async(time,place,spacing)=>({satelliteUTC:time,validUTC:time,spacing,region:place})
+ };
+ context.window.SatelliteMapExport={
+  paintIsobars(){alerts.paintIsobars++},
+  renderPDF:async()=>({blob:{size:2000},name:"hd_isobaren.pdf"}),
+  download(){alerts.pdf++}
+ };
  vm.runInNewContext(source,context,{timeout:2000});
  return {requests,els,context,view,alerts};
 }
@@ -100,4 +115,45 @@ test("Full 4K PNG is assembled only when every tile exists",async()=>{
  a.context.window.SatelliteHD.cancel("Film");
  assert.equal(a.els.get("satHDTiles").hidden,true);
  assert.equal(a.els.get("satHDTiles").children.length,0);
+});
+
+test("HD raster and vector PDF apply chosen layers only after all exact-time tiles are complete",async()=>{
+ const a=setup(),q=a.els.get("satStillQuality");q.value="hd";
+ a.els.get("satHDExportBorders").checked=true;
+ a.els.get("satHDExportCities").checked=true;
+ a.els.get("satHDExportIsobars").checked=true;
+ a.context.window.SatelliteHD.sync(live());
+ await until(()=>a.els.get("satHDTiles").children.length===6,"HD image ready");
+ await a.context.window.SatelliteHD.exportImage("png");
+ assert.equal(a.alerts.downloads,1);
+ assert.equal(a.alerts.paintBorders,1);
+ assert.equal(a.alerts.paintCities,1);
+ assert.equal(a.alerts.paintIsobars,1);
+ await a.context.window.SatelliteHD.exportImage("pdf");
+ assert.equal(a.alerts.pdf,1);
+ assert.equal(a.alerts.paintBorders,2);
+ assert.equal(a.alerts.paintCities,2);
+ assert.equal(a.alerts.paintIsobars,1,"PDF has editable isobars, never pre-rasterizes them");
+ assert.ok(html.includes('id="satHDPdf"'));
+ for(const id of ["satHDExportBorders","satHDExportCities","satHDExportIsobars"])
+  assert.ok(html.includes('id="'+id+'"'));
+});
+test("Non-divisible edge tile geographic coordinates match exact pixel raster",async()=>{
+ const a=setup(),q=a.els.get("satStillQuality");q.value="hd";
+ a.context.window.SatelliteHD.sync(live());
+ await until(()=>a.requests.length===6,"all requests");
+ const tiles=a.requests.map(t=>{
+  const url=new URL(t),b=url.searchParams.get("bbox").split(",").map(Number);
+  return {b,w:Number(url.searchParams.get("width")),h:Number(url.searchParams.get("height"))};
+ });
+ const north=tiles.filter(t=>Math.abs(t.b[3]-73)<1e-8).sort((x,y)=>x.b[0]-y.b[0]);
+ assert.equal(north.reduce((n,t)=>n+t.w,0),2048);
+ assert.equal(north[0].w,683);
+ assert.equal(north.at(-1).w,682);
+ for(let i=1;i<north.length;i++){
+  assert.ok(Math.abs(north[i].b[0]-north[i-1].b[2])<1e-10);
+  const leftRate=(north[i-1].b[2]-north[i-1].b[0])/north[i-1].w;
+  const rightRate=(north[i].b[2]-north[i].b[0])/north[i].w;
+  assert.ok(Math.abs(leftRate-rightRate)<1e-10,"No geographic jump at seam");
+ }
 });

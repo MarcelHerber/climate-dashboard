@@ -108,5 +108,64 @@ async function loadBorders(){
 for(const el of [region,source,borderToggle,cityToggle])el.addEventListener("change",update);
 update();
 loadBorders();
-window.SatelliteOverlay={update};
+/* Paint the exact same source geometry for lossless HD/4K export.
+ * Canvas display is EPSG:4326 and uses the same normalized lon/lat transform
+ * as the interactive SVG. Missing border data are reported, not invented. */
+function paintBorders(ctx,place,{x=0,y=0,width,height}){
+ const bbox=BOXES[place];
+ if(!bbox||!lines)throw Error("Für den HD-Export fehlen gültige Natural-Earth-Grenzen.");
+ const [west,south,east,north]=bbox;
+ const px=(lon,lat)=>[x+(lon-west)/(east-west)*width,y+(north-lat)/(north-south)*height];
+ ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
+ ctx.lineCap="round";ctx.lineJoin="round";
+ ctx.lineWidth=Math.max(1.2,width/1150);
+ ctx.strokeStyle="#f3f9ff";ctx.shadowColor="#071622";
+ ctx.shadowBlur=Math.max(1.5,width/1300);
+ let rendered=0;
+ for(const line of lines){
+  if(!Array.isArray(line)||line.length<2)continue;
+  let minX=181,maxX=-181,minY=91,maxY=-91;
+  for(const p of line){
+   if(!Array.isArray(p)||p.length!==2)continue;
+   minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0]);
+   minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);
+  }
+  if(maxX<west||minX>east||maxY<south||minY>north)continue;
+  ctx.beginPath();let count=0;
+  for(const p of line){
+   if(!Array.isArray(p)||!Number.isFinite(p[0])||!Number.isFinite(p[1]))continue;
+   const [a,b]=px(p[0],p[1]);
+   if(count++===0)ctx.moveTo(a,b);else ctx.lineTo(a,b);
+  }
+  if(count>=2){ctx.stroke();rendered++;}
+ }
+ ctx.restore();
+ if(!rendered)throw Error("Keine Grenzgeometrie für den gewählten Ausschnitt.");
+ return rendered;
+}
+function paintCities(ctx,place,{x=0,y=0,width,height}){
+ const bbox=BOXES[place];
+ if(!bbox)throw Error("Dieser Ausschnitt besitzt keine geografischen Städtenamen.");
+ const [west,south,east,north]=bbox;
+ const size=Math.max(11,Math.round(width/110));
+ ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
+ ctx.lineJoin="round";ctx.textAlign="left";ctx.textBaseline="middle";
+ ctx.font="700 "+size+"px Arial,sans-serif";
+ let count=0;
+ for(const [name,lon,lat] of PLACES){
+  if(lon<west+.7||lon>east-.7||lat<south+.5||lat>north-.5)continue;
+  const px=x+(lon-west)/(east-west)*width,py=y+(north-lat)/(north-south)*height;
+  ctx.fillStyle="#ffffff";ctx.strokeStyle="#102038";
+  ctx.lineWidth=Math.max(2.5,size*.3);
+  const maxW=Math.min(width*.27,Math.max(54,width-x-px-6));
+  ctx.beginPath();ctx.arc(px,py,Math.max(2.5,size*.20),0,Math.PI*2);
+  ctx.stroke();ctx.fill();
+  ctx.strokeText(name,px+size*.5,py-size*.55,maxW);
+  ctx.fillText(name,px+size*.5,py-size*.55,maxW);
+  count++;
+ }
+ ctx.restore();
+ return count;
+}
+window.SatelliteOverlay={update,paintBorders,paintCities};
 })();

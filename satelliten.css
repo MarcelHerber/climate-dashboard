@@ -170,3 +170,12 @@ h1{font-size:clamp(30px,4vw,46px);line-height:1.15;margin:6px 0 10px}h2{font-siz
 .sat-hd-tiles[hidden]{display:none}
 .sat-hd-tiles img.sat-hd-tile{position:absolute;display:block;height:100%;max-width:none;object-fit:fill;pointer-events:none}
 @media(max-width:650px){.sat-hd-controls{display:grid;grid-template-columns:1fr}.sat-hd-controls label{justify-content:space-between}.sat-hd-controls select{max-width:65%}.sat-hd-controls button{width:100%}}
+
+/* Complete-resolution export controls; never obscure original satellite map. */
+.sat-hd-layer-options{display:flex;align-items:center;gap:6px 16px;flex-wrap:wrap;width:100%;font-size:12px}
+.sat-hd-layer-options label{display:inline-flex;align-items:center;gap:6px;min-height:32px;cursor:pointer;font-weight:700}
+.sat-hd-layer-options input{width:17px;height:17px;accent-color:var(--sat-link)}
+@media(max-width:650px){.sat-hd-layer-options{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}.sat-hd-layer-options label:last-child{grid-column:1/-1}}
+
+@media(min-width:900px){.sat-film-controls:has(#satMp4Quality){grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:650px){.sat-film-controls:has(#satMp4Quality){grid-template-columns:1fr 1fr}.sat-film-controls label:last-child{grid-column:auto}}

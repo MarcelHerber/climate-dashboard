@@ -7,16 +7,17 @@
 <title>Satelliten · MTG | Climate Dashboard Deutschland</title>
 <link rel="stylesheet" href="dashboard_theme.css">
 <link rel="stylesheet" href="mobile_navigation.css">
-<link rel="stylesheet" href="satelliten.css?v=20261112-hd-1">
+<link rel="stylesheet" href="satelliten.css?v=20261112-hdexport-video1">
 <script defer src="dashboard_theme.js"></script>
 <script defer src="mobile_navigation.js"></script>
-<script defer src="satellite_overlay.js"></script>
+<script defer src="satellite_overlay.js?v=20261112-hdexport-video1"></script>
 <script defer src="satellite_isobar_geometry.js?v=20261112-satellite-qa-v3"></script>
 <script defer src="satellite_isobars.js?v=20261112-satellite-qa-v3"></script>
 <script defer src="satellite_map_export.js?v=20261112-satellite-qa-v3"></script>
-<script defer src="satellite_film_export.js?v=20261112-satellite-qa-v3"></script>
-<script defer src="satelliten.js?v=20261112-hd-1"></script>
-<script defer src="satellite_hd.js?v=20261112-hd-1"></script>
+<script defer src="satellite_film_export.js?v=20261112-hd-video1"></script>
+<script defer src="satellite_fullhd_film.js?v=20261112-hd-video1"></script>
+<script defer src="satelliten.js?v=20261112-hdexport-video1"></script>
+<script defer src="satellite_hd.js?v=20261112-hdexport-video1"></script>
 <script defer src="satellite_view_options.js?v=20261112-hd-1"></script>
 <script defer src="satellite_lightning.js?v=20261112-sourcefix-1"></script>
 <script defer src="satellite_radar.js?v=20261112-sourcefix-1"></script>
@@ -50,6 +51,7 @@
 <div class="sat-film-controls" aria-label="Einstellungen für den Satellitenfilm">
 <label for="satFilmLength">Filmlänge<select id="satFilmLength"><option value="6">6 Bilder · ganz leicht</option><option value="8" selected>8 Bilder · Standard</option><option value="12">12 Bilder · ca. 2 Stunden</option><option value="20">20 Bilder · ca. 3 Stunden</option><option value="36">36 Bilder · ca. 6 Stunden</option><option value="48">48 Bilder · ca. 8 Stunden</option></select></label>
 <label for="satFilmQuality">Vorschauqualität<select id="satFilmQuality"><option value="320">Extra sparsam · 320 px</option><option value="480" selected>Sparsam · 480 px</option><option value="720">Schärfer · 720 px</option></select></label>
+<label for="satMp4Quality">MP4-Exportqualität<select id="satMp4Quality"><option value="preview" selected>Schnell · Vorschauauflösung</option><option value="fhd">Full HD · 1920 × 1080 (2–12 Bilder)</option></select></label>
 <label for="satFilmSpeed">Geschwindigkeit<select id="satFilmSpeed"><option value="1200">Langsam</option><option value="750" selected>Normal</option><option value="420">Schnell</option></select></label>
 </div>
 <div class="sat-actions">
@@ -68,17 +70,23 @@
 <progress id="satFilmProgress" max="8" value="0" aria-label="Vorladen der Satellitenbilder"></progress>
 <output id="satFilmProgressLabel" for="satFilmProgress" aria-live="polite">Filmbilder werden geladen …</output>
 </div>
-<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbilder starten mit 800 px (bei WMS-Fehlern 400/320 px). HD/4K wird bei Bedarf gekachelt direkt von EUMETSAT angefordert; fehlende Kacheln bleiben als Vorschau erkennbar, und ein unvollständiges Bild wird nicht als echtes 4K exportiert. Der bisherige PNG-Export bleibt unverändert. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar. Zusätzlich gibt es PNG, vektorbasierte PDF und GIF mit pinken Isobaren. Lightning-Imager- und Radarüberlagerungen sind derzeit reine Bildschirmlayer und nicht Bestandteil der Exporte. Für den Isobarenexport müssen ein echtes Satellitenbild mit CORS-Freigabe und die zum Aufnahmezeitpunkt passenden ECMWF-Konturen verfügbar sein.</p>
+<p class="sat-film-hint">Der Film lädt die gewählten Aufnahmen verkleinert vor und zeigt den Ladefortschritt an. Ab 20 Bildern empfehlen wir 320 px; bei 36 Bildern werden etwa sechs Stunden mit 10-Minuten-Schritten abgedeckt. Einzelbilder starten mit 800 px (bei WMS-Fehlern 400/320 px). HD/4K wird bei Bedarf gekachelt direkt von EUMETSAT angefordert; fehlende Kacheln bleiben als Vorschau erkennbar, und ein unvollständiges Bild wird nicht als echtes 4K exportiert. Der bisherige PNG-Export bleibt unverändert. Nach dem Vorladen sind GIF- und, wenn vom Browser unterstützt, echte MP4-Filmexports mit UTC-Zeitstempeln verfügbar. Bei Full HD werden maximal 12 bestätigte UTC-Aufnahmen erneut in echten 1920-px-WMS-Kacheln geladen und als 1920 × 1080 MP4 (8 Mbit/s, Seitenverhältnis bleibt erhalten) codiert. Scheitern WMS-Kacheln, wird kein künstlich hochskaliertes Video erzeugt. Zusätzlich gibt es PNG, vektorbasierte PDF und GIF mit pinken Isobaren. Lightning-Imager- und Radarüberlagerungen sind derzeit reine Bildschirmlayer und nicht Bestandteil der Exporte. Für den Isobarenexport müssen ein echtes Satellitenbild mit CORS-Freigabe und die zum Aufnahmezeitpunkt passenden ECMWF-Konturen verfügbar sein.</p>
 <div id="satStatus" class="sat-status" role="status" aria-live="polite">Verbinde mit dem EUMETSAT-Dienst …</div>
 </section>
 <section class="sat-panel sat-image-panel" aria-labelledby="satMapTitle">
 <div class="sat-map-top"><h2 id="satMapTitle">GeoColour · Europa und Nordafrika</h2><span id="satValid">UTC: nicht überprüft</span></div>
 <div class="sat-hd-controls" aria-label="Satellitenbild-Auflösung und Kachel-Export">
 <label for="satStillQuality">Einzelbildqualität <select id="satStillQuality"><option value="standard" selected>Standard · 800 px + Detailzoom</option><option value="hd">HD · 2048 px Kacheln</option><option value="4k">4K · 4096 px Kacheln</option></select></label>
-<button id="satHDDownload" type="button" disabled>HD/4K-PNG ohne Isobaren ↓</button>
+<button id="satHDDownload" type="button" disabled>HD/4K-PNG exportieren ↓</button>
+<button id="satHDPdf" type="button" disabled>HD/4K-PDF · Vektor-Isobaren ↓</button>
+<div class="sat-hd-layer-options" aria-label="Zusätzliche Ebenen für HD- und 4K-Exporte">
+<label><input id="satHDExportBorders" type="checkbox" checked> Grenzen im Export</label>
+<label><input id="satHDExportCities" type="checkbox" checked> Städtenamen im Export</label>
+<label><input id="satHDExportIsobars" type="checkbox" checked> ECMWF-Isobaren im Export</label>
+</div>
 </div>
 <p id="satHDStatus" class="sat-hd-status" role="status" aria-live="polite">Standardbild wird geladen; beim Zoom werden georeferenzierte HD-Kacheln nachgeladen.</p>
-<div class="sat-view-controls" aria-label="Satellitenbild vergrößern und Infrarotdarstellung anpassen"><button id="satZoomOut" type="button" aria-label="Ansicht verkleinern">−</button><output id="satZoomValue">100 %</output><button id="satZoomIn" type="button" aria-label="Ansicht vergrößern">+</button><button id="satZoomReset" type="button">Ansicht zurücksetzen</button><label for="satIRPreset">IR-Darstellung <select id="satIRPreset" disabled><option value="normal">Original</option><option value="contrast">Mehr Kontrast</option><option value="monochrome">Graustufen</option><option value="negative">Negativ</option></select></label></div><p class="sat-view-note">Zum Verschieben das vergrößerte Bild ziehen; ab 135 % Zoom werden zusätzliche geografische Detailkacheln angefordert. Nur EPSG:4326-Ausschnitte; auf der Erdscheibe bleibt die native Projektion unverändert. IR-Filter und Zoom gelten nur für die Bildschirmansicht. IR-Filter liefern keine kalibrierten Temperaturwerte. Das neue HD/4K-PNG enthält echte Kachelpixel, jedoch keine Isobaren oder IR-Filter.</p>
+<div class="sat-view-controls" aria-label="Satellitenbild vergrößern und Infrarotdarstellung anpassen"><button id="satZoomOut" type="button" aria-label="Ansicht verkleinern">−</button><output id="satZoomValue">100 %</output><button id="satZoomIn" type="button" aria-label="Ansicht vergrößern">+</button><button id="satZoomReset" type="button">Ansicht zurücksetzen</button><label for="satIRPreset">IR-Darstellung <select id="satIRPreset" disabled><option value="normal">Original</option><option value="contrast">Mehr Kontrast</option><option value="monochrome">Graustufen</option><option value="negative">Negativ</option></select></label></div><p class="sat-view-note">Zum Verschieben das vergrößerte Bild ziehen; ab 135 % Zoom werden zusätzliche geografische Detailkacheln angefordert. Nur EPSG:4326-Ausschnitte; auf der Erdscheibe bleibt die native Projektion unverändert. IR-Filter und Zoom gelten nur für die Bildschirmansicht. IR-Filter liefern keine kalibrierten Temperaturwerte. HD-/4K-PNG und Vektor-PDF können Grenzen, Städte und ECMWF-Isobaren nach Wunsch enthalten. Im PDF bleiben die Isobaren als bearbeitbare Vektorpfade erhalten. Der PDF-Export erfordert passende geprüfte ECMWF-Druckkonturen; fehlende WMS-Kacheln verhindern einen unvollständigen Export. Bildschirmzoom, IR-Farbfilter, Blitz- und Radarbilder werden nicht automatisch in die Ausgabedatei übernommen.</p>
 <div id="satPictureFrame" class="sat-picture-frame"><div id="satImageStack" class="sat-image-stack"><img id="satImage" alt="Satellitenbild vom offiziellen EUMETSAT-WMS-Dienst" /><div id="satHDTiles" class="sat-hd-tiles" aria-hidden="true" hidden></div><img id="satRadarOverlay" alt="" aria-hidden="true" hidden><div id="satFilmStage" class="sat-film-stage" role="img" aria-label="Vorgeladene Satellitenfilm-Vorschau" hidden></div><svg id="satBordersSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Natürliche Küsten und internationale Grenzen" role="img" hidden></svg><svg id="satIsobarSvg" viewBox="0 0 1000 1000" preserveAspectRatio="none" role="img" aria-label="5-hPa-Isobaren aus ECMWF-IFS-Bodendruck, zeitlich zugeordnet" hidden></svg><div id="satLightningOverlay" class="sat-lightning-overlay" aria-label="Zeitlich zugeordnete optische Blitzflächen aus MTG LI-AFA" hidden></div><div id="satCitiesLayer" class="sat-cities-layer" aria-hidden="true" hidden></div></div><p id="satEmpty" class="sat-empty" hidden>Keine Satellitenaufnahme geladen. Über den offiziellen EUMETView-Link kannst du die Bilder direkt öffnen.</p></div>
 <div class="sat-caption"><span id="satAttribution">Bilddaten: © EUMETSAT / GeoColour-Hintergrund: NASA</span><span id="satImageInfo">WMS · EPSG:4326 · verifiziertes UTC-Datum nur bei bestätigter Zeitdimension</span></div>
 <div class="sat-links"><a id="satRawImage" href="#" target="_blank" rel="noopener noreferrer" hidden>Originales Satelliten-PNG öffnen ↗</a><a id="satOfficial" href="https://view.eumetsat.int/productviewer/productDetails/mtg_fd%3Argb_geocolour" target="_blank" rel="noopener noreferrer">Produkt bei EUMETView öffnen ↗</a><a href="https://www.esa.int/articles/about-us/directorates/earth-observation-programmes/meteorological-missions/meteosat-third-generation/mtg-i2-weather-satellite-delivers-first-images" target="_blank" rel="noopener noreferrer">MTG-I2: ESA-Erstbilder ↗</a></div>
