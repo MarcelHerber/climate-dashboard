@@ -70,6 +70,7 @@ async function update(input){
  if(context.source!=="mtgi1"||!area){
   clear("LI-Overlay nur für georeferenzierte MTG-I1-Kartenausschnitte verfügbar.");return;
  }
+ if(!$("satFilmStage").hidden){clear("LI während der Filmwiedergabe pausiert; in Einzelbildern verfügbar.");return;}
  if(!Number.isFinite(Date.parse(context.time))){clear("Kein geprüfter Satellitenzeitpunkt für die LI-Synchronisierung.");return;}
  clear("Prüfe offizielle MTG-LI-Blitzakkumulationen …");
  const times=await loadTimes();if(epoch!==mine)return;
