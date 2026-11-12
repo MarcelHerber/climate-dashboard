@@ -80,6 +80,33 @@ class CumulativeOutlookTests(unittest.TestCase):
         self.assertEqual(daily["sunshine_duration_member01"], [12.0])
         self.assertEqual(daily["sunshine_duration_member02"], [24.0])
 
+    def test_hyras_06_utc_day_from_hourly_precipitation(self):
+        end_hours = [f"2026-11-03T{hour:02d}:00" for hour in range(7,24)]
+        end_hours += [f"2026-11-04T{hour:02d}:00" for hour in range(7)]
+        hourly = {
+            "time": end_hours,
+            "precipitation_member01": [0.5] * 24,
+            "precipitation_member02": [0.0] * 24,
+        }
+        location = {"hourly": hourly, "hourly_units": {"precipitation": "mm"}}
+        out = outlook.hourly_precipitation_to_hyras_day(location)["daily"]
+        self.assertEqual(out["time"], ["2026-11-03"])
+        self.assertEqual(out["precipitation_member01"], [12.0])
+        self.assertEqual(out["precipitation_member02"], [0.0])
+
+    def test_hyras_06_utc_rain_hour_missing_does_not_count_as_dry(self):
+        hours = [f"2026-11-03T{hour:02d}:00" for hour in range(7,24)]
+        hours += [f"2026-11-04T{hour:02d}:00" for hour in range(7)]
+        doc = {
+            "hourly": {"time": hours, "precipitation_member01": [0.1]*23 + [None]},
+            "hourly_units": {"precipitation": "mm"},
+        }
+        out = outlook.hourly_precipitation_to_hyras_day(doc)["daily"]
+        self.assertEqual(out["precipitation_member01"], [None])
+        doc["hourly"]["time"] = hours[:-1]
+        doc["hourly"]["precipitation_member01"] = [0.1]*23
+        self.assertEqual(outlook.hourly_precipitation_to_hyras_day(doc)["daily"]["time"], [])
+
     def test_incomplete_or_invalid_hour_is_not_zero(self):
         times = [f"2026-11-03T{hour:02d}:00" for hour in range(1,24)] + ["2026-11-04T00:00"]
         hourly = {
