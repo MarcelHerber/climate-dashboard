@@ -191,11 +191,10 @@ def exercise(page, viewport_label, official_xml):
         )
         evidence["ecmwf_ten_minute_utc"]=target
         evidence["ecmwf_ten_minute_status"]=page.locator("#satIsobarStatus").inner_text()
-        evidence["ecmwf_ten_minute_cyan"]=page.locator("#satIsobarSvg path[stroke='#3bdeff']").count()
-        evidence["ecmwf_ten_minute_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
+        evidence["ecmwf_ten_minute_pink"]=page.locator("#satIsobarSvg path[stroke='#ff4fcf']").count()
+        evidence["ecmwf_ten_minute_not_amber"]=page.locator("#satIsobarSvg path[stroke='#ffb447']").count()
         evidence["ecmwf_ten_minute_halo"]=page.locator("#satIsobarSvg path[stroke='#061522']").count()
-        assert min(evidence["ecmwf_ten_minute_cyan"],evidence["ecmwf_ten_minute_amber"],
-                   evidence["ecmwf_ten_minute_halo"])>0, "High-contrast contours not rendered"
+        assert evidence["ecmwf_ten_minute_pink"]>0 and evidence["ecmwf_ten_minute_not_amber"]==0 and evidence["ecmwf_ten_minute_halo"]>0, "Single pink contours not rendered"
     original_lines=page.locator("#satIsobarSvg path").count()
     page.locator("#satIsobarSpacing").select_option("10")
     ten_hpa_lines=page.locator("#satIsobarSvg path").count()
