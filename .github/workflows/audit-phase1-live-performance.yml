@@ -1,0 +1,65 @@
+name: Phase 1 · Live-Performance Desktop und Handy
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tests/audit_phase1_live_perf.py"
+      - ".github/workflows/audit-phase1-live-performance.yml"
+
+permissions:
+  contents: read
+concurrency:
+  group: phase1-live-performance
+  cancel-in-progress: true
+
+jobs:
+  live-measurements:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tests/audit_phase1_live_perf.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install official Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install chromium
+      - name: Measure published data and page readiness without mocks
+        id: measure
+        continue-on-error: true
+        run: python -u tests/audit_phase1_live_perf.py
+      - name: Preserve reproducible timing details
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-desktop-mobile-live-perf
+          path: phase1_live_perf/report.json
+          if-no-files-found: warn
+      - name: Publish concise measured results in the workflow summary
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          path=Path("phase1_live_perf/report.json")
+          print("## Phase 1: Live-Ladezeiten auf GitHub Pages")
+          if not path.is_file():
+              print("Kein vollständiges Messprotokoll vorhanden.")
+          else:
+              data=json.loads(path.read_text())
+              print("| Modul | Breite | HTML | DOM (ms) | Diagramm / Zeitliste (ms) |")
+              print("|---|---:|---:|---:|---:|")
+              for row in data["results"]:
+                  timing=row.get("chart_ready_ms",row.get("metadata_ready_ms","–"))
+                  print(f"| {row['module']} | {row['viewport_px']} | {row.get('html_status','–')} | {row.get('domcontentloaded_ms','–')} | {timing} |")
+              print("\nNetwork failures, cache and actual transfer sizes are in the downloadable JSON artifact.")
+          PY
+      - name: Fail only after report is saved
+        if: steps.measure.outcome == 'failure'
+        run: exit 1
