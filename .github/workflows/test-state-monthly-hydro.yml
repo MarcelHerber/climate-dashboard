@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "scripts/build_monthly_outlook_duett.py"
+      - "scripts/check_duett_station_sun.py"
+      - "tests/test_check_duett_station_sun.py"
       - "scripts/build_monthly_outlook_precip_series.py"
       - "scripts/build_state_monthly_ensemble_outlook.py"
       - "scripts/build_state_monthly_precip_outlook.py"
@@ -39,12 +41,12 @@ jobs:
           python -m pip install shapely
       - name: Python Syntax prüfen
         run: |
-          python -m py_compile scripts/build_monthly_outlook_duett.py scripts/build_monthly_outlook_precip_series.py
+          python -m py_compile scripts/build_monthly_outlook_duett.py scripts/build_monthly_outlook_precip_series.py scripts/check_duett_station_sun.py
           python -m py_compile scripts/build_state_monthly_ensemble_outlook.py scripts/build_state_monthly_precip_outlook.py scripts/build_state_monthly_sun_outlook.py
           python -m py_compile scripts/patch_state_monthly_ensemble_frontend.py
       - name: Offline Unit-Tests
         run: |
-          for file in test_monthly_outlook_duett.py test_monthly_outlook_precip_series.py test_state_monthly_hydro_sum.py test_state_monthly_precip_outlook.py test_state_monthly_sun_outlook.py; do
+          for file in test_check_duett_station_sun.py test_monthly_outlook_duett.py test_monthly_outlook_precip_series.py test_state_monthly_hydro_sum.py test_state_monthly_precip_outlook.py test_state_monthly_sun_outlook.py; do
             python -m unittest discover -s tests -p "$file" -v
           done
       - name: Frontend-Syntax testen
