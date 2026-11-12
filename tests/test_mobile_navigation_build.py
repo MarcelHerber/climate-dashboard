@@ -48,7 +48,15 @@ class MobileNavigationBuildTests(unittest.TestCase):
             self.assertIn("mobile_navigation.js",(base/"stratosphaere.html").read_text(encoding="utf-8"))
             self.assertIn("mobile_content.js",(base/"stratosphaere.html").read_text(encoding="utf-8"))
             self.assertNotIn("mobile_navigation.js",(nested/"internal.html").read_text(encoding="utf-8"))
+            home=(base/"index.html").read_text(encoding="utf-8")
+            self.assertEqual(home.count('id="cdSatelliteShortcut"'),1)
+            self.assertIn('href="./satelliten.html"',home)
+            self.assertIn('Satellitenbilder öffnen',home)
+            self.assertLess(home.index("</header>"),home.index('id="cdSatelliteShortcut"'))
+            self.assertNotIn("cdSatelliteShortcut",(base/"stratosphaere.html").read_text(encoding="utf-8"))
+            self.assertNotIn("cdSatelliteShortcut",(base/"weltweite_isobaren.html").read_text(encoding="utf-8"))
             self.assertEqual(MODULE.deploy(base),result)
+            self.assertEqual((base/"index.html").read_text(encoding="utf-8").count('id="cdSatelliteShortcut"'),1)
 
     def test_no_partial_publish_if_one_html_malformed(self):
         with tempfile.TemporaryDirectory() as folder:

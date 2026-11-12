@@ -1,6 +1,13 @@
 name: Mobile Navigation · Funktion und Vollständigkeit
 
 on:
+  pull_request:
+    paths:
+      - mobile_navigation.js
+      - mobile_navigation.css
+      - scripts/inject_mobile_navigation.py
+      - tests/test_mobile_navigation_build.py
+      - .github/workflows/test-mobile-navigation.yml
   push:
     branches: [main]
     paths:
