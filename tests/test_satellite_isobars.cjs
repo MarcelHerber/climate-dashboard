@@ -16,8 +16,8 @@ class FakeElement{
  appendChild(item){this.children.push(item);}
  replaceChildren(...items){this.children=items;}
 }
-function fixture(){
- const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRegion","satSource"];
+function fixture({failOnce=false}={}){
+ const names=["satIsobarSvg","satShowIsobars","satIsobarSpacing","satIsobarStatus","satRetryIsobars","satRegion","satSource"];
  const map=new Map(names.map(x=>[x,new FakeElement()]));
  map.get("satRegion").value="southwest";
  map.get("satSource").value="mtgi1";
@@ -34,11 +34,16 @@ function fixture(){
   model:"ECMWF IFS Open Data",units:"hPa",field:"mean sea-level pressure",
   resolution_degrees:.25,interval_hpa:5,bbox:[-75,12,55,80],
   frames:[0,3,6,9,12].map(frame)};
+ let calls=0;
  const sandbox={document:{getElementById:x=>{assert.ok(map.has(x),"missing node "+x);return map.get(x);},
   createElementNS:()=>new FakeElement(),createDocumentFragment:()=>new FakeElement()},
-  window:{},Date,console:{warn(){}},fetch:async()=>({ok:true,json:async()=>data})};
+  window:{},Date,console:{warn(){}},fetch:async()=>{
+   calls++;
+   if(failOnce&&calls===1)throw Error("Temporary ECMWF asset error");
+   return {ok:true,json:async()=>data};
+  }};
  vm.runInNewContext(src,sandbox,{timeout:1000});
- return {map,data,api:sandbox.window.SatelliteIsobars,run};
+ return {map,data,api:sandbox.window.SatelliteIsobars,run,getCalls:()=>calls};
 }
 async function ready(api){
  for(let i=0;i<20;i++){if(api.frameFor(new Date().toISOString()))return;await new Promise(resolve=>setTimeout(resolve,3));}
@@ -87,4 +92,26 @@ test("5/10 hPa spacing and disk projection exclusions are safe",async()=>{
  assert.equal(map.get("satIsobarSvg").hidden,true);
  api.sync({time:t,region:"europe",source:"mtgi2"});
  assert.equal(map.get("satIsobarSvg").hidden,true);
+});
+
+test("When EUMETSAT time is unavailable, show independent valid ECMWF pressure contours",async()=>{
+ const {api,map}=fixture();
+ await ready(api);
+ api.sync({time:null,region:"southwest",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSvg").hidden,false,"Pressure field should render without an image timestamp");
+ assert.ok(map.get("satIsobarSvg").children.length>0,"Vector contour paths should exist");
+ assert.match(map.get("satIsobarStatus").textContent,/eigenständige Modellansicht ohne verifiziertes Satellitenbild/);
+ assert.match(map.get("satIsobarStatus").textContent,/gültig/);
+});
+test("A failed ECMWF fetch is recoverable with the independent reload control",async()=>{
+ const {api,map,getCalls}=fixture({failOnce:true});
+ for(let i=0;i<20&&getCalls()<1;i++)await new Promise(resolve=>setTimeout(resolve,3));
+ await new Promise(resolve=>setTimeout(resolve,12));
+ assert.match(map.get("satIsobarStatus").textContent,/fehlgeschlagen/);
+ assert.ok(html.includes('id="satRetryIsobars"'));
+ map.get("satRetryIsobars").emit("click");
+ await ready(api);
+ api.sync({time:null,region:"southwest",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSvg").hidden,false);
+ assert.equal(getCalls(),2,"Failed request should be retried exactly once");
 });
