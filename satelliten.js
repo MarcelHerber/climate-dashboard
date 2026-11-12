@@ -48,12 +48,12 @@ async function enableAuditedProducts(){
   if(!response.ok)throw Error("Audit nicht vorhanden");
   const report=await response.json();
   const age=Date.now()-Date.parse(report.checked_at);
-  if(!report.capabilities_ok||!Number.isFinite(age)||age<0||age>6*3600000)
+  if(!report.capabilities_ok||!Number.isFinite(age)||age<0||age>30*3600000)
    throw Error("Auditbericht nicht frisch");
   for(const [key,label] of Object.entries(titles)){
    const entry=(report.categories?.[key]||[]).find(x=>x.map_ok&&x.tested&&x.recent&&
      typeof x.layer==="string"&&/^mtg_fd:[a-z0-9_]+$/.test(x.layer)&&
-     Date.parse(x.latest_verified_time)>Date.now()-90*60000);
+     Date.parse(x.latest_verified_time)>Date.parse(report.checked_at)-90*60000);
    if(!entry)continue;
    const code="extra_"+key;
    PRODUCTS[code]={layer:entry.layer,name:label,url:entry.product_page,
@@ -61,7 +61,7 @@ async function enableAuditedProducts(){
    group.add(new Option(label+" · verifiziert",code));
    count++;
   }
-  status.textContent=count?count+" zusätzliche MTG-Produkte erfolgreich geprüft und auswählbar.":
+  status.textContent=count?count+" zusätzliche MTG-Produkte beim letzten offiziellen WMS-Audit geprüft und auswählbar. Die aktuellen UTC-Zeiten werden beim Öffnen neu geprüft.":
    "Noch keine weiteren FCI-Produkte mit bestätigten PNGs und aktuellen UTC-Daten.";
  }catch(error){status.textContent="Zusätzliche Produkte nicht freigeschaltet: "+error.message+".";}
 }
