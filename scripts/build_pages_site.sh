@@ -159,6 +159,11 @@ done
 if [[ -s data/satellite_mslp/latest.json ]]; then
   mkdir -p _site/data/satellite_mslp
   cp data/satellite_mslp/latest.json _site/data/satellite_mslp/latest.json
+  # Fast vector display: preserve full-resolution JSON for original download
+  # while serving accurately simplified and cropped pressure paths to browsers.
+  python scripts/build_satellite_isobar_preview.py \
+    --input data/satellite_mslp/latest.json \
+    --output _site/data/satellite_mslp/preview.json
 fi
 
 # MOSMIX UI cache version: the main dashboard and the standalone view must
