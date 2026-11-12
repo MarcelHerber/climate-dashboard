@@ -161,7 +161,9 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
     return;
    }
    loaded=false;image.hidden=true;empty.hidden=false;
-   empty.textContent="Weder aktuelle EUMETSAT-Aufnahmen noch ein geprüftes Archivbild verfügbar. Bitte offiziellen Produktlink öffnen.";
+   id("satValid").textContent="Kein Satellitenbild · unabhängige ECMWF-Modellprognose";
+   window.SatelliteIsobars?.sync({time:null,region:region.value,source:source.value});
+   empty.textContent="Weder aktuelle EUMETSAT-Aufnahmen noch ein geprüftes Archivbild verfügbar. Die ECMWF-Isobaren können unabhängig angezeigt werden.";
    buttons();
    setStatus("EUMETSAT-WMS derzeit nicht erreichbar ("+reason+"). Kein geeignetes Archivbild vorhanden.","error");
   });
