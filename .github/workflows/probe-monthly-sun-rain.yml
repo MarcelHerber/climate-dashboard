@@ -1,0 +1,56 @@
+name: Probe Monatsausblick Sonne Niederschlag
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/probe-monthly-sun-rain.yml"]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    steps:
+      - name: Python vorbereiten
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: DWD DUETT HYRAS und Ensemble-Vorhersagequellen mit echten Antworten prüfen
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,requests,re
+          from datetime import date
+          s=requests.Session();s.headers.update({"User-Agent":"climate-dashboard-test/0.1"})
+          urls={
+           "duett_month":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/duett/sunshine_duration/recent/",
+           "duett_hour":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/hourly/duett/sunshine_duration/recent/",
+           "duett_station":"https://opendata.dwd.de/climate_environment/CDC/derived_germany/climate/hourly/duett/sunshine_duration/recent/",
+           "hyras_precip":"https://opendata.dwd.de/climate_environment/CDC/grids_germany/daily/hyras_de/precipitation/"
+          }
+          for k,u in urls.items():
+              r=s.get(u,timeout=40);print("DWD_INDEX",k,r.status_code,len(r.content),flush=True)
+              r.raise_for_status()
+              links=re.findall(r'href="([^"]+)"',r.text)
+              if k=="duett_hour":links=[a for a in links if "202611" in a][-3:]
+              elif k=="duett_month":links=[a for a in links if "_2026" in a][-5:]
+              elif k=="hyras_precip":links=[a for a in links if "2026_v6-" in a][-4:]
+              else:links=[a for a in links if "_akt.zip" in a][:2]
+              print("DWD_FILES",k,links,flush=True)
+          base="https://ensemble-api.open-meteo.com/v1/ensemble"
+          for model in ["ncep_gefs_seamless","ecmwf_ifs025_ensemble","ecmwf_aifs025_ensemble","dwd_icon_eu_eps"]:
+              for params in [
+                {"daily":"precipitation_sum"},
+                {"hourly":"sunshine_duration","forecast_days":"2"},
+                {"hourly":"direct_normal_irradiance","forecast_days":"2"},
+              ]:
+                  par={"latitude":"50.1","longitude":"8.7","models":model,"timezone":"Europe/Berlin",**params}
+                  try:
+                      r=s.get(base,params=par,timeout=45)
+                      j=r.json()
+                      node=j.get("daily") or j.get("hourly") or {}
+                      items=[k for k in node if k!="time"]
+                      sample=(node.get(items[0]) or [])[:4] if items else []
+                      print("ENSEMBLE",model,params,"HTTP",r.status_code,"keys",len(items),"first",items[:4],"example",sample,"error",j.get("reason"),flush=True)
+                  except Exception as e:print("ENSEMBLE_ERROR",model,params,str(e),flush=True)
+          PY
