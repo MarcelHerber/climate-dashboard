@@ -20,6 +20,11 @@ const DAILY_PRECIP_REFERENCE_URLS=[
   "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@state-monthly-daily-reference/daily_precip_reference_1991_2020.json"
 ];
 let dailyRainReference=null,dailyRainLoading=null,dailyRainError=null;
+const DAILY_SUN_REFERENCE_URLS=[
+  "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/state-monthly-daily-sun/daily_sun_reference_1991_2020.json",
+  "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@state-monthly-daily-sun/daily_sun_reference_1991_2020.json"
+];
+let dailySunReference=null,dailySunLoading=null,dailySunError=null;
 const HYDRO_CONFIG={
   precipitation:{label:"Niederschlag",unit:"mm",source:"DWD HYRAS-DE-PRE",urls:[
     "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/state-monthly-precip/state_monthly_precip.json",
@@ -60,13 +65,14 @@ function historicalMonthNormal(param,reg){
   const value=num(raw);
   return value!=null&&value>=0?value:null;
 }
-function dailyRainRunning(regionName){
-  const doc=parameterDoc();
-  if(selectedParameter()!=="precipitation"||!dailyRainReference||!doc)return null;
+function dailyHydroRunning(regionName){
+  const doc=parameterDoc(),param=selectedParameter();
+  const reference=param==="precipitation"?dailyRainReference:param==="sunshine"?dailySunReference:null;
+  if(!reference||!doc)return null;
   const key=String(doc.month||"").padStart(2,"0");
-  const entry=dailyRainReference.months?.[key]?.regions?.[regionName];
-  const normal=entry?.running_mm;
-  const refs=dailyRainReference.months?.[key]?.dates;
+  const entry=reference.months?.[key]?.regions?.[regionName];
+  const normal=param==="sunshine"?entry?.running_h:entry?.running_mm;
+  const refs=reference.months?.[key]?.dates;
   if(!Array.isArray(normal)||!Array.isArray(refs)||normal.length!==refs.length)return null;
   return (doc.dates||[]).map(iso=>{
     if(iso.slice(5,7)!==key)return null;
@@ -78,7 +84,7 @@ function dailyRainRunning(regionName){
 function hydroReferenceDatasets(){
   const key=selectedParameter(),regionName=el("stateMonthlyRegion")?.value||"Deutschland";
   const normal=historicalMonthNormal(key,regionName);
-  const daily=dailyRainRunning(regionName);
+  const daily=dailyHydroRunning(regionName);
   const out=[];
   if(daily&&daily.some(v=>v!=null))out.push({
     label:"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
@@ -178,7 +184,7 @@ function destroyCharts(){Object.values(charts).forEach(c=>c?.destroy());charts={
 function renderLegend(){
   const n=el("stateMonthlyLegend");if(!n)return;
   const currentRegion=el("stateMonthlyRegion")?.value||"Deutschland";
-  const daily=hydroMode()?dailyRainRunning(currentRegion):null;
+  const daily=hydroMode()?dailyHydroRunning(currentRegion):null;
   const monthly=hydroMode()?historicalMonthNormal(selectedParameter(),currentRegion):null;
   n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag (2 km)</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
@@ -220,7 +226,7 @@ function renderHeader(r){
     if(info){
       info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
       if(selectedParameter()==="precipitation"){
-        const daily=dailyRainRunning(reg);
+        const daily=dailyHydroRunning(reg);
         const index=(d.dates||[]).indexOf(r.observed_through);
         const reference=index>=0?num(daily?.[index]):null;
         if(reference!==null){
@@ -258,7 +264,7 @@ function renderHeader(r){
     setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${Object.keys(r.models||{}).length}/4 Ensemblemodelle${qcText}`,Object.keys(r.models||{}).length===4&&!qcWarning?"ok":"warn");
     const note=el("stateMonthlyDataNote");
     if(note){
-      const dayAvailable=dailyRainRunning(reg)?.some(v=>v!=null);
+      const dayAvailable=dailyHydroRunning(reg)?.some(v=>v!=null);
       const refNote=dayAvailable?
         "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich.":
         normal===null?"Noch keine Klimareferenz geladen.":"Die gestrichelte Klimareferenz zeigt die volle Monatssumme; dies ist keine Tagesklimatologie.";
