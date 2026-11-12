@@ -2,7 +2,7 @@
 """Build observation-anchored monthly precipitation ensemble summaries.
 
 Consecutive DWD HYRAS-DE-PRE region observations are continued with the
-individual GEFS/IFS/AIFS/ICON-EU daily precipitation member totals.
+individual GEFS/IFS/AIFS/ICON-EU 06–06 UTC precipitation member totals.
 Do not bridge unobserved days with zero or interpolate across API gaps.
 """
 from __future__ import annotations
@@ -91,7 +91,7 @@ def build_payload(doc: dict[str, Any], model_data: dict[str, dict], support: dic
         "forecast_source": "Open-Meteo Ensemble API",
         "method": {
             "observation": "Daily 1 km HYRAS area means (millimetres), accumulated from the first day of the month.",
-            "forecast": "Per-member daily precipitation_sum amounts over region support points, then cumulative.",
+            "forecast": "Hourly ensemble precipitation (mm) summed to HYRAS 06–06 UTC days per member and support point, then accumulated.",
             "gap_policy": "No zero-filling and no forecasting across unavailable days between the last observation and first model day.",
             "reference": "1991-2020 regional daily precipitation climatology to be added separately.",
         },
@@ -104,7 +104,7 @@ def main() -> int:
     ap.add_argument("--observed", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--models", default=",".join(MODEL_CONFIG))
-    ap.add_argument("--batch-size", type=int, default=24)
+    ap.add_argument("--batch-size", type=int, default=8)
     args = ap.parse_args()
     observed = json.loads(args.observed.read_text(encoding="utf-8"))
     validate_observed(observed)
@@ -117,7 +117,7 @@ def main() -> int:
     for key in requested:
         try:
             forecasts[key] = collect_model(
-                key, support, args.batch_size, variable="precipitation_sum")
+                key, support, args.batch_size, variable="precipitation", time_resolution="hourly")
             print(key, "Niederschlagsmember:", forecasts[key]["member_count"], flush=True)
         except Exception as exc:
             errors[key] = str(exc)
