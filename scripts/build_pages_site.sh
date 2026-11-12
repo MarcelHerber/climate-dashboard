@@ -109,6 +109,7 @@ required_root_files=(
   satellite_lightning.js
   satellite_radar.js
   satellite_view_options.js
+  satellite_hd.js
   satellite_isobar_geometry.js
   satellite_isobars.js
   satellite_map_export.js
@@ -540,6 +541,7 @@ node --check _site/satellite_overlay.js
 node --check _site/satellite_lightning.js
 node --check _site/satellite_radar.js
 node --check _site/satellite_view_options.js
+node --check _site/satellite_hd.js
 node --check _site/satellite_isobars.js
 node --check _site/satellite_film_export.js
 node --test tests/test_satellite_isobars.cjs
