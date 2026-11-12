@@ -50,18 +50,31 @@ def audit(browser,viewport,module,url):
                 row["metadata_ready_ms"]=round((perf_counter()-start)*1000)
             except Exception as error:
                 row["metadata_error"]=str(error)[:230]
+            # A WMS error is a resolved *request*, not a successful picture.
+            # Require actual decoded pixels in the visible still image. The
+            # original audit accidentally marked status='error' as success.
             try:
                 page.wait_for_function("""() => {
                   const img=document.getElementById("satImage");
-                  const kind=document.getElementById("satStatus")?.dataset?.kind;
-                  return (img?.complete&&img.naturalWidth>0)||kind==="error";
-                }""",timeout=25000)
-                row["satellite_resolved_ms"]=round((perf_counter()-start)*1000)
+                  return !!img && !img.hidden && img.complete && img.naturalWidth>0;
+                }""",timeout=35000)
+                row["satellite_image_ready_ms"]=round((perf_counter()-start)*1000)
             except Exception as error:
                 row["satellite_error"]=str(error)[:230]
             row["satellite_status"]=page.locator("#satStatus").inner_text()[:240]
             row["image_width"]=page.locator("#satImage").evaluate("(el)=>el.naturalWidth")
+            row["image_src"]=page.locator("#satImage").get_attribute("src")
             row["observation_label"]=page.locator("#satValid").inner_text()[:160]
+            row["archived_fallback"]=("Archivaufnahme:" in row["observation_label"]
+                                       and row["image_width"]>0)
+            row["live_image"]=("Beobachtung:" in row["observation_label"]
+                                and row["image_width"]>0)
+            row["script_url"]=page.locator('script[src*="satelliten.js"]').get_attribute("src")
+            row["deployed_fastcache_script"]=bool(row["script_url"]
+                and "fastcache-v1" in row["script_url"])
+            if row["image_width"]==0:
+                page.screenshot(path=str(OUTPUT/f"satellite_failed_{viewport}.png"),
+                    full_page=True)
         else:
             try:
                 page.wait_for_function("""tab => {
@@ -86,7 +99,8 @@ def audit(browser,viewport,module,url):
                 transfer_bytes:x.transferSize||null,
                 decoded_bytes:x.decodedBodySize||null}))""")
         row["ok"]=row.get("html_status")==200 and (
-            module=="satellite" or row.get("chart_present",False))
+            (row.get("image_width",0)>0 and row.get("deployed_fastcache_script",False))
+            if module=="satellite" else row.get("chart_present",False))
     except Exception as error:
         row["ok"]=False;row["error"]=str(error)[:350]
     finally:
@@ -109,15 +123,18 @@ def main():
                     result["results"].append(row)
                     print(json.dumps({k:row.get(k) for k in
                         ("module","viewport_px","html_status","domcontentloaded_ms",
-                         "chart_ready_ms","metadata_ready_ms","satellite_resolved_ms",
-                         "image_width","ok","chart_error","error")},ensure_ascii=False),flush=True)
+                         "chart_ready_ms","metadata_ready_ms","satellite_image_ready_ms",
+                         "image_width","archived_fallback","deployed_fastcache_script",
+                         "ok","satellite_error","chart_error","error")},ensure_ascii=False),flush=True)
         finally:
             browser.close()
     dest=OUTPUT/"report.json"
     dest.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print("Complete report:",dest)
-    if not any(r.get("ok") and r["module"]=="stationSnow" for r in result["results"]):
-        raise SystemExit("No successful real station-snow chart load")
+    failures=[r for r in result["results"] if not r.get("ok")]
+    if failures:
+        raise SystemExit("Real data or chart not available in "
+                         +", ".join(f"{r['module']} ({r['viewport_px']} px)" for r in failures))
 
 if __name__=="__main__":
     main()
