@@ -200,3 +200,53 @@
    width:max-content;min-width:100%;
  }
 }
+
+/* Phase 2 · mobile chart actions and touch hint.
+   This only alters interaction controls; plotted meteorological fields,
+   contour colors and downloaded image pixels are not restyled. */
+.cdm-chart-touch-hint{display:none}
+@media(max-width:600px){
+ body.cd-mobile-ready .cdm-chart-touch-hint{
+  display:flex;align-items:center;gap:8px;
+  width:100%;box-sizing:border-box;
+  padding:8px 10px;margin:5px 0 12px;
+  border:1px solid #d6e3f1;border-radius:8px;
+  background:#f0f6fd;color:#38536c;
+  font:500 12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
+ }
+ body.cd-mobile-ready :is(
+   .chart-export-tools,.chart-export-actions,.chart-actions,
+   .strato-downloads,.strato-export-actions,.mosmix-meteogram-actions,
+   .station-chart-actions,.station-precip-chart-actions
+ ){
+  max-width:100%;min-width:0;display:flex;flex-wrap:wrap;
+  align-items:center;gap:8px;
+ }
+ body.cd-mobile-ready :is(
+   .chart-export-tools,.chart-export-actions,.chart-actions,
+   .strato-downloads,.strato-export-actions,.mosmix-meteogram-actions,
+   .station-chart-actions,.station-precip-chart-actions
+ ) :is(button,a){
+  box-sizing:border-box;min-width:44px;min-height:44px;
+  max-width:100%;white-space:normal;overflow-wrap:anywhere;
+  touch-action:manipulation;
+ }
+ body.cd-mobile-ready :is(
+   .chart-export-tools,.chart-export-actions,.chart-actions,
+   .strato-downloads,.strato-export-actions,.mosmix-meteogram-actions
+ ) :is(button,a){flex:0 1 auto}
+ body.cd-mobile-ready canvas[aria-describedby*="cdm-chart-tip"]:focus-visible{
+  outline:3px solid #317ac3;outline-offset:3px;border-radius:5px;
+ }
+ html[data-theme="dark"] body.cd-mobile-ready .cdm-chart-touch-hint{
+  background:#20354c;color:#d2e5f7;border-color:#4e6880;
+ }
+ html[data-theme="dark"] body.cd-mobile-ready
+  canvas[aria-describedby*="cdm-chart-tip"]:focus-visible{outline-color:#80b9ff}
+}
+@media(max-width:360px){
+ body.cd-mobile-ready :is(
+   .chart-export-tools,.chart-export-actions,.chart-actions,
+   .strato-downloads,.strato-export-actions,.mosmix-meteogram-actions
+ ) :is(button,a){flex:1 1 95px}
+}
