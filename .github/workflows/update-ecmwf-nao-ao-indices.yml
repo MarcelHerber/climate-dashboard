@@ -28,7 +28,7 @@ jobs:
           sparse-checkout: |
             scripts/update_ecmwf_nao_ao_indices.py
             tests/test_ecmwf_nao_ao_indices.py
-            data/nao_ao_forecast/eof_reference.json
+            data/nao_ao_forecast/
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -84,7 +84,7 @@ jobs:
             git reset --hard origin/main
             mkdir -p data/nao_ao_forecast
             cp /tmp/ecmwf-eof-validated.json data/nao_ao_forecast/ecmwf_indices.json
-            git add data/nao_ao_forecast/ecmwf_indices.json
+            git add --sparse data/nao_ao_forecast/ecmwf_indices.json
             if git diff --cached --quiet; then echo "Unveränderte EPS-Vorhersage"; exit 0; fi
             git commit -m "Publish independently verified 50-member ECMWF EPS NAO AO indices"
             if git push origin HEAD:main; then exit 0; fi
