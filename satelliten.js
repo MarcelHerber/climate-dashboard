@@ -187,7 +187,7 @@ function drawFrame(t, fallbackDepth=0, requestedTime=t){
    if(level||fallbackDepth)setStatus("Bild für "+(t?formatUTC(t):"unbekannte Zeit")+" in "+image.naturalWidth+
      " px geladen"+(fallbackDepth?" · ältere bestätigte Aufnahme":" · reduzierte Vorschau")+". Originalauflösung über Bildlink oder PNG-Download.","warning");
    else if(t)setStatus("Vorschau für "+formatUTC(t)+" geladen ("+image.naturalWidth+" px) · Originalauflösung über Bildlink oder PNG-Download · Zeit aus "+
-       (metadataSource==="manifest"?"verifiziertem GitHub-WMS-Check":"WMS-Metadaten")+".","info");
+       (metadataSource==="manifest"?"WMS-Zeitliste im GitHub-Datenstatus":"WMS-Metadaten")+".","info");
    else setStatus("Einzelbild geladen. Der Aufnahmezeitpunkt ist noch nicht verifiziert; keine Live-Behauptung.","warning");
   };
   image.onerror=()=>fail("Bildfehler");
