@@ -273,10 +273,12 @@ def member_keys(daily: dict[str, Any], variable: str = "temperature_2m_mean") ->
 
 
 def hourly_sunshine_to_daily(location: dict[str, Any]) -> dict[str, Any]:
-    """Convert Open-Meteo hourly member sunshine seconds to complete UTC days.
+    """Convert hourly sunshine seconds to complete DWD-like UTC synoptic days.
 
-    Each UTC date must have 00:00...23:00 exactly once. Incomplete days are
-    omitted and no null/invalid hours count as overcast sunshine.
+    Open-Meteo timestamps label the *end* of the previous-hour sum.
+    DWD DUETT synoptic intervals end at HH:50, so a given DUETT day
+    (00:50..23:50) aligns most closely with Open-Meteo hours ending
+    01:00..next-day 00:00 (10 minute shift). Incomplete days are omitted.
     """
     hourly = location.get("hourly") or {}
     times = [str(t) for t in hourly.get("time", [])]
@@ -289,7 +291,12 @@ def hourly_sunshine_to_daily(location: dict[str, Any]) -> dict[str, Any]:
     for idx, timestamp in enumerate(times):
         if len(timestamp) != 16 or timestamp[10] != "T":
             raise ValueError(f"Open-Meteo sunshine hour has unexpected UTC timestamp {timestamp}")
-        days[timestamp[:10]].append(idx)
+        end_time = datetime.fromisoformat(timestamp)
+        if end_time.minute != 0 or end_time.second != 0:
+            raise ValueError(f"Unexpected Open-Meteo non-hourly timestamp {timestamp}")
+        # A 00:00-end timestamp belongs to the preceding synoptic day.
+        synoptic_day = (end_time - timedelta(minutes=1)).date().isoformat()
+        days[synoptic_day].append(idx)
     complete = [
         day for day, idx in sorted(days.items())
         if len(idx) == 24
