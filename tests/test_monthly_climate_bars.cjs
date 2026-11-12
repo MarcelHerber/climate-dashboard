@@ -92,7 +92,11 @@ test("Phase 2 legend explains temperature/rain/sun and keyboard skips missing ye
       setAttribute(name,value){this.attributes[name]=value;},
       append(...items){this.children.push(...items);},
       appendChild(item){this.children.push(item);},
-      replaceChildren(...items){this.children=items;}
+      replaceChildren(...items){this.children=items;},
+      querySelector(selector){
+        return selector===".monthly-climate-key"?
+          this.children.find(child=>child.className==="monthly-climate-key")||null:null;
+      }
     };
   }
   document.createElement=element;
@@ -126,6 +130,11 @@ test("Phase 2 legend explains temperature/rain/sun and keyboard skips missing ye
   selection.value="sun";
   plugin.beforeUpdate(dev);
   assert.match(host.children[0].attributes["aria-label"],/Sonniger als Mittel/);
+  const rebuilt=chart("monthlyDeviationChart",[-2,null,1]);
+  rebuilt.canvas.parentElement=host;
+  plugin.beforeUpdate(rebuilt);
+  assert.equal(host.children.length,1,"Rebuilding Chart.js must reuse old color key");
+  assert.equal(rebuilt.$climateKey,host.children[0]);
   assert.ok(!("indexAxis" in dev.options),"Vertical bars unchanged");
   assert.match(css,/monthly-climate-key.*display:flex/s);
   assert.match(css,/data-parameter="sun"/);
