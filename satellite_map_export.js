@@ -29,9 +29,9 @@ function project(point,region,x,y,w,h){
 }
 function pressureCenters(overlay,region){
  const b=BBOX[region],geo=window.SatelliteIsobarGeometry;
- if(!b||!geo?.detectPressureSystems||!Array.isArray(overlay?.contours))return [];
+ if(!b||!geo?.detectVisiblePressureSystems||!Array.isArray(overlay?.contours))return [];
  const caps={atlantic:8,europe:6,southwest:5,central:3,germany:2};
- return geo.detectPressureSystems(overlay.contours,b,{
+ return geo.detectVisiblePressureSystems(overlay.contours,b,{
   minRings:3,maxSystems:caps[region]||5,minSeparation:94
  });
 }
