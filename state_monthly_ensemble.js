@@ -20,6 +20,11 @@ const DAILY_PRECIP_REFERENCE_URLS=[
   "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@state-monthly-daily-reference/daily_precip_reference_1991_2020.json"
 ];
 let dailyRainReference=null,dailyRainLoading=null,dailyRainError=null;
+const DAILY_SUN_REFERENCE_URLS=[
+  "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/state-monthly-daily-sun/daily_sun_reference_1991_2020.json",
+  "https://cdn.jsdelivr.net/gh/MarcelHerber/climate-dashboard@state-monthly-daily-sun/daily_sun_reference_1991_2020.json"
+];
+let dailySunReference=null,dailySunLoading=null,dailySunError=null;
 const HYDRO_CONFIG={
   precipitation:{label:"Niederschlag",unit:"mm",source:"DWD HYRAS-DE-PRE",urls:[
     "https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/state-monthly-precip/state_monthly_precip.json",
@@ -60,13 +65,14 @@ function historicalMonthNormal(param,reg){
   const value=num(raw);
   return value!=null&&value>=0?value:null;
 }
-function dailyRainRunning(regionName){
-  const doc=parameterDoc();
-  if(selectedParameter()!=="precipitation"||!dailyRainReference||!doc)return null;
+function dailyHydroRunning(regionName){
+  const doc=parameterDoc(),param=selectedParameter();
+  const reference=param==="precipitation"?dailyRainReference:param==="sunshine"?dailySunReference:null;
+  if(!reference||!doc)return null;
   const key=String(doc.month||"").padStart(2,"0");
-  const entry=dailyRainReference.months?.[key]?.regions?.[regionName];
-  const normal=entry?.running_mm;
-  const refs=dailyRainReference.months?.[key]?.dates;
+  const entry=reference.months?.[key]?.regions?.[regionName];
+  const normal=param==="sunshine"?entry?.running_h:entry?.running_mm;
+  const refs=reference.months?.[key]?.dates;
   if(!Array.isArray(normal)||!Array.isArray(refs)||normal.length!==refs.length)return null;
   return (doc.dates||[]).map(iso=>{
     if(iso.slice(5,7)!==key)return null;
@@ -78,10 +84,10 @@ function dailyRainRunning(regionName){
 function hydroReferenceDatasets(){
   const key=selectedParameter(),regionName=el("stateMonthlyRegion")?.value||"Deutschland";
   const normal=historicalMonthNormal(key,regionName);
-  const daily=dailyRainRunning(regionName);
+  const daily=dailyHydroRunning(regionName);
   const out=[];
   if(daily&&daily.some(v=>v!=null))out.push({
-    label:"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
+    label:selectedParameter()==="sunshine"?"Stationsbasierte 1991–2020-Tagesreferenz · kumuliert (DWD SDK, 6 km)":"Tagesgenaue 1991–2020-Referenz · kumuliert (HYRAS 2 km)",
     data:daily,borderColor:"#b044d6",borderWidth:2.4,pointRadius:0,tension:.1,spanGaps:false
   });
   if(normal!==null)out.push({
@@ -178,9 +184,9 @@ function destroyCharts(){Object.values(charts).forEach(c=>c?.destroy());charts={
 function renderLegend(){
   const n=el("stateMonthlyLegend");if(!n)return;
   const currentRegion=el("stateMonthlyRegion")?.value||"Deutschland";
-  const daily=hydroMode()?dailyRainRunning(currentRegion):null;
+  const daily=hydroMode()?dailyHydroRunning(currentRegion):null;
   const monthly=hydroMode()?historicalMonthNormal(selectedParameter(),currentRegion):null;
-  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag (2 km)</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
+  n.innerHTML=`<span><i class="sm-swatch obs"></i>Beobachtung</span>${hydroMode()?((daily?.some(v=>v!=null)?'<span><i class="sm-swatch climate"></i>1991–2020 · bis zum Tag</span>':"")+(monthly!==null?'<span><i class="sm-swatch climate"></i>1991–2020 · gesamter Monat</span>':"")):`<span><i class="sm-swatch climate"></i>${selectedMetric()==="anomaly"?"0 K Referenz":"1991–2020"}</span>`}<span><i class="sm-band outer"></i>5–95 %</span><span><i class="sm-band inner"></i>20–80 %</span><span><i class="sm-swatch avg"></i>Ensemble-Mittel</span><span><i class="sm-swatch ctl"></i>Kontroll-/Basislauf</span>`;
 }
 function render(){
   if(!data&&!parameterDoc())return;
@@ -219,15 +225,15 @@ function renderHeader(r){
     const normalText=normal===null?"Klimareferenz 1991–2020 noch nicht verfügbar":`1991–2020: Monatsgesamtwert ${fmt(normal,1)} ${config.unit}`;
     if(info){
       info.innerHTML=`<strong>${config.source} bis ${dateShort(r.observed_through)}</strong><span>Bisher ${fmt(r.observed_current,1)} ${config.unit}</span><span>Beobachtung + Ensemblefortschreibung</span><span>${normalText}</span>`;
-      if(selectedParameter()==="precipitation"){
-        const daily=dailyRainRunning(reg);
+      if(hydroMode()){
+        const daily=dailyHydroRunning(reg);
         const index=(d.dates||[]).indexOf(r.observed_through);
         const reference=index>=0?num(daily?.[index]):null;
         if(reference!==null){
           const diff=num(r.observed_current)-reference;
           const item=document.createElement("span");
           const percent=reference>0?` (${fmt(num(r.observed_current)/reference*100,0)} % des Mittels)`:"";
-          item.textContent=`Klimasumme bis ${dateShort(r.observed_through)}: ${fmt(reference,1)} mm · Abweichung ${diff>=0?"+":""}${fmt(diff,1)} mm${percent}`;
+          item.textContent=`Klimasumme bis ${dateShort(r.observed_through)}: ${fmt(reference,1)} ${config.unit} · Abweichung ${diff>=0?"+":""}${fmt(diff,1)} ${config.unit}${percent}`;
           info.appendChild(item);
         }
       }
@@ -258,11 +264,13 @@ function renderHeader(r){
     setStatus(`Datenstand ${config.source}: ${d.observation_data_through} · Generiert ${label} · ${Object.keys(r.models||{}).length}/4 Ensemblemodelle${qcText}`,Object.keys(r.models||{}).length===4&&!qcWarning?"ok":"warn");
     const note=el("stateMonthlyDataNote");
     if(note){
-      const dayAvailable=dailyRainRunning(reg)?.some(v=>v!=null);
+      const dayAvailable=dailyHydroRunning(reg)?.some(v=>v!=null);
       const refNote=dayAvailable?
-        "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich.":
+        (selectedParameter()==="sunshine"?
+         "Die durchgezogene violette Linie zeigt die aus DWD-SDK-Tagesstationswerten 1991–2020 rekonstruierte Tagesklimatologie (6-km-IDW-Gitter, monatsweise an die amtlichen 1-km-Normalwerte angepasst). Sie ist KEIN amtliches tägliches DWD-Raster und keine DUETT-Klimatologie.":
+         "Die durchgezogene violette Linie ist die echte kumulierte Tagesreferenz 1991–2020 aus historischen HYRAS-Tagesrastern (2-km-Webgitter); die fein gestrichelte Linie markiert den amtlichen Monatsnormalwert (1 km). Kleinere Unterschiede am Monatsende sind wegen der Gitterauflösung möglich."):
         normal===null?"Noch keine Klimareferenz geladen.":"Die gestrichelte Klimareferenz zeigt die volle Monatssumme; dies ist keine Tagesklimatologie.";
-      note.textContent=`${config.source} · ${config.unit} · kumulierte Gebietssummen. ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Eine belastbare tagesgenaue Sonnenscheinreferenz fehlt noch.":""} Fehlende Tage werden nicht zu null.`;
+      note.textContent=`${config.source} · ${config.unit} · kumulierte Gebietssummen. ${refNote} Modellprognosen sind Flächenannäherungen aus Stützpunkten. ${selectedParameter()==="sunshine"?"Historische Sonnenschein-Norm: stationsinterpoliertes DWD-Raster; aktuelle DUETT-Daten kombinieren Satellit und Stationen, daher methodischer Unterschied. Die historische Sonnenschein-Tagesreferenz ist eine stationsbasierte Rekonstruktion und methodisch nicht identisch mit DUETT.":""} Fehlende Tage werden nicht zu null.`;
     }
     return;
   }
@@ -389,6 +397,32 @@ async function fetchDailyRainReference(force=false){
   })();
   try{return await dailyRainLoading;}finally{dailyRainLoading=null;}
 }
+async function fetchDailySunReference(force=false){
+  if(dailySunReference&&!force)return dailySunReference;
+  if(dailySunLoading)return dailySunLoading;
+  dailySunLoading=(async()=>{
+    let last=null;
+    for(const base of DAILY_SUN_REFERENCE_URLS){
+      try{
+        const response=await fetch(base+(force?"?t="+Date.now():""),{cache:force?"no-store":"default"});
+        if(!response.ok)throw new Error("HTTP "+response.status);
+        const doc=await response.json();
+        if(doc.schema_version!==1||doc.parameter!=="sunshine"||
+           doc.reference_period!=="1991-2020"||doc.daily_climatology_available!==true||
+           doc.product!=="state_monthly_daily_sunshine_climatology_station_reconstruction"||
+           !doc.months||doc.regions_order?.length!==17)throw new Error("Tagesreferenz-Datenformat ungültig");
+        dailySunReference=doc;
+        dailySunError=null;
+        if(selectedParameter()==="sunshine")render();
+        return doc;
+      }catch(error){last=error;console.warn("DWD SDK-Sonnen-Tagesklima 1991–2020",base,error);}
+    }
+    dailySunError=last?.message||"Sonnen-Tagesreferenz noch nicht veröffentlicht";
+    if(selectedParameter()==="sunshine")render();
+    return null;
+  })();
+  try{return await dailySunLoading;}finally{dailySunLoading=null;}
+}
 function syncParameterControls(){
   const monthly=hydroMode(),period=el("stateMonthlyPeriod"),metric=el("stateMonthlyMetric");
   if(period){
@@ -411,12 +445,14 @@ function onParameterChange(){
   if(hydroMode()&&!parameterDoc())fetchHydro(selectedParameter()).catch(()=>{});
   if(hydroMode()&&!monthlyNormals)fetchMonthlyNormals().catch(()=>{});
   if(selectedParameter()==="precipitation"&&!dailyRainReference)fetchDailyRainReference().catch(()=>{});
+  if(selectedParameter()==="sunshine"&&!dailySunReference)fetchDailySunReference().catch(()=>{});
 }
 function reloadActive(){
   if(hydroMode()){
     fetchHydro(selectedParameter(),true).catch(()=>{});
     fetchMonthlyNormals(true).catch(()=>{});
     if(selectedParameter()==="precipitation")fetchDailyRainReference(true).catch(()=>{});
+    if(selectedParameter()==="sunshine")fetchDailySunReference(true).catch(()=>{});
   }else load(true);
 }
 function filename(ext){const reg=(el("stateMonthlyRegion")?.value||"Deutschland").replace(/[^a-z0-9äöüß_-]+/gi,"_");const d=hydroMode()?parameterDoc():data;return `Ensemble_${selectedParameter()}_${selectedPeriod()}_${selectedMetric()}_${d?.year||""}_${String(d?.month||"").padStart(2,"0")}_${reg}.${ext}`;}

@@ -1,0 +1,107 @@
+name: Monatsausblick DWD Sonnenschein Tagesklima 1991-2020 erstellen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "26 6 3 1,4,7,10 *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_monthly_outlook_daily_sun_reference.py"
+      - "tests/test_monthly_outlook_daily_sun_reference.py"
+      - ".github/workflows/update-state-monthly-daily-sun-reference.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monthly-outlook-daily-sunshine-reference
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Python-Pakete installieren
+        run: |
+          python -m pip install -r requirements-hyras.txt
+          python -m pip install shapely
+
+      - name: Unit-Tests und Syntax
+        run: |
+          python -m py_compile scripts/build_monthly_outlook_daily_sun_reference.py
+          python -m unittest discover -s tests -p test_monthly_outlook_daily_sun_reference.py -v
+
+      - name: DWD-Stationsklimatologien nach Möglichkeit zwischenspeichern
+        uses: actions/cache@v4
+        with:
+          path: /tmp/monthly-daily-sun-cache
+          key: dwd-kl-sdk-daily-1991-2020-station-v1
+
+      - name: Monatliche amtliche DWD-Sonnenreferenz 1991-2020 abrufen
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/monthly-daily-sun-output
+          git fetch origin state-monthly-reference --depth=1
+          git show origin/state-monthly-reference:monthly_reference_1991_2020.json > /tmp/monthly-daily-sun-output/monthly_reference_1991_2020.json
+
+      - name: Stations-SDK 1991–2020 und tagesgenaue Gebietsmittel rekonstruieren
+        run: |
+          python scripts/build_monthly_outlook_daily_sun_reference.py \
+            --monthly /tmp/monthly-daily-sun-output/monthly_reference_1991_2020.json \
+            --cache /tmp/monthly-daily-sun-cache \
+            --work /tmp/monthly-daily-sun-work \
+            --output /tmp/monthly-daily-sun-output/daily_sun_reference_1991_2020.json \
+            --workers 12
+
+      - name: Alle Kalendertage und 17 Gebiete prüfen
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          path=Path("/tmp/monthly-daily-sun-output/daily_sun_reference_1991_2020.json")
+          d=json.loads(path.read_text(encoding="utf-8"))
+          assert d["schema_version"]==1 and d["parameter"]=="sunshine"
+          assert d["reference_period"]=="1991-2020" and d["daily_climatology_available"]
+          assert len(d["months"])==12 and len(d["regions_order"])==17
+          assert d["quality"]["stations"]>=60
+          for month in d["months"].values():
+              for region in d["regions_order"]:
+                  v=month["regions"][region]
+                  assert len(v["daily_h"])==len(v["running_h"])==len(month["dates"])
+                  assert all(math.isfinite(z) and 0<=z<=24 for z in v["daily_h"])
+                  assert all(a<=b+1e-3 for a,b in zip(v["running_h"],v["running_h"][1:]))
+                  assert 0.6<=v["monthly_shape_adjustment_factor"]<=1.4
+          print("DWD sunshine station climatology validated: 366 days, 17 regions, 12 months")
+          PY
+
+      - name: Sonnen-Tagesklima nur bei vollständigem Ergebnis veröffentlichen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/monthly-daily-sun-output
+          rm -f monthly_reference_1991_2020.json
+          git init
+          git checkout -b state-monthly-daily-sun
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add daily_sun_reference_1991_2020.json
+          git commit -m "DWD SDK Tagesklimatologie 1991–2020 für Sonnenschein aktualisiert"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin state-monthly-daily-sun
