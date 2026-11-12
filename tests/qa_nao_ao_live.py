@@ -79,6 +79,30 @@ def run(page, output: Path, label: str) -> None:
         else:
             assert data.startswith(bytes.fromhex("89504e470d0a1a0a")) and len(data)>4000, len(data)
 
+    # Verify spatial fields originate from the deployed, verified ECMWF manifest.
+    page.wait_for_function("""() => {
+      const im=document.querySelector('#teleMapImage');
+      const status=document.querySelector('#teleMapStatus').textContent;
+      return !im.hidden && im.complete && im.naturalWidth >= 900 &&
+             status.includes("ECMWF IFS-ENS");
+    }""", timeout=45000)
+    for level in ("500","1000"):
+        page.locator("#teleMapLevel").select_option(level)
+        for lead in ("72","144","240"):
+            page.locator("#teleMapLead").select_option(lead)
+            page.wait_for_function("""() => {
+              const im=document.querySelector('#teleMapImage');
+              return !im.hidden && im.complete && im.naturalWidth>=900;
+            }""",timeout=30000)
+            source=page.locator("#teleMapImage").get_attribute("src")
+            assert f"{level}hpa_f{int(lead):03d}.png" in source, source
+    with page.expect_download(timeout=30000) as map_download:
+        page.locator("#teleMapDownload").click()
+    map_file=output/f"{label}_ecmwf_map.png"
+    map_download.value.save_as(map_file)
+    assert map_file.read_bytes().startswith(bytes.fromhex("89504e470d0a1a0a"))
+    assert map_file.stat().st_size>50000
+
     page.screenshot(path=str(output/f"{label}.png"),full_page=True,animations="disabled")
     metrics=page.evaluate("""() => ({
       screen:window.innerWidth, body:document.documentElement.scrollWidth,
