@@ -17,11 +17,13 @@ from urllib3.util.retry import Retry
 from urllib.parse import quote
 
 import numpy as np
+import h5py
+from pyproj import CRS,Transformer
 from PIL import Image
 import requests
 import rasterio
 from rasterio.io import MemoryFile
-from rasterio.transform import from_bounds
+from rasterio.transform import from_bounds,Affine
 from rasterio.warp import reproject, Resampling
 
 LOG=logging.getLogger("opera")
@@ -72,8 +74,105 @@ def discover(session:requests.Session,kind:str,now:datetime,count:int) -> list[d
         LOG.warning("OPERA %s has time gaps of up to %.0f min",kind,max(gaps))
     return selected
 
-def s3url(stamp:datetime,kind:str)->str:
-    return f"{S3}/{stamp:%Y/%m/%d}/OPERA/COMP/OPERA@{stamp:%Y%m%dT%H%M}@0@{kind.upper()}.tiff"
+def s3url(stamp:datetime,kind:str,format:str="tiff")->str:
+    if format not in ("tiff","h5"):
+        raise ValueError("Unsupported OPERA source format")
+    return f"{S3}/{stamp:%Y/%m/%d}/OPERA/COMP/OPERA@{stamp:%Y%m%dT%H%M}@0@{kind.upper()}.{format}"
+
+def _text(value)->str:
+    return value.decode("utf-8","replace") if isinstance(value,bytes) else str(value)
+
+def decode_odim_h5(blob:bytes,kind:str,instant:datetime)->tuple[np.ndarray,dict]:
+    """Decode official OPERA ODIM-H5 COMP without inventing nodata or echoes."""
+    with h5py.File(io.BytesIO(blob),"r") as f:
+        if "where" not in f or "dataset1/data1/data" not in f:
+            raise ValueError("OPERA HDF5 missing cartesian composite")
+        obj=_text(f["what"].attrs.get("object",""))
+        if obj!="COMP":
+            raise ValueError(f"OPERA HDF5 object must be COMP, got {obj}")
+        where=f["where"].attrs
+        dwhat=f["dataset1/what"].attrs
+        what=f["dataset1/data1/what"].attrs
+        quantity=_text(what.get("quantity",dwhat.get("quantity","")))
+        if quantity!=kind.upper():
+            raise ValueError(f"OPERA HDF5 quantity {quantity} does not match {kind}")
+        product=_text(dwhat.get("product",""))
+        expected_product="MAX" if kind=="dbzh" else "PPI"
+        if product and product!=expected_product:
+            raise ValueError(f"Unexpected OPERA ODIM product {product}")
+        stamp=_text(dwhat.get("enddate",""))+_text(dwhat.get("endtime",""))
+        if len(stamp)!=14:
+            raise ValueError("OPERA ODIM missing valid observation end time")
+        valid=datetime.strptime(stamp,"%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        if abs((instant-valid).total_seconds())>90:
+            raise ValueError("OPERA HDF5 time inconsistent with ORD catalog")
+        xsize=int(where["xsize"]);ysize=int(where["ysize"])
+        if xsize!=(3800 if kind=="dbzh" else 1900) or ysize<1000:
+            raise ValueError(f"Unexpected OPERA HDF5 grid size {xsize}x{ysize}")
+        raw=f["dataset1/data1/data"][:]
+        if raw.shape!=(ysize,xsize):
+            raise ValueError("OPERA HDF5 shape inconsistent with ODIM /where")
+        gain=float(what["gain"]);offset=float(what["offset"])
+        nodata=float(what["nodata"]);undetect=float(what["undetect"])
+        if not np.isfinite([gain,offset,nodata,undetect]).all() or gain<=0 or nodata==undetect:
+            raise ValueError("Invalid HDF5 physical-unit or no-data attributes")
+        crs=CRS.from_user_input(_text(where["projdef"]))
+        xscale=float(where["xscale"]);yscale=float(where["yscale"])
+        if not 500<=xscale<=3000 or not 500<=yscale<=3000:
+            raise ValueError("Unreasonable OPERA ODIM pixel scale")
+        transform=Transformer.from_crs("EPSG:4326",crs,always_xy=True)
+        ulx,uly=transform.transform(float(where["UL_lon"]),float(where["UL_lat"]))
+        urx,_=transform.transform(float(where["UR_lon"]),float(where["UR_lat"]))
+        _,lly=transform.transform(float(where["LL_lon"]),float(where["LL_lat"]))
+        if abs((urx-ulx)-xsize*xscale)>3*xscale or abs((uly-lly)-ysize*yscale)>3*yscale:
+            raise ValueError("OPERA ODIM geographical corners do not match grid")
+        source=raw.astype(np.float32)*gain+offset
+        source[raw==nodata]=NO_DATA
+        source[raw==undetect]=np.nan
+        target=np.full((HEIGHT,WIDTH),NO_DATA,dtype=np.float32)
+        reproject(
+            source,target,
+            src_transform=Affine(xscale,0,ulx,0,-yscale,uly),src_crs=crs,
+            src_nodata=NO_DATA,
+            dst_transform=from_bounds(WEST,SOUTH,EAST,NORTH,WIDTH,HEIGHT),
+            dst_crs="EPSG:4326",dst_nodata=NO_DATA,
+            resampling=Resampling.nearest,init_dest_nodata=True,num_threads=2,
+        )
+    pixels,stats=encode_target(target,kind)
+    stats["source_format"]="ODIM-H5"
+    return pixels,stats
+
+
+def encode_target(target:np.ndarray,kind:str)->tuple[np.ndarray,dict]:
+    missing=(target<=NO_DATA+100)|(np.isinf(target))
+    # NaN is the official no-radar-echo value, not a missing observation.
+    noecho=np.isnan(target)
+    good=~missing&~noecho
+    encoded=np.full(target.shape,255,np.uint8)
+    encoded[noecho]=0
+    if kind=="dbzh":
+        lo,hi=DBZH_RANGE
+        q=1+np.rint(253*np.clip((target[good]-lo)/(hi-lo),0,1))
+        encoded[good]=q.astype(np.uint8)
+        echo_fraction=float((good & (target>-10)).mean())
+    else:
+        wet=good&(target>0)
+        encoded[good]=0
+        q=1+np.rint(253*np.log1p(np.clip(target[wet],0,RATE_MAX)/RATE_BASE)/
+                    np.log1p(RATE_MAX/RATE_BASE))
+        encoded[wet]=np.clip(q,1,254).astype(np.uint8)
+        echo_fraction=float(wet.mean())
+    coverage=float((encoded!=255).mean())
+    if coverage<.10 or coverage>.999:
+        raise ValueError(f"Implausible OPERA {kind} radar coverage={coverage:.3f}")
+    stats={
+        "coverage":round(coverage,4),
+        "echo_fraction":round(echo_fraction,4),
+        "min_physical":round(float(np.min(target[good])),2) if good.any() else None,
+        "max_physical":round(float(np.max(target[good])),2) if good.any() else None,
+        "undetect_fraction":round(float(noecho.mean()),4)
+    }
+    return encoded,stats
 
 def decode_geotiff(blob:bytes,kind:str,instant:datetime) -> tuple[np.ndarray,dict]:
     with MemoryFile(blob) as mem,mem.open() as ds:
@@ -110,35 +209,9 @@ def decode_geotiff(blob:bytes,kind:str,instant:datetime) -> tuple[np.ndarray,dic
             resampling=Resampling.nearest,
             init_dest_nodata=True, num_threads=2,
         )
-    missing=(target<=NO_DATA+100)|(np.isinf(target))
-    # NaN is the official no-radar-echo value, not a missing observation.
-    noecho=np.isnan(target)
-    good=~missing&~noecho
-    encoded=np.full(target.shape,255,np.uint8)
-    encoded[noecho]=0
-    if kind=="dbzh":
-        lo,hi=DBZH_RANGE
-        q=1+np.rint(253*np.clip((target[good]-lo)/(hi-lo),0,1))
-        encoded[good]=q.astype(np.uint8)
-        echo_fraction=float((good & (target>-10)).mean())
-    else:
-        wet=good&(target>0)
-        encoded[good]=0
-        q=1+np.rint(253*np.log1p(np.clip(target[wet],0,RATE_MAX)/RATE_BASE)/
-                    np.log1p(RATE_MAX/RATE_BASE))
-        encoded[wet]=np.clip(q,1,254).astype(np.uint8)
-        echo_fraction=float(wet.mean())
-    coverage=float((encoded!=255).mean())
-    if coverage<.10 or coverage>.999:
-        raise ValueError(f"Implausible OPERA {kind} radar coverage={coverage:.3f}")
-    stats={
-        "coverage":round(coverage,4),
-        "echo_fraction":round(echo_fraction,4),
-        "min_physical":round(float(np.min(target[good])),2) if good.any() else None,
-        "max_physical":round(float(np.max(target[good])),2) if good.any() else None,
-        "undetect_fraction":round(float(noecho.mean()),4)
-    }
-    return encoded,stats
+    pixels,stats=encode_target(target,kind)
+    stats["source_format"]="COG-TIFF"
+    return pixels,stats
 
 def build(out:Path, counts:dict[str,int]|None=None)->dict:
     if counts is None:counts=COUNT
@@ -172,11 +245,19 @@ def build(out:Path, counts:dict[str,int]|None=None)->dict:
                 # MeteoGate ORD may advertise a timestamp before the COG is
                 # present on S3. A 404 is missing data, never a zero-rain frame.
                 if response.status_code==404:
-                    LOG.warning("OPERA %s %s announced but COG not published (404)",
-                                kind,iso(stamp))
-                    continue
-                response.raise_for_status()
-                pixels,stats=decode_geotiff(response.content,kind,stamp)
+                    # MeteoGate officially publishes ODIM-H5 for the same
+                    # composite. Download and validate the actual HDF5 field
+                    # when the optional COG has not been produced.
+                    odim=session.get(s3url(stamp,kind,"h5"),timeout=85)
+                    if odim.status_code==404:
+                        LOG.warning("OPERA %s %s: neither COG nor ODIM-H5 published",
+                                    kind,iso(stamp))
+                        continue
+                    odim.raise_for_status()
+                    pixels,stats=decode_odim_h5(odim.content,kind,stamp)
+                else:
+                    response.raise_for_status()
+                    pixels,stats=decode_geotiff(response.content,kind,stamp)
             except requests.RequestException as exc:
                 LOG.warning("OPERA %s %s temporarily unavailable: %s",
                             kind,iso(stamp),exc)

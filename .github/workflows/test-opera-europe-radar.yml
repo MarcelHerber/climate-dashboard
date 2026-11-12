@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: GIS- und OPERA-COG-Bibliotheken
-        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3" "shapely>=2,<3"
+        run: pip install "numpy>=2,<3" "rasterio>=1.4,<2" "pillow>=11,<13" "requests>=2,<3" "h5py>=3.11,<4" "pyproj>=3.7,<4" "shapely>=2,<3"
       - name: Echtes OPERA-CIRRUS und NIMBUS abrufen
         run: python scripts/build_opera_europe_radar.py --out /tmp/opera-smoke --smoke
       - name: Natural Earth 10m Vektorgrenzen vorbereiten
