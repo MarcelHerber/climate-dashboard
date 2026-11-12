@@ -12,11 +12,12 @@ const BBOX={
  southwest:[-37,24,19,53],central:[-2,43,25,58],
  germany:[5,47,16,56]
 };
-let data=null,loading=null,failed=false,context={time:null,region:"europe",source:"mtgi1"};
+let data=null,loading=null,failed=false,errorDetail="",dataOrigin="",context={time:null,region:"europe",source:"mtgi1"};
 const MAX_SEPARATION=4*3600*1000; // never show a 12h old "matching" isobar field.
 const MAX_DATA_AGE=30*3600*1000;
-const MAX_STANDALONE_AGE=6*3600*1000; // latest forecast without a satellite image
+const MAX_STANDALONE_AGE=12*3600*1000; // older forecasts may be shown, clearly labelled
 const ns="http://www.w3.org/2000/svg";
+const ENDPOINTS=["./data/satellite_mslp/latest.json","https://raw.githubusercontent.com/MarcelHerber/climate-dashboard/main/data/satellite_mslp/latest.json"];
 function note(s){status.textContent=s;}
 function utc(time){return new Date(time).toISOString().slice(0,16).replace("T"," ")+" UTC";}
 function frameFor(time){
@@ -43,6 +44,7 @@ function draw(frame,bbox,gap){
  const px=(lon)=>((lon-minX)/(maxX-minX)*1000).toFixed(2);
  const py=(lat)=>((maxY-lat)/(maxY-minY)*1000).toFixed(2);
  const batch=document.createDocumentFragment();
+ let count=0;
  for(const lineSet of frame.contours){
   const hpa=lineSet.hpa;
   if(hpa%gap!==0)continue;
@@ -54,11 +56,11 @@ function draw(frame,bbox,gap){
    const shape=document.createElementNS(ns,"path");
    shape.setAttribute("d",coords.map((p,i)=>(i?"L":"M")+px(p[0])+" "+py(p[1])).join(" "));
    shape.setAttribute("fill","none");
-   shape.setAttribute("stroke",hpa%10===0?"#ffffff":"#dbeaf6");
-   shape.setAttribute("stroke-width",hpa%10===0?"1.45":"1");
+   shape.setAttribute("stroke",hpa%10===0?"#ffffff":"#bfe6ff");
+   shape.setAttribute("stroke-width",hpa%10===0?"2.3":"1.7");
    shape.setAttribute("vector-effect","non-scaling-stroke");
    shape.setAttribute("stroke-linejoin","round");
-   batch.appendChild(shape);
+   batch.appendChild(shape);count++;
    if(local.length>labelLen){labelLen=local.length;labelCandidate=local[Math.floor(local.length/2)];}
   }
   if(hpa%10===0&&labelCandidate&&labelLen>15){
@@ -71,6 +73,7 @@ function draw(frame,bbox,gap){
   }
  }
  svg.replaceChildren(batch);
+ return count;
 }
 function update(){
  const supported=context.source==="mtgi1"&&Boolean(BBOX[context.region]);
@@ -80,54 +83,72 @@ function update(){
  if(retry)retry.disabled=!active||Boolean(loading);
  svg.toggleAttribute("hidden",true);
  if(!active){svg.replaceChildren();note(!supported?"Isobaren für Erdscheibe/MTG-I2 nicht verfügbar (andere Projektion).":"Isobaren ausgeblendet.");return;}
- if(failed){svg.replaceChildren();note("ECMWF-Isobarenabruf fehlgeschlagen. Über „Isobaren neu laden“ erneut versuchen; Satellitenbilder bleiben unabhängig.");return;}
+ if(failed){svg.replaceChildren();note("ECMWF-Isobarenabruf fehlgeschlagen ("+errorDetail+"). „Isobaren neu laden“ startet einen neuen Versuch.");return;}
  if(!data){svg.replaceChildren();note("Lade echte ECMWF-IFS-Luftdruckdaten (0,25°) …");void load();return;}
  if(Date.now()-Date.parse(data.generated_at)>MAX_DATA_AGE){
   svg.replaceChildren();note("ECMWF-Druckdaten älter als 30 Stunden – Isobaren ausgeblendet. Bitte „Isobaren neu laden“ nutzen.");return;
  }
  const satelliteTime=Number.isFinite(Date.parse(context.time))?context.time:null;
- const frame=satelliteTime?frameFor(satelliteTime):latestIndependentFrame();
+ let frame=satelliteTime?frameFor(satelliteTime):null;
+ const aligned=Boolean(frame);
+ if(!frame)frame=latestIndependentFrame();
  if(!frame){
   svg.replaceChildren();
   note(satelliteTime
-   ?"Für Satellit "+utc(satelliteTime)+" fehlt ein ECMWF-Feld innerhalb von 4 Stunden. Keine unpassenden Isobaren einblenden."
-   :"Kein ECMWF-Feld mit Gültigkeit innerhalb der letzten 6 Stunden vorhanden. Isobaren ausgeblendet.");
+   ?"Für Satellit "+utc(satelliteTime)+" ist kein passendes ECMWF-Feld vorhanden. Auch kein aktueller eigenständiger Modellstand."
+   :"Kein ECMWF-Druckfeld mit Gültigkeit innerhalb der letzten 12 Stunden vorhanden. Bitte Datenaktualisierung prüfen.");
   return;
  }
- draw(frame,BBOX[context.region],Number(spacing.value)||5);
+ const lines=draw(frame,BBOX[context.region],Number(spacing.value)||5);
+ if(!lines){svg.toggleAttribute("hidden",true);note("ECMWF-Daten geladen, aber für diesen Kartenausschnitt liegen keine sichtbaren "+spacing.value+"-hPa-Isobaren vor.");return;}
  svg.toggleAttribute("hidden",false);
- const headline="ECMWF IFS "+utc(data.run_utc)+" · +"+frame.forecast_hour+" h Prognose · gültig "+utc(frame.valid_utc);
- if(satelliteTime){
+ const headline="ECMWF IFS Lauf "+utc(data.run_utc)+" · +"+frame.forecast_hour+" h Prognose · gültig "+utc(frame.valid_utc);
+ const age=Math.round((Date.now()-Date.parse(frame.valid_utc))/60000);
+ const origin=dataOrigin==="github"?"GitHub-Originaldaten (Ersatzabruf)":"veröffentlichtes Kartenarchiv";
+ if(satelliteTime&&aligned){
   const lag=Math.round((Date.parse(satelliteTime)-Date.parse(frame.valid_utc))/60000);
-  note(headline+" · Satellit "+utc(satelliteTime)+" ("+lag+" min später) · 0,25° · "+spacing.value+" hPa · © ECMWF (CC BY 4.0)");
+  note(headline+" · "+lines+" Linien · Satellit "+utc(satelliteTime)+" ("+lag+" min später) · "+spacing.value+" hPa · "+origin+" · © ECMWF");
  }else{
-  note(headline+" · eigenständige Modellansicht ohne verifiziertes Satellitenbild · nicht als Satellitenmessung verstehen · "+spacing.value+" hPa · © ECMWF (CC BY 4.0)");
+  note(headline+" · "+lines+" Linien · "+(satelliteTime?"zeitlich nicht synchron zum Satellitenbild":"eigenständige ECMWF-Karte ohne Satellitenbild")+
+   (age>180?" · Modellgültigkeit liegt "+age+" Minuten zurück":"")+" · "+spacing.value+" hPa · "+origin+" · © ECMWF");
  }
 }
 async function load(){
  if(loading||data||failed)return loading;
  loading=(async()=>{
+  const problems=[];
   try{
-   const r=await fetch("./data/satellite_mslp/latest.json",{cache:"no-store"});
-   if(!r.ok)throw Error("HTTP "+r.status);
-   const d=await r.json();
-   if(d.schema_version!==1||d.model!=="ECMWF IFS Open Data"||
-      d.field!=="mean sea-level pressure"||d.units!=="hPa"||
-      d.resolution_degrees!==0.25||d.interval_hpa!==5||
-      !Array.isArray(d.frames)||d.frames.length<1||
-      !Array.isArray(d.bbox)||d.bbox[0]>-70||d.bbox[2]<49||d.bbox[3]<75||
-      !Number.isFinite(Date.parse(d.run_utc))||
-      !Number.isFinite(Date.parse(d.generated_at)))throw Error("Ungültiges ECMWF-Isobarenformat");
-   for(const f of d.frames){
-    if(!Number.isFinite(Date.parse(f.valid_utc))||!Number.isInteger(f.forecast_hour)||
-       Date.parse(f.valid_utc)!==Date.parse(d.run_utc)+f.forecast_hour*3600000||
-       !Array.isArray(f.contours)||!f.contours.length||
-       f.contours.some(g=>g.hpa%5!==0||!Array.isArray(g.lines)))
-      throw Error("Ungültiger UTC- oder Konturendatensatz");
+   for(const [i,url] of ENDPOINTS.entries()){
+    try{
+     const r=await fetch(url,{cache:"no-store"});
+     if(!r.ok)throw Error("HTTP "+r.status);
+     const d=await r.json();
+     if(d.schema_version!==1||d.model!=="ECMWF IFS Open Data"||
+        d.field!=="mean sea-level pressure"||d.units!=="hPa"||
+        d.resolution_degrees!==0.25||d.interval_hpa!==5||
+        !Array.isArray(d.frames)||d.frames.length<1||
+        !Array.isArray(d.bbox)||d.bbox[0]>-70||d.bbox[2]<49||d.bbox[3]<75||
+        !Number.isFinite(Date.parse(d.run_utc))||
+        !Number.isFinite(Date.parse(d.generated_at)))throw Error("Ungültiges ECMWF-Isobarenformat");
+     for(const f of d.frames){
+      if(!Number.isFinite(Date.parse(f.valid_utc))||!Number.isInteger(f.forecast_hour)||
+         Date.parse(f.valid_utc)!==Date.parse(d.run_utc)+f.forecast_hour*3600000||
+         !Array.isArray(f.contours)||!f.contours.length||
+         f.contours.some(g=>g.hpa%5!==0||!Array.isArray(g.lines)))
+        throw Error("Ungültiger UTC- oder Konturendatensatz");
+     }
+
+     data=d;failed=false;errorDetail="";dataOrigin=i===0?"pages":"github";
+     break;
+    }catch(err){
+     problems.push((i===0?"GitHub Pages":"GitHub Rohdaten")+": "+(err?.message||String(err)));
+    }
    }
-   data=d;failed=false;
-  }catch(err){console.warn("ECMWF isobar overlay",err);failed=true;}
-  finally{loading=null;update();}
+   if(!data)throw Error(problems.join(" | "));
+  }catch(err){
+   console.warn("ECMWF isobar overlay",err);
+   failed=true;errorDetail=(err?.message||String(err)).slice(0,240);
+  }finally{loading=null;update();}
  })();
  return loading;
 }
@@ -136,7 +157,7 @@ function sync(next){
  update();
 }
 toggle.addEventListener("change",update);
-if(retry)retry.addEventListener("click",()=>{data=null;failed=false;svg.replaceChildren();void load();});
+if(retry)retry.addEventListener("click",()=>{if(loading)return;data=null;failed=false;errorDetail="";svg.replaceChildren();void load();});
 spacing.addEventListener("change",update);
 region.addEventListener("change",()=>{context.region=region.value;update();});
 source.addEventListener("change",()=>{context.source=source.value;update();});
