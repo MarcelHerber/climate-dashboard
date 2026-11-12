@@ -48,6 +48,7 @@ jobs:
         run: |
           python -m py_compile scripts/build_monthly_outlook_duett.py scripts/build_state_monthly_sun_outlook.py
           python -m unittest discover -s tests -p test_monthly_outlook_duett.py -v
+          python -m unittest discover -s tests -p test_check_duett_station_sun.py -v
           python -m unittest discover -s tests -p test_state_monthly_sun_outlook.py -v
           python -m unittest discover -s tests -p test_state_monthly_hydro_sum.py -v
 
