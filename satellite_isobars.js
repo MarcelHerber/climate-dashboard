@@ -62,7 +62,7 @@ async function loadTenIndex(force=false){
       idx.time_resolution_minutes!==10||idx.source_interval_hours!==3||
       !Number.isFinite(Date.parse(idx.run_utc))||
       !Number.isFinite(Date.parse(idx.generated_at))||
-      !idx.hours||Object.keys(idx.hours).length!==13)throw Error("Unsupported 10-minute pressure metadata");
+      !idx.hours||![13,19].includes(Object.keys(idx.hours).length))throw Error("Unsupported 10-minute pressure metadata");
    if(data&&Date.parse(idx.run_utc)<Date.parse(data.run_utc))return;
    if(tenIndex?.run_utc!==idx.run_utc){tenChunks.clear();tenFailed.clear();}
    tenIndex=idx;
@@ -78,7 +78,8 @@ function tenFrameAt(target){
     Date.now()-Date.parse(tenIndex.generated_at)>MAX_DATA_AGE||
     (data&&run<Date.parse(data.run_utc)))return null;
  const slot=Math.round((requested-run)/TEN_MS);
- if(slot<0||slot>72||Math.abs(run+slot*TEN_MS-requested)>5*60000)return null;
+ const lastHour=Object.keys(tenIndex.hours).length-1;
+ if(slot<0||slot>lastHour*6||Math.abs(run+slot*TEN_MS-requested)>5*60000)return null;
  const hour=Math.floor(slot/6),key="h"+String(hour).padStart(2,"0");
  const file=tenIndex.hours?.[key];
  if(typeof file!=="string"||!/^r\d{10}\/h\d{2}\.json$/.test(file))return null;
@@ -96,7 +97,7 @@ function tenFrameAt(target){
     const d=await fetchTenJson("./data/satellite_mslp/ten_minute/"+file);
     if(d.schema_version!==2||d.run_utc!==tenIndex?.run_utc||
        d.hour!==hour||!Array.isArray(d.frames)||
-       d.frames.length!==(hour===12?1:6)||
+       d.frames.length!==(hour===lastHour?1:6)||
        d.frames.some((f,i)=>!Array.isArray(f.contours)||!f.contours.length||
         Date.parse(f.valid_utc)!==run+(hour*6+i)*TEN_MS||
         f.interpolated!==((hour*6+i)%18!==0))){
