@@ -1,0 +1,57 @@
+name: Probe ECMWF NAO AO EOF archive and members
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/probe-ecmwf-eof-members.yml"
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Set up ECCODES and NCEP I/O
+        run: python -m pip -q install "numpy<3" eccodes ecmwf-opendata netCDF4 xarray requests
+      - name: Inspect NCEP monthly dataset and exact EPS member input
+        run: |
+          python - <<'PY'
+          import requests,time,os,tempfile
+          import eccodes,numpy as np
+          from ecmwf.opendata import Client
+          base="https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/pressure/hgt.mon.mean.nc"
+          for host in [base, "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Monthlies/pressure/hgt.mon.mean.nc"]:
+              try:
+                  r=requests.head(host,timeout=15,allow_redirects=True)
+                  print("NCEP head",host,r.status_code,r.headers.get("Content-Length"),r.headers.get("Content-Type"),flush=True)
+              except Exception as e:print("NCEP HEAD ERROR",str(e),flush=True)
+          try:
+              import netCDF4
+              ds=netCDF4.Dataset(base)
+              print("NCEP dims",[(k,len(v)) for k,v in ds.dimensions.items()],flush=True)
+              arr=ds.variables["hgt"][370:372,5,0:29,0:144]
+              print("NCEP sample",arr.shape,float(np.nanmin(arr)),float(np.nanmax(arr)),flush=True)
+              ds.close()
+          except Exception as e:print("NCEP OPeNDAP ERROR",repr(e),flush=True)
+          c=Client(source="ecmwf",model="ifs",resol="0p25",maximum_retries=2,retry_after=4)
+          for typ, kwargs in [("pf",{"number":[1,2,50]}),("fc",{})]:
+              with tempfile.TemporaryDirectory() as d:
+                  p=d+"/test.grib2"
+                  try:
+                      c.retrieve(time=0,stream="enfo" if typ=="pf" else "oper",type=typ,step=72,
+                                 param="z",levelist=[500,1000],target=p,**kwargs)
+                      print("ECMWF filesize",typ,os.path.getsize(p),flush=True)
+                      entries=[]
+                      with open(p,"rb") as f:
+                          while True:
+                              gid=eccodes.codes_grib_new_from_file(f)
+                              if gid is None:break
+                              entries.append({k:eccodes.codes_get(gid,k) for k in (
+                                  "shortName","level","step","number","numberOfDataPoints","typeOfLevel")})
+                              eccodes.codes_release(gid)
+                      print("EPS records",typ,entries,flush=True)
+                  except Exception as e:print("EPS retrieval ERROR",typ,repr(e),flush=True)
+          PY
