@@ -9,7 +9,8 @@ const html=fs.readFileSync("satelliten.html","utf8");
 const satellite=fs.readFileSync("satelliten.js","utf8");
 
 class FakeElement{
- constructor(){this.value="";this.checked=true;this.disabled=false;this.hidden=true;this.textContent="";this.attrs={};this.children=[];this.listeners={};}
+ constructor(){this.value="";this.checked=true;this.disabled=false;this.hidden=true;this.textContent="";this.attrs={};this.children=[];this.listeners={};this.option2={hidden:false,disabled:false};}
+ querySelector(s){return s==='option[value="2"]'?this.option2:null;}
  addEventListener(key,fn){(this.listeners[key]??=[]).push(fn);}
  emit(key){for(const fn of this.listeners[key]||[])fn();}
  toggleAttribute(key,force){if(force){this.attrs[key]="";this.hidden=true;}else{delete this.attrs[key];this.hidden=false;}return force;}
@@ -223,6 +224,11 @@ test("European fine mode displays genuine 2-hPa contours, syncs and exports with
  await assert.rejects(api.exportAt(t,"atlantic",2),/nur für Europa/);
  api.sync({time:t,region:"atlantic",source:"mtgi1"});
  assert.equal(map.get("satIsobarSpacing").value,"5","Atlantic must reset to default 5 hPa");
+ assert.equal(map.get("satIsobarSpacing").option2.disabled,true);
+ assert.equal(map.get("satIsobarSpacing").option2.hidden,true);
+ api.sync({time:t,region:"central",source:"mtgi1"});
+ assert.equal(map.get("satIsobarSpacing").option2.disabled,false);
+ assert.equal(map.get("satIsobarSpacing").option2.hidden,false);
  api.sync({time:t,region:"disk",source:"mtgi1"});
  assert.equal(map.get("satIsobarSpacing").disabled,true);
 });
